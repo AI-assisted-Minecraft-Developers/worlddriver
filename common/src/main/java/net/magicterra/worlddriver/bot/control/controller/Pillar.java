@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.EnumSet;
 import java.util.List;
@@ -78,7 +79,7 @@ public final class Pillar implements Controller {
     @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        edge = wk.edgeAt(wk.route.step());
+        edge = wk.route.edgeAt(wk.route.step());
         armRecovery(wk, p, foot, world);
         // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
         // above. The latch used to run out its ticks here, jumping in place and re-placing into the
@@ -111,7 +112,7 @@ public final class Pillar implements Controller {
      * so supported sand and gravel work here.
      */
     private static void armRecovery(Walker wk, LivingEntity p, BlockPos foot, WorldView world) {
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         BlockPos wp = wk.route.path().get(wk.route.step());
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
         int upDy = wp.getY() - foot.getY();
@@ -146,8 +147,8 @@ public final class Pillar implements Controller {
             case SETTLE -> {
                 wk.blocks.breakHold(false);
                 wk.actionTicks = 0;
-                Walker.avatarForward(a, false);
-                wk.avatarJump(a, false);
+                Keys.forward(a, false);
+                wk.keys.jump(a, false);
                 p.setSprinting(false);
             }
             case RECOVER -> recover(wk, a, world, p);
@@ -198,26 +199,26 @@ public final class Pillar implements Controller {
             p.setXRot(0f);
             wk.blocks.breakHold(false);
             p.setSprinting(false);
-            Walker.avatarForward(a, true);
+            Keys.forward(a, true);
             if (p.horizontalCollision) wk.jumpTag = "riserHop";
-            wk.avatarJump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
+            wk.keys.jump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
             return;
         }
-        Walker.avatarForward(a, false);
+        Keys.forward(a, false);
         p.setSprinting(false);
         wk.totalTicks = 0;
         wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
         if (wk.route.step() != wk.pillar.edgeStep) { wk.pillar.edgeStep = wk.route.step(); wk.pillar.sinceJump = -1; }
         if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
             wk.blocks.breakHold(false);
-            wk.avatarJump(a, false);
+            wk.keys.jump(a, false);
             wk.error = "pillar stalled at " + wk.route.path().get(wk.route.step());
             wk.route.drop(wk.error);
             return;
         }
         for (BlockPos b : edge.toBreak) {
             if (world.isSolid(b)) {
-                wk.avatarJump(a, false);
+                wk.keys.jump(a, false);
                 wk.equipment.selectTool(b);
                 if (WalkerDig.bailOnBreathInfeasibleDig(wk, a, p, b)) return;
                 world.signals().digging = true;
@@ -263,7 +264,7 @@ public final class Pillar implements Controller {
         // calling this cell a float and advanced the pointer off an unplaced support.
         boolean shaftFlooded = WalkerGeometry.floodedShaft(world, wk.route.path().get(wk.route.step()));
         if (shaftFlooded || p.isInWater() || world.isWater(wk.route.path().get(wk.route.step()).offset(0, -1, 0))) {
-            wk.avatarJump(a, true);
+            wk.keys.jump(a, true);
             // gap#81: routine pillar/scaffold filler must not spend gathered wood.
             if (!shaftFlooded && wk.equipment.holdThrowawayPlaceable()) {
                 p.setXRot(89.5f);                       // look down to aim the support
@@ -279,10 +280,10 @@ public final class Pillar implements Controller {
         BlockPos place = edge.toPlace.get(0);                    // cell we fill (old feet cell)
         p.setXRot(89.5f);                                        // look straight down (snap)
         if (p.onGround()) {
-            wk.avatarJump(a, true);
+            wk.keys.jump(a, true);
             wk.pillar.sinceJump = 0;
         } else {
-            wk.avatarJump(a, false);
+            wk.keys.jump(a, false);
             if (wk.pillar.sinceJump >= 0) wk.pillar.sinceJump++;
             if (wk.pillar.sinceJump >= PILLAR_PLACE_DELAY) placeRung(wk, world, p, place);
         }
@@ -293,9 +294,9 @@ public final class Pillar implements Controller {
         wk.pillar.recoverLatch--;
         wk.actionTicks = 0;   // no planned edge action is running, so its timeout starts over
         wk.blocks.breakHold(false);
-        Walker.avatarForward(a, false);
+        Keys.forward(a, false);
         p.setSprinting(false);
-        Walker.avatarSneak(a, false);
+        Keys.sneak(a, false);
         p.setShiftKeyDown(false);
         // Clear the ceiling FIRST: a block where the head rises (tree-canopy leaves at
         // rung+2, a dirt overhang) makes the recovery jump RAM it — the bot can't gain
@@ -308,7 +309,7 @@ public final class Pillar implements Controller {
         // death, forbidDig is only a navigation preference, so safety wins over the constraint.
         BlockPos recCeiling = WorldConfig.allowBreak ? recoverCeiling(wk, p) : null;
         if (recCeiling != null) {
-            wk.avatarJump(a, false);
+            wk.keys.jump(a, false);
             // Preempting: suffocation is death, a navigation claim is a preference. The other
             // six walker digs queue behind whoever holds the slot; this one takes it.
             WalkerDig.avatarDigPreempt(wk, a, recCeiling, true);
@@ -318,9 +319,9 @@ public final class Pillar implements Controller {
         p.setXRot(89.5f);                         // look straight down to aim the support
         if (p.onGround()) {
             wk.jumpTag = "pillarRecoverRung";
-            wk.avatarJump(a, true);     // jump off the current rung
+            wk.keys.jump(a, true);     // jump off the current rung
         } else {
-            wk.avatarJump(a, false);
+            wk.keys.jump(a, false);
             placeRung(wk, world, p, wk.pillar.recoverCell);
         }
     }

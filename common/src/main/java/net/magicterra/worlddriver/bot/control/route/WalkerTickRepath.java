@@ -60,7 +60,7 @@ public final class WalkerTickRepath {
         // (stuck/wedged/off-path) stay live.
         boolean bridgingNow = false;
         if (ControlConfig.walkerBridgeHoldRepath) {
-            Move.Edge cbE = wk.edgeAt(wk.route.step()), nbE = wk.edgeAt(wk.route.step() + 1);
+            Move.Edge cbE = wk.route.edgeAt(wk.route.step()), nbE = wk.route.edgeAt(wk.route.step() + 1);
             bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
                     || (nbE != null && "bridgePlace".equals(nbE.move));
         }

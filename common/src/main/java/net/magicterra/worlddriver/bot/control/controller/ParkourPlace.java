@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
@@ -44,7 +45,7 @@ public final class ParkourPlace implements Controller {
     @Override public int maxTicks() { return Integer.MAX_VALUE; }
 
     @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         if (edge == null || edge.move == null || !edge.move.startsWith("parkourPlace")) return "not a parkour-place edge";
         if (!hasPendingEdge(world, edge) && cx.frame.p.onGround()) return "landed on the placed block";
         return null;
@@ -56,7 +57,7 @@ public final class ParkourPlace implements Controller {
 
     @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         BlockPos dest = wk.route.path().get(wk.route.step());
         BlockPos floor = edge.toPlace.get(0);
         boolean placed = !hasPendingEdge(world, edge);   // landing block is down
@@ -79,11 +80,11 @@ public final class ParkourPlace implements Controller {
             LookController.requestSnap();   // a parkour leap's heading is functional — exempt from the global slew
         }
         p.setXRot(0f);
-        Walker.avatarForward(a, true);
-        wk.avatarJump(a, !placed && grounded);   // jump off the lip once
+        Keys.forward(a, true);
+        wk.keys.jump(a, !placed && grounded);   // jump off the lip once
         boolean sprint = !placed;                          // brake after the block is down
         p.setSprinting(sprint);
-        Walker.avatarSneak(a, placed);               // sneak-brake / ledge-guard on landing
+        Keys.sneak(a, placed);               // sneak-brake / ledge-guard on landing
         p.setShiftKeyDown(placed);
         if (!placed && !grounded && wk.equipment.holdPlaceable()) {
             // 4.0, not the full blockReachToCentre(p): this fires MID-LEAP, so the eye read

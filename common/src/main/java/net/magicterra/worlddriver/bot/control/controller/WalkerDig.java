@@ -83,7 +83,7 @@ public final class WalkerDig {
         LivingEntity p = a.entity();
         if (p == null || p.onGround() || p.isInWater() || wk.blocks.destroyProgress() < 0) return;
         if (wk.route.step() + 1 >= wk.route.path().size()) return;
-        Move.Edge cur = wk.edgeAt(wk.route.step()), next = wk.edgeAt(wk.route.step() + 1);
+        Move.Edge cur = wk.route.edgeAt(wk.route.step()), next = wk.route.edgeAt(wk.route.step() + 1);
         if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) return;
         if (cur != null && PathSmoothing.hasPendingEdge(world, cur)) return;
         BlockPos b = null;

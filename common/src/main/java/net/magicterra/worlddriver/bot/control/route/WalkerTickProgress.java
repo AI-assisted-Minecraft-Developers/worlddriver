@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -38,6 +39,97 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickProgress {
+    /**
+     * One line per STEP ADVANCE — which gate consumed the node, and whether the bot was standing
+     * on anything when it did.
+     *
+     * <p><b>The pair of readings that separates two step-advance stories.</b> A pointer that has
+     * moved past a node is consistent with the bot having reached it and with the bot having been
+     * mid-jump over it, and the vertical distance alone cannot tell them apart: the {@code passed}
+     * gate's {@code |nx.y − p.y| < 1.2} reachability bar is evaluated against the bot's y AT THIS
+     * INSTANT, and a 0.42 impulse lifts a grounded bot ~1.25 blocks, so a node two above the
+     * FLOOR reads as within reach at the top of a jump the bot cannot stay at. {@code onGround},
+     * {@code soleOnSolid} and {@code fallSpeed} therefore ride on the same line as the two |Δy|
+     * terms — a distance without a footing is the same row in both worlds, and the whole point of
+     * the line is that they be different rows.
+     *
+     * <p>{@code soleOnSolid} is {@link WalkerGeometry#soleOnSolid}, the predicate the walker's
+     * footing guards steer by, deliberately rather than a second opinion about what standing means:
+     * an executor and a reading that answer that question differently is how a diagnosis comes to
+     * describe a bot that does not exist.
+     *
+     * <p><b>{@code cause=} is the branch that FIRED, not a reconstruction.</b> The flags are passed in
+     * from the decision site and joined, so two simultaneously-true gates print as {@code
+     * within+passed} instead of the caller having to pick one, and an advance matching NONE of the
+     * named flags prints {@code other} — a chain whose last arm is a real gate name would label every
+     * unmatched case as that gate and could never report that the labels had fallen behind the
+     * expression. {@code cur2}/{@code nd2}/{@code overshot} come from the same site for the same
+     * reason; {@code nd2=NaN} is the honest reading for a tick where {@code within} fired and the
+     * {@code passed} arithmetic never ran.
+     *
+     * <p>Capped like {@link #noteJumpSource} and for the same reason, with the same one-shot
+     * {@code cap reached} line — and, as there, the gate is an ORDINAL and never the clock:
+     * {@code wd.buriedOre} pumps its whole body inside ONE server tick, so a game-time latch would
+     * print the first line and go blind for the rest of the run. NOT gated on
+     * {@code GameConfig.walkerDebug}, which that scene switches off.
+     */
+    public void noteStepAdvance(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
+                         String cause, double cur2, double nd2, boolean overshot) {
+        if (seenLegEpoch != wk.tel.legEpoch) {             // a new walk: fresh budget, see WalkerTelemetry#newLeg
+            seenLegEpoch = wk.tel.legEpoch;
+            stepAdvEvents = 0;
+            stepAdvCapped = false;
+        }
+        if (stepAdvEvents >= STEP_ADV_EVENTS) {
+            if (!stepAdvCapped) {
+                stepAdvCapped = true;
+                LOG.info("[walker] step advance: seq={}+/{} cap reached, later events are not logged (printed once)",
+                        STEP_ADV_EVENTS + 1, STEP_ADV_EVENTS);
+            }
+            return;
+        }
+        stepAdvEvents++;
+        wk.tel.stepAdvancesLogged++;
+        LOG.info("[walker] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
+                        + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} soleOnSolid={} fallSpeed={}",
+                stepAdvEvents, STEP_ADV_EVENTS, cause, wk.route.step(), wk.route.step() + 1,
+                w == null ? "none" : w.toShortString(),
+                nx == null ? "none(last node)" : nx.toShortString(),
+                foot == null ? "none" : foot.toShortString(),
+                String.format(Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                String.format(Locale.ROOT, "%.3f", cur2), String.format(Locale.ROOT, "%.3f", nd2), overshot,
+                w == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(w.getY() - p.getY())),
+                nx == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(nx.getY() - p.getY())),
+                p.onGround(),
+                world == null ? "?" : String.format(Locale.ROOT, "%.4f", soleOnSolid(world, p)),
+                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y));
+    }
+
+    /**
+     * Step-advance lines emitted per WALK before the latch goes quiet.
+     *
+     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per walker</b>, and
+     * a walker outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first
+     * seconds of a 5 209-tick crossing, so the four wedged hops that are the entire question —
+     * 900 ticks each, 61 to 76 walk edges apiece — produced not one advance line between them. The
+     * reading those hops need is whether the pointer advanced through nodes the bot never walked,
+     * and that is exactly what an exhausted latch cannot say. 64 covers the 61 edges the worst
+     * measured hop walked, so a wedge can be read end to end instead of only its opening.
+     *
+     * <p><b>Still bounded, and per walk rather than unbounded</b>: 24 hops x 64 lines of ~300 chars
+     * is about 460 KB for a whole crossing, which is a log a human opens. An uncapped advance log
+     * over a wedged hop is how a 40-minute run becomes an unreadable one.
+     */
+    public static final int STEP_ADV_EVENTS = 64;
+
+    private int stepAdvEvents;
+
+    /** The walk this walker last refreshed its advance budget for — see {@link WalkerTelemetry#newLeg}. */
+    private int seenLegEpoch = -1;
+
+    /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
+    private boolean stepAdvCapped;
+
     /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
      *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
     public int finalNodeHold;
@@ -563,7 +655,7 @@ public final class WalkerTickProgress {
         int prevY = foot.getY() + 1;
         for (int k = wk.route.step() + 1; k < wk.route.path().size() && k <= wk.route.step() + DROP_AHEAD_NODES; k++) {
             BlockPos n = wk.route.path().get(k);
-            Move.Edge e = wk.edgeAt(k);
+            Move.Edge e = wk.route.edgeAt(k);
             if (n.getY() > prevY || n.getY() < foot.getY() || e == null || e.move == null
                     || !(e.move.equals("walk") || e.move.equals("stepDown") || e.move.equals("diagDown"))
                     || !e.toBreak.isEmpty() || !e.toPlace.isEmpty()) return -1;
@@ -624,7 +716,7 @@ public final class WalkerTickProgress {
 
     /** On a plain walk leg w → nx: within {@link #LEG_HALF_WIDTH} of its centre line, forward of w. */
     private boolean onLeg(Walker wk, BlockPos w, BlockPos nx, LivingEntity p) {
-        if (!plainFlatWalk(wk.edgeAt(wk.route.step() + 1))) return false;
+        if (!plainFlatWalk(wk.route.edgeAt(wk.route.step() + 1))) return false;
         double ax = nx.getX() - w.getX(), az = nx.getZ() - w.getZ(), len = Math.hypot(ax, az);
         double px = p.getX() - (w.getX() + 0.5), pz = p.getZ() - (w.getZ() + 0.5);
         return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
@@ -687,8 +779,8 @@ public final class WalkerTickProgress {
             if (wk.route.seg.activeSearch == null || diveIntentWaterHold
                     || (!RouteStubs.landBeeline(wk, world, foot, wk.goal)
                         && !RouteStubs.quickStart(wk, world, foot, wk.goal) && !RouteStubs.waterBeeline(wk, world, foot, wk.goal))) {
-                Walker.avatarForward(a, false);
-                wk.avatarJump(a, false);
+                Keys.forward(a, false);
+                wk.keys.jump(a, false);
                 p.setSprinting(false);
                 return TickStep.WALKING;
             }
@@ -721,7 +813,7 @@ public final class WalkerTickProgress {
         // count the whole climb as stuck. Bridge edges still hard-zero the counter
         // (a sneak crawl barely moves the carrot, so even node-distance can stall
         // mid-place).
-        Move.Edge curBridgeE = wk.edgeAt(wk.route.step()), nxtBridgeE = wk.edgeAt(wk.route.step() + 1);
+        Move.Edge curBridgeE = wk.route.edgeAt(wk.route.step()), nxtBridgeE = wk.route.edgeAt(wk.route.step() + 1);
         boolean onBridge = (curBridgeE != null && "bridgePlace".equals(curBridgeE.move))
                 || (nxtBridgeE != null && "bridgePlace".equals(nxtBridgeE.move));
         // Jitter-immune WEDGE timer: counts raw ticks the bot stays on the SAME path
@@ -869,7 +961,7 @@ public final class WalkerTickProgress {
 
         int dropAheadTo = dropAheadTarget(wk, world, p, foot);
         while (wk.route.step() < wk.route.path().size()) {
-            Move.Edge se = wk.edgeAt(wk.route.step());
+            Move.Edge se = wk.route.edgeAt(wk.route.step());
             // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
             // a water-filled shaft. Detect it from the WORLD — the cell being risen
             // FROM is water — not p.isInWater(), which flickers false at the bob peak
@@ -1289,7 +1381,7 @@ public final class WalkerTickProgress {
                 if (holdLastNode(wk, foot, w)) break;
                 // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
                 // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
-                wk.noteStepAdvance(world, p, foot, w, nxt,
+                noteStepAdvance(wk, world, p, foot, w, nxt,
                         advanceCause(within, passed, tailConsumed, crossedDescendNode, crossedWalkNode,
                                 waterStepDownFloat, stepUpCrestReach, waterWalkReach,
                                 ControlConfig.walkerArcLengthAdvance && arc.proj.segIdx > wk.route.step(),
@@ -1321,8 +1413,8 @@ public final class WalkerTickProgress {
                         // fresh foot-search next tick instead of hanging on an
                         // unreachable step 1.
                         wk.route.abandonSegment("continuation refused: " + adoption.refusal());
-                        Walker.avatarForward(a, false);
-                        wk.avatarJump(a, false);
+                        Keys.forward(a, false);
+                        wk.keys.jump(a, false);
                         p.setSprinting(false);
                         return TickStep.WALKING;
                     }
@@ -1331,7 +1423,7 @@ public final class WalkerTickProgress {
                     // Stale eager continuation found nothing — at a chunk frontier the
                     // newly-loaded terrain may now reveal the next segment, so re-search
                     // fresh before giving up (bounded).
-                    return wk.frontierHoldOrArrive(a, world, p);
+                    return wk.search.frontierHoldOrArrive(wk, a, world, p);
                 }
             } else {
                 if (!wk.route.replay() && wk.route.seg.activeSearch == null && wk.route.seg.commitEnd != null) wk.route.searchFromEnd(wk, world);
@@ -1342,8 +1434,8 @@ public final class WalkerTickProgress {
                 if (wk.route.replay() || wk.route.seg.activeSearch == null
                         || (!RouteStubs.landBeeline(wk, world, foot, wk.goal)
                             && !RouteStubs.waterBeeline(wk, world, foot, wk.goal) && !RouteStubs.quickStart(wk, world, foot, wk.goal))) {
-                    Walker.avatarForward(a, false);
-                    wk.avatarJump(a, false);
+                    Keys.forward(a, false);
+                    wk.keys.jump(a, false);
                     p.setSprinting(false);
                     return TickStep.WALKING;
                 }

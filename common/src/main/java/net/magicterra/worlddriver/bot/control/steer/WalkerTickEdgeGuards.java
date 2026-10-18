@@ -40,10 +40,10 @@ public final class WalkerTickEdgeGuards {
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         if (GameConfig.walkerDebug) trace(wk, p, world, edge);
         BlockPos wp = wk.route.path().get(wk.route.step());
-        Move.Edge nextEdge = wk.edgeAt(wk.route.step() + 1);
+        Move.Edge nextEdge = wk.route.edgeAt(wk.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
         if (parkourEdge) wk.safety.guardParkourTick = true;
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),

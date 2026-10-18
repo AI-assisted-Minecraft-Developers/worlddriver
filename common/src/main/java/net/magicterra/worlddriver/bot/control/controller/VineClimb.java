@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
@@ -47,7 +48,7 @@ public final class VineClimb implements Controller {
     @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         BlockPos wp = wk.route.path().get(wk.route.step());
         parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
         // parkour→vine HANDOFF (fix Q, A/B-validatable via the DETERMINISTIC vineOverWaterClimbArena). A
@@ -211,13 +212,13 @@ public final class VineClimb implements Controller {
             a.commandMove((float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE),
                           (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
         } else {
-            Walker.avatarForward(a, pressForward);      // forward INTO the wall (wall-backed climb)
+            Keys.forward(a, pressForward);      // forward INTO the wall (wall-backed climb)
         }
         // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
         // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
         if (freeHang || climbUp) wk.jumpTag = "vineClimb";
-        wk.avatarJump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
-        Walker.avatarSneak(a, false);              // sneak would HALT the vine climb
+        wk.keys.jump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
+        Keys.sneak(a, false);              // sneak would HALT the vine climb
         p.setShiftKeyDown(false);
         p.setSprinting(false);
         if (GameConfig.walkerDebug)

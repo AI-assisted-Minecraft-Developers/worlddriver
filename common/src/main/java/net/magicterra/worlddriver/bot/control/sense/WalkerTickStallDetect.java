@@ -143,7 +143,7 @@ public final class WalkerTickStallDetect {
         // pathLen=0 → goto FAILED (live 2026-06-09, mountain cave). The break
         // actuator has its own breakTimeoutTicks watchdog, so a dig that's truly
         // stuck (no line of sight, unreachable cell) still escapes after the sum.
-        Move.Edge wedgeEdge = (wk.route.path() != null && wk.route.step() < wk.route.path().size()) ? wk.edgeAt(wk.route.step()) : null;
+        Move.Edge wedgeEdge = (wk.route.path() != null && wk.route.step() < wk.route.path().size()) ? wk.route.edgeAt(wk.route.step()) : null;
         // "Actively mining" = the break-edge leash/exemption applies ONLY while the
         // pick is actually swinging (breakHold set by last tick's actuator). A
         // breaking edge whose APPROACH is wedged — hCol-pinned short of the dig
@@ -507,7 +507,7 @@ public final class WalkerTickStallDetect {
     }
 
     private boolean onPlainLane(Walker wk, BlockPos node, BlockPos foot, LivingEntity p) {
-        return wk.route.step() >= 1 && !p.isInWater() && plainFlatWalk(wk.edgeAt(wk.route.step()))
+        return wk.route.step() >= 1 && !p.isInWater() && plainFlatWalk(wk.route.edgeAt(wk.route.step()))
                 && wk.route.path().get(wk.route.step() - 1).getY() == node.getY() && foot.getY() == node.getY()
                 && wk.profile.bias().isEmpty() && wk.profile.constraints().isEmpty();
     }

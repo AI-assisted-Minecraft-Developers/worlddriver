@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -20,8 +21,8 @@ public final class StandToWork {
     public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, RouteDig.Work work) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Walker.avatarForward(a, false);
-        wk.avatarJump(a, false);
+        Keys.forward(a, false);
+        wk.keys.jump(a, false);
         p.setSprinting(false);
         if (work == null || work.cell() == null) return TickStep.WALKING;
         String move = work.move();
@@ -54,9 +55,9 @@ public final class StandToWork {
                     && !p.onGround() && !p.isUnderWater();
             boolean climbBreak = floatingPocket && work.cell().getY() >= foot.getY();
             if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
-                Walker.avatarForward(a, true);     // press into the aimed bank (surface only)
+                Keys.forward(a, true);     // press into the aimed bank (surface only)
                 if (climbBreak || move.startsWith("swimAshore"))
-                    wk.avatarJump(a, true);   // rise to mount the +1 / out of the pocket
+                    wk.keys.jump(a, true);   // rise to mount the +1 / out of the pocket
             }
         } else if (work.kind() == RouteDig.Kind.PLACE) {
             // Descending-place LIP ANCHOR (task#4, replay-0013): the place
@@ -71,7 +72,7 @@ public final class StandToWork {
             // performs the planned step-down. Same-level places are untouched.
             if (ControlConfig.walkerBridgeDescentPlaceAnchor
                     && work.cell().getY() < foot.getY() && p.onGround()) {
-                Walker.avatarSneak(a, true);
+                Keys.sneak(a, true);
                 p.setShiftKeyDown(true);
             }
         }

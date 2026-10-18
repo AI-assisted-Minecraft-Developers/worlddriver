@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.bot.control.AscendMovement;
@@ -88,6 +89,127 @@ import net.magicterra.worlddriver.bot.control.controller.WalkerDig;
  * on {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
 public final class WalkerTickDrive {
+    /** How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link
+     *  WalkerGeometry#HOP_RANGE} on purpose: the point of the reading is to show whether the gate's
+     *  radius is SHORTER than the throw it guards against, and a scan that stops at the gate's own
+     *  radius can only ever answer "clean", which is the answer already in doubt. */
+    private static final int WIGGLE_SCAN_MAX = 4;
+
+    /**
+     * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
+     *
+     * <p>Moved out of {@code WalkerTickDrive}'s jump expression because the decision needed a
+     * number the expression threw away. It began as {@code lethalDropWithinHopRange}, a boolean
+     * over Chebyshev ≤{@link WalkerGeometry#HOP_RANGE} of the LAUNCH cell; printing the RING
+     * instead of the boolean is what showed the radius (2) to be shorter than the arc (measured
+     * 3.47), and printing the CELL is what made a bearing computable. <b>Those numbers are still
+     * inputs — do not read the conclusion off the comment.</b>
+     *
+     * <p><b>The gate is no longer that ring.</b> It is {@link WalkerGeometry#hopSuppressed}: the
+     * columns the arc would come down in along the drive bearing. The stuck window is unchanged
+     * ({@code precond && stuckTicks > 10 && stuckTicks < 18}), so the scan still runs only inside
+     * it, exactly as the old short-circuit arranged; only the predicate after it moved.
+     *
+     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a bot sits in it for
+     * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
+     * {@link #WIGGLE_EVENTS} so a bot that stalls repeatedly still cannot flood a rehearsal log.
+     *
+     * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was
+     * {@code getGameTime() - wiggleLastTick > 1}, which cannot see anything in a scene whose whole
+     * method runs inside one server tick — {@code wd.buriedOre}'s 800 {@code tickAll()} iterations,
+     * the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now} never moves,
+     * so after the first line the delta is 0 forever and one line is printed however many times the
+     * bot entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the
+     * precondition, so {@code call - wiggleLastCall > 1} means exactly "the immediately preceding
+     * call was not itself inside the window" — the same event in a per-tick world (this is called
+     * at most once per walker tick) and a working one in a one-tick world. {@code seq=} is the
+     * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen; a
+     * trailing {@code seq=5+/4 cap reached} line (and only that line) means a further entry was
+     * swallowed, so {@code seq=4/4} alone still means "exactly four entries".
+     *
+     * <p><b>And the bearing, measurement only.</b> The ring answered "is the reach shorter than the
+     * throw" — yes, by one — but the answer does NOT license widening it: one directed rehearsal
+     * caught both sides, ring 3 firing (a ladder bot took that into a lava lake) and ring 2 holding
+     * through a three-minute stall. Direction is what separates them, so {@link
+     * WalkerGeometry#hopBearingRow} prints where the bot points against where the lethal cell is.
+     * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
+     * ⚠️ That row prints the CAMERA; the bot is pushed along {@code driveTargetYaw}, decoupled
+     * from it by design, so it is NOT the gate. The gate is {@link WalkerGeometry#hopSuppressed} —
+     * the arc's own landing columns along the DRIVE bearing, which subsumes the ring test rather
+     * than joining it — and {@link WalkerGeometry#hopLandingRow} prints the cells it read.
+     *
+     * <p>Why this earns a line at all: rung 20's takeoff samples showed the bot already airborne
+     * with {@code sinceLastJump=7}, and eliminating the jump terms that need a riser or water leaves
+     * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
+     * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
+     * This is the reading.
+     */
+    public boolean wiggleHop(Walker wk, WorldView world, LivingEntity p, BlockPos foot,
+                      boolean precond, float driveYaw) {
+        long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
+        if (!(precond && wk.stuckTicks > 10 && wk.stuckTicks < 18)) return false;
+        BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
+        int ring = WalkerGeometry.ringOf(foot, lethal);
+        boolean gated = ControlConfig.walkerRecoveryHopFloorGate && WalkerGeometry.hopSuppressed(world, p, foot, driveYaw);
+        if (!gated && call - wiggleLastCall > 1) wk.tallies.recoveryHops++;   // one per window entry, not per tick
+        if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
+            wiggleEvents++;
+            LOG.info("[walker] recovery hop: seq={}/{} t={} stuck={} foot={} exact=({}) ringGateRadius={} nearestLethalRing={} gate={} jump={} {} | {}",
+                    wiggleEvents, WIGGLE_EVENTS,
+                    p.level().getGameTime(), wk.stuckTicks, foot.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                    WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
+                    ControlConfig.walkerRecoveryHopFloorGate, !gated,
+                    WalkerGeometry.hopBearingRow(p, foot, lethal),
+                    WalkerGeometry.hopLandingRow(world, p, foot, driveYaw));
+        } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
+            // Same blind spot as the jump-source cap: "seq=4/4" is the last line both when the bot
+            // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
+            // times. One line, at the first entry the cap actually swallowed.
+            wiggleCapped = true;
+            LOG.info("[walker] recovery hop: seq={}+/{} cap reached, later events are not logged (printed once)",
+                    WIGGLE_EVENTS + 1, WIGGLE_EVENTS);
+        }
+        wiggleLastCall = call;
+        return !gated;
+    }
+
+    /**
+     * Recovery-hop events logged per walker before the latch goes quiet.
+     *
+     * <p>Sixteen, not four. The budget is per WALKER INSTANCE — {@code wiggleEvents} is an instance
+     * field with no reset, and every process carries its own {@code new Walker(…)} — so it is spent
+     * per settle, not per run. That is not as generous as it sounds, because a single stall episode
+     * burns it: on 2026-08-26 rung 12's bot stalled on a lava lake's rim, spent all four inside
+     * thirteen seconds, and printed seq=5+/4 for the hops that mattered — the ones between the last
+     * logged position and the bot's death in the lake. A cap that runs out inside the one stall
+     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded
+     * — the line is one per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line
+     * still says when even that was not enough. Measured: one rehearsal stall printed six
+     * consecutive suppressed hops (ring 2, gate=true, jump=false), of which a cap of four would
+     * have shown four.
+     */
+    private static final int WIGGLE_EVENTS = 16;
+
+    private int wiggleEvents;
+
+    /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
+    private boolean wiggleCapped;
+
+    /** Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of
+     *  the last call that was inside the stall window. See that method's javadoc. */
+    private long wiggleCalls;
+
+    private long wiggleLastCall = Long.MIN_VALUE / 4;
+
+    /** task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already
+     *  test — a plain stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp.
+     *  stepUp2 (+2, horse) and parkourAscend* are excluded (spec §10). Cheap string check so the OFF
+     *  delegation short-circuit costs nothing. */
+    public static boolean isMigratedAscent(String move) {
+        return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
+    }
+
     /** The first parkour takeoff this walk ever made — see {@link #noteParkourTakeoff}. */
     public String parkourTakeoff;
 
@@ -482,7 +604,7 @@ public final class WalkerTickDrive {
         // return here skips the shared drive and forces a re-implementation — the disproven Option-A
         // trap). The machine owns only the per-edge episode + dead-zone watchdog; step advancement
         // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
-        if (ControlConfig.walkerAscendMovement && edge != null && Walker.isMigratedAscent(edge.move) && !p.isInWater()) {
+        if (ControlConfig.walkerAscendMovement && edge != null && isMigratedAscent(edge.move) && !p.isInWater()) {
             MovementContext ctx = new MovementContext(
                     p, world, a, edge, foot, wk.route.path().get(wk.route.step()),
                     world.maxJumpUpBlocks(), world.maxStepUpBlocks(),
@@ -1115,7 +1237,7 @@ public final class WalkerTickDrive {
         // (StandToWork, while RouteDig places) covers the aim ticks; this covers the approach.
         boolean descentPlacePending = false;
         if (ControlConfig.walkerBridgeDescentPlaceAnchor && bridging && plannedDescent) {
-            Move.Edge nextE = wk.edgeAt(wk.route.step() + 1);
+            Move.Edge nextE = wk.route.edgeAt(wk.route.step() + 1);
             outer:
             for (Move.Edge e : new Move.Edge[]{edge, nextE}) {
                 if (e == null) continue;
@@ -1182,7 +1304,7 @@ public final class WalkerTickDrive {
                 && wp.getY() <= foot.getY();
         boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
         Cruise cruise = surfaceCruise(wk, world, p, a, foot, wp, diving, diveUnderCap);
-        Walker.avatarSneak(a, brakeSneak || diving || lavaBrake || underwaterSink || cruise.dip());
+        Keys.sneak(a, brakeSneak || diving || lavaBrake || underwaterSink || cruise.dip());
         p.setShiftKeyDown(brakeSneak || lavaBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -1230,7 +1352,7 @@ public final class WalkerTickDrive {
         // along a mid-slew heading clean over the deck (bridge battery, every shed).
         // Hop-range (Chebyshev ≤2) against an arc MEASURED at 3.47, launched from a floored cell one
         // stride INSIDE the rim — foot-adjacent scans stay blind. driveTargetYaw, not the camera: WalkerGeometry.hopLandingRow.
-        boolean wiggle = wk.wiggleHop(world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp, driveTargetYaw);
+        boolean wiggle = wiggleHop(wk, world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp, driveTargetYaw);
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
         // water just swims the bot up to bob at the surface (y+0.2, onGround=false)
@@ -1401,7 +1523,7 @@ public final class WalkerTickDrive {
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
                     : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "other";
         }
-        if (parkourEdge) noteParkourTakeoff(world, a, p, jump, foot);  wk.avatarJump(a, jump);  // latch: WalkerInspector.parkourTakeoff()
+        if (parkourEdge) noteParkourTakeoff(world, a, p, jump, foot);  wk.keys.jump(a, jump);  // latch: WalkerInspector.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in
@@ -1586,7 +1708,7 @@ public final class WalkerTickDrive {
             else if (n.getY() != foot.getY()) return Double.NaN;
         }
         if (idx < 0) return Double.NaN;
-        Move.Edge e = wk.edgeAt(idx);
+        Move.Edge e = wk.route.edgeAt(idx);
         if (e == null || e.move == null || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp")) || hasPendingEdge(world, e)) {
             tick.leadWhy = "edge:" + (e == null ? "null" : e.move);
             return Double.NaN;
@@ -1788,7 +1910,7 @@ public final class WalkerTickDrive {
         double cx = p.getX(), cz = p.getZ(), run = 0, next = 1;
         for (int i = wk.route.step(); i < wk.route.path().size() && run < CRUISE_HOP_RUN; i++) {
             BlockPos n = wk.route.path().get(i);
-            if (n.getY() != foot.getY() || hasPendingEdge(world, wk.edgeAt(i))) return false;
+            if (n.getY() != foot.getY() || hasPendingEdge(world, wk.route.edgeAt(i))) return false;
             double nx = n.getX() + 0.5, nz = n.getZ() + 0.5, seg = Math.hypot(nx - cx, nz - cz);
             for (; next <= run + seg && next <= CRUISE_HOP_RUN; next++) {
                 double t = (next - run) / seg, sx = cx + (nx - cx) * t - p.getX(), sz = cz + (nz - cz) * t - p.getZ();

@@ -1,7 +1,10 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.steer.DriveLatches;
 import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.BotLevelHolder;
+import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.bot.control.controller.StickyDig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -34,6 +37,32 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickPrelude {
+    /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
+    public void sampleTick(Walker wk, LivingEntity p) {
+        // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
+        // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
+        if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) return;
+        // Expose the bot's level to PathArchiveRecorder (and other PathTrace sinks) without
+        // referencing the client-only Minecraft class.  Set here — before onSearchResult or
+        // onSearchBegin can fire within the same tick (both sites are below line 451) — so
+        // the first segment's NodePhysics and envelope sampling always see a non-null level.
+        BotLevelHolder.current = p.level();
+        double tx = Double.NaN, tz = Double.NaN;
+        String mv = null;
+        if (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()) {
+            BlockPos t = wk.route.path().get(wk.route.step());
+            tx = t.getX() + 0.5;
+            tz = t.getZ() + 0.5;
+            Move.Edge e = wk.route.edgeAt(wk.route.step());
+            mv = (e != null) ? e.move : null;
+        }
+        boolean overlap = !p.level().noCollision(p, p.getBoundingBox().deflate(1.0E-7));
+        PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
+                p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
+                tx, tz, wk.route.step(), mv, p.onGround(), p.isInWater(),
+                p.getPose().name(), overlap, p.getId()));
+    }
+
     /** Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved
      *  travel tick can't release attack (a single released tick resets vanilla mining
      *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
@@ -163,8 +192,8 @@ public final class WalkerTickPrelude {
         // sneaking" so any path that returns without setting them can't leak a stale
         // value — branches below override as needed. (jump only matters on the ground,
         // so a default-false on an airborne tick is a no-op; see AvatarInput.)
-        wk.avatarJump(a, false);
-        Walker.avatarSneak(a, false);
+        wk.keys.jump(a, false);
+        Keys.sneak(a, false);
 
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
@@ -188,8 +217,8 @@ public final class WalkerTickPrelude {
         if (descending) {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
-                Walker.avatarForward(a, false);
-                wk.avatarJump(a, false);
+                Keys.forward(a, false);
+                wk.keys.jump(a, false);
                 p.setSprinting(false);
                 if (GameConfig.walkerDebug)
                     LOG.info(
@@ -244,7 +273,7 @@ public final class WalkerTickPrelude {
         if (ControlConfig.walkerSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
                 && !world.canStandAt(foot) && world.canStandAt(foot.below()))
             searchFoot = foot.below();
-        wk.sampleTick(p);
+        sampleTick(wk, p);
         // One-shot goal snap (needs a live WorldView, so here not in start): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
         // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
@@ -279,7 +308,7 @@ public final class WalkerTickPrelude {
             // lower goal cell mid-arc while still airborne and carrying forward
             // momentum; declaring ARRIVED there skips the landing brake and the
             // bot overshoots the 1-wide block into the void. Hold until grounded.
-            Move.Edge ce = wk.edgeAt(wk.route.step());
+            Move.Edge ce = wk.route.edgeAt(wk.route.step());
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));

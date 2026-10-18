@@ -35,6 +35,53 @@ import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickAim {
+    /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
+     *  along the path (interpolated between nodes), capped by line-of-sight —
+     *  the pure-pursuit "carrot". Because it's interpolated (not snapped to a
+     *  discrete node), the bearing to it changes smoothly as the player moves,
+     *  so the heading doesn't wobble over the cardinal/diagonal staircase.
+     *  Stops at a wall/turn or an action cell so it never aims through one.
+     *  Returns {x, z} world coords. */
+    public double[] carrotPoint(Walker wk, WorldView world, BlockPos foot, double px, double pz) {
+        double remaining = CARROT_DIST;
+        // Sustained wall collision → the far carrot is steering the bot at a gap only
+        // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
+        // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
+        if (ControlConfig.walkerCarrotHColShrink && wk.stallDetect.churn.hColRamTicks >= 8) remaining = 0.01;
+        // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
+        // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
+        // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
+        double cx = px, cz = pz;
+        double tx = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()).getX() + 0.5 : px, tz = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()).getZ() + 0.5 : pz;
+        for (int i = wk.route.step(); i < wk.route.path().size() && i - wk.route.step() <= CARROT_MAX_NODES; i++) {
+            BlockPos node = wk.route.path().get(i);
+            double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
+            if (hasPendingEdge(world, wk.route.edgeAt(i))) return new double[]{nx, nz}; // face the action cell
+            boolean losOk = ControlConfig.walkerCarrotBodyLos
+                    ? PathSmoothing.losWalkableBody(world, foot, node)
+                    : losWalkable(world, foot, node);
+            if (!losOk) break;                                                 // don't aim past a wall
+            double seg = Math.hypot(nx - cx, nz - cz);
+            if (seg < 1e-6) { tx = nx; tz = nz; continue; }
+            if (remaining <= seg) {
+                double t = remaining / seg, ax = cx + (nx - cx) * t, az = cz + (nz - cz) * t;
+                // Past a corner the chord to the carrot is not the checked foot→node line: live
+                // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
+                // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
+                if (i > wk.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
+                    return new double[]{cx, cz};
+                return new double[]{ax, az};
+            }
+            // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
+            // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
+            // into the pit beside it (1541,62,-154), then pillared out (5 s).
+            if (ControlConfig.walkerCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
+            remaining -= seg;
+            cx = nx; cz = nz; tx = nx; tz = nz;
+        }
+        return new double[]{tx, tz};
+    }
+
     /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
      *  cleared on every journey reset via {@link DiveLatches#reset()}. */
     public final DiveLatches dive = new DiveLatches();
@@ -154,7 +201,7 @@ public final class WalkerTickAim {
     private int centroidEnd(Walker wk, WorldView world, BlockPos foot, int lastNode) {
         if (!ControlConfig.walkerCarrotStopAtRise) return lastNode;
         for (int k = wk.route.step(); k < lastNode; k++)
-            if (wk.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, wk.edgeAt(k))) return k;
+            if (wk.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, wk.route.edgeAt(k))) return k;
         return lastNode;
     }
 
@@ -555,7 +602,7 @@ public final class WalkerTickAim {
             adz = (wp.getZ() + 0.5) - p.getZ();
         } else {
             aimSrc = "carrot";
-            double[] c = wk.carrotPoint(world, foot, p.getX(), p.getZ());
+            double[] c = carrotPoint(wk, world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
             adz = c[1] - p.getZ();
             // Carrot-swing thrash fix (the residual deep-water stall cluster). When a bank
@@ -851,7 +898,7 @@ public final class WalkerTickAim {
             // not the bob's air gap.
             BlockPos losFoot = foot.getY() > wp.getY()
                     ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
-            double[] cp = wk.carrotPoint(world, losFoot, p.getX(), p.getZ());
+            double[] cp = carrotPoint(wk, world, losFoot, p.getX(), p.getZ());
             double cdx = cp[0] - p.getX(), cdz = cp[1] - p.getZ();
             if (GameConfig.walkerDebug && cdx * cdx + cdz * cdz <= 1.0)
                 LOG.info("[walker] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",

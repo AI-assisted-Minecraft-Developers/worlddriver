@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.EnumSet;
 import java.util.Set;
@@ -83,7 +84,7 @@ public final class DrownEscape implements Controller {
     @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        wk.avatarJump(a, true);
+        wk.keys.jump(a, true);
         wk.blocks.breakHold(false);
         p.setSprinting(false);
         boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
@@ -114,9 +115,9 @@ public final class DrownEscape implements Controller {
             p.setYRot(heading);
             p.yHeadRot = heading; p.yBodyRot = heading;
             p.setXRot(0f);
-            Walker.avatarForward(a, true);
+            Keys.forward(a, true);
         } else {
-            Walker.avatarForward(a, false);
+            Keys.forward(a, false);
         }
         return true;
     }

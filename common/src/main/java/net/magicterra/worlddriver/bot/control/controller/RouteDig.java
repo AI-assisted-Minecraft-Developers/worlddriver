@@ -66,7 +66,7 @@ public final class RouteDig implements Controller {
     @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
         work = null;
         LivingEntity p = cx.frame.p;
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         breakInReach = true;
         if (edge == null) return;
         for (BlockPos b : edge.toBreak) {
@@ -81,7 +81,7 @@ public final class RouteDig implements Controller {
     }
 
     @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         if (edge == null) return "no edge";
         // While a fall-below-route recovery climbs, the edge's HIGH break cell is out of reach from down
         // there: a dig would hold a futile swing until its own timeout and starve the recovery.
@@ -98,7 +98,7 @@ public final class RouteDig implements Controller {
     @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         wk.totalTicks = 0;                       // breaking/placing IS progress
         wk.stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
         if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {

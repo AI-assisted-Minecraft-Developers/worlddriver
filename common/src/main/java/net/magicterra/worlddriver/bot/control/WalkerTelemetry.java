@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
+import net.magicterra.worlddriver.bot.control.route.WalkerTickProgress;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.time.Duration;
@@ -97,7 +98,7 @@ public final class WalkerTelemetry {
 
     /** The per-walk advance budget, for the instrument that reports how much of it a walk spent. An
      *  accessor rather than a copied literal, so a row stays a report about this budget when it changes. */
-    public static int stepAdvanceBudget() { return Walker.STEP_ADV_EVENTS; }
+    public static int stepAdvanceBudget() { return WalkerTickProgress.STEP_ADV_EVENTS; }
 
     /**
      * What the guard pin's forced-repath decision chose, and what the last decision of each kind looked

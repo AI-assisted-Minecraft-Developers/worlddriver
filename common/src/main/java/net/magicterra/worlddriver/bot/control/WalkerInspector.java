@@ -315,7 +315,7 @@ public final class WalkerInspector {
                 if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
                         .append(w.isKnown(c.below()) ? "" : "(unloaded)");
             }
-            Move.Edge into = wk.edgeAt(i + 1);
+            Move.Edge into = wk.route.edgeAt(i + 1);
             String move = into == null || into.move == null ? "?" : into.move;
             sb.append(i == 0 ? "" : " ").append("segment").append(i).append(' ')
               .append(a.toShortString()).append("→").append(b.toShortString())
@@ -344,7 +344,7 @@ public final class WalkerInspector {
      * fixes (a planner budget vs. an executor that overshot).
      */
     public String pathMove() {
-        Move.Edge e = wk.edgeAt(wk.route.step());
+        Move.Edge e = wk.route.edgeAt(wk.route.step());
         return e == null ? null : e.move;
     }
 

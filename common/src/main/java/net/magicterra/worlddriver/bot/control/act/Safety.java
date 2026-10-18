@@ -72,7 +72,7 @@ public final class Safety {
                 boolean overhang = hp.onGround() && !hp.isInWater()
                         && world.isPassable(fc.below()) && !world.isWater(fc.below());
                 if (!overhang) guardHoldTicks--;
-                Walker.avatarSneak(a, true);
+                Keys.sneak(a, true);
                 a.commandJump(false);
                 hp.setSprinting(false);
             }
@@ -83,7 +83,7 @@ public final class Safety {
         // hold tail). A sneak that nothing releases turns a one-stride save into a
         // permanent stall (ridge descent pinned at maxNoProgress=205 in the first
         // full-suite run).
-        if (guardSneakLatch && !pinned) Walker.avatarSneak(a, false);
+        if (guardSneakLatch && !pinned) Keys.sneak(a, false);
         guardSneakLatch = pinned;
         if (fired) {
             // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
@@ -111,7 +111,7 @@ public final class Safety {
 
     /** A tick that ended the walk: let go of a pin rather than leave it held for nobody. */
     public void stand(Body a) {
-        if (guardSneakLatch) Walker.avatarSneak(a, false);
+        if (guardSneakLatch) Keys.sneak(a, false);
         guardSneakLatch = false;
         guardHoldTicks = 0;
         footingPinned = false;
@@ -193,7 +193,7 @@ public final class Safety {
         if (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()
                 && wk.route.path().get(wk.route.step()).getY() < foot.getY()) return false;
         if (!lethalDropAdjacent(world, p, foot)) return false;
-        Walker.avatarSneak(a, true);
+        Keys.sneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);
         // Edge-triggered: a ridge walk pins for runs of ticks and a line per tick would bury the
@@ -613,7 +613,7 @@ public final class Safety {
                 return skipStride(7);                           // a floor or a water landing → safe
         }
         wk.tel.strideGuardFires++;
-        Walker.avatarSneak(a, true);
+        Keys.sneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);
         // Log the plug's REAL outcome: the 2026-07-13 live death log claimed "plug" eight ticks

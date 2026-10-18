@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import java.util.EnumSet;
@@ -110,7 +111,7 @@ public final class WaterClimb implements Controller {
     @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Move.Edge edge = wk.edgeAt(wk.route.step());
+        Move.Edge edge = wk.route.edgeAt(wk.route.step());
         cwp = wk.route.path().get(wk.route.step());
         // walkerClimbGaveUpSticky: run down the sticky gave-up TTL; expire the anchor once
         // the foot leaves the futile bank (>3 blocks) or the TTL runs out.
@@ -498,7 +499,7 @@ public final class WaterClimb implements Controller {
         // staircase instead of treading in place. The 0.3 deadband + no-sprint
         // keep the rise from overshooting back into a bob.
         boolean needRise = p.isUnderWater() || p.getEyeY() < riser.getY() - 0.3;
-        wk.avatarJump(a, needRise);
+        wk.keys.jump(a, needRise);
         // No sprinting: a sprinting bot swim-DIVES into the prone pose and dunks
         // its head underwater (the live thrash of sinking to the bottom and digging at
         // nothing while looking up, plus the 25× mining
@@ -513,7 +514,7 @@ public final class WaterClimb implements Controller {
         // back into the water after digging through). Below the notch, suppress forward and just SWIM UP (the jump
         // above); once the foot reaches the ledge, press in and ground on it. (Forward
         // while submerged also drops the bot into the prone-swim pose and it sinks.)
-        if (!p.isUnderWater() && p.getY() >= riser.getY() - 0.6) Walker.avatarForward(a, true);
+        if (!p.isUnderWater() && p.getY() >= riser.getY() - 0.6) Keys.forward(a, true);
         return true;
     }
 
@@ -960,8 +961,8 @@ public final class WaterClimb implements Controller {
                 boolean sideMode = ControlConfig.walkerShallowWaterSideFoothold && wk.waterClimb.sideRung;
                 boolean wet = p.isInWater();
                 boolean settled = p.getDeltaMovement().horizontalDistanceSqr() < SETTLED_SPEED_SQ;
-                Walker.avatarForward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
-                wk.avatarJump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
+                Keys.forward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
+                wk.keys.jump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
                 if (rungBeside) {
                     wk.waterClimb.yaw = (float) Math.toDegrees(Math.atan2(
                             -((rung.getX() + 0.5) - p.getX()), (rung.getZ() + 0.5) - p.getZ()));

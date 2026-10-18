@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -34,6 +35,38 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickSearch {
+    /** PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search
+     *  commits a best-effort segment that barely closed the goal distance, the planner is
+     *  wedged at a pinch (deepwater→bank, boxed canyon, steep barrier); arm the deep-search
+     *  escalation on that FIRST struggling commit so the NEXT search suppresses its horizon,
+     *  raises the depth penalty and routes AROUND the obstacle — instead of waiting for the
+     *  executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on
+     *  each struggling commit while the pinch persists; logs only on the transition. Gated
+     *  to {@link ControlConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
+    public void maybeArmPinchEscalation(Walker wk, BlockPos foot, PathFinder.Result res) {
+        if (!ControlConfig.pathfinderProgressive) return;
+        if (res.goalReached() || wk.route.seg.commitEnd == null) return;      // healthy full route → no escalation
+        double progress = wk.goal.estimate(foot) - wk.goal.estimate(wk.route.seg.commitEnd);
+        if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
+        boolean wasArmed = wk.stallDetect.escal.armed();
+        wk.stallDetect.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
+        if (GameConfig.walkerDebug && !wasArmed)
+            LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
+                    String.format("%.1f", progress));
+    }
+
+    /** No onward route from the segment end: hold (keys released) and return WALKING while
+     *  {@link Route#retryAtFrontier} re-searches; ARRIVED when out of retries or the feature is off. */
+    public TickStep frontierHoldOrArrive(Walker wk, Body a, WorldView world, LivingEntity p) {
+        if (wk.route.retryAtFrontier(wk, world)) {
+            Keys.forward(a, false);
+            wk.keys.jump(a, false);
+            p.setSprinting(false);
+            return TickStep.WALKING;
+        }
+        return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "frontier-giveup", p.blockPosition());
+    }
+
     /** @see SearchGovernors */
     public final SearchGovernors gov = new SearchGovernors();
 
@@ -237,7 +270,7 @@ public final class WalkerTickSearch {
                 // planning this may be a STALE continuation (computed before we
                 // arrived & loaded the chunks beyond) — re-search fresh before giving
                 // up; otherwise we've gone as far as the best effort allows.
-                return wk.frontierHoldOrArrive(a, world, p);
+                return frontierHoldOrArrive(wk, a, world, p);
             } else if (res.hasPath()) {
                 // ANTI-SPIN (water repath-churn): a failed water climb-out (bot can't
                 // mount the bank) makes every repath return a best-effort that swims
@@ -286,8 +319,8 @@ public final class WalkerTickSearch {
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
                                     wk.stallDetect.goalSpin.repathsNoProgress, wk.stallDetect.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
-                        Walker.avatarForward(a, false);
-                        wk.avatarJump(a, false);
+                        Keys.forward(a, false);
+                        wk.keys.jump(a, false);
                         p.setSprinting(false);
                         return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
@@ -352,7 +385,7 @@ public final class WalkerTickSearch {
                         wk.exAlarms.noteRepathFlip(wk.stallDetect.escal.tick, foot);
                     }
                     Route.Adoption adoption = RouteAdoption.adopt(wk, res, world, foot);
-                    if (adoption.adopted()) wk.maybeArmPinchEscalation(foot, res);
+                    if (adoption.adopted()) maybeArmPinchEscalation(wk, foot, res);
                     else refused(wk, adoption, foot);
                 }
             } else if (wk.route.path() == null) {
@@ -366,7 +399,7 @@ public final class WalkerTickSearch {
                 // for real. (Bounded by the total-tick budget above, so a void
                 // fall with no clutch can't hang the goto forever.)
                 if (!p.onGround()) {
-                    Walker.avatarForward(a, false);
+                    Keys.forward(a, false);
                     p.setSprinting(false);
                     return TickStep.WALKING;
                 }
@@ -383,8 +416,8 @@ public final class WalkerTickSearch {
                     if (GameConfig.walkerDebug && gov.noPathWaitTicks % 100 == 1)
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 gov.noPathWaitTicks, NO_PATH_WAIT_CAP);
-                    Walker.avatarForward(a, false);
-                    wk.avatarJump(a, false);
+                    Keys.forward(a, false);
+                    wk.keys.jump(a, false);
                     p.setSprinting(false);
                     return TickStep.WALKING;
                 }

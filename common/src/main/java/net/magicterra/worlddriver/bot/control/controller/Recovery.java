@@ -120,7 +120,7 @@ public final class Recovery implements Controller {
         if (backOffLeft > 0) {
             backOffLeft--;
             push(a, p, backOffYaw);
-            wk.avatarJump(a, false);
+            wk.keys.jump(a, false);
         } else {
             burstLeft--;
             push(a, p, burstYaw);
@@ -130,7 +130,7 @@ public final class Recovery implements Controller {
             // stays covered by the guard's sneak-pin; only the airborne launch is unguarded, so only it is cut.
             boolean hop = hopAllowed(world, p, cx.frame.foot);
             if (hop) wk.jumpTag = "unstuckBurst";
-            wk.avatarJump(a, hop);
+            wk.keys.jump(a, hop);
         }
         p.setSprinting(false);
         return true;
