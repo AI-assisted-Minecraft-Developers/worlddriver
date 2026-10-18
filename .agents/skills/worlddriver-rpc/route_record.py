@@ -96,10 +96,11 @@ async def record(args):
                 else:
                     await asyncio.sleep(1 / HZ)
                     continue
+            body, vitals, inv = p.get("body", {}), p.get("vitals", {}), p.get("inventory", {})
             rec = {"t": round(now - t0, 3), "x": round(x, 3), "y": round(y, 3), "z": round(z, 3),
                    "yaw": round(p["look"]["yaw"], 1), "pitch": round(p["look"]["pitch"], 1),
-                   "g": p.get("onGround"), "w": p.get("inWater"), "uw": p.get("underWater"),
-                   "sn": p.get("crouching"), "hp": p.get("health"), "slot": p.get("selectedSlot")}
+                   "g": body.get("onGround"), "w": body.get("inWater"), "uw": body.get("underWater"),
+                   "sn": body.get("crouching"), "hp": vitals.get("health"), "slot": inv.get("selectedSlot")}
             if now >= next_ev:
                 page = await _call(ws, st, "mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
                 cursor = page["cursor"]
