@@ -22,6 +22,12 @@ click, and a stale coordinate lands on whatever sits there now (a world-list cli
 Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
 ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
 
+### Out of blocks one course under a two-high bank, the bot goes back into the water
+
+`wd.clientTwoHighBankDigOut` takes 445–1238 ticks against a 1200-tick budget. Standing on its last
+placed block under the rim, the walk follows the route back down to the swim node; replanning from
+that block did not help, because the search itself prefers swimming round to digging up from there.
+
 ### The R1 route still grazes a few trunks and steps
 
 Still touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging dark oak log over the
