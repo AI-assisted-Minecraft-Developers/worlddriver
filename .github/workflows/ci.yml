@@ -69,14 +69,9 @@ jobs:
       - name: Source budget
         run: python3 scripts/check_source_budget.py
 
-      - name: Architecture boundaries
-        run: python3 scripts/check_architecture.py
-
       - name: Build and unit tests
         if: steps.companion.outputs.sha == ''
-        run: |
-          ./gradlew build
-          python3 scripts/check_architecture.py --jars
+        run: ./gradlew build
 
   gate:
     runs-on: ubuntu-latest
@@ -172,9 +167,6 @@ jobs:
 
       # Built and tested again here, then published by a later Gradle run that finds every jar up
       # to date: what goes to the Nexus is what this job's tests ran against.
-      - name: Architecture boundaries
-        run: python3 scripts/check_architecture.py
-
       - name: Build and unit tests
         run: ./gradlew build
 

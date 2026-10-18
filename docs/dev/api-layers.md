@@ -60,10 +60,9 @@ implementation.
 
 ## How the rules are held
 
-`python3 scripts/check_architecture.py` checks every rule above against the sources: Minecraft
+`ArchitectureTest` (in `:common`'s unit tests) checks every rule above against the sources: Minecraft
 only in the game layer, each `api/` layer using only what the table allows, no transport using the
-game layer. Its `PENDING` table lists violations not yet removed; an entry that no longer occurs
-fails the check, so the list only shrinks.
+game layer.
 
 ## Changing a public type
 

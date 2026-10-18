@@ -122,7 +122,7 @@ diverge. When a batch changes what `tools/list` shows, `McpServer` sends
 ### The api layer does not depend on the mcp layer
 
 `api/` holds the registry, the schema combinators (`api/schema/`) and the pure contracts
-(`api/methods/<family>/`); it imports no transport, handler or bot class (`check_architecture.py`).
+(`api/methods/<family>/`); it imports no transport, handler or bot class (`ArchitectureTest`).
 `mc.bot.setting`'s contract is built from the bot's settings table, so it lives in
 `bot/SettingsContracts`, and the list of core specs, `CoreMethods`, lives in `application/`.
 
@@ -228,13 +228,13 @@ source budget, and a scene registered without a matching manifest entry fails th
 
 ## Dependency guards
 
-`python3 scripts/check_architecture.py` prevents protocol dependencies on game/transport types,
+`ArchitectureTest` (a `:common` unit test) prevents protocol dependencies on game/transport types,
 API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
 and any production dependency on StageWright. It also holds `api/` to its layers: only the game
 layer may name `net.minecraft`, the schema uses nothing above the protocol, method contracts use
-only the schema, `call/` and `registry/`, and no transport touches the game layer. A violation not
-yet removed is listed in the script's `PENDING` table, which fails once an entry stops occurring. After assembly, `--jars` also checks that the test
-framework and testmod fixture classes are absent from production artifacts.
+only the schema, `call/` and `registry/`, and no transport touches the game layer. `./gradlew build`
+also runs `verifyJarContents`, which checks that the assembled jars carry no test framework or
+testmod fixture classes.
 
 WorldDriverCommon creates `DriverApplication` and exposes it twice: `registry()`, the
 `ApiRegistry` every caller goes through, and `host()`, the `DriverHost` the loader glue and the

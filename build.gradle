@@ -396,3 +396,27 @@ subprojects {
         }
     }
 }
+
+// The shipped jars carry no test framework or fixture; the source rules are in ArchitectureTest.
+configure(modProjects) {
+    def verifyJarContents = tasks.register('verifyJarContents') {
+        dependsOn 'assemble'
+        def libs = layout.buildDirectory.dir('libs')
+        doLast {
+            def banned = ['net/magicterra/stagewright/', 'net/magicterra/worlddriver/testcontent/',
+                          'net/magicterra/worlddriver/bot/stagewright/']
+            def bad = []
+            libs.get().asFile.listFiles()?.findAll {
+                it.name.endsWith('.jar') && !it.name.contains('-sources') && !it.name.contains('-dev-shadow')
+            }?.each { jar ->
+                new java.util.zip.ZipFile(jar).withCloseable { zip ->
+                    zip.entries().each { e ->
+                        if (banned.any { e.name.startsWith(it) }) bad << "${jar.name}: ${e.name}"
+                    }
+                }
+            }
+            if (bad) throw new GradleException('shipped test framework or fixture:\n  ' + bad.join('\n  '))
+        }
+    }
+    tasks.named('build') { dependsOn verifyJarContents }
+}

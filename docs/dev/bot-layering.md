@@ -39,10 +39,8 @@ Below the bot stack:
 outside the bot reaches it only through the facade; `BotProcess` is the one type the
 facade hands out whole.
 
-`scripts/check_architecture.py` enforces all of this on every source file. What it still
-finds is listed in `scripts/architecture-pending.txt`, which may only shrink: a listed line
-that stops occurring fails the check too. It is empty now: no class in the bot layers names a
-client type. What only a client has — the window, the mouse, the death screen, the chat
+`ArchitectureTest` (a `:common` unit test) enforces all of this on every source file. No class
+in the bot layers names a client type. What only a client has — the window, the mouse, the death screen, the chat
 surfaces — lives in `application/client/` around the client bot's `BotBrain`, and the client's
 own `Level` and `Player` reach `ClientWorldView` as suppliers the client wiring hands in.
 
@@ -273,7 +271,7 @@ Two kinds of class, one surface:
 
 - The `config/*Config` classes hold the knobs themselves as mutable volatile statics, one
   class per layer: each knob sits in the lowest layer that reads it, and a layer reads only
-  its own class and the ones below (`check_architecture.py` holds it to that). `BotConfig`
+  its own class and the ones below (`ArchitectureTest` holds it to that). `BotConfig`
   holds the facade's own and enumerates, persists and pins them all. They are common- and
   server-safe, so a dedicated-server scene can read them.
 - `SettingsRegistry`, beside them in `config/`, is the single source of truth for the
