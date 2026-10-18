@@ -60,7 +60,73 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 Scene.of("wd.mobSeesOnlyWhatHuntsIt", 300, WorldDriverMobScenes::seesOnlyWhatHuntsIt),
                 Scene.of("wd.mobThatCastsItsOwnControlWalks", 600, WorldDriverMobScenes::castsItsOwnControlWalks),
                 Scene.of("wd.mobThatIgnoresInputFailsUnresponsive", 400, WorldDriverMobScenes::ignoresInputFailsUnresponsive),
-                Scene.of("wd.mobUndrivableIsRefused", 300, WorldDriverMobScenes::undrivableIsRefused));
+                Scene.of("wd.mobUndrivableIsRefused", 300, WorldDriverMobScenes::undrivableIsRefused),
+                Scene.of("wd.mobWithRegisteredDriverWalks", 600, WorldDriverMobScenes::registeredDriverWalks),
+                Scene.of("wd.mobWithRegisteredMoverTravels", 400, WorldDriverMobScenes::registeredMoverTravels));
+    }
+
+    /**
+     * A stand-in whose own travel reads no input, with an entity driver registered for its type as another
+     * mod would: the driver turns the bot's input into its motion, so the goto that fails as unresponsive
+     * on the unregistered stand-in walks here.
+     */
+    private static void registeredDriverWalks(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        BlockPos o = ctx.origin().above(20);
+        BlockPos goal = o.offset(COURSE, 0, 0);
+        Mob mob = stage(ctx, o, NpcContent.VELOCITY_MOB.get());
+        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
+            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
+            ctx.record("goto", String.valueOf(go));
+            if (actionId(go) == null) { ctx.fail("a goto naming the stand-in by entity ref did not start: " + go); return; }
+            ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state"))).within(400).then(() -> {
+                Map<?, ?> action = read(api, actionId(go));
+                BlockPos stoppedAt = mob.blockPosition();
+                ctx.record("ended", stoppedAt.toShortString() + " " + action);
+                ctx.check("succeeded".equals(action.get("state")) && stoppedAt.closerThan(goal, 1.5))
+                        .as("the stand-in walks to the goal through its registered driver: stopped at "
+                                + stoppedAt.toShortString() + ", " + action)
+                        .isTrue();
+            });
+        });
+    }
+
+    /**
+     * A stand-in whose registered driver brings its own mover: the goto is handed to it whole, reports
+     * travel {@code mover}, and ends where the mover put the mob, through the wall across the course that
+     * the driver's own route would have to go round.
+     */
+    private static void registeredMoverTravels(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        BlockPos o = ctx.origin().above(20);
+        BlockPos goal = o.offset(COURSE, 0, 0);
+        Mob mob = stage(ctx, o, NpcContent.MOVER_MOB.get());
+        for (int z = -3; z <= 3; z++) {
+            for (int y = 0; y < 3; y++) ctx.level().setBlockAndUpdate(o.offset(COURSE / 2, y, z), STONE);
+        }
+        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
+            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
+            ctx.record("goto", String.valueOf(go));
+            if (actionId(go) == null) { ctx.fail("a goto naming the stand-in by entity ref did not start: " + go); return; }
+            ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state"))).within(200).then(() -> {
+                Map<?, ?> action = read(api, actionId(go));
+                BlockPos stoppedAt = mob.blockPosition();
+                ctx.record("ended", stoppedAt.toShortString() + " " + action);
+                ctx.check("succeeded".equals(action.get("state")) && String.valueOf(action).contains("travel=mover")
+                                && stoppedAt.equals(goal))
+                        .as("the mover takes the trip whole and ends on the goal: stopped at "
+                                + stoppedAt.toShortString() + ", " + action)
+                        .isTrue();
+            });
+        });
     }
 
     /**

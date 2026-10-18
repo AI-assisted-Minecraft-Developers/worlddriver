@@ -43,6 +43,8 @@ public final class LevelWorldView implements StateWorldView {
     private final Player controller;
     /** See {@link #sprintJumps()}. */
     private final boolean sprintJumps;
+    /** The ways of moving its driver declares, or null to read them off the entity. */
+    private final Set<Locomotion.Mode> modes;
     /** Refreshed per {@link #beginSearch}; the constructor takes one so a view asked to price a
      *  break before any search (probes, scenes) prices with the bot's real effects. */
     private volatile CellRules.DigSnapshot dig;
@@ -72,7 +74,12 @@ public final class LevelWorldView implements StateWorldView {
     /** {@link #forBody} for a driven mob, which moves at its own walking pace: a zombie at about half a
      *  walking player's, too slow for any parkour gap, so a search plans none. */
     public static LevelWorldView forMob(Level level, LivingEntity mob) {
-        return new LevelWorldView(level, mob, null, false);
+        return forMob(level, mob, null);
+    }
+
+    /** {@link #forMob} with the ways of moving its driver declares; null reads them off the entity. */
+    public static LevelWorldView forMob(Level level, LivingEntity mob, Set<Locomotion.Mode> modes) {
+        return new LevelWorldView(level, mob, null, false, modes);
     }
 
     private LevelWorldView(Level level, LivingEntity body, Player controller) {
@@ -80,10 +87,16 @@ public final class LevelWorldView implements StateWorldView {
     }
 
     private LevelWorldView(Level level, LivingEntity body, Player controller, boolean sprintJumps) {
+        this(level, body, controller, sprintJumps, null);
+    }
+
+    private LevelWorldView(Level level, LivingEntity body, Player controller, boolean sprintJumps,
+                           Set<Locomotion.Mode> modes) {
         this.level = level;
         this.body = body;
         this.controller = controller;
         this.sprintJumps = sprintJumps;
+        this.modes = modes;
         this.dig = CellRules.DigSnapshot.of(controller, level);
     }
 
@@ -198,7 +211,7 @@ public final class LevelWorldView implements StateWorldView {
 
     @Override public int maxJumpUpBlocks() { return 1; }
 
-    @Override public Set<Locomotion.Mode> moveModes() { return Locomotion.of(body).modes(); }
+    @Override public Set<Locomotion.Mode> moveModes() { return modes != null ? modes : Locomotion.of(body).modes(); }
 
     @Override public double bodyWidth() { return body.getBbWidth(); }
 

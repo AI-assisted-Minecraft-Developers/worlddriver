@@ -99,7 +99,9 @@ public final class GotoContracts {
         WALK("walk"),
         FLY("fly"),
         /** Asked to fly with no usable elytra on. */
-        WALK_WITHOUT_ELYTRA("walkWithoutElytra");
+        WALK_WITHOUT_ELYTRA("walkWithoutElytra"),
+        /** Handed to the entity's own way of moving, which another mod registered for its type. */
+        MOVER("mover");
 
         private final String wire;
         Travel(String wire) { this.wire = wire; }

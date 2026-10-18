@@ -116,3 +116,34 @@ thread is calling, and who currently answers the method.
 
 The processor and its dependencies (JavaPoet, AutoService) are on `:common`'s annotation processor
 path only. They are not in any jar the build ships and not in any published POM.
+
+## Driving a mob of your own
+
+The bot drives any mob through its own mob body: it takes the mob's goals off and writes its input in
+the mob's AI step. A modded creature that moves by code of its own ignores that input, and its goto
+fails as `unresponsive`. Register an `EntityDriver` for its type (`api/game/`) during your mod's setup,
+before a mob of the type can be adopted:
+
+```java
+EntityDrivers.register(MY_CREATURE.get(), creature -> new EntityDriver() {
+    @Override public void input(Input in) { creature.steer(in.yaw(), in.left(), in.forward(), in.jump()); }
+    @Override public void face(float yaw, float pitch) { creature.setYRot(yaw); creature.setXRot(pitch); }
+});
+```
+
+From then on a mob of that type, adopted by an order to `entity:<uuid>` or by `/worlddriver mob`, is
+driven through it. The bot still searches the route and picks each step; every server tick it hands
+`input` what a player would press for that step, relative to `in.yaw()`. Taking the creature's own AI
+off while it is driven, and giving it back in `release`, is the driver's job. `movements()` declares
+how it moves when that cannot be read off the entity (its navigation), and the route is searched for
+those ways only. `bag()` lets the processes that count items see what it carries. It gets no hands:
+the route never digs or places for a mob, and an operation of its own belongs in a method instead.
+
+A creature whose movement no route can follow cell by cell (it teleports, burrows, or flies a course
+of its own) also returns a `Mover` from `mover()`. A goto to a cell, or through `route.via` cells, is
+then handed to it whole: each tick the bot asks `drive(target, within)` and the mover answers
+`MOVING`, `ARRIVED` or `FAILED`. The trip reports `travel: mover`. A goto to a target with no single
+cell (a Y level, a direction) still uses the bot's own route.
+
+`StandInDrivers` in the testmod registers one of each for its stand-in mobs; the scenes
+`wd.mobWithRegisteredDriverWalks` and `wd.mobWithRegisteredMoverTravels` drive them.

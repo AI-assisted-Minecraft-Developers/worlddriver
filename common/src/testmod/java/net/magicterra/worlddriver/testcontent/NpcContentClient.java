@@ -17,6 +17,8 @@ public final class NpcContentClient {
         // The stand-ins for modded mobs are only ever measured, never looked at.
         EntityRendererRegistry.register(NpcContent.CASTING_MOB, NoopRenderer::new);
         EntityRendererRegistry.register(NpcContent.SELF_MOVING_MOB, NoopRenderer::new);
+        EntityRendererRegistry.register(NpcContent.VELOCITY_MOB, NoopRenderer::new);
+        EntityRendererRegistry.register(NpcContent.MOVER_MOB, NoopRenderer::new);
     }
 
     /**

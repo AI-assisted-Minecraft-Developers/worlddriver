@@ -7,15 +7,16 @@ import dev.architectury.utils.Env;
 import dev.architectury.utils.EnvExecutor;
 import net.magicterra.worlddriver.TestContent;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.EntityDrivers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 
 /**
- * The testmod's NPC entities for the bot to drive. One so far, {@link DrivenPiglin}, registered with
- * a vanilla piglin's dimensions and attributes so that what differs from a piglin is only who
- * controls its movement.
+ * The testmod's NPC entities for the bot to drive: {@link DrivenPiglin}, registered with a vanilla
+ * piglin's dimensions and attributes so that what differs from a piglin is only who controls its
+ * movement, and stand-ins for modded mobs, two of them with an entity driver registered.
  *
  * <p>{@code noSave()}: a scene spawns the NPC and discards it, and an entity type that serializes
  * asks the data fixer for a schema this id does not have.
@@ -51,12 +52,31 @@ public final class NpcContent implements TestContent {
                     .noSave()
                     .build("self_moving_mob"));
 
+    /** {@code worlddriver:velocity_mob}: a self-moving stand-in with an entity driver registered for it. */
+    public static final RegistrySupplier<EntityType<SelfMovingMob>> VELOCITY_MOB = selfMoving("velocity_mob");
+
+    /** {@code worlddriver:mover_mob}: a self-moving stand-in whose registered driver brings its own mover. */
+    public static final RegistrySupplier<EntityType<SelfMovingMob>> MOVER_MOB = selfMoving("mover_mob");
+
+    private static RegistrySupplier<EntityType<SelfMovingMob>> selfMoving(String id) {
+        return ENTITY_TYPES.register(id, () -> EntityType.Builder.<SelfMovingMob>of(SelfMovingMob::new, MobCategory.CREATURE)
+                .sized(0.6F, 1.8F)
+                .clientTrackingRange(8)
+                .noSave()
+                .build(id));
+    }
+
     @Override
     public void register() {
         ENTITY_TYPES.register();
         EntityAttributeRegistry.register(DRIVEN_PIGLIN, Piglin::createAttributes);
         EntityAttributeRegistry.register(CASTING_MOB, CastingMob::createAttributes);
         EntityAttributeRegistry.register(SELF_MOVING_MOB, SelfMovingMob::createAttributes);
+        EntityAttributeRegistry.register(VELOCITY_MOB, SelfMovingMob::createAttributes);
+        EntityAttributeRegistry.register(MOVER_MOB, SelfMovingMob::createAttributes);
+        // Registered as another mod would register its own creatures, once each type exists.
+        VELOCITY_MOB.listen(type -> EntityDrivers.register(type, StandInDrivers::velocity));
+        MOVER_MOB.listen(type -> EntityDrivers.register(type, StandInDrivers::mover));
         // A method reference to a separate class, as MarkerContent does, so the dedicated server
         // never links a renderer.
         EnvExecutor.runInEnv(Env.CLIENT, () -> NpcContentClient::init);

@@ -1212,7 +1212,7 @@ interface CancelParams {
     process?: ProcessName;
 }
 type WidthBias = 'left' | 'right';
-type Travel = 'walk' | 'fly' | 'walkWithoutElytra';
+type Travel = 'walk' | 'fly' | 'walkWithoutElytra' | 'mover';
 interface PlanAdoption {
     planId: string;
     /** false: the walk searched again instead. */

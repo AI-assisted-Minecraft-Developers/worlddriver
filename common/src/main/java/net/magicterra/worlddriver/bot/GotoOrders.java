@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import net.magicterra.worlddriver.api.game.Mover;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
@@ -80,10 +81,15 @@ public final class GotoOrders {
         return targets;
     }
 
-    /** Walk, or fly when the route says so. */
+    /** Walk, fly when the route says so, or hand the trip to the entity's own mover when it has one. */
     public static Order start(Resolved r, LivingEntity self, RouteEvents.Emitter events) {
         if (r.route().fly()) return fly(r.goal(), self);
         RouteParams.Parsed route = r.route();
+        Optional<Mover> mover = MobBot.moverOf(self);
+        if (mover.isPresent() && MoverProcess.covers(targets(r))) {
+            return new Start(new MoverProcess(mover.get(), targets(r)),
+                    new Trip(r.goal().toString(), route.via().size(), Travel.MOVER, Optional.empty()));
+        }
         IntentProcess walk = new IntentProcess(new Intent(targets(r), route.profile().bias(), route.profile().capability(),
                 route.profile().constraints(), route.entityLeash()), events);
         return new Start(walk, new Trip(r.goal().toString(), route.via().size(), Travel.WALK, Optional.empty()));

@@ -45,14 +45,13 @@ public abstract class ServerBot implements Bot {
     private volatile boolean tasked;
 
     protected ServerBot(LivingEntity entity) {
-        this.world = view(entity.level(), entity);
         this.brain = new BotBrain((type, pos, data) -> {}, this::world);
     }
 
     @Override public abstract Body body();
 
-    /** The view the bot plans in when it is in {@code level}. Called from the constructor, so an
-     *  override may not read the subclass's fields. */
+    /** The view the bot plans in when it is in {@code level}. Built on first use rather than in the
+     *  constructor, so an override may read the subclass's fields. */
     protected LevelWorldView view(Level level, LivingEntity entity) {
         return LevelWorldView.forBody(level, entity);
     }
@@ -137,7 +136,7 @@ public abstract class ServerBot implements Bot {
         LivingEntity e = entity();
         Level now = e.level();
         LevelWorldView current = world;
-        if (current.level() != now) {
+        if (current == null || current.level() != now) {
             current = view(now, e);
             world = current;
         }

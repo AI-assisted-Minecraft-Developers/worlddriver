@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Another mod can register how to drive a mob of its own.** `EntityDrivers.register(type, …)` in
+  `api/game` takes an `EntityDriver` that turns the bot's per-tick input into the creature's motion,
+  for a mob whose own movement ignores input and used to fail every goto as `unresponsive`. A driver
+  may also bring a `Mover`, which then takes a goto to a cell whole and reports `travel: mover`.
+  `docs/dev/java-api.md` shows how.
 - **Several free-text fields are closed word lists now.** `mc.bot.cancel`'s `process` accepts only
   `all`, a process kind or a chain name (`ProcessName` in the declarations), so a misspelled name is
   refused instead of cancelling nothing. A `bot_unavailable` refusal carries `unready` (`dead`,
