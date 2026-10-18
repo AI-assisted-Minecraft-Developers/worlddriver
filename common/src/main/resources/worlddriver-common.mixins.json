@@ -4,12 +4,14 @@
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "client": [
+    "client.ClientLevelMixin",
     "client.GameRendererMixin",
     "client.MinecraftMixin"
   ],
   "mixins": [
     "MobMixin",
-    "ServerCommonPacketListenerImplMixin"
+    "ServerCommonPacketListenerImplMixin",
+    "ServerLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1

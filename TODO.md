@@ -28,6 +28,12 @@ Still touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging 
 step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
 1559,65,-128 and 1563,64,-123.
 
+### The walker spends its last node a block short after a detour
+
+`wd.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and the
+bot then slides onto the goal cell. Same shape as `wd.journeyGetsAshoreBeforePouring`. Look at the
+step-advance gates in `WalkerTickProgress` for a last node approached at an angle.
+
 ### The shore scan can aim a drowning bot at lava
 
 `AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while

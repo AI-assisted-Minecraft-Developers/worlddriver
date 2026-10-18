@@ -4,7 +4,10 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.game.observe.BlockChanges;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 
 /**
  * The plan a walk follows, and the only thing that changes it: the nodes, the edge entering each, the
@@ -45,6 +48,7 @@ final class Route {
         boolean searchFromEnd;                      // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
         PathFinder.Result pendingSegment;           // a finished continuation segment awaiting splice at the current segment's end
         boolean searchSuppressedPlace;              // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
+        boolean afterBlockChange;                   // the in-flight foot-search was started because a block on the plan changed → its result replaces the plan even if it turns back
         int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
         void reset() {
             activeSearch = null;
@@ -79,6 +83,7 @@ final class Route {
         seg.pathBestEffort = bestEffort;
         seg.commitEnd = (bestEffort && !nodes.isEmpty()) ? nodes.get(nodes.size() - 1) : null;
         seg.frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
+        watchFromNow();
     }
 
     /** The body reached the node it was heading for. */
@@ -111,6 +116,7 @@ final class Route {
         edges = null;
         step = 0;
         seg.reset();
+        changedAt = null;
     }
 
     /** A new goal: {@link #clear}, out of replay, no drop on record. */
@@ -129,7 +135,19 @@ final class Route {
         seg.activeSearch = search;
         seg.searchFromEnd = false;
         seg.searchSuppressedPlace = placeSuppressed;
+        seg.afterBlockChange = false;
         seg.pendingSegment = null;            // a foot-search supersedes any stashed continuation
+    }
+
+    /** {@link #searchFromFoot} for the change {@link #blockChangeDue} reported; returns a line saying where
+     *  it was, and holds the next such replan off for {@link #CHANGE_REPLAN_GAP} ticks. */
+    String searchAfterBlockChange(PathFinder.Search search) {
+        String where = changedAt.toShortString() + " on the plan " + changedAhead + " nodes ahead";
+        searchFromFoot(search, false);
+        seg.afterBlockChange = true;
+        changedAt = null;
+        changeReplanCooldown = CHANGE_REPLAN_GAP;
+        return where;
     }
 
     /**
@@ -181,5 +199,100 @@ final class Route {
         PathFinder.Result next = seg.pendingSegment;
         seg.pendingSegment = null;
         return next;
+    }
+
+    // ---- block changes ----
+
+    /** Squared distance from the body's eyes within which a changed block may be the body's own work —
+     *  a dig, a placed rung, a plug — and is left to the follower, which made it on purpose or will bump
+     *  into it. Survival block reach is 4.5; the margin keeps a stretch of arm out of the question. */
+    static final double OWN_REACH_SQ = 6.0 * 6.0;
+    /** How close, across, a changed cell's middle must be to a leg of the plan to be in the body's way: a
+     *  cell's half-width plus a player's, so a block beside the corridor is not one in it. */
+    static final double IN_THE_WAY = 0.8;
+    /** Ticks between two replans for block changes: water spreading or a farm cycling beside a route
+     *  would otherwise start a search every tick. */
+    static final int CHANGE_REPLAN_GAP = 20;
+
+    /** The level whose change log this plan reads, and the sequence number it has read up to. */
+    private Level changesLevel;
+    private long changesRead;
+    /** A change on the plan ahead waiting for its replan, and how many nodes ahead of the body it was. */
+    private BlockPos changedAt;
+    private int changedAhead;
+    private int changeReplanCooldown;
+
+    /** Changes from before a plan existed are what it was planned against. */
+    private void watchFromNow() {
+        changedAt = null;
+        if (changesLevel != null) changesRead = BlockChanges.head(changesLevel);
+    }
+
+    /**
+     * Read what changed in the body's level since the last tick. A collision change on the plan ahead and
+     * beyond the body's reach is held for a replan; a stashed continuation it lands on is thrown away, so
+     * the next one is planned on the new shape.
+     *
+     * <p>The question vanilla asks of every mob navigation on each block update, with two differences: it
+     * is asked once a tick from the log rather than inside the update, and changes within the body's reach
+     * are ignored, because the walker digs and places there itself and a replan for each of its own blocks
+     * would tear up every bridge and climb it builds.
+     *
+     * @return true when the held change should be replanned now
+     */
+    boolean blockChangeDue(LivingEntity body) {
+        if (changeReplanCooldown > 0) changeReplanCooldown--;
+        Level level = body.level();
+        if (level != changesLevel) {
+            changesLevel = level;
+            changesRead = BlockChanges.head(level);
+            return false;
+        }
+        long[] cells = BlockChanges.since(level, changesRead);
+        // Overflowed: more changed than the log holds (a scene rebuilding its arena). What was lost
+        // cannot be judged, and replanning on every overflow would replan on every rebuild.
+        if (cells == null) { changesRead = BlockChanges.head(level); return false; }
+        changesRead += cells.length;
+        if (replay || path == null) return false;
+        for (long c : cells) {
+            BlockPos at = BlockPos.of(c);
+            if (beyondReach(at, body) && !plannedEdit(at)) {
+                int ahead = legInTheWay(path, Math.max(step, 1), at);
+                if (ahead >= 0 && changedAt == null) { changedAt = at; changedAhead = ahead - step; }
+                PathFinder.Result next = seg.pendingSegment;
+                if (next != null && next.hasPath() && legInTheWay(next.path(), 1, at) >= 0) seg.pendingSegment = null;
+            }
+        }
+        return changedAt != null && changeReplanCooldown == 0;
+    }
+
+    private static boolean beyondReach(BlockPos at, LivingEntity body) {
+        double dx = at.getX() + 0.5 - body.getX(), dy = at.getY() + 0.5 - body.getEyeY(), dz = at.getZ() + 0.5 - body.getZ();
+        return dx * dx + dy * dy + dz * dz > OWN_REACH_SQ;
+    }
+
+    /** True when the plan itself breaks or fills {@code at} further on: that change is the plan's own. */
+    private boolean plannedEdit(BlockPos at) {
+        for (int i = Math.max(step, 0); i < path.size(); i++) {
+            Move.Edge e = edgeAt(i);
+            if (e != null && (e.toBreak.contains(at) || e.toPlace.contains(at))) return true;
+        }
+        return false;
+    }
+
+    /** The index of the first leg from {@code from} on (the leg into node i) whose corridor holds {@code at}
+     *  — its floor, feet or head row — or -1. */
+    private static int legInTheWay(List<BlockPos> nodes, int from, BlockPos at) {
+        double cx = at.getX() + 0.5, cz = at.getZ() + 0.5;
+        for (int i = Math.max(from, 1); i < nodes.size(); i++) {
+            BlockPos a = nodes.get(i - 1), b = nodes.get(i);
+            if (at.getY() < Math.min(a.getY(), b.getY()) - 1 || at.getY() > Math.max(a.getY(), b.getY()) + 1) continue;
+            double ax = a.getX() + 0.5, az = a.getZ() + 0.5, bx = b.getX() + 0.5 - ax, bz = b.getZ() + 0.5 - az;
+            double len2 = bx * bx + bz * bz;
+            double t = len2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((cx - ax) * bx + (cz - az) * bz) / len2));
+            double ex = ax + bx * t - cx, ez = az + bz * t - cz;
+            if (ex * ex + ez * ez <= IN_THE_WAY * IN_THE_WAY) return i;
+        }
+        return -1;
     }
 }

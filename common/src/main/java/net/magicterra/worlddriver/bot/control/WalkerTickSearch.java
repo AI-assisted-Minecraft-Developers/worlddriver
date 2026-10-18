@@ -170,6 +170,7 @@ final class WalkerTickSearch {
         if (searchDone) {
             wk.tallies.lastSearch = wk.route.seg.activeSearch;
             boolean wasFromEnd = wk.route.seg.searchFromEnd;
+            boolean afterChange = wk.route.seg.afterBlockChange;
             PathFinder.Result res = wk.route.takeSearchResult();
             wk.tallies.lastResult = res;
             wk.tel.lastStats = new WalkerTelemetry.PathStats(res.expanded(), res.ms(), res.goalReached(),
@@ -310,7 +311,10 @@ final class WalkerTickSearch {
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
                     uTurnLeg = (cax * nax + caz * naz) < 0;
-                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20;
+                    // Not after a block change: the plan being kept is the one the change cut, and turning
+                    // back may be exactly what the new shape asks for.
+                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20
+                            && !afterChange;
                     if (keepCurrent && GameConfig.walkerDebug)
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
                                 wk.stepProg.noStepProgressTicks);

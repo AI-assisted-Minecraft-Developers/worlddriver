@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start near the bot, the walker kept the old route as before, but also widened its next searches as
   if it had committed to the refused one; and a stop-gap route refused while the bot had none could
   crash the tick. Refusals are now counted in the walker's tallies and the first few are logged.
+- **A walk replans as soon as a block on its route ahead changes.** When something is built across
+  the route, a bridge ahead is broken or a door shuts, the walker used to find out only on reaching
+  it. It now hears about the change, as vanilla mob navigation does, and plans again from where it
+  stands. Changes within the bot's own reach are left alone, since those are usually the bot's own
+  digging and building. Such replans are counted in the walker's tallies as `blockReplans`.
 
 ## 2026-10-17
 

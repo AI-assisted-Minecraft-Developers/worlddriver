@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.control;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -135,7 +136,12 @@ final class WalkerTickRepath {
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
         if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
-        if (!wk.route.replay() && (safetyRepath || fullPeriodic) && wk.route.seg.activeSearch == null
+        // A block on the plan ahead changed shape (someone built across it, broke the bridge, a door
+        // shut). Whatever search is in flight was started on the old shape, so it goes too.
+        boolean blockChanged = wk.route.blockChangeDue(p)
+                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot);
+        if (blockChanged) wk.route.abortSearch();
+        if (!wk.route.replay() && (safetyRepath || fullPeriodic || blockChanged) && wk.route.seg.activeSearch == null
                 && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
@@ -145,7 +151,9 @@ final class WalkerTickRepath {
             // stall observed on a steep mountain). Soft + decaying, so a sole route
             // is still taken eventually.
             kickoff(wk, p, world, foot, wedged, fellOffPath, offPath, fellBelowRoute, fullPeriodic);
-            wk.route.searchFromFoot(wk.newPathFinder(world).newSearch(searchFoot, wk.goal), false);   // placing allowed; budget re-checked on result
+            PathFinder.Search search = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
+            if (blockChanged) noteBlockChange(wk, wk.route.searchAfterBlockChange(search), foot);
+            else wk.route.searchFromFoot(search, false);   // placing allowed; budget re-checked on result
             wk.ticksSinceRepath = 0;
         } else if (!wk.route.replay() && wk.route.seg.pathBestEffort && wk.route.seg.commitEnd != null
                 && wk.route.seg.activeSearch == null && wk.route.seg.pendingSegment == null
@@ -237,6 +245,14 @@ final class WalkerTickRepath {
         double dx = wk.route.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
     }
+
+    /** One line per block-change replan, the first few per walker; {@link WalkerTallies#blockReplans} counts all. */
+    private static void noteBlockChange(Walker wk, String where, BlockPos foot) {
+        if (++wk.tallies.blockReplans <= BLOCK_REPLANS_LOGGED)
+            LOG.info("[walker] block changed at {} → replanning from {} (owner={})", where, foot.toShortString(), wk.owner);
+    }
+
+    private static final int BLOCK_REPLANS_LOGGED = 8;
 
     private static boolean burstHopAllowed(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
         boolean allowed = !(ControlConfig.walkerRecoveryHopFloorGate

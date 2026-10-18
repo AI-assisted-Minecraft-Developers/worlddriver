@@ -589,6 +589,7 @@ wd.routeStaysOutOfSkeletonSight
 wd.routeBlockedNamesTheConstraint
 wd.routeCorridorHolds
 wd.routeRejoinsFromInsideACluster
+wd.routeReplansWhenTheWayAheadIsWalledOff
 wd.clientRoutePreviewAdopted
 wd.clientRoutePreviewDoesNotInterrupt
 wd.clientRouteBlockedEventFires
