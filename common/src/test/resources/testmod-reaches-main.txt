@@ -248,7 +248,6 @@ bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/NavigatorTelemetry
 bot/stagewright/scene/WorldDriverClientSchedulerScenes -> bot/behavior/SleepProcess
 bot/stagewright/scene/WorldDriverClientWaterScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Locomotor
@@ -282,8 +281,6 @@ bot/stagewright/scene/WorldDriverCoverageScenes -> bot/rules/Move
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverCoverageScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/BlastFooting
-bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/NavigatorGeometry
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/NavigatorTelemetry
@@ -291,10 +288,6 @@ bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/BotHooks
-bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverDrownRiseScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/BotRegistry
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/control/NavigatorTelemetry

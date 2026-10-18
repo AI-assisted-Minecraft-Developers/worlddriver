@@ -7,11 +7,7 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -160,7 +156,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      *  thing it measures would report the measurement as a failure. */
     private static final int LID_BUDGET = 600;
 
-    /** Air held under {@link ControlConfig#drownEscapeAirThreshold} for the whole lid arm, so the latch
+    /** Air held under the {@code drownEscapeAirThreshold} setting for the whole lid arm, so the latch
      *  stays engaged without the bot ever drowning. The other arms can let air fall because they
      *  finish in tens of ticks; this one runs for hundreds, and killing the human's client to
      *  measure a dig time is not a trade this suite makes. It also means the tick count this arm
@@ -193,13 +189,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     private static void breaksTheLid(SceneContext ctx, int underFoot) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
-        ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + ", mc.bot.* in this JVM=" + BotHooks.isAvailable());
-        if (!integrated || !BotHooks.isAvailable()) {
+        ctx.record("topology", integrated ? "integratedServer" : "dedicatedServer");
+        if (!integrated) {
             ctx.skip("DrownEscapeChain's execution layer requires a real LocalPlayer in the same JVM: "
                     + "the first line of tick() is if (mc == null) return. On a dedicated server this coverage is not weak, it is zero.");
         }
-        List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
+        List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         if (humans.isEmpty()) {
             ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
         }
@@ -366,30 +361,30 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
 
     /**
      * One arm. {@code serverBody} puts an idle server bot in the column instead of the client's
-     * player: registered on {@link BotTicker} with no task, so what lifts it is its own brain's
+     * player: on the tick list with no task, so what lifts it is its own brain's
      * {@code DrownEscapeChain} and drowning float on the server tick, the same reflexes the client
      * arms exercise through the client's brain.
      */
     private static void run(SceneContext ctx, boolean pinNeighbour, boolean armed, boolean serverBody) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
-        ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + ", mc.bot.* in this JVM=" + BotHooks.isAvailable());
+        ctx.record("topology", integrated ? "integratedServer" : "dedicatedServer");
         ServerLevel level = ctx.level();
         ServerPlayer body;
         if (serverBody) {
-            BotTicker.clear();
-            ctx.cleanup(BotTicker::clear);
-            PlayerBot bot = SceneBody.managed(ctx, level, ctx.origin().getX() + 0.5, ctx.origin().getY() + 8, ctx.origin().getZ() + 0.5);
-            BotTicker.register(bot);
-            body = bot.fakePlayer();
+            Harness.clearBots(ctx);
+            SceneBot bot = SceneBot.spawn(ctx, level, ctx.origin().getX() + 0.5, ctx.origin().getY() + 8, ctx.origin().getZ() + 0.5);
+            body = bot.player();
+            body.getInventory().clearContent();
+            // Idle, but ticked by the server: its reflexes run, no task does.
+            bot.unpark();
         } else {
-            if (!integrated || !BotHooks.isAvailable()) {
+            if (!integrated) {
                 // The client arms need the client's own brain in this JVM; a dedicated server has none,
                 // and the server arms cover the same reflex there.
                 ctx.skip("the client arms drive the client's own player, which a dedicated server does not have");
             }
-            List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
+            List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
             if (humans.isEmpty()) {
                 ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
             }
