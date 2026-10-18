@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Code in the same game can run a directory of scripts and read their checks.**
+  `WorldDriver.scripts().run(dir)` runs each script once through a fresh script engine bound to the
+  live RPC and MCP servers, as user scripts are, and answers every check their `Test` helper made:
+  name, pass or fail, time, and the failure's message.
 - **`mc.debug.cells` says what a block is worth as something to place.** Each cell also answers
   `buildBlock` (the block there may be placed as footing), `valuable` (a gathered resource the bot
   never spends as filler) and `throwaway` (its item is filler the bot spends first).
