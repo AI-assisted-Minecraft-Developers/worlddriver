@@ -34,7 +34,7 @@ links to; read that page before arguing with the rule.
 3. **Widening what a script can reach is a decision, not a refactor.** The script class filter
    is off unless `-Dworlddriver.sandbox=on`; do not describe it as a gate and do not propose
    flipping the default. If you change what scripts can reach, say so and update
-   `validation/08_sandbox.js`. See `docs/dev/architecture.md`.
+   `ScriptClassFilterTest`, which pins every denylist entry. See `docs/dev/architecture.md`.
 4. **MCP specification citations are load-bearing.** Keep the `// spec: 2025-06-18 …` comments
    in `McpServer.java` accurate (<https://modelcontextprotocol.io/specification/2025-06-18>).
 5. **Never commit runtime output** — no run logs, screenshots or `latest.log`. Where each run

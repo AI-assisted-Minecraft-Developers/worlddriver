@@ -84,14 +84,18 @@ public final class ScriptClassFilter {
     private ScriptClassFilter() {}
 
     public static boolean isAllowed(String fullClassName, ClassVisibilityContext type) {
-        if (DISABLED) return true;
-        if (fullClassName == null || fullClassName.isEmpty()) return true;
+        return DISABLED || !denied(fullClassName);
+    }
+
+    /** Whether the denylist covers {@code fullClassName}, whatever the switch says; ScriptClassFilterTest pins it. */
+    static boolean denied(String fullClassName) {
+        if (fullClassName == null || fullClassName.isEmpty()) return false;
         for (String d : DENY_EXACT) {
-            if (fullClassName.equals(d)) return false;
+            if (fullClassName.equals(d)) return true;
         }
         for (String d : DENY_PREFIX) {
-            if (fullClassName.startsWith(d)) return false;
+            if (fullClassName.startsWith(d)) return true;
         }
-        return true;
+        return false;
     }
 }
