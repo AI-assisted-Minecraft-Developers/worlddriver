@@ -197,7 +197,7 @@ walk (`MoveCatalog.medium`) — gets `MediumMove.FLY` or `MediumMove.SWIM` inste
 of the 26 neighbours through that medium only, kept out of `ALL`. A stroke checks every cell the
 body's box covers on the way (`WorldView.bodyWidth()` and `bodyHeight()`), so a large body is never
 planned through a hole it does not fit. Its search drops the "get out of the water" handling and the
-depth penalty a player's needs, and `Walker` hands its ticks to `WalkerMedium`, which follows the
+depth penalty a player's needs, and `Walker` hands its orders and ticks to `MediumLocomotor`, which follows the
 nodes in three dimensions. Riding has no moves yet.
 
 ## The `Body` seam

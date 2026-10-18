@@ -138,7 +138,7 @@ only swims, amphibious navigation means it walks and swims, flying navigation me
 mob nearly always reuses a vanilla navigation while its class may extend anything. The ghast, the
 phantom, the vex, the bat and the blaze keep a ground navigation they never use, so their class says
 they fly. A body that only swims, or that flies at all, lives in one medium: it plans with strokes
-through that medium only (`MediumMove`), never leaves it, and is walked by `WalkerMedium`, a separate
+through that medium only (`MediumMove`), never leaves it, and is walked by `MediumLocomotor`, a separate
 executor that follows the nodes in three dimensions. The player walker's phases are a player's walk,
 full of surfacing, hopping and landing that a fish or a bird never does. A parrot, a bee or an allay
 could land and walk, but only flies: flying is faster and one catalog keeps the plan simple. Every

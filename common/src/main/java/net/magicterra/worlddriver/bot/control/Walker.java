@@ -552,7 +552,7 @@ public final class Walker implements Locomotor {
      *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
     boolean goalSnapped;
 
-    @Override public WalkResult result() { return result; }
+    @Override public WalkResult result() { return medium != null ? medium.result() : result; }
 
     /**
      * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the walker this is
@@ -588,6 +588,7 @@ public final class Walker implements Locomotor {
         searchGov.futileSearches = searches;
         searchGov.searchBackoffTicks = backoff;
         if (running != null) route.searchFromFoot(running, placeSuppressed);
+        if (medium != null) medium.retarget(g);
     }
 
     @Override public void start(Goal g) {
@@ -618,6 +619,7 @@ public final class Walker implements Locomotor {
         this.guardPlugCell = null;                          // plug arming is per-journey; a stale
         this.guardPlugFires = 0;                            // cell must not pre-arm the next goal
         this.error = null;
+        if (medium != null) medium.start(g);
     }
 
     /**
@@ -707,6 +709,7 @@ public final class Walker implements Locomotor {
         this.pillarRecover.reset();
         this.descending = false;
         this.escal.disarm();
+        if (medium != null) medium.replan();
     }
 
     @Override public void replan(SearchProfile profile) {
@@ -759,8 +762,10 @@ public final class Walker implements Locomotor {
      * of the path" and "the destination" are different questions and {@link WalkerInspector#planTally()} answers
      * the first one.
      */
-    @Override public int pathLen() { return route.path() == null ? 0 : route.path().size(); }
-    @Override public int pathStep() { return route.step(); }
+    @Override public int pathLen() {
+        return medium != null ? medium.pathLen() : route.path() == null ? 0 : route.path().size();
+    }
+    @Override public int pathStep() { return medium != null ? medium.pathStep() : route.step(); }
 
     /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
@@ -1069,8 +1074,8 @@ public final class Walker implements Locomotor {
                     "failed:no goal", false, -1, false);
             return Status.FAILED;
         }
-        Step s = (medium = WalkerMedium.forBody(this, medium, world)) != null ? medium.tick(a, world) : walk(a, world);
-        return s == Step.WALKING ? Status.MOVING : result.status();
+        if ((medium = MediumLocomotor.forBody(this, medium, world, goal)) != null) return medium.tick(a, world);
+        return walk(a, world) == Step.WALKING ? Status.MOVING : result.status();
     }
 
     /** One tick of a body that walks: the phases, then the safety tail that every exit runs. */
@@ -1681,7 +1686,8 @@ public final class Walker implements Locomotor {
      *  the tick never reached the drive tail (early-return branch) — which is itself
      *  the answer a pinned-bot autopsy is after. Reset each tick in the prelude. */
     String driveTag;
-    private WalkerMedium medium;   // the walk of a body living in water or air; see WalkerMedium
+    /** The walk of a body living in water or air, which takes every order and tick while it exists. */
+    private MediumLocomotor medium;
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
      *  the same invariant): while GROUNDED and dry, project the bot's actual horizontal
