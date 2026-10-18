@@ -700,16 +700,29 @@ public final class PathFinder {
          *  the returned path only (tens of edges), never the expansion loop. */
         public Map<String, Double> taxTotals(Result r) {
             Map<String, Double> totals = new LinkedHashMap<>();
-            for (int i = 1; i < r.path().size(); i++) {
-                BlockPos from = r.path().get(i - 1), to = r.path().get(i);
-                Move.Edge e = r.edges().get(i);
-                if (e == null) continue;
-                for (int m = 0; m < costModifiers.size(); m++) {
-                    double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
-                    if (v != 0) totals.merge(costModifierNames.get(m), v, Double::sum);
-                }
-            }
+            for (Map<String, Double> edge : edgeTaxes(r)) edge.forEach((k, v) -> totals.merge(k, v, Double::sum));
             return totals;
+        }
+
+        /** What each cost modifier charged on each edge of a result's path, aligned with the path: the start's
+         *  entry is empty, and so is an edge no modifier charged. A rerun without {@code route.sight} answers
+         *  with its own modifiers, the ones that priced the path it returned. */
+        public List<Map<String, Double>> edgeTaxes(Result r) {
+            if (retry != null) return retry.edgeTaxes(r);
+            List<Map<String, Double>> out = new ArrayList<>(r.path().size());
+            for (int i = 0; i < r.path().size(); i++) {
+                Map<String, Double> taxes = new LinkedHashMap<>();
+                Move.Edge e = i == 0 ? null : r.edges().get(i);
+                if (e != null) {
+                    BlockPos from = r.path().get(i - 1), to = r.path().get(i);
+                    for (int m = 0; m < costModifiers.size(); m++) {
+                        double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
+                        if (v != 0) taxes.merge(costModifierNames.get(m), v, Double::sum);
+                    }
+                }
+                out.add(taxes);
+            }
+            return out;
         }
 
         /** A* heuristic for a node: the obstacle-aware goal-field estimate when

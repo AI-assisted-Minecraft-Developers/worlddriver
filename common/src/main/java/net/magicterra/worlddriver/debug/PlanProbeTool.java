@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.debug;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChainPlan;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Conditions;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanEdge;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -26,6 +27,8 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.magicterra.worlddriver.bot.planning.ScopeSource;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.minecraft.core.BlockPos;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -67,7 +70,8 @@ final class PlanProbeTool {
         if (bot == null) throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no bot named " + ref);
         LivingEntity self = bot.entity();
         BlockPos start = p.from().map(Positions::blockPos).orElse(self.blockPosition());
-        return run(LevelWorldView.forBody(self.level(), self), start, goal(p, self), p);
+        ScopeSource scope = (s, g, prof) -> SearchScope.gather(self.level(), self.getId(), s, g, prof);
+        return run(LevelWorldView.forBody(self.level(), self), start, goal(p, self), p, scope);
     }
 
     static Goal goal(PlanParams p, LivingEntity self) {
@@ -78,12 +82,16 @@ final class PlanProbeTool {
         }
     }
 
-    /** One search, or the chained segments, over {@code world}; read-only. */
-    static PlanReply run(WorldView world, BlockPos start, Goal goal, PlanParams p) {
+    /**
+     * One search, or the chained segments, over {@code world}; read-only. {@code scope} gathers the entities a
+     * route's mob and sight conditions read, as the bot's own searches do; null searches without any.
+     */
+    static PlanReply run(WorldView world, BlockPos start, Goal goal, PlanParams p, ScopeSource scope) {
         if (!p.chain()) {
             long t0 = System.nanoTime();
-            PathFinder.Result r = finder(world, p).findPath(start, goal);
-            return single(start, goal, r, (System.nanoTime() - t0) / 1_000_000L);
+            PathFinder.Search s = finder(world, p, scope).newSearch(start, goal);
+            s.advance(Long.MAX_VALUE);
+            return single(start, goal, s, p, (System.nanoTime() - t0) / 1_000_000L);
         }
 
         // Chained simulation of the Navigator's segment-commitment trajectory, read-only: feed each committed
@@ -99,7 +107,7 @@ final class PlanProbeTool {
         boolean reached = false;
         long totalExpanded = 0;
         for (int n = 0; n < p.maxSegments(); n++) {
-            PathFinder.Result r = finder(world, p).findPath(from, goal);
+            PathFinder.Result r = finder(world, p, scope).findPath(from, goal);
             totalExpanded += r.expanded();
             List<BlockPos> path = r.path();
             int cut = ControlConfig.navigatorCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
@@ -119,16 +127,19 @@ final class PlanProbeTool {
     }
 
     /** The search {@code mc.bot.goto} would run with this route and these budgets; a bare one without a route. */
-    private static PathFinder finder(WorldView world, PlanParams p) {
+    private static PathFinder finder(WorldView world, PlanParams p, ScopeSource scope) {
         int nodes = p.maxNodes().orElse(PlanningConfig.pathfinderMaxNodes);
         long ms = p.maxMs().orElse(PlanningConfig.pathfinderMaxMs);
         PathFinder f = p.route().isPresent()
                 ? new PathFinder(world, nodes, ms, RouteParams.parse(p.route().get()).profile())
                 : p.maxNodes().isPresent() || p.maxMs().isPresent() ? new PathFinder(world, nodes, ms) : new PathFinder(world);
+        if (scope != null) f.withScopeSource(scope);
         return f.withOwner("debug.plan");
     }
 
-    private static SinglePlan single(BlockPos start, Goal goal, PathFinder.Result r, long wallMs) {
+    private static SinglePlan single(BlockPos start, Goal goal, PathFinder.Search s, PlanParams p, long wallMs) {
+        PathFinder.Result r = s.result();
+        List<Map<String, Double>> taxes = s.edgeTaxes(r);
         List<BlockPos> path = r.path();
         BlockPos end = path.isEmpty() ? start : path.get(path.size() - 1);
         double hStart = goal.estimate(start);
@@ -157,7 +168,7 @@ final class PlanProbeTool {
             Move.Edge e = k < r.edges().size() ? r.edges().get(k) : null;
             edges.add(new PlanEdge(Positions.position(path.get(k)), Optional.ofNullable(e == null ? null : e.move),
                     e == null ? 0 : Math.round(e.cost), e == null ? List.of() : positions(e.toBreak),
-                    e == null ? List.of() : positions(e.toPlace)));
+                    e == null ? List.of() : positions(e.toPlace), taxes.get(k)));
         }
         Map<String, MoveCost> moveOut = new LinkedHashMap<>();
         moves.forEach((k, m) -> moveOut.put(k, new MoveCost((int) m[0], Math.round(m[1]))));
@@ -165,7 +176,10 @@ final class PlanProbeTool {
                 new Search(r.expanded(), r.ms(), wallMs, Math.round(r.finalCost())),
                 new Estimate(Math.round(hStart), Math.round(hEnd), Math.round(hEnd - hStart), hEnd < hStart - 1e-6),
                 maxStepDrop, yProfile,
-                path.stream().map(n -> n.getX() + "," + n.getY() + "," + n.getZ()).toList(), moveOut, breaks, places, edges);
+                path.stream().map(n -> n.getX() + "," + n.getY() + "," + n.getZ()).toList(), moveOut, breaks, places, edges,
+                new Conditions(s.taxTotals(r), r.prunedBy(),
+                        p.route().map(route -> r.blockedBy(RouteParams.parse(route).constraintNames())),
+                        r.sightBudgetExhausted(), r.snapshotTruncated()));
     }
 
     private static List<BlockPosition> positions(java.util.Collection<BlockPos> cells) {

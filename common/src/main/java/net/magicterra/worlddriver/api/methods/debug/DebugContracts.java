@@ -122,22 +122,42 @@ public final class DebugContracts {
 
     public record MoveCost(int n, long cost) {}
 
-    /** The edge entering a node: its move, its cost, and the cells it digs and fills on the way. */
+    /**
+     * The edge entering a node: its move, its cost, the cells it digs and fills on the way, and what each cost
+     * modifier added to the cost, by name (absent: none charged).
+     */
     public record PlanEdge(BlockPosition to, Optional<String> move, long cost, List<BlockPosition> breaks,
-                           List<BlockPosition> places) {}
+                           List<BlockPosition> places, Map<String, Double> taxes) {
+        public double tax(String name) { return taxes.getOrDefault(name, 0.0); }
+    }
 
     public record Search(int expanded, long computeMs, long wallMs, long finalCost) {}
+
+    /**
+     * {@code taxes}: each cost modifier's total over the path. {@code prunedBy}: the edges each hard constraint
+     * refused. {@code blockedBy}: the route's own constraint that refused the most, as {@code constraint:<name>}.
+     * {@code sightBudgetExhausted}: the search spent its ray budget and was rerun without {@code route.sight}.
+     * {@code snapshotTruncated}: the box scanned for entities was capped.
+     */
+    public record Conditions(Map<String, Double> taxes, Map<String, Integer> prunedBy, Optional<String> blockedBy,
+                             boolean sightBudgetExhausted, boolean snapshotTruncated) {
+        public double tax(String name) { return taxes.getOrDefault(name, 0.0); }
+    }
 
     /** The goal estimate at the start and at the committed end; {@code hDelta} below zero is progress. */
     public record Estimate(long hStart, long hEnd, long hDelta, boolean forward) {}
 
     /**
      * One search. {@code maxStepDrop} is the largest single-node fall the planner routed; {@code moves} is
-     * each move's count and summed cost.
+     * each move's count and summed cost; {@code conditions} what the cost model and the hard constraints did.
      */
     public record SinglePlan(BlockPosition start, boolean goalReached, int pathLen, BlockPosition end,
                              Search search, Estimate estimate, int maxStepDrop, List<Integer> yProfile, List<String> nodes,
-                             Map<String, MoveCost> moves, int breaks, int places, List<PlanEdge> edges) implements PlanReply {}
+                             Map<String, MoveCost> moves, int breaks, int places, List<PlanEdge> edges,
+                             Conditions conditions) implements PlanReply {
+        /** The path's cells, start first. */
+        public List<BlockPosition> cells() { return edges.stream().map(PlanEdge::to).toList(); }
+    }
 
     public record Segment(BlockPosition end, long hEnd, long hDelta, int expanded, boolean goalReached,
                           Optional<BlockPosition> sunkTailCut) {}
@@ -180,6 +200,8 @@ public final class DebugContracts {
             ApiField.field("cost", COST).required().forGetter(PlanEdge::cost),
             ApiField.field("breaks", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::breaks),
             ApiField.field("places", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::places),
+            ApiField.field("taxes", ApiTypes.map(ApiTypes.number(), 64)).describe("Cost modifier name → what it added.")
+                    .required().forGetter(PlanEdge::taxes),
             PlanEdge::new);
 
     private static final ApiType<Search> SEARCH = ApiTypes.record(Search.class, "PlanSearch",
@@ -188,6 +210,22 @@ public final class DebugContracts {
             ApiField.field("wallMs", LONG_COUNT).required().forGetter(Search::wallMs),
             ApiField.field("finalCost", COST).required().forGetter(Search::finalCost),
             Search::new);
+
+    private static final ApiType<Conditions> CONDITIONS = ApiTypes.record(Conditions.class, "PlanConditions",
+            ApiField.field("taxes", ApiTypes.map(ApiTypes.number(), 64))
+                    .describe("Each cost modifier's total over the path.").required().forGetter(Conditions::taxes),
+            ApiField.field("prunedBy", ApiTypes.map(COUNT, 64))
+                    .describe("Hard constraint name → edges it refused.").required().forGetter(Conditions::prunedBy),
+            ApiField.field("blockedBy", ApiTypes.string())
+                    .describe("constraint:<name>: the route's own constraint that refused the most. "
+                            + "Absent without a route or when none of its constraints refused anything.")
+                    .optional().forGetter(Conditions::blockedBy),
+            ApiField.field("sightBudgetExhausted", ApiTypes.bool())
+                    .describe("The ray budget ran out; the search was rerun without route.sight.")
+                    .required().forGetter(Conditions::sightBudgetExhausted),
+            ApiField.field("snapshotTruncated", ApiTypes.bool())
+                    .describe("The box scanned for entities was capped.").required().forGetter(Conditions::snapshotTruncated),
+            Conditions::new);
 
     private static final ApiType<Estimate> ESTIMATE = ApiTypes.record(Estimate.class, "PlanEstimate",
             ApiField.field("hStart", COST).required().forGetter(Estimate::hStart),
@@ -226,6 +264,7 @@ public final class DebugContracts {
                     ApiField.field("places", COUNT).required().forGetter(SinglePlan::places),
                     ApiField.field("edges", ApiTypes.list(PLAN_EDGE, Integer.MAX_VALUE))
                             .describe("The edge entering each node, in path order.").required().forGetter(SinglePlan::edges),
+                    ApiField.field("conditions", CONDITIONS).required().forGetter(SinglePlan::conditions),
                     SinglePlan::new)),
             ApiTypes.variant("chain", ChainPlan.class, ApiTypes.record(ChainPlan.class, null,
                     ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(ChainPlan::start),

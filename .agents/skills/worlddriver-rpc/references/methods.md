@@ -3389,6 +3389,20 @@ interface PlanEdge {
     cost: number;
     breaks: BlockPosition[];
     places: BlockPosition[];
+    /** Cost modifier name → what it added. */
+    taxes: Record<string, number>;
+}
+interface PlanConditions {
+    /** Each cost modifier's total over the path. */
+    taxes: Record<string, number>;
+    /** Hard constraint name → edges it refused. */
+    prunedBy: Record<string, number>;
+    /** constraint:<name>: the route's own constraint that refused the most. Absent without a route or when none of its constraints refused anything. */
+    blockedBy?: string;
+    /** The ray budget ran out; the search was rerun without route.sight. */
+    sightBudgetExhausted: boolean;
+    /** The box scanned for entities was capped. */
+    snapshotTruncated: boolean;
 }
 interface PlanSegment {
     end: BlockPosition;
@@ -3417,6 +3431,7 @@ type PlanReply =
         places: number;
         /** The edge entering each node, in path order. */
         edges: PlanEdge[];
+        conditions: PlanConditions;
     }
     | { mode: 'chain'; start: BlockPosition; reached: boolean; segments: number; backwardSegments: number; maxRegression: number; totalExpanded: number; hStart: number; hFinal: number; trail: PlanSegment[]; };
 interface ReplayParams {

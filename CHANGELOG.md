@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world with its own bag; `route` plans as `mc.bot.goto` would with that route; `maxNodes` and
   `maxMs` set the budget for this call. A single plan also answers `edges`, the move, cost, digs and
   placements entering each node. The reply no longer echoes `goal`.
+- **`mc.debug.plan` says what the route's conditions did.** Each edge carries `taxes`, what every
+  cost modifier added to it; `conditions` holds their totals over the path, `prunedBy` (edges each
+  hard constraint refused), `blockedBy` (the route's own constraint that refused the most),
+  `sightBudgetExhausted` and `snapshotTruncated`. The probe now gathers nearby entities as the
+  bot's own searches do, so a route's mob and sight conditions see the mobs.
 - **Three settings accept wider values.** `pathfinder.sliceMs` and `pathfinder.idleSliceMs` may be
   0, `navigator.repathEveryTicks` goes up to 1000000, so a trip can keep its first route, and
   `pathfinder.maxNodes` goes down to 100. The scenes set these through the settings checks now and
