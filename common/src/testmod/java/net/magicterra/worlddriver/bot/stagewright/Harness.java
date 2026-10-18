@@ -1,18 +1,14 @@
 package net.magicterra.worlddriver.bot.stagewright;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessApi;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Baseline;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessStubApi;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
 
 /**
  * A scene's hold on the settings and the bot ticks, through StageWright's {@code mc.test.settings} and
@@ -22,18 +18,9 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 public final class Harness {
     private Harness() {}
 
-    private static TestHarnessStubApi api() {
-        ApiRegistry registry = WorldDriver.registry();
-        if (registry == null) throw new SceneFailure("the driver is not up: no registry to call mc.test.* through");
-        return TestHarnessApi.of(registry);
-    }
+    private static TestHarnessStubApi api() { return TestHarnessApi.of(Calls.api()); }
 
-    /** The answer of a call that answers within itself. */
-    static <R> R now(CompletionStage<R> stage) {
-        CompletableFuture<R> f = stage.toCompletableFuture();
-        if (!f.isDone()) throw new SceneFailure("a harness call did not answer within the call");
-        return ApiRegistry.await(f, 0);
-    }
+    private static <R> R now(CompletionStage<R> stage) { return Calls.now(stage); }
 
     // ---------------------------------------------------------------- settings
 

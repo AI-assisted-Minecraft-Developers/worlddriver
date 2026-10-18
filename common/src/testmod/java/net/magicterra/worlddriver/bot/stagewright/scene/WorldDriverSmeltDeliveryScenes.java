@@ -2,11 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
@@ -74,8 +70,7 @@ public final class WorldDriverSmeltDeliveryScenes {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         // Empty the furnace BEFORE the block goes, or AbstractFurnaceBlock.onRemove drops its
         // contents as item entities and leaves the arena littered for the audit to blame on the
         // next scene. Phase 2 deliberately ends with a loaded furnace, so this is not hypothetical.
@@ -93,22 +88,22 @@ public final class WorldDriverSmeltDeliveryScenes {
             for (int dz = -3; dz <= 3; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.FURNACE, 1));
         fp.getInventory().add(new ItemStack(Items.RAW_IRON, 2));
         fp.getInventory().add(new ItemStack(Items.COAL, 2));
 
-        BotTicker.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 2, null)));
+        bot.smelt("minecraft:raw_iron", 2);
         // 200 ticks an item plus the place/open/load round trips; a run that spends the whole of
         // this has found a furnace that never cooked, which the process now names for itself.
-        ctx.await(driver::finished).within(900).then(() -> {
+        ctx.await(() -> !bot.busy()).within(900).then(() -> {
             BlockPos fpos = findBlockNear(level, cx, floorY, cz, Blocks.FURNACE);
             ctx.record("phase1.furnaceAt", fpos == null ? "never placed" : fpos.toShortString());
             ctx.record("phase1.ingots", WorldDriverProcessScenes.countItem(fp, Items.IRON_INGOT));
             ctx.record("phase1.rawIronLeft", WorldDriverProcessScenes.countItem(fp, Items.RAW_IRON));
-            ctx.record("phase1.lastError", String.valueOf(driver.botState().smelt.lastError));
+            ctx.record("phase1.lastError", bot.status().slots().smelt().lastError().orElse("null"));
             ctx.record("phase1.furnaceHolds", fpos == null ? "-" : containerSummary(level, fpos));
             ctx.expect(WorldDriverProcessScenes.countItem(fp, Items.IRON_INGOT))
                     .as("iron ingots in the BOT'S BAG after a smelt that really cooked "
@@ -124,22 +119,22 @@ public final class WorldDriverSmeltDeliveryScenes {
             // first iron, which is exactly this arrangement.
             takeAll(fp, Items.IRON_INGOT);
             fp.getInventory().add(new ItemStack(Items.RAW_IRON, 1));
-            BotTicker.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 1, null)));
+            bot.smelt("minecraft:raw_iron", 1);
             net.minecraft.world.Container furnace =
                     level.getBlockEntity(fpos) instanceof net.minecraft.world.Container c ? c : null;
             ctx.expect(furnace).as("the placed furnace is a container").isNotNull();
             // Plug the bag the moment the ore ENTERS the furnace, not when the ingot appears: the
             // ore leaving the bag is what frees the slot, and doing it now keeps this out of a race
             // with COLLECT (which fires on the same tick the last ingot is made).
-            ctx.await(() -> !furnace.getItem(0).isEmpty() || driver.finished()).within(300).then(() -> {
+            ctx.await(() -> !furnace.getItem(0).isEmpty() || !bot.busy()).within(300).then(() -> {
                 int plugged = fillEveryFreeSlot(fp);
                 ctx.record("phase2.pluggedSlots", plugged);
                 ctx.record("phase2.freeSlots", freeSlots(fp));
                 ctx.expect(freeSlots(fp))
                         .as("the bag really is full — a phase that cannot block the delivery "
                                 + "proves nothing about reporting one").isEqualTo(0);
-                ctx.await(driver::finished).within(600).then(() -> {
-                    String err = driver.botState().smelt.lastError;
+                ctx.await(() -> !bot.busy()).within(600).then(() -> {
+                    String err = bot.status().slots().smelt().lastError().orElse(null);
                     int delivered = WorldDriverProcessScenes.countItem(fp, Items.IRON_INGOT);
                     ctx.record("phase2.ingotsInBag", delivered);
                     ctx.record("phase2.furnaceHolds", containerSummary(level, fpos));

@@ -431,10 +431,6 @@ bot/stagewright/scene/WorldDriverSchedulerScenes -> bot/world/WorldView
 bot/stagewright/scene/WorldDriverSchedulerScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverSchedulerScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverSchedulerScenes -> game/observe/NearestFirstScan
-bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> bot/behavior/SmeltProcess
-bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverStationScenes -> application/PlayerSnapshots
 bot/stagewright/scene/WorldDriverStationScenes -> application/RecipeService
 bot/stagewright/scene/WorldDriverStationScenes -> bot/BotTicker
