@@ -722,6 +722,10 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
     @Override public String lastAttackRefusal() { return lastAttackRefusal; }
 
+    /** The forward and left impulses the next step moves on, -1 to 1. */
+    public float pendingForward() { return pendingForward; }
+    public float pendingLeft() { return pendingLeft; }
+
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
     @Override public boolean dbgJumping() { return pendingJump; }
     @Override public boolean dbgSneak() { return pendingSneak; }

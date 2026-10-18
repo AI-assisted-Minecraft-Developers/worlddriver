@@ -48,6 +48,8 @@ public final class BotTicker {
     }
     /** How many bots are on the tick list, idle or not. */
     public static int size() { return ACTIVE.size(); }
+    /** The bots on the tick list now. */
+    public static java.util.List<Bot> all() { return java.util.List.copyOf(ACTIVE); }
     public static void clear() { ACTIVE.clear(); }
 
     /** Advance every registered bot one tick; drop the ones whose entity is gone, and the crashed. */

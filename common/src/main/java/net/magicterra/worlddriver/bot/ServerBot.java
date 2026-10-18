@@ -60,6 +60,9 @@ public abstract class ServerBot implements Bot {
      *  a mob hands the input to its own controls for its next AI step. */
     protected abstract void step();
 
+    /** {@link #step()} alone, with no perceiving, reflexes or task: a test harness moving a posed body. */
+    public void stepBody() { step(); }
+
     /** Run a real {@link BotProcess} headless on the server tick: the SAME process the client
      *  runs (e.g. {@link net.magicterra.worlddriver.bot.behavior.IntentProcess}), held in the
      *  brain's user task chain, so the reflex chains preempt it as they preempt the client's. */

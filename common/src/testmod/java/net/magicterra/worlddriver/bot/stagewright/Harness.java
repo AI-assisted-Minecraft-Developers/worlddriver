@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.api.methods.test.TestHarnessApi;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Baseline;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessStubApi;
+import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 
 /**
@@ -102,12 +103,26 @@ public final class Harness {
 
     /** Advance every ticking bot {@code ticks} times; the bots still busy after. */
     public static int tick(int ticks) {
-        return ((TestHarnessContracts.Ticked) now(api().bots(new TestHarnessContracts.Tick(ticks, false)))).busy();
+        return ticked(TestHarnessContracts.Tick.of(ticks)).busy();
     }
 
     /** Advance every ticking bot until none is busy or {@code maxTicks} ran out; the ticks it took. */
     public static int tickUntilIdle(int maxTicks) {
-        return ((TestHarnessContracts.Ticked) now(api().bots(new TestHarnessContracts.Tick(maxTicks, true)))).ticks();
+        return ticked(TestHarnessContracts.Tick.untilIdle(maxTicks)).ticks();
+    }
+
+    /** Advance {@code bot} alone {@code ticks} times, parked or not; the bots still busy after. */
+    public static int tick(String bot, int ticks) {
+        return ticked(TestHarnessContracts.Tick.bot(bot, ticks)).busy();
+    }
+
+    /** Step only {@code bot}'s body {@code ticks} times: its physics, with no perceiving, reflexes or task. */
+    public static void step(String bot, int ticks) {
+        ticked(TestHarnessContracts.Tick.body(bot, ticks));
+    }
+
+    private static TestHarnessContracts.Ticked ticked(TestHarnessContracts.Tick tick) {
+        return (TestHarnessContracts.Ticked) now(api().bots(tick));
     }
 
     /** How many bots are on a task. */
@@ -120,14 +135,34 @@ public final class Harness {
         return ((TestHarnessContracts.Counted) now(api().bots(new TestHarnessContracts.Count()))).ticking();
     }
 
-    /** Take every bot off the tick list. */
+    /** Remove every bot but self. */
     public static void clearBots() {
         now(api().bots(new TestHarnessContracts.Clear()));
     }
 
-    /** Take every bot off the tick list now and again when the scene ends. */
+    /** Remove every bot but self now and again when the scene ends. */
     public static void clearBots(SceneContext ctx) {
         clearBots();
         ctx.cleanup(Harness::clearBots);
     }
+
+    /** Take {@code bot} off the tick list: only {@link #tick(String, int)} and {@link #step} move it. */
+    public static void park(String bot) {
+        now(api().bots(new TestHarnessContracts.Park(bot)));
+    }
+
+    /** Put a parked {@code bot} back on the tick list. */
+    public static void unpark(String bot) {
+        now(api().bots(new TestHarnessContracts.Unpark(bot)));
+    }
+
+    // ---------------------------------------------------------------- input
+
+    /** Hold or let go of {@code bot}'s keys; each stays until the next press changes it. */
+    public static TestInputContracts.HeldKeys press(TestHarnessContracts.Press press) {
+        return now(api().press(press)).held();
+    }
+
+    /** The press that starts from nothing changed, for {@code bot}. */
+    public static TestHarnessContracts.Press keys(String bot) { return TestHarnessContracts.Press.of(bot); }
 }

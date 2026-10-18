@@ -7,8 +7,8 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
- * {@code mc.test.settings} and {@code mc.test.bots}: StageWright implements this and publishes it, and a scene
- * calls it through {@link #of}. Both answer within the call, so {@code ApiRegistry.await(stage, 0)} reads the answer.
+ * {@code mc.test.settings}, {@code mc.test.bots} and {@code mc.test.input.press}: StageWright implements this and
+ * publishes it, and a scene calls it through {@link #of}. Each answers within the call, so {@code ApiRegistry.await(stage, 0)} reads the answer.
  */
 public interface TestHarnessApi {
 
@@ -20,4 +20,7 @@ public interface TestHarnessApi {
 
     @Spec(value = TestHarnessContracts.class, spec = "BOTS")
     CompletionStage<TestHarnessContracts.BotsReply> bots(TestHarnessContracts.BotsOp op, CallContext ctx);
+
+    @Spec(value = TestHarnessContracts.class, spec = "PRESS_KEYS")
+    CompletionStage<TestHarnessContracts.Pressed> press(TestHarnessContracts.Press press, CallContext ctx);
 }

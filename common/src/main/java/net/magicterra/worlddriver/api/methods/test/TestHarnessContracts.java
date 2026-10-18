@@ -2,8 +2,12 @@ package net.magicterra.worlddriver.api.methods.test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -12,6 +16,7 @@ import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.WireName;
 
 /**
@@ -127,28 +132,57 @@ public final class TestHarnessContracts {
 
     // ------------------------------------------------------------------ bots
 
-    public sealed interface BotsOp permits Tick, Count, Clear {}
-    /** Advance every ticking bot {@code ticks} times now, stopping early once none is busy when {@code untilIdle}. */
-    public record Tick(int ticks, boolean untilIdle) implements BotsOp {
-        public static Tick once() { return new Tick(1, false); }
+    public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark {}
+    /**
+     * Advance the ticking bots {@code ticks} times now, stopping early once none is busy when {@code untilIdle}.
+     * With {@code bot}, only that bot, parked or not; with {@code bodyOnly}, only its body's physics step, with
+     * no perceiving, reflexes or task.
+     */
+    public record Tick(int ticks, boolean untilIdle, Optional<String> bot, boolean bodyOnly) implements BotsOp {
+        public static Tick once() { return new Tick(1, false, Optional.empty(), false); }
+        public static Tick of(int ticks) { return new Tick(ticks, false, Optional.empty(), false); }
+        public static Tick untilIdle(int max) { return new Tick(max, true, Optional.empty(), false); }
+        public static Tick bot(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), false); }
+        public static Tick body(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), true); }
     }
     public record Count() implements BotsOp {}
+    /** Remove every bot but {@code self}: off the tick list and out of the roster, a player one discarded. */
     public record Clear() implements BotsOp {}
+    /** Take {@code bot} off the tick list; it stays addressable, and only a {@code tick} naming it moves it. */
+    public record Park(String bot) implements BotsOp {}
+    /** Put a parked {@code bot} back on the tick list. */
+    public record Unpark(String bot) implements BotsOp {}
 
-    public sealed interface BotsReply permits Ticked, Counted, Cleared {}
+    public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked {}
     /** {@code ticks} it advanced; {@code busy}, the bots still on a task after it. */
     public record Ticked(int ticks, int busy) implements BotsReply {}
     /** {@code ticking}: the bots on the tick list; {@code busy}: those on a task. */
     public record Counted(int ticking, int busy) implements BotsReply {}
     public record Cleared(int removed) implements BotsReply {}
+    /** Whether {@code bot} is now off the tick list. */
+    public record Parked(String bot, boolean parked) implements BotsReply {}
+
+    private static final RecordType<Park> PARK = ApiTypes.record(Park.class, null,
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Park::bot),
+            Park::new);
+    private static final RecordType<Unpark> UNPARK = ApiTypes.record(Unpark.class, null,
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Unpark::bot),
+            Unpark::new);
 
     public static final ApiType<BotsOp> BOTS_PARAMS = ApiTypes.<BotsOp>taggedUnion("TestBotsParams", "op",
             ApiTypes.variant("tick", Tick.class, ApiTypes.record(Tick.class, null,
                     ApiField.field("ticks", ApiTypes.integer(1, 100_000)).defaulted(1).forGetter(Tick::ticks),
                     ApiField.field("untilIdle", ApiTypes.bool()).defaulted(false).forGetter(Tick::untilIdle),
+                    ApiField.field("bot", Responses.BOT_REF).describe("Only this bot, parked or not.")
+                            .optional().forGetter(Tick::bot),
+                    ApiField.field("bodyOnly", ApiTypes.bool())
+                            .describe("Only the body's physics step: no perceiving, reflexes or task. Needs bot.")
+                            .defaulted(false).forGetter(Tick::bodyOnly),
                     Tick::new)),
             ApiTypes.variant("count", Count.class, ApiTypes.record(Count.class, null, Count::new)),
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)));
+            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)),
+            ApiTypes.variant("park", Park.class, PARK),
+            ApiTypes.variant("unpark", Unpark.class, UNPARK));
 
     private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
 
@@ -163,11 +197,91 @@ public final class TestHarnessContracts {
                     Counted::new)),
             ApiTypes.variant("clear", Cleared.class, ApiTypes.record(Cleared.class, null,
                     ApiField.field("removed", COUNT).required().forGetter(Cleared::removed),
-                    Cleared::new)));
+                    Cleared::new)),
+            ApiTypes.variant("park", Parked.class, ApiTypes.record(Parked.class, null,
+                    ApiField.field("bot", Responses.BOT_REF).required().forGetter(Parked::bot),
+                    ApiField.field("parked", ApiTypes.bool()).required().forGetter(Parked::parked),
+                    Parked::new)));
 
     public static final MethodSpec<BotsOp, BotsReply> BOTS = MethodSpec.of("mc.test.bots", BOTS_PARAMS, BOTS_REPLY,
-                    "The tick list every server-side bot is advanced from. tick advances each now, within the call, as "
-                            + "many times as asked; count answers how many are on it and how many are busy; clear takes "
-                            + "every bot off it. Server thread only.")
+                    "The tick list every server-side bot is advanced from. tick advances them now, within the call, as "
+                            + "many times as asked, or one bot alone, or only its body; count answers how many are on it "
+                            + "and how many are busy; clear removes every bot but self; park takes a bot off the list "
+                            + "and unpark puts it back. Server thread only.")
+            .hidden().effects(MethodSpec.Effect.BODY_TASK);
+
+    // ------------------------------------------------------------------ input
+
+    /**
+     * The keys a server-side bot holds, each kept until the next press changes it; an omitted one stays as it is.
+     * {@code forward} and {@code left} are the movement impulses, -1 to 1. {@code attack} holds the dig on the cell
+     * the bot looks at; {@code use} holds the item in hand. {@code aimAt} turns the bot to a block's centre at once;
+     * {@code toolFor} puts the best tool for that block in hand.
+     */
+    public record Press(String bot, Optional<Double> forward, Optional<Double> left, Optional<Boolean> jump,
+                        Optional<Boolean> sneak, Optional<Boolean> sprint, Optional<Boolean> attack,
+                        Optional<Boolean> use, Optional<BlockPosition> aimAt, Optional<BlockPosition> toolFor) {
+        public static Press of(String bot) {
+            return new Press(bot, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        }
+        public Press move(double left, double forward) {
+            return new Press(bot, Optional.of(forward), Optional.of(left), jump, sneak, sprint, attack, use, aimAt, toolFor);
+        }
+        public Press jump(boolean v) {
+            return new Press(bot, forward, left, Optional.of(v), sneak, sprint, attack, use, aimAt, toolFor);
+        }
+        public Press sneak(boolean v) {
+            return new Press(bot, forward, left, jump, Optional.of(v), sprint, attack, use, aimAt, toolFor);
+        }
+        public Press sprint(boolean v) {
+            return new Press(bot, forward, left, jump, sneak, Optional.of(v), attack, use, aimAt, toolFor);
+        }
+        public Press attack(boolean v) {
+            return new Press(bot, forward, left, jump, sneak, sprint, Optional.of(v), use, aimAt, toolFor);
+        }
+        public Press use(boolean v) {
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, Optional.of(v), aimAt, toolFor);
+        }
+        public Press aimAt(BlockPosition cell) {
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, Optional.of(cell), toolFor);
+        }
+        public Press toolFor(BlockPosition cell) {
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, aimAt, Optional.of(cell));
+        }
+        /** Every key let go. */
+        public Press release() {
+            return new Press(bot, Optional.of(0.0), Optional.of(0.0), Optional.of(false), Optional.of(false),
+                    Optional.of(false), Optional.of(false), Optional.of(false), aimAt, toolFor);
+        }
+    }
+
+    /** What the bot's body reports holding after the press. */
+    public record Pressed(String bot, TestInputContracts.HeldKeys held) {}
+
+    private static final ApiType<Double> IMPULSE = ApiTypes.number(-1, 1);
+
+    public static final RecordType<Press> PRESS = ApiTypes.record(Press.class, "TestPress",
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Press::bot),
+            ApiField.field("forward", IMPULSE).optional().forGetter(Press::forward),
+            ApiField.field("left", IMPULSE).optional().forGetter(Press::left),
+            ApiField.field("jump", ApiTypes.bool()).optional().forGetter(Press::jump),
+            ApiField.field("sneak", ApiTypes.bool()).optional().forGetter(Press::sneak),
+            ApiField.field("sprint", ApiTypes.bool()).optional().forGetter(Press::sprint),
+            ApiField.field("attack", ApiTypes.bool()).optional().forGetter(Press::attack),
+            ApiField.field("use", ApiTypes.bool()).optional().forGetter(Press::use),
+            ApiField.field("aimAt", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::aimAt),
+            ApiField.field("toolFor", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::toolFor),
+            Press::new);
+
+    public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class, "TestPressed",
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Pressed::bot),
+            ApiField.field("held", TestInputContracts.HELD_KEYS).required().forGetter(Pressed::held),
+            Pressed::new);
+
+    public static final MethodSpec<Press, Pressed> PRESS_KEYS = MethodSpec.of("mc.test.input.press", PRESS, PRESSED,
+                    "Hold or let go of a server-side bot's keys, as a player at the keyboard would; each stays until the "
+                            + "next press changes it. Moves nothing by itself: the body moves when it is ticked. Server "
+                            + "thread only.")
             .hidden().effects(MethodSpec.Effect.BODY_TASK);
 }
