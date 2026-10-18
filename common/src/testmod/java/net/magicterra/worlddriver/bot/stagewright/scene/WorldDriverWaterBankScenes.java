@@ -605,11 +605,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // hundreds of ticks, so a small cap gives up fast on the not-yet-reachable goal, as the live client does.
         Harness.set("pathfinder.sliceMs", 20);
         Harness.set("pathfinder.maxMs", 250);
-        // faithfulBreak is a ServerPlayerBody static (NOT a BotConfig field), so it is not covered by the
-        // pin — save/restore it via its own cleanup.
-        boolean ofb = ServerPlayerBody.faithfulBreak;
-        ctx.cleanup(() -> ServerPlayerBody.faithfulBreak = ofb);
-        ServerPlayerBody.faithfulBreak = true;   // model the live ~750-tick/block slow stone-mine
+        Harness.set("faithfulBreak", true);   // model the live ~750-tick/block slow stone-mine
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();

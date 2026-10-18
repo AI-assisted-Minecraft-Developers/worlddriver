@@ -748,6 +748,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathDebugMaxSamples` | integer 100–200000 | `6000` | Cap on stored per-tick trajectory samples (ring buffer) |
 | `pathChartAutoDump` | `boolean` | `false` | Auto-write a chart PNG on every goto terminal outcome (success and failure) |
 | `elytraDebug` | `boolean` | `false` | Log per-tick elytra flight controller decisions. |
+| `faithfulBreak` | `boolean` | `false` | A server bot digs at the real speed for its tool instead of in one tick. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
 | `smoothLookDegPerTick` | number 1–180 | `20` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
 | `riskBias` | `boolean` | `false` |  |
@@ -2298,6 +2299,8 @@ interface SettingValues {
     pathChartAutoDump?: boolean;
     /** Log per-tick elytra flight controller decisions. @default false */
     elytraDebug?: boolean;
+    /** A server bot digs at the real speed for its tool instead of in one tick. @default false */
+    faithfulBreak?: boolean;
     /** Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. @default false */
     smoothLook?: boolean;
     /** Turn rate when smoothLook on (20°/tick ≈ 400°/s) @default 20 */

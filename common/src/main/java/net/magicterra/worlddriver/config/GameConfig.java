@@ -18,6 +18,12 @@ public final class GameConfig {
      *  regardless, since a lagged crosshair would make those actions miss. */
     public static volatile boolean smoothLook = false;
 
+    /** Opt-in: a server body digs with REAL destroy-progress (hardness × tool × the ÷5 not-on-ground and ÷5
+     *  underwater penalties) instead of the default instant {@code Level#destroyBlock}. Default OFF so every
+     *  existing arena keeps its 1-tick break. A climb-out arena that must reproduce the live slow stone-mine
+     *  (~750 ticks/block by hand afloat) turns it on. */
+    public static volatile boolean faithfulBreak = false;
+
     /** Max degrees the camera turns per tick while {@link #smoothLook} is on. 20°/tick ≈ 400°/s → a 180° turn
      *  takes ~9 ticks (~0.45 s). Lower = more cinematic, higher = snappier. Read every tick. */
     public static volatile float smoothLookDegPerTick = 20f;

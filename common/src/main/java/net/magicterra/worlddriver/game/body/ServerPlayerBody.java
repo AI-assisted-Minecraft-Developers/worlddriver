@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.game.body;
 
+import net.magicterra.worlddriver.config.GameConfig;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -100,17 +101,11 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     private boolean breakHeld;
     private boolean useHeld;
 
-    /** Opt-in: model REAL destroy-progress (hardness × tool × the ÷5 not-on-ground and ÷5
-     *  underwater penalties) instead of the default instant {@link Level#destroyBlock}. Default
-     *  OFF so every existing arena keeps its 1-tick break. A climb-out arena that must reproduce
-     *  the live slow stone-mine (~750 ticks/block by hand afloat) sets this true, giving a 30s
-     *  GameTest loop for slow-mining bugs instead of a 10-min live rebuild. */
-    public static boolean faithfulBreak = false;
     private BlockPos breakProgPos;
     private float breakProg;
     /** The cell a break last advanced on and the player tick it did — the pair that keeps
      *  {@link #continueDestroy} from advancing a cell {@link #breakHold} already advanced this tick,
-     *  which under {@link #faithfulBreak} would dig at double speed. The player's own tick count,
+     *  which under {@code GameConfig.faithfulBreak} would dig at double speed. The player's own tick count,
      *  not the level's: {@link #step()} advances it, and a scene may step a bot many times inside one
      *  level tick. */
     private BlockPos advancedCell;
@@ -510,7 +505,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
         advancedCell = cell.immutable();
         advancedTick = fp.tickCount;
-        if (!faithfulBreak) {
+        if (!GameConfig.faithfulBreak) {
             destroyAt(cell);
             return;
         }

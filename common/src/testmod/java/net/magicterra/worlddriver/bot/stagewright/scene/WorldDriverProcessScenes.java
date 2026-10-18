@@ -1274,8 +1274,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        boolean ofb = ServerPlayerBody.faithfulBreak;
-        ctx.cleanup(() -> ServerPlayerBody.faithfulBreak = ofb);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1315,7 +1313,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
-        ServerPlayerBody.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
+        Harness.set("faithfulBreak", true);   // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.

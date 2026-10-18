@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead
+  of in one tick, used to be a field only code in the same JVM could flip; it is now
+  `mc.bot.setting` key `faithfulBreak`, saved and restored with the others.
 - **Routes can keep off ledges and out of a list of cells.** `route.ledge {minDrop, penalty}` charges
   every cell beside a drop deeper than `minDrop` (or a hazard at any depth), for a walk that could
   survive the lip but should not risk it. `route.regions` takes `shape: 'cells'` with up to 4096

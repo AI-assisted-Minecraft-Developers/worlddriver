@@ -467,6 +467,7 @@ public final class SettingDefs {
                 "Cap on stored per-tick trajectory samples (ring buffer)");
         def("pathChartAutoDump", BOOL, "Auto-write a chart PNG on every goto terminal outcome (success and failure)");
         def("elytraDebug", BOOL, "Log per-tick elytra flight controller decisions.");
+        def("faithfulBreak", BOOL, "A server bot digs at the real speed for its tool instead of in one tick.");
         def("smoothLook", BOOL, "Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping.");
         def("smoothLookDegPerTick", ApiTypes.number(1, 180), "Turn rate when smoothLook on (20°/tick ≈ 400°/s)");
         def("riskBias", BOOL, null);
