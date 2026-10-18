@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Another mod can add a body task.** `BodyTasks.register("<modid>.<verb>", …)` in `api/game`
+  publishes a method that starts the mod's own `TaskStep` on a bot and answers as the `mc.bot.*`
+  tasks do: accepted as an action, superseded by the next task, cancellable, and read back through
+  `mc.wait.result`, whose result union now grows with each registered task. `docs/dev/java-api.md`
+  shows how.
 - **Bots can be spawned, adopted and removed through the API.** `mc.bot.roster` with `op: 'spawn'`
   joins a server-side player as `player:<name>`, `adopt` takes a mob over by its `entityId`, and
   `remove` lets a bot go, which used to need the `/worlddriver` commands. The commands now go

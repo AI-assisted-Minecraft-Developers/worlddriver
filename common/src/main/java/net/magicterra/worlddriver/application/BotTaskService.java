@@ -11,6 +11,7 @@ import java.util.function.Function;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.game.BodyTasks;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -52,6 +53,7 @@ import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.GotoOrders;
+import net.magicterra.worlddriver.bot.TaskStepProcess;
 import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.core.BlockPos;
@@ -165,6 +167,12 @@ final class BotTaskService implements BotTaskApi {
      * A body task whose process the same {@link VerbOrders} builder makes for every body. The caller has
      * already turned away, before anything starts, the ids this game does not have.
      */
+    /** A task another mod registered, answering as these do. */
+    <P extends BodyTasks.Params, R> ApiMethod<P, ActionResponse<R>> registered(BodyTasks.Entry<P, R> entry) {
+        return new ApiMethod<>(entry.spec(),
+                (p, ctx) -> task(p.bot(), p.awaitMs(), ctx, body -> TaskStepProcess.order(entry, p, body)));
+    }
+
     private <R> CompletionStage<ActionResponse<R>> task(String body, int awaitMs, CallContext ctx,
                                                         Function<LivingEntity, VerbOrders.Order<R>> order) {
         return actions.start(body, awaitMs, ctx, entity -> plan(order.apply(entity)));

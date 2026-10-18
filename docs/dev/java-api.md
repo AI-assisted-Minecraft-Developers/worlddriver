@@ -147,3 +147,39 @@ cell (a Y level, a direction) still uses the bot's own route.
 
 `StandInDrivers` in the testmod registers one of each for its stand-in mobs; the scenes
 `wd.mobWithRegisteredDriverWalks` and `wd.mobWithRegisteredMoverTravels` drive them.
+
+## Adding a body task
+
+A mod can add a task of its own that runs on a bot the way `mc.bot.*` tasks do: it starts as an
+action, replaces the bot's current task, can be cancelled, and its result answers `mc.wait.result`.
+Register it with `BodyTasks` (`api/game/`) during your mod's setup:
+
+```java
+public record DanceParams(String bot, int beats, int awaitMs) implements BodyTasks.Params {}
+public record Danced(int beats) {}
+
+BodyTasks.register("mymod.dance", DANCE_PARAMS, DANCE_RESULT, "Dance on the spot.",
+        (p, body) -> new TaskStep<Danced>() {
+            int beat;
+            @Override public Progress tick(LivingEntity self) {
+                self.setYRot(self.getYRot() + 90);
+                return ++beat >= p.beats() ? Progress.SUCCEEDED : Progress.RUNNING;
+            }
+            @Override public Danced result() { return new Danced(beat); }
+        });
+```
+
+The name is `<modid>.<verb>`, never under `mc.`. The parameter record has `bot` (declared with
+`Responses.BOT_REF`, defaulting to `self`) and `awaitMs` (`Responses.AWAIT_MS`, defaulting to 0);
+the call answers `accepted` or `refused` like every task. `DANCE_RESULT` is a tagged union on `kind`.
+Its tags join every other action result's kinds, and each variant needs a record class no other
+action result uses, so a tag or class already taken fails the registration.
+
+The factory runs on the bot's game thread when the call arrives. To start nothing, it throws
+`BodyTasks.Refusal` with a reason and a message. `tick` runs once a game tick until it answers
+`SUCCEEDED` or `FAILED` (with `failure()` as the message), and `stop()` is called when the task is
+cancelled or replaced. `mc.bot.status` reports the running task by its method name, and
+`mc.bot.cancel` stops it by its `actionId` or with `process: all`.
+
+`StandInTasks` in the testmod registers `testmod.tally`; the scene `wd.mobRunsARegisteredTask`
+runs it on a mob.

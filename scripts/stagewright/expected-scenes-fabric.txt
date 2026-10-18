@@ -628,6 +628,8 @@ wd.mobUndrivableIsRefused
 # Stand-ins with an entity driver registered as another mod would: one moved by its input, one by its mover.
 wd.mobWithRegisteredDriverWalks
 wd.mobWithRegisteredMoverTravels
+# A body task registered as another mod would, run on a mob and read back through mc.wait.result.
+wd.mobRunsARegisteredTask
 # Water mobs: the ones that only swim cross a tank under a wall, and fail a goal on land in the water;
 # the ones that also walk cross a course with a pool in it.
 wd.mobCodSwimsUnderAWall

@@ -350,6 +350,11 @@ public final class ApiTypes {
         return new UnionType<>(name, tagName, list);
     }
 
+    /** {@code base}, open to more variants later; see {@link OpenUnion}. */
+    public static <T> OpenUnion<T> openUnion(UnionType<T> base) {
+        return new OpenUnion<>(base);
+    }
+
     /**
      * An object of optional members, each typed by {@code types} for its key, in that map's order;
      * {@code docs} describes the keys that have a description.

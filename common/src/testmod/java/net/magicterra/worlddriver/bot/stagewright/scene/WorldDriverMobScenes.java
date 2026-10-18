@@ -62,7 +62,35 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 Scene.of("wd.mobThatIgnoresInputFailsUnresponsive", 400, WorldDriverMobScenes::ignoresInputFailsUnresponsive),
                 Scene.of("wd.mobUndrivableIsRefused", 300, WorldDriverMobScenes::undrivableIsRefused),
                 Scene.of("wd.mobWithRegisteredDriverWalks", 600, WorldDriverMobScenes::registeredDriverWalks),
-                Scene.of("wd.mobWithRegisteredMoverTravels", 400, WorldDriverMobScenes::registeredMoverTravels));
+                Scene.of("wd.mobWithRegisteredMoverTravels", 400, WorldDriverMobScenes::registeredMoverTravels),
+                Scene.of("wd.mobRunsARegisteredTask", 300, WorldDriverMobScenes::runsARegisteredTask));
+    }
+
+    /**
+     * A body task registered as another mod would register one, called by its name on a mob: it starts as
+     * an action, runs on the bot's tick, and its result answers {@code mc.wait.result}.
+     */
+    private static void runsARegisteredTask(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        Mob mob = stage(ctx, ctx.origin().above(20), NpcContent.VELOCITY_MOB.get());
+        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
+            Map<String, Object> go = call(api, "testmod.tally", Map.of("bot", ref, "ticks", 5));
+            ctx.record("tally", String.valueOf(go));
+            if (actionId(go) == null) { ctx.fail("the registered task did not start: " + go); return; }
+            ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state"))).within(100).then(() -> {
+                Map<?, ?> action = read(api, actionId(go));
+                ctx.record("ended", String.valueOf(action));
+                ctx.check("succeeded".equals(action.get("state")) && action.get("result") instanceof Map<?, ?> r
+                                && "tally".equals(r.get("kind")) && r.get("ticks") instanceof Number n && n.intValue() == 5
+                                && Boolean.TRUE.equals(r.get("onGround")))
+                        .as("the registered task ran five ticks on the mob and reported it: " + action)
+                        .isTrue();
+            });
+        });
     }
 
     /**

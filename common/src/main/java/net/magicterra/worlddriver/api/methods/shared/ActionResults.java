@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.OpenUnion;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
@@ -16,7 +17,7 @@ import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 /**
  * Every action result there is, as one union on {@code kind}: what {@code mc.wait.result} answers
  * for an action of any method. Each method's own result union contributes its variants, so a new
- * body-task method is one line here.
+ * body-task method is one line here; a task another mod registers adds its own through {@link #add}.
  */
 public final class ActionResults {
     private ActionResults() {}
@@ -40,7 +41,11 @@ public final class ActionResults {
             CombatContracts.RESULT,
             InteractContracts.LOOK_RESULT);
 
-    public static final UnionType<Object> UNION = union();
+    public static final OpenUnion<Object> UNION = ApiTypes.openUnion(union());
+
+    /** Make {@code result}'s variants answerable too. Throws, adding nothing, on a kind already taken. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void add(UnionType<?> result) { UNION.add((UnionType) result); }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static UnionType<Object> union() {

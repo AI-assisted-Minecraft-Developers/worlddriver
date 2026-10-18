@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.game.BodyTasks;
 import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.EventWire;
@@ -82,6 +83,14 @@ public final class DriverApplication implements DriverHost {
     public DriverApplication() {
         SettingDefaults.install();
         registry.registerBatch(coreBatch);
+        BotTaskService tasks = new BotTaskService(this);
+        // Each registered task is its own batch under its mod id, so one that cannot be published (a name
+        // another mod's method holds) leaves the others standing.
+        BodyTasks.listen(e -> {
+            String name = e.spec().name();
+            registry.registerBatch(new ApiBatch(name.substring(0, name.indexOf('.')), "task:" + name,
+                    List.of(tasks.registered(e))));
+        });
     }
 
     /** Every method this driver answers, core and published alike; what every transport dispatches through. */

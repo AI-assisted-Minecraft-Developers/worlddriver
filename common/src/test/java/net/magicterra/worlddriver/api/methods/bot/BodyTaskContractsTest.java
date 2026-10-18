@@ -5,12 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
+import net.magicterra.worlddriver.api.game.BodyTasks;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
@@ -147,7 +149,10 @@ class BodyTaskContractsTest {
     @Test
     void actionResultsHoldsExactlyTheActionMethodsResults() {
         Set<String> fromMethods = new TreeSet<>();
-        for (MethodSpec<?, ?> spec : CoreMethods.all()) {
+        List<MethodSpec<?, ?>> specs = new ArrayList<>(CoreMethods.all());
+        // Another test in this JVM may have registered a task; its result is in the union too.
+        for (BodyTasks.Entry<?, ?> e : BodyTasks.all()) specs.add(e.spec());
+        for (MethodSpec<?, ?> spec : specs) {
             RecordType<?> accepted = variant(spec.output(), "accepted");
             if (accepted == null) continue;
             ApiType<?> action = field(accepted, "action");
