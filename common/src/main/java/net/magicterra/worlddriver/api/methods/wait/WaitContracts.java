@@ -78,7 +78,7 @@ public final class WaitContracts {
             ApiTypes.record(EventParams.class, "WaitEventParams",
                     ApiField.field("cursor", EventContracts.cursor()).describe("Wait for events after this seq.")
                             .required().forGetter(EventParams::cursor),
-                    ApiField.field("types", ApiTypes.list(EventContracts.eventType(), 256))
+                    ApiField.field("types", EventContracts.typeFilter())
                             .describe("Only these types; omit or [] for every type.").optional().forGetter(EventParams::types),
                     ApiField.field("limit", ApiTypes.integer(1, 256)).defaulted(32).forGetter(EventParams::limit),
                     ApiField.field("timeoutMs", timeoutMs()).defaulted(5000).forGetter(EventParams::timeoutMs),

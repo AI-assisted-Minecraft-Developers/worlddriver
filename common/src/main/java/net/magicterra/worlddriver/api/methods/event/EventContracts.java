@@ -58,7 +58,8 @@ public final class EventContracts {
                     .optional().forGetter(Event::data),
             Event::new);
 
-    private static ApiType<List<String>> typeFilter() {
+    /** A list of event types to match, as every filter on the stream takes it. */
+    public static ApiType<List<String>> typeFilter() {
         return ApiTypes.list(eventType(), 256);
     }
 

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.api.methods.shared;
 import java.util.List;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
@@ -26,14 +27,14 @@ public final class EventStreamContracts {
     public record Unsubscribed(boolean subscribed) {}
 
     public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record(SubscribeParams.class, "SubscribeParams",
-            ApiField.field("types", ApiTypes.list(ApiTypes.string(1, 128), 256))
+            ApiField.field("types", EventContracts.typeFilter())
                     .describe("Event types to receive; omit or [] for every type.")
                     .optional().forGetter(SubscribeParams::types),
             SubscribeParams::new);
 
     public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record(Subscription.class, "Subscription",
             ApiField.field("subscribed", ApiTypes.trueOnly()).required().forGetter(Subscription::subscribed),
-            ApiField.field("types", ApiTypes.list(ApiTypes.string(1, 128), 256)).required().forGetter(Subscription::types),
+            ApiField.field("types", EventContracts.typeFilter()).required().forGetter(Subscription::types),
             ApiField.field("allTypes", ApiTypes.bool())
                     .describe("True when types is empty: every type is pushed, not none.")
                     .required().forGetter(Subscription::allTypes),

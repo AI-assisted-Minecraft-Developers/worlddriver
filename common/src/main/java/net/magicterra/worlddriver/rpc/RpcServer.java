@@ -406,7 +406,7 @@ public final class RpcServer implements Closeable {
             Object params = req.get("params");
             // Event-stream subscription is per-connection state, so it's handled at the transport
             // layer: it controls which frames THIS socket receives, not any game behavior.
-            if ("mc.events.subscribe".equals(method) || "mc.events.unsubscribe".equals(method)) {
+            if (EventStreamContracts.SUBSCRIBE.equals(method) || EventStreamContracts.UNSUBSCRIBE.equals(method)) {
                 write(ch, subscriptionControl(method, params, ch, id));
                 return;
             }
