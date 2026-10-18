@@ -8,7 +8,7 @@ import java.util.Set;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
@@ -280,7 +280,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
 
         // Pasteable, because the alternative is a human transcribing coordinates out of a log.
         for (String line : JourneyRoute.asConstants(survey)) {
-            WorldDriverCommon.LOG.info("[journey/recon] {}", line);
+            TestMod.LOG.info("[journey/recon] {}", line);
         }
 
         if (!JourneyRoute.surveyed()) {

@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -363,7 +363,7 @@ public final class JourneyRehearsal {
                     Map.of("rehearsal.lake", "skipped"), level.getGameTime());
             ctx.passNote("REHEARSAL survey — seed " + level.getSeed() + ", lava lake not surveyed ("
                     + target.name() + " does not use it). This is not a climb.");
-            WorldDriverCommon.LOG.info("[rehearsal] lake=skipped target={}", target);
+            TestMod.LOG.info("[rehearsal] lake=skipped target={}", target);
             return;
         }
 
@@ -405,7 +405,7 @@ public final class JourneyRehearsal {
                 level.getGameTime());
         ctx.passNote("REHEARSAL survey — seed " + level.getSeed() + ", lava lake " + lake.toShortString()
                 + " (" + sources + " source blocks). This is not a climb.");
-        WorldDriverCommon.LOG.info("[rehearsal] lake={} sources={} target={}", lake, sources, target);
+        TestMod.LOG.info("[rehearsal] lake={} sources={} target={}", lake, sources, target);
     }
 
     // =====================================================================================
@@ -604,7 +604,7 @@ public final class JourneyRehearsal {
         fp.setOnGround(true);
         ctx.record("rehearsal.stand", stand.toShortString() + ", "
                 + Math.round(Math.sqrt(stand.distSqr(lake))) + " blocks from the lake");
-        WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the bot at {}",
+        TestMod.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
@@ -674,7 +674,7 @@ public final class JourneyRehearsal {
                 + lava.getX() + "," + lava.getZ() + " is " + Math.round(Math.hypot(
                         stand.getX() - lava.getX(), stand.getZ() - lava.getZ())) + " blocks away, "
                 + (stand.getY() - lava.getY()) + " blocks to dig down");
-        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the bot at {}",
+        TestMod.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
@@ -756,7 +756,7 @@ public final class JourneyRehearsal {
         fp.moveTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
         ctx.record("rehearsal.stand", front.toShortString() + ", 3 blocks from the doorway");
-        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the bot at {}",
+        TestMod.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the bot at {}",
                 door, front);
     }
 
@@ -1246,7 +1246,7 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.stand", stand.toShortString() + ", "
                 + Math.round(Math.sqrt(stand.distSqr(centre))) + " blocks from the frame centre ("
                 + notStaged + ")");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the bot at {} ({} frames)",
+        TestMod.LOG.info("[rehearsal] staged {}: gave {} and stood the bot at {} ({} frames)",
                 what, gave, stand, frames.size());
         return centre;
     }
@@ -1617,7 +1617,7 @@ public final class JourneyRehearsal {
                 + end.players().size() + " players) — when false, EndDragonFight.tick scans an empty"
                 + " list every 20 ticks and does nothing; every bot the server creates goes through"
                 + " placeNewPlayer, so false means it was removed or is not in the End");
-        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, bot {} inList={}",
+        TestMod.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, bot {} inList={}",
                 gave, platform, fp.blockPosition(), end.players().contains(fp));
     }
 
@@ -1761,7 +1761,7 @@ public final class JourneyRehearsal {
         loadAround(nether, stand, 2);
         ctx.record("rehearsal.stand", stand.toShortString() + " @ " + fp.level().dimension().location()
                 + " (" + notStaged + ")");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the bot to {}",
+        TestMod.LOG.info("[rehearsal] staged {}: gave {} and crossed the bot to {}",
                 what, gave, stand);
     }
 
@@ -1853,7 +1853,7 @@ public final class JourneyRehearsal {
                     + "; only " + target.name() + "(" + target.label() + ") was rehearsed, and every"
                     + " rung below it is a placeholder that was not climbed. The real result comes from"
                     + " :fabric:runJourneyServer.");
-            WorldDriverCommon.LOG.info("[rehearsal] {} REACHED with staging.calls={} — NOT a climb",
+            TestMod.LOG.info("[rehearsal] {} REACHED with staging.calls={} — NOT a climb",
                     target, staging.size());
         } finally {
             JourneyRig.teardown();

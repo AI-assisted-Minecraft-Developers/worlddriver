@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -41,7 +40,7 @@ public final class FixtureIO {
     public static Path scenesDir() {
         String override = System.getProperty("worlddriver.scenesDir");
         if (override != null && !override.isBlank()) return Path.of(override);
-        return Path.of("config", WorldDriverCommon.MOD_ID, "scenes");
+        return Path.of("config", TestMod.MOD_ID, "scenes");
     }
 
     public static Path jsonPath(String name) {

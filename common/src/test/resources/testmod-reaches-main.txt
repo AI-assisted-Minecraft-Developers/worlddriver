@@ -96,7 +96,6 @@ bot/stagewright/journey/JourneyNetherRungs -> bot/world/LevelWorldView
 bot/stagewright/journey/JourneyNetherRungs -> bot/world/SurvivalMath
 bot/stagewright/journey/JourneyNetherRungs -> config/RulesConfig
 bot/stagewright/journey/JourneyNetherRungs -> config/WorldConfig
-bot/stagewright/journey/JourneyPeace -> WorldDriverCommon
 bot/stagewright/journey/JourneyPortalEntry -> bot/behavior/BotProcess
 bot/stagewright/journey/JourneyPortalEntry -> bot/behavior/BotState
 bot/stagewright/journey/JourneyPortalEntry -> bot/behavior/Intent
@@ -104,7 +103,6 @@ bot/stagewright/journey/JourneyPortalEntry -> bot/behavior/IntentProcess
 bot/stagewright/journey/JourneyPortalEntry -> bot/rules/Goal
 bot/stagewright/journey/JourneyPortalEntry -> bot/world/WorldView
 bot/stagewright/journey/JourneyPortalEntry -> game/body/Body
-bot/stagewright/journey/JourneyPortalEntryScenes -> WorldDriverCommon
 bot/stagewright/journey/JourneyPortalEntryScenes -> bot/BotTicker
 bot/stagewright/journey/JourneyPortalEntryScenes -> bot/PlayerBot
 bot/stagewright/journey/JourneyPortalEntryScenes -> bot/behavior/BotProcess
@@ -128,7 +126,6 @@ bot/stagewright/journey/JourneyPour -> bot/rules/Goal
 bot/stagewright/journey/JourneyPour -> bot/rules/constraints/NoBreak
 bot/stagewright/journey/JourneyPour -> config/WorldConfig
 bot/stagewright/journey/JourneyPour -> game/body/Body
-bot/stagewright/journey/JourneyPourLineScenes -> WorldDriverCommon
 bot/stagewright/journey/JourneyPourLineScenes -> bot/BotTicker
 bot/stagewright/journey/JourneyPourLineScenes -> bot/PlayerBot
 bot/stagewright/journey/JourneyPourLineScenes -> config/BotConfig
@@ -152,10 +149,8 @@ bot/stagewright/journey/JourneyRampScenes -> config/BotConfig
 bot/stagewright/journey/JourneyRampScenes -> config/GameConfig
 bot/stagewright/journey/JourneyRampScenes -> config/WorldConfig
 bot/stagewright/journey/JourneyRampScenes -> game/body/ServerPlayerBody
-bot/stagewright/journey/JourneyRehearsal -> WorldDriverCommon
 bot/stagewright/journey/JourneyRehearsal -> bot/PlayerBot
 bot/stagewright/journey/JourneyRehearsal -> game/observe/RegistryIds
-bot/stagewright/journey/JourneyRig -> WorldDriverCommon
 bot/stagewright/journey/JourneyRig -> bot/BotApi
 bot/stagewright/journey/JourneyRig -> bot/BotHooks
 bot/stagewright/journey/JourneyRig -> bot/BotTicker
@@ -199,7 +194,6 @@ bot/stagewright/journey/JourneyStation -> bot/behavior/Intent
 bot/stagewright/journey/JourneyStation -> bot/behavior/IntentProcess
 bot/stagewright/journey/JourneyStation -> bot/rules/Goal
 bot/stagewright/journey/JourneyTerrain -> bot/rules/CostModifier
-bot/stagewright/journey/JourneyUnwedgeScenes -> WorldDriverCommon
 bot/stagewright/journey/JourneyUnwedgeScenes -> bot/BotTicker
 bot/stagewright/journey/JourneyUnwedgeScenes -> bot/PlayerBot
 bot/stagewright/journey/JourneyUnwedgeScenes -> bot/behavior/TowerProcess
@@ -210,7 +204,6 @@ bot/stagewright/journey/JourneyUnwedgeScenes -> game/body/ServerPlayerBody
 bot/stagewright/journey/JourneyWorkableSpotScenes -> bot/PlayerBot
 bot/stagewright/journey/JourneyWorkableSpotScenes -> game/body/ServerPlayerBody
 bot/stagewright/journey/NavigatorCensus -> bot/control/NavigatorTelemetry
-bot/stagewright/journey/WorldDriverJourneyScenes -> WorldDriverCommon
 bot/stagewright/journey/WorldDriverJourneyScenes -> bot/PlayerBot
 bot/stagewright/journey/WorldDriverJourneyScenes -> bot/behavior/CombatProcess
 bot/stagewright/journey/WorldDriverJourneyScenes -> bot/behavior/CraftProcess
@@ -224,17 +217,13 @@ bot/stagewright/journey/WorldDriverJourneyScenes -> bot/rules/Constraint
 bot/stagewright/journey/WorldDriverJourneyScenes -> bot/rules/CostModifier
 bot/stagewright/journey/WorldDriverJourneyScenes -> bot/rules/Goal
 bot/stagewright/journey/WorldDriverJourneyScenes -> config/WorldConfig
-bot/stagewright/scene/HumanScenes -> WorldDriverCommon
-bot/stagewright/scene/SimProbes -> WorldDriverCommon
 bot/stagewright/scene/SimProbes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientDriverApi
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientHooks
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverAvatarScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverAvatarScenes -> application/PlayerSnapshots
 bot/stagewright/scene/WorldDriverAvatarScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverAvatarScenes -> bot/PlayerBot
@@ -248,7 +237,6 @@ bot/stagewright/scene/WorldDriverAvatarScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverAvatarScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverBiasScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/control/route/PathSmoothing
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/planning/PathFinder
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/rules/Capability
@@ -279,7 +267,6 @@ bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> config/WorldConfig
-bot/stagewright/scene/WorldDriverBridgeScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverBridgeScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverBridgeScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverBridgeScenes -> bot/rules/Goal
@@ -288,7 +275,6 @@ bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverBuildScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
 bot/stagewright/scene/WorldDriverClientAirScenes -> bot/rules/Goal
@@ -318,9 +304,7 @@ bot/stagewright/scene/WorldDriverClientWaterScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverClientWaterScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverClientWaterScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverClientWaterScenes -> config/WorldConfig
-bot/stagewright/scene/WorldDriverCombatScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
-bot/stagewright/scene/WorldDriverCoreScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Locomotor
@@ -348,7 +332,6 @@ bot/stagewright/scene/WorldDriverCoreScenes -> game/ui/InputReleaseGate
 bot/stagewright/scene/WorldDriverCoreScenes -> game/ui/MouseYieldGate
 bot/stagewright/scene/WorldDriverCoreScenes -> mcp/McpTools
 bot/stagewright/scene/WorldDriverCoreScenes -> test/ScriptTest
-bot/stagewright/scene/WorldDriverCoverageScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/ExpectAlarms
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Navigator
@@ -362,7 +345,6 @@ bot/stagewright/scene/WorldDriverCoverageScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverCrystalBlastScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/BlastFooting
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/ServerPlayerBody
@@ -397,7 +379,6 @@ bot/stagewright/scene/WorldDriverMarkerScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverMarkerScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverMarkerScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverMarkerScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverMobFightScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/behavior/CombatProcess
@@ -441,7 +422,6 @@ bot/stagewright/scene/WorldDriverNpcScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverNpcScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverNpcScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverNpcScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/planning/PathFinder
@@ -461,7 +441,6 @@ bot/stagewright/scene/WorldDriverPortalScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverPortalScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverPortalScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverPortalScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverProcessScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/behavior/BridgeProcess
@@ -509,7 +488,6 @@ bot/stagewright/scene/WorldDriverRouteScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverRouteScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverRouteScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverRouteScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverScenes -> bot/behavior/EntityFind
@@ -533,7 +511,6 @@ bot/stagewright/scene/WorldDriverScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverScenes -> config/RulesConfig
 bot/stagewright/scene/WorldDriverScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverSchedulerScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverSchedulerScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverSchedulerScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverSchedulerScenes -> bot/arbitration/BunkerChain
@@ -570,7 +547,6 @@ bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> bot/behavior/SmeltProces
 bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverSmeltDeliveryScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverStationScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverStationScenes -> application/PlayerSnapshots
 bot/stagewright/scene/WorldDriverStationScenes -> application/RecipeService
 bot/stagewright/scene/WorldDriverStationScenes -> bot/BotTicker
@@ -581,7 +557,6 @@ bot/stagewright/scene/WorldDriverStationScenes -> config/BehaviorConfig
 bot/stagewright/scene/WorldDriverStationScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverStationScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverStationScenes -> game/observe/RecipeResolver
-bot/stagewright/scene/WorldDriverSurvivalScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverSurvivalScenes -> application/PlayerSnapshots
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/PlayerBot
@@ -617,7 +592,6 @@ bot/stagewright/scene/WorldDriverSurvivalScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverSurvivalScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverSurvivalScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverSurvivalScenes -> game/body/Body
-bot/stagewright/scene/WorldDriverTerrainScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/Goal
@@ -642,7 +616,6 @@ bot/stagewright/scene/WorldDriverThinFootingScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverThinFootingScenes -> config/RulesConfig
 bot/stagewright/scene/WorldDriverThinFootingScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverThinFootingScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverTowerScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverTowerScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverTowerScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverTowerScenes -> bot/behavior/Intent
@@ -655,7 +628,6 @@ bot/stagewright/scene/WorldDriverTowerScenes -> config/GameConfig
 bot/stagewright/scene/WorldDriverTowerScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverTowerScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverTowerScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverWaterBankScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverWaterBankScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverWaterBankScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverWaterBankScenes -> bot/control/NavigatorTelemetry
@@ -670,7 +642,6 @@ bot/stagewright/scene/WorldDriverWaterBankScenes -> config/PlanningConfig
 bot/stagewright/scene/WorldDriverWaterBankScenes -> config/WorldConfig
 bot/stagewright/scene/WorldDriverWaterBankScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverWaterBankScenes -> game/observe/BuildBlocks
-bot/stagewright/scene/WorldDriverWaterCrossScenes -> WorldDriverCommon
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/NavigatorSettings
@@ -695,8 +666,6 @@ bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/control/NavigatorTelemetr
 bot/stagewright/scene/WorldDriverWaterMobScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverWaterMobScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverWaterMobScenes -> config/WorldConfig
-testcontent/FixtureIO -> WorldDriverCommon
-testcontent/FixtureRunner -> WorldDriverCommon
 testcontent/FixtureRunner -> bot/BotHooks
 testcontent/FixtureRunner -> bot/BotTicker
 testcontent/FixtureRunner -> bot/PlayerBot
@@ -714,12 +683,7 @@ testcontent/FixtureRunner -> bot/rules/Goal
 testcontent/FixtureRunner -> config/BotConfig
 testcontent/FixtureRunner -> game/observe/RegistryIds
 testcontent/MarkerContent -> TestContent
-testcontent/MarkerContent -> WorldDriverCommon
 testcontent/NpcContent -> TestContent
-testcontent/NpcContent -> WorldDriverCommon
-testcontent/SceneCommands -> WorldDriverCommon
-testcontent/SceneVerbs -> WorldDriverCommon
-testcontent/ValidationSuite -> WorldDriverCommon
 testcontent/ValidationSuite -> script/McpBridge
 testcontent/ValidationSuite -> script/RpcBridge
 testcontent/ValidationSuite -> script/ScriptManager

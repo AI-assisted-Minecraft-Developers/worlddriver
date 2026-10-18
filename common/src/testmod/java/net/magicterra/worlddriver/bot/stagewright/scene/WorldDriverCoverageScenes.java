@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -119,7 +119,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 && fp.getY() >= standY + 1 - 0.4;
         boolean wallBreached = level.getBlockState(new BlockPos(cx + 2, floorY + 2, cz)).isAir()
                 || level.getBlockState(new BlockPos(cx + 2, floorY + 3, cz)).isAir();
-        WorldDriverCommon.LOG.warn("[wd.debugSweepCourse] step={} ticks={} pos={},{},{} wallBreached={}",
+        TestMod.LOG.warn("[wd.debugSweepCourse] step={} ticks={} pos={},{},{} wallBreached={}",
                 s, t, fp.getX(), fp.getY(), fp.getZ(), wallBreached);
         if (!reached)
             ctx.fail("debugSweepCourse: navigator (navigatorDebug=true) failed the walk/step/dig course: step="
@@ -191,7 +191,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
-        WorldDriverCommon.LOG.warn("[wd.expectAlarmBlockedJump] step={} ticks={} fired={} capped={} lifted={} reached={}",
+        TestMod.LOG.warn("[wd.expectAlarmBlockedJump] step={} ticks={} fired={} capped={} lifted={} reached={}",
                 s, t, fired, capped, lifted, reached);
         if (fired == 0)
             ctx.fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + s
@@ -266,7 +266,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-        WorldDriverCommon.LOG.warn("[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
+        TestMod.LOG.warn("[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
                 s, t, minAir, maxAir, fp.position());
         if (minAir <= 0 || !fp.isAlive())
             ctx.fail("drownEscapeSurface: avatar drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
@@ -318,7 +318,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         for (; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-        WorldDriverCommon.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", s, t, fp.position());
+        TestMod.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", s, t, fp.position());
         if (!reached)
             ctx.fail("bestEffortSpliceCourse: navigator failed the corridor under a starved node budget "
                     + "(best-effort/splice machinery): step=" + s + " pos=" + fp.position());
@@ -362,7 +362,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 4 - 0.4;
-        WorldDriverCommon.LOG.warn("[wd.ascendMovementStairs] step={} ticks={} pos={}", s, t, fp.position());
+        TestMod.LOG.warn("[wd.ascendMovementStairs] step={} ticks={} pos={}", s, t, fp.position());
         if (!reached)
             ctx.fail("ascendMovementStairs: AscendMovement-delegated staircase failed: step=" + s
                     + " pos=" + fp.position());
@@ -476,7 +476,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-        WorldDriverCommon.LOG.warn("[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
+        TestMod.LOG.warn("[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
                 s, t, enteredPocket, churnSeen, fp.position());
         if (!enteredPocket)
             ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
@@ -560,7 +560,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-        WorldDriverCommon.LOG.warn("[wd.quickStartStub] step={} ticks={} pos={}", s, t, fp.position());
+        TestMod.LOG.warn("[wd.quickStartStub] step={} ticks={} pos={}", s, t, fp.position());
         if (!reached)
             ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
                     + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
@@ -645,7 +645,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + " t=" + t + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
                     + " endReason=" + navigator.result().endReason() + " lastStats=" + NavigatorTelemetry.of(fp).lastStats
                     + " trace=" + trace;
-        WorldDriverCommon.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
+        TestMod.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
 
@@ -726,7 +726,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!reached)
             return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
                     + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason();
-        WorldDriverCommon.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
+        TestMod.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
 
@@ -821,7 +821,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
-        WorldDriverCommon.LOG.warn("[wd.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", s, t, capped, fp.position());
+        TestMod.LOG.warn("[wd.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", s, t, capped, fp.position());
         if (!capped)
             ctx.fail("stepUpBackoffCeiling: rig broken — the bot never approached the riser: step=" + s
                     + " t=" + t + " pos=" + fp.position());
@@ -1086,7 +1086,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + "and still treats it as a buoyant pillar, so \"an unfilled place cell is not really pending\": "
                     + "the pointer advanced past a support placement that has not happened yet.");
         if (!placed)
-            WorldDriverCommon.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass "
+            TestMod.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass "
                     + "and the support was not placed (peak {} / threshold {}). This run did not test the divergence; "
                     + "it only shows that the bot did not rise. Not a failure, but not a pass either.",
                     maxY, support.getY() + 1.0);

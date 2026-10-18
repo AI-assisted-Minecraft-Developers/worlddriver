@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.TestMod;
 import java.util.List;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -927,7 +928,7 @@ public final class WorldDriverMobFightScenes {
             // search far more than it wants an untruncated one.
             ControlConfig.pathfinderSliceMs = 6;
             PlanningConfig.pathfinderMaxMs = 500;
-            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+            net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} BOT LEFT THE ARENA at iter={} — y={} is {} below floor {};"
                             + " blaze at y={}. Ending the round after {} probe iterations under a"
                             + " REAL pathfinder budget (slice {}->6 ms, max {}->500 ms).",
@@ -945,7 +946,7 @@ public final class WorldDriverMobFightScenes {
             ControlConfig.pathfinderSliceMs = sliceWas;
             PlanningConfig.pathfinderMaxMs = maxWas;
             postFallCensus = futileGateLine(futileAtFall, futileSnapshot(fp));
-            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+            net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,
                     postFallCensus);
         }
@@ -1005,7 +1006,7 @@ public final class WorldDriverMobFightScenes {
                 // trace, and this is the rare event that a future intermittent red needs to find by
                 // grepping several runs' logs — the one thing a single green run cannot tell you.
                 if (spent > SLICE_MS * 1_000_000L)
-                    net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                    net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                             "[blazefight] {} SINGLE ITERATION OVERRAN THE SLICE: iter={} took {} ms"
                                     + " > sliceMs={} — bounded iterations, unbounded cost per"
                                     + " iteration (pathfinder budgets are MAX_VALUE/2 in this scene)",
@@ -1015,7 +1016,7 @@ public final class WorldDriverMobFightScenes {
                 // killed part way through, and every `ctx.record` in `finish()` never runs — the
                 // measurement has to already be in the log by then.
                 if (t % 200 == 0)
-                    net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+                    net.magicterra.worlddriver.testcontent.TestMod.LOG.info(
                             "[blazefight] {} iter={} serverTicks={} workMs={} worstIterMs={}", tag, t,
                             serverTicks, workNanos / 1_000_000L, worstIter / 1_000_000L);
             } while (System.nanoTime() < deadline);

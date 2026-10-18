@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -826,7 +826,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         boolean openAbove = true;
         for (int y = foot.getY() + 1; y <= floorY + 6; y++)
             if (driver.world().isSolid(new BlockPos(foot.getX(), y, foot.getZ()))) { openAbove = false; break; }
-        WorldDriverCommon.LOG.info("[wd.duskSecureHeldProcessLifecycle/rearmWorldLeg] preempted@t{} foot={} cornered={} openAbove={} rearmPending={}",
+        TestMod.LOG.info("[wd.duskSecureHeldProcessLifecycle/rearmWorldLeg] preempted@t{} foot={} cornered={} openAbove={} rearmPending={}",
                 t, foot, cornered, openAbove, chain.rearmPendingForTest());
         if (!cornered)
             ctx.fail("rig: the half-dug 1×1 shaft must read cornered=true "
@@ -847,7 +847,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         driver.runProcess(redo);
         chain.adoptProcessForTest(redo);
         for (int i = 0; i < 800 && !"SEALED".equals(st.bunker.endReason); i++) driver.tick();
-        WorldDriverCommon.LOG.info("[wd.duskSecureHeldProcessLifecycle/rearmWorldLeg] redo endReason={} lastErr={} foot={} enclosed={}",
+        TestMod.LOG.info("[wd.duskSecureHeldProcessLifecycle/rearmWorldLeg] redo endReason={} lastErr={} foot={} enclosed={}",
                 st.bunker.endReason, st.bunker.lastError, fp.blockPosition(),
                 BunkerProcess.enclosed(driver.world(), fp.blockPosition()));
         if (!"SEALED".equals(st.bunker.endReason))

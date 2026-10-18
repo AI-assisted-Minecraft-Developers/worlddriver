@@ -12,7 +12,7 @@ import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 import dev.architectury.event.events.common.PlayerEvent;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -146,7 +146,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         Vec3 bEnd = fpB.position();
         double bDrift = bStart.distanceTo(bEnd);
         double aMoved = fpA.position().distanceTo(new Vec3(ax + 0.5, floorY + 1, az + 0.5));
-        WorldDriverCommon.LOG.warn("[wd.serverAgentDistinctBodies] fpA={} fpB={} | A walked {} blocks, B (idle) drifted {}",
+        TestMod.LOG.warn("[wd.serverAgentDistinctBodies] fpA={} fpB={} | A walked {} blocks, B (idle) drifted {}",
                 System.identityHashCode(fpA), System.identityHashCode(fpB), aMoved, bDrift);
         if (aMoved < 0.5)
             ctx.fail("rig broken: agent A did not walk at all (" + aMoved + ")");
@@ -187,7 +187,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         driver.avatar().commandUseItem(false);
         int beefLeft = fp.getInventory().getItem(0).getCount();
         int food = fp.getFoodData().getFoodLevel();
-        WorldDriverCommon.LOG.warn("[wd.serverAvatarTickFidelity] after holding use 40t on cooked beef: beefLeft={} foodLevel={}"
+        TestMod.LOG.warn("[wd.serverAvatarTickFidelity] after holding use 40t on cooked beef: beefLeft={} foodLevel={}"
                 + " (vanilla: 1 left, food 6 -> 14)", beefLeft, food);
         if (beefLeft != 1 || food <= 6)
             ctx.fail("holding USE on food never finished the bite (beefLeft=" + beefLeft
@@ -200,7 +200,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             ctx.fail("rig broken: the cooldown did not even register");
         for (int i = 0; i < 15; i++) driver.avatar().step();
         boolean stillCooling = fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL);
-        WorldDriverCommon.LOG.warn("[wd.serverAvatarTickFidelity] 10t cooldown after 15 ticks: stillOnCooldown={}", stillCooling);
+        TestMod.LOG.warn("[wd.serverAvatarTickFidelity] 10t cooldown after 15 ticks: stillOnCooldown={}", stillCooling);
         if (stillCooling)
             ctx.fail("a 10-tick item cooldown had not expired after 15 avatar ticks:"
                     + " nothing calls cooldowns.tick(), so any item that goes on cooldown stays there forever");
@@ -216,7 +216,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         fp.getInventory().setItem(0, new ItemStack(Items.IRON_AXE));   // swap: different item
         driver.avatar().step();
         float afterSwap = fp.getAttackStrengthScale(0.0f);
-        WorldDriverCommon.LOG.warn("[wd.serverAvatarTickFidelity] recharge scale: onSword={} oneTickAfterSwapToAxe={}"
+        TestMod.LOG.warn("[wd.serverAvatarTickFidelity] recharge scale: onSword={} oneTickAfterSwapToAxe={}"
                 + " (vanilla: the swap empties the bar)", charged, afterSwap);
         if (afterSwap > 0.5f)
             ctx.fail("swapping to a different weapon did not reset the recharge bar"
@@ -253,7 +253,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         fp.resetAttackStrengthTicker();               // just swung: bar empty
         Attack a0 = attackOf(fp);
-        WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] swordFresh={}", a0);
+        TestMod.LOG.info("[wd.serverAttackCooldown] swordFresh={}", a0);
 
         // (A) Right after a swing the bar is empty: a hit sent NOW would land for ~0 damage.
         float s0 = (float) a0.strengthScale();
@@ -294,7 +294,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         equipMainHand(fp, new ItemStack(Items.IRON_AXE));
         Attack axe = attackOf(fp);
         int axePeriod = axe.fullCooldownTicks();
-        WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] axe={}", axe);
+        TestMod.LOG.info("[wd.serverAttackCooldown] axe={}", axe);
         if (axePeriod <= period)
             ctx.fail("an axe swings slower than a sword; got axe=" + axePeriod
                     + " sword=" + period + " — the field is not reading the held weapon");
@@ -348,7 +348,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         av.place(w::isSolid, placeCell);
         boolean placed = !level.getBlockState(placeCell).isAir();
 
-        WorldDriverCommon.LOG.info("[wd.serverCapability] broke={} placed={}", broke, placed);
+        TestMod.LOG.info("[wd.serverCapability] broke={} placed={}", broke, placed);
         if (!broke) ctx.fail("server agent failed to BREAK the block (still " + level.getBlockState(breakTarget) + ")");
         if (!placed) ctx.fail("server agent failed to PLACE a block at " + placeCell);
     }
@@ -396,7 +396,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             if (fp.isFallFlying()) flewAtSomePoint = true;
         }
         boolean crashed = !driver.finished() && BotTicker.activeCount() == 0;
-        WorldDriverCommon.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) finished={} active={} crashed={}",
+        TestMod.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) finished={} active={} crashed={}",
                 flewAtSomePoint, fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), crashed);
         if (crashed)
@@ -414,7 +414,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
     /** A payload on a channel no client negotiated. Never encoded: the bot drops it first. */
     private record ProbePayload() implements CustomPacketPayload {
         static final Type<ProbePayload> TYPE = new Type<>(
-                ResourceLocation.fromNamespaceAndPath(WorldDriverCommon.MOD_ID, "bot_payload_probe"));
+                ResourceLocation.fromNamespaceAndPath(TestMod.MOD_ID, "bot_payload_probe"));
 
         @Override public Type<ProbePayload> type() { return TYPE; }
     }

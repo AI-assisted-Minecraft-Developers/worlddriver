@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -62,7 +62,7 @@ public final class WorldDriverBuildScenes implements SceneProvider {
         for (Block b : mustAccept)
             if (!BuildBlocks.isUsableBuildBlock(b))
                 ctx.fail("buildBlockRejectsInteractive: plain block wrongly rejected: " + b);
-        WorldDriverCommon.LOG.info("[wd.buildBlockRejectsInteractive] all {} interactive rejected, {} plain accepted",
+        TestMod.LOG.info("[wd.buildBlockRejectsInteractive] all {} interactive rejected, {} plain accepted",
                 mustReject.length, mustAccept.length);
     }
 
@@ -103,7 +103,7 @@ public final class WorldDriverBuildScenes implements SceneProvider {
         if (BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_PLANKS.asItem())))
             ctx.fail("valuablePlacementBlockMatrix: OAK_PLANKS wrongly accepted as throwaway support (valuable)");
 
-        WorldDriverCommon.LOG.info("[wd.valuablePlacementBlockMatrix] {} valuable, {} non-valuable, throwaway matrix all pass",
+        TestMod.LOG.info("[wd.valuablePlacementBlockMatrix] {} valuable, {} non-valuable, throwaway matrix all pass",
                 mustBeValuable.length, mustNotBeValuable.length);
     }
 }

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -300,7 +300,7 @@ public final class WorldDriverScenes implements SceneProvider {
         if (owner != null && !owner.startsWith(ApiRegistry.TEST_OWNER + "/"))
             ctx.fail("settingRegistry: mc.test.reset is owned by " + owner + ", not StageWright");
 
-        WorldDriverCommon.LOG.info("[wd.settingRegistryClosed] knownKeys={} closed={} mc.test.reset registered=true",
+        TestMod.LOG.info("[wd.settingRegistryClosed] knownKeys={} closed={} mc.test.reset registered=true",
                 known, closed);
     }
 
@@ -345,7 +345,7 @@ public final class WorldDriverScenes implements SceneProvider {
         for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
         long allocated = MovementContext.ALLOC_COUNT - allocBefore;
-        WorldDriverCommon.LOG.info("[wd.ascendMovementNoop] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
+        TestMod.LOG.info("[wd.ascendMovementNoop] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTop, allocated);
         if (allocated != 0)
             ctx.fail("ascendMovementNoop: flag OFF but MovementContext was constructed "
@@ -490,7 +490,7 @@ public final class WorldDriverScenes implements SceneProvider {
         int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
         boolean reachedTop = fp.getY() >= topSurf + 1 - 0.6
                 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.diagonalAscentSpeed] step={} pos=({},{},{}) reachedTop={} diagBps={} ascSprint%={} ascHcol%={} ascTicks={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), reachedTop,
@@ -658,7 +658,7 @@ public final class WorldDriverScenes implements SceneProvider {
         boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
                 && fp.getY() <= goalSurf + 2 && fp.getY() >= goalSurf - 1;
         double thrashPerTick = onSlope > 0 ? sumAbsDyaw / onSlope : 0;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.descentYaw] step={} pos=({},{},{}) reached={} sumAbsDyaw={}° maxDyaw={}° reversals={} onSlope={} thrash/tick={} backSteps={} worstBack={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), reached,
@@ -756,7 +756,7 @@ public final class WorldDriverScenes implements SceneProvider {
             maxY = Math.max(maxY, fp.getY());
             worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
         }
-        WorldDriverCommon.LOG.info("[wd.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
+        TestMod.LOG.info("[wd.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
         // task#86 FIXED (2026-07-19, commit 49f25ed — pathfinderParkourAscendNeedRunway default ON):
         // the navigator now tops out by pillaring STRAIGHT UP instead of re-planning an
@@ -849,11 +849,11 @@ public final class WorldDriverScenes implements SceneProvider {
         double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
         double arm = fp.getAttributeValue(Attributes.ARMOR);
 
-        WorldDriverCommon.LOG.warn("[wd.gearScope] dealt: bareHand={} ironSword={} (iron sword should hit HARDER)",
+        TestMod.LOG.warn("[wd.gearScope] dealt: bareHand={} ironSword={} (iron sword should hit HARDER)",
                 bare, sword);
-        WorldDriverCommon.LOG.warn("[wd.gearScope] taken(10pt hit): noArmor={} fullDiamond={} (armor should ABSORB)",
+        TestMod.LOG.warn("[wd.gearScope] taken(10pt hit): noArmor={} fullDiamond={} (armor should ABSORB)",
                 tookBare, tookArmored);
-        WorldDriverCommon.LOG.warn("[wd.gearScope] attrs while HOLDING iron sword: ATTACK_DAMAGE={} ATTACK_SPEED={} ARMOR={}",
+        TestMod.LOG.warn("[wd.gearScope] attrs while HOLDING iron sword: ATTACK_DAMAGE={} ATTACK_SPEED={} ARMOR={}",
                 atk, spd, arm);
 
         // Is the avatar hurtable AT ALL? If a FakePlayer is invulnerable by construction, then
@@ -866,7 +866,7 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
         driver.avatar().step();
         double armWorn = fp.getAttributeValue(Attributes.ARMOR);
-        WorldDriverCommon.LOG.warn("[wd.gearScope] WEARING full diamond: ARMOR attr={} getArmorValue={} "
+        TestMod.LOG.warn("[wd.gearScope] WEARING full diamond: ARMOR attr={} getArmorValue={} "
                         + "(vanilla full diamond = 20) | invulnerable={} isInvulnerableTo(generic)={} creative={}",
                 armWorn, fp.getArmorValue(), fp.isInvulnerable(),
                 fp.isInvulnerableTo(fp.damageSources().generic()), fp.isCreative());
@@ -1039,7 +1039,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // column under investigation. Both are kept — the fixed window is the arena's shape, this
         // one is the plan's.
         String planCells = mine.approachPlanAudit(level);
-        WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {} {}",
+        TestMod.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {} {}",
                 fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), oreMined,
                 err, stairs, planCells, approach);
         if (!oreMined)
@@ -1323,7 +1323,7 @@ public final class WorldDriverScenes implements SceneProvider {
                             && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
                     // await1Ticks (task#88 A/B telemetry, log-only — no results-JSONL byte touched):
                     // ctx.ticks() here == the ticks AWAIT-1 waited for the fresh stand to be indexed.
-                    WorldDriverCommon.LOG.info(
+                    TestMod.LOG.info(
                             "[wd.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
                             fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(),
                             standDist1, arrivedTrueGoal1, ctx.ticks());
@@ -1355,7 +1355,7 @@ public final class WorldDriverScenes implements SceneProvider {
                                 for (int t = 0; t < 600 && BotTicker.activeCount() > 0; t++) {
                                     BotTicker.tickAll();
                                     if (t % 150 == 0) {
-                                        WorldDriverCommon.LOG.info("[wd.entityLeash] p2 t={} pos=({},{},{}) standPos={}",
+                                        TestMod.LOG.info("[wd.entityLeash] p2 t={} pos=({},{},{}) standPos={}",
                                                 t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
                                     }
                                 }
@@ -1364,7 +1364,7 @@ public final class WorldDriverScenes implements SceneProvider {
                                         && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
                                 // sceneTicks (task#88 A/B telemetry, log-only): total ctx.ticks() at
                                 // phase2 == AWAIT-1 + AWAIT-2 waits; AWAIT-2 = sceneTicks - await1Ticks.
-                                WorldDriverCommon.LOG.info(
+                                TestMod.LOG.info(
                                         "[wd.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
                                         fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), reached, ctx.ticks());
                                 if (!driver.finished() || BotTicker.activeCount() != 0)
@@ -1481,7 +1481,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     BlockPos p = new BlockPos(x, y, z);
                     saved.put(p, level.getBlockState(p));
                 }
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.entityLeashLowY] world-floor probe @({},{}) floorY={} : floor@start={} floor@goal={} below-floor={} carve@start={} westOffLaneFooting@(dx=-3,floorY-1)={}",
                 cx, cz, floorY,
                 level.getBlockState(new BlockPos(cx, floorY, cz)),
@@ -1510,7 +1510,7 @@ public final class WorldDriverScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         }
         // Evidence: confirm the moat is now void — the WEST off-lane footing cell is AIR post-clear.
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.entityLeashLowY] post-moat void check : westOffLaneFooting@(dx=-3,floorY-1)={} belowLaneFloor@(dx=0,floorY-1)={}",
                 level.getBlockState(new BlockPos(cx - 3, floorY - 1, cz)),
                 level.getBlockState(new BlockPos(cx, floorY - 1, cz)));
@@ -1553,7 +1553,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
                     boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                             && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-                    WorldDriverCommon.LOG.info(
+                    TestMod.LOG.info(
                             "[wd.entityLeashLowY] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
                             fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(),
                             standDist1, arrivedTrueGoal1, ctx.ticks());
@@ -1576,14 +1576,14 @@ public final class WorldDriverScenes implements SceneProvider {
                                 for (int t = 0; t < 600 && BotTicker.activeCount() > 0; t++) {
                                     BotTicker.tickAll();
                                     if (t % 150 == 0) {
-                                        WorldDriverCommon.LOG.info("[wd.entityLeashLowY] p2 t={} pos=({},{},{}) standPos={}",
+                                        TestMod.LOG.info("[wd.entityLeashLowY] p2 t={} pos=({},{},{}) standPos={}",
                                                 t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
                                     }
                                 }
 
                                 boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                                         && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-                                WorldDriverCommon.LOG.info(
+                                TestMod.LOG.info(
                                         "[wd.entityLeashLowY] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
                                         fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), reached, ctx.ticks());
                                 if (!driver.finished() || BotTicker.activeCount() != 0)

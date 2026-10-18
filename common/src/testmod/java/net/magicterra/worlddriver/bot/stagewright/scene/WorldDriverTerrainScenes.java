@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -169,7 +169,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
         boolean leafCleared = level.getBlockState(new BlockPos(cx - 1, standY + 3, cz)).isAir();
-        WorldDriverCommon.LOG.info("[wd.summit] step={} y={} reached={} leafCleared={}",
+        TestMod.LOG.info("[wd.summit] step={} y={} reached={} leafCleared={}",
                 s, fp.getY(), reached, leafCleared);
         if (!reached)
             ctx.fail("summit: real Navigator failed to pillar to goal: y=" + fp.getY() + " step=" + s);
@@ -220,7 +220,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             maxY = Math.max(maxY, fp.getY());
         }
         boolean onPlateau = fp.getZ() > wallZ + 0.5 && fp.getY() >= topY + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
+        TestMod.LOG.info("[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
         if (!onPlateau)
             ctx.fail("sheerWall: Navigator failed to climb the +" + wallH + " sheer wall: pos=("
@@ -267,7 +267,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
-        WorldDriverCommon.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
+        TestMod.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), crossed);
         if (!crossed)
             ctx.fail("bridgeGap: Navigator failed to bridge the 3-cell gap: pos=("
@@ -317,7 +317,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         }
         boolean fellInPit = minY <= pitY + 3;
         boolean onLanding = fp.getX() > cx + 1.5 && fp.getY() >= launchY + 2 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.parkourAscend] step={} pos=({},{},{}) minY={} fellInPit={} onLanding={}",
+        TestMod.LOG.info("[wd.parkourAscend] step={} pos=({},{},{}) minY={} fellInPit={} onLanding={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), minY, fellInPit, onLanding);
         if (fellInPit)
             ctx.fail("parkourAscend: parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
@@ -380,7 +380,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean atGoal = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 12 + 0.5)) < 2.0
                 && Math.abs(fp.getY() - (plainY + 1)) < 1.5;
-        WorldDriverCommon.LOG.info("[wd.ridgeOvershoot] step={} pos=({},{},{}) atGoal={} maxNoProgress={}",
+        TestMod.LOG.info("[wd.ridgeOvershoot] step={} pos=({},{},{}) atGoal={} maxNoProgress={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), atGoal, maxNoProgress);
         if (!atGoal)
             ctx.fail("ridgeOvershoot: did not reach the plain goal: pos=(" + fp.getX() + ","
@@ -469,7 +469,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     advanced[leg] = true;
                 }
             }
-            WorldDriverCommon.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} step={}",
+            TestMod.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} step={}",
                     leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
                     String.format(Locale.ROOT, "%.3f", obsCur2[leg]), s);
         }
@@ -529,7 +529,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean fellInPit = minY <= pitFloorY + 2;
         boolean atBottom = Math.abs(fp.getZ() - (cz + steps + 0.5)) < 1.5
                 && Math.abs(fp.getY() - (topY - steps + 1)) < 1.5;
-        WorldDriverCommon.LOG.info("[wd.descent] step={} pos=({},{},{}) minY={} fellInPit={} atBottom={}",
+        TestMod.LOG.info("[wd.descent] step={} pos=({},{},{}) minY={} fellInPit={} atBottom={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), minY, fellInPit, atBottom);
         if (fellInPit)
             ctx.fail("descent: fell off the 1-wide stair into the pit: minY=" + minY);
@@ -610,7 +610,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
         int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.ascentSpeed] step={} pos=({},{},{}) reachedTop={} flatBps={} ascBps={} flatSprint%={} ascSprint%={} ascHcol%={} flatTicks={} ascTicks={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), reachedTop,
@@ -679,7 +679,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         double dGoal = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
         boolean reached = dGoal < 2.5;
         double overshoot = landX - (cx + RUN);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.ledgeOvershoot] step={} pos=({},{},{}) reached={} dGoal={} landX-overshoot={} backSteps={}/{} worstBack={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), reached, String.format(Locale.ROOT, "%.1f", dGoal),
@@ -721,7 +721,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             av.step();
             if (fp.getZ() > maxZ) maxZ = fp.getZ();
         }
-        WorldDriverCommon.LOG.info("[wd.wallCollisionProbe] wallSolid={} startZ={} finalZ={} maxZ={} (wall front at z={})",
+        TestMod.LOG.info("[wd.wallCollisionProbe] wallSolid={} startZ={} finalZ={} maxZ={} (wall front at z={})",
                 wallSolid, cz + 0.5, String.format(Locale.ROOT, "%.2f", fp.getZ()),
                 String.format(Locale.ROOT, "%.2f", maxZ), cz + 2);
         if (maxZ > cz + 1.8)
@@ -769,7 +769,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
         }
         boolean crossed = fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4;
-        WorldDriverCommon.LOG.info("[wd.bridgeDescend] step={} pos=({},{},{}) crossed={} crossTick={}",
+        TestMod.LOG.info("[wd.bridgeDescend] step={} pos=({},{},{}) crossed={} crossTick={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), crossed, crossTick);
         if (!crossed)
@@ -820,7 +820,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             boolean wallSolid = level.getBlockState(wallFeet).isSolid() || level.getBlockState(wallHead).isSolid();
             if (prevHeld && !held && wallSolid) {
                 dropsWhileSolid++;
-                WorldDriverCommon.LOG.info("[wd.bareHandDigCadence] DROP #{} after {}t held (wall still solid) t={}",
+                TestMod.LOG.info("[wd.bareHandDigCadence] DROP #{} after {}t held (wall still solid) t={}",
                         dropsWhileSolid, heldTicks, t);
             }
             heldTicks = held ? (prevHeld ? heldTicks + 1 : 1) : 0;
@@ -828,7 +828,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         }
         boolean wallOpen = !level.getBlockState(wallFeet).isSolid() && !level.getBlockState(wallHead).isSolid();
         boolean arrived = fp.getX() > cx + 1.5;
-        WorldDriverCommon.LOG.info("[wd.bareHandDigCadence] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",
+        TestMod.LOG.info("[wd.bareHandDigCadence] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
                 String.format(Locale.ROOT, "%.1f", fp.getZ()), wallOpen, arrived, dropsWhileSolid);
         if (dropsWhileSolid > 2)

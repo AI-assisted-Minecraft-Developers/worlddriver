@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 import net.magicterra.worlddriver.application.RecipeService;
@@ -168,7 +168,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         int planks = 0;
         for (ItemStack stk : fp.getInventory().items)
             if (stk.getItem() == Items.OAK_PLANKS) planks += stk.getCount();
-        WorldDriverCommon.LOG.info("[wd.serverCraft] planks={} finished={} active={} err={}",
+        TestMod.LOG.info("[wd.serverCraft] planks={} finished={} active={} err={}",
                 planks, driver.finished(), BotTicker.activeCount(), driver.botState().craft.lastError);
         if (planks < 4)
             ctx.fail("wd.serverCraft: server CraftProcess (2x2 inventory) did not craft planks: got " + planks);
@@ -191,7 +191,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         List<String> jobIds = new ArrayList<>();
         for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
-        WorldDriverCommon.LOG.info("[wd.serverRecipeSpecies] have=acacia_log:8 missing={} jobs={}",
+        TestMod.LOG.info("[wd.serverRecipeSpecies] have=acacia_log:8 missing={} jobs={}",
                 plan.missing(), jobIds);
 
         if (plan.missing().containsKey("minecraft:oak_log") || plan.missing().containsKey("minecraft:oak_planks"))
@@ -219,7 +219,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have);
         List<String> jobIds = new ArrayList<>();
         for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result());
-        WorldDriverCommon.LOG.info("[wd.serverCraftTableInject] have=oak_log:16 jobs={} stations={} missing={}",
+        TestMod.LOG.info("[wd.serverCraftTableInject] have=oak_log:16 jobs={} stations={} missing={}",
                 jobIds, plan.stations(), plan.missing());
 
         int tableIdx = jobIds.indexOf("minecraft:crafting_table");
@@ -263,7 +263,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         List<String> shortJobIds = new ArrayList<>();
         for (RecipeResolver.Job j : shortPlan.jobs())
             shortJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
-        WorldDriverCommon.LOG.info("[wd.serverRecipeShortfallSpecies] have=acacia_log:2 missing={} jobs={}",
+        TestMod.LOG.info("[wd.serverRecipeShortfallSpecies] have=acacia_log:2 missing={} jobs={}",
                 shortPlan.missing(), shortJobIds);
 
         boolean anyOak = shortJobIds.stream().anyMatch(s -> s.contains("oak"))
@@ -282,7 +282,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         List<String> tableJobIds = new ArrayList<>();
         for (RecipeResolver.Job j : tablePlan.jobs())
             tableJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
-        WorldDriverCommon.LOG.info("[wd.serverRecipeShortfallSpecies] have=(empty) missing={} jobs={}",
+        TestMod.LOG.info("[wd.serverRecipeShortfallSpecies] have=(empty) missing={} jobs={}",
                 tablePlan.missing(), tableJobIds);
 
         if (tablePlan.missing().size() != 1)
@@ -348,7 +348,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     if (level.getBlockState(new BlockPos(ax + dx, floorY + dy, az + dz)).is(Blocks.CRAFTING_TABLE))
                         tablesLeft++;
         String errA = da.botState().craft.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverCraftTableReclaim] A finished={} active={} tablesLeft={} err={}",
+        TestMod.LOG.info("[wd.serverCraftTableReclaim] A finished={} active={} tablesLeft={} err={}",
                 da.finished(), BotTicker.activeCount(), tablesLeft, errA);
 
         if (!da.finished() || BotTicker.activeCount() != 0)
@@ -388,7 +388,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
             BotTicker.tickAll();
 
         boolean survived = level.getBlockState(preExisting).is(Blocks.CRAFTING_TABLE);
-        WorldDriverCommon.LOG.info("[wd.serverCraftTableReclaim] B finished={} preExistingSurvived={}",
+        TestMod.LOG.info("[wd.serverCraftTableReclaim] B finished={} preExistingSurvived={}",
                 db.finished(), survived);
         if (!survived)
             ctx.fail("wd.serverCraftTableReclaim: reclaim BROKE a pre-existing table it only borrowed "
@@ -433,7 +433,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         List<ObserveContracts.InventorySlot> inv = snap.inventory();
         Map<String, Integer> items = snap.items();
-        WorldDriverCommon.LOG.info("[wd.serverObservePlayerInventory] invRows={} items={}", inv.size(), items);
+        TestMod.LOG.info("[wd.serverObservePlayerInventory] invRows={} items={}", inv.size(), items);
         Map<Integer, ObserveContracts.InventorySlot> bySlot = new LinkedHashMap<>();
         for (ObserveContracts.InventorySlot row : inv) bySlot.put(row.slot(), row);
         if (bySlot.size() != 6)
@@ -471,7 +471,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         RecipeResolver.Plan plan = RecipeResolver.resolve(
                 level.getServer().getRecipeManager(), level.registryAccess(),
                 "minecraft:stone_pickaxe", 1, have, Set.of());
-        WorldDriverCommon.LOG.info("[wd.serverObservePlayerInventory] planComplete={} missing={}",
+        TestMod.LOG.info("[wd.serverObservePlayerInventory] planComplete={} missing={}",
                 plan.complete(), plan.missing());
         if (!plan.complete())
             ctx.fail("wd.serverObservePlayerInventory: the emitted `items` map is not consumable as `have` — "
@@ -508,7 +508,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         HolderLookup.Provider ra = level.registryAccess();
 
         Map<String, Integer> dflt = RecipeService.resolveHave(Optional.empty(), fp);
-        WorldDriverCommon.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave={}", dflt);
+        TestMod.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave={}", dflt);
         if (!Integer.valueOf(208).equals(dflt.get("minecraft:cobblestone")))
             ctx.fail("wd.serverPlanHaveDefaultsToBag: omitting `have` must plan against the REAL bag "
                     + "(the same one mc.bot.craft consumes from), got " + dflt);
@@ -592,7 +592,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 loaded += furnace.getItem(slot).getCount();
             }
         }
-        WorldDriverCommon.LOG.info("[wd.serverSmeltStationOpens] finished={} active={} err={} loaded={}",
+        TestMod.LOG.info("[wd.serverSmeltStationOpens] finished={} active={} err={} loaded={}",
                 driver.finished(), BotTicker.activeCount(), err, loaded);
 
         // The furnace must OPEN and take its load. Nothing here waits for it to cook: this rig drives
@@ -656,7 +656,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.CRAFTING_TABLE))
                         tables++;
         String err = driver.botState().craft.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverCraftTableHoleRim] finished={} active={} tables={} err={}",
+        TestMod.LOG.info("[wd.serverCraftTableHoleRim] finished={} active={} tables={} err={}",
                 driver.finished(), BotTicker.activeCount(), tables, err);
         if (tables == 0)
             ctx.fail("wd.serverCraftTableHoleRim: bot in a 1-deep hole placed NO crafting table (gap#61: "
@@ -706,7 +706,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.FURNACE))
                         furnaces++;
         String err = driver.botState().smelt.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverSmeltFurnaceHoleRim] finished={} active={} furnaces={} err={}",
+        TestMod.LOG.info("[wd.serverSmeltFurnaceHoleRim] finished={} active={} furnaces={} err={}",
                 driver.finished(), BotTicker.activeCount(), furnaces, err);
         if (furnaces == 0)
             ctx.fail("wd.serverSmeltFurnaceHoleRim: bot in a 1-deep hole placed NO furnace (gap#62: "
@@ -755,7 +755,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
             BotTicker.tickAll();
         }
         ItemStack fuelLoaded = furnace.getItem(1);
-        WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] after LOAD: in={} fuel={} tableInBag={}",
+        TestMod.LOG.info("[wd.smeltFuelPolicy] after LOAD: in={} fuel={} tableInBag={}",
                 furnace.getItem(0), fuelLoaded, countItem(fp, Items.CRAFTING_TABLE));
         if (fuelLoaded.getItem() != Items.COAL)
             ctx.fail("wd.smeltFuelPolicy: gap#64①: auto-fuel must pick coal (best burn, non-workstation), got "
@@ -767,7 +767,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         furnace.setItem(1, ItemStack.EMPTY);
         for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) BotTicker.tickAll();
         ItemStack refuel = furnace.getItem(1);
-        WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] after burn-out: fuel={}", refuel);
+        TestMod.LOG.info("[wd.smeltFuelPolicy] after burn-out: fuel={}", refuel);
         if (refuel.getItem() != Items.OAK_PLANKS)
             ctx.fail("wd.smeltFuelPolicy: gap#64②: fire died with input left — fuel must be reloaded "
                     + "(expected planks), got " + refuel);
@@ -775,7 +775,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // Phase 3 — cook (inject result) and let the process finish: ALL THREE slots taken back.
         furnace.setItem(2, new ItemStack(Items.IRON_INGOT, 2));
         for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++) BotTicker.tickAll();
-        WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] end: ingot={} rawIron={} planks={} coal={} slots=[{},{},{}] err={}",
+        TestMod.LOG.info("[wd.smeltFuelPolicy] end: ingot={} rawIron={} planks={} coal={} slots=[{},{},{}] err={}",
                 countItem(fp, Items.IRON_INGOT), countItem(fp, Items.RAW_IRON),
                 countItem(fp, Items.OAK_PLANKS), countItem(fp, Items.COAL),
                 furnace.getItem(0), furnace.getItem(1), furnace.getItem(2),
@@ -824,7 +824,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
         int logs = countItem(fp, Items.OAK_LOG);
         int sticks = countItem(fp, Items.STICK);
-        WorldDriverCommon.LOG.info("[wd.serverCraftGridClearHelper] gridEmpty={} logs={} sticks={}",
+        TestMod.LOG.info("[wd.serverCraftGridClearHelper] gridEmpty={} logs={} sticks={}",
                 gridEmpty, logs, sticks);
         if (!gridEmpty)
             ctx.fail("wd.serverCraftGridClearHelper: gap#67-③: clearInventoryCraftGrid left material sitting in the 2x2 grid");
@@ -862,7 +862,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
         int logs = countItem(fp, Items.ACACIA_LOG);
         int planks = countItem(fp, Items.ACACIA_PLANKS);
-        WorldDriverCommon.LOG.info("[wd.serverCraftGridConservation] gridEmpty={} logs={} planks={} finished={} err={}",
+        TestMod.LOG.info("[wd.serverCraftGridConservation] gridEmpty={} logs={} planks={} finished={} err={}",
                 gridEmpty, logs, planks, driver.finished(), driver.botState().craft.lastError);
         if (!gridEmpty)
             ctx.fail("wd.serverCraftGridConservation: gap#67-③: 2x2 grid not empty after craft DONE");
@@ -942,7 +942,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         String err = driver.botState().craft.lastError;
         boolean sawFailLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft]") && l.contains("fail"));
         boolean sawPlanLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft] plan"));
-        WorldDriverCommon.LOG.info("[wd.serverCraftFailTelemetry] err={} sawFailLog={} sawPlanLog={} lines={}",
+        TestMod.LOG.info("[wd.serverCraftFailTelemetry] err={} sawFailLog={} sawPlanLog={} lines={}",
                 err, sawFailLog, sawPlanLog, catcher.lines);
         if (err == null)
             ctx.fail("wd.serverCraftFailTelemetry: expected craft to fail on zero materials (test setup broken)");
@@ -1010,7 +1010,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
         int logs = countItem(fp, Items.OAK_LOG);
         int sticks = countItem(fp, Items.STICK);
-        WorldDriverCommon.LOG.info("[wd.serverCraftFailGridReturn] err={} gridEmpty={} logs={} sticks={} finished={}",
+        TestMod.LOG.info("[wd.serverCraftFailGridReturn] err={} gridEmpty={} logs={} sticks={} finished={}",
                 err, gridEmpty, logs, sticks, driver.finished());
         if (err == null)
             ctx.fail("wd.serverCraftFailGridReturn: expected craft to fail on zero materials (test setup broken)");

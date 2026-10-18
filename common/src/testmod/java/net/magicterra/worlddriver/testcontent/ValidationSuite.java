@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.architectury.event.events.common.LifecycleEvent;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.script.McpBridge;
@@ -34,8 +33,8 @@ import org.slf4j.Logger;
 public final class ValidationSuite {
     private ValidationSuite() {}
 
-    private static final Logger LOG = WorldDriverCommon.LOG;
-    private static final String MOD_ID = WorldDriverCommon.MOD_ID;
+    private static final Logger LOG = TestMod.LOG;
+    private static final String MOD_ID = TestMod.MOD_ID;
 
     static final String RESOURCE_DIR = "/data/" + MOD_ID + "/scripts/validation/";
 

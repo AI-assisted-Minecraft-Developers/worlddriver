@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -133,7 +133,7 @@ final class JourneyPeace {
                         + " (" + Math.round(Math.sqrt(m.blockPosition().distSqr(at))) + " blocks from the hut, "
                         + "persistent=" + m.isPersistenceRequired() + ", health "
                         + String.format(java.util.Locale.ROOT, "%.1f", m.getHealth()) + ")");
-                WorldDriverCommon.LOG.info("[journey/peace] discarding {} at {}",
+                TestMod.LOG.info("[journey/peace] discarding {} at {}",
                         BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()), m.blockPosition());
                 m.discard();
             }

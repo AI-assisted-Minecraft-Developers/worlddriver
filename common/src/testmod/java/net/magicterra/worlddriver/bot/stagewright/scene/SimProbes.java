@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -71,7 +72,7 @@ public final class SimProbes {
         // instead of comparing against it. Nothing ticks between here and attackEntity, so neither
         // the fire nor the i-frames can come back.
         if (z.invulnerableTime > 0 || !z.isAlive())
-            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+            net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[probeSwing] target compromised before the swing: weapon={} hp={} fire={} invT={} alive={}",
                     weapon.isEmpty() ? "bare" : weapon.getItem(), z.getHealth(),
                     z.getRemainingFireTicks(), z.invulnerableTime, z.isAlive());

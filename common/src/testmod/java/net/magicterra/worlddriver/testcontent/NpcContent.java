@@ -6,7 +6,6 @@ import dev.architectury.registry.registries.RegistrySupplier;
 import dev.architectury.utils.Env;
 import dev.architectury.utils.EnvExecutor;
 import net.magicterra.worlddriver.TestContent;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.EntityDrivers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -22,7 +21,7 @@ import net.minecraft.world.entity.monster.piglin.Piglin;
  * asks the data fixer for a schema this id does not have.
  */
 public final class NpcContent implements TestContent {
-    private static final String MOD_ID = WorldDriverCommon.MOD_ID;
+    private static final String MOD_ID = TestMod.MOD_ID;
 
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(MOD_ID, Registries.ENTITY_TYPE);

@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.*;
 import net.magicterra.worlddriver.bot.BotHooks;
@@ -1523,7 +1523,7 @@ public final class JourneyRig {
         recordBodyVitals(bodyVitalsLine());
         recordDrown(drownWatch.line());
         ServerPlayer fp = driver.fakePlayer();
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[journey] heartbeat {} {} {} task tick {}/{} bot={},{},{} @{} inLevel={} processDone={}",
                 stage.name(), driving == null ? "waiting (no driver)" : driving, legPlanLine(), legTicks, budget,
                 fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
@@ -1756,7 +1756,7 @@ public final class JourneyRig {
                 + fp.blockPosition().toShortString() + ", task tick " + legTicks + ", driver "
                 + (driving == null ? "none" : driving) + ") — every reading after death describes a corpse: the inventory has dropped,"
                 + " key presses no longer move it, digging stops, and the navigator's result message reports all of it as 'cannot reach'.";
-        WorldDriverCommon.LOG.error("[journey] {}", diedOf);
+        TestMod.LOG.error("[journey] {}", diedOf);
         return true;
     }
 
@@ -2879,7 +2879,7 @@ public final class JourneyRig {
         lastEvidenceLegTicks = legTicks;
         Slot slot = slotFor(key, value);
         if (slot.clashed()) {
-            WorldDriverCommon.LOG.warn(
+            TestMod.LOG.warn(
                     "[journey] {} evidence key written twice with different values: {} — old {} / new {};"
                             + " both kept, the new value is under {}",
                     stage.name(), key, evidence.get(key), value, slot.key());
@@ -2953,7 +2953,7 @@ public final class JourneyRig {
         String rehearsing = JourneyRehearsal.target() == null ? ""
                 : "[REHEARSAL — not a climb, staging.calls=" + staged + "] ";
         ctx.passNote(rehearsing + stage.name() + "(" + stage.label() + ") reached — " + detail);
-        WorldDriverCommon.LOG.info("[journey] {} REACHED — {} {}", stage.name(), detail, evidence);
+        TestMod.LOG.info("[journey] {} REACHED — {} {}", stage.name(), detail, evidence);
     }
 
     // ---- teardown ----

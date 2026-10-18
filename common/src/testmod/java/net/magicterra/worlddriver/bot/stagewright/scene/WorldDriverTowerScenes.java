@@ -6,7 +6,7 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -384,7 +384,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // The only reading that splits "never called / no face / no block". TowerProcess never calls
         // exAlarms.notePlace, so a place it loses is silent in every other channel.
         ctx.record(arm + ".placeTally", r.placeTally);
-        WorldDriverCommon.LOG.info("[tower:{}] ticks={} climbed={} spent={} columnPlaced={}"
+        TestMod.LOG.info("[tower:{}] ticks={} climbed={} spent={} columnPlaced={}"
                         + " drift={},{} lastError={}", arm, r.ticks, r.climbed(), r.spent,
                 r.columnPlaced, r.endX - r.startX, r.endZ - r.startZ, r.lastError);
         return r;
@@ -928,7 +928,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         int controlFaults = c.climbed() == courses ? 0 : 1;
         ctx.record("control.after", controlFaults + " fault(s): ceiling sealed; rose " + c.climbed()
                 + " of " + courses + " blocks; result message »" + c.lastError + "«");
-        WorldDriverCommon.LOG.info("[tower:ceiling] control climbed={} ticks={} finished={} err={}",
+        TestMod.LOG.info("[tower:ceiling] control climbed={} ticks={} finished={} err={}",
                 c.climbed(), c.ticks, c.finished, c.lastError);
         if (controlFaults == 0)
             ctx.fail("THE RIG, not the subject: the bot climbed " + c.climbed() + " courses with"
@@ -1034,7 +1034,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         ctx.record("control.after", controlFaults + " fault(s): the bot's bounding box overlaps the "
                 + lid.toShortString() + " column; rose " + c.climbed() + " of " + courses
                 + " blocks; result message »" + c.lastError + "«");
-        WorldDriverCommon.LOG.info("[tower:neighbour] control climbed={} ticks={} finished={} err={}",
+        TestMod.LOG.info("[tower:neighbour] control climbed={} ticks={} finished={} err={}",
                 c.climbed(), c.ticks, c.finished, c.lastError);
         if (controlFaults == 0)
             ctx.fail("THE RIG, not the subject: a player whose box reaches into " + lid.toShortString()

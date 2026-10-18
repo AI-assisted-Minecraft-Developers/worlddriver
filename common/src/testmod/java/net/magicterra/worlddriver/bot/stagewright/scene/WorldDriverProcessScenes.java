@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -353,7 +353,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5
                 && fp.getY() >= floorY + 2 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.serverDriver] step={} pos=({},{},{}) finished={} active={} reached={}",
+        TestMod.LOG.info("[wd.serverDriver] step={} pos=({},{},{}) finished={} active={} reached={}",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached);
         if (!driver.finished() || BotTicker.activeCount() != 0)
@@ -401,7 +401,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         boolean mined = level.getBlockState(target).isAir();
         ServerPlayer fp = driver.fakePlayer();
-        WorldDriverCommon.LOG.info("[wd.serverMine] step={} pos=({},{},{}) finished={} active={} mined={}",
+        TestMod.LOG.info("[wd.serverMine] step={} pos=({},{},{}) finished={} active={} mined={}",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), mined);
         if (!mined)
@@ -449,7 +449,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5;
-        WorldDriverCommon.LOG.info("[wd.serverProcess] step={} pos=({},{},{}) finished={} active={} reached={}",
+        TestMod.LOG.info("[wd.serverProcess] step={} pos=({},{},{}) finished={} active={} reached={}",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached);
         if (!driver.finished() || BotTicker.activeCount() != 0)
@@ -500,7 +500,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         double dx = fp.getX() - (cx + 0.5), dz = fp.getZ() - (cz + 0.5);
         double dist = Math.sqrt(dx * dx + dz * dz);
         boolean fled = dist >= minDist - 0.5;
-        WorldDriverCommon.LOG.info("[wd.serverFlee] step={} pos=({},{},{}) dist={} finished={} active={} fled={}",
+        TestMod.LOG.info("[wd.serverFlee] step={} pos=({},{},{}) dist={} finished={} active={} fled={}",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(), dist,
                 driver.finished(), BotTicker.activeCount(), fled);
         if (!fled)
@@ -563,7 +563,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int remaining = 0;
         for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
         ServerPlayer fp = driver.fakePlayer();
-        WorldDriverCommon.LOG.info("[wd.serverMineProcess] step={} pos=({},{},{}) finished={} active={} remaining={}/3",
+        TestMod.LOG.info("[wd.serverMineProcess] step={} pos=({},{},{}) finished={} active={} remaining={}/3",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), remaining);
         if (remaining != 0)
@@ -1270,7 +1270,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int remaining = 0;
         for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
         String err = driver.botState().mine.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverMineNoTool] finished={} active={} remaining={}/3 lastError={}",
+        TestMod.LOG.info("[wd.serverMineNoTool] finished={} active={} remaining={}/3 lastError={}",
                 driver.finished(), BotTicker.activeCount(), remaining, err);
         // Must have mined NONE — a harvest-requiring block with no tool yields nothing.
         if (remaining != 3)
@@ -1357,7 +1357,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int plugRemaining = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
                           + (level.getBlockState(plugHead).isAir() ? 0 : 1);
         boolean reached = Math.abs(fp.getZ() - (cz + 4 + 0.5)) < 1.5 && fp.getY() >= floorY + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.serverNavigatorDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
+        TestMod.LOG.info("[wd.serverNavigatorDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
                 endTick, driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached, plugRemaining);
         // Real guard: the bot must BREAK THROUGH the bare-hand deepslate plug and REACH
@@ -1459,7 +1459,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerPlayer fpA = driverA.fakePlayer();
             int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
             boolean gotPastA = fpA.getZ() > cz + plugDz + 1.0;   // past the plug = tunnelled through
-            WorldDriverCommon.LOG.info("[wd.serverForbidDigWall] A(forbidDig) endTick={} step={} pos=({},{},{}) gotPast={} plugRemaining={}/2",
+            TestMod.LOG.info("[wd.serverForbidDigWall] A(forbidDig) endTick={} step={} pos=({},{},{}) gotPast={} plugRemaining={}/2",
                     endA, driverA.lastStatus(), fpA.getX(), fpA.getY(), fpA.getZ(), gotPastA, plugA);
             BotTicker.clear();
             fpA.discard();                                  // so the pinned FakePlayer can't linger into Phase B
@@ -1486,7 +1486,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerPlayer fpB = driverB.fakePlayer();
             int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
             boolean reachedB = Math.abs(fpB.getX() - (cx + 0.5)) < 1.5 && Math.abs(fpB.getZ() - (cz + standDz + 0.5)) < 2.0;
-            WorldDriverCommon.LOG.info("[wd.serverForbidDigWall] B(precision) endTick={} step={} pos=({},{},{}) reached={} plugRemaining={}/2",
+            TestMod.LOG.info("[wd.serverForbidDigWall] B(precision) endTick={} step={} pos=({},{},{}) reached={} plugRemaining={}/2",
                     endB, driverB.lastStatus(), fpB.getX(), fpB.getY(), fpB.getZ(), reachedB, plugB);
             if (!reachedB || plugB != 0)
                 ctx.fail("precision guard: without forbidDig the bot must dig through and reach the stand — "
@@ -1543,7 +1543,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean p1 = level.getBlockState(t1).is(Blocks.COBBLESTONE);
         boolean p2 = level.getBlockState(t2).is(Blocks.COBBLESTONE);
         ServerPlayer fp = driver.fakePlayer();
-        WorldDriverCommon.LOG.info("[wd.serverBuild] step={} pos=({},{},{}) finished={} active={} placed1={} placed2={}",
+        TestMod.LOG.info("[wd.serverBuild] step={} pos=({},{},{}) finished={} active={} placed1={} placed2={}",
                 driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), p1, p2);
         if (!p1 || !p2)
@@ -1588,7 +1588,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerPlayerBody av = driver.avatar();
         av.aimAtBlock(target);                       // sets yaw/pitch toward the cell
         BlockPos look = av.lookingAtBlock();         // eye→view clip raycast
-        WorldDriverCommon.LOG.info("[wd.serverLookRaycast] aim={} look={} match={}",
+        TestMod.LOG.info("[wd.serverLookRaycast] aim={} look={} match={}",
                 target.toShortString(), look == null ? "null" : look.toShortString(),
                 target.equals(look));
         if (!target.equals(look))
@@ -1645,7 +1645,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             double dx = fp.getX() - (cx + 8 + 0.5), dz = fp.getZ() - (cz + 0.5);
             double dist = Math.sqrt(dx * dx + dz * dz);
             boolean closed = dist <= 3.0;   // follow radius 2 + slack
-            WorldDriverCommon.LOG.info("[wd.serverFollow] pos=({},{},{}) standDist={} closed={}",
+            TestMod.LOG.info("[wd.serverFollow] pos=({},{},{}) standDist={} closed={}",
                     fp.getX(), fp.getY(), fp.getZ(), dist, closed);
             if (!closed)
                 ctx.fail("server FollowProcess did not close on the armor stand: dist=" + dist);
@@ -1786,7 +1786,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
             boolean dead = !zombie.isAlive();
             ServerPlayer fp = driver.fakePlayer();
-            WorldDriverCommon.LOG.info("[wd.serverCombat] step={} pos=({},{},{}) zHp={} dead={} finished={} active={}",
+            TestMod.LOG.info("[wd.serverCombat] step={} pos=({},{},{}) zHp={} dead={} finished={} active={}",
                     driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                     zombie.getHealth(), dead, driver.finished(), BotTicker.activeCount());
             if (!dead)
@@ -1939,7 +1939,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         float yawErr = Math.abs(Mth.degreesDifference(fp.getYRot(), ty));
         float pitchErr = Math.abs(tp - fp.getXRot());
-        WorldDriverCommon.LOG.info("[wd.serverLook] yaw={} (tgt {}) pitch={} (tgt {}) finished={} active={}",
+        TestMod.LOG.info("[wd.serverLook] yaw={} (tgt {}) pitch={} (tgt {}) finished={} active={}",
                 fp.getYRot(), ty, fp.getXRot(), tp, driver.finished(), BotTicker.activeCount());
         if (!driver.finished() || BotTicker.activeCount() != 0)
             ctx.fail("server LookProcess did not align+finish: active=" + BotTicker.activeCount());
@@ -1994,7 +1994,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             BotTicker.tickAll();
         boolean minedAt16 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         String err16 = driver16.botState().mine.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverMineCanopyRadius] radius=16 minedAt16={} finished={} lastError={}",
+        TestMod.LOG.info("[wd.serverMineCanopyRadius] radius=16 minedAt16={} finished={} lastError={}",
                 minedAt16, driver16.finished(), err16);
         if (!minedAt16) { ctx.fail("gap#67(regression): radius=16 must still find the dy=+4 canopy log: lastError=" + err16); return; }
         BotTicker.clear();
@@ -2010,7 +2010,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             BotTicker.tickAll();
         boolean minedAt32 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         String err32 = driver32.botState().mine.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverMineCanopyRadius] radius=32 minedAt32={} finished={} lastError={}",
+        TestMod.LOG.info("[wd.serverMineCanopyRadius] radius=32 minedAt32={} finished={} lastError={}",
                 minedAt32, driver32.finished(), err32);
         if (!minedAt32)
             ctx.fail("gap#67(⑤): radius=32 must find the dy=+4 canopy log (was: scan budget truncated the top dy layers, not the farthest cells): lastError=" + err32);
@@ -2078,7 +2078,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             BotTicker.tickAll();
             minY = Math.min(minY, fp.getY());
             if (t < 40 || t % 20 == 0)
-                WorldDriverCommon.LOG.info("[bridgePillar {} t={}] pos=({},{},{}) onGround={} dm={} step={} lastErr={}",
+                TestMod.LOG.info("[bridgePillar {} t={}] pos=({},{},{}) onGround={} dm={} step={} lastErr={}",
                         leg, t, String.format("%.3f", fp.getX()), String.format("%.3f", fp.getY()),
                         String.format("%.3f", fp.getZ()), fp.onGround(), fp.getDeltaMovement(),
                         driver.botState().builder.pathStep, driver.botState().builder.lastError);
@@ -2091,7 +2091,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             if (solid) laidCount++;
             laid.append(solid ? '#' : '.');
         }
-        WorldDriverCommon.LOG.info("[bridgePillar {}] END t={} pos=({},{},{}) minY={} laid={} finished={} lastErr={}",
+        TestMod.LOG.info("[bridgePillar {}] END t={} pos=({},{},{}) minY={} laid={} finished={} lastErr={}",
                 leg, t, fp.getX(), fp.getY(), fp.getZ(), minY, laid, driver.finished(), lastErr);
         if (minY < feetY - 1.0)
             ctx.fail("arm " + leg + ": bot dropped below pillar-top-1 (minY="

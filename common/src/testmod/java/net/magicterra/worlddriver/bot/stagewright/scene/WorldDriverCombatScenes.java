@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.stagewright.scene.Scene;
@@ -108,7 +108,7 @@ public final class WorldDriverCombatScenes implements SceneProvider {
                 .within(100).then(() -> {
             ThreatScanner.Scan scan = ThreatScanner.compute(level, p, 24);
             boolean seen = scan.threats().stream().anyMatch(t -> t.id() == z.getId());
-            WorldDriverCommon.LOG.info("[wd.threatScanZombie] threats={} seen={} visibleAtTick={}",
+            TestMod.LOG.info("[wd.threatScanZombie] threats={} seen={} visibleAtTick={}",
                     scan.threats().size(), seen, ctx.ticks());
             if (!seen)
                 ctx.fail("threatScanZombie: adjacent zombie invisible to ThreatScanner: threats="
@@ -157,7 +157,7 @@ public final class WorldDriverCombatScenes implements SceneProvider {
             ThreatScanner.Scan scan = ThreatScanner.compute(level, p, 24);
             ThreatScanner.Threat found = scan.threats().stream()
                     .filter(t -> t.id() == w.getId()).findFirst().orElse(null);
-            WorldDriverCommon.LOG.info("[wd.threatScanHurtAttacker] threats={} found={} top={}",
+            TestMod.LOG.info("[wd.threatScanHurtAttacker] threats={} found={} top={}",
                     scan.threats().size(), found, scan.top());
             if (found == null)
                 ctx.fail("threatScanHurtAttacker: wolf that just hit the player is invisible to "

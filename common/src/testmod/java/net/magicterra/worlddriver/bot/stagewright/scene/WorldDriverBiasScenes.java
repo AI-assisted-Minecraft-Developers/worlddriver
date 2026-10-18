@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.EnumSet;
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -148,9 +148,9 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         boolean plainThrough = pathEntersZone(plain, zoneCx, zoneCy, zoneCz, r);
         boolean detourClear = !pathEntersZone(detour, zoneCx, zoneCy, zoneCz, r);
-        WorldDriverCommon.LOG.info("[wd.avoidRegionDetour] plainThrough={} detourClear={} plainLen={} detourLen={}",
+        TestMod.LOG.info("[wd.avoidRegionDetour] plainThrough={} detourClear={} plainLen={} detourLen={}",
                 plainThrough, detourClear, plain.path().size(), detour.path().size());
-        WorldDriverCommon.LOG.info("[wd.avoidRegionDetour] plain.finalCost={} goalReached={} | detour.finalCost={} goalReached={}",
+        TestMod.LOG.info("[wd.avoidRegionDetour] plain.finalCost={} goalReached={} | detour.finalCost={} goalReached={}",
                 plain.finalCost(), plain.goalReached(), detour.finalCost(), detour.goalReached());
 
         if (!plainThrough)
@@ -194,7 +194,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.digUpY] goalReached={} maxPathY={} pathLen={} expanded={} finalCost={}",
                 r.goalReached(), maxPathY(r), r.path().size(), r.expanded(), r.finalCost());
         if (!r.goalReached() || maxPathY(r) < targetY)
@@ -234,7 +234,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         WorldConfig.allowBreak = true;
 
         double probeCost = w.breakCost(new BlockPos(cx, top, cz), start);
-        WorldDriverCommon.LOG.info("[wd.digDownY] probe allowBreak={} breakCost(topBlock)={}",
+        TestMod.LOG.info("[wd.digDownY] probe allowBreak={} breakCost(topBlock)={}",
                 WorldConfig.allowBreak, probeCost);
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
@@ -243,7 +243,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         boolean straightShaft = true;
         for (BlockPos p : r.path())
             if (p.getX() != cx || p.getZ() != cz) { straightShaft = false; break; }
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.digDownY] goalReached={} minPathY={} pathLen={} straightShaft={} finalCost={}",
                 r.goalReached(), minPathY(r), r.path().size(), straightShaft, r.finalCost());
 
@@ -301,7 +301,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         double plainMaxXZ = maxPathXZDist(plain, colCx, colCz);
         double heldMaxXZ = maxPathXZDist(held, colCx, colCz);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.columnRadius] plain.goalReached={} plainMaxXZ={} maxPathY(plain)={} | "
                 + "held.goalReached={} heldMaxXZ={} maxPathY(held)={}",
                 plain.goalReached(), plainMaxXZ, maxPathY(plain),
@@ -355,7 +355,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                 new CapabilityProfile(EnumSet.of(Capability.PARKOUR)), List.of());
         PathFinder.Result noParkour = new PathFinder(w, walkOnly).findPath(start, new Goal.Block(goal));
 
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.parkourGate] plain.goalReached={} plain.finalCost={} | noParkour.goalReached={} noParkour.finalCost={}",
                 plain.goalReached(), plain.finalCost(), noParkour.goalReached(), noParkour.finalCost());
 
@@ -399,7 +399,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                 List.of(new YFloor(dipY + 1)));
         PathFinder.Result held = new PathFinder(w, constrained).findPath(start, new Goal.Block(goal));
 
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.yFloorConstraint] dipY={} plain.goalReached={} minPathY(plain)={} | held.goalReached={} minPathY(held)={}",
                 dipY, plain.goalReached(), minPathY(plain), held.goalReached(),
                 held.path().isEmpty() ? -1 : minPathY(held));
@@ -444,7 +444,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         PathFinder.Result inside = new PathFinder(w, leashed).findPath(start, new Goal.Block(insideGoal));
         PathFinder.Result outside = new PathFinder(w, leashed).findPath(start, new Goal.Block(outsideGoal));
 
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.leashHard] anchor=({},{},{}) R={} inside.goalReached={} outside.goalReached={}",
                 sx, sy, sz, radius, inside.goalReached(), outside.goalReached());
 
@@ -494,7 +494,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         PathFinder.Result held = new PathFinder(w, noWater).findPath(start, new Goal.Block(goal));
 
         boolean plainEntersWater = pathEntersWater(w, plain);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.forbidWater] plain.goalReached={} plainEntersWater={} plainLen={} finalCost={} | held.goalReached={} heldLen={}",
                 plain.goalReached(), plainEntersWater, plain.path().size(), plain.finalCost(),
                 held.goalReached(), held.path().size());
@@ -543,7 +543,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         SearchProfile noBreak = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
         PathFinder.Result held = new PathFinder(w, noBreak).findPath(start, new Goal.YLevel(targetY));
 
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.forbidDig] allowBreak={} plain.goalReached={} minPathY(plain)={} plainLen={} | "
                 + "held.goalReached={} heldLen={}",
                 WorldConfig.allowBreak, plain.goalReached(), minPathY(plain), plain.path().size(),
@@ -604,7 +604,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         int plainMinZ = minPathZRelative(plain, cz);
         int huggedMinZ = minPathZRelative(hugged, cz);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.shorelineHug] plain.goalReached={} plainMinZ(rel)={} plainLen={} | "
                 + "hugged.goalReached={} huggedMinZ(rel)={} huggedLen={}",
                 plain.goalReached(), plainMinZ, plain.path().size(),
@@ -640,7 +640,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int y = ctx.origin().getY() + 40;   // legacy y 240 = origin.y+40
-        WorldDriverCommon.LOG.info("[wd.shorelineSmoother] START");   // entry probe
+        TestMod.LOG.info("[wd.shorelineSmoother] START");   // entry probe
 
         for (int dx = -2; dx <= 32; dx++)
             for (int dz = -2; dz <= 32; dz++) {
@@ -679,7 +679,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                 PathSmoothing.stringPull(w, hugged.path(), hugged.edges(), bias);
         BlockPos noBiasWorst = firstOutOfBandSmoothed(noBias.path(), 2, w);
         BlockPos withBiasWorst = firstOutOfBandSmoothed(withBias.path(), 2, w);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.shorelineSmoother] hugged.goalReached={} rawLen={} rawWorst={} | "
                 + "noBiasLen={} noBiasWorst={} | withBiasLen={} withBiasWorst={}",
                 hugged.goalReached(), hugged.path().size(), rawWorst,
@@ -736,7 +736,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(new BlockPos(cx, top + 2, cz)));
         int minY = r.hasPath() ? minPathY(r) : start.getY();
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.escapeFarthestNoRockDrill] goalReached={} hasPath={} pathLen={} minPathY={} startY={} expanded={}",
                 r.goalReached(), r.hasPath(), r.hasPath() ? r.path().size() : 0, minY, start.getY(), r.expanded());
         if (!r.goalReached() && r.hasPath() && minY < start.getY() - 2)
@@ -790,7 +790,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         double endDist = r.hasPath()
                 ? Math.sqrt(r.path().get(r.path().size() - 1).distSqr(goalPos))
                 : startDist;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.budgetAwayTunnelChurn] goalReached={} hasPath={} pathLen={} startDist={} endDist={} expanded={}",
                 r.goalReached(), r.hasPath(), r.hasPath() ? r.path().size() : 0,
                 String.format("%.1f", startDist), String.format("%.1f", endDist), r.expanded());

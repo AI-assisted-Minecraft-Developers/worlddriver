@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -378,7 +378,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 tFell < 0 ? "no" : String.valueOf(tFell)));
         ctx.record("end", String.format(Locale.ROOT, "step=%s pos=(%.3f,%.3f,%.3f)",
                 s, fp.getX(), fp.getY(), fp.getZ()));
-        WorldDriverCommon.LOG.info("[wd.{}] step={} pos=({},{},{}) minY={} crossed={} spent={} "
+        TestMod.LOG.info("[wd.{}] step={} pos=({},{},{}) minY={} crossed={} spent={} "
                 + "takeoffX={} takeoffH={}->{} gapMove={} tLip={} tDeck={}",
                 name, s, fp.getX(), fp.getY(), fp.getZ(), minY, crossed, spent,
                 takeoffX, takeoffHBefore, takeoffHAfter, gapMove, tLip, tDeck);
@@ -487,7 +487,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         ctx.record("hasRunway.longLip", longRunway);
         ctx.record("canPlace", w.canPlace());
         ctx.record("placeableBlockCount", w.placeableBlockCount());
-        WorldDriverCommon.LOG.info("[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} "
+        TestMod.LOG.info("[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} "
                 + "long.reached={} long.parkour={} hasRunway(short)={} hasRunway(long)={}",
                 shortPlan.goalReached(), shortLeaps, longPlan.goalReached(), longLeaps,
                 shortRunway, longRunway);

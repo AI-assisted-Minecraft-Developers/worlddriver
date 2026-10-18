@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -206,7 +206,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (swimDz < 0.3 || swimDz > 5.0)
             ctx.fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
 
-        WorldDriverCommon.LOG.info("[wd.waterPhysicsParity] sinkDy={} riseDy={} swimDz={} surface={}",
+        TestMod.LOG.info("[wd.waterPhysicsParity] sinkDy={} riseDy={} swimDz={} surface={}",
                 sinkDy, riseDy, swimDz, surface);
     }
 
@@ -295,7 +295,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             if (fp.isInWater() && fp.getY() < plateauTop) bobTicks++;
         }
         boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.buoyantWall] step={} pos=({},{},{}) maxY={} everDry={} onPlateau={} bobTicks={}",
+        TestMod.LOG.info("[wd.buoyantWall] step={} pos=({},{},{}) maxY={} everDry={} onPlateau={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, everDry, onPlateau, bobTicks);
         // THE FIRST EVIDENCE THIS FAMILY HAS EVER RECORDED. All eleven water-climb scenes published
         // nothing but their own colour, which is why a safety bail that was UNCONDITIONALLY FALSE
@@ -365,7 +365,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
         boolean climbFoot = w.isClimbable(vineFoot);
         boolean climbMid = w.isClimbable(vineMid);
-        WorldDriverCommon.LOG.info("[wd.vineClingFidelityProbe] vine placement: stuckFoot={} stuckMid={} isClimbable(foot)={} isClimbable(mid)={}",
+        TestMod.LOG.info("[wd.vineClingFidelityProbe] vine placement: stuckFoot={} stuckMid={} isClimbable(foot)={} isClimbable(mid)={}",
                 stuckFoot, stuckMid, climbFoot, climbMid);
         if (!stuckFoot || !climbFoot)
             ctx.fail("vineClingFidelityProbe: VINE SILENT-NO-OP: vine at " + vineFoot
@@ -386,7 +386,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         }
         double yEnd = fp.getY();
         double dyMax = maxY - y0;
-        WorldDriverCommon.LOG.info("[wd.vineClingFidelityProbe] VERDICT: y0={} yEnd={} maxY={} dyMax={} wasOnVine={} onGroundEnd={} inWaterEnd={}",
+        TestMod.LOG.info("[wd.vineClingFidelityProbe] VERDICT: y0={} yEnd={} maxY={} dyMax={} wasOnVine={} onGroundEnd={} inWaterEnd={}",
                 y0, yEnd, maxY, dyMax, wasOnVine, fp.onGround(), fp.isInWater());
         if (!wasOnVine)
             ctx.fail("vineClingFidelityProbe: FIDELITY FAILS: avatar never registered onClimbable while pressing into the vine (y0="
@@ -516,7 +516,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BlockPos vineMid = new BlockPos(cx, vineBaseY + 1, vineZ);   // a free-hang climb cell
         boolean midFreeHang = !w.isSolid(vineMid.north()) && !w.isSolid(vineMid.south())
                 && !w.isSolid(vineMid.east()) && !w.isSolid(vineMid.west());
-        WorldDriverCommon.LOG.info("[wd.vineOverWaterClimb] geom: vineStuck={} isClimbable(base)={} pocketIsFloatingWater={} midFreeHang={} (expect true/true/false/true)",
+        TestMod.LOG.info("[wd.vineOverWaterClimb] geom: vineStuck={} isClimbable(base)={} pocketIsFloatingWater={} midFreeHang={} (expect true/true/false/true)",
                 vineStuck, vineClimbable, pocketFloating, midFreeHang);
         if (!vineStuck || !vineClimbable)
             ctx.fail("vineOverWaterClimb: VINE SILENT-NO-OP: vine base at " + vineBase
@@ -547,7 +547,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean arrived = s.ended();
         boolean onPlateau = arrived || (fp.getZ() > plateauZ - 0.5 && fp.getY() >= plateauTop - 0.4);
         boolean climbedTop = maxY >= vineTopY - 1;
-        WorldDriverCommon.LOG.info("[wd.vineOverWaterClimb] step={} pos=({},{},{}) maxY={} arrived={} onPlateau={} climbedTop={} everInPocket={} pocketTicks={}",
+        TestMod.LOG.info("[wd.vineOverWaterClimb] step={} pos=({},{},{}) maxY={} arrived={} onPlateau={} climbedTop={} everInPocket={} pocketTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, arrived, onPlateau, climbedTop, everInPocket, pocketTicks);
 
         // Pass predicate: PASS = topped the plateau AND pocketTicks under a small tolerance; FAIL (repro) =
@@ -642,7 +642,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             maxY = Math.max(maxY, fp.getY());
         }
         boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.tallBankDigClimb] step={} ticks={} pos=({},{},{}) maxY={} onPlateau={}",
+        TestMod.LOG.info("[wd.tallBankDigClimb] step={} ticks={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, t, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
         if (!onPlateau)
             ctx.fail("tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Navigator failed to dig+mount from water: pos=("
@@ -733,7 +733,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             if (fp.isInWater() && fp.getY() < bankTop) bobTicks++;
         }
         boolean onBank = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= bankTop + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.waterLowBank] step={} pos=({},{},{}) maxY={} onBank={} bobTicks={}",
+        TestMod.LOG.info("[wd.waterLowBank] step={} pos=({},{},{}) maxY={} onBank={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onBank, bobTicks);
         if (!onBank)
             ctx.fail("waterLowBank: LOW +2 bank: floating Navigator failed to climb out (foothold-place "
@@ -858,7 +858,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         }
         boolean ashore = !fp.isInWater() && fp.onGround()
                 && fp.getZ() > cz + 1.5 && fp.getY() >= surface + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.riverSheerBank] step={} pos=({},{},{}) maxX={} wallPressTicks={} ashore={}",
+        TestMod.LOG.info("[wd.riverSheerBank] step={} pos=({},{},{}) maxX={} wallPressTicks={} ashore={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxX, wallPressTicks, ashore);
         if (!ashore)
             ctx.fail("riverSheerBank: open-river sheer bank: Navigator never climbed out: pos=("
@@ -953,7 +953,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         }
         boolean ashore = !fp.isInWater() && fp.onGround()
                 && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.deepWaterCross] step={} pos=({},{},{}) maxX={} ashore={}",
+        TestMod.LOG.info("[wd.deepWaterCross] step={} pos=({},{},{}) maxX={} ashore={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxX, ashore);
         if (!ashore)
             ctx.fail("deepWaterCross: floating Navigator failed to cross the deep channel"
@@ -1046,7 +1046,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 break;
             }
         }
-        WorldDriverCommon.LOG.info("[wd.deepWaterClimboutNoBlock] step={} pos=({},{},{}) ashoreTick={}",
+        TestMod.LOG.info("[wd.deepWaterClimboutNoBlock] step={} pos=({},{},{}) ashoreTick={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
         if (ashoreTick < 0)
             ctx.fail("deepWaterClimboutNoBlock: block-less bot failed to climb the +1 dirt bank"
@@ -1136,7 +1136,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 break;
             }
         }
-        WorldDriverCommon.LOG.info("[wd.deepWaterClimboutDrift] step={} pos=({},{},{}) ashoreTick={} (clean baseline ~22)",
+        TestMod.LOG.info("[wd.deepWaterClimboutDrift] step={} pos=({},{},{}) ashoreTick={} (clean baseline ~22)",
                 s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
         if (ashoreTick < 0 || ashoreTick > 120)
             ctx.fail("deepWaterClimboutDrift: drifting bot failed a smooth +2 bank climb"
@@ -1203,7 +1203,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
         }
         double dGoal = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
-        WorldDriverCommon.LOG.info("[wd.waterFarAimBankCorner] step={} pos=({},{},{}) reachedTick={} dGoal={}",
+        TestMod.LOG.info("[wd.waterFarAimBankCorner] step={} pos=({},{},{}) reachedTick={} dGoal={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTick, String.format("%.1f", dGoal));
         // Round the wall via the gap → reach the east goal column.
         if (reachedTick < 0 && !s.ended())

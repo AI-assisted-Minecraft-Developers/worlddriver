@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -389,7 +389,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             log.append("  maxNodes=").append(budget).append(": ").append(r).append('\n');
             anyReached |= r.reached;
         }
-        WorldDriverCommon.LOG.info(log.toString());
+        TestMod.LOG.info(log.toString());
         if (!anyReached)
             ctx.fail("pinch: vertical-escape failed to scale the cliff at every budget; see [wd.pinch] log");
     }
@@ -400,7 +400,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void horizon(SceneContext ctx) {
         HorizonArena.Result off = HorizonArena.run(0);
         HorizonArena.Result on = HorizonArena.run(48);
-        WorldDriverCommon.LOG.info("[wd.horizon] off={} on={}", off, on);
+        TestMod.LOG.info("[wd.horizon] off={} on={}", off, on);
 
         final int minReach = HorizonArena.CORRIDOR_LEN - 20;   // inlined AgentGameTestSupport.HorizonArenaMinReach()
         if (!(on.firstExpanded < off.firstExpanded))
@@ -414,7 +414,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + "), got x=" + on.chainEndX);
 
         HorizonArena.Result soft = HorizonArena.run(0, 150);
-        WorldDriverCommon.LOG.info("[wd.horizon] soft={}", soft);
+        TestMod.LOG.info("[wd.horizon] soft={}", soft);
         if (!(soft.firstExpanded < off.firstExpanded))
             ctx.fail("horizon: softCommit=150 should expand fewer nodes than the full grind; off=" + off + " soft=" + soft);
         if (soft.firstExpanded > 400)
@@ -709,7 +709,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (climbed < 0.9)
             ctx.fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
 
-        WorldDriverCommon.LOG.info("[wd.physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
+        TestMod.LOG.info("[wd.physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
     }
 
     /**
@@ -751,7 +751,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             if (rise > worstRise) { worstRise = rise; riseAt = i; }
             prev = fp.getY();
         }
-        WorldDriverCommon.LOG.info("[wd.airborneJumpInert] y={} worstRise={} at t={}",
+        TestMod.LOG.info("[wd.airborneJumpInert] y={} worstRise={} at t={}",
                 fp.getY(), worstRise, riseAt);
         if (worstRise > 1.0E-9)
             ctx.fail("airborneJumpInert: a mid-air player was given an upward impulse: worstRise="
@@ -832,7 +832,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         HeldJump adjacent = heldJump(ctx, level, cx, standY, cz - 3, "adjacent");
         HeldJump underfoot = heldJump(ctx, level, cx, standY, cz + 3, "underfoot");
-        WorldDriverCommon.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
+        TestMod.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
         ctx.passNote("adjacent=" + adjacent.rises() + " underfootFirstJump="
                 + String.format(Locale.ROOT, "%.4f", underfoot.first()) + " laterJumps=" + underfoot.later()
                 + " laterMinY=" + String.format(Locale.ROOT, "%.4f", underfoot.minY())
@@ -983,7 +983,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         HeldJump bottomedArm = heldJump(ctx, level, cx, standY, cz + 3, "bottomed");
         HeldJump deepArm = heldJump(ctx, level, cx, standY, cz - 2, "bottomedDeep");
         int afloat = afloatArm.rises(), bottomed = bottomedArm.rises(), deep = deepArm.rises();
-        WorldDriverCommon.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={} bottomedDeep={}",
+        TestMod.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={} bottomedDeep={}",
                 afloat, bottomed, deep);
 
         // ctx.record, not passNote: a passNote is surfaced only when the scene resolves PASS, and the
@@ -1192,7 +1192,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 fp.isInWater(), fluidAtRest, restY, fp.getFluidJumpThreshold());
         // minYTick sits next to laterMinY because "came back to the floor on the LAST tick" and "came
         // back with forty ticks left and stayed silent" are the same y and opposite verdicts.
-        WorldDriverCommon.LOG.info("[held-jump] {} firstJump={} laterRises>0.3={} laterMinY={} minYTick={} climbable={} inWaterBeforeJump={} inWaterAtEnd={} fluidHeightBeforeJump={} yBeforeJump={}{}",
+        TestMod.LOG.info("[held-jump] {} firstJump={} laterRises>0.3={} laterMinY={} minYTick={} climbable={} inWaterBeforeJump={} inWaterAtEnd={} fluidHeightBeforeJump={} yBeforeJump={}{}",
                 arm, String.format(java.util.Locale.ROOT, "%.4f", first), later,
                 String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(),
                 out.inWaterAtRest(), out.inWaterAtEnd(),
@@ -1293,7 +1293,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (w.placeableBlockCount() != 20)
             ctx.fail("buildBlockWhitelist: whitelist=[bamboo] → count should be the 20 bamboo, got " + w.placeableBlockCount());
 
-        WorldDriverCommon.LOG.info("[wd.buildBlockWhitelist] default + whitelist-override matrix all pass");
+        TestMod.LOG.info("[wd.buildBlockWhitelist] default + whitelist-override matrix all pass");
     }
 
     // ==================================================================================
@@ -1340,7 +1340,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
-        WorldDriverCommon.LOG.info("[wd.pathArchiveCapture] terminal step={} pos=({},{},{})",
+        TestMod.LOG.info("[wd.pathArchiveCapture] terminal step={} pos=({},{},{})",
                 s, fp.getX(), fp.getY(), fp.getZ());
 
         // Daemon write dispatched to a background thread; poll from the tick path (was Thread.sleep up to 2 s).
@@ -1402,7 +1402,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
-        WorldDriverCommon.LOG.info("[wd.replayRoundTrip] record terminal step={} arrival={}", s, fp.blockPosition());
+        TestMod.LOG.info("[wd.replayRoundTrip] record terminal step={} arrival={}", s, fp.blockPosition());
 
         // ---- await plan archive write, then rebuild + replay + await replay-run write. ----
         ctx.await(() -> archive.lastWrittenPath() != null).within(200).then(() -> {
@@ -1466,7 +1466,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             int rt = 0;
             for (; rt < maxTicks && rs == Locomotor.Status.MOVING; rt++) { rs = replay.tick(rav, rw); rav.step(); }
             BlockPos replayArrival = rfp.blockPosition();
-            WorldDriverCommon.LOG.info("[wd.replayRoundTrip] replay terminal step={} ticks={} arrival={}",
+            TestMod.LOG.info("[wd.replayRoundTrip] replay terminal step={} ticks={} arrival={}",
                     rs, rt, replayArrival);
             if (rt >= maxTicks) { ctx.fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks"); return; }
 
@@ -1492,7 +1492,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     double d = tk.deviation();
                     if (!Double.isNaN(d) && d > maxDev) maxDev = d;
                 }
-                WorldDriverCommon.LOG.info("[wd.replayRoundTrip] trajectory ticks={} maxDeviation={}",
+                TestMod.LOG.info("[wd.replayRoundTrip] trajectory ticks={} maxDeviation={}",
                         run.trajectory().size(), maxDev);
                 if (maxDev > 4.0) ctx.fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
             });
@@ -1551,7 +1551,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("clientChatLogSemantics: oldest entries evicted, seq never reused");
 
         // reference Locale so the import matches the legacy shell's import set (no unused-import churn)
-        WorldDriverCommon.LOG.info("[wd.clientChatLogSemantics] {} lines, seq monotonic, eviction cap 512 OK",
+        TestMod.LOG.info("[wd.clientChatLogSemantics] {} lines, seq monotonic, eviction cap 512 OK",
                 String.format(Locale.ROOT, "%d", tail.size()));
     }
 

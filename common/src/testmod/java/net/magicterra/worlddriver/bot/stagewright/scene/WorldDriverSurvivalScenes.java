@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -181,7 +181,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         ServerPlayer fp = driver.fakePlayer();
         boolean climbed = fp.getY() >= floorY + 3.0;   // up from the floorY+1 pit bottom to ~the rim
-        WorldDriverCommon.LOG.info("[wd.serverEscape] pos=({},{},{}) climbed={} finished={} active={}",
+        TestMod.LOG.info("[wd.serverEscape] pos=({},{},{}) climbed={} finished={} active={}",
                 fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), BotTicker.activeCount());
         if (!driver.finished() || BotTicker.activeCount() != 0)
             ctx.fail("server EscapeProcess did not finish+unregister: active="
@@ -240,7 +240,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             if (!level.getBlockState(new BlockPos(cx, floorY + dy, cz)).isAir()) sealed++;
         }
         ServerPlayer fp = driver.fakePlayer();
-        WorldDriverCommon.LOG.info("[wd.serverBunker] pos=({},{},{}) sealed={}/{} active={}",
+        TestMod.LOG.info("[wd.serverBunker] pos=({},{},{}) sealed={}/{} active={}",
                 fp.getX(), fp.getY(), fp.getZ(), sealed, shaftCells, BotTicker.activeCount());
         if (sealed < shaftCells)
             ctx.fail("server BunkerProcess left the shaft open: sealed=" + sealed + "/" + shaftCells);
@@ -347,7 +347,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         boolean climbed = fp.getY() >= floorY + 5.0;
         String slotErr = driver.botState().escape.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverEscapeSealedShelter] pos=({},{},{}) climbed={} finished={} active={} slotErr={}",
+        TestMod.LOG.info("[wd.serverEscapeSealedShelter] pos=({},{},{}) climbed={} finished={} active={} slotErr={}",
                 fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), BotTicker.activeCount(), slotErr);
         if (!driver.finished() || BotTicker.activeCount() != 0)
             ctx.fail("sealed-shelter escape did not finish+unregister (old STEP_UP ping-pong?): active="
@@ -418,7 +418,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         double ddx = fp.getX() - (cx - 2 + 0.5), ddz = fp.getZ() - (cz + 0.5);
         double dist = Math.sqrt(ddx * ddx + ddz * ddz);
-        WorldDriverCommon.LOG.info("[wd.serverLowHpEdgePin] pos=({},{},{}) dist={} hp={} finished={} active={}",
+        TestMod.LOG.info("[wd.serverLowHpEdgePin] pos=({},{},{}) dist={} hp={} finished={} active={}",
                 fp.getX(), fp.getY(), fp.getZ(), dist, fp.getHealth(),
                 driver.finished(), BotTicker.activeCount());
         if (fp.getHealth() < 2.0f)
@@ -491,7 +491,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             }
         }
         boolean roofOpen = level.getBlockState(head.above()).isAir();
-        WorldDriverCommon.LOG.info("[wd.serverBunkerSlope] pos={} openLateral={} roofOpen={} open=[{}]",
+        TestMod.LOG.info("[wd.serverBunkerSlope] pos={} openLateral={} roofOpen={} open=[{}]",
                 foot, openLateral, roofOpen, open);
         if (openLateral > 0 || roofOpen)
             ctx.fail("bunker pocket not enclosed: openLateral=" + openLateral + " roofOpen=" + roofOpen + " cells=" + open);
@@ -561,7 +561,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         PathFinder.Result plan = new PathFinder(driver.world(), diveSearch).findPath(start, goal);
         boolean hasSurfaceDive = false;
         for (Move.Edge e : plan.edges()) if (e != null && "swimDownSurface".equals(e.move)) hasSurfaceDive = true;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.surfaceDive] plan.goalReached={} hasSurfaceDive={} start=({},{},{}) bottomCell={}",
                 plan.goalReached(), hasSurfaceDive, start.getX(), start.getY(), start.getZ(), bottomCell);
         if (!plan.goalReached())
@@ -582,7 +582,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         double ddy = fp.getY() - bottomCell.getY();
         double ddz = fp.getZ() - (bottomCell.getZ() + 0.5);
         double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.surfaceDive] pos=({},{},{}) finished={} active={} dist={}",
                 fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), dist);
         if (!driver.finished() || BotTicker.activeCount() != 0)
@@ -683,7 +683,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         PathFinder.Result plan = new PathFinder(driver.world(), diveSearch).findPath(start, goal);
         boolean hasSurfaceDive = false;
         for (Move.Edge e : plan.edges()) if (e != null && "swimDownSurface".equals(e.move)) hasSurfaceDive = true;
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.underwaterBase] plan.goalReached={} hasSurfaceDive={} finalCost={} start=({},{},{}) goalCell={}",
                 plan.goalReached(), hasSurfaceDive, plan.finalCost(),
                 start.getX(), start.getY(), start.getZ(), goalCell);
@@ -711,7 +711,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         double ddz = fp.getZ() - (standCell.getZ() + 0.5);
         double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
         boolean insideChamber = fp.getX() > cx + 2.5;   // past the tank's east wall plane
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.underwaterBase] pos=({},{},{}) finished={} active={} dist={} insideChamber={}",
                 fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(),
                 dist, insideChamber);
@@ -980,7 +980,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         try {
             body.run();
         } catch (LinkageError | RuntimeException e) {
-            WorldDriverCommon.LOG.error("[matrixStack] {} threw {}: {}", which,
+            TestMod.LOG.error("[matrixStack] {} threw {}: {}", which,
                     e.getClass().getName(), e.getMessage(), e);
             throw e;
         }
@@ -1105,7 +1105,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             fp.setAirSupply(airSim);
             minAir = Math.min(minAir, airSim);
         }
-        WorldDriverCommon.LOG.info(
+        TestMod.LOG.info(
                 "[wd.drownEscapePreempt] flips={} preempt@t{} (air={}) release@t{} (air={} under={}) minAir={} "
                         + "y {}→{} interrupts={} phase={}",
                 flips, preemptTick, airAtPreempt, releaseTick, airAtRelease, underAtRelease, minAir,
@@ -1158,7 +1158,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         fp.setAirSupply(42);
 
         var vitals = PlayerSnapshots.of(fp, java.util.Optional.empty()).vitals();
-        WorldDriverCommon.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", vitals.air(), vitals.maxAir());
+        TestMod.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", vitals.air(), vitals.maxAir());
         if (vitals.air() != 42)
             ctx.fail("gap#70: observe.player reports the wrong `air` — got " + vitals.air()
                     + ", wanted 42 (fp.setAirSupply(42))");

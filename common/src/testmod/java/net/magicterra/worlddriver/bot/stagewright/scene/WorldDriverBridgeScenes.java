@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -737,6 +737,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeDetourCheap", r, goal);
         ctx.assertBlock(12, DECK + 1, 0, Blocks.STONE);
         ctx.assertBlock(12, DECK + 2, 0, Blocks.STONE);
-        WorldDriverCommon.LOG.info("[wd.bridgeDetourCheap] wall intact, detour taken, ticks={}", r.ticks());
+        TestMod.LOG.info("[wd.bridgeDetourCheap] wall intact, detour taken, ticks={}", r.ticks());
     }
 }

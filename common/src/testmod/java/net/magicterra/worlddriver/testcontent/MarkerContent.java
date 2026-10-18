@@ -10,7 +10,6 @@ import dev.architectury.registry.registries.RegistrySupplier;
 import dev.architectury.utils.Env;
 import dev.architectury.utils.EnvExecutor;
 import net.magicterra.worlddriver.TestContent;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -29,7 +28,7 @@ import net.minecraft.world.level.material.PushReaction;
  * driver's own mod id because the testmod is folded into the driver's mod on both loaders.
  */
 public final class MarkerContent implements TestContent {
-    private static final String MOD_ID = WorldDriverCommon.MOD_ID;
+    private static final String MOD_ID = TestMod.MOD_ID;
 
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(MOD_ID, Registries.BLOCK);
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(MOD_ID, Registries.ITEM);

@@ -10,7 +10,7 @@ import java.util.Set;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -481,7 +481,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         ctx.record("control.shot", clear.where());
         ctx.record("control.after", (target.equals(clear.landing()) ? 0 : 1) + " fault(s): lands in "
                 + (clear.landing() == null ? "none" : clear.landing().toShortString()));
-        WorldDriverCommon.LOG.info("[pourLine] control landing={} target={}", clear.landing(), target);
+        TestMod.LOG.info("[pourLine] control landing={} target={}", clear.landing(), target);
         if (!target.equals(clear.landing()))
             ctx.fail("THE RIG, not the subject: with nothing on the line this shot should land in "
                     + target.toShortString() + ", but got " + clear.where()

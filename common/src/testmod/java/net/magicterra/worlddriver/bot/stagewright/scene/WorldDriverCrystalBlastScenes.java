@@ -6,7 +6,7 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -502,7 +502,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
         ctx.record("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
                 + " (recorded for reference: ExplosionInteraction.BLOCK ignores this rule; only MOB reads it)");
-        WorldDriverCommon.LOG.info("[wd.{}] standAt={} swung={}@{} refused={} under={}->{} broke={} "
+        TestMod.LOG.info("[wd.{}] standAt={} swung={}@{} refused={} under={}->{} broke={} "
                 + "minY={} end={} inIndex={}", name, standAt, swings, firstSwingTick, refused,
                 underAtSwing, underAfterSwing, broke, minYAfterSwing, endAt,
                 level.getEntity(fp.getId()) != null);

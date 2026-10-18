@@ -6,7 +6,7 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -541,7 +541,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 "Goal.Block(%s) x%d, %d ticks | %s | %s", bottom.toShortString(),
                 CONTROL_LEGS, spent, trail, JourneyLeg.navigatorEnd(control)));
         ctx.record("control.after", controlFaults + " fault(s): " + where(control));
-        WorldDriverCommon.LOG.info("[portalEntry] control faults={} at {}", controlFaults, where(control));
+        TestMod.LOG.info("[portalEntry] control faults={} at {}", controlFaults, where(control));
         if (controlFaults == 0)
             ctx.fail("THE RIG, not the subject: the pre-fix goal " + bottom.toShortString()
                     + " got the bot into the portal on its own, so this arm's \"ended inside a"

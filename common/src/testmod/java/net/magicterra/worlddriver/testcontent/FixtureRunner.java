@@ -14,7 +14,6 @@ import java.util.function.Consumer;
 import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.stagewright.contract.SceneSkipped;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -181,8 +180,8 @@ public final class FixtureRunner {
         if (error == null) { status = "pass"; reason = ""; }
         else if (error instanceof SceneSkipped) { status = "skip"; reason = error.getMessage(); }
         else if (error instanceof SceneFailure) { status = "fail"; reason = error.getMessage(); }
-        else { status = "error"; reason = String.valueOf(error); WorldDriverCommon.LOG.error("[scene.run] {} crashed", ip.name, error); }
-        ip.ctx.runCleanups(w -> WorldDriverCommon.LOG.warn("[scene.run] {}: {}", ip.name, w));
+        else { status = "error"; reason = String.valueOf(error); TestMod.LOG.error("[scene.run] {} crashed", ip.name, error); }
+        ip.ctx.runCleanups(w -> TestMod.LOG.warn("[scene.run] {}: {}", ip.name, w));
         Outcome out = ip.run.outcome(status, reason);
         if (active == ip) active = null;
         ip.done.complete(out);
@@ -258,10 +257,10 @@ public final class FixtureRunner {
             FixtureIO.remove(ctx.level(), lifted);
             // Logged both ways: a scene once lost every marker between two runs and nothing said
             // which run, or whether the lift and the restore had even balanced.
-            WorldDriverCommon.LOG.info("[scene.run] {}: lifted {} markers at {}", name, lifted.size(), origin.toShortString());
+            TestMod.LOG.info("[scene.run] {}: lifted {} markers at {}", name, lifted.size(), origin.toShortString());
             ctx.cleanup(() -> {
                 FixtureIO.putAll(ctx.level(), lifted);
-                WorldDriverCommon.LOG.info("[scene.run] {}: restored {} markers at {}", name, lifted.size(), origin.toShortString());
+                TestMod.LOG.info("[scene.run] {}: restored {} markers at {}", name, lifted.size(), origin.toShortString());
             });
 
             var pin = BotConfig.pinnedBaseline();

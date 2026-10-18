@@ -13,7 +13,6 @@ import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.minecraft.ChatFormatting;
@@ -85,7 +84,7 @@ public final class SceneCommands {
                 .then(Commands.literal("accept")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .executes(SceneCommands::accept)));
-        dispatcher.register(Commands.literal(WorldDriverCommon.MOD_ID).then(mark).then(scene).then(anchorCommand())
+        dispatcher.register(Commands.literal(TestMod.MOD_ID).then(mark).then(scene).then(anchorCommand())
                 .then(ValidationSuite.command()));
     }
 

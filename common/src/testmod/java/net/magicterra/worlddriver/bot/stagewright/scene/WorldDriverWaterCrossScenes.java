@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -158,7 +158,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             if (s.ended()) { arrivedTick = t; break; }
         }
         double dGoal = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
-        WorldDriverCommon.LOG.info("[wd.goalSnapBuried] step={} pos=({},{},{}) arrivedTick={} dToBuried={}",
+        TestMod.LOG.info("[wd.goalSnapBuried] step={} pos=({},{},{}) arrivedTick={} dToBuried={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), arrivedTick, String.format("%.1f", dGoal));
         // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within snap radius 6 + slack).
         if (!s.ended())
@@ -213,7 +213,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         var r0 = runSearch(w, start, goal);
         PlanningConfig.pathfinderDepthPenalty = 6;
         var r6 = runSearch(w, start, goal);
-        WorldDriverCommon.LOG.info("[wd.basin] penalty0: reached={} expanded={} | penalty6: reached={} expanded={}",
+        TestMod.LOG.info("[wd.basin] penalty0: reached={} expanded={} | penalty6: reached={} expanded={}",
                 r0.goalReached(), r0.expanded(), r6.goalReached(), r6.expanded());
         if (!r6.goalReached())
             ctx.fail("basin: depthPenalty=6 failed to reach via the rim go-around");
@@ -229,7 +229,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         var b0 = runSearch(w, start, goal);
         PlanningConfig.pathfinderDepthPenalty = 6;
         var b6 = runSearch(w, start, goal);
-        WorldDriverCommon.LOG.info("[wd.basin] budget={}: penalty0 reached={} | penalty6 reached={}",
+        TestMod.LOG.info("[wd.basin] budget={}: penalty0 reached={} | penalty6 reached={}",
                 budget, b0.goalReached(), b6.goalReached());
         if (b0.goalReached() || !b6.goalReached())
             ctx.fail("basin: budget A/B not decisive: budget=" + budget
@@ -300,7 +300,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         PlanningConfig.pathfinderWaterClimbOutCost = oco;        // the configured default
         var rOn = runSearch(w, start, goal);
         int maxYOn = maxPathY(rOn);
-        WorldDriverCommon.LOG.info("[wd.waterClimbOutRoute] taxOff: reached={} maxY={} | taxDefault({}): reached={} maxY={}",
+        TestMod.LOG.info("[wd.waterClimbOutRoute] taxOff: reached={} maxY={} | taxDefault({}): reached={} maxY={}",
                 rOff.goalReached(), maxYOff, oco, rOn.goalReached(), maxYOn);
         if (!rOff.goalReached() || !rOn.goalReached())
             ctx.fail("waterClimbOutRoute: a climb-out route failed to reach: off=" + rOff.goalReached()
@@ -404,7 +404,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     advanced[leg] = true;
                 }
             }
-            WorldDriverCommon.LOG.info("[wd.waterStepDownFloat] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} minCur2={} endPos=({},{},{}) step={}",
+            TestMod.LOG.info("[wd.waterStepDownFloat] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} minCur2={} endPos=({},{},{}) step={}",
                     leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
                     String.format(Locale.ROOT, "%.3f", minCur2[leg]),
                     String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
@@ -482,7 +482,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         setup.run();
         boolean survivedB = runPadLeg(ctx, level, cx, cz, waterY, node, cont, goalN, goal,
                 SearchProfile.NONE, padCell);
-        WorldDriverCommon.LOG.info("[wd.forbidDigPadRam] survivedA(forbidDig)={} survivedB(plain)={}", survivedA, survivedB);
+        TestMod.LOG.info("[wd.forbidDigPadRam] survivedA(forbidDig)={} survivedB(plain)={}", survivedA, survivedB);
         if (!survivedA)
             ctx.fail("forbidDigPadRam: forbidDig LEAK: the head-on lily-pad break punched the pad despite NoBreak "
                     + "(pad removed pre-fix). Under forbidDig the pad MUST survive.");
@@ -596,7 +596,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             reached[leg] = r.goalReached();
             for (BlockPos p : r.path())
                 if (p.getY() < surface && w.isWater(p) && w.isWater(p.above())) subNodes[leg]++;
-            WorldDriverCommon.LOG.info("[wd.deepWaterSubmergedCross] legA flagOn={} reached={} pathLen={} submergedNodes={}",
+            TestMod.LOG.info("[wd.deepWaterSubmergedCross] legA flagOn={} reached={} pathLen={} submergedNodes={}",
                     leg == 1, r.goalReached(), r.path().size(), subNodes[leg]);
         }
         // OFF must reproduce the bug: the committed plan threads the crossing SUBMERGED (many nodes).
@@ -636,7 +636,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             if (fp.isInWater() && foot.getY() < surface - 1 && w.isWater(foot.above())) submergedTicks++;
         }
         boolean ashore = !fp.isInWater() && fp.getX() >= cx + spanX + 1 - 0.5;
-        WorldDriverCommon.LOG.info("[wd.deepWaterSubmergedCross] legB ashore={} step={} pos=({},{},{}) maxX={} submergedTicks={}",
+        TestMod.LOG.info("[wd.deepWaterSubmergedCross] legB ashore={} step={} pos=({},{},{}) maxX={} submergedTicks={}",
                 ashore, st, String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
                 String.format(Locale.ROOT, "%.2f", fp.getZ()), String.format(Locale.ROOT, "%.2f", maxX), submergedTicks);
         if (!ashore)
@@ -746,7 +746,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 int rx = p.getX() - cx, rz = p.getZ() - cz;
                 if (rz == 0 && rx >= treeX0 && rx <= treeX1 && w.isWater(p)) laneNodes[leg]++;
             }
-            WorldDriverCommon.LOG.info("[wd.vineOverWaterCross] flagOn={} reached={} pathLen={} centerLaneNodes={}",
+            TestMod.LOG.info("[wd.vineOverWaterCross] flagOn={} reached={} pathLen={} centerLaneNodes={}",
                     leg == 1, r.goalReached(), r.path().size(), laneNodes[leg]);
         }
         if (laneNodes[0] < 3)
@@ -852,7 +852,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 int rx = p.getX() - cx;
                 for (int pd : padDx) if (rx == pd) { padNodes[leg]++; break; }
             }
-            WorldDriverCommon.LOG.info("[wd.padOverWaterCross] flagOn={} reached={} pathLen={} padLaneNodes={}",
+            TestMod.LOG.info("[wd.padOverWaterCross] flagOn={} reached={} pathLen={} padLaneNodes={}",
                     leg == 1, r.goalReached(), r.path().size(), padNodes[leg]);
         }
         if (padNodes[0] < 1)
@@ -967,7 +967,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 int rz = p.getZ() - cz;
                 if (rz >= -wallHalfZ && rz <= wallHalfZ) wallNodes[leg]++;
             }
-            WorldDriverCommon.LOG.info("[wd.padClusterCross] region=wall clusterOn={} reached={} pathLen={} wallPadNodes={}",
+            TestMod.LOG.info("[wd.padClusterCross] region=wall clusterOn={} reached={} pathLen={} wallPadNodes={}",
                     leg == 1, r.goalReached(), r.path().size(), wallNodes[leg]);
         }
         if (wallNodes[0] < 1)
@@ -989,7 +989,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         int loneNodes = 0;
         for (BlockPos p : rLone.path())
             if (p.getX() - cx == loneDx && p.getZ() == cz && w.isWater(p)) loneNodes++;
-        WorldDriverCommon.LOG.info("[wd.padClusterCross] region=lone clusterOn=true reached={} lonePadNodes={}",
+        TestMod.LOG.info("[wd.padClusterCross] region=lone clusterOn=true reached={} lonePadNodes={}",
                 rLone.goalReached(), loneNodes);
         if (loneNodes != 0)
             ctx.fail("padClusterCross: with the cluster tax ON the plan threads the LONE "
@@ -1004,7 +1004,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         int fullCross = 0;
         for (BlockPos p : rFull.path())
             if (p.getX() - cx == fullDx && w.isWater(p)) fullCross++;
-        WorldDriverCommon.LOG.info("[wd.padClusterCross] region=fullwall clusterOn=true reached={} crossNodes={}",
+        TestMod.LOG.info("[wd.padClusterCross] region=fullwall clusterOn=true reached={} crossNodes={}",
                 rFull.goalReached(), fullCross);
         if (!rFull.goalReached())
             ctx.fail("padClusterCross: with a FULL-WIDTH pad wall (no clear lane) the "
@@ -1098,7 +1098,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ControlConfig.navigatorDeepWaterFloatBeeline = false;
         Navigator wOff = new Navigator();
         boolean acceptOff = wOff.adoptForTest(w, cont, contEdges, foot);
-        WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
+        TestMod.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
         if (acceptOff)
             ctx.fail("deepWaterFloatBeeline: with the fix OFF the anchor-gate ACCEPTED the far "
                     + "open-water continuation (d2=" + (int) d2 + ") — the mis-anchored reject (the live dead-stop root) did "
@@ -1108,7 +1108,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ControlConfig.navigatorDeepWaterFloatBeeline = true;
         Navigator wOn = new Navigator();
         boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
-        WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
+        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
                 acceptOn, wOn.pathStep(), wOn.inspect().pathNode());
         if (!acceptOn)
             ctx.fail("deepWaterFloatBeeline: with navigatorDeepWaterFloatBeeline ON the anchor-gate "
@@ -1126,7 +1126,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "submerged water past the jump gate — vacuous (|Δy|=" + Math.abs(farNode.getY() - sunkFoot.getY()) + ").");
         Navigator wSunk = new Navigator();
         boolean acceptSunk = wSunk.adoptForTest(w, cont, contEdges, sunkFoot);
-        WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+SUNK accept={} (expect true: swim-up bee-line past the |Δy| jump gate)", acceptSunk);
+        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+SUNK accept={} (expect true: swim-up bee-line past the |Δy| jump gate)", acceptSunk);
         if (!acceptSunk)
             ctx.fail("deepWaterFloatBeeline: with the fix ON a SUNK foot (4 below the surface node, "
                     + "the live deep-bob) was REJECTED — the exemption must bypass the |Δy| jump gate for an open-water swim-up "
@@ -1139,7 +1139,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         level.setBlockAndUpdate(wallHi, Blocks.STONE.defaultBlockState());
         Navigator wWall = new Navigator();
         boolean acceptWall = wWall.adoptForTest(w, cont, contEdges, foot);
-        WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+WALL accept={} (expect false: LOS blocked by stone)", acceptWall);
+        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+WALL accept={} (expect false: LOS blocked by stone)", acceptWall);
         level.setBlockAndUpdate(wallAt, Blocks.WATER.defaultBlockState());   // restore the channel
         level.setBlockAndUpdate(wallHi, Blocks.AIR.defaultBlockState());
         if (acceptWall)
@@ -1156,7 +1156,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             }
         Navigator wDry = new Navigator();
         boolean acceptDry = wDry.adoptForTest(w, cont, contEdges, dryFoot);   // far continuation, dry foot
-        WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+DRYFOOT accept={} (expect false: exemption needs a floating foot)", acceptDry);
+        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+DRYFOOT accept={} (expect false: exemption needs a floating foot)", acceptDry);
         if (acceptDry)
             ctx.fail("deepWaterFloatBeeline: with the fix ON a continuation from a DRY foot was "
                     + "ACCEPTED — the open-water bee-line exemption must be gated on a FLOATING foot.");

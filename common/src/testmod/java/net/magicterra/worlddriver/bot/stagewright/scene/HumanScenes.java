@@ -13,7 +13,7 @@ import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.testcontent.FixtureIO;
 import net.magicterra.worlddriver.testcontent.FixtureRunner;
 import net.magicterra.worlddriver.testcontent.SceneFixture;
@@ -111,7 +111,7 @@ public final class HumanScenes implements SceneProvider {
                 try {
                     fixture = FixtureIO.loadJson(json);
                 } catch (IOException | RuntimeException e) {
-                    WorldDriverCommon.LOG.warn("[human scenes] skipping {}: {}", json.getFileName(), e.getMessage());
+                    TestMod.LOG.warn("[human scenes] skipping {}: {}", json.getFileName(), e.getMessage());
                     continue;
                 }
                 Path nbt = FixtureIO.nbtPath(fixture.name());
@@ -127,7 +127,7 @@ public final class HumanScenes implements SceneProvider {
         } catch (IOException e) {
             throw new IllegalStateException("cannot list " + dir, e);
         }
-        if (!out.isEmpty()) WorldDriverCommon.LOG.info("[human scenes] {} local fixture(s) from {}", out.size(), dir);
+        if (!out.isEmpty()) TestMod.LOG.info("[human scenes] {} local fixture(s) from {}", out.size(), dir);
         return out;
     }
 

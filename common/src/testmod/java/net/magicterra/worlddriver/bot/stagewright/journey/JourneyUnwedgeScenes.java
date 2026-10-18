@@ -6,7 +6,7 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -286,7 +286,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                         + " | lastError=%s",
                 courses, start.toShortString(), end.toShortString(), r.climbed(), r.driftX,
                 r.driftZ, r.spent, r.ticks, r.lastError));
-        WorldDriverCommon.LOG.info("[unwedge:{}] climbed={} spent={} drift={},{} lastError={}",
+        TestMod.LOG.info("[unwedge:{}] climbed={} spent={} drift={},{} lastError={}",
                 arm, r.climbed(), r.spent, r.driftX, r.driftZ, r.lastError);
         return r;
     }

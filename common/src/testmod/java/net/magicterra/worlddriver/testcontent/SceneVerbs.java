@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
@@ -126,11 +125,11 @@ public final class SceneVerbs {
     private static void publishVerbs() {
         ApiRegistry api = WorldDriver.registry();
         if (api == null) {
-            WorldDriverCommon.LOG.warn("[{}] scene verbs not registered: the driver API is not up", WorldDriverCommon.MOD_ID);
+            TestMod.LOG.warn("[{}] scene verbs not registered: the driver API is not up", TestMod.MOD_ID);
             return;
         }
         if (api.registerBatch(BATCH)) {
-            WorldDriverCommon.LOG.info("[{}] scene verbs registered: mark, scene.save|list|place|run|verdict|accept", WorldDriverCommon.MOD_ID);
+            TestMod.LOG.info("[{}] scene verbs registered: mark, scene.save|list|place|run|verdict|accept", TestMod.MOD_ID);
         }
     }
 
@@ -309,7 +308,7 @@ public final class SceneVerbs {
             try {
                 FixtureVerdicts.append(FixtureIO.scenesDir().resolve(fixture.verdicts()), rec);
             } catch (IOException e) {
-                WorldDriverCommon.LOG.warn("[scene.run] could not append {}: {}", fixture.verdicts(), e.getMessage());
+                TestMod.LOG.warn("[scene.run] could not append {}: {}", fixture.verdicts(), e.getMessage());
             }
             if (caller != null) SceneCommands.report(caller, name, out);
         });
