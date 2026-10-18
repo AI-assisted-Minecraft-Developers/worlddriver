@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -55,7 +56,7 @@ public final class WalkerTickStallDetect {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -81,7 +82,7 @@ public final class WalkerTickStallDetect {
             // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
         } else if (++wk.totalTicks > ControlConfig.walkerTotalTickBudget) {
             wk.error = "no progress for " + ControlConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(wk.goalSpin.bestDistToGoal) + ")";
-            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.STUCK, wk.error, "failed:" + wk.error, p.blockPosition());
+            return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.STUCK, wk.error, "failed:" + wk.error, p.blockPosition());
         }
 
         // Re-searching toward a FAR goal mid-segment returns a DIVERGENT best-effort

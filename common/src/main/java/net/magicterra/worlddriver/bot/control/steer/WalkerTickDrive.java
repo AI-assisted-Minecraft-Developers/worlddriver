@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
@@ -151,7 +152,7 @@ public final class WalkerTickDrive {
 
     private static Cruise cruiseVerdict(Walker wk, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
-        Walker.DriveLatches l = wk.driveLatch;
+        DriveLatches l = wk.driveLatch;
         double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
         // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
         // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
@@ -319,7 +320,7 @@ public final class WalkerTickDrive {
         return null;
     }
 
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -412,7 +413,7 @@ public final class WalkerTickDrive {
                     wk.route.step() >= 2 ? wk.route.path().get(wk.route.step() - 2) : null, breakingEdge);
             switch (wk.ascendMovement.updateState(ctx)) {
                 case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
-                    Walker.Step give = noteDeadZone(wk, p, foot, edge);
+                    TickStep give = noteDeadZone(wk, p, foot, edge);
                     if (give != null) return give;
                 }
                 case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
@@ -1003,7 +1004,7 @@ public final class WalkerTickDrive {
                         + "(flowed in after plan) → replan", wp.toShortString());
                 a.releaseInputs();
                 wk.replan();
-                return Walker.Step.WALKING;
+                return TickStep.WALKING;
             }
         }
         // HAZARD-AHEAD brake (lava ×4 live in two rounds): the danger ring only
@@ -1481,7 +1482,7 @@ public final class WalkerTickDrive {
                     dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
                     aimSrc, wk.stuckTicks, Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
         }
-        return Walker.Step.WALKING;
+        return TickStep.WALKING;
     }
 
     /**
@@ -1762,7 +1763,7 @@ public final class WalkerTickDrive {
      *
      * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
      */
-    private static Walker.Step noteDeadZone(Walker wk, LivingEntity p, BlockPos foot, Move.Edge edge) {
+    private static TickStep noteDeadZone(Walker wk, LivingEntity p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
         BlockPos node = wk.route.path().get(wk.route.step());
         if (foot.equals(wk.searchGov.deadZoneFoot) && node.equals(wk.searchGov.deadZoneNode)) {
@@ -1780,7 +1781,7 @@ public final class WalkerTickDrive {
                 + " times from the same cell — the search keeps returning " + edge.move
                 + " to " + node + " and the executor keeps refusing it (foot=" + foot
                 + "); the plan is fine and the bot cannot perform it";
-        return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH,
+        return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH,
                 wk.error, "failed:" + wk.error, p.blockPosition());
     }
 

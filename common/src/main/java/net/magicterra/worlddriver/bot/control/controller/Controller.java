@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.Set;
 
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -58,5 +59,5 @@ interface Controller {
      * counter {@link #sense} keeps. Called on every controller, running or not, when the walk gets a new goal
      * or drops its plan; a running one is stopped first only for a new goal.
      */
-    default void reset(Walker.Scope scope) {}
+    default void reset(ResetScope scope) {}
 }

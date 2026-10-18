@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickStep;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -80,7 +82,7 @@ public final class WaterClimb implements Controller {
 
     /** The climb-out state a new goal or a replan clears. Not cleared: lastDigAimEyeY (re-snapped per dig
      *  aim), the locked engage column and heading (read only while pillaring), digGroundedStreak (per commit). */
-    @Override public void reset(Walker.Scope scope) {
+    @Override public void reset(ResetScope scope) {
         stall = 0;
         touchRecent = 0;
         wantClimbRecent = 0;
@@ -355,7 +357,7 @@ public final class WaterClimb implements Controller {
         // bot pogo-bobbed forever (live round69: jumped to bank height but z frozen,
         // never translated across).
         if (wk.waterClimb.pillaring) {
-            Walker.Step took = pillarTakeoverTick(wk, a, world, p, foot, cwp, wantClimbNow, wantClimb);
+            TickStep took = pillarTakeoverTick(wk, a, world, p, foot, cwp, wantClimbNow, wantClimb);
             if (took != null) return true;
         }
         // The takeover let go this tick (or never ran): the bank dig may take it.
@@ -466,7 +468,7 @@ public final class WaterClimb implements Controller {
         // unconditionally and claim it afterwards, so a claim the travel drive already
         // held was ignored here — the two phases alternated targets every 20–40 ticks
         // and each switch threw away the other's destroyProgress. See
-        // Walker.StickyDig.engage for the measurement that named it.
+        // StickyDig.engage for the measurement that named it.
         BlockPos digCell = WalkerDig.avatarDig(wk, a, riser, false);
         wk.waterClimb.lastDigRiser = digCell;
         wk.waterClimb.lastDigAimEyeY = p.getEyeY();
@@ -752,7 +754,7 @@ public final class WaterClimb implements Controller {
      * report when the tick is consumed, {@code null} when the takeover has let go and the caller's
      * ordinary actuators / bank-dig take the tick.
      */
-    private static Walker.Step pillarTakeoverTick(Walker wk, Body a, WorldView world, LivingEntity p,
+    private static TickStep pillarTakeoverTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos cwp, boolean wantClimbNow, boolean wantClimb) {
                 boolean haveBlock = ControlConfig.allowSwimEscapePlace && wk.equipment.holdPlaceable();
                 // Done when we've topped out onto DRY solid ground (grounded, clear of
@@ -825,7 +827,7 @@ public final class WaterClimb implements Controller {
                         if (ControlConfig.walkerClimbOutResyncsAim) wk.aimSmooth.reset();
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
-                        return Walker.Step.WALKING;
+                        return TickStep.WALKING;
                     }
                     // Only "give up" the pillar (block re-engage, hand off to the bank-DIG)
                     // when that DIG can actually fire — i.e. breaking is allowed. With break
@@ -861,7 +863,7 @@ public final class WaterClimb implements Controller {
      * column, the fill cell chosen (surface cell afloat, the cell on the column's solid top when
      * dry), the side-foothold branch for one-deep water, the keys, and the click.
      */
-    private static Walker.Step pillarDriveTick(Walker wk, Body a, WorldView world, LivingEntity p,
+    private static TickStep pillarDriveTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                                BlockPos foot, boolean dryGrounded) {
                 // Pin to the LOCKED bank heading + column; look down to aim the place.
                 p.setYRot(wk.waterClimb.yaw); p.yHeadRot = wk.waterClimb.yaw; p.yBodyRot = wk.waterClimb.yaw;
@@ -978,11 +980,11 @@ public final class WaterClimb implements Controller {
                         wk.waterClimb.colZ = side.getZ();
                         wk.waterClimb.yaw = (float) Math.toDegrees(Math.atan2(
                                 -((side.getX() + 0.5) - p.getX()), (side.getZ() + 0.5) - p.getZ()));
-                        return Walker.Step.WALKING;
+                        return TickStep.WALKING;
                     }
                 }
                 climboutPlaceTick(wk, a, world, p, fillCell, foot, dryGrounded);
-                return Walker.Step.WALKING;
+                return TickStep.WALKING;
     }
 
     /**

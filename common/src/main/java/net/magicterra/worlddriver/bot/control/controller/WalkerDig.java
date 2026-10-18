@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -124,7 +125,7 @@ public final class WalkerDig {
      * so the next search routes around it instead of re-proposing it, and drop the path so the tick
      * ends in a repath. Two dig sites had these eight lines written out verbatim.
      *
-     * @return true when the caller must return {@link Walker.Step#WALKING} at once.
+     * @return true when the caller must return {@link TickStep#WALKING} at once.
      */
     static boolean bailOnBreathInfeasibleDig(Walker wk, Body a, LivingEntity p, BlockPos b) {
         if (!breathInfeasibleDig(p, b)) return false;

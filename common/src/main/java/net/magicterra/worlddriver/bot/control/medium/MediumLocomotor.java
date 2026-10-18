@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.medium;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import java.util.List;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -117,20 +118,20 @@ public final class MediumLocomotor implements Locomotor {
                     "failed:no goal", false, -1, false);
             return Status.FAILED;
         }
-        Walker.Step s = step(a, world);
-        return s == Walker.Step.WALKING ? Status.MOVING : result.status();
+        TickStep s = step(a, world);
+        return s == TickStep.WALKING ? Status.MOVING : result.status();
     }
 
-    private Walker.Step step(Body a, WorldView world) {
+    private TickStep step(Body a, WorldView world) {
         LivingEntity p = a.entity();
         BlockPos foot = p.blockPosition();
         if (goal != walkGoal) { reset(); walkGoal = goal; }
-        if (goal.reached(foot)) return end(a, Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "arrived", foot);
+        if (goal.reached(foot)) return end(a, TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "arrived", foot);
         outTicks = inMedium(p) ? 0 : outTicks + 1;
         if (outTicks > OUT_TICKS) return fail(a, medium == MediumMove.Medium.AIR ? "fell into water" : "out of water", foot);
 
         if (route.path() == null || route.path() != followed) {
-            Walker.Step s = plan(a, world, goal, foot);
+            TickStep s = plan(a, world, goal, foot);
             if (s != null) return s;
         }
 
@@ -152,7 +153,7 @@ public final class MediumLocomotor implements Locomotor {
             if (++stalls > MAX_STALLS) return fail(a, "stuck: no closer to node " + node.toShortString(), foot);
             route.drop("no closer to node " + node.toShortString());
             hold(a);
-            return Walker.Step.WALKING;
+            return TickStep.WALKING;
         }
         String vertical = steer(a, p, tx, ty, tz);
         wk.driveTag = verb;
@@ -160,7 +161,7 @@ public final class MediumLocomotor implements Locomotor {
                 "%s step=%d/%d node=%s pos=%.2f,%.2f,%.2f vy=%.3f %s out=%d stalled=%d stalls=%d bestEffort=%b",
                 verb, route.step(), route.path().size(), node.toShortString(), p.getX(), p.getY(), p.getZ(), p.getDeltaMovement().y,
                 vertical, outTicks, noProgressTicks, stalls, route.seg.pathBestEffort);
-        return Walker.Step.WALKING;
+        return TickStep.WALKING;
     }
 
     private boolean inMedium(LivingEntity p) {
@@ -168,12 +169,12 @@ public final class MediumLocomotor implements Locomotor {
     }
 
     /** Run or start the search; null once a path is adopted, else the step to return this tick. */
-    private Walker.Step plan(Body a, WorldView world, Goal goal, BlockPos foot) {
+    private TickStep plan(Body a, WorldView world, Goal goal, BlockPos foot) {
         if (route.seg.activeSearch == null) route.searchFromFoot(wk.newPathFinder(world).newSearch(foot, goal), false);
         if (!route.seg.activeSearch.advance(ControlConfig.pathfinderSliceMs)) {
             hold(a);
             wk.driveTag = verb + ":search";
-            return Walker.Step.WALKING;
+            return TickStep.WALKING;
         }
         PathFinder.Result r = route.takeSearchResult();
         if (r.path().size() < 2) {
@@ -193,14 +194,14 @@ public final class MediumLocomotor implements Locomotor {
     }
 
     /** The path is spent: arrived, or a best-effort segment ended and the next one is planned from here. */
-    private Walker.Step segmentEnd(Body a, Goal goal, BlockPos foot) {
+    private TickStep segmentEnd(Body a, Goal goal, BlockPos foot) {
         if (!route.seg.pathBestEffort) {
             String why = WalkVerdict.classifyArrival(false, goal.reached(foot), false);
-            return end(a, Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, why, foot);
+            return end(a, TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, why, foot);
         }
         route.drop("best-effort segment spent");
         hold(a);
-        return Walker.Step.WALKING;
+        return TickStep.WALKING;
     }
 
     /**
@@ -231,15 +232,15 @@ public final class MediumLocomotor implements Locomotor {
                 && p.getBlockY() == node.getY();
     }
 
-    private Walker.Step fail(Body a, String error, BlockPos foot) {
-        return end(a, Walker.Step.FAILED, PathTrace.Outcome.STUCK, error, "failed:" + error, foot);
+    private TickStep fail(Body a, String error, BlockPos foot) {
+        return end(a, TickStep.FAILED, PathTrace.Outcome.STUCK, error, "failed:" + error, foot);
     }
 
-    private Walker.Step end(Body a, Walker.Step s, PathTrace.Outcome o, String reason, String endReason, BlockPos foot) {
+    private TickStep end(Body a, TickStep s, PathTrace.Outcome o, String reason, String endReason, BlockPos foot) {
         hold(a);
         reset();
         walkGoal = null;
-        result = WalkVerdict.of(s == Walker.Step.FAILED, reason, goal.reached(foot), endReason, goal.estimate(foot),
+        result = WalkVerdict.of(s == TickStep.FAILED, reason, goal.reached(foot), endReason, goal.estimate(foot),
                 false, goal.open());
         PathTraceHolder.SINK.onTerminal(o, reason);
         return s;

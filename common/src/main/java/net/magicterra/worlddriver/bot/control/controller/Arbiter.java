@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -68,8 +69,8 @@ public final class Arbiter {
     }
 
     /** The walk changed: a new goal stops every running controller, and every controller forgets {@code scope}. */
-    public void reset(Walker.Scope scope, String why) {
-        if (scope == Walker.Scope.GOAL) stopAll(why);
+    public void reset(ResetScope scope, String why) {
+        if (scope == ResetScope.GOAL) stopAll(why);
         for (Controller c : controllers) c.reset(scope);
     }
 

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.sense.EscalationClock;
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -39,7 +41,7 @@ public final class Recovery implements Controller {
 
     private int backOffLeft;
     private float backOffYaw;
-    /** The walker tick ({@link Walker.EscalationClock#tick}) from which another back-off may be asked for.
+    /** The walker tick ({@link EscalationClock#tick}) from which another back-off may be asked for.
      *  Outlives a run on purpose — it is the memory that stops a retreat loop — and goes with the goal. */
     private long backOffReadyAt;
     private int burstLeft;
@@ -139,9 +141,9 @@ public final class Recovery implements Controller {
         burstLeft = 0;
     }
 
-    @Override public void reset(Walker.Scope scope) {
+    @Override public void reset(ResetScope scope) {
         dropBackOff();
-        if (scope == Walker.Scope.GOAL) {
+        if (scope == ResetScope.GOAL) {
             dropWedgeAnchor();
             countCooldown = 0;
         }

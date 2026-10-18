@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
@@ -16,13 +17,13 @@ import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 public final class StandToWork {
     private StandToWork() {}
 
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, RouteDig.Work work) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, RouteDig.Work work) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         Walker.avatarForward(a, false);
         wk.avatarJump(a, false);
         p.setSprinting(false);
-        if (work == null || work.cell() == null) return Walker.Step.WALKING;
+        if (work == null || work.cell() == null) return TickStep.WALKING;
         String move = work.move();
         if (work.kind() == RouteDig.Kind.DIG) {
             // Water-escape break (swimAshore / swimTraverseBreak): while breaking the
@@ -74,6 +75,6 @@ public final class StandToWork {
                 p.setShiftKeyDown(true);
             }
         }
-        return Walker.Step.WALKING;
+        return TickStep.WALKING;
     }
 }

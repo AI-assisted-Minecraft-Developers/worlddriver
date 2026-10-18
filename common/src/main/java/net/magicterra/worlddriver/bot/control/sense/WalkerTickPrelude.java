@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
+import net.magicterra.worlddriver.bot.control.steer.DriveLatches;
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -106,7 +108,7 @@ public final class WalkerTickPrelude {
      *  descent hold) took the heading over mid-flight and swung it 40° (R1 1422,64,-403). Until it lands the hop is
      *  judged from its take-off level. The keying tick itself may still be grounded, so landing counts after it. */
     static BlockPos hopFoot(Walker wk, LivingEntity p, BlockPos foot) {
-        Walker.DriveLatches l = wk.driveLatch;
+        DriveLatches l = wk.driveLatch;
         if (l.hopY == Integer.MIN_VALUE) return foot;
         if (p.isInWater() || foot.getY() < l.hopY || p.onGround() && p.tickCount > l.hopTick + 1) {
             l.hopY = Integer.MIN_VALUE;
@@ -116,9 +118,9 @@ public final class WalkerTickPrelude {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
-        if (p == null) { wk.error = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
+        if (p == null) { wk.error = "player vanished"; return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
         wk.safety.guardParkourTick = false;
         wk.jumpTag = null;
         wk.aimTag = null;
@@ -177,7 +179,7 @@ public final class WalkerTickPrelude {
                 if (GameConfig.walkerDebug)
                     LOG.info(
                             "[walker] descending… y={} onGround={}", p.getY(), p.onGround());
-                return Walker.Step.WALKING;
+                return TickStep.WALKING;
             }
             wk.descending = false;
             if (GameConfig.walkerDebug)
@@ -266,7 +268,7 @@ public final class WalkerTickPrelude {
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
-            if (!midAirEdge) return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+            if (!midAirEdge) return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
                     WalkVerdict.classifyArrival(wk.route.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
         }
 

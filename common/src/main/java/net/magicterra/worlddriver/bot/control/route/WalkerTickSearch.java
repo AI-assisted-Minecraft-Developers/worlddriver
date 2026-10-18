@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -82,7 +83,7 @@ public final class WalkerTickSearch {
      *
      * @return non-null Step to end the tick, or null to fall through.
      */
-    private static Walker.Step futileGateJudge(PathFinder.Result res, Body a, Walker wk,
+    private static TickStep futileGateJudge(PathFinder.Result res, Body a, Walker wk,
                                                WorldView world, BlockPos foot, LivingEntity p,
                                                boolean dugLastTick) {
         if (futileGateExcluded(res, a, wk, world, foot, dugLastTick)) return null;
@@ -113,7 +114,7 @@ public final class WalkerTickSearch {
             // re-reported, and a caller that ignores the return value (or re-goals at a moving
             // quarry) would otherwise pay it forever.
             wk.searchGov.futileLatchFoot = foot;
-            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.error,
+            return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, wk.error,
                     "failed:" + wk.error, p.blockPosition());
         } else {
             // Cool down before the next kickoff so the wait between futile cycles stops burning
@@ -138,7 +139,7 @@ public final class WalkerTickSearch {
     private static final int REFUSALS_LOGGED = 8;
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -188,7 +189,7 @@ public final class WalkerTickSearch {
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? wk.route.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
-            Walker.Step futile = futileGateJudge(res, a, wk, world, foot, p, cx.stall.dugLastTick);
+            TickStep futile = futileGateJudge(res, a, wk, world, foot, p, cx.stall.dugLastTick);
             if (futile != null) return futile;
             // FROM-END continuation that makes NO goal progress beyond the committed end
             // (walkerFromEndNoProgressDiscard): with the goal SEALED, the continuation's
@@ -280,7 +281,7 @@ public final class WalkerTickSearch {
                         Walker.avatarForward(a, false);
                         wk.avatarJump(a, false);
                         p.setSprinting(false);
-                        return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
+                        return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
                 }
                 // BLOCK-BUDGET (before bridging, check there are enough blocks, otherwise dig): if this path would place
@@ -296,7 +297,7 @@ public final class WalkerTickSearch {
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
                         wk.route.searchFromFoot(wk.newPathFinder(world).newSearch(foot, wk.goal, true), true);
-                        return Walker.Step.WALKING;
+                        return TickStep.WALKING;
                     }
                 }
                 // Route hysteresis (walkerRouteHysteresis): don't let a periodic repath
@@ -359,7 +360,7 @@ public final class WalkerTickSearch {
                 if (!p.onGround()) {
                     Walker.avatarForward(a, false);
                     p.setSprinting(false);
-                    return Walker.Step.WALKING;
+                    return TickStep.WALKING;
                 }
                 // SELF-INFLICTED no-path: repeated wedge penalties can wall the
                 // bot into a small pocket (every exit charged 600-3600 within a
@@ -377,10 +378,10 @@ public final class WalkerTickSearch {
                     Walker.avatarForward(a, false);
                     wk.avatarJump(a, false);
                     p.setSprinting(false);
-                    return Walker.Step.WALKING;
+                    return TickStep.WALKING;
                 }
                 wk.error = "no path (expanded=" + res.expanded() + ")";
-                return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.error, "failed:" + wk.error, p.blockPosition());
+                return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, wk.error, "failed:" + wk.error, p.blockPosition());
             }
             // else: search failed but we still have the previous path — keep it.
         }

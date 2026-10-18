@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -537,7 +538,7 @@ public final class WalkerTickProgress {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -572,7 +573,7 @@ public final class WalkerTickProgress {
             // something dropped it, and lastDrop says which. Holding here instead (as this once did)
             // spent the caller's whole tick budget standing still.
             if (wk.route.replay())
-                return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.STUCK, null,
+                return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.STUCK, null,
                         "replay-dropped:" + wk.route.lastDrop(), foot);
             if (wk.route.seg.activeSearch == null || diveIntentWaterHold
                     || (!RouteStubs.landBeeline(wk, world, foot, wk.goal)
@@ -580,7 +581,7 @@ public final class WalkerTickProgress {
                 Walker.avatarForward(a, false);
                 wk.avatarJump(a, false);
                 p.setSprinting(false);
-                return Walker.Step.WALKING;
+                return TickStep.WALKING;
             }
             // stub adopted → fall through and walk it
         }
@@ -1193,7 +1194,7 @@ public final class WalkerTickProgress {
             if (!wk.route.seg.pathBestEffort || wk.goal.reached(foot)) {
                 // A path that actually reaches the goal (or we ended up standing in
                 // the goal cell): the journey is done.
-                return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+                return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
                         WalkVerdict.classifyArrival(wk.route.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
             }
             // Best-effort segment consumed but the goal is still ahead. DON'T give
@@ -1214,7 +1215,7 @@ public final class WalkerTickProgress {
                         Walker.avatarForward(a, false);
                         wk.avatarJump(a, false);
                         p.setSprinting(false);
-                        return Walker.Step.WALKING;
+                        return TickStep.WALKING;
                     }
                     // adopted: step→1 on the new segment; fall through to walk it
                 } else {
@@ -1235,7 +1236,7 @@ public final class WalkerTickProgress {
                     Walker.avatarForward(a, false);
                     wk.avatarJump(a, false);
                     p.setSprinting(false);
-                    return Walker.Step.WALKING;
+                    return TickStep.WALKING;
                 }
                 // stub adopted (path replaced, step=1) → fall through and walk it
             }

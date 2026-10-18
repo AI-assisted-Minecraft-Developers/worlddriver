@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -31,7 +32,7 @@ public final class WalkerTickRepath {
     private WalkerTickRepath() {}
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -191,7 +192,7 @@ public final class WalkerTickRepath {
      * {@code world.penalizeStuckNode}, declares no local that the rest of the tick reads, and
      * contains no {@code return} of its own — so the guard became an early return and the call
      * site became one line. Nothing else in {@code run} separates that cheaply; every other block
-     * either returns a {@link Walker.Step} that ends the tick, or writes a local the next block
+     * either returns a {@link TickStep} that ends the tick, or writes a local the next block
      * consumes. Bodies are unchanged, which is the standing rule for this file.
      *
      * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already

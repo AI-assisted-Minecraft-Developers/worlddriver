@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -122,7 +123,7 @@ public final class DrownEscape implements Controller {
 
     @Override public void stop(String why) { turnTicks = 0; }
 
-    @Override public void reset(Walker.Scope scope) {
+    @Override public void reset(ResetScope scope) {
         latch = false;
         turnTicks = 0;
     }

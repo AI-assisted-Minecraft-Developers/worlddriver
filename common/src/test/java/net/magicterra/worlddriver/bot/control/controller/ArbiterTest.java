@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,8 +49,8 @@ class ArbiterTest {
             return true;
         }
         @Override public void stop(String why) { stops.add(why); wanted = 0; }
-        final List<Walker.Scope> resets = new ArrayList<>();
-        @Override public void reset(Walker.Scope scope) { resets.add(scope); }
+        final List<ResetScope> resets = new ArrayList<>();
+        @Override public void reset(ResetScope scope) { resets.add(scope); }
     }
 
     private static Set<Channel> tick(Arbiter arb) {
@@ -131,11 +132,11 @@ class ArbiterTest {
         Arbiter arb = new Arbiter(List.of(f, idle));
         f.wanted = 5;
         tick(arb);
-        arb.reset(Walker.Scope.GOAL, "new goal");
+        arb.reset(ResetScope.GOAL, "new goal");
         assertEquals(List.of("new goal"), f.stops);
         assertEquals(List.of(), idle.stops);
-        assertEquals(List.of(Walker.Scope.GOAL), f.resets);
-        assertEquals(List.of(Walker.Scope.GOAL), idle.resets);
+        assertEquals(List.of(ResetScope.GOAL), f.resets);
+        assertEquals(List.of(ResetScope.GOAL), idle.resets);
         assertTrue(tick(arb).isEmpty());
     }
 
@@ -145,9 +146,9 @@ class ArbiterTest {
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 5;
         tick(arb);
-        arb.reset(Walker.Scope.REPLAN, "replan");
+        arb.reset(ResetScope.REPLAN, "replan");
         assertEquals(List.of(), f.stops);
-        assertEquals(List.of(Walker.Scope.REPLAN), f.resets);
+        assertEquals(List.of(ResetScope.REPLAN), f.resets);
         assertEquals(EnumSet.of(Channel.MOVE), tick(arb));
     }
 }

@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -158,7 +159,7 @@ public final class Pillar implements Controller {
     @Override public void stop(String why) {}
 
     /** The recovery's cell, peak and stall count are re-based whenever it is armed, so only the latch goes. */
-    @Override public void reset(Walker.Scope scope) {
+    @Override public void reset(ResetScope scope) {
         edgeStep = -1;
         sinceJump = -1;
         recoverLatch = 0;
