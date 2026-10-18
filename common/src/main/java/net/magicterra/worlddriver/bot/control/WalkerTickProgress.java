@@ -268,7 +268,7 @@ final class WalkerTickProgress {
      * (20 searches a second in {@code latest.log}), and 3,517 of the run's 3,551 no-plan ticks are
      * those four hops standing at that one coordinate.
      *
-     * <p><b>Holding the pointer is what releases the pin.</b> {@link Walker#footingGuard}'s
+     * <p><b>Holding the pointer is what releases the pin.</b> {@link Safety#footingGuard}'s
      * planned-descent exemption asks whether {@code path.get(step).getY() < foot.getY()} — which is
      * true exactly while this node is held and false the moment it is spent. The old behaviour spent
      * the node, so the exemption stopped applying and the sneak re-engaged over a step the route meant

@@ -38,7 +38,7 @@ final class WalkerTickEdgeGuards {
         BlockPos wp = wk.route.path().get(wk.route.step());
         Move.Edge nextEdge = wk.edgeAt(wk.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
-        if (parkourEdge) wk.guardParkourTick = true;
+        if (parkourEdge) wk.safety.guardParkourTick = true;
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
         // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
         // the bridge frontier instead of being yanked back to the horizon between place

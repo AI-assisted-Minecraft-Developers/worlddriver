@@ -58,7 +58,7 @@ import net.minecraft.world.phys.AABB;
  * </pre>
  *
  * <p>{@code onGround} was indeed a tick stale — vanilla's own sweep disagreed with it. But nothing
- * in the walker steers on that flag: {@link Walker#footingGuard} and {@link Walker#strideFloorGuard}
+ * in the walker steers on that flag: {@link Safety#footingGuard} and {@link Safety#strideFloorGuard}
  * both open on {@link WalkerGeometry#soleOnSolid}, which read {@code 0.0000} on the same tick, and
  * both were silent for the reason the row spells out — <b>the drops were 4 and 8 blocks</b>, against
  * a lethal line of {@code survivableFall(20) = 22}. Teaching them to refuse those strides is not a
@@ -283,7 +283,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * itself</b>. The stride guard fired 491 times in that crossing across 184 distinct cells and
      * plugged 142 of them; only 5 cells ever reached the 12-fire plug dwell.
      *
-     * <p>With {@link Walker#GUARD_PIN_HOLD} = 8, a fire every eight ticks keeps
+     * <p>With {@link Safety#GUARD_PIN_HOLD} = 8, a fire every eight ticks keeps
      * {@code guardPinStreak} alive, and at ≥30 it throws the plan away. So two opposite diagnoses
      * fit every row that run produced — the bot was given plans that route backwards, or the bot
      * was given good plans that kept being discarded under it — and <b>nothing in the log or the
@@ -631,11 +631,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * <p>It has to be deeper than {@code surroundings}' own 16-cell probe, or neither bot reads a
      * drop to solid of {@code >16} and the control has nothing to be about. It has to be SHALLOWER than
      * what the walker's two guards refuse, or the walking half never happens: measured on the first
-     * cut of this arena, over a bottomless shaft {@link Walker#strideFloorGuard} fired, killed the
+     * cut of this arena, over a bottomless shaft {@link Safety#strideFloorGuard} fired, killed the
      * horizontal momentum and sneak-pinned the bot on a 0.0001-wide sliver of the lip for all 160
      * ticks — the guard doing exactly its job, and an arena that mistook it for a rig failure.
      * Eighteen clears both: the stride guard's fall scan reaches 23 at full health and finds this
-     * floor, and {@code survivableFall(20) = 22} keeps {@link Walker#footingGuard} out too.
+     * floor, and {@code survivableFall(20) = 22} keeps {@link Safety#footingGuard} out too.
      */
     private static final int SHAFT_FLOOR = DECK + 1 - 18 - 1;
 

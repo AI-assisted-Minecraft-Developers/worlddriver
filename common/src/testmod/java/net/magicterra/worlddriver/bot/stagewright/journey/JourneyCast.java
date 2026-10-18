@@ -552,7 +552,7 @@ final class JourneyCast {
             //
             // Its three call sites (one in `WalkerTickDrive.run`, two in
             // `WalkerTickStallDetect.run` — grep `holdPillarBlock`) and the two
-            // `ensureHoldingPlaceableAny` ones (`Walker.widenFooting`, `Walker.strideFloorGuard` —
+            // `ensureHoldingPlaceableAny` ones (`Safety.widenFooting`, `Safety.strideFloorGuard` —
             // grep `holdPlaceable`) ALL short-circuit on
             // `WorldConfig.allowPlace` before they touch the hand, so turning it off for these twelve
             // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to

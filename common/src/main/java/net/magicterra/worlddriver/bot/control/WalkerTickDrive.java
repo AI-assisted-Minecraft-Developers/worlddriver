@@ -1734,7 +1734,7 @@ final class WalkerTickDrive {
      * and may shrink, not grow.
      */
     private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, LivingEntity p, boolean parkour) {
-        if (Walker.grazingBesideTheVoid(world, p)) {
+        if (Safety.grazingBesideTheVoid(world, p)) {
             wk.jumpTag = "vetoed: grazing beside the void";
             return true;
         }
@@ -1746,7 +1746,7 @@ final class WalkerTickDrive {
         // a few ticks of walking, which is how the momentum gets there; taking it costs the run.
         if (parkour && p != null
                 && p.getDeltaMovement().horizontalDistance() < PARKOUR_MIN_TAKEOFF_SPEED
-                && Walker.voidBeside(world,
+                && Safety.voidBeside(world,
                         net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
             wk.jumpTag = "vetoed: takeoff speed too low";
             return true;

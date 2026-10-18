@@ -101,7 +101,7 @@ public final class WalkerTelemetry {
 
     /**
      * What the guard pin's forced-repath decision chose, and what the last decision of each kind looked
-     * like — see {@code Walker.forcedRepathIfPinnedTooLong}.
+     * like — see {@code Safety.forcedRepathIfPinnedTooLong}.
      *
      * <p><b>Read them together, never {@code guardForcedRepaths} alone.</b> "Never reached the
      * threshold" and "reached it 45 times and kept the plan every time" both report zero forced repaths.

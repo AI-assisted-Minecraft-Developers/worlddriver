@@ -412,7 +412,7 @@ final class WalkerTickAim {
         // clock for that state: it accumulates across fire/hold ticks by design. Use it as
         // an alternate trigger while the pin is latched — the branches it enables (reCentre /
         // nodeAim) steer along the corridor, which is exactly what releases the pin.
-        int guardPinClock = wk.guardSneakLatch ? wk.guardPinStreak : 0;
+        int guardPinClock = wk.safety.guardSneakLatch ? wk.safety.guardPinStreak : 0;
         if (!aimAtWaypoint && (wk.stuckTicks > 5 || guardPinClock > 5) && wk.route.step() > 0) {
             BlockPos sp = wk.route.path().get(wk.route.step() - 1);
             boolean onSpine = foot.getX() == sp.getX() && foot.getZ() == sp.getZ();
@@ -669,7 +669,7 @@ final class WalkerTickAim {
         // divert the drive mid-ridge and r22's suite hung on a bot that walked off the
         // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
         // historical tangent override.
-        boolean pinnedRecovery = (p.horizontalCollision || wk.guardSneakLatch)
+        boolean pinnedRecovery = (p.horizontalCollision || wk.safety.guardSneakLatch)
                 && (reCentre || "nodeAim".equals(aimSrc)), walkedRound = false;
         if (ControlConfig.walkerTangentAim && !launch && !pinnedRecovery && !onLastNode(wk)
                 && aim2 >= aimDeadzone
@@ -800,7 +800,7 @@ final class WalkerTickAim {
         //    (Swapping the DRIVE source instead was r30/r31-DISPROVEN — see Drive.)
         boolean recoverySnagAim = !p.isInWater()
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
-                    || (wk.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
+                    || (wk.safety.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
         boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !walkedRound && !offPathPursuit(wk, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant bot
         // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,

@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. It now hears about the change, as vanilla mob navigation does, and plans again from where it
   stands. Changes within the bot's own reach are left alone, since those are usually the bot's own
   digging and building. Such replans are counted in the walker's tallies as `blockReplans`.
+- **The tick that ends a walk no longer raises an edge pin.** The walker's last-word guards against
+  stepping off a lethal edge (sneak held, jump cancelled) also ran on the tick that reported arrival
+  or failure. The caller stops ticking the walker there, so a pin raised on that tick stayed held
+  with nothing left to release it. They now run only on ticks that keep walking, and the final tick
+  lets go of a pin still held.
 
 ## 2026-10-17
 

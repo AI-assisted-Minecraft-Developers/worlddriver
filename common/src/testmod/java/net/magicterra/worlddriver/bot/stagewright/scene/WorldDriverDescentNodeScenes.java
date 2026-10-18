@@ -48,7 +48,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  *
  * The bot finished a dug descent perched on {@code 159,53,187} — a cell whose OWN floor is air —
  * held up by {@code 0.125} of {@code 0.36} of sole on the corner of {@code 158,52,187}, with the
- * column at {@code 158,·,188} dropping into lava. {@link Walker#footingGuard} sneak-pinned it and was
+ * column at {@code 158,·,188} dropping into lava. {@link Safety#footingGuard} sneak-pinned it and was
  * right to. A* answered with the three-node way out, {@code [158,53,187 → 159,52,187 → 159,51,188]},
  * every cell of it standable. The walker spent all three in a single tick without moving a block
  * (the {@code [walker]} step-advance log line; its field labels are rendered in English here):

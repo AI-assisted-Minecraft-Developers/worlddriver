@@ -67,7 +67,7 @@ import net.minecraft.world.level.block.Blocks;
  * <p><b>RED BY DESIGN until the bot can widen its own footing.</b> The remedy this arm waits for is
  * one block placed into the empty column under the overhanging half of the sole: the stride guard
  * plugs the cell AHEAD, and nothing has ever plugged the cell the bot is already half off.
- * {@code Walker.widenFooting} exists as of 2026-08-18 and did not fire once on the ladder; this arm
+ * {@code Safety.widenFooting} exists as of 2026-08-18 and did not fire once on the ladder; this arm
  * is where that gets answered instead of guessed.
  */
 public final class WorldDriverThinFootingScenes implements SceneProvider {
@@ -152,7 +152,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                             Blocks.STONE.defaultBlockState());
         // A GENUINE shaft under the cells the bot's own footprint spans. The remedy this arm judges
         // only spends a block over a column that is bottomless — scanned all the way to
-        // Walker.BOTTOMLESS_SCAN_FLOOR (-70) — and it is right to: over an ordinary drop a thin sole
+        // Safety.BOTTOMLESS_SCAN_FLOOR (-70) — and it is right to: over an ordinary drop a thin sole
         // is a graze, and paying a block per ridge walk eats a bridging contract. A catch floor 30
         // cells down therefore reads as ordinary ground and the remedy declines, which is the arm
         // measuring its own arena rather than the subject. The End void the ladder dies over has no
@@ -720,12 +720,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * <ul>
      *   <li>{@code WalkerTickDrive}'s {@code edgeBrake} — released, because {@code plannedDescent}
      *       was true: the node it was steering at ({@code 77,41,83}) sits one below the foot.</li>
-     *   <li>{@link Walker#footingGuard} — released by the SAME planned-descent exemption, and on the
+     *   <li>{@link Safety#footingGuard} — released by the SAME planned-descent exemption, and on the
      *       last two ticks also by {@code sole <= 0.0}. Both releases are deliberate and both are
      *       load-bearing: vanilla sneak refuses to walk off ANY edge, so a pin held across a step the
      *       route means to take deadlocks the descent, and wd.descent / wd.bridgeDescend /
      *       wd.descentYaw named that cost in one run.</li>
-     *   <li>{@link Walker#strideFloorGuard} — the one guard with NO release here. Its own
+     *   <li>{@link Safety#strideFloorGuard} — the one guard with NO release here. Its own
      *       planned-descent exemption demands the descending node be in the stride column EXACTLY,
      *       and that plan was heading the other way. It asked its question and got a wrong answer.</li>
      * </ul>
@@ -759,7 +759,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>{@code lethalEdgeBrake} is OFF in both arms, and that is the isolation</h2>
      *
-     * Not a convenience: with it on, {@link Walker#footingGuard} pins this bot as its sole thins and
+     * Not a convenience: with it on, {@link Safety#footingGuard} pins this bot as its sole thins and
      * neither arm ever reaches the bay, so the scene would be measuring the guard that was already
      * working. Live it was released by the plan's own descent — the row above quotes the node. Off
      * here, the guard that had no release is the only thing left, which is the situation rung 14
@@ -1109,7 +1109,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>{@code lethalEdgeBrake} is OFF, for the shore pair's reason</h2>
      *
-     * With it on, {@link Walker#footingGuard} pins this bot the moment its sole thins at the rim and
+     * With it on, {@link Safety#footingGuard} pins this bot the moment its sole thins at the rim and
      * the arm would be measuring the guard that was already working. Off, the sneak channel carries
      * exactly one writer and {@code pinnedTicks} means what it says.
      *
@@ -1172,7 +1172,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // of those shapes and not the other, and this row is what tells a reader which shape the
         // measurement came from instead of leaving them to re-derive the hysteresis.
         // WARNING: reaching the threshold does not imply the plan was discarded and re-searched.
-        // At a 30-tick pin, `Walker.forcedRepathIfPinnedTooLong` first asks whether the bot made progress
+        // At a 30-tick pin, `Safety.forcedRepathIfPinnedTooLong` first asks whether the bot made progress
         // on this segment: it re-bases when the plan was replaced, keeps a plan that is still advancing,
         // and discards only a truly frozen one. So this row reports only what it can measure (pin length
         // and whether it reached the threshold) and leaves "was the plan actually discarded" to

@@ -126,7 +126,7 @@ final class WalkerTickPrelude {
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
         if (p == null) { wk.error = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
-        wk.guardParkourTick = false;
+        wk.safety.guardParkourTick = false;
         wk.jumpTag = null;
         wk.aimTag = null;
         wk.driveTag = null;
