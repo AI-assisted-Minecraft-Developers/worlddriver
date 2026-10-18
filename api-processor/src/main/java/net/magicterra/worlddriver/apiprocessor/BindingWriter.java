@@ -22,8 +22,8 @@ import com.palantir.javapoet.WildcardTypeName;
 
 /**
  * Writes two files for a checked interface. {@code <Interface>Binding} holds {@code calls(…)}, a caller
- * that sends each method through the registry, and {@code methods(impl)}, an implementation's registry
- * entries. The caller's type is {@code <Family>StubApi}, the interface plus a default overload of each
+ * that sends each method through the registry, {@code methods(impl)}, an implementation's registry
+ * entries, and {@code specs()}, the same specs without an implementation. The caller's type is {@code <Family>StubApi}, the interface plus a default overload of each
  * method that leaves out the {@code CallContext}; an implementation still implements the interface alone.
  */
 final class BindingWriter {
@@ -32,6 +32,7 @@ final class BindingWriter {
     private static final ClassName REGISTRY = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiRegistry");
     private static final ClassName API_METHOD = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiMethod");
     private static final ClassName CALL_CONTEXT = ClassName.bestGuess(ApiProcessor.CALL_CONTEXT);
+    private static final ClassName METHOD_SPEC = ClassName.bestGuess(ApiProcessor.METHOD_SPEC);
     private static final ClassName GENERATED = ClassName.get("javax.annotation.processing", "Generated");
 
     /** {@code QueryApi} → {@code QueryStubApi}; an interface not named {@code …Api} gets {@code Stub} appended. */
@@ -48,6 +49,8 @@ final class BindingWriter {
         TypeName entry = ParameterizedTypeName.get(API_METHOD,
                 WildcardTypeName.subtypeOf(Object.class), WildcardTypeName.subtypeOf(Object.class));
         TypeName entries = ParameterizedTypeName.get(ClassName.get(List.class), entry);
+        TypeName spec = ParameterizedTypeName.get(METHOD_SPEC,
+                WildcardTypeName.subtypeOf(Object.class), WildcardTypeName.subtypeOf(Object.class));
 
         TypeSpec.Builder stub = TypeSpec.interfaceBuilder(stubType)
                 .addOriginatingElement(iface)
@@ -67,6 +70,7 @@ final class BindingWriter {
                         .addStatement("this.registry = $T.requireNonNull(registry, $S)", java.util.Objects.class, "registry")
                         .build());
         CodeBlock.Builder list = CodeBlock.builder().add("return $T.<$T>of(", List.class, entry).indent();
+        CodeBlock.Builder specList = CodeBlock.builder().add("return $T.<$T>of(", List.class, spec).indent();
         for (int i = 0; i < bound.size(); i++) {
             ApiProcessor.Bound b = bound.get(i);
             String params = b.method().getParameters().get(0).getSimpleName().toString();
@@ -86,8 +90,10 @@ final class BindingWriter {
                     .build());
             list.add(i == 0 ? "\n" : ",\n").add("new $T<>($T.$N, impl::$N)", API_METHOD, ClassName.get(b.holder()),
                     b.field(), b.method().getSimpleName().toString());
+            specList.add(i == 0 ? "\n" : ",\n").add("$T.$N", ClassName.get(b.holder()), b.field());
         }
         list.unindent().add(");\n");
+        specList.unindent().add(");\n");
 
         TypeSpec.Builder binding = TypeSpec.classBuilder(name)
                 .addModifiers(Modifier.FINAL)
@@ -109,6 +115,12 @@ final class BindingWriter {
                         .returns(entries)
                         .addParameter(type, "impl")
                         .addCode(list.build())
+                        .build())
+                .addMethod(MethodSpec.methodBuilder("specs")
+                        .addJavadoc("The specs the interface binds, in its order: what it serves, with no implementation.\n")
+                        .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                        .returns(ParameterizedTypeName.get(ClassName.get(List.class), spec))
+                        .addCode(specList.build())
                         .build())
                 .addType(caller.build());
         if (open) binding.addModifiers(Modifier.PUBLIC);

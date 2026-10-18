@@ -20,10 +20,6 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 public final class DebugContracts {
     private DebugContracts() {}
 
-    public static List<MethodSpec<?, ?>> all() {
-        return List.of(PATH_CHART, PLAN, REPLAY);
-    }
-
     public record Column(int x, int z) {}
 
     public static final ApiType<Column> COLUMN = ApiTypes.record(Column.class, "Column",

@@ -16,7 +16,7 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.TsContext;
-import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
@@ -39,7 +39,7 @@ public final class ApiArtifacts {
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
         List<MethodSpec<?, ?>> methods = new ArrayList<>(CoreMethods.all());
-        methods.addAll(DebugContracts.all());   // published only where the path-debug subsystem runs
+        methods.addAll(DebugApiBinding.specs());   // published only where the path-debug subsystem runs
         write(Path.of(args[0]), methods);
     }
 
