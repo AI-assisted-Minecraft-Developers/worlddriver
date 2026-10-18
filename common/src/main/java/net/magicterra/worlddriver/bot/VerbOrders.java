@@ -225,8 +225,10 @@ public final class VerbOrders {
      */
     public static Function<LivingEntity, Order<BuildContracts.Built>> build(BuildParams p) {
         Schematic s = switch (p.schematic()) {
-            case BuildContracts.Blocks b -> Schematic.of(b.w(), b.h(), b.d(), b.palette(), b.data());
-            case BuildContracts.Sponge sp -> Schematic.fromSpongeSchem(java.util.Base64.getMimeDecoder().decode(sp.base64()));
+            case BuildContracts.Blocks b -> Schematic.of(b.w(), b.h(), b.d(), b.palette(), b.data(),
+                    BuildContracts.MAX_SCHEMATIC_CELLS);
+            case BuildContracts.Sponge sp -> Schematic.fromSpongeSchem(java.util.Base64.getMimeDecoder().decode(sp.base64()),
+                    BuildContracts.MAX_SCHEMATIC_CELLS);
         };
         return self -> build(p, s, self);
     }

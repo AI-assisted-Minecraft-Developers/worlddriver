@@ -28,11 +28,13 @@ public final class Schematic {
     /**
      * A schematic given as a palette and {@code [dx, dy, dz, paletteIdx]} rows; air entries are dropped.
      * The caller's contract has already bounded the sizes and indices; these checks only keep a direct
-     * Java caller from building a schematic that cannot be placed.
+     * Java caller from building a schematic that cannot be placed. {@code maxCells} is the caller's volume cap.
      */
-    public static Schematic of(int w, int h, int d, List<String> palette, List<List<Integer>> data) {
+    public static Schematic of(int w, int h, int d, List<String> palette, List<List<Integer>> data, int maxCells) {
         if (w <= 0 || h <= 0 || d <= 0) throw new IllegalArgumentException("w/h/d must be > 0");
-        if ((long) w * h * d > 4096) throw new IllegalArgumentException("schematic too large (max 4096 blocks)");
+        if ((long) w * h * d > maxCells) {
+            throw new IllegalArgumentException("schematic too large (max " + maxCells + " blocks)");
+        }
         List<Entry> entries = new ArrayList<>();
         for (List<Integer> r : data) {
             if (r.size() != 4) throw new IllegalArgumentException("data entry: [dx,dy,dz,paletteIdx]");
@@ -54,15 +56,15 @@ public final class Schematic {
      * compound; v2 (the WorldEdit default through 2023) puts them at the
      * root. We support both by sniffing for the wrapper.
      *
-     * Volume cap: 4096 blocks like the procedural path — the bot still
-     * has to walk to and place each block. Larger schematics would lock
-     * the player in for hours; callers should crop or chunk first.
+     * Volume cap: {@code maxCells}, the same cap as the palette form — the
+     * bot still has to walk to and place each block. Larger schematics would
+     * lock the player in for hours; callers should crop or chunk first.
      *
      * BlockEntities (chests, signs, etc.) and biomes are intentionally
      * ignored — BuildProcess only knows how to place vanilla block ids
      * without state, so adding them here would silently lose data.
      */
-    public static Schematic fromSpongeSchem(byte[] bytes) {
+    public static Schematic fromSpongeSchem(byte[] bytes, int maxCells) {
         CompoundTag root;
         try {
             root = NbtIo.readCompressed(
@@ -86,8 +88,8 @@ public final class Schematic {
         int l = s.getShort("Length") & 0xFFFF;
         if (w <= 0 || h <= 0 || l <= 0) throw new IllegalArgumentException(
                 "missing or zero Width/Height/Length");
-        if ((long) w * h * l > 4096) throw new IllegalArgumentException(
-                "schematic too large (" + (w * h * l) + " > 4096 blocks; crop first)");
+        if ((long) w * h * l > maxCells) throw new IllegalArgumentException(
+                "schematic too large (" + (w * h * l) + " > " + maxCells + " blocks; crop first)");
         // v3 path: blocks live under s.Blocks.{Palette,Data}
         CompoundTag blocksHolder = s.contains("Blocks")
                 ? s.getCompound("Blocks") : s;
