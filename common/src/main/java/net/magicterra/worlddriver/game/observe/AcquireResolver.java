@@ -72,10 +72,8 @@ public final class AcquireResolver {
             Map.entry("minecraft:redstone",   List.of("minecraft:redstone_ore", "minecraft:deepslate_redstone_ore")),
             Map.entry("minecraft:quartz",     List.of("minecraft:nether_quartz_ore")));
 
-    /** Crop output items the {@code mc.bot.farm} process can harvest (mirrors
-     *  {@code FarmProcess.SEED_FOR} outputs). */
-    private static final Set<String> FARM_OUTPUTS = Set.of(
-            "minecraft:wheat", "minecraft:carrot", "minecraft:potato", "minecraft:beetroot");
+    /** Crop output items the {@code mc.bot.farm} process can harvest. */
+    private static final Set<String> FARM_OUTPUTS = Crops.harvests();
 
     private static final int GUARD = 4096;
 

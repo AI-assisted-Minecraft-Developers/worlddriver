@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.observe.Crops;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
@@ -18,7 +19,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
@@ -29,13 +29,6 @@ public final class FarmProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
-    /** Crop block id → item id that re-plants it. Kept private; the public
-     *  {@code farm()} entry validates incoming filter against this set. */
-    public static final Map<String, String> SEED_FOR = Map.of(
-            "minecraft:wheat",      "minecraft:wheat_seeds",
-            "minecraft:carrots",    "minecraft:carrot",
-            "minecraft:potatoes",   "minecraft:potato",
-            "minecraft:beetroots",  "minecraft:beetroot_seeds");
 
     private static final int BREAK_TIMEOUT_TICKS = 60;
     private static final int PLACE_TIMEOUT_TICKS = 40;
@@ -166,7 +159,7 @@ public final class FarmProcess implements BotProcess {
                 a.commandForward(0f);
                 a.commandJump(false);
                 p.setSprinting(false);
-                String seedId = SEED_FOR.get(currentCropId);
+                String seedId = Crops.seedFor(currentCropId);
                 if (seedId == null || !HeldItem.holdById(equipment, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
                     unplanted++;
