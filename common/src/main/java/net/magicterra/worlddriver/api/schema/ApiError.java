@@ -3,6 +3,8 @@ package net.magicterra.worlddriver.api.schema;
 import java.util.List;
 import java.util.Objects;
 
+import net.magicterra.worlddriver.protocol.ServerBusyException;
+
 /**
  * The one error shape every entry point carries: RPC as {@code error.data}, MCP as the tool error,
  * JS as the fields of the thrown {@code DriverApiError}. {@link #execution} says whether anything
@@ -27,7 +29,8 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
         CAPABILITY_UNAVAILABLE("capability_unavailable", -32004, Execution.NOT_STARTED),
         ACTION_NOT_FOUND("action_not_found", -32006, Execution.NOT_STARTED),
         CONTEXT_CHANGED("context_changed", -32007, Execution.NOT_STARTED),
-        SERVER_BUSY("server_busy", -32005, Execution.NOT_STARTED),
+        // The protocol layer refuses before any api code runs, so its constant is the source.
+        SERVER_BUSY("server_busy", ServerBusyException.CODE, Execution.NOT_STARTED),
         NOT_EXECUTED("not_executed", -32001, Execution.NOT_EXECUTED),
         OUTCOME_UNKNOWN("outcome_unknown", -32002, Execution.UNKNOWN),
         INTERNAL_ERROR("internal_error", -32603, Execution.UNKNOWN);

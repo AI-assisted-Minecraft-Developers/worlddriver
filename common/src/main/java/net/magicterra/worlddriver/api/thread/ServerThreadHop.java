@@ -30,11 +30,6 @@ import net.magicterra.worlddriver.api.call.CallContext;
  * already running and cannot be withdrawn, observe before retrying).
  */
 public final class ServerThreadHop {
-    /** JSON-RPC server-error code for {@link NotExecutedException}. */
-    public static final int CODE_NOT_EXECUTED = -32001;
-    /** JSON-RPC server-error code for {@link OutcomeUnknownException}. */
-    public static final int CODE_OUTCOME_UNKNOWN = -32002;
-
     private static final int QUEUED = 0, RUNNING = 1, ABANDONED = 2;
 
     private final Executor executor;
@@ -153,21 +148,21 @@ public final class ServerThreadHop {
         return null;
     }
 
-    /** A hop that gave up waiting. {@link #code()} is the JSON-RPC code the transports report. */
+    /** A hop that gave up waiting. {@link #code()} is the error every entry point reports it as. */
     public abstract static class HopTimeoutException extends RuntimeException {
         HopTimeoutException(String message) { super(message); }
-        public abstract int code();
+        public abstract ApiError.Code code();
     }
 
     /** The task never ran and never will: safe to retry. */
     public static final class NotExecutedException extends HopTimeoutException {
         public NotExecutedException(String message) { super(message); }
-        @Override public int code() { return CODE_NOT_EXECUTED; }
+        @Override public ApiError.Code code() { return ApiError.Code.NOT_EXECUTED; }
     }
 
     /** The task was running when the wait ran out: it may or may not have applied. */
     public static final class OutcomeUnknownException extends HopTimeoutException {
         public OutcomeUnknownException(String message) { super(message); }
-        @Override public int code() { return CODE_OUTCOME_UNKNOWN; }
+        @Override public ApiError.Code code() { return ApiError.Code.OUTCOME_UNKNOWN; }
     }
 }

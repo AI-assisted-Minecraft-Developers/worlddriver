@@ -21,10 +21,7 @@ public final class ApiErrors {
         ApiException api = ApiException.find(c);
         if (api != null) return api.error();
         ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(c);
-        if (hop instanceof ServerThreadHop.NotExecutedException) {
-            return ApiError.of(ApiError.Code.NOT_EXECUTED, hop.getMessage());
-        }
-        if (hop != null) return ApiError.of(ApiError.Code.OUTCOME_UNKNOWN, hop.getMessage());
+        if (hop != null) return ApiError.of(hop.code(), hop.getMessage());
         ServerBusyException busy = ServerBusyException.find(c);
         if (busy != null) return ApiError.of(ApiError.Code.SERVER_BUSY, busy.getMessage());
         String msg = c.getMessage() == null ? c.getClass().getSimpleName() : c.getMessage();

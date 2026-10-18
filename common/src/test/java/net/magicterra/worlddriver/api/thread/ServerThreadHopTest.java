@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.api.thread;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,6 +13,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import net.magicterra.worlddriver.api.schema.ApiError;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -49,7 +49,7 @@ class ServerThreadHopTest {
         RuntimeException e = assertThrows(RuntimeException.class, () -> hop.call(runs::incrementAndGet));
         ServerThreadHop.NotExecutedException ne = assertInstanceOf(ServerThreadHop.NotExecutedException.class, e,
                 "a timed-out queued task must report not-executed, got " + e);
-        assertEquals(ServerThreadHop.CODE_NOT_EXECUTED, ne.code());
+        assertEquals(ApiError.Code.NOT_EXECUTED, ne.code());
         assertTrue(e.getMessage().contains("will not run"), e.getMessage());
 
         server.drain();   // the tick frees up and reaches the stale task
@@ -72,7 +72,7 @@ class ServerThreadHopTest {
         assertTrue(started.await(1, TimeUnit.SECONDS));
         ServerThreadHop.OutcomeUnknownException ou = assertInstanceOf(ServerThreadHop.OutcomeUnknownException.class, e,
                 "a task the server thread already started must report outcome-unknown, got " + e);
-        assertEquals(ServerThreadHop.CODE_OUTCOME_UNKNOWN, ou.code());
+        assertEquals(ApiError.Code.OUTCOME_UNKNOWN, ou.code());
         assertTrue(e.getMessage().contains("observe"), e.getMessage());
 
         release.countDown();
@@ -100,8 +100,7 @@ class ServerThreadHopTest {
     }
 
     @Test
-    void theTwoOutcomesCarryDistinctCodesAndAreFoundThroughWrappers() {
-        assertNotEquals(ServerThreadHop.CODE_NOT_EXECUTED, ServerThreadHop.CODE_OUTCOME_UNKNOWN);
+    void theOutcomesAreFoundThroughWrappers() {
         ServerThreadHop.NotExecutedException ne = new ServerThreadHop.NotExecutedException("x");
         assertSame(ne, ServerThreadHop.find(ne));
         assertSame(ne, ServerThreadHop.find(new RuntimeException(new IllegalStateException(ne))));
