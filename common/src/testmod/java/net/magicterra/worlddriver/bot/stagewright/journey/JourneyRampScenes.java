@@ -966,6 +966,8 @@ public final class JourneyRampScenes implements SceneProvider {
             driver.tick();
             if (fp.blockPosition().getY() > best.getY()) best = fp.blockPosition();
         }
+        ctx.record("walk.goto", String.valueOf(driver.gotoSlot()));
+        ctx.record("walk.navigator", String.valueOf(driver.navigator()));
         driver.cancel();
         ctx.record("walk.end", fp.blockPosition().toShortString() + " (highest reached "
                 + best.toShortString() + ", budget " + WALK_TICKS + " ticks)");
