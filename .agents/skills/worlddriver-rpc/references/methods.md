@@ -1436,6 +1436,7 @@ type Construction =
         height?: number;
         /** Feet Y to reach, above the current one by at most 256. At or below the feet already, the tower is done at once with nothing placed. */
         targetY?: number;
+        /** The block to place. Omitted: the first block item in the hotbar. */
         block?: string;
         /** With block: fetch it from the backpack too, not only the hotbar. */
         fromBag?: boolean;
@@ -1444,6 +1445,7 @@ type Construction =
         direction?: BridgeDirection;
         /** Cells to advance. */
         distance: number;
+        /** The block to place. Omitted: the first block item in the hotbar. */
         block?: string;
     };
 interface ConstructParams {

@@ -147,8 +147,7 @@ public final class BuildContracts {
     public static final ApiType<BridgeDirection> BRIDGE_DIRECTION = ApiTypes.enumOf("BridgeDirection", BridgeDirection.class);
     public static final ApiType<Compass> COMPASS = ApiTypes.enumOf("Compass", Compass.class);
 
-    private static final ApiType<String> PLACE_BLOCK = CommonTypes.RESOURCE_ID
-            .describe("The block to place. Omitted: the first block item in the hotbar.");
+    private static final String PLACE_BLOCK = "The block to place. Omitted: the first block item in the hotbar.";
 
     public static final UnionType<Construction> CONSTRUCTION = ApiTypes.taggedUnion("Construction", "kind",
             ApiTypes.variant("tower", Tower.class, ApiTypes.record(Tower.class, null,
@@ -158,7 +157,7 @@ public final class BuildContracts {
                             .describe("Feet Y to reach, above the current one by at most 256. At or below the feet already, "
                                     + "the tower is done at once with nothing placed.")
                             .optional().forGetter(Tower::targetY),
-                    ApiField.field("block", PLACE_BLOCK).optional().forGetter(Tower::block),
+                    ApiField.field("block", CommonTypes.RESOURCE_ID).describe(PLACE_BLOCK).optional().forGetter(Tower::block),
                     ApiField.field("fromBag", ApiTypes.bool())
                             .describe("With block: fetch it from the backpack too, not only the hotbar.")
                             .defaulted(false).forGetter(Tower::fromBag),
@@ -177,7 +176,7 @@ public final class BuildContracts {
                     ApiField.field("direction", BRIDGE_DIRECTION).defaulted(BridgeDirection.FORWARD).forGetter(Bridge::direction),
                     ApiField.field("distance", ApiTypes.integer(1, 64)).describe("Cells to advance.")
                             .required().forGetter(Bridge::distance),
-                    ApiField.field("block", PLACE_BLOCK).optional().forGetter(Bridge::block),
+                    ApiField.field("block", CommonTypes.RESOURCE_ID).describe(PLACE_BLOCK).optional().forGetter(Bridge::block),
                     Bridge::new)));
 
     public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record(ConstructParams.class, "ConstructParams",
