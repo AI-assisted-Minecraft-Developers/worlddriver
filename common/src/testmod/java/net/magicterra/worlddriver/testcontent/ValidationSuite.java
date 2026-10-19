@@ -11,12 +11,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.architectury.event.events.common.LifecycleEvent;
+import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.script.McpBridge;
-import net.magicterra.worlddriver.script.RpcBridge;
-import net.magicterra.worlddriver.script.ScriptManager;
-import net.magicterra.worlddriver.test.ScriptTest;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -25,7 +22,8 @@ import org.slf4j.Logger;
 
 /**
  * The JavaScript validation suite: the scripts under {@value #RESOURCE_DIR}, run through a fresh
- * {@link ScriptManager} against the live RPC and MCP endpoints, and the three ways to start it —
+ * script engine against the live RPC and MCP endpoints ({@link WorldDriver#scripts}), so each script
+ * reaches the driver through all three transports, and the three ways to start it —
  * {@code /worlddriver test}, {@code -Dworlddriver.runValidation=true} at server start, and the
  * {@code wd.agentRpcSmoke} scene. Testmod only: seeding wipes the arena around the test origin and
  * the scripts run operator-level commands, which is not something a shipped jar may offer.
@@ -105,12 +103,15 @@ public final class ValidationSuite {
     );
 
     private static final AtomicBoolean RUNNING = new AtomicBoolean();
-    private static volatile List<ScriptTest.Result> lastResults = List.of();
+    private static volatile List<ScriptChecks.Check> lastResults = List.of();
+
+    /** The checks of the last finished run, in the order they ran; empty before the first. */
+    public static List<ScriptChecks.Check> lastResults() { return lastResults; }
 
     /**
      * Claims the suite for one seed-and-run. Every entry point claims before it seeds: two runs
-     * would interleave their checks in {@link ScriptTest}'s one static result list, and the second
-     * seed would scrub the arena out from under the first.
+     * would interleave their checks in the script engine's one result list, and the second seed
+     * would scrub the arena out from under the first.
      */
     public static boolean tryClaim() {
         return RUNNING.compareAndSet(false, true);
@@ -218,18 +219,18 @@ public final class ValidationSuite {
             return 0;
         }
         int pass = 0, fail = 0;
-        for (ScriptTest.Result r : results) {
-            if (r.passed) pass++; else fail++;
+        for (ScriptChecks.Check r : results) {
+            if (r.passed()) pass++; else fail++;
         }
         final int totalPass = pass, totalFail = fail;
         src.sendSuccess(() -> Component.literal(
                 "Last run: PASS=" + totalPass + " FAIL=" + totalFail + " TOTAL=" + results.size()), false);
-        for (ScriptTest.Result r : results) {
-            String tag = r.passed ? "PASS" : "FAIL";
-            String line = "  [" + tag + "] " + r.name + "  (" + r.ms + " ms)";
+        for (ScriptChecks.Check r : results) {
+            String tag = r.passed() ? "PASS" : "FAIL";
+            String line = "  [" + tag + "] " + r.name() + "  (" + r.ms() + " ms)";
             src.sendSuccess(() -> Component.literal(line), false);
-            if (!r.passed && r.error != null) {
-                String err = "      " + r.error.getMessage();
+            if (!r.passed() && r.error().isPresent()) {
+                String err = "      " + r.error().get();
                 src.sendFailure(Component.literal(err));
             }
         }
@@ -241,10 +242,8 @@ public final class ValidationSuite {
      * could not start. The caller holds the claim ({@link #tryClaim}) and has seeded the arena.
      */
     public static int run() {
-        ApiRegistry api = WorldDriver.registry();
-        int rpcPort = WorldDriver.rpcPort();
-        int mcpPort = WorldDriver.mcpPort();
-        if (api == null || rpcPort <= 0) {
+        ScriptChecks scripts = WorldDriver.scripts();
+        if (scripts == null || WorldDriver.rpcPort() <= 0) {
             LOG.error("[{}] RPC server not started", MOD_ID);
             return -1;
         }
@@ -261,24 +260,17 @@ public final class ValidationSuite {
                     Files.copy(in, tmp.resolve(name));
                 }
             }
-            ScriptTest.clear();
-            RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
-            McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort) : null;
-            ScriptManager mgr = new ScriptManager(api, tmp, bridge, mcpBridge);
-            int loaded = mgr.loadAll();
-            LOG.info("[{}] loaded {} validation script(s)", MOD_ID, loaded);
-
-            var results = ScriptTest.snapshot();
+            List<ScriptChecks.Check> results = scripts.run(tmp);
             lastResults = results;
             int pass = 0, fail = 0;
             LOG.info("==================== Agent Validation ====================");
             for (var r : results) {
-                String tag = r.passed ? "PASS" : "FAIL";
-                LOG.info(String.format("  [%s] %-50s %4d ms", tag, r.name, r.ms));
-                if (!r.passed && r.error != null) {
-                    LOG.error("        {}", r.error.getMessage());
+                String tag = r.passed() ? "PASS" : "FAIL";
+                LOG.info(String.format("  [%s] %-50s %4d ms", tag, r.name(), r.ms()));
+                if (!r.passed() && r.error().isPresent()) {
+                    LOG.error("        {}", r.error().get());
                 }
-                if (r.passed) pass++; else fail++;
+                if (r.passed()) pass++; else fail++;
             }
             LOG.info("==========================================================");
             LOG.info("TOTAL: {}   PASS: {}   FAIL: {}", results.size(), pass, fail);

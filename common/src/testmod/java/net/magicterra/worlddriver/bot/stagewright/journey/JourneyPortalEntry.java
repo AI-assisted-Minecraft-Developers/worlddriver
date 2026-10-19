@@ -485,7 +485,7 @@ public final class JourneyPortalEntry {
      *
      * <p>These two are the only direction-specific things in this whole file. Everything else — the
      * doorway survey, choosing a doorstep, digging one open, the walks, the push across the last
-     * block, the hold under {@link HoldStill}, the drift recovery, and both failure messages — is
+     * block, the hold under {@link JourneyRig#hold}, the drift recovery, and both failure messages — is
      * geometry and driving that a bot going the other way needs identically.
      *
      * <p>Naming the departure world rather than the arrival one is deliberate: {@code changeDimension}
@@ -761,9 +761,9 @@ public final class JourneyPortalEntry {
      * {@code Entity.setAsInsidePortal} to {@code PortalProcessor.setAsInsidePortalThisTick(true)},
      * and {@code processPortalTeleportation} returns immediately unless that flag is set, CLEARING it
      * as it goes. It is a one-tick flag re-armed by a {@code move()} every tick, and this avatar's
-     * {@code move()} comes from the {@code travel()} in its own step — which only runs while a
-     * process is registered. {@link HoldStill} is the process that does nothing and keeps being
-     * ticked, and {@code portal.ticked} is the reading that proves it did.
+     * {@code move()} comes from the {@code travel()} in its own step — which only runs while the bot is
+     * ticked. {@link JourneyRig#hold} asks for nothing and leaves the bot on the tick list, and
+     * {@code portal.ticked} is the reading that proves it was ticked.
      */
     private static void holdInThePortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
                                         Crossing crossing, int legs, Attempt attempt) {

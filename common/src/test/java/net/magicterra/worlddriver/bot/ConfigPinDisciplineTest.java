@@ -112,8 +112,6 @@ class ConfigPinDisciplineTest {
             "saves navigatorDebug and restores it inside ctx.cleanup — survives a fail like a pin does",
             "scene/WorldDriverCoreScenes#buildBlockWhitelist",
             "saves the whitelist and restores it inside ctx.cleanup (the scene's subject IS the field)",
-            "scene/WorldDriverSurvivalScenes#drownEscapeChainLifecycleMatrix",
-            "restores all three fields in a try/finally — no scene context to hang a cleanup on",
             "scene/WorldDriverSurvivalScenes#drownEscapePreemptScene",
             "saves all three and restores them inside ctx.cleanup",
 

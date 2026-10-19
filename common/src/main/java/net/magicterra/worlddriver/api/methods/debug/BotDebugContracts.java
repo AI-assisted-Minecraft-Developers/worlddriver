@@ -224,10 +224,17 @@ public final class BotDebugContracts {
     public record NodeQuery(BlockPosition foot, Optional<BlockPosition> prev, Optional<BlockPosition> next,
                             List<BlockPosition> toBreak, List<BlockPosition> toPlace) {}
 
-    /** One cell as the world view classifies it. {@code breakCost}: what digging it costs a search; absent when it cannot be. */
+    /**
+     * One cell as the world view classifies it. {@code breakCost}: what digging it costs a search; absent when it
+     * cannot be. {@code buildBlock}, {@code valuable} and {@code throwaway} are about the block standing there as
+     * something to place: footing the bot may build with, a gathered resource it does not spend as filler, and an
+     * item it spends as filler first. {@code suffocates}: a head in this cell suffocates, the test the
+     * anti-suffocation reflex picks the block it breaks by.
+     */
     public record Cell(BlockPosition pos, boolean known, boolean solid, boolean passable, boolean hazard, boolean water,
                        boolean climbable, boolean leaves, boolean fallingBlock, boolean breakableObstruction,
-                       boolean standOn, boolean standAt, Optional<Double> breakCost) {}
+                       boolean standOn, boolean standAt, Optional<Double> breakCost, boolean buildBlock, boolean valuable,
+                       boolean throwaway, boolean suffocates) {}
 
     public record NodeFacts(boolean fitStand, boolean fitCrouch, boolean fitCrawl, String ceilingForces,
                             boolean inWaterFoot, boolean submergedEye, boolean underfootSolid, String footHazard,
@@ -275,6 +282,14 @@ public final class BotDebugContracts {
             ApiField.field("standOn", ApiTypes.bool()).required().forGetter(Cell::standOn),
             ApiField.field("standAt", ApiTypes.bool()).required().forGetter(Cell::standAt),
             ApiField.field("breakCost", ApiTypes.number()).optional().forGetter(Cell::breakCost),
+            ApiField.field("buildBlock", ApiTypes.bool()).describe("The block here may be placed as footing.")
+                    .required().forGetter(Cell::buildBlock),
+            ApiField.field("valuable", ApiTypes.bool()).describe("The block here is a gathered resource, never spent as filler.")
+                    .required().forGetter(Cell::valuable),
+            ApiField.field("throwaway", ApiTypes.bool()).describe("The block's item is filler the bot spends first.")
+                    .required().forGetter(Cell::throwaway),
+            ApiField.field("suffocates", ApiTypes.bool()).describe("A head in this cell suffocates.")
+                    .required().forGetter(Cell::suffocates),
             Cell::new);
 
     private static final RecordType<NodeFacts> NODE_FACTS = ApiTypes.record(NodeFacts.class, "NodeFacts",

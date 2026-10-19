@@ -2153,7 +2153,7 @@ public final class JourneyNetherRungs {
      *
      * <p>So the wait goes HERE, wrapping the whole continuation, rather than into the verdict: the
      * verdict is also what decides the next hop's starting position, its distance and its progress,
-     * and all four want the same settled bot. Under {@link HoldStill}, because a landing allowance
+     * and all four want the same settled bot. Under {@link JourneyRig#hold}, because a landing allowance
      * that keeps the walk's impulse would walk the bot off whatever it lands on.
      *
      * <p>Costs nothing on a hop that ends on the ground, which is nearly all of them — the predicate

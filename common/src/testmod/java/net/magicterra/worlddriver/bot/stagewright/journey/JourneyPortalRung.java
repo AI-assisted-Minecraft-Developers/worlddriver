@@ -1609,7 +1609,7 @@ public final class JourneyPortalRung {
         // `recover8` eight extra ticks of falling (eye y 61.65→58.06), after which the water was
         // genuinely out of sight, the fill walked, and the walk mined a cast frame cell to get back
         // up — `frame.lost.1` dated the loss to the step that took the water back from -9, 61, 38
-        // in `recover8`. See HoldStill.
+        // in `recover8`. See JourneyRig.hold.
         if (JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH) != null) {
             then.run();
             return;

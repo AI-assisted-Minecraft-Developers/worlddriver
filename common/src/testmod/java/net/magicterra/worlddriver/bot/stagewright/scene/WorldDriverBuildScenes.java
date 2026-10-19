@@ -1,41 +1,36 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the BuildBlock family</b>: the 2
  * {@code AgentGameTestBuildBlock} probes (interactive-block rejection + valuable-placement
- * matrix), migrated verbatim to testkit {@code wd.*} scenes and their legacy twin class
- * retired in the same commit.
+ * matrix), migrated to testkit {@code wd.*} scenes and their legacy twin class retired in the
+ * same commit.
  *
- * <p><b>Both are pure {@link BotConfig} predicate probes — planner/API-only, no world,
- * no avatar, no {@link net.magicterra.worlddriver.bot.control.Navigator} drive.</b> Each builds
- * nothing in the level: it calls {@code BuildBlocks.isUsableBuildBlock} /
- * {@code isValuablePlacementBlock} / {@code isThrowawaySupportBlock} on a fixed block/item
- * matrix and asserts the classification. So there is no {@code SceneContext.origin()}
- * geometry, no {@code ServerPlayerBody}, no config pin, and the bot resolves on the
- * first RUN tick (the harness restores {@code BotConfig} baseline between scenes, and these
- * scenes never mutate it). Porting substitutions (canonical pattern —
- * {@link WorldDriverTerrainScenes} class javadoc): {@code throw new GameTestAssertException}
- * → {@link SceneContext#fail}; {@code helper.succeed()} → return; the {@code gtSkip(...)}
- * probe line → deleted (the testkit gate self-reconciles).
- *
- * <p><b>Dedicated-server safety carried over verbatim.</b> {@code valuablePlacementBlockMatrix}
- * deliberately exercises the dist-neutral {@link BuildBlocks#isThrowawaySupportBlock} core rather
- * than {@code BotInteract.isThrowawaySupportBlock} — merely loading {@code BotInteract.class} on a
- * dedicated server fails (it mixes in client-only {@code LocalPlayer}/{@code Minecraft} methods,
- * refused by NeoForge's {@code RuntimeDistCleaner} for the DEDICATED_SERVER dist). The dogfood
- * harness runs on a plain dedicated server, so the same rule applies; the legacy comment is kept.
+ * <p><b>Both are block-classification probes — no bot, no walk.</b> Each stands one block of
+ * every kind in its matrix in a row of cells and reads how {@code mc.debug.cells} classifies
+ * them: {@code buildBlock} (the build-block picker's predicate), {@code valuable} (a gathered
+ * resource) and {@code throwaway} (filler the bot spends first). The row is put back to air when
+ * the scene ends. The settings are never written, so the classification is the baseline's.
  */
 public final class WorldDriverBuildScenes implements SceneProvider {
 
@@ -56,20 +51,21 @@ public final class WorldDriverBuildScenes implements SceneProvider {
                 Blocks.CARTOGRAPHY_TABLE, Blocks.FLETCHING_TABLE, Blocks.LOOM,
         };
         Block[] mustAccept = { Blocks.COBBLESTONE, Blocks.DIRT, Blocks.MUD, Blocks.OAK_PLANKS };
+        Map<Block, BotDebugContracts.Cell> read = classify(ctx, mustReject, mustAccept);
         for (Block b : mustReject)
-            if (BuildBlocks.isUsableBuildBlock(b))
+            if (read.get(b).buildBlock())
                 ctx.fail("buildBlockRejectsInteractive: interactive block accepted as build material: " + b);
         for (Block b : mustAccept)
-            if (!BuildBlocks.isUsableBuildBlock(b))
+            if (!read.get(b).buildBlock())
                 ctx.fail("buildBlockRejectsInteractive: plain block wrongly rejected: " + b);
         TestMod.LOG.info("[wd.buildBlockRejectsInteractive] all {} interactive rejected, {} plain accepted",
                 mustReject.length, mustAccept.length);
     }
 
     /** Ported from {@code AgentGameTestBuildBlock#valuablePlacementBlockMatrix} (gap #81): the
-     *  value-awareness layer ON TOP of {@link BuildBlocks#isUsableBuildBlock} flags gathered-wood
-     *  resources so the throwaway-only picker skips them, WITHOUT touching the gap #57 build-block
-     *  predicate (OAK_PLANKS must stay a usable build block). */
+     *  value-awareness layer ON TOP of the build-block predicate flags gathered-wood resources so
+     *  the throwaway-only picker skips them, WITHOUT touching the gap #57 build-block predicate
+     *  (OAK_PLANKS must stay a usable build block). */
     private static void valuablePlacementBlockMatrix(SceneContext ctx) {
         Block[] mustBeValuable = {
                 Blocks.OAK_LOG, Blocks.ACACIA_LOG, Blocks.SPRUCE_LOG, Blocks.STRIPPED_OAK_LOG,
@@ -78,32 +74,62 @@ public final class WorldDriverBuildScenes implements SceneProvider {
         Block[] mustNotBeValuable = {
                 Blocks.DIRT, Blocks.COBBLESTONE, Blocks.STONE, Blocks.GRAVEL, Blocks.SAND, Blocks.MUD,
         };
+        Map<Block, BotDebugContracts.Cell> read = classify(ctx, mustBeValuable, mustNotBeValuable);
         for (Block b : mustBeValuable)
-            if (!BuildBlocks.isValuablePlacementBlock(b))
+            if (!read.get(b).valuable())
                 ctx.fail("valuablePlacementBlockMatrix: gathered-wood block wrongly NOT flagged valuable: " + b);
         for (Block b : mustNotBeValuable)
-            if (BuildBlocks.isValuablePlacementBlock(b))
+            if (read.get(b).valuable())
                 ctx.fail("valuablePlacementBlockMatrix: plain block wrongly flagged valuable: " + b);
 
         // Regression guard: value-awareness must NOT touch the existing build-block predicate
         // (gap #57 — OAK_PLANKS stays a usable build block for explicit build/construct commands).
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.OAK_PLANKS))
+        if (!read.get(Blocks.OAK_PLANKS).buildBlock())
             ctx.fail("valuablePlacementBlockMatrix: regression: OAK_PLANKS no longer a usable build block");
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
+        if (!read.get(Blocks.DIRT).buildBlock())
             ctx.fail("valuablePlacementBlockMatrix: regression: DIRT no longer a usable build block");
 
-        // Exercised via BuildBlocks.isThrowawaySupportBlock (the dist-neutral core), NOT
-        // BotInteract.isThrowawaySupportBlock — merely loading BotInteract.class fails on a
-        // dedicated server (client-only LocalPlayer/Minecraft mixins; RuntimeDistCleaner refuses
-        // the whole class for DEDICATED_SERVER dist). BotInteract delegates to this same core.
-        if (!BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.DIRT.asItem())))
+        // The item-level throwaway predicate: a usable build block that is not a gathered resource.
+        if (!read.get(Blocks.DIRT).throwaway())
             ctx.fail("valuablePlacementBlockMatrix: DIRT wrongly rejected as throwaway support");
-        if (BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_LOG.asItem())))
+        if (read.get(Blocks.OAK_LOG).throwaway())
             ctx.fail("valuablePlacementBlockMatrix: OAK_LOG wrongly accepted as throwaway support (valuable)");
-        if (BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_PLANKS.asItem())))
+        if (read.get(Blocks.OAK_PLANKS).throwaway())
             ctx.fail("valuablePlacementBlockMatrix: OAK_PLANKS wrongly accepted as throwaway support (valuable)");
 
         TestMod.LOG.info("[wd.valuablePlacementBlockMatrix] {} valuable, {} non-valuable, throwaway matrix all pass",
                 mustBeValuable.length, mustNotBeValuable.length);
+    }
+
+    /**
+     * Every block of {@code groups} stood in its own cell of a row twenty above the origin, and each one as
+     * {@code mc.debug.cells} reads it from the server's level; the row is air again when the scene ends.
+     */
+    static Map<Block, BotDebugContracts.Cell> classify(SceneContext ctx, Block[]... groups) {
+        ServerLevel level = ctx.level();
+        if (level.dimension() != Level.OVERWORLD)
+            ctx.fail("mc.debug.cells without a bot reads the overworld, and this scene's level is " + level.dimension());
+        List<Block> blocks = new ArrayList<>();
+        for (Block[] g : groups) for (Block b : g) if (!blocks.contains(b)) blocks.add(b);
+        BlockPos start = ctx.origin().above(20);
+        List<BlockPos> cells = new ArrayList<>();
+        for (int i = 0; i < blocks.size(); i++) {
+            BlockPos at = start.east(i);
+            cells.add(at);
+            // A floor under the row, so sand and gravel stay where they were put instead of falling away.
+            level.setBlockAndUpdate(at.below(), Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(at, blocks.get(i).defaultBlockState());
+        }
+        ctx.cleanup(() -> {
+            for (BlockPos at : cells) {
+                level.setBlockAndUpdate(at, Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(at.below(), Blocks.AIR.defaultBlockState());
+            }
+        });
+        BotDebugContracts.CellsReading reading = Calls.now(DebugApi.of(Calls.api()).cells(new BotDebugContracts.CellsParams(
+                Optional.empty(), cells.stream().map(Targets::pos).toList(), Optional.empty())));
+        Map<Block, BotDebugContracts.Cell> out = new LinkedHashMap<>();
+        for (int i = 0; i < blocks.size(); i++) out.put(blocks.get(i), reading.cells().get(i));
+        return out;
     }
 }

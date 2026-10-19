@@ -834,7 +834,7 @@ public final class JourneyShaft {
         // Land before jumping. TowerProcess's READY phase waits for onGround and its stuck counter
         // runs from tick zero, so a bot still settling after the mine that preceded it burns its
         // whole 60-tick patience falling and reports "stuck (no Y gain — out of blocks?)" while
-        // holding thirty cobblestone. HoldStill is the same non-steering settle the descent uses.
+        // holding thirty cobblestone. JourneyRig.hold is the same non-steering settle the descent uses.
         if (!rig.player().onGround()) {
             // FLOATING IS NOT SETTLING, and the descent already learned this the expensive way:
             // "no number of settles fixes floating". A player in water never becomes `onGround`, so
@@ -850,7 +850,7 @@ public final class JourneyShaft {
             // the bot out.
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
-                    // WHY IT NEVER LANDS, not only that it did not. `HoldStill` releases the inputs
+                    // WHY IT NEVER LANDS, not only that it did not. `JourneyRig.hold` releases the inputs
                     // and nothing else, so gravity still runs — eight settles of sixty ticks is ample
                     // for a player to sink several blocks. A row that only says "afloat in water, not
                     // grounded in 8 tries" therefore fits three different worlds and cannot pick

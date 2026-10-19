@@ -724,8 +724,8 @@ public final class JourneyEndRungs {
      * return.at               = 105, 93, 7   the cell it stood in is Block{minecraft:nether_portal}
      * }</pre>
      *
-     * <p>Rung 13 hit exactly this, diagnosed it, and fixed it with {@link HoldStill} — a process
-     * that does nothing and <em>keeps being ticked</em>. Writing the wait a second time meant
+     * <p>Rung 13 hit exactly this, diagnosed it, and fixed it with {@link JourneyRig#hold} — a wait that asks
+     * for nothing and leaves the bot <em>being ticked</em>. Writing the wait a second time meant
      * writing the bug a second time, so the second copy is gone and both directions share one
      * driver. The departure world is read here rather than named, which is what the crossing
      * actually needs to watch: {@code changeDimension} has put a player somewhere unexpected before,
@@ -2600,7 +2600,7 @@ public final class JourneyEndRungs {
                     + " bot=" + xyz(rig.player().blockPosition()));
             // Breaking the floor is not falling through it: this bot is stepped only while a driver
             // is ticking it, and the single-block mine ends on the tick the block turns to air —
-            // one avatar step, a tenth of a block of gravity. HoldStill is the settle that does not
+            // one avatar step, a tenth of a block of gravity. JourneyRig.hold is the settle that does not
             // steer; every process that DOES steer walks the bot off its own hole.
             rig.hold(40, 60,
                     () -> digDownTo(ctx, rig, targetY, budget - 1, cap, then));

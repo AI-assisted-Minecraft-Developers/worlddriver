@@ -20,8 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.debug.navigator` says how the last walk ended and what stands on the plan's cells.** Two new
   traces: `walkResult` (status, end reason, whether the goal was reached, distance left, whether the
   goal was moved to a standable cell, and why it fell short) once a walk has ended, until the next
-  goal clears it, and `planCellAudit`, the blocks at each plan node's feet, head and floor as the world has them now.
+  goal clears it, and `planCellAudit`, the blocks at each plan node's feet, head and floor as the
+  world has them now.
   They also answer for a task that walks without being a goto, such as `mc.bot.mine`.
+- **`mc.debug.cells` says whether a head in the cell suffocates.** Each cell also answers
+  `suffocates`, the test the anti-suffocation reflex uses to pick the block it breaks: true for an
+  ordinary solid block, false for water and air.
+- **Code in the same game can run a directory of scripts and read their checks.**
+  `WorldDriver.scripts().run(dir)` runs each script once through a fresh script engine bound to the
+  live RPC and MCP servers, as user scripts are, and answers every check their `Test` helper made:
+  name, pass or fail, time, and the failure's message.
+- **`mc.debug.cells` says what a block is worth as something to place.** Each cell also answers
+  `buildBlock` (the block there may be placed as footing), `valuable` (a gathered resource the bot
+  never spends as filler) and `throwaway` (its item is filler the bot spends first).
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

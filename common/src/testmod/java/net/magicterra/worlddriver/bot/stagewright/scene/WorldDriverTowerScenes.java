@@ -30,7 +30,7 @@ import net.minecraft.world.phys.AABB;
  * The manifest registers 253 scenes (202 {@code wd.*}). Exactly one of them ever puts a
  * {@code TowerProcess} on a bot — {@code wd.serverTowersOutOfADeepShaft} — and it drives the
  * process <b>one course at a time</b>, inside a recursion that lands the bot with a
- * {@code HoldStill} before every single call, in a shaft with stone on all four sides. So the
+ * {@code JourneyRig.hold} before every single call, in a shaft with stone on all four sides. So the
  * number of scenes that have ever asked one {@code TowerProcess} call to climb from a low place to
  * a high one and then checked that the bot got there is <b>zero</b>. {@code wd.digUpY} and
  * {@code wd.columnRadius} are planner scenes and never build; {@code wd.serverPillarsOutOfAPit}
@@ -41,7 +41,7 @@ import net.minecraft.world.phys.AABB;
  * {@code JourneyEndRungs.smashCrystal} — the ladder's rung 20, and the <b>only</b> site in the tree
  * that asks for more than one course from a single call — issues {@code new TowerProcess(top,
  * pillar)} where {@code top} is dozens of blocks up, and it issues it in the continuation of a walk,
- * with <b>no {@code HoldStill} and no landing wait</b>. Every property that call depends on is
+ * with <b>no {@code JourneyRig.hold} and no landing wait</b>. Every property that call depends on is
  * therefore unmeasured: that N courses produce N blocks of climb, that the blocks land in the
  * column the bot started in, that a bot still moving when the order arrives climbs at all.
  *
@@ -401,7 +401,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *
      * <p>Flat 7x7 stone, the bot in the middle, no walls, 40 clear cells overhead, 64 cobblestone
      * in hotbar slot 0. The covered scene ({@code wd.serverTowersOutOfADeepShaft}) differs in three
-     * ways at once — one course per call, a {@code HoldStill} before each, and stone on all four
+     * ways at once — one course per call, a {@code JourneyRig.hold} before each, and stone on all four
      * sides — so nothing it reports transfers to this shape.
      *
      * <h2>Criteria — four, all equalities, and none of them redundant</h2>
@@ -462,7 +462,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * <b>{@code JourneyEndRungs.smashCrystal}'s own ordering, and the arm expected to be RED.</b>
      *
      * <p>A twelve-cell runway, an {@code mc.bot.goto} to its far end, and then — from the walk's
-     * continuation, with <b>no {@code HoldStill} and no {@code onGround} wait</b> — an eight-course
+     * continuation, with <b>no {@code JourneyRig.hold} and no {@code onGround} wait</b> — an eight-course
      * tower. That is verbatim the shape the only multi-course production caller uses, and it is the
      * one shape the covered scene structurally cannot produce: {@code towerOneCourse} lands the bot
      * before every call precisely because a moving bot was known to burn its patience.
@@ -478,7 +478,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *       that ends on the stuck guard with a full stack in hand.</li>
      * </ul>
      *
-     * <p><b>Do not add a {@code HoldStill} to make this green.</b> The green would be a statement
+     * <p><b>Do not add a {@code JourneyRig.hold} to make this green.</b> The green would be a statement
      * about a scene that no caller resembles. If the answer turns out to be "callers must land
      * first", then that belongs in {@code TowerProcess} — as a landing wait that does not spend the
      * stuck budget — and this arm goes green without being touched.

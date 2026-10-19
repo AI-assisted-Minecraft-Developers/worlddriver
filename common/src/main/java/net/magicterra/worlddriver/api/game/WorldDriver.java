@@ -19,6 +19,7 @@ public final class WorldDriver {
     private static volatile DriverHost host;
     private static volatile int rpcPort = -1;
     private static volatile int mcpPort = -1;
+    private static volatile ScriptChecks scripts;
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
 
     /** Every method the driver answers; null until the driver is up. */
@@ -32,6 +33,9 @@ public final class WorldDriver {
 
     /** The MCP HTTP server's port, -1 until it listens. */
     public static int mcpPort() { return mcpPort; }
+
+    /** Runs a directory of scripts against the RPC and MCP servers and answers their checks; null until the driver is up. */
+    public static ScriptChecks scripts() { return scripts; }
 
     /** Run {@code then} with the registry once the driver is up: now if it is, else on the thread that brings it up. */
     public static void whenReady(Consumer<ApiRegistry> then) {
@@ -63,4 +67,7 @@ public final class WorldDriver {
 
     /** The mod's bootstrap: the MCP server listens on {@code port}. */
     public static void mcpListening(int port) { mcpPort = port; }
+
+    /** The mod's bootstrap: scripts can be run through {@code runner}. */
+    public static void scriptsReady(ScriptChecks runner) { scripts = runner; }
 }

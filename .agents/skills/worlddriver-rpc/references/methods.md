@@ -3321,7 +3321,29 @@ interface CellsParams {
     cells?: BlockPosition[];
     node?: NodeQuery;
 }
-interface DebugCell { pos: BlockPosition; known: boolean; solid: boolean; passable: boolean; hazard: boolean; water: boolean; climbable: boolean; leaves: boolean; fallingBlock: boolean; breakableObstruction: boolean; standOn: boolean; standAt: boolean; breakCost?: number; }
+interface DebugCell {
+    pos: BlockPosition;
+    known: boolean;
+    solid: boolean;
+    passable: boolean;
+    hazard: boolean;
+    water: boolean;
+    climbable: boolean;
+    leaves: boolean;
+    fallingBlock: boolean;
+    breakableObstruction: boolean;
+    standOn: boolean;
+    standAt: boolean;
+    breakCost?: number;
+    /** The block here may be placed as footing. */
+    buildBlock: boolean;
+    /** The block here is a gathered resource, never spent as filler. */
+    valuable: boolean;
+    /** The block's item is filler the bot spends first. */
+    throwaway: boolean;
+    /** A head in this cell suffocates. */
+    suffocates: boolean;
+}
 interface NodeFacts { fitStand: boolean; fitCrouch: boolean; fitCrawl: boolean; ceilingForces: string; inWaterFoot: boolean; submergedEye: boolean; underfootSolid: boolean; footHazard: string; fallFromPrev: number; fallSurvivable: boolean; jumpNeeded: boolean; jumpFeasible: boolean; }
 interface CellsReading { view: string; dimension: string; cells: DebugCell[]; node?: NodeFacts; }
 interface NavigatorParams {

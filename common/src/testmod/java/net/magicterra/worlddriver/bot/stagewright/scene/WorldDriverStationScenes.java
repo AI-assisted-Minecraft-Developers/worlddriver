@@ -1,31 +1,27 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveApi;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
-import net.magicterra.worlddriver.application.PlayerSnapshots;
-import net.magicterra.worlddriver.application.RecipeService;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.game.observe.RecipeResolver;
-import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
+import net.magicterra.worlddriver.api.methods.recipe.RecipeApi;
+import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
 import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -37,7 +33,6 @@ import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.level.block.Blocks;
 
 /**
@@ -51,17 +46,14 @@ import net.minecraft.world.level.block.Blocks;
  * not re-explain the trivial ones): {@code helper.getLevel()} → {@link SceneContext#level()};
  * absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20}
  * (grid {@code GRID_Y = 200}, so the mapped absolute Y equals the legacy Y — geometry unchanged,
- * only X/Z relocate); {@code PlayerBot.create} → {@link PlayerBot#createIsolated}
- * (per-scene isolated player via {@code ServerPlayerBody.createUnique}) + a {@code
- * ctx.cleanup(fp::discard)}; {@code try/finally} {@link BotConfig} save/restore →
- * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code
+ * only X/Z relocate); the legacy fake player → a roster bot ({@link SceneBot}), removed when the
+ * scene ends, driven through the {@code mc.bot.craft} / {@code mc.bot.smelt} verbs and read through
+ * {@code mc.bot.status}; settings through the test harness's pin; {@code
  * GameTestAssertException}/{@code throw} → {@link SceneContext#fail} with a scene-name prefix;
- * {@code helper.succeed()} → return; the {@code gtOnlySkips(...)} probe line → deleted. The
- * legacy player type was a NeoForge {@code FakePlayer}; the common driver's {@link
- * PlayerBot#fakePlayer()} is a plain {@link ServerPlayer} (a {@code FakePlayer} IS a
- * {@code ServerPlayer}), and every station call used here — {@code getInventory()},
- * {@code containerMenu}, {@code inventoryMenu} — is a {@code ServerPlayer} member, so the port is
- * type-faithful on both loaders.
+ * {@code helper.succeed()} → return; the {@code gtOnlySkips(...)} probe line → deleted. The recipe
+ * scenes plan through {@code mc.recipe.resolve} for a bot standing alone, and every station call
+ * used here — {@code getInventory()}, {@code containerMenu}, {@code inventoryMenu} — is a vanilla
+ * {@link ServerPlayer} member on the bot's own player.
  *
  * <p><b>Rig cleanup is mandatory (#40 persistent-world lesson).</b> The dogfood world PERSISTS
  * across the two ×2 runs, so every stone floor, furnace, crafting table and avatar a scene spawns
@@ -138,8 +130,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // Craft / recipe scenes.
     // ==================================================================================
 
-    /** Ported from {@code serverCraftArena}: the SERVER runs the real {@link CraftProcess} over a
-     *  FakePlayer for the 2×2 INVENTORY-grid path — pre-stock 1 oak_log, craft oak_planks, assert
+    /** Ported from {@code serverCraftArena}: a SERVER bot's {@code mc.bot.craft} for the 2×2 INVENTORY-grid path — pre-stock 1 oak_log, craft oak_planks, assert
      *  ≥4 planks appear and the process finishes+unregisters. */
     private static void serverCraft(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -151,74 +142,55 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_LOG, 1));
-        driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        BotTicker.register(driver);
-        for (int t = 0; t < 300 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        fp.getInventory().add(new ItemStack(Items.OAK_LOG, 1));
+        bot.craft("minecraft:oak_planks", 4);
+        Harness.tickUntilIdle(300);
 
-        ServerPlayer fp = driver.fakePlayer();
-        int planks = 0;
-        for (ItemStack stk : fp.getInventory().items)
-            if (stk.getItem() == Items.OAK_PLANKS) planks += stk.getCount();
-        TestMod.LOG.info("[wd.serverCraft] planks={} finished={} active={} err={}",
-                planks, driver.finished(), BotTicker.activeCount(), driver.botState().craft.lastError);
+        int planks = countItem(fp, Items.OAK_PLANKS);
+        TestMod.LOG.info("[wd.serverCraft] planks={} busy={} err={}",
+                planks, Harness.busy(), lastError(bot.status().slots().craft()));
         if (planks < 4)
-            ctx.fail("wd.serverCraft: server CraftProcess (2x2 inventory) did not craft planks: got " + planks);
-        if (!driver.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("wd.serverCraft: server CraftProcess did not finish+unregister: active="
-                    + BotTicker.activeCount());
+            ctx.fail("wd.serverCraft: server craft (2x2 inventory) did not craft planks: got " + planks);
+        if (bot.busy() || Harness.busy() != 0)
+            ctx.fail("wd.serverCraft: server craft did not finish: busy=" + Harness.busy());
     }
 
-    /** Ported from {@code serverRecipeSpeciesArena}: pure {@link RecipeResolver} test — a bot holding
+    /** Ported from {@code serverRecipeSpeciesArena}: a {@code mc.recipe.resolve} test — a bot holding
      *  only ACACIA logs must resolve wooden_pickaxe through acacia species (species follows PRESENCE,
-     *  not registry order); no world, no avatar. */
+     *  not registry order). Planned for a bot standing alone, so no station in reach changes the plan. */
     private static void serverRecipeSpecies(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        var rm = level.getRecipeManager();
-        var ra = level.registryAccess();
-        Map<String, Integer> have = new HashMap<>();
-        have.put("minecraft:acacia_log", 8);
+        SceneBot bot = planner(ctx);
+        RecipeContracts.CraftPlan plan = resolve(bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 8));
 
-        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have);
+        List<String> jobIds = jobIds(plan);
+        Map<String, Integer> missing = missing(plan);
+        TestMod.LOG.info("[wd.serverRecipeSpecies] have=acacia_log:8 missing={} jobs={}", missing, jobIds);
 
-        List<String> jobIds = new ArrayList<>();
-        for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
-        TestMod.LOG.info("[wd.serverRecipeSpecies] have=acacia_log:8 missing={} jobs={}",
-                plan.missing(), jobIds);
-
-        if (plan.missing().containsKey("minecraft:oak_log") || plan.missing().containsKey("minecraft:oak_planks"))
-            ctx.fail("wd.serverRecipeSpecies: recipe species leaked to oak despite acacia_log in stock: missing=" + plan.missing());
-        boolean routesAcacia = plan.jobs().stream().anyMatch(j ->
-                j.result().equals("minecraft:acacia_planks")
-                || j.fromParts().stream().anyMatch(fp -> fp.contains("acacia")));
+        if (missing.containsKey("minecraft:oak_log") || missing.containsKey("minecraft:oak_planks"))
+            ctx.fail("wd.serverRecipeSpecies: recipe species leaked to oak despite acacia_log in stock: missing=" + missing);
+        boolean routesAcacia = plan.steps().stream().anyMatch(j ->
+                j.craft().equals("minecraft:acacia_planks") || j.from().contains("acacia"));
         if (!routesAcacia)
             ctx.fail("wd.serverRecipeSpecies: plan did not route acacia species: jobs=" + jobIds);
-        if (!plan.complete())
-            ctx.fail("wd.serverRecipeSpecies: wooden_pickaxe from acacia_log:8 should complete: missing=" + plan.missing());
+        if (!missing.isEmpty())
+            ctx.fail("wd.serverRecipeSpecies: wooden_pickaxe from acacia_log:8 should complete: missing=" + missing);
     }
 
-    /** Ported from {@code serverCraftTableInjectArena}: pure {@link RecipeResolver} test — a 3×3 craft
+    /** Ported from {@code serverCraftTableInjectArena}: a {@code mc.recipe.resolve} test — a 3×3 craft
      *  with no table must INJECT crafting_table as a dependency-first, deduped acquisition job, and
-     *  SUPPRESS it when a table is in inventory or supplied via {@code availableStations}. */
+     *  SUPPRESS it when a table is in the bag or standing within the bot's reach. */
     private static void serverCraftTableInject(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        var rm = level.getRecipeManager();
-        var ra = level.registryAccess();
+        SceneBot bot = planner(ctx);
+        Map<String, Integer> have = Map.of("minecraft:oak_log", 16);
 
-        Map<String, Integer> have = new HashMap<>();
-        have.put("minecraft:oak_log", 16);
-
-        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have);
-        List<String> jobIds = new ArrayList<>();
-        for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result());
+        RecipeContracts.CraftPlan plan = resolve(bot, "minecraft:wooden_pickaxe", have);
+        List<String> jobIds = plan.steps().stream().map(RecipeContracts.CraftStep::craft).toList();
         TestMod.LOG.info("[wd.serverCraftTableInject] have=oak_log:16 jobs={} stations={} missing={}",
-                jobIds, plan.stations(), plan.missing());
+                jobIds, plan.stationsNeeded(), missing(plan));
 
         int tableIdx = jobIds.indexOf("minecraft:crafting_table");
         int pickIdx  = jobIds.indexOf("minecraft:wooden_pickaxe");
@@ -229,80 +201,110 @@ public final class WorldDriverStationScenes implements SceneProvider {
         long tableCount = jobIds.stream().filter("minecraft:crafting_table"::equals).count();
         if (tableCount != 1)
             ctx.fail("wd.serverCraftTableInject: expected exactly 1 injected crafting_table, got " + tableCount + ": jobs=" + jobIds);
-        if (!plan.complete())
-            ctx.fail("wd.serverCraftTableInject: should complete from oak_log:16: missing=" + plan.missing());
+        if (!plan.missing().isEmpty())
+            ctx.fail("wd.serverCraftTableInject: should complete from oak_log:16: missing=" + missing(plan));
 
-        Map<String, Integer> haveTable = new HashMap<>();
-        haveTable.put("minecraft:oak_log", 16);
-        haveTable.put("minecraft:crafting_table", 1);
-        RecipeResolver.Plan planHas = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, haveTable);
-        if (planHas.jobs().stream().anyMatch(j -> j.result().equals("minecraft:crafting_table")))
+        RecipeContracts.CraftPlan planHas = resolve(bot, "minecraft:wooden_pickaxe",
+                Map.of("minecraft:oak_log", 16, "minecraft:crafting_table", 1));
+        if (planHas.steps().stream().anyMatch(j -> j.craft().equals("minecraft:crafting_table")))
             ctx.fail("wd.serverCraftTableInject: crafting_table in inventory must suppress injection: jobs="
-                    + planHas.jobs().stream().map(RecipeResolver.Job::result).toList());
+                    + planHas.steps().stream().map(RecipeContracts.CraftStep::craft).toList());
 
-        RecipeResolver.Plan planWorld = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have,
-                Set.of("crafting_table"));
-        if (planWorld.jobs().stream().anyMatch(j -> j.result().equals("minecraft:crafting_table")))
-            ctx.fail("wd.serverCraftTableInject: world-available table (availableStations) must suppress injection: jobs="
-                    + planWorld.jobs().stream().map(RecipeResolver.Job::result).toList());
+        // A table standing within the bot's reach is a station the plan may use, as the craft would.
+        BlockPos table = bot.player().blockPosition().east();
+        ctx.level().setBlockAndUpdate(table, Blocks.CRAFTING_TABLE.defaultBlockState());
+        RecipeContracts.CraftPlan planWorld = resolve(bot, "minecraft:wooden_pickaxe", have);
+        if (planWorld.steps().stream().anyMatch(j -> j.craft().equals("minecraft:crafting_table")))
+            ctx.fail("wd.serverCraftTableInject: a table standing in reach must suppress injection: jobs="
+                    + planWorld.steps().stream().map(RecipeContracts.CraftStep::craft).toList());
     }
 
     /** Ported from {@code serverRecipeShortfallSpeciesArena} (gap #67-①②): a mid-tree shortfall must
      *  not leak the registry-first oak species, and a pure crafting_table plan must route
-     *  log→planks (never the wasteful log→wood→planks detour). Pure {@link RecipeResolver}. */
+     *  log→planks (never the wasteful log→wood→planks detour). Through {@code mc.recipe.resolve}. */
     private static void serverRecipeShortfallSpecies(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        var rm = level.getRecipeManager();
-        var ra = level.registryAccess();
+        SceneBot bot = planner(ctx);
 
-        Map<String, Integer> shortHave = new HashMap<>();
-        shortHave.put("minecraft:acacia_log", 2);
-        RecipeResolver.Plan shortPlan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, shortHave);
-        List<String> shortJobIds = new ArrayList<>();
-        for (RecipeResolver.Job j : shortPlan.jobs())
-            shortJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
+        RecipeContracts.CraftPlan shortPlan = resolve(bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 2));
+        List<String> shortJobIds = jobIds(shortPlan);
+        Map<String, Integer> shortMissing = missing(shortPlan);
         TestMod.LOG.info("[wd.serverRecipeShortfallSpecies] have=acacia_log:2 missing={} jobs={}",
-                shortPlan.missing(), shortJobIds);
+                shortMissing, shortJobIds);
 
         boolean anyOak = shortJobIds.stream().anyMatch(s -> s.contains("oak"))
-                || shortPlan.missing().keySet().stream().anyMatch(k -> k.contains("oak"));
+                || shortMissing.keySet().stream().anyMatch(k -> k.contains("oak"));
         if (anyOak)
             ctx.fail("wd.serverRecipeShortfallSpecies: shortfall on the crafting_table sub-branch leaked oak: jobs="
-                    + shortJobIds + " missing=" + shortPlan.missing());
-        if (shortPlan.missing().size() != 1
-                || !Integer.valueOf(1).equals(shortPlan.missing().get("minecraft:acacia_log")))
+                    + shortJobIds + " missing=" + shortMissing);
+        if (shortMissing.size() != 1 || !Integer.valueOf(1).equals(shortMissing.get("minecraft:acacia_log")))
             ctx.fail("wd.serverRecipeShortfallSpecies: expected missing == {acacia_log: 1} (1 log tops up the table's "
-                    + "4 planks), got " + shortPlan.missing());
+                    + "4 planks), got " + shortMissing);
 
-        Map<String, Integer> emptyHave = new HashMap<>();
-        emptyHave.put("minecraft:acacia_log", 0);
-        RecipeResolver.Plan tablePlan = RecipeResolver.resolve(rm, ra, "minecraft:crafting_table", 1, emptyHave);
-        List<String> tableJobIds = new ArrayList<>();
-        for (RecipeResolver.Job j : tablePlan.jobs())
-            tableJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
-        TestMod.LOG.info("[wd.serverRecipeShortfallSpecies] have=(empty) missing={} jobs={}",
-                tablePlan.missing(), tableJobIds);
+        RecipeContracts.CraftPlan tablePlan = resolve(bot, "minecraft:crafting_table", Map.of("minecraft:acacia_log", 0));
+        List<String> tableJobIds = jobIds(tablePlan);
+        Map<String, Integer> tableMissing = missing(tablePlan);
+        TestMod.LOG.info("[wd.serverRecipeShortfallSpecies] have=(empty) missing={} jobs={}", tableMissing, tableJobIds);
 
-        if (tablePlan.missing().size() != 1)
+        if (tableMissing.size() != 1)
             ctx.fail("wd.serverRecipeShortfallSpecies: pure shortfall on crafting_table must report a SINGLE species "
-                    + "missing, got " + tablePlan.missing());
+                    + "missing, got " + tableMissing);
         boolean anyWood = tableJobIds.stream().anyMatch(s -> s.contains("_wood["));
         if (anyWood)
             ctx.fail("wd.serverRecipeShortfallSpecies: planks route must go straight log→planks, not log→wood→planks: jobs="
                     + tableJobIds);
 
-        Map<String, Integer> fullHave = new HashMap<>();
-        fullHave.put("minecraft:acacia_log", 6);
-        RecipeResolver.Plan fullPlan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, fullHave);
-        if (!fullPlan.complete())
+        RecipeContracts.CraftPlan fullPlan = resolve(bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 6));
+        if (!fullPlan.missing().isEmpty())
             ctx.fail("wd.serverRecipeShortfallSpecies: wooden_pickaxe from acacia_log:6 should complete: missing="
-                    + fullPlan.missing());
-        boolean fullAnyOak = fullPlan.jobs().stream().anyMatch(j -> j.result().contains("oak")
-                || j.fromParts().stream().anyMatch(fp -> fp.contains("oak")));
+                    + missing(fullPlan));
+        boolean fullAnyOak = fullPlan.steps().stream().anyMatch(j -> j.craft().contains("oak") || j.from().contains("oak"));
         if (fullAnyOak)
             ctx.fail("wd.serverRecipeShortfallSpecies: wooden_pickaxe from acacia_log:6 leaked oak: jobs="
-                    + fullPlan.jobs().stream().map(RecipeResolver.Job::result).toList());
+                    + fullPlan.steps().stream().map(RecipeContracts.CraftStep::craft).toList());
     }
+
+    /**
+     * A bot alone on a stone pad twenty above the origin, for the recipe scenes: {@code mc.recipe.resolve} plans
+     * against the stations within a player's reach, and without a bot it asks the server's first player, whose
+     * surroundings no scene controls.
+     */
+    private static SceneBot planner(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+        ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
+        SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        return SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+    }
+
+    /** {@code mc.recipe.resolve} for one {@code target} against {@code have}, planned for {@code bot}. */
+    private static RecipeContracts.CraftPlan resolve(SceneBot bot, String target, Map<String, Integer> have) {
+        return resolve(bot, target, Optional.of(have));
+    }
+
+    /** {@link #resolve(SceneBot, String, Map)} with {@code have} omitted: against the bot's real bag. */
+    private static RecipeContracts.CraftPlan resolve(SceneBot bot, String target, Optional<Map<String, Integer>> have) {
+        return Calls.now(RecipeApi.of(Calls.api()).resolve(new RecipeContracts.PlanParams(target, 1, have,
+                Optional.of(bot.ref()))));
+    }
+
+    /** Each step as {@code result[input+input]}, the shape the resolver's own jobs were logged in. */
+    private static List<String> jobIds(RecipeContracts.CraftPlan plan) {
+        List<String> out = new ArrayList<>();
+        for (RecipeContracts.CraftStep s : plan.steps()) out.add(s.craft() + "[" + s.from().replace(" + ", "+") + "]");
+        return out;
+    }
+
+    /** What the plan lacks, by item. */
+    private static Map<String, Integer> missing(RecipeContracts.CraftPlan plan) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (RecipeContracts.ItemNeed n : plan.missing()) out.put(n.item(), n.count());
+        return out;
+    }
+
+    private static String lastError(ControlContracts.Slot slot) { return slot.lastError().orElse(null); }
 
     /** Ported from {@code serverCraftTableReclaimArena} (gap #276): a table the craft PLACED must be
      *  reclaimed when the craft ends; a table it merely FOUND standing must be left alone. Two
@@ -318,8 +320,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.set("craftReclaimTable", true);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         // (A) PLACED table → reclaimed. Bot carries a table + pickaxe materials → places its own.
         final int ax = cx, az = cz;
@@ -328,15 +329,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
-        PlayerBot da = SceneBody.mint(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
-        da.fakePlayer().getInventory().clearContent();
-        da.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
-        da.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
-        da.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
-        da.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        BotTicker.register(da);
-        for (int t = 0; t < 400 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot da = SceneBot.spawn(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
+        da.player().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+        da.player().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+        da.player().getInventory().add(new ItemStack(Items.STICK, 2));
+        da.craft("minecraft:wooden_pickaxe", 1);
+        Harness.tickUntilIdle(400);
 
         int tablesLeft = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -344,13 +342,14 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 for (int dz = -3; dz <= 3; dz++)
                     if (level.getBlockState(new BlockPos(ax + dx, floorY + dy, az + dz)).is(Blocks.CRAFTING_TABLE))
                         tablesLeft++;
-        String errA = da.botState().craft.lastError;
-        TestMod.LOG.info("[wd.serverCraftTableReclaim] A finished={} active={} tablesLeft={} err={}",
-                da.finished(), BotTicker.activeCount(), tablesLeft, errA);
+        String errA = lastError(da.status().slots().craft());
+        boolean busyA = da.busy();
+        TestMod.LOG.info("[wd.serverCraftTableReclaim] A busy={} active={} tablesLeft={} err={}",
+                busyA, Harness.busy(), tablesLeft, errA);
 
-        if (!da.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("wd.serverCraftTableReclaim: craft did not terminate after reclaim: finished="
-                    + da.finished() + " active=" + BotTicker.activeCount());
+        if (busyA || Harness.busy() != 0)
+            ctx.fail("wd.serverCraftTableReclaim: craft did not terminate after reclaim: busy="
+                    + busyA + " active=" + Harness.busy());
         if (tablesLeft != 0)
             ctx.fail("wd.serverCraftTableReclaim: placed crafting_table was abandoned (gap #276): "
                     + tablesLeft + " still standing near the bot");
@@ -360,11 +359,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // expected outcome, so it is checked as one.
         if (errA != null)
             ctx.fail("wd.serverCraftTableReclaim: the 3×3 craft failed: " + errA);
-        if (countItem(da.fakePlayer(), Items.WOODEN_PICKAXE) < 1)
+        if (countItem(da.player(), Items.WOODEN_PICKAXE) < 1)
             ctx.fail("wd.serverCraftTableReclaim: craft reported no error but produced no pickaxe — "
                     + "the table was placed, used and reclaimed without anything being made");
 
-        BotTicker.clear();
+        // Bot A off the tick list, so the second rig's ticks drive bot B alone.
+        da.park();
 
         // (B) SAFETY CRUX: a table already STANDING is borrowed, never broken. Relocated +16 X.
         final int bx = cx + 16, bz = cz;
@@ -375,18 +375,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
         BlockPos preExisting = new BlockPos(bx + 1, floorY + 1, bz);   // within reach
         level.setBlockAndUpdate(preExisting, Blocks.CRAFTING_TABLE.defaultBlockState());
-        PlayerBot db = SceneBody.mint(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
-        db.fakePlayer().getInventory().clearContent();
-        db.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
-        db.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));   // NO table item
-        db.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        BotTicker.register(db);
-        for (int t = 0; t < 400 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot db = SceneBot.spawn(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
+        db.player().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+        db.player().getInventory().add(new ItemStack(Items.STICK, 2));   // NO table item
+        db.craft("minecraft:wooden_pickaxe", 1);
+        Harness.tickUntilIdle(400);
 
         boolean survived = level.getBlockState(preExisting).is(Blocks.CRAFTING_TABLE);
-        TestMod.LOG.info("[wd.serverCraftTableReclaim] B finished={} preExistingSurvived={}",
-                db.finished(), survived);
+        TestMod.LOG.info("[wd.serverCraftTableReclaim] B busy={} preExistingSurvived={}",
+                db.busy(), survived);
         if (!survived)
             ctx.fail("wd.serverCraftTableReclaim: reclaim BROKE a pre-existing table it only borrowed "
                     + "(placedTable must never be set from findTable) at " + preExisting);
@@ -402,17 +399,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
 
         fp.getInventory().setItem(0, new ItemStack(Items.CRAFTING_TABLE, 1));
         fp.getInventory().setItem(9, new ItemStack(Items.COBBLESTONE, 5));
@@ -423,7 +418,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
         worn.setDamageValue(245);
         fp.getInventory().setItem(4, worn);
 
-        ObserveContracts.PlayerState snap = PlayerSnapshots.of(fp, Optional.empty());
+        // The bot's player by its profile name, as an agent asks for any player on the server.
+        ObserveContracts.PlayerReading reading = Calls.now(ObserveApi.of(Calls.api()).player(
+                new ObserveContracts.PlayerParams(Optional.of(fp.getGameProfile().getName()))));
+        if (reading.player().isEmpty())
+            ctx.fail("wd.serverObservePlayerInventory: mc.observe.player found no player named " + fp.getGameProfile().getName());
+        ObserveContracts.PlayerState snap = reading.player().get();
         // The contract the wire answer is checked against holds the server-built record too.
         ObserveContracts.PLAYER_STATE.encode(snap);
 
@@ -463,74 +463,60 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ctx.fail("wd.serverObservePlayerInventory: `items` ids must be namespaced — a bare id is silently "
                     + "have-nothing to the resolver: " + items);
 
-        Map<String, Integer> have = new LinkedHashMap<>(items);
-        RecipeResolver.Plan plan = RecipeResolver.resolve(
-                level.getServer().getRecipeManager(), level.registryAccess(),
-                "minecraft:stone_pickaxe", 1, have, Set.of());
+        // Planned for the bot, which carries its own table and stands where none is placed: the plan
+        // must neither find a station nor need one beyond the one in `have`.
+        RecipeContracts.CraftPlan plan = resolve(bot, "minecraft:stone_pickaxe", new LinkedHashMap<>(items));
         TestMod.LOG.info("[wd.serverObservePlayerInventory] planComplete={} missing={}",
-                plan.complete(), plan.missing());
-        if (!plan.complete())
+                plan.missing().isEmpty(), missing(plan));
+        if (!plan.missing().isEmpty())
             ctx.fail("wd.serverObservePlayerInventory: the emitted `items` map is not consumable as `have` — "
-                    + "planner still reports missing " + plan.missing()
+                    + "planner still reports missing " + missing(plan)
                     + " though every ingredient is in the bag (hidden slots / id format)");
     }
 
     /** Ported from {@code serverPlanHaveDefaultsToBagArena} (gap #44): omitted {@code have} must plan
-     *  against the REAL bag (the same one {@link CraftProcess} consumes), explicit empty stays the
-     *  what-if hypothesis, an explicit map is used verbatim, and a null bot falls back to
-     *  have-nothing without crashing. Driven through {@link RecipeService#resolveHave}. */
+     *  against the REAL bag (the same one {@code mc.bot.craft} consumes), explicit empty stays the
+     *  what-if hypothesis, and an explicit map is used verbatim. Driven through {@code mc.recipe.resolve}
+     *  for a bot; that nobody to read a bag from falls back to have-nothing is held by
+     *  {@code RecipeServiceHaveTest}. */
     private static void serverPlanHaveDefaultsToBag(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
+        // The table the plans may use, standing in reach as the craft would find it.
+        level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + 1, cz), Blocks.CRAFTING_TABLE.defaultBlockState());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().setItem(9, new ItemStack(Items.COBBLESTONE, 208));
         fp.getInventory().setItem(20, new ItemStack(Items.STICK, 2));
 
-        RecipeManager rm = level.getServer().getRecipeManager();
-        HolderLookup.Provider ra = level.registryAccess();
+        RecipeContracts.CraftPlan planned = resolve(bot, "minecraft:stone_pickaxe", Optional.empty());
+        TestMod.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave plan missing={}", missing(planned));
+        if (!planned.missing().isEmpty())
+            ctx.fail("wd.serverPlanHaveDefaultsToBag: omitting `have` must plan against the REAL bag (the same one "
+                    + "mc.bot.craft consumes from), but the planner still reports missing " + missing(planned)
+                    + " for a bot that is carrying every ingredient — planner and executor are measuring different bags");
 
-        Map<String, Integer> dflt = RecipeService.resolveHave(Optional.empty(), fp);
-        TestMod.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave={}", dflt);
-        if (!Integer.valueOf(208).equals(dflt.get("minecraft:cobblestone")))
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: omitting `have` must plan against the REAL bag "
-                    + "(the same one mc.bot.craft consumes from), got " + dflt);
-        RecipeResolver.Plan planned = RecipeResolver.resolve(rm, ra,
-                "minecraft:stone_pickaxe", 1, dflt, Set.of("crafting_table"));
-        if (!planned.complete())
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: planner still reports missing " + planned.missing()
-                    + " for a bot that is carrying every ingredient — planner and executor "
-                    + "are measuring different bags");
+        RecipeContracts.CraftPlan hypoPlan = resolve(bot, "minecraft:stone_pickaxe", Map.of());
+        if (hypoPlan.missing().isEmpty())
+            ctx.fail("wd.serverPlanHaveDefaultsToBag: what-if planning is broken: an explicit empty `have` must stay "
+                    + "the 'suppose I had nothing' hypothesis and still lack the ingredients");
 
-        Map<String, Integer> hypo = RecipeService.resolveHave(Optional.of(Map.of()), fp);
-        if (!hypo.isEmpty())
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit empty `have` must stay the "
-                    + "'suppose I had nothing' hypothesis, got " + hypo);
-        RecipeResolver.Plan hypoPlan = RecipeResolver.resolve(rm, ra,
-                "minecraft:stone_pickaxe", 1, hypo, Set.of("crafting_table"));
-        if (hypoPlan.complete())
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: what-if planning is broken: an empty hypothesis "
-                    + "must still lack the ingredients");
-
-        Map<String, Integer> verbatim = RecipeService.resolveHave(Optional.of(Map.of("minecraft:cobblestone", 3)), fp);
-        if (verbatim.size() != 1 || !Integer.valueOf(3).equals(verbatim.get("minecraft:cobblestone")))
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit `have` must be used verbatim, not "
-                    + "merged with the bag, got " + verbatim);
-
-        if (!RecipeService.resolveHave(Optional.empty(), (Player) null).isEmpty())
-            ctx.fail("wd.serverPlanHaveDefaultsToBag: a null bot must fall back to have-nothing");
+        // Three cobblestone and no sticks: merged with the bag's two sticks this would complete.
+        RecipeContracts.CraftPlan verbatim = resolve(bot, "minecraft:stone_pickaxe", Map.of("minecraft:cobblestone", 3));
+        Map<String, Integer> verbatimMissing = missing(verbatim);
+        if (verbatimMissing.containsKey("minecraft:cobblestone") || verbatimMissing.isEmpty())
+            ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit `have` must be used verbatim, not merged with the "
+                    + "bag: {cobblestone: 3} should lack only what makes the sticks, got missing=" + verbatimMissing);
     }
 
     // ==================================================================================
@@ -538,7 +524,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // ==================================================================================
 
     /**
-     * Ported from {@code serverSmeltStationOpensArena}, and inverted: the SERVER {@link SmeltProcess} must
+     * Ported from {@code serverSmeltStationOpensArena}, and inverted: a SERVER bot's {@code mc.bot.smelt} must
      * find a furnace, OPEN it, and load it.
      *
      * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
@@ -565,19 +551,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 4));
-        driver.runProcess(new SmeltProcess("minecraft:raw_iron", 4, "minecraft:coal"));
-        BotTicker.register(driver);
-        for (int t = 0; t < 200 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.player().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
+        bot.player().getInventory().add(new ItemStack(Items.COAL, 4));
+        bot.smelt("minecraft:raw_iron", 4, "minecraft:coal");
+        Harness.tickUntilIdle(200);
 
-        String err = driver.botState().smelt.lastError;
+        String err = lastError(bot.status().slots().smelt());
         Container furnace = level.getBlockEntity(new BlockPos(cx + 1, floorY + 1, cz)) instanceof Container c
                 ? c : null;
         int loaded = 0;
@@ -586,16 +568,16 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 loaded += furnace.getItem(slot).getCount();
             }
         }
-        TestMod.LOG.info("[wd.serverSmeltStationOpens] finished={} active={} err={} loaded={}",
-                driver.finished(), BotTicker.activeCount(), err, loaded);
+        TestMod.LOG.info("[wd.serverSmeltStationOpens] busy={} active={} err={} loaded={}",
+                bot.busy(), Harness.busy(), err, loaded);
 
         // The furnace must OPEN and take its load. Nothing here waits for it to cook: this rig drives
-        // up to 200 avatar ticks inside a SINGLE server tick, so no furnace tick ever fires and the
-        // process is still working when the loop ends — which is why "finished" is deliberately not
+        // up to 200 bot ticks inside a SINGLE server tick, so no furnace tick ever fires and the
+        // smelt is still working when the loop ends — which is why "finished" is deliberately not
         // asserted. What is asserted is everything up to the first world tick: the menu opened, the
-        // input and fuel went in. SmeltProcess names the furnace in every failure that concerns it.
+        // input and fuel went in. The smelt names the furnace in every failure that concerns it.
         if (err != null && err.contains("furnace"))
-            ctx.fail("wd.serverSmeltStationOpens: SmeltProcess could not open the furnace: " + err);
+            ctx.fail("wd.serverSmeltStationOpens: the smelt could not open the furnace: " + err);
         if (furnace == null)
             ctx.fail("wd.serverSmeltStationOpens: no furnace container at the rig position");
         if (loaded == 0)
@@ -614,8 +596,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.set("craftReclaimTable", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         // Legacy scrubbed [-3,3] × dy[0,4] on exit; the two-layer floor reaches [-2,2], so this covers it.
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
@@ -632,15 +613,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());   // the 1-deep hole
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
-        driver.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        BotTicker.register(driver);
-        for (int t = 0; t < 400 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.player().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+        bot.player().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+        bot.player().getInventory().add(new ItemStack(Items.STICK, 2));
+        bot.craft("minecraft:wooden_pickaxe", 1);
+        Harness.tickUntilIdle(400);
 
         int tables = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -648,9 +626,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 for (int dz = -3; dz <= 3; dz++)
                     if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.CRAFTING_TABLE))
                         tables++;
-        String err = driver.botState().craft.lastError;
-        TestMod.LOG.info("[wd.serverCraftTableHoleRim] finished={} active={} tables={} err={}",
-                driver.finished(), BotTicker.activeCount(), tables, err);
+        String err = lastError(bot.status().slots().craft());
+        TestMod.LOG.info("[wd.serverCraftTableHoleRim] busy={} active={} tables={} err={}",
+                bot.busy(), Harness.busy(), tables, err);
         if (tables == 0)
             ctx.fail("wd.serverCraftTableHoleRim: bot in a 1-deep hole placed NO crafting table (gap#61: "
                     + "rim dy=+1 not searched): lastError=" + err);
@@ -665,8 +643,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
                 for (int dy = 0; dy <= 4; dy++)
@@ -681,15 +658,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.FURNACE, 1));
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 3));
-        driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 8));
-        driver.runProcess(new SmeltProcess("minecraft:raw_iron", 3, null));
-        BotTicker.register(driver);
-        for (int t = 0; t < 400 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.player().getInventory().add(new ItemStack(Items.FURNACE, 1));
+        bot.player().getInventory().add(new ItemStack(Items.RAW_IRON, 3));
+        bot.player().getInventory().add(new ItemStack(Items.COAL, 8));
+        bot.smelt("minecraft:raw_iron", 3);
+        Harness.tickUntilIdle(400);
 
         int furnaces = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -697,15 +671,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 for (int dz = -3; dz <= 3; dz++)
                     if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.FURNACE))
                         furnaces++;
-        String err = driver.botState().smelt.lastError;
-        TestMod.LOG.info("[wd.serverSmeltFurnaceHoleRim] finished={} active={} furnaces={} err={}",
-                driver.finished(), BotTicker.activeCount(), furnaces, err);
+        String err = lastError(bot.status().slots().smelt());
+        TestMod.LOG.info("[wd.serverSmeltFurnaceHoleRim] busy={} active={} furnaces={} err={}",
+                bot.busy(), Harness.busy(), furnaces, err);
         if (furnaces == 0)
             ctx.fail("wd.serverSmeltFurnaceHoleRim: bot in a 1-deep hole placed NO furnace (gap#62: "
                     + "placeFurnace lags placeTable's candidate scan): lastError=" + err);
     }
 
-    /** Ported from {@code smeltFuelPolicyArena} (gap#64): SmeltProcess fuel handling — ① auto-fuel
+    /** Ported from {@code smeltFuelPolicyArena} (gap#64): the smelt's fuel handling — ① auto-fuel
      *  must pick coal (not the crafting table sitting first in slot order), ② reload fuel when the
      *  fire dies mid-batch, ③ take back ALL THREE furnace slots at DONE (not just the result). A
      *  FakePlayer cannot open menus, so the furnace menu is handed to {@code fp.containerMenu}
@@ -722,29 +696,26 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // Full-footprint scrub on every exit (legacy only cleared the furnace block).
         ctx.cleanup(() -> scrub(level, x0, z0, floorY, 2, 3));
 
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         Container furnace = (Container) level.getBlockEntity(fpos);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, z0 + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
+        SceneBot bot = SceneBot.spawn(ctx, level, x0 + 0.5, floorY + 1, z0 + 0.5);
+        ServerPlayer fp = bot.player();
         // Slot order is the trap: the workstation sits FIRST, the real fuel last.
         fp.getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
         fp.getInventory().add(new ItemStack(Items.OAK_PLANKS, 8));
         fp.getInventory().add(new ItemStack(Items.COAL, 8));
         fp.getInventory().add(new ItemStack(Items.RAW_IRON, 3));
-        driver.runProcess(new SmeltProcess("minecraft:raw_iron", 2, null));
-        BotTicker.register(driver);
+        bot.smelt("minecraft:raw_iron", 2);
 
         var menu = ((MenuProvider) level.getBlockEntity(fpos)).createMenu(77, fp.getInventory(), fp);
 
-        // Phase 1 — drive to LOAD (hand the process its furnace menu) and load ingredient + fuel.
+        // Phase 1 — drive to LOAD (hand the smelt its furnace menu) and load ingredient + fuel.
         for (int t = 0; t < 80 && furnace.getItem(0).isEmpty(); t++) {
             if (!(fp.containerMenu instanceof AbstractFurnaceMenu) && menu != null)
                 fp.containerMenu = menu;
-            BotTicker.tickAll();
+            Harness.tick();
         }
         ItemStack fuelLoaded = furnace.getItem(1);
         TestMod.LOG.info("[wd.smeltFuelPolicy] after LOAD: in={} fuel={} tableInBag={}",
@@ -757,21 +728,21 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         // Phase 2 — simulate the fire dying with input still to cook: reload (next-best = planks).
         furnace.setItem(1, ItemStack.EMPTY);
-        for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) BotTicker.tickAll();
+        for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) Harness.tick();
         ItemStack refuel = furnace.getItem(1);
         TestMod.LOG.info("[wd.smeltFuelPolicy] after burn-out: fuel={}", refuel);
         if (refuel.getItem() != Items.OAK_PLANKS)
             ctx.fail("wd.smeltFuelPolicy: gap#64②: fire died with input left — fuel must be reloaded "
                     + "(expected planks), got " + refuel);
 
-        // Phase 3 — cook (inject result) and let the process finish: ALL THREE slots taken back.
+        // Phase 3 — cook (inject result) and let the smelt finish: ALL THREE slots taken back.
         furnace.setItem(2, new ItemStack(Items.IRON_INGOT, 2));
-        for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++) BotTicker.tickAll();
+        Harness.tickUntilIdle(60);
         TestMod.LOG.info("[wd.smeltFuelPolicy] end: ingot={} rawIron={} planks={} coal={} slots=[{},{},{}] err={}",
                 countItem(fp, Items.IRON_INGOT), countItem(fp, Items.RAW_IRON),
                 countItem(fp, Items.OAK_PLANKS), countItem(fp, Items.COAL),
                 furnace.getItem(0), furnace.getItem(1), furnace.getItem(2),
-                driver.botState().smelt.lastError);
+                lastError(bot.status().slots().smelt()));
         if (countItem(fp, Items.IRON_INGOT) < 2)
             ctx.fail("wd.smeltFuelPolicy: smelt result not collected: ingots=" + countItem(fp, Items.IRON_INGOT));
         if (!furnace.getItem(0).isEmpty() || !furnace.getItem(1).isEmpty())
@@ -800,9 +771,10 @@ public final class WorldDriverStationScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
+        // Left on the driver's own types: no api method returns the grid on its own. A craft's exit
+        // does (wd.serverCraftFailGridReturn), and only with closeContainer kept from doing it instead.
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
@@ -836,34 +808,30 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().add(new ItemStack(Items.ACACIA_LOG, 1));
-        driver.runProcess(new CraftProcess("minecraft:acacia_planks", 4));
-        BotTicker.register(driver);
-        for (int t = 0; t < 300 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        bot.craft("minecraft:acacia_planks", 4);
+        Harness.tickUntilIdle(300);
 
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
         boolean gridEmpty = true;
         for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
         int logs = countItem(fp, Items.ACACIA_LOG);
         int planks = countItem(fp, Items.ACACIA_PLANKS);
-        TestMod.LOG.info("[wd.serverCraftGridConservation] gridEmpty={} logs={} planks={} finished={} err={}",
-                gridEmpty, logs, planks, driver.finished(), driver.botState().craft.lastError);
+        boolean busy = bot.busy();
+        TestMod.LOG.info("[wd.serverCraftGridConservation] gridEmpty={} logs={} planks={} busy={} err={}",
+                gridEmpty, logs, planks, busy, lastError(bot.status().slots().craft()));
         if (!gridEmpty)
             ctx.fail("wd.serverCraftGridConservation: gap#67-③: 2x2 grid not empty after craft DONE");
         if (logs != 0)
             ctx.fail("wd.serverCraftGridConservation: expected the single acacia_log fully consumed, got " + logs + " remaining");
         if (planks != 4)
             ctx.fail("wd.serverCraftGridConservation: expected 4 acacia_planks, got " + planks);
-        if (!driver.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("wd.serverCraftGridConservation: server CraftProcess did not finish+unregister: active="
-                    + BotTicker.activeCount());
+        if (busy || Harness.busy() != 0)
+            ctx.fail("wd.serverCraftGridConservation: server craft did not finish: busy=" + Harness.busy());
     }
 
     /** In-memory log4j2 appender (inlined from {@code AgentGameTestServer.CraftLogCatcher}) used only
@@ -919,17 +887,14 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report missing materials
-        driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        BotTicker.register(driver);
-        for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        // An empty bag: the craft's plan must report missing materials.
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.craft("minecraft:oak_planks", 4);
+        Harness.tickUntilIdle(60);
 
-        String err = driver.botState().craft.lastError;
+        String err = lastError(bot.status().slots().craft());
         boolean sawFailLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft]") && l.contains("fail"));
         boolean sawPlanLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft] plan"));
         TestMod.LOG.info("[wd.serverCraftFailTelemetry] err={} sawFailLog={} sawPlanLog={} lines={}",
@@ -978,29 +943,26 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();   // zero materials: plan() must report missing materials, never reach STATION
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();   // an empty bag: the plan must report missing materials, never reach STATION
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
         invMenu.getCraftSlots().setItem(0, new ItemStack(Items.OAK_LOG, 1));
         invMenu.getCraftSlots().setItem(1, new ItemStack(Items.STICK, 2));
         fp.containerMenu = new DummyMenu(1);
 
-        driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        BotTicker.register(driver);
-        for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        bot.craft("minecraft:oak_planks", 4);
+        Harness.tickUntilIdle(60);
 
-        String err = driver.botState().craft.lastError;
+        String err = lastError(bot.status().slots().craft());
         boolean gridEmpty = true;
         for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
         int logs = countItem(fp, Items.OAK_LOG);
         int sticks = countItem(fp, Items.STICK);
-        TestMod.LOG.info("[wd.serverCraftFailGridReturn] err={} gridEmpty={} logs={} sticks={} finished={}",
-                err, gridEmpty, logs, sticks, driver.finished());
+        boolean busy = bot.busy();
+        TestMod.LOG.info("[wd.serverCraftFailGridReturn] err={} gridEmpty={} logs={} sticks={} busy={}",
+                err, gridEmpty, logs, sticks, busy);
         if (err == null)
             ctx.fail("wd.serverCraftFailGridReturn: expected craft to fail on zero materials (test setup broken)");
         if (!gridEmpty)
@@ -1009,8 +971,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         if (logs != 1 || sticks != 2)
             ctx.fail("wd.serverCraftFailGridReturn: gap#67-③ (final-review #1): stranded grid material not returned "
                     + "to inventory on FAIL: logs=" + logs + " (want 1) sticks=" + sticks + " (want 2)");
-        if (!driver.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("wd.serverCraftFailGridReturn: server CraftProcess did not finish+unregister: active="
-                    + BotTicker.activeCount());
+        if (busy || Harness.busy() != 0)
+            ctx.fail("wd.serverCraftFailGridReturn: server craft did not finish: busy=" + Harness.busy());
     }
 }

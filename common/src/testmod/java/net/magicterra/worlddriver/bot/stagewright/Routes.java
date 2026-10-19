@@ -126,7 +126,7 @@ public final class Routes {
         return leash(new RouteContracts.PointAnchor(Targets.pos(cell)), radius, hard, weight);
     }
 
-    /** Stay within {@code radius} of the nearest {@code entity} (a player name, type id or entity id), found again as it moves. */
+    /** Stay within {@code radius} of the nearest {@code entity} (a player name, type id or entity id), followed as it moves. */
     public Routes leashEntity(String entity, double radius, boolean hard, double weight) {
         return leash(new RouteContracts.EntityAnchor(entity), radius, hard, weight);
     }

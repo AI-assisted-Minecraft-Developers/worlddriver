@@ -71,18 +71,11 @@ wd.padOverWaterCross
 wd.padClusterCross
 # Core family — the navigator and pathfinder basics every other family assumes.
 wd.agentRpcSmoke
-wd.pinch
-wd.horizon
-wd.inputReleaseGate
-wd.mouseYieldGate
-wd.schemaUnionRendering
 wd.physicsParity
 wd.buildBlockWhitelist
-wd.pathArchiveJson
 wd.nodePhysics
 wd.pathArchiveCapture
 wd.replayRoundTrip
-wd.clientChatLogSemantics
 wd.clientSettingSchema
 wd.fullInventoryVisible
 wd.attackCooldownSurface
@@ -122,15 +115,11 @@ wd.duskSecureHeldProcessLifecycle
 # Survival family — escaping, bunkering, diving, drowning and avoiding suffocation.
 wd.serverEscape
 wd.serverBunker
-wd.serverBunkerAnchorRatchet
 wd.serverEscapeSealedShelter
 wd.serverLowHpEdgePin
 wd.serverBunkerSlope
 wd.surfaceDive
 wd.underwaterBase
-wd.drowningFloatShouldFloatMatrix
-wd.drownEscapeGateMatrix
-wd.contactEscapeGateMatrix
 wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating

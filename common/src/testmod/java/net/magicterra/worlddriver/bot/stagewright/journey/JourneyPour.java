@@ -506,7 +506,7 @@ final class JourneyPour {
      *
      * <p>The question this answers is "where is this player falling to", and the obvious way to get
      * it is to wait and look. <b>That way is closed here</b>, and closed by measurement rather than by
-     * taste: {@link HoldStill}'s own note carries the archived negative — a longer settle was tried in
+     * taste: {@link JourneyRig#hold}'s own note carries the archived negative — a longer settle was tried in
      * this very alcove and reverted, because flowing water means "at rest" is a state this rung never
      * reaches, and because the extra ticks are themselves a mover ({@code recover8.ask.settled}
      * reported that after waiting 10 ticks the bot was still moving, 3.60 blocks in total, after

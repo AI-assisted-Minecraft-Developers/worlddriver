@@ -285,7 +285,7 @@ public final class JourneyFill {
         // fill does not walk, so it deserves a stationary bot) and measured worse: a ten-tick settle
         // here gave `recover8` eight extra ticks of falling, eye y 61.65→58.06, after which
         // nothing was in view, the fill walked, and the walk mined a cast frame cell on its way back
-        // up. See HoldStill for the whole chain. A wrong answer from here costs one aim, which
+        // up. See JourneyRig.hold for the whole chain. A wrong answer from here costs one aim, which
         // `scoop` re-takes; a bot four blocks lower costs the rung.
         if (tries == FILL_APPROACHES) {
             BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
@@ -523,7 +523,7 @@ public final class JourneyFill {
         // all — so they stay, and everything that depends on the aim moves to after them.
         //
         // Spending MORE of them is not the safer version of this; it is a different bug. See
-        // HoldStill for the run where a ten-tick wait dropped the bot four blocks.
+        // JourneyRig.hold for the run where a ten-tick wait dropped the bot four blocks.
         var eyeBeforeSettling = rig.player().getEyePosition();
         rig.hold(2, 10, () -> {
             // BOTH players (client and server), because the very next line is a PREDICTION GATE

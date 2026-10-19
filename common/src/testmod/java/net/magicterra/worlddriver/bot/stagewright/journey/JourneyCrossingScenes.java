@@ -95,7 +95,7 @@ import net.minecraft.world.phys.AABB;
  * directly — a copy of any of the three would be a scene measuring itself. What a scene cannot host
  * is a {@link JourneyRig}: it is entered against the ladder's own ledger and drives a static bot,
  * so {@code settleToGround}'s tick pump is stepped here instead, with the impulse released first,
- * which is what {@link HoldStill} does and the reason the crossing waits under it rather than under
+ * which is what {@link JourneyRig#hold} does and the reason the crossing waits under it rather than under
  * the walk it just ended.
  *
  * <p>What that leaves uncovered is one line: that {@code oneHop} wraps its continuation in the
@@ -771,7 +771,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /**
      * Spend the crossing's landing allowance and say which tick the bot landed on, or −1.
      *
-     * <p>The impulse is released first, every tick, because that is what {@link HoldStill} does and
+     * <p>The impulse is released first, every tick, because that is what {@link JourneyRig#hold} does and
      * the crossing waits under it: a leftover forward impulse would walk the bot off whatever it
      * lands on. Releasing the controls is not braking, and here the brake would be left off.
      */
@@ -791,7 +791,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return new Allowance(landedAt, lastMidAir);
     }
 
-    /** One idle physics tick with everything released, exactly what {@link HoldStill} does. */
+    /** One idle physics tick with everything released, exactly what {@link JourneyRig#hold} does. */
     private static void step(ServerPlayerBody av) {
         av.commandMove(0f, 0f);
         av.commandJump(false);

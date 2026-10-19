@@ -29,8 +29,8 @@ package net.magicterra.worlddriver.game.ui;
  * ends the gate hands the cursor back on its own ({@link Action#GRAB}), so a user who
  * never touched ESC lands back in normal play the moment the bot goes idle.
  *
- * <p>Pure logic, no client classes — unit-tested headless (testkit scene
- * {@code wd.mouseYieldGate}). The caller owns all the Minecraft-side I/O: sampling
+ * <p>Pure logic, no client classes — unit-tested headless
+ * ({@code MouseYieldGateTest}). The caller owns all the Minecraft-side I/O: sampling
  * ESC / {@code isMouseGrabbed()} / {@code screen != null}, and performing the action.
  */
 public final class MouseYieldGate {
