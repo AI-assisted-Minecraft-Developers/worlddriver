@@ -22,12 +22,12 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockRow;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientBody;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientLook;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientPlayer;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.EntityHit;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Hit;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Inventory;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.InventorySlot;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Look;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Miss;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Stack;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Time;
@@ -272,7 +272,7 @@ public final class ClientObserve {
             Inventory inventory = new Inventory(inv.selected, mainHand, slots, ItemCounts.bag(p));
             return new ClientPlayer(true, Optional.of(p.getGameProfile().getName()), Optional.of(p.getUUID().toString()),
                     Optional.of(p.level().dimension().location().toString()), Optional.of(new Point(p.getX(), p.getY(), p.getZ())),
-                    Optional.of(new Look(p.getYRot(), p.getXRot())), Optional.of(body), Optional.of(vitals), Optional.of(time),
+                    Optional.of(new ClientLook(p.getYRot(), p.getXRot())), Optional.of(body), Optional.of(vitals), Optional.of(time),
                     Optional.of(mc.gameMode != null ? mc.gameMode.getPlayerMode().getName() : "unknown"), Optional.of(attack),
                     Optional.of(inventory), Optional.of(hit(mc, p)), mc.getFps());
         });
