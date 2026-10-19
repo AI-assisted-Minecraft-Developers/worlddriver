@@ -14,7 +14,6 @@ bot/stagewright/SceneBody -> bot/BotTicker
 bot/stagewright/SceneBody -> bot/PlayerBot
 bot/stagewright/SceneBody -> game/body/JoinedPlayers
 bot/stagewright/SceneBody -> game/body/ServerPlayerBody
-bot/stagewright/ScenePlan -> bot/control/Navigator
 bot/stagewright/ScenePlan -> bot/rules/Move
 bot/stagewright/journey/HoldStill -> bot/behavior/BotProcess
 bot/stagewright/journey/HoldStill -> bot/behavior/BotState

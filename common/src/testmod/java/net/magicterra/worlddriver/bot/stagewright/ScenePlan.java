@@ -4,35 +4,31 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 
 /**
- * The two shapes a scene may hand {@link Navigator#adoptForTest}, each built by a factory that says
- * which one it is.
+ * A plan a scene hands {@code Navigator.adoptForTest} before it TICKS the navigator, built by a factory that
+ * checks its shape.
  *
- * <p><b>Why this class exists.</b> Both shapes are a {@code List<BlockPos>} plus a
- * {@code List<Move.Edge>}, and one of them deliberately omits the start node — so a plan that is
- * MALFORMED and a plan that is a deliberately mis-anchored TEST INPUT are indistinguishable by
- * inspection. {@code wd.surfacePillarPointerNeedsItsSupport} spent three gate runs executing zero
- * ticks of its own subject because it handed over the first shape while meaning the second's
- * freedom; {@code wd.deepWaterFloatBeeline} has handed over the second shape correctly all along.
- * Naming the factories puts the difference in the source instead of in the reader's head.
+ * <p><b>Why this class exists.</b> A plan is a {@code List<BlockPos>} plus a {@code List<Move.Edge>}, and a
+ * plan that omits the start node is indistinguishable by inspection from a deliberately mis-anchored test
+ * input. {@code wd.surfacePillarPointerNeedsItsSupport} spent three gate runs executing zero ticks of its own
+ * subject because it handed over a plan without the start node. The mis-anchored shape is now asked only of
+ * the adoption's verdict, in {@code DeepWaterFloatBeelineTest}, so the one shape left here is the one a
+ * ticking scene needs.
  *
  * <p><b>The rule this class is the standing reminder of.</b> A scanner matches SHAPE; what decides
  * which family a site belongs to is WHAT THE CALL SITE WANTS IT TO DO, and that is not in the
- * shape. All six {@code adoptForTest} sites in this source set satisfy {@code plan[0] != foot}.
- * In one it was the defect; in five it is the question being asked. "N places look alike" is a
- * reason to START investigating, never a reason to merge them — read the call sites first. The
- * same rule saved {@code BotUtil.stepAwayCardinal}, whose two callers' openness tests disagree on
- * thin blocks, so folding them onto one predicate would have loosened both.
+ * shape. "N places look alike" is a reason to START investigating, never a reason to merge them —
+ * read the call sites first. The same rule saved {@code BotUtil.stepAwayCardinal}, whose two callers'
+ * openness tests disagree on thin blocks, so folding them onto one predicate would have loosened both.
  */
 public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
 
     /**
      * A plan in the shape every real {@code PathFinder.Result} has, for a scene that goes on to
-     * TICK the navigator — i.e. the 5-arg {@link Navigator#adoptForTest} seam.
+     * TICK the navigator — i.e. the 5-arg {@code Navigator.adoptForTest} seam.
      *
      * <p>Callers pass only the nodes they want WALKED. This prepends the start node and the
      * {@code null} lead edge, because {@code PathFinder.build}'s javadoc says the start has no
@@ -73,29 +69,5 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
         fullEdges.addAll(edges);
         return new ScenePlan(Collections.unmodifiableList(fullNodes),
                 Collections.unmodifiableList(fullEdges));
-    }
-
-    /**
-     * A continuation segment that deliberately does NOT start at the foot, for a scene that only
-     * reads the adoption's VERDICT — i.e. the 4-arg {@link Navigator#adoptForTest} seam, whose
-     * javadoc explains why the two arities differ.
-     *
-     * <p>This is the input the segment anchor-gate exists to judge, so the missing start node is
-     * the question, not a defect. {@code wd.deepWaterFloatBeeline} asks it five ways and expects a
-     * REJECT in three of them; give those arms a start node and the gate has nothing left to
-     * reject, so three assertions stop being about anything.
-     *
-     * <p>Do not tick a navigator that adopted one of these. A segment adopted this way is best-effort
-     * — the navigator is entitled to run a continuation search and replace it, edges and all.
-     */
-    public static ScenePlan misanchoredSegment(List<BlockPos> nodes, List<Move.Edge> edges) {
-        if (nodes.size() != edges.size())
-            throw new IllegalArgumentException("misanchoredSegment: " + nodes.size() + " nodes but "
-                    + edges.size() + " edges");
-        if (edges.isEmpty() || edges.get(0) == null)
-            throw new IllegalArgumentException("misanchoredSegment: edges[0] must be a real edge — a "
-                    + "null lead edge is the mark of a plan that starts at the foot, which is the "
-                    + "one thing this shape is not");
-        return new ScenePlan(List.copyOf(nodes), List.copyOf(edges));
     }
 }

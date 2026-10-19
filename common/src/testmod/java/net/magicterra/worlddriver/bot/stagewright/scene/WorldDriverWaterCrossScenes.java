@@ -19,7 +19,6 @@ import net.magicterra.worlddriver.bot.rules.moves.Fall;
 import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -37,8 +36,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * {@code AgentGameTestWaterCross} open-water crossing / planner arenas (goal-snap /
  * anti-basin-dive depth penalty / floating-water climb-out gate / water-surface step-down
  * float / forbidDig pad-ram leak / deep submerged-cross surface bias / vine- & pad-over-water
- * taxes / pad-cluster tax / deep-water-float bee-line anchor-gate), migrated verbatim to
- * testkit {@code wd.*} scenes and their legacy twins retired in the same commit.
+ * taxes / pad-cluster tax), migrated verbatim to testkit {@code wd.*} scenes and their legacy twins
+ * retired in the same commit. The tenth, the deep-water-float bee-line anchor gate, judges only the
+ * adoption's verdict and is the unit test {@code DeepWaterFloatBeelineTest} now.
  *
  * <p><b>Porting is by the canonical pattern established in {@link WorldDriverScenes} /
  * {@link WorldDriverTerrainScenes} / {@link WorldDriverBiasScenes}</b> (study their class
@@ -82,19 +82,13 @@ import net.minecraft.world.level.block.state.BlockState;
  * ran identically across the ×2×2 dogfood — so it stays {@code required=true}. No WaterCross
  * scene was flaky across the ×2 runs; none is marked optional.
  *
- * <p><b>Origin slots + chunk radius.</b> All 10 take AUTO slots. Two overflow the radius-1
- * window (usable dx/dz {@code [−16,+31]}) and are widened:
+ * <p><b>Origin slots + chunk radius.</b> All 9 take AUTO slots. One overflows the radius-1
+ * window (usable dx/dz {@code [−16,+31]}) and is widened:
  * <ul>
  *   <li>{@code wd.basin} needs {@code .withChunkRadius(2)}: the plateau spans dz {@code 0..44}
  *       (goal at dz +40, plateau built to dz +44), past the +31 edge — radius-2 window is
- *       {@code [−32,+47]}, which covers +44.</li>
- *   <li>{@code wd.deepWaterFloatBeeline} needs {@code .withChunkRadius(4)}: with {@code spanX = 56}
- *       the clear-box / basin floor reach dx {@code cx + spanX + 16 = +72} (far node cx+48, dry
- *       probe platform cx+68±1); +72 overflows radius-2 {@code [−32,+47]} and radius-3
- *       {@code [−48,+63]} — radius-4 window {@code [−64,+79]} covers it (usable dx/dz =
- *       {@code [−16r, 16r+15]}). No scene is pinned to a fixed slot: every gate is a discrete
- *       planner outcome (node-in-lane / reached / accept-reject), integer-cell and
- *       position-invariant.</li>
+ *       {@code [−32,+47]}, which covers +44. No scene is pinned to a fixed slot: every gate is a
+ *       discrete planner outcome (node-in-lane / reached), integer-cell and position-invariant.</li>
  * </ul>
  */
 public final class WorldDriverWaterCrossScenes implements SceneProvider {
@@ -110,9 +104,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 Scene.of("wd.deepWaterSubmergedCross", 200, WorldDriverWaterCrossScenes::deepWaterSubmergedCross),
                 Scene.of("wd.vineOverWaterCross", 200, WorldDriverWaterCrossScenes::vineOverWaterCross),
                 Scene.of("wd.padOverWaterCross", 200, WorldDriverWaterCrossScenes::padOverWaterCross),
-                Scene.of("wd.padClusterCross", 200, WorldDriverWaterCrossScenes::padClusterCross),
-                Scene.of("wd.deepWaterFloatBeeline", 200, WorldDriverWaterCrossScenes::deepWaterFloatBeeline)
-                        .withChunkRadius(4));
+                Scene.of("wd.padClusterCross", 200, WorldDriverWaterCrossScenes::padClusterCross));
     }
 
     /** Ported from {@code AgentGameTestWaterCross#goalSnapBuriedArena}: a {@code goto} whose exact target
@@ -993,151 +985,6 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             ctx.fail("padClusterCross: the full-width-wall search reached the goal WITHOUT "
                     + "crossing the wall column (crossNodes=" + fullCross + ") — the no-lane region is not testing "
                     + "the through-the-wall thread; re-check the geometry.");
-    }
-
-    /** Ported from {@code AgentGameTestWaterCross#deepWaterFloatBeelineArena}: deep-water-float bee-line
-     *  anchor-gate exemption ({@code navigatorDeepWaterFloatBeeline}). Exercises the fix's DECISION POINT via
-     *  {@link Navigator#adoptForTest}: (1) OFF — the far open-water continuation is REJECTED (the live dead-stop
-     *  root); (2) ON — the SAME continuation is ACCEPTED and drives EAST; (2b) ON + SUNK foot accepts past the
-     *  |Δy| jump gate; (3a) ON is INERT for a WALLED line, (3b) ON is INERT from a DRY foot. Unit-level. */
-    private static void deepWaterFloatBeeline(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY(), depth = 8;   // legacy floorY 200 = origin.y
-        final int surface = floorY + depth;        // deep-water surface
-        final int spanX = 56;                      // E-W open-water crossing length (the far node is ~48 b out)
-
-        // Clear a generous air box.
-        for (int dx = -6; dx <= spanX + 16; dx++)
-            for (int dz = -5; dz <= 5; dz++)
-                for (int y = floorY - 1; y <= surface + 8; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        // DEEP basin floor (floorY) + N/S walls + a west cap to hold the water.
-        for (int dx = -5; dx <= spanX + 16; dx++)
-            for (int dz = -4; dz <= 4; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = -4; dx <= spanX + 1; dx++)
-            for (int y = floorY + 1; y <= surface + 2; y++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
-            }
-        for (int dz = -3; dz <= 3; dz++)
-            for (int y = floorY + 1; y <= surface + 2; y++)
-                level.setBlockAndUpdate(new BlockPos(cx - 4, y, cz + dz), Blocks.STONE.defaultBlockState());
-        // Deep open water filling the basin up to `surface` — a wide-open clear-LOS channel.
-        for (int dx = -3; dx <= spanX; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                for (int y = floorY + 1; y <= surface; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-
-        // The deep-water-float dead-stop geometry: foot at the start, a continuation [farNode, beyond, goal]
-        // whose first node is ~48 b east over clear open water.
-        final int waterFootY = surface;                       // a surface water cell (floating foot rides here)
-        BlockPos foot    = new BlockPos(cx, waterFootY, cz);
-        BlockPos farNode = new BlockPos(cx + 48, waterFootY, cz);          // continuation path[0] — ~48 b east
-        BlockPos beyond  = new BlockPos(cx + 52, waterFootY, cz);
-        BlockPos goalN   = new BlockPos(cx + spanX, waterFootY, cz);
-
-        // Deliberately NOT anchored at the foot — path[0] is ~48 b east. That is the input the
-        // segment anchor-gate exists to judge, not a malformed plan: three of the five arms below
-        // expect a REJECT, and the reason they expect one is precisely this gap. Built through the
-        // named factory so the next reader (or scanner) sees the intent in the source instead of
-        // inferring it from a shape that a genuinely broken plan shares.
-        ScenePlan seg = ScenePlan.misanchoredSegment(
-                List.of(farNode, beyond, goalN),
-                List.of(new Move.Edge(farNode, 50, List.of(), List.of(), "walk"),
-                        new Move.Edge(beyond,  10, List.of(), List.of(), "walk"),
-                        new Move.Edge(goalN,   30, List.of(), List.of(), "walk")));
-        List<BlockPos> cont = seg.nodes();
-        List<Move.Edge> contEdges = seg.edges();
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", false);
-
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, waterFootY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        // Vacuity guards: the geometry must carry the dead-stop shape.
-        if (!w.isWater(foot) || !w.isWater(foot.below()))
-            ctx.fail("deepWaterFloatBeeline: foot " + foot + " is not buoyant deep water "
-                    + "(water at it AND below) — the float pin is vacuous.");
-        if (!w.isWater(farNode))
-            ctx.fail("deepWaterFloatBeeline: far node " + farNode + " is not a water cell "
-                    + "— the open-water bee-line target is vacuous.");
-        double d2 = farNode.distSqr(foot);
-        if (d2 < 64)
-            ctx.fail("deepWaterFloatBeeline: far node only d2=" + d2 + " from the foot — not a "
-                    + "long open-water crossing (need ≥ the 64 reject gate). Lengthen spanX.");
-
-        // (1) OFF: the far open-water continuation must be REJECTED (the live dead-stop root).
-        Harness.set("navigatorDeepWaterFloatBeeline", false);
-        Navigator wOff = new Navigator();
-        boolean acceptOff = wOff.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
-        if (acceptOff)
-            ctx.fail("deepWaterFloatBeeline: with the fix OFF the anchor-gate ACCEPTED the far "
-                    + "open-water continuation (d2=" + (int) d2 + ") — the mis-anchored reject (the live dead-stop root) did "
-                    + "not reproduce. Baseline broken.");
-
-        // (2) ON: the SAME continuation must be ACCEPTED and the step driven toward the far node.
-        Harness.set("navigatorDeepWaterFloatBeeline", true);
-        Navigator wOn = new Navigator();
-        boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
-                acceptOn, wOn.pathStep(), wOn.inspect().pathNode());
-        if (!acceptOn)
-            ctx.fail("deepWaterFloatBeeline: with navigatorDeepWaterFloatBeeline ON the anchor-gate "
-                    + "STILL rejected the clear-LOS open-water continuation — the bee-line exemption did not fire.");
-        BlockPos drive = wOn.inspect().pathNode();
-        if (drive == null || drive.getX() <= foot.getX())
-            ctx.fail("deepWaterFloatBeeline: after accepting, the step does not drive EAST toward "
-                    + "the far node (step node=" + drive + ", foot=" + foot + ") — the accepted segment must carry the bot "
-                    + "toward the far open-water node.");
-
-        // (2b) ON + SUNK foot: the live foot bobs UNDER the surface node (|Δy| up to 4), exceeding the jump bar.
-        BlockPos sunkFoot = new BlockPos(cx, waterFootY - 4, cz);
-        if (!w.isWater(sunkFoot) || Math.abs(farNode.getY() - sunkFoot.getY()) <= w.maxJumpUpBlocks() + 2)
-            ctx.fail("deepWaterFloatBeeline: the sunk-foot probe " + sunkFoot + " is not 4-below "
-                    + "submerged water past the jump gate — vacuous (|Δy|=" + Math.abs(farNode.getY() - sunkFoot.getY()) + ").");
-        Navigator wSunk = new Navigator();
-        boolean acceptSunk = wSunk.adoptForTest(w, cont, contEdges, sunkFoot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+SUNK accept={} (expect true: swim-up bee-line past the |Δy| jump gate)", acceptSunk);
-        if (!acceptSunk)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a SUNK foot (4 below the surface node, "
-                    + "the live deep-bob) was REJECTED — the exemption must bypass the |Δy| jump gate for an open-water swim-up "
-                    + "(else the reject storm survives the y58 bob ticks).");
-
-        // (3a) ON-INERT: a WALLED continuation (stone across the LOS line) must STILL be rejected.
-        BlockPos wallAt = new BlockPos(cx + 20, waterFootY, cz);          // a stone block mid-line
-        BlockPos wallHi = new BlockPos(cx + 20, waterFootY + 1, cz);
-        level.setBlockAndUpdate(wallAt, Blocks.STONE.defaultBlockState());
-        level.setBlockAndUpdate(wallHi, Blocks.STONE.defaultBlockState());
-        Navigator wWall = new Navigator();
-        boolean acceptWall = wWall.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+WALL accept={} (expect false: LOS blocked by stone)", acceptWall);
-        level.setBlockAndUpdate(wallAt, Blocks.WATER.defaultBlockState());   // restore the channel
-        level.setBlockAndUpdate(wallHi, Blocks.AIR.defaultBlockState());
-        if (acceptWall)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a WALLED continuation (stone across "
-                    + "the LOS) was ACCEPTED — the exemption must reject a non-open-water line (else it bee-lines through a wall).");
-
-        // (3b) ON-INERT: a DRY foot (not floating), far from every continuation node, must STILL reject.
-        BlockPos dryFoot = new BlockPos(cx + spanX + 12, surface + 1, cz);
-        for (int dz = -1; dz <= 1; dz++)
-            for (int dx = -1; dx <= 1; dx++) {
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface, cz + dz), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 1, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 2, cz + dz), Blocks.AIR.defaultBlockState());
-            }
-        Navigator wDry = new Navigator();
-        boolean acceptDry = wDry.adoptForTest(w, cont, contEdges, dryFoot);   // far continuation, dry foot
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+DRYFOOT accept={} (expect false: exemption needs a floating foot)", acceptDry);
-        if (acceptDry)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a continuation from a DRY foot was "
-                    + "ACCEPTED — the open-water bee-line exemption must be gated on a FLOATING foot.");
     }
 
     // ---- inlined helpers (faithful copies of the legacy AgentGameTestSupport helpers) ----
