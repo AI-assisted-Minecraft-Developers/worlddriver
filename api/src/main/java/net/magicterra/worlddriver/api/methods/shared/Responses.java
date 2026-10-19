@@ -1,17 +1,30 @@
 package net.magicterra.worlddriver.api.methods.shared;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.TsAlias;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 
 /**
  * What every method that starts a body task answers: {@code refused} when nothing started, or
@@ -23,6 +36,7 @@ public final class Responses {
     private Responses() {}
 
     /** Why a valid request started nothing. */
+    @Named("RefusalReason")
     public enum RefusalReason implements WireName {
         BOT_UNAVAILABLE("bot_unavailable"),
         UNSUPPORTED_CAPABILITY("unsupported_capability"),
@@ -41,6 +55,7 @@ public final class Responses {
      * With {@code bot_unavailable}: what stops the bot from acting, for a program to switch on. The bot's
      * layers spell these words themselves ({@code Readiness.Reason}), since they may not name the api.
      */
+    @Named("Unready")
     public enum Unready implements WireName {
         /** No world is open on the client, or it has no player. */
         NO_PLAYER("no_player"),
@@ -67,6 +82,7 @@ public final class Responses {
         }
     }
 
+    @Named("FailureReason")
     public enum FailureReason implements WireName {
         PROCESS_FAILED("process_failed");
 
@@ -75,6 +91,7 @@ public final class Responses {
         @Override public String wireName() { return wire; }
     }
 
+    @Named("CancelReason")
     public enum CancelReason implements WireName {
         /** {@code mc.bot.cancel}, or the script run that started it was stopped. */
         REQUESTED("requested"),
@@ -96,11 +113,18 @@ public final class Responses {
         default boolean terminal() { return !(this instanceof Running<R>); }
     }
 
-    public record Running<R>(String actionId, String bot) implements ActionSnapshot<R> {}
-    public record Succeeded<R>(String actionId, String bot, R result) implements ActionSnapshot<R> {}
-    public record Failed<R>(String actionId, String bot, FailureReason reason, String message) implements ActionSnapshot<R> {}
-    public record Cancelled<R>(String actionId, String bot, CancelReason reason) implements ActionSnapshot<R> {}
-    public record Superseded<R>(String actionId, String bot, String replacementActionId) implements ActionSnapshot<R> {}
+    @Variant("running")
+    public record Running<R>(@ActionId String actionId, @BotRef String bot) implements ActionSnapshot<R> {}
+    @Variant("succeeded")
+    public record Succeeded<R>(@ActionId String actionId, @BotRef String bot, R result) implements ActionSnapshot<R> {}
+    @Variant("failed")
+    public record Failed<R>(@ActionId String actionId, @BotRef String bot, FailureReason reason, String message)
+            implements ActionSnapshot<R> {}
+    @Variant("cancelled")
+    public record Cancelled<R>(@ActionId String actionId, @BotRef String bot, CancelReason reason) implements ActionSnapshot<R> {}
+    @Variant("superseded")
+    public record Superseded<R>(@ActionId String actionId, @BotRef String bot, @ActionId String replacementActionId)
+            implements ActionSnapshot<R> {}
 
     /**
      * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}),
@@ -116,8 +140,17 @@ public final class Responses {
     public sealed interface ImmediateResponse permits Refused, Held, Used, Attacked, Equipped, Stopped, Status, Rostered {}
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
-    public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
-    public record Refused<R>(RefusalReason reason, String message, Optional<Unready> unready)
+    @Variant("accepted")
+    public record Accepted<R>(
+            ActionSnapshot<R> action,
+            @Doc("True only when awaitMs ran out with the action still running.") boolean waitTimedOut)
+            implements ActionResponse<R> {}
+
+    @Variant("refused")
+    public record Refused<R>(
+            RefusalReason reason,
+            String message,
+            @Doc("With bot_unavailable: what stops the bot from acting now, when the driver can tell.") Optional<Unready> unready)
             implements ActionResponse<R>, ImmediateResponse {
         public Refused(RefusalReason reason, String message) { this(reason, message, Optional.empty()); }
     }
@@ -126,96 +159,112 @@ public final class Responses {
     // they are declared here; each family's contract still defines how its variant is written.
 
     /** {@code mc.bot.goto}'s {@code plan: 'score'} answer. */
-    public record Scored(int cells, List<GotoContracts.Segment> segments, double detourRatio,
-                         boolean sightBudgetExhausted, boolean snapshotTruncated)
+    @Variant("scored")
+    public record Scored(
+            @Range(min = 0) int cells,
+            List<GotoContracts.Segment> segments,
+            double detourRatio,
+            boolean sightBudgetExhausted,
+            boolean snapshotTruncated)
             implements ActionResponse<GotoContracts.Result> {}
 
     /** {@code mc.bot.lookAt}'s instant look: the body already faces this way. */
+    @Variant("done")
     public record Turned(double yaw, double pitch) implements ActionResponse<InteractContracts.Looked> {}
 
-    public record Held(String held) implements ImmediateResponse {}
+    @Variant("done")
+    public record Held(@Doc("The item now in the main hand.") @ResourceId String held) implements ImmediateResponse {}
 
-    public record Used(InteractContracts.Hand hand, InteractContracts.Interaction result, boolean consumed,
-                       InteractContracts.UsedOn on) implements ImmediateResponse {}
+    @Variant("done")
+    public record Used(
+            InteractContracts.Hand hand,
+            InteractContracts.Interaction result,
+            @Doc("The click did something.") boolean consumed,
+            InteractContracts.UsedOn on) implements ImmediateResponse {}
 
-    public record Attacked(int entityId, String type, boolean alive, double distance) implements ImmediateResponse {}
+    @Variant("done")
+    public record Attacked(
+            @EntityId int entityId,
+            @ResourceId String type,
+            boolean alive,
+            double distance) implements ImmediateResponse {}
 
-    public record Equipped(InteractContracts.Profile profile, List<String> equipped, InteractContracts.Loadout loadout,
-                           List<String> lowDurability, List<InteractContracts.ArmorSlot> missing)
+    @Variant("done")
+    public record Equipped(
+            InteractContracts.Profile profile,
+            @Doc("What it put on or took in hand.") @Length(max = 16) List<@ResourceId String> equipped,
+            InteractContracts.Loadout loadout,
+            @Doc("Worn or held items below the equipDurabilityThreshold setting.")
+            @Length(max = 16) List<@ResourceId String> lowDurability,
+            @Doc("Armour slots still empty.") @Length(max = 4) List<InteractContracts.ArmorSlot> missing)
             implements ImmediateResponse {}
 
     /**
      * {@code mc.bot.cancel}: {@code cancelled} is what was running and was stopped, empty when nothing matched.
      * {@code action}: the named action as it now stands, which is its earlier ending when it had already ended.
      */
-    public record Stopped(List<String> cancelled, Optional<ActionSnapshot<Object>> action) implements ImmediateResponse {}
+    @Variant("done")
+    public record Stopped(
+            @Length(max = 64) List<@Length(min = 1, max = 64) String> cancelled,
+            Optional<ActionSnapshot<Object>> action) implements ImmediateResponse {}
 
     /** {@code mc.bot.status}: {@code status} is the asked bot; absent when no bot was named and there is no client. */
-    public record Status(List<ControlContracts.BotSummary> bots, Optional<ControlContracts.BotStatus> status)
+    @Variant("done")
+    public record Status(
+            @Doc("The registered bots, server-side players and mobs; self is not among them.")
+            @Length(max = 256) List<ControlContracts.BotSummary> bots,
+            Optional<ControlContracts.BotStatus> status)
             implements ImmediateResponse {}
 
     /** {@code mc.bot.roster}: the bot spawned, adopted or removed. */
-    public record Rostered(String bot) implements ImmediateResponse {}
+    @Variant("done")
+    public record Rostered(@BotRef String bot) implements ImmediateResponse {}
 
     /** The bot ref of this client's own player, every bot parameter's default. */
     public static final String SELF = "self";
 
     /** {@code self}, {@code player:<name>}, {@code mob:<name>}, {@code npc:<name>} or {@code entity:<uuid>}. */
-    public static final ApiType<String> BOT_REF = ApiTypes.pattern(
-                    "self|(player|mob|npc):[^\\s:]+|entity:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
-                    "self, player:<name>, mob:<name>, npc:<name> or entity:<uuid>; a name has no whitespace or colon")
-            .maxLength(128)
-            .tsAlias("BotRef", "'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`")
-            .describe("self (this client's own player), player:<name>, mob:<name>, npc:<name>, or entity:<uuid>, which"
-                    + " takes over that mob on its first order.");
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "self|(player|mob|npc):[^\\s:]+|entity:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            expected = "self, player:<name>, mob:<name>, npc:<name> or entity:<uuid>; a name has no whitespace or colon")
+    @Length(max = 128)
+    @TsAlias(name = "BotRef", type = "'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`")
+    @Doc("self (this client's own player), player:<name>, mob:<name>, npc:<name>, or entity:<uuid>, which"
+            + " takes over that mob on its first order.")
+    public @interface BotRef {}
 
-    public static final ApiType<String> ACTION_ID = ApiTypes.string(1, 64)
-            .describe("Opaque; do not take it apart.");
+    public static final ApiType<String> BOT_REF = ApiTypes.of(String.class, BotRef.class);
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Length(min = 1, max = 64)
+    @Doc("Opaque; do not take it apart.")
+    public @interface ActionId {}
+
+    public static final ApiType<String> ACTION_ID = ApiTypes.of(String.class, ActionId.class);
 
     /** {@code awaitMs}: how long this call may wait for the action to end; 0 returns at once. */
-    public static final ApiType<Integer> AWAIT_MS = ApiTypes.integer(0, 600_000)
-            .describe("Wait at most this many ms for the action to end; 0 returns at once. The action keeps "
-                    + "running when the wait runs out.");
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Range(min = 0, max = 600_000)
+    @Doc("Wait at most this many ms for the action to end; 0 returns at once. The action keeps "
+            + "running when the wait runs out.")
+    public @interface AwaitMs {}
 
-    public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.enumOf("RefusalReason", RefusalReason.class);
-    public static final ApiType<Unready> UNREADY = ApiTypes.enumOf("Unready", Unready.class);
-    public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.enumOf("FailureReason", FailureReason.class);
-    public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.enumOf("CancelReason", CancelReason.class);
+    public static final ApiType<Integer> AWAIT_MS = ApiTypes.of(Integer.class, AwaitMs.class);
+
+    public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.of(RefusalReason.class);
+    public static final ApiType<Unready> UNREADY = ApiTypes.of(Unready.class);
+    public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.of(FailureReason.class);
+    public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.of(CancelReason.class);
 
     /** The snapshot union for actions whose result is {@code result}, declared to TypeScript as {@code <name>Action}. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <R> UnionType<ActionSnapshot<R>> snapshot(String name, ApiType<R> result) {
-        RecordType<Running<R>> running = ApiTypes.record(Running.class, null,
-                ApiField.field("actionId", ACTION_ID).required().forGetter(Running<R>::actionId),
-                ApiField.field("bot", BOT_REF).required().forGetter(Running<R>::bot),
-                Running::new);
-        RecordType<Succeeded<R>> succeeded = ApiTypes.record(Succeeded.class, null,
-                ApiField.field("actionId", ACTION_ID).required().forGetter(Succeeded<R>::actionId),
-                ApiField.field("bot", BOT_REF).required().forGetter(Succeeded<R>::bot),
-                ApiField.field("result", result).required().forGetter(Succeeded<R>::result),
-                Succeeded::new);
-        RecordType<Failed<R>> failed = ApiTypes.record(Failed.class, null,
-                ApiField.field("actionId", ACTION_ID).required().forGetter(Failed<R>::actionId),
-                ApiField.field("bot", BOT_REF).required().forGetter(Failed<R>::bot),
-                ApiField.field("reason", FAILURE_REASON).required().forGetter(Failed<R>::reason),
-                ApiField.field("message", ApiTypes.string()).required().forGetter(Failed<R>::message),
-                Failed::new);
-        RecordType<Cancelled<R>> cancelled = ApiTypes.record(Cancelled.class, null,
-                ApiField.field("actionId", ACTION_ID).required().forGetter(Cancelled<R>::actionId),
-                ApiField.field("bot", BOT_REF).required().forGetter(Cancelled<R>::bot),
-                ApiField.field("reason", CANCEL_REASON).required().forGetter(Cancelled<R>::reason),
-                Cancelled::new);
-        RecordType<Superseded<R>> superseded = ApiTypes.record(Superseded.class, null,
-                ApiField.field("actionId", ACTION_ID).required().forGetter(Superseded<R>::actionId),
-                ApiField.field("bot", BOT_REF).required().forGetter(Superseded<R>::bot),
-                ApiField.field("replacementActionId", ACTION_ID).required().forGetter(Superseded<R>::replacementActionId),
-                Superseded::new);
-        return ApiTypes.taggedUnion(name + "Action", "state",
-                (UnionType.Variant) ApiTypes.variant("running", (Class) Running.class, (RecordType) running),
-                (UnionType.Variant) ApiTypes.variant("succeeded", (Class) Succeeded.class, (RecordType) succeeded),
-                (UnionType.Variant) ApiTypes.variant("failed", (Class) Failed.class, (RecordType) failed),
-                (UnionType.Variant) ApiTypes.variant("cancelled", (Class) Cancelled.class, (RecordType) cancelled),
-                (UnionType.Variant) ApiTypes.variant("superseded", (Class) Superseded.class, (RecordType) superseded));
+        return ApiTypes.union(name + "Action", "state", (RecordType) ApiTypes.record(Running.class),
+                (RecordType) ApiTypes.record(Succeeded.class, Map.of("result", result)), (RecordType) ApiTypes.record(Failed.class),
+                (RecordType) ApiTypes.record(Cancelled.class), (RecordType) ApiTypes.record(Superseded.class));
     }
 
     /**
@@ -226,13 +275,7 @@ public final class Responses {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result,
                                                             UnionType.Variant<ActionResponse<R>, ?>... extra) {
-        UnionType<ActionSnapshot<R>> snap = snapshot(name, result);
-        RecordType<Accepted<R>> accepted = ApiTypes.record(Accepted.class, null,
-                ApiField.field("action", snap).required().forGetter(Accepted<R>::action),
-                ApiField.field("waitTimedOut", ApiTypes.bool())
-                        .describe("True only when awaitMs ran out with the action still running.")
-                        .required().forGetter(Accepted<R>::waitTimedOut),
-                Accepted::new);
+        RecordType accepted = ApiTypes.record(Accepted.class, Map.of("action", snapshot(name, result)));
         UnionType.Variant[] all = new UnionType.Variant[2 + extra.length];
         all[0] = ApiTypes.variant("accepted", (Class) Accepted.class, (RecordType) accepted);
         all[1] = ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused());
@@ -251,12 +294,6 @@ public final class Responses {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static RecordType<Refused<?>> refused() {
-        return (RecordType) ApiTypes.record((Class) Refused.class, null,
-                ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<?>::reason),
-                ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<?>::message),
-                ApiField.field("unready", UNREADY)
-                        .describe("With bot_unavailable: what stops the bot from acting now, when the driver can tell.")
-                        .optional().forGetter(Refused<?>::unready),
-                (RefusalReason r, String m, Optional<Unready> u) -> new Refused<>(r, m, u));
+        return (RecordType) ApiTypes.record(Refused.class);
     }
 }
