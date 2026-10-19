@@ -1,11 +1,4 @@
 # What testmod code still uses past api/ and protocol/; ArchitectureTest lets this list only shrink.
-bot/stagewright/ClientHelm -> bot/BotApi
-bot/stagewright/ClientHelm -> bot/BotHooks
-bot/stagewright/ClientHelm -> bot/behavior/BotProcess
-bot/stagewright/ClientHelm -> bot/behavior/Intent
-bot/stagewright/ClientHelm -> bot/behavior/IntentProcess
-bot/stagewright/ClientHelm -> bot/rules/Goal
-bot/stagewright/ClientHelm -> config/BotConfig
 bot/stagewright/LivingBody -> game/body/Body
 bot/stagewright/NpcBot -> bot/ActionTickets
 bot/stagewright/NpcBot -> bot/Bot
@@ -236,18 +229,10 @@ bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
-bot/stagewright/scene/WorldDriverClientAirScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/ClientWorldView
 bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/WorldView
 bot/stagewright/scene/WorldDriverClientParityScenes -> game/ui/ClientWorld
-bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverClientSchedulerScenes -> bot/behavior/SleepProcess
-bot/stagewright/scene/WorldDriverClientWaterScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder

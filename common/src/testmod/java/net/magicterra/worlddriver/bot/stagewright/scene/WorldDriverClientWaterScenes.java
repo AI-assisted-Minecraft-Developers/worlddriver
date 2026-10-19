@@ -7,8 +7,8 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -214,7 +214,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                     firstDryTick[0] = t;
                 maxDrift[0] = Math.max(maxDrift[0], Math.abs(body.getZ() - (start.getZ() + 0.5)));
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     ctx.record("progress", String.format(Locale.ROOT,
@@ -288,7 +288,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
                 maxSide[0] = Math.max(maxSide[0], Math.abs(body.getZ() - (goal.getZ() + 0.5)));
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, 2 * LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, 2 * LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     ctx.record("progress", String.format(Locale.ROOT,
@@ -376,7 +376,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 maxY[0] = Math.max(maxY[0], body.getY());
                 minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 // Judged once the bot has come to rest, and SAMPLED until then: a goto that ends on
                 // the last hop of a step-up is still in the air for a few ticks, the server's copy

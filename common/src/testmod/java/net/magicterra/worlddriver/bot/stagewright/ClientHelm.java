@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
@@ -11,14 +10,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -29,17 +20,18 @@ import net.minecraft.world.level.GameType;
 /**
  * A scene's handle on the client's REAL player: the player the integrated topology exists to test.
  *
- * <p>{@link SceneBody} creates headless bot players and refuses to on an integrated server; {@code JourneyRig}
+ * <p>{@link SceneBot} creates headless bot players and refuses to on an integrated server; {@code JourneyRig}
  * adopts the real player but only for the ladder. This is the third shape: an arena scene that stages
- * terrain, puts the real player in it, and drives it through the client's own user-task chain
- * ({@link BotApi#runProcess}) — so the navigator under test is the client navigator, on the client thread,
+ * terrain, puts the real player in it, and drives it through the {@code mc.bot.*} verbs naming
+ * {@link #SELF} — so the navigator under test is the client navigator, on the client thread,
  * with vanilla client physics and every reflex chain armed, which is the thing the headless scenes
  * cannot reach.
  *
- * <p>Everything here runs on the SERVER thread of an integrated server. Driving goes through
- * {@code runProcess}, which marshals and never blocks; readings come back through the world (the
- * {@link ServerPlayer} the client keeps sending movement packets for) and through
- * {@link BotApi#status()}, which reads volatiles. Nothing here waits on the client thread.
+ * <p>Everything here runs on the SERVER thread of an integrated server. self's calls hop to the client
+ * thread and answer later, so a walk is started and waited out through {@link Legs}; readings come back
+ * through the world (the {@link ServerPlayer} the client keeps sending movement packets for) and through
+ * {@code mc.bot.status}, asked again each time the last answer has landed. Nothing here waits on the
+ * client thread.
  *
  * <p>On any other topology the scene {@linkplain SceneContext#skip skips} and says so.
  */
@@ -47,17 +39,15 @@ public final class ClientHelm {
 
     private final SceneContext ctx;
     private final ServerPlayer player;
-    private final BotApi bot;
 
-    private ClientHelm(SceneContext ctx, ServerPlayer player, BotApi bot) {
+    private ClientHelm(SceneContext ctx, ServerPlayer player) {
         this.ctx = ctx;
         this.player = player;
-        this.bot = bot;
     }
 
     /**
      * Put the real player at {@code foot} (feet in the centre of that cell), in survival with an
-     * empty inventory, with {@link BotConfig} pinned to the baseline for the scene's duration.
+     * empty inventory, with the settings pinned to the test baseline for the scene's duration.
      *
      * <p>Skips unless this JVM is a client hosting its own world with the driver's client half
      * constructed and a person in the player list — the same three facts the ladder reads.
@@ -90,8 +80,6 @@ public final class ClientHelm {
         if (server.isPaused()) {
             ctx.fail("the game is paused (the pause menu is open, or the window lost focus) — close it, or run the client with -Dworlddriver.pauseOnLostFocus=false");
         }
-        BotApi bot = BotHooks.impl();
-
         Harness.pin(ctx);
 
         ServerLevel from = body.serverLevel();
@@ -111,7 +99,7 @@ public final class ClientHelm {
         body.teleportTo(ctx.level(), foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5,
                 java.util.Set.of(), yaw, 0f);
         ctx.record("helm.body", body.getGameProfile().getName() + " (real player), placed at " + foot.toShortString());
-        return new ClientHelm(ctx, body, bot);
+        return new ClientHelm(ctx, body);
     }
 
     /** The server's view of the adopted player. Position lags the client by a packet, never more. */
@@ -140,15 +128,26 @@ public final class ClientHelm {
         });
     }
 
-    /** {@link #leg} walking to {@code target}, whose foot cell is {@code goalFoot}. */
+    /**
+     * {@link #leg} walking to {@code target}, whose foot cell is {@code goalFoot}, with one more row: what the goto
+     * slot said about the ending — never a bare null.
+     */
     public void goTo(String tag, GotoContracts.Target target, BlockPos goalFoot, int ticks, Legs.Watcher watcher,
                      Consumer<Legs.End> then) {
         leg(tag, SceneBot.tasks().goTo(new GotoContracts.Params(SELF, Optional.of(target), false, Optional.empty(),
-                Optional.empty(), false, Optional.empty(), 0)), goalFoot, ticks, watcher, then);
+                Optional.empty(), false, Optional.empty(), 0)), goalFoot, ticks, watcher, end -> {
+            ctx.record(tag + ".slot", end.slot(ControlContracts.Slots::goTo).map(ClientHelm::slotEnding)
+                    .orElse("unavailable/no status landed"));
+            then.accept(end);
+        });
     }
 
-    /** The client half of the driver. */
-    public BotApi bot() { return bot; }
+    private static String slotEnding(ControlContracts.Slot s) {
+        return "end=" + s.endReason().orElse("unavailable/the walk was still moving when it was stopped "
+                        + "(endReason is written only on the terminal step)")
+                + " goalReached=" + s.goalReached().map(String::valueOf).orElse("unavailable")
+                + " err=" + s.lastError().orElse("none");
+    }
 
     /** Hotbar slots 0.. in order, slot 0 selected. */
     public void hold(ItemStack... stacks) {
@@ -183,42 +182,6 @@ public final class ClientHelm {
     /** Something that reads the player on every tick of a walk. */
     public interface TickWatcher extends Legs.Watcher {}
 
-    /**
-     * Run {@code process} on the client's user-task chain and continue when the chain lets go of it
-     * or {@code ticks} run out, whichever is first. One evidence row per walk: where the player
-     * stopped, how far from {@code goal} (when the walk has a point goal), and what the process said about
-     * its ending — never a bare null.
-     */
-    public void leg(String tag, BotProcess process, BlockPos goal, int ticks, TickWatcher watcher, Runnable then) {
-        Map<String, Object> started = bot.runProcess(process);
-        ctx.record(tag + ".started", String.valueOf(started));
-        final int[] waited = { 0 };
-        final boolean[] ended = { false };
-        ctx.await(() -> {
-            if (watcher != null) watcher.tick(waited[0]);
-            Map<String, Object> now = bot.userTaskLeg();
-            if (!Boolean.TRUE.equals(now.get("busy"))) {
-                ended[0] = true;
-                ctx.record(tag + ".chain", "busy=false kind=" + now.get("kind") + " error="
-                        + (now.get("error") == null ? "none" : now.get("error")) + ", at tick " + waited[0]);
-                return true;
-            }
-            return ++waited[0] >= ticks;
-        }).within(ticks + 100).then(() -> {
-            if (!ended[0]) {
-                ctx.record(tag + ".chain", "the process was still running when the " + ticks + "-tick budget ran out (busy=true)");
-                try { bot.runProcess(new HoldStill(1)); } catch (RuntimeException ignored) { }
-            }
-            ctx.record(tag + ".leg", where() + ", " + gap(goal) + "; " + slotEnding(process.kind()));
-            then.run();
-        });
-    }
-
-    /** {@link #leg} with an {@link IntentProcess} aimed at {@code goal}. */
-    public void goTo(String tag, Goal goal, BlockPos goalFoot, int ticks, TickWatcher watcher, Runnable then) {
-        leg(tag, new IntentProcess(new Intent(goal)), goalFoot, ticks, watcher, then);
-    }
-
     /** Where the player is, with the block under its feet, as one string. */
     public String where() {
         BlockPos at = player.blockPosition();
@@ -238,20 +201,4 @@ public final class ClientHelm {
         return Math.hypot(player.getX() - (cell.getX() + 0.5), player.getZ() - (cell.getZ() + 0.5));
     }
 
-    /** One slot of the client's {@link BotApi#status()}; empty when the slot does not exist. */
-    public Map<?, ?> slot(String name) {
-        Object s = bot.status().get(name);
-        return s instanceof Map<?, ?> m ? m : Map.of();
-    }
-
-    private String slotEnding(String slotName) {
-        Map<?, ?> s = slot(slotName);
-        Object end = s.get("endReason"), err = s.get("lastError"), reached = s.get("goalReached");
-        return "end=" + (end == null
-                        ? "unavailable/the process was still moving when it was stopped "
-                                + "(endReason is written only on the terminal step)"
-                        : end)
-                + " goalReached=" + (reached == null ? "unavailable" : reached)
-                + " err=" + (err == null ? "none" : err);
-    }
 }

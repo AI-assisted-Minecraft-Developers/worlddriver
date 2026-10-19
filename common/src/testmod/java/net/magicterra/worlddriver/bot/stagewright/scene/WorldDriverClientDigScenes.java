@@ -2,21 +2,29 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slot;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorParams;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorReading;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
  * Walks the client's REAL player has to dig its way through. What these measure that a surface
@@ -68,10 +76,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         Harness.set("autoBackfillBlock", "minecraft:cobblestone");
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, null, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, null, end -> {
                 double flat = helm.flatDistance(goal);
-                helm.sync(IDLE_TICKS, () -> {
-                    Map<?, ?> builder = helm.slot("builder");
+                helm.sync(IDLE_TICKS, () -> ask(ctx, "afterIdle.status", ControlApi.of(api()).status(StatusParams.self()), reply -> {
+                    Slot builder = reply instanceof Status s && s.status().isPresent() ? s.status().get().slots().builder() : null;
                     ctx.record("afterIdle", helm.where() + "; builder=" + builder);
                     ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: at the end of the goto the bot reached the far side of the room: horizontal distance %.2f", flat)).isTrue();
                     ctx.check(ctx.level().getBlockState(mouthFoot).is(Blocks.COBBLESTONE)
@@ -87,10 +95,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                             }
                     ctx.check(filled.length() == 0).as("C: no cell of the natural air room is filled, including the ones the bot walked through: filled ["
                             + filled.toString().trim() + "]").isTrue();
-                    ctx.check(!Boolean.TRUE.equals(builder.get("active")))
+                    ctx.check(builder != null && !builder.active())
                             .as("D: the backfill process has ended by the end of the idle window instead of alternating between filling and digging: builder.active="
-                                    + builder.get("active")).isTrue();
-                });
+                                    + (builder == null ? "unavailable/no status for self" : builder.active())).isTrue();
+                }));
             });
         });
     }
@@ -137,38 +145,27 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         Harness.set("navigatorOrbitBreaksAimLag", true);
         Harness.set("navigatorSurfaceSprintSwim", true);
         ServerPlayer body = helm.player();
-        final NavigatorTelemetry clientTel = NavigatorTelemetry.of(body.getUUID(), true);   // the client bot of this player
-        clientTel.lastStats = null;
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
             final int[] arrivedTick = { -1 };
             final int[] legTicks = { 0 };
-            final NavigatorTelemetry.PathStats[] seen = { null };
-            final int[] searches = { 0 };
-            final long[] expanded = { 0 };
-            final long[] ms = { 0 };
-            final long[] maxMs = { 0 };
+            final SearchTally searches = new SearchTally();
             ClientHelm.TickWatcher watch = t -> {
                 legTicks[0] = t;
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
-                NavigatorTelemetry.PathStats st = clientTel.lastStats;
-                if (st != null && st != seen[0]) {
-                    seen[0] = st;
-                    searches[0]++;
-                    expanded[0] += st.expanded();
-                    ms[0] += st.ms();
-                    maxMs[0] = Math.max(maxMs[0], st.ms());
-                }
+                searches.poll();
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("gotoEnd", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     int cobble = body.getInventory().countItem(Items.COBBLESTONE);
                     ctx.record("progress", String.format(Locale.ROOT, "reached the goal at tick %s, cobblestone mined %d",
                             arrivedTick[0] < 0 ? "never" : String.valueOf(arrivedTick[0]), cobble));
                     ctx.record("search", String.format(Locale.ROOT,
-                            "%d searches, %d nodes expanded in total, %d ms CPU, %.1f nodes/ms, longest single search %d ms",
-                            searches[0], expanded[0], ms[0], ms[0] == 0 ? 0.0 : expanded[0] / (double) ms[0], maxMs[0]));
+                            "%d searches (%d of them read), %d nodes expanded in the ones read, %d ms CPU, %.1f nodes/ms, "
+                                    + "longest single search read %d ms",
+                            searches.searches, searches.read, searches.expanded, searches.ms,
+                            searches.ms == 0 ? 0.0 : searches.expanded / (double) searches.ms, searches.maxMs));
                     ctx.record("end", helm.where());
                     double flat = helm.flatDistance(goal);
                     ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: the bot stops within 1.5 blocks of the goal cell: horizontal distance %.2f", flat)).isTrue();
@@ -180,6 +177,39 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                 });
             });
         });
+    }
+
+    /**
+     * The searches self's navigator makes during a walk, from {@code mc.debug.navigator} asked again each time the
+     * last reading has landed, a tick or two behind the client. Only the latest search of a reading is visible, so
+     * when two land between readings the count has both and the totals only the second: {@code read} says how many
+     * the totals cover.
+     */
+    private static final class SearchTally {
+        private CompletableFuture<NavigatorReading> inFlight;
+        /** The walk's navigator is a new one: polling starts once the goto was accepted, and it starts at none. */
+        private long seen;
+        int searches, read;
+        long expanded, ms, maxMs;
+
+        void poll() {
+            if (inFlight != null && !inFlight.isDone()) return;
+            if (inFlight != null && !inFlight.isCompletedExceptionally()) take(inFlight.join());
+            inFlight = DebugApi.of(api()).navigator(NavigatorParams.of(ClientHelm.SELF)).toCompletableFuture();
+        }
+
+        private void take(NavigatorReading r) {
+            Long n = r.counters().get("searches");
+            if (n == null || n <= seen) return;
+            searches += (int) (n - seen);
+            seen = n;
+            r.lastSearch().ifPresent(s -> {
+                read++;
+                expanded += s.expanded();
+                ms += s.ms();
+                maxMs = Math.max(maxMs, s.ms());
+            });
+        }
     }
 
     private static final int GROUND = 20;
