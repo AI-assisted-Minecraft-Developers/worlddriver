@@ -55,7 +55,3 @@ bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/arbitration/ProcessSchedu
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/behavior/BotState
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/world/WorldView
 bot/stagewright/scene/WorldDriverSurvivalScenes -> game/body/Body
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverThinFootingScenes -> game/body/ServerPlayerBody

@@ -11,14 +11,6 @@ import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-// The shore and rim drives tick the navigator for its guards, then re-impose the heading and the
-// impulse before the body steps. The api has no tick that stops short of the body step, so those
-// two drives stay on the internals until StageWright grows one.
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -796,10 +788,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>The drive is the rig's, not the pathfinder's</h2>
      *
-     * The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and the
-     * navigator is ticked only so that its guards run — they live in {@code Navigator#tick}'s single-exit
-     * wrapper, after every branch of {@code tickInner}. A goal is set because a null one NPEs in the
-     * stall detector, and it is overridden immediately; nothing here is a claim about A*. Sneak
+     * The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and its
+     * brain runs on a goto only so that the navigator's guards run — they live in {@code Navigator#tick}'s
+     * single-exit wrapper, after every branch of {@code tickInner}. Between the brain's half of the tick
+     * and the body's step the rig presses its own keys over the brain's; nothing here is a claim about A*. Sneak
      * travels on a different channel from the impulse, so a guard's pin survives the rig's drive and
      * is what the bot is actually stopped by.
      *
@@ -937,30 +929,22 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         double startZ = ctx.origin().getZ() + 1.5;
         int standY = ctx.rel(0, SHELF + 1, 0).getY();
-        ServerPlayerBody av = SceneBody.avatar(ctx, level,
-                ctx.origin().getX() + 0.5, standY, startZ);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, ctx.origin().getX() + 0.5, standY, startZ);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         aim(fp);
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         if (fp.getY() < standY - 0.5)
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
+        bot.goTo(Targets.block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
         double minY = fp.getY(), farZ = fp.getZ();
         boolean inLava = false;
         int pinned = 0, t = 0;
         for (; t < SHORE_TICKS; t++) {
-            navigator.tick(av, w);
-            aim(fp);
-            av.commandMove(0f, 1f);
-            av.commandJump(false);
-            if (av.dbgSneak()) pinned++;
-            av.step();
+            if (straightOn(bot, () -> aim(fp))) pinned++;
+            bot.step();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
             if (fp.isInLava()) { inLava = true; break; }
@@ -973,6 +957,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 blockUnder(level, fp), inLava ? ", submerged in lava" : "");
         ctx.record(arm + ".drive", "navigatorStrideFloorGuard=" + strideGuard + " → " + ended);
         return new Shore(t, farZ - startZ, minY, inLava, pinned, ended);
+    }
+
+    /**
+     * The brain half of the rig's tick: the brain runs (its guards included), then the heading, the forward
+     * impulse and the released jump are re-imposed over whatever it left. Sneak is left alone. Whether the brain
+     * held sneak; the caller steps the body.
+     */
+    private static boolean straightOn(SceneBot bot, Runnable aim) {
+        bot.think();
+        aim.run();
+        return bot.press(bot.keys().move(0, 1).jump(false)).shift();
     }
 
     private static String blockUnder(ServerLevel level, ServerPlayer fp) {
@@ -1271,7 +1266,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * Walk the rim once and report what the guard cost.
      *
      * <p>Same rig as the shore pair's {@link #drive}: the heading and the impulse are re-imposed
-     * after {@code navigator.tick} so the bot walks one straight diagonal whatever the navigator would
+     * after the brain's half of the tick so the bot walks one straight diagonal whatever the navigator would
      * rather do, and sneak is NOT re-imposed because sneak is the channel a guard pins on and the
      * thing being measured. The goal is level and well up the deck — nothing here is a claim about
      * A*, and a goal BELOW the foot would hand the guard its planned-descent exemption and measure
@@ -1283,33 +1278,26 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         double startX = ctx.origin().getX() + 1.5, startZ = ctx.origin().getZ() + 0.5;
         int standY = ctx.rel(0, RIM_DECK + 1, 0).getY();
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, startX, standY, startZ);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, startX, standY, startZ);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         aimRim(fp);
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         if (fp.getY() < standY - 0.5)
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
+        bot.goTo(Targets.block(ctx.rel(0, RIM_DECK + 1, 18)));
         double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
         boolean inLava = false;
         int pinned = 0, run = 0, longest = 0, t = 0;
         for (; t < RIM_TICKS; t++) {
-            navigator.tick(av, w);
-            aimRim(fp);
-            av.commandMove(0f, 1f);
-            av.commandJump(false);
-            if (av.dbgSneak()) {
+            if (straightOn(bot, () -> aimRim(fp))) {
                 pinned++;
                 longest = Math.max(longest, ++run);
                 if (Double.isNaN(pinZ)) pinZ = fp.getZ();
             } else run = 0;
-            av.step();
+            bot.step();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
             if (!Double.isNaN(pinZ)) farAfterPin = Math.max(farAfterPin, fp.getZ() - pinZ);
