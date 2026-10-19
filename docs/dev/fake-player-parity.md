@@ -32,9 +32,7 @@ enough to count separately. Class paths below are relative to
 |---|---|---|---|
 | Client player | `game/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
 | Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayers.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
-| Adopted player | `game/body/ServerPlayerBody.java` over a client's own `ServerPlayer` | the server-side half of a connected player | yes |
-| Mob | `game/body/MobBody.java` | any vanilla `Mob`, taken over | no — it is not a player |
-| Test mob | `bot/stagewright/LivingBody.java` (test sources) | a `DrivenPiglin`, a mob | no — it is not a player |
+| Mob | `game/body/MobBody.java` | any vanilla `Mob`, taken over — the testmod's `DrivenPiglin` too | no — it is not a player |
 
 **The client player** writes the player's own `AvatarInput` rather than the shared
 keybinds, so a process cannot clobber keys a person is holding. Everything else it does is
@@ -50,13 +48,14 @@ that awards advancements, and fired the loader's login event on the way in. A bo
 driver does not step stands still — `JoinedBody.tick()` only records that the level's
 entity loop came, and `JoinedBody.pump` does the work.
 
-**The adopted bot** is the same `ServerPlayerBody` wrapped around a `ServerPlayer` that a
-person's client is already driving, which the integrated-server topology does through
-`JourneyRig`. It is the only arrangement whose connection reaches a live client, so every
-assumption of the form "this bot's connection discards whatever is sent through it" is
-false on it.
-`ServerPlayerBody.step()` refuses to pump such a bot with an `IllegalStateException`: its
-own connection already ticks it, and pumping would tick it twice.
+**A connected player is never wrapped in a `ServerPlayerBody`.** On the integrated server the
+journey ladder drives the person's own player as `self`, through the client player, and every
+server-side write to it goes through what the client sends. The wrapper used to be built around
+such a player (the "adopted bot"); it was the only arrangement whose connection reached a live
+client, so every assumption of the form "this bot's connection discards whatever is sent
+through it" was false on it, and `wd.actuatorSplitOnAnAdoptedBody` still measures what its
+writes did. `ServerPlayerBody.step()` still refuses to pump such a player with an
+`IllegalStateException`: its own connection already ticks it, and pumping would tick it twice.
 
 **How a bot is addressed.** Every `mc.bot.*` verb takes an optional `bot` parameter.
 Absent, blank or `self` routes the call to the client's own `BotApi`, exactly as before the
@@ -87,13 +86,13 @@ player is describing what was replaced.
 ## Which bot a scene runs on
 
 The rule divides by *topology*, not by what a scene is testing, and it is enforced in one
-place: `SceneBody` in the test sources, which every scene goes through to obtain a bot.
+place: `SceneBot` in the test sources, which every scene goes through to obtain a bot.
 
 - **Dedicated server.** Headless joined players. There is no client, so there is nothing
   else to drive.
 - **Integrated server with the client half of the driver in the same process.** The
   client's own player, or the scene skips and records where its coverage lives. Minting a
-  headless player beside a person's player is neither, and `SceneBody` refuses it.
+  headless player beside a person's player is neither, and `SceneBot` refuses it.
 - **Dedicated server with a separate client process.** Headless joined players again. The
   client is in the other process and a running process object cannot cross a socket.
 - **Mob bots are legal on every topology.** The rule is about headless *player* bots on
@@ -156,8 +155,8 @@ sends it nothing (`wd.serverBotJoinsPastModdedPayload`).
 
 ## The boundary table
 
-In the tables, *a driven bot* means the server-side player: the joined player, or the adopted
-one where a row says so. The client player is named explicitly wherever it behaves
+In the tables, *a driven bot* means the server-side player: the joined player, or the formerly
+adopted one where a row says so. The client player is named explicitly wherever it behaves
 differently, and the mob has a group of its own at the end.
 
 A status established from a scene result was established under the scene baseline, which is
@@ -288,7 +287,7 @@ tick echoes the value back; an echo already in flight when a second write happen
 the older value and rolls the hand back to it. The window is bounded by one round trip, and
 publishing an unchanged value would open it for nothing.
 
-Publishing at all was added because of the adopted bot. Both halves of the split hold
+Publishing at all was added because of the formerly adopted bot. Both halves of the split hold
 their own copy of the selected slot and both read their own: the driver's "is it already
 held?" fast path and vanilla's client-side "was this slot already sent?" check each consult
 the copy they wrote, so a divergence cannot heal itself. The scene that measures it

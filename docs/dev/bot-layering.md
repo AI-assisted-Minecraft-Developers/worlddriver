@@ -234,8 +234,7 @@ and the body implements no optional capability.
 
 A `Bot` is a body and the stack that drives it, addressed by name. `ServerBot` holds the
 `BotBrain` and task bookkeeping every server bot shares; `PlayerBot` extends it over a joined
-server player and `MobBot` over a `MobBody`, and in the test content `NpcBot` drives the
-testmod's piglin. `BotTicker`
+server player and `MobBot` over a `MobBody`, which also drives the testmod's piglin. `BotTicker`
 advances every registered bot once per server tick. A bot whose task has ended stays on the
 list, idle, so its reflexes keep running; it leaves when it is unregistered, when its entity is
 removed, or when its tick throws. `BotTicker.activeCount()` counts only the bots on a task.

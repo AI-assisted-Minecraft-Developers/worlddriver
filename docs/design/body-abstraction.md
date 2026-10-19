@@ -2,9 +2,10 @@
 
 > This design has been implemented. `Body` is in `game/body/` and its registry in
 > `bot/`, the two shipped implementations are `ClientPlayerBody` and
-> `ServerPlayerBody`, the testmod adds `LivingBody` and a driveable piglin, and the
-> `mc.bot.*` verbs that drive a bot accept a `bot` parameter (called `body` until 2026-10-16).
-> Since 2026-10-16 a third shipped implementation, `MobBody`, drives any unmodified vanilla mob.
+> `ServerPlayerBody`, and the `mc.bot.*` verbs that drive a bot accept a `bot` parameter (called
+> `body` until 2026-10-16). Since 2026-10-16 a third shipped implementation, `MobBody`, drives any
+> unmodified vanilla mob; the testmod's driveable piglin, which had a test-only `LivingBody`, is
+> now driven by it too.
 
 ## The problem
 
@@ -103,7 +104,7 @@ instead.
 
 ### The third bot is a mob, and it is not a second pathfinder
 
-`LivingBody` drives any `LivingEntity`, and the testmod supplies the first one: a piglin subclass.
+The first mob body was the testmod's `LivingBody`, driving a piglin subclass; `MobBody` replaced it.
 The claim that players use input fields while mobs use navigation is a false dichotomy —
 `MoveControl` ultimately writes the same forward impulse — so a mob's downstream is identical to
 a player's. The only extra question is who controls the mob's movement this tick, and that is an
@@ -222,7 +223,7 @@ shim is a failed scene, not a caught null.
   how hand operations are performed for a non-client player.
 - `bot/VerbOrders.java` — the shared parameter parsing.
 - `game/body/MobBody.java` and `bot/MobBot.java` — a vanilla mob, taken over and handed back.
-- `common/src/testmod/java/.../stagewright/LivingBody.java` and
-  `.../testcontent/DrivenPiglin.java` — the test mob.
+- `common/src/testmod/java/.../testcontent/DrivenPiglin.java` — the test mob, taken over with
+  `mc.bot.roster adopt` like any other.
 - `docs/dev/fake-player-parity.md` — the measured differences between the kinds of bot.
 - `docs/design/world-view-parity.md` — the matching story for what each bot's world view believes.
