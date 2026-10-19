@@ -3337,6 +3337,8 @@ interface DebugCell {
     valuable: boolean;
     /** The block's item is filler the bot spends first. */
     throwaway: boolean;
+    /** A head in this cell suffocates. */
+    suffocates: boolean;
 }
 interface NodeFacts { fitStand: boolean; fitCrouch: boolean; fitCrawl: boolean; ceilingForces: string; inWaterFoot: boolean; submergedEye: boolean; underfootSolid: boolean; footHazard: string; fallFromPrev: number; fallSurvivable: boolean; jumpNeeded: boolean; jumpFeasible: boolean; }
 interface CellsReading { view: string; dimension: string; cells: DebugCell[]; node?: NodeFacts; }

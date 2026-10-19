@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.cells` says whether a head in the cell suffocates.** Each cell also answers
+  `suffocates`, the test the anti-suffocation reflex uses to pick the block it breaks: true for an
+  ordinary solid block, false for water and air.
 - **Code in the same game can run a directory of scripts and read their checks.**
   `WorldDriver.scripts().run(dir)` runs each script once through a fresh script engine bound to the
   live RPC and MCP servers, as user scripts are, and answers every check their `Test` helper made:

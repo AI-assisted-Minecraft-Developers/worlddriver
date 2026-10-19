@@ -32,6 +32,7 @@ import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.Navigating;
+import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
 import net.magicterra.worlddriver.bot.control.ExpectAlarms;
 import net.magicterra.worlddriver.bot.control.MovementContext;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -189,7 +190,8 @@ final class BotReadings {
             cells.add(new Cell(c, view.isKnown(b), view.isSolid(b), view.isPassable(b), view.isHazard(b), view.isWater(b),
                     view.isClimbable(b), view.isLeaves(b), view.isFallingBlock(b), view.isBreakableObstruction(b),
                     view.canStandOn(b), view.canStandAt(b), BuildBlocks.isUsableBuildBlock(block),
-                    BuildBlocks.isValuablePlacementBlock(block), BuildBlocks.isThrowawaySupportBlock(new ItemStack(block.asItem()))));
+                    BuildBlocks.isValuablePlacementBlock(block), BuildBlocks.isThrowawaySupportBlock(new ItemStack(block.asItem())),
+                    AntiSuffocateGate.suffocates(level, b)));
         }
         Optional<NodeFacts> node = p.node().map(q -> node(level, q));
         return new CellsReading(whose, level.dimension().location().toString(), cells, node);
