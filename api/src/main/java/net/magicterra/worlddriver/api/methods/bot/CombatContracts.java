@@ -3,16 +3,25 @@ package net.magicterra.worlddriver.api.methods.bot;
 import java.util.Locale;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.AwaitMs;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * {@code mc.bot.combat}: fight. On {@code self} the fight belongs to the combat reflex chain, which a
@@ -22,6 +31,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
 public final class CombatContracts {
     private CombatContracts() {}
 
+    @Named("CombatMode")
     public enum Mode implements WireName {
         /** Clear every hostile in range. */
         ENGAGE,
@@ -32,49 +42,43 @@ public final class CombatContracts {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
+    @Tag("kind") @Named("CombatTarget")
     public sealed interface Foe permits FoeEntity, FoeType {}
-    public record FoeEntity(int entityId) implements Foe {}
+    @Variant("entity")
+    public record FoeEntity(@EntityId int entityId) implements Foe {}
     /** The nearest entity of this type. */
-    public record FoeType(String type) implements Foe {}
+    @Variant("entityType")
+    public record FoeType(@ResourceId String type) implements Foe {}
 
-    public record Params(String bot, Mode mode, Optional<Foe> target, boolean force, int awaitMs) {}
+    @Named("CombatParams")
+    public record Params(
+            @Default("self") @BotRef String bot,
+            @Default("engage") Mode mode,
+            @Doc("kill only, and required there.") Optional<Foe> target,
+            @Doc("Fight even at or below the combatFrailThreshold health, which otherwise fails the action before a "
+                    + "swing. self only: no other bot has that gate.") @Default("false")
+            boolean force,
+            @Default("0") @AwaitMs int awaitMs) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (mode == Mode.KILL && target.isEmpty()) {
+                at.field("target").fail(ApiIssue.Code.REQUIRED, "kill needs a target");
+            }
+            if (mode != Mode.KILL && target.isPresent()) {
+                at.field("target").fail(ApiIssue.Code.INVALID_VALUE, mode.wireName() + " picks its own targets");
+            }
+        }
+    }
 
+    @Variant("combat")
     public record Fought(Mode mode, Optional<Foe> target) {}
 
-    public static final ApiType<Mode> MODE = ApiTypes.enumOf("CombatMode", Mode.class);
+    public static final ApiType<Mode> MODE = ApiTypes.of(Mode.class);
 
-    public static final UnionType<Foe> FOE = ApiTypes.taggedUnion("CombatTarget", "kind",
-            ApiTypes.variant("entity", FoeEntity.class, ApiTypes.record(FoeEntity.class, null,
-                    ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(FoeEntity::entityId),
-                    FoeEntity::new)),
-            ApiTypes.variant("entityType", FoeType.class, ApiTypes.record(FoeType.class, null,
-                    ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(FoeType::type),
-                    FoeType::new)));
+    public static final UnionType<Foe> FOE = ApiTypes.union(Foe.class);
 
-    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class, "CombatParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
-            ApiField.field("mode", MODE).defaulted(Mode.ENGAGE).forGetter(Params::mode),
-            ApiField.field("target", FOE).describe("kill only, and required there.").optional().forGetter(Params::target),
-            ApiField.field("force", ApiTypes.bool())
-                    .describe("Fight even at or below the combatFrailThreshold health, which otherwise fails the action "
-                            + "before a swing. self only: no other bot has that gate.")
-                    .defaulted(false).forGetter(Params::force),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(Params::awaitMs),
-            Params::new)
-            .checked((p, at) -> {
-                if (p.mode() == Mode.KILL && p.target().isEmpty()) {
-                    at.field("target").fail(ApiIssue.Code.REQUIRED, "kill needs a target");
-                }
-                if (p.mode() != Mode.KILL && p.target().isPresent()) {
-                    at.field("target").fail(ApiIssue.Code.INVALID_VALUE, p.mode().wireName() + " picks its own targets");
-                }
-            });
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
 
-    public static final UnionType<Fought> RESULT = ApiTypes.taggedUnion("CombatResult", "kind",
-            ApiTypes.variant("combat", Fought.class, ApiTypes.record(Fought.class, null,
-                    ApiField.field("mode", MODE).required().forGetter(Fought::mode),
-                    ApiField.field("target", FOE).optional().forGetter(Fought::target),
-                    Fought::new)));
+    public static final UnionType<Fought> RESULT = ApiTypes.union("CombatResult", "kind", ApiTypes.record(Fought.class));
 
     public static final MethodSpec<Params, ActionResponse<Fought>> SPEC = MethodSpec.of("mc.bot.combat", PARAMS,
                     Responses.response("Combat", RESULT),
