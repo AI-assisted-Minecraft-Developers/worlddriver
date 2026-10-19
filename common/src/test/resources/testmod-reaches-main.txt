@@ -218,10 +218,6 @@ bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/ClientWorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/WorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> game/ui/ClientWorld
 bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
