@@ -248,6 +248,12 @@ final class Reflected {
     // ------------------------------------------------------------------ type uses
 
     private static ApiType<?> resolve(AnnotatedType at, Constraints c, String where) {
+        // @As names the whole type, so it may stand on a generic one no annotation could describe.
+        As as = c.take(As.class);
+        if (as != null) {
+            c.done(where);
+            return constant(as, where);
+        }
         Type t = at.getType();
         if (t instanceof ParameterizedType p) return container(at, (Class<?>) p.getRawType(), c, where);
         if (t instanceof Class<?> cls) return resolve(cls, c, where);
@@ -256,11 +262,6 @@ final class Reflected {
     }
 
     private static ApiType<?> resolve(Class<?> cls, Constraints c, String where) {
-        As as = c.take(As.class);
-        if (as != null) {
-            c.done(where);
-            return constant(as, where);
-        }
         if (cls.isRecord() || cls.isEnum() || cls.isInterface()) {
             c.done(where);
             if (c.doc != null) throw new IllegalArgumentException(where + ": describe " + cls.getSimpleName() + " with @Doc on its declaration");
