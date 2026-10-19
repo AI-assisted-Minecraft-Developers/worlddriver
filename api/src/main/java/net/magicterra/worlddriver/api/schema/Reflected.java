@@ -63,6 +63,13 @@ final class Reflected {
         return (ApiType<T>) resolve(type, Constraints.NONE, type.getSimpleName());
     }
 
+    /** {@code type} under the constraint annotation {@code constraint}, as a component written {@code @Constraint T} reads it. */
+    @SuppressWarnings("unchecked")
+    static <T> ApiType<T> of(Class<T> type, Class<? extends Annotation> constraint) {
+        String where = "@" + constraint.getSimpleName() + " " + type.getSimpleName();
+        return (ApiType<T>) resolve(type, Constraints.ofDeclaration(constraint, where), where);
+    }
+
     @SuppressWarnings("unchecked")
     static <R> RecordType<R> record(Class<R> type) {
         return (RecordType<R>) cached(type, () -> buildRecord(type, Map.of()));
@@ -261,7 +268,10 @@ final class Reflected {
             if (cls.isEnum()) return cached(cls, () -> buildEnum(cls));
             return union(cls);
         }
-        return cached(List.of(cls, c.list, String.valueOf(c.doc)), () -> {
+        // int and Integer are one wire type: a constant built from the boxed class is the field's own object.
+        Class<?> boxed = cls == int.class ? Integer.class : cls == long.class ? Long.class : cls == double.class ? Double.class
+                : cls == boolean.class ? Boolean.class : cls;
+        return cached(List.of(boxed, c.list, String.valueOf(c.doc)), () -> {
             ApiType<?> scalar = scalar(cls, c, where);
             c.done(where);
             if (c.doc != null) scalar.describe(c.doc);
@@ -395,21 +405,37 @@ final class Reflected {
             List<Annotation> out = new ArrayList<>();
             String[] doc = {null};
             for (Annotation a : direct) expand(a, out, doc, where, 0);
+            return checked(out, doc[0], where);
+        }
+
+        /** What a use of the annotation {@code kind} would carry. */
+        static Constraints ofDeclaration(Class<? extends Annotation> kind, String where) {
+            List<Annotation> out = new ArrayList<>();
+            String[] doc = {null};
+            expandDeclaration(kind, out, doc, where, 0);
+            return checked(out, doc[0], where);
+        }
+
+        private static Constraints checked(List<Annotation> out, String doc, String where) {
             Set<Class<? extends Annotation>> kinds = new HashSet<>();
             for (Annotation a : out) {
                 if (!kinds.add(a.annotationType())) {
                     throw new IllegalArgumentException(where + ": two @" + a.annotationType().getSimpleName());
                 }
             }
-            return out.isEmpty() && doc[0] == null ? NONE : new Constraints(List.copyOf(out), doc[0]);
+            return out.isEmpty() && doc == null ? NONE : new Constraints(List.copyOf(out), doc);
         }
 
         private static void expand(Annotation a, List<Annotation> out, String[] doc, String where, int depth) {
-            Class<? extends Annotation> kind = a.annotationType();
-            if (CONSTRAINTS.contains(kind)) {
+            if (CONSTRAINTS.contains(a.annotationType())) {
                 out.add(a);
                 return;
             }
+            expandDeclaration(a.annotationType(), out, doc, where, depth);
+        }
+
+        private static void expandDeclaration(Class<? extends Annotation> kind, List<Annotation> out, String[] doc,
+                                              String where, int depth) {
             if (depth > 4 || kind.getName().startsWith("java.")) return;
             Doc d = kind.getAnnotation(Doc.class);
             if (d != null) {

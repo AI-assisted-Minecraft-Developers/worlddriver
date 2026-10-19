@@ -178,6 +178,14 @@ class ReflectedTypesTest {
     }
 
     @Test
+    void aConstantReadOffAConstraintIsTheFieldsOwnType() {
+        ApiType<Integer> near = ApiTypes.of(Integer.class, Near.class);
+        assertSame(near, ApiTypes.record(Walk.class).fields().get(1).type(), "an int field and an Integer constant share one type");
+        assertEquals("Accept any cell within this radius; 0 is exact.", near.description());
+        assertSame(ApiTypes.of(String.class, Id.class), ApiTypes.record(Mob.class).fields().get(0).type());
+    }
+
+    @Test
     void anAsComponentUsesTheNamedConstant() {
         assertEquals("{\"type\":\"object\",\"properties\":{\"word\":{\"description\":\"Upper case.\",\"type\":\"string\","
                 + "\"minLength\":1,\"maxLength\":5}},\"required\":[\"word\"],\"additionalProperties\":false}",

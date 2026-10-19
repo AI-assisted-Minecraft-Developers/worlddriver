@@ -184,6 +184,15 @@ public final class ApiTypes {
         return Reflected.of(type);
     }
 
+    /**
+     * The scalar {@code type} under the constraint annotation {@code constraint} (one whose declaration carries
+     * {@code @Range}, {@code @Pattern}, {@code @Doc}…): the same object a component written {@code @Constraint T}
+     * gets, for code that needs the type itself.
+     */
+    public static <T> ApiType<T> of(Class<T> type, Class<? extends java.lang.annotation.Annotation> constraint) {
+        return Reflected.of(type, constraint);
+    }
+
     /** {@link #of} for a record, typed as the record type it is. */
     public static <R extends Record> RecordType<R> record(Class<R> type) {
         return Reflected.record(type);
