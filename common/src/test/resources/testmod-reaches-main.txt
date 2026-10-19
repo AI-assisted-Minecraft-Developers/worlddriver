@@ -4,12 +4,6 @@ bot/stagewright/SceneBody -> bot/BotTicker
 bot/stagewright/SceneBody -> bot/PlayerBot
 bot/stagewright/SceneBody -> game/body/JoinedPlayers
 bot/stagewright/SceneBody -> game/body/ServerPlayerBody
-bot/stagewright/journey/JourneyCrossingScenes -> bot/control/Navigator
-bot/stagewright/journey/JourneyCrossingScenes -> bot/control/NavigatorGeometry
-bot/stagewright/journey/JourneyCrossingScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/journey/JourneyCrossingScenes -> bot/rules/Goal
-bot/stagewright/journey/JourneyCrossingScenes -> bot/world/LevelWorldView
-bot/stagewright/journey/JourneyCrossingScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientDriverApi
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientHooks
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> bot/BotHooks

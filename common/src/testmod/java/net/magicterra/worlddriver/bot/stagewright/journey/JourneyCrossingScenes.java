@@ -3,17 +3,13 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -56,7 +52,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p>{@code onGround} was indeed a tick stale — vanilla's own sweep disagreed with it. But nothing
  * in the navigator steers on that flag: {@link Safety#footingGuard} and {@link Safety#strideFloorGuard}
- * both open on {@link NavigatorGeometry#soleOnSolid}, which read {@code 0.0000} on the same tick, and
+ * both open on {@code NavigatorGeometry.soleOnSolid}, which read {@code 0.0000} on the same tick, and
  * both were silent for the reason the row spells out — <b>the drops were 4 and 8 blocks</b>, against
  * a lethal line of {@code survivableFall(20) = 22}. Teaching them to refuse those strides is not a
  * fix, it is the failure {@code wd.serverWalksOffASurvivableLedge} was committed to catch: a guard
@@ -172,8 +168,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 + " navigator guards should stay silent in this arena by their own rules, not because"
                 + " a switch turned them off");
 
-        ServerPlayerBody av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
-        ServerPlayer fp = av.fakePlayer();
+        SceneBot av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
+        ServerPlayer fp = av.player();
         Walk walk = walkOffTheLip(ctx, av);
         ctx.record("walk", walk.line());
         if (!walk.leftTheGround())
@@ -238,8 +234,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
         // No idle settle: every tick of one is a tick of this arm's own fall, and twenty of them
         // spent 14 of the 39 blocks before the allowance ever started (measured — the first run of
         // this arm landed on allowance tick 16 and read as a broken premise).
-        ServerPlayerBody av = spawn(ctx, ctx.originZ() + 12.5, DEEP_START, false);
-        ServerPlayer fp = av.fakePlayer();
+        SceneBot av = spawn(ctx, ctx.originZ() + 12.5, DEEP_START, false);
+        ServerPlayer fp = av.player();
         int t = 0;
         while (t < 20 && !JourneyNetherRungs.stillFalling(fp)) { step(av); t++; }
         ctx.record("fall.began", "counted as \"falling\" only " + t + " ticks after release; "
@@ -378,40 +374,34 @@ public final class JourneyCrossingScenes implements SceneProvider {
         stageTrench(ctx);
         ServerLevel level = ctx.level();
         int standY = ctx.rel(0, TRENCH_DECK + 1, 0).getY();
-        ServerPlayerBody av = SceneBody.avatar(ctx, level,
-                ctx.originX() + TRENCH_EDGE + 0.5, standY, ctx.originZ() + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
+        SceneBot av = SceneBot.spawn(ctx, level, ctx.originX() + TRENCH_EDGE + 0.5, standY, ctx.originZ() + 1.5);
+        ServerPlayer fp = av.player();
         fp.getInventory().clearContent();
         // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the bot
         // also travels along +z — the heading the ladder's own rim pins were all measured on.
-        fp.setYRot(travelling ? RIM_LEAN : 90f);
-        fp.yHeadRot = fp.getYRot();
-        fp.yBodyRot = fp.getYRot();
-        for (int i = 0; i < SETTLE_TICKS; i++) step(av);
-
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
-        NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        int before = tel.guardForcedRepaths;
-        double z0 = fp.getZ();
-        int pinned = 0, t = 0;
-        for (; t < PIN_TICKS; t++) {
-            navigator.tick(av, w);
+        Runnable face = () -> {
             fp.setYRot(travelling ? RIM_LEAN : 90f);
             fp.yHeadRot = fp.getYRot();
             fp.yBodyRot = fp.getYRot();
-            av.commandMove(0f, 1f);
-            av.commandJump(false);
-            if (av.dbgSneak()) pinned++;
+        };
+        face.run();
+        for (int i = 0; i < SETTLE_TICKS; i++) step(av);
+
+        av.goTo(Targets.block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
+        long before = av.navigator().counter("guardForcedRepaths");
+        double z0 = fp.getZ();
+        int pinned = 0, t = 0;
+        long repaths = 0;
+        for (; t < PIN_TICKS; t++) {
+            if (straightOn(av, face)) pinned++;
             av.step();
-            if (tel.guardForcedRepaths - before >= 2) break;   // two is enough to read the line
+            repaths = av.navigator().counter("guardForcedRepaths") - before;
+            if (repaths >= 2) break;   // two is enough to read the line
         }
-        int repaths = tel.guardForcedRepaths - before;
-        int cells = cellsIn(tel.lastGuardRepath);
-        ctx.record(arm + ".lastLine", repaths == 0 ? "(no forced repath)" : tel.lastGuardRepath);
-        return new Pin(t, repaths, cells, pinned, Math.abs(fp.getZ() - z0));
+        String line = av.navigator().traces().getOrDefault("lastGuardRepath", "");
+        int cells = cellsIn(line);
+        ctx.record(arm + ".lastLine", repaths == 0 ? "(no forced repath)" : line);
+        return new Pin(t, (int) repaths, cells, pinned, Math.abs(fp.getZ() - z0));
     }
 
     /**
@@ -528,7 +518,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * it is a measurement rather than an assertion of intent: if the two situations do not produce
      * those same three readings, this arena has not reproduced the ambiguity and the arm fails as
      * THE RIG instead of reporting that the new clause separated them. What must then separate them
-     * is the sole, printed through {@link NavigatorGeometry#soleRow}, which is this repository's single
+     * is the sole, printed through {@code NavigatorGeometry.soleRow} (read through {@code mc.debug.body}), which is this repository's single
      * definition of "which cell the player entity is standing on", not a fourth opinion invented
      * here.
      *
@@ -552,18 +542,16 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         // A: a bot cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
         // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
-        ServerPlayerBody perch = SceneBody.avatar(ctx, ctx.level(),
+        SceneBot perch = SceneBot.spawn(ctx, ctx.level(),
                 ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
-        ServerPlayer pf = perch.fakePlayer();
-        ctx.cleanup(pf::discard);
+        ServerPlayer pf = perch.player();
         pf.getInventory().clearContent();
         aim(pf);
         for (int i = 0; i < SETTLE_TICKS; i++) step(perch);
-        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition(), sole(ctx, pf));
+        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition(), sole(perch));
         ctx.record("perch.row", rowPerch);
-        ctx.record("perch.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
-                NavigatorGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
-                pf.getX(), pf.getY(), pf.getZ()));
+        ctx.record("perch.sole", String.format(Locale.ROOT, "%s @ %.3f,%.3f,%.3f",
+                soleArea(perch), pf.getX(), pf.getY(), pf.getZ()));
         if (!pf.onGround())
             ctx.fail("THE RIG, not the subject: the bot perched on the neighbour's corner did not stay"
                     + " put (" + where(ctx, pf) + "); this arm's premise is that it reports"
@@ -571,13 +559,12 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         // B: the stale-flag tick. A bot one tick past the lip still reports onGround=true with its
         // whole sole on nothing — the same three readings, the opposite situation.
-        ServerPlayerBody off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
-        ServerPlayer wf = off.fakePlayer();
+        SceneBot off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
+        ServerPlayer wf = off.player();
         String rowAir = walkToTheStaleTick(ctx, off);
         ctx.record("midAir.row", rowAir);
-        ctx.record("midAir.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
-                NavigatorGeometry.soleOnSolid(new LevelWorldView(ctx.level(), wf), wf),
-                wf.getX(), wf.getY(), wf.getZ()));
+        ctx.record("midAir.sole", String.format(Locale.ROOT, "%s @ %.3f,%.3f,%.3f",
+                soleArea(off), wf.getX(), wf.getY(), wf.getZ()));
 
         // THE CONTROL. Three readings, both bots, or this arena is not the one that was confusing.
         // The tokens are JourneyNetherRungs.surroundings' own wording and must match it verbatim.
@@ -643,29 +630,26 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * do with the sole. The tick wanted is the stale one: the sole already on nothing and the flag
      * still saying {@code true}, which is what {@code fortress.ground.*} printed on the live falls.
      */
-    /** {@link JourneyNetherRungs#surroundings}' sole column for an arena avatar, the way the crossing used to
-     *  compute it for every bot: a world view over the avatar's own level. The rung reads its bot's through
-     *  {@code mc.debug.body} instead; an arena avatar here is not a roster bot, so it keeps the direct read. */
-    private static String sole(SceneContext ctx, ServerPlayer fp) {
-        LevelWorldView view = new LevelWorldView(ctx.level(), fp);
-        return String.format(java.util.Locale.ROOT, "%.4f/0.36", NavigatorGeometry.soleOnSolid(view, fp))
-                + " (" + NavigatorGeometry.soleRow(view, fp) + ")";
+    /** {@link JourneyNetherRungs#surroundings}' sole column, read through {@code mc.debug.body} as the rung
+     *  reads its bot's. */
+    private static String sole(SceneBot bot) {
+        return soleArea(bot) + " (" + bot.body().footing().soleRow() + ")";
     }
 
-    private static String walkToTheStaleTick(SceneContext ctx, ServerPlayerBody av) {
-        ServerLevel level = ctx.level();
-        ServerPlayer fp = av.fakePlayer();
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
+    /** The solid area under the sole, of the area the guards need: {@code 0.1500/0.36}. */
+    private static String soleArea(SceneBot bot) {
+        BotDebugContracts.Footing f = bot.body().footing();
+        return String.format(Locale.ROOT, "%.4f/%.2f", f.soleOnSolid(), f.footingMin());
+    }
+
+    private static String walkToTheStaleTick(SceneContext ctx, SceneBot av) {
+        ServerPlayer fp = av.player();
+        av.goTo(Targets.block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
         for (int t = 0; t < WALK_TICKS; t++) {
-            navigator.tick(av, w);
-            aim(fp);
-            av.commandMove(0f, 1f);
-            av.commandJump(false);
+            straightOn(av, () -> aim(fp));
             av.step();
-            if (fp.onGround() && NavigatorGeometry.soleOnSolid(w, fp) <= 0.0)
-                return JourneyNetherRungs.surroundings(fp, fp.blockPosition(), sole(ctx, fp));
+            if (fp.onGround() && av.body().footing().soleOnSolid() <= 0.0)
+                return JourneyNetherRungs.surroundings(fp, fp.blockPosition(), sole(av));
             if (!fp.onGround()) break;                        // the stale tick was overshot
         }
         ctx.fail("THE RIG, not the subject: after " + WALK_TICKS + " ticks of walking, no tick was"
@@ -716,10 +700,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /**
      * Walk the shelf until the bot is in the state a crossing hop is judged in, and say what it cost.
      *
-     * <p>The navigator is ticked so its guards run — they live in {@code Navigator#tick}'s single-exit
-     * wrapper, after every branch of {@code tickInner} — and the heading and impulse are re-imposed
-     * afterwards so the bot walks one straight line whatever the navigator would rather do. Sneak is
-     * NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
+     * <p>The brain runs a goto so the navigator's guards run — they live in {@code Navigator#tick}'s
+     * single-exit wrapper, after every branch of {@code tickInner} — and the heading and impulse are
+     * re-imposed afterwards so the bot walks one straight line whatever the navigator would rather do. Sneak
+     * is NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
      * says whether one did.
      *
      * <p>The three readings taken on the tick before the launch are the ones
@@ -728,12 +712,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * lip belongs to {@code wd.serverWalksOffASurvivableLedge}, and an arm asserting it here would
      * be a second opinion about a question that already has an owner.
      */
-    private static Walk walkOffTheLip(SceneContext ctx, ServerPlayerBody av) {
+    private static Walk walkOffTheLip(SceneContext ctx, SceneBot av) {
         ServerLevel level = ctx.level();
-        ServerPlayer fp = av.fakePlayer();
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
+        ServerPlayer fp = av.player();
+        av.goTo(Targets.block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
 
         double startZ = fp.getZ(), farZ = fp.getZ();
         double prevSole = 0;
@@ -741,14 +723,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
         boolean left = false;
         int pinned = 0, t = 0;
         for (; t < WALK_TICKS; t++) {
-            double sole = NavigatorGeometry.soleOnSolid(w, fp);
+            double sole = av.body().footing().soleOnSolid();
             boolean onGround = fp.onGround();
             boolean swept = !level.noCollision(fp, groundSlab(fp.getBoundingBox()));
-            navigator.tick(av, w);
-            aim(fp);
-            av.commandMove(0f, 1f);
-            av.commandJump(false);
-            if (av.dbgSneak()) pinned++;
+            if (straightOn(av, () -> aim(fp))) pinned++;
             av.step();
             farZ = Math.max(farZ, fp.getZ());
             if (!left && !fp.onGround() && fp.getY() < ctx.rel(0, DECK + 1, 0).getY() - 0.05) {
@@ -775,8 +753,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * the crossing waits under it: a leftover forward impulse would walk the bot off whatever it
      * lands on. Releasing the controls is not braking, and here the brake would be left off.
      */
-    private static Allowance allowanceToLand(SceneContext ctx, ServerPlayerBody av, String arm) {
-        ServerPlayer fp = av.fakePlayer();
+    private static Allowance allowanceToLand(SceneContext ctx, SceneBot av, String arm) {
+        ServerPlayer fp = av.player();
         int landedAt = -1;
         String lastMidAir = "none; the bot never entered the \"still falling\" state";
         for (int i = 1; i <= JourneyNetherRungs.LANDING_TICKS; i++) {
@@ -792,22 +770,29 @@ public final class JourneyCrossingScenes implements SceneProvider {
     }
 
     /** One idle physics tick with everything released, exactly what {@link JourneyRig#hold} does. */
-    private static void step(ServerPlayerBody av) {
-        av.commandMove(0f, 0f);
-        av.commandJump(false);
-        av.breakHold(false);
+    private static void step(SceneBot av) {
+        av.press(av.keys().move(0, 0).jump(false).attack(false));
         av.step();
+    }
+
+    /**
+     * The brain half of a rig tick: the brain runs (its guards included), then {@code aim} and the forward
+     * impulse are re-imposed and the jump let go. Sneak is left alone. Whether the brain held sneak; the caller
+     * steps the body.
+     */
+    private static boolean straightOn(SceneBot av, Runnable aim) {
+        av.think();
+        aim.run();
+        return av.press(av.keys().move(0, 1).jump(false)).shift();
     }
 
     /** A bot at {@code dy}, optionally left to stand for {@link #SETTLE_TICKS} first. The settle is
      *  for an arm that starts ON something — it proves vanilla itself holds the stance up before the
      *  measurement rather than during it. An arm that starts in the air must NOT have it: those
      *  ticks are its own fall. */
-    private static ServerPlayerBody spawn(SceneContext ctx, double z, int dy, boolean settle) {
-        ServerPlayerBody av = SceneBody.avatar(ctx, ctx.level(),
-                ctx.originX() + 0.5, ctx.rel(0, dy, 0).getY(), z);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
+    private static SceneBot spawn(SceneContext ctx, double z, int dy, boolean settle) {
+        SceneBot av = SceneBot.spawn(ctx, ctx.level(), ctx.originX() + 0.5, ctx.rel(0, dy, 0).getY(), z);
+        ServerPlayer fp = av.player();
         fp.getInventory().clearContent();
         aim(fp);
         if (!settle) return av;
