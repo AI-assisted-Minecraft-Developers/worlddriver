@@ -47,6 +47,7 @@ import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -138,6 +139,8 @@ final class BotReadings {
         }
         counters.put("expectAlarmsFired", (long) ExpectAlarms.FIRED.get());
         counters.put("movementContextAllocs", MovementContext.ALLOC_COUNT);
+        // The game time vanilla's jump gate last let a press through; -1 for a body that is not a joined player.
+        counters.put("lastJumpTick", e instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1L);
         put(traces, "lastTickTrace", tel.lastTickTrace);
         put(traces, "lastSupportedTrace", tel.lastSupportedTrace);
         put(traces, "lastGuardRepath", tel.lastGuardRepath);

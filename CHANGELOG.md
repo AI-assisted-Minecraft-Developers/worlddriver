@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.navigator` says when the bot last jumped.** New counter `lastJumpTick`: the game time
+  vanilla's jump gate last let a press through, or -1 for a body that has never jumped or is not a
+  joined player. It tells a jump that hit a ceiling from one that never fired.
 - **`mc.debug.navigator` says how the last walk ended and what stands on the plan's cells.** Two new
   traces: `walkResult` (status, end reason, whether the goal was reached, distance left, whether the
   goal was moved to a standable cell, and why it fell short) once a walk has ended, and
