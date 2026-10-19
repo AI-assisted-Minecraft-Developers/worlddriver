@@ -124,7 +124,15 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<BotDebugContracts.CellsReading> cells(BotDebugContracts.CellsParams p, CallContext ctx) {
-            return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
+            boolean selfClient = p.bot().map(BotRegistry::isSelf).orElse(false)
+                    && p.side().orElse(BotDebugContracts.Side.CLIENT) == BotDebugContracts.Side.CLIENT;
+            if (!selfClient) return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
+            BotApi self = BotHooks.impl();
+            if (self == null) {
+                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "self's client view is this client's, and there is no client here; name a server bot"));
+            }
+            return self.clientHop().submit(() -> ClientPlanProbe.cells(p), ctx);
         }
     }
 }
