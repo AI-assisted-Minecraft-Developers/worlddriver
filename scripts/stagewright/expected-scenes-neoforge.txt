@@ -74,18 +74,11 @@ wd.padClusterCross
 wd.deepWaterFloatBeeline
 # Core family — the navigator and pathfinder basics every other family assumes.
 wd.agentRpcSmoke
-wd.pinch
-wd.horizon
-wd.inputReleaseGate
-wd.mouseYieldGate
-wd.schemaUnionRendering
 wd.physicsParity
 wd.buildBlockWhitelist
-wd.pathArchiveJson
 wd.nodePhysics
 wd.pathArchiveCapture
 wd.replayRoundTrip
-wd.clientChatLogSemantics
 wd.clientSettingSchema
 wd.fullInventoryVisible
 wd.attackCooldownSurface

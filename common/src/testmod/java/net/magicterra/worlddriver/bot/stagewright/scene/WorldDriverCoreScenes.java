@@ -8,13 +8,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import net.magicterra.stagewright.contract.SceneFailure;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
@@ -32,17 +39,10 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
-import net.magicterra.worlddriver.debug.HorizonArena;
-import net.magicterra.worlddriver.debug.NodePhysics;
 import net.magicterra.worlddriver.debug.PathArchive;
 import net.magicterra.worlddriver.debug.PathArchiveRecorder;
-import net.magicterra.worlddriver.debug.PinchArena;
-import net.magicterra.worlddriver.game.ui.InputReleaseGate;
-import net.magicterra.worlddriver.game.ui.MouseYieldGate;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -53,8 +53,6 @@ import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
-import net.magicterra.worlddriver.game.ui.ClientChatLog;
-import net.magicterra.worlddriver.mcp.McpTools;
 import net.magicterra.worlddriver.testcontent.TestArena;
 import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
@@ -73,24 +71,18 @@ import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
-import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
- * Dogfooded worlddriver scenes — <b>P4b wave 5, the Core (main {@code AgentGameTest}) family</b>:
- * the 12 main-class tests migrated verbatim to testkit {@code wd.*} scenes and their legacy twin
- * class retired in the same commit.
+ * Dogfooded worlddriver scenes — the Core family: the validation suite, the body's jump and travel
+ * physics, node facts and build-block classification, the path archive's record and replay, and the
+ * client-face checks.
  *
- * <p><b>Porting is by the canonical pattern established in {@link WorldDriverTerrainScenes}</b>
- * (study its class javadoc for the full substitution list — this class applies the same and does
- * not re-explain the trivial ones): {@code helper.getLevel()} → {@link SceneContext#level()};
- * absolute {@code cx/cz} → origin X/Z; absolute Y → {@code origin.y + (legacy_Y − 200)} (grid
- * {@code GRID_Y = 200}, so mapped absolute Y equals the legacy Y — geometry unchanged, only X/Z
- * relocate); {@code ServerPlayerBody.create} → {@link ServerPlayerBody#createUnique} (#48
- * per-scene server-side player) + {@code ctx.cleanup(fp::discard)}; {@code try/finally} config
- * save/restore → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code GameTestAssertException}
- * → {@link SceneContext#fail}; {@code helper.succeed()} → return; the {@code gtOnlySkips(...)}
- * probe line → deleted. Inlined helpers: {@code buildFloor} (origin-relative, promoted-into-class
- * like wave 2) and {@code assertUnionType} (was a private static in the main class).
+ * <p>Absolute Y is {@code origin.y + (legacy_Y − 200)}, so the arenas keep the geometry they were written
+ * with and only X/Z relocate. The physics arenas pose a parked {@link SceneBot} and drive it by held keys
+ * and body steps only (no perceiving, reflexes or task); settings go through {@link Harness}. The pure
+ * logic that used to run here as scenes (the pinch and horizon arenas, the input and mouse yield gates,
+ * the schema-union rendering, the path archive's JSON round trip, the chat buffer) is unit-tested in
+ * {@code common/src/test}.
  *
  * <p><b>Faithful async-poll translation (P1c rule — no {@code Thread.sleep} in a scene body).</b>
  * Three tests polled a background daemon in the legacy body:
@@ -100,22 +92,21 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *       with {@link SceneContext#await} — the harness ticks the server between {@code advance()}
  *       calls, so {@code server.execute()} drains each tick and the RPC/MCP round-trips inside the
  *       validation suite complete just as they did under the GameTest tick loop. (The dogfood
- *       server starts the RPC server unconditionally on a random port, so {@code ValidationSuite.run}'s
- *       {@code RpcBridge}/{@code McpBridge} have a live endpoint. See task-4-report.md §"agentRpcSmoke"
- *       for the count/placement reasoning — the wave brief's "agentRpcSmoke in Server" note is
- *       reconciled there against the explicit "WorldDriverCoreScenes.java (main class 12)" spec.)</li>
+ *       server starts the RPC server unconditionally on a random port, so the suite's three
+ *       transports, reached through {@code WorldDriver.scripts()}, have a live endpoint.)</li>
  *   <li>{@code pathArchiveCapture} / {@code replayRoundTrip} waited (up to 2 s of {@code Thread.sleep})
  *       for the daemon plan/replay-run file write; the scene keeps the (fast, synchronous) navigator
  *       loops in the scene method and moves ONLY the file-write waits into {@code await} continuations —
  *       {@code replayRoundTrip} chains a second {@code await} inside the first's {@code then()} for
- *       its two sequential file writes. No navigator loop or assertion logic changed.</li>
+ *       its two sequential file writes. These two still drive a bare {@code Navigator} and install
+ *       their own archive recorder: the api has no recorder on a dedicated server and no replay for a
+ *       server bot.</li>
  * </ul>
  *
- * <p><b>Origin slots.</b> All 12 take AUTO slots at the default radius: every arena's footprint
+ * <p><b>Origin slots.</b> Every scene takes an AUTO slot at the default radius: every arena's footprint
  * fits the default window {@code dx/dz ∈ [−16,+31]} (the widest are {@code pathArchiveCapture} /
- * {@code replayRoundTrip} at dx +20), and every gate is a discrete OUTCOME / pure-CPU assertion or
- * a wide-tolerance physics metric (no byte-determinism pin like {@code wd.descentYaw}), so
- * registry-growth relocation cannot flip them.
+ * {@code replayRoundTrip} at dx +20), and every check is a discrete outcome or a wide-tolerance
+ * physics metric, so registry-growth relocation cannot flip them.
  */
 public final class WorldDriverCoreScenes implements SceneProvider {
 
@@ -127,22 +118,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 // does RPC/MCP round-trips) that costs nothing when it passes (the scene ends the
                 // instant the worker sets a result).
                 Scene.of("wd.agentRpcSmoke", 12000, WorldDriverCoreScenes::agentRpcSmoke),
-                Scene.of("wd.pinch", 200, WorldDriverCoreScenes::pinch),
-                Scene.of("wd.horizon", 200, WorldDriverCoreScenes::horizon),
-                Scene.of("wd.inputReleaseGate", 200, WorldDriverCoreScenes::inputReleaseGate),
-                Scene.of("wd.mouseYieldGate", 200, WorldDriverCoreScenes::mouseYieldGate),
-                Scene.of("wd.schemaUnionRendering", 200, WorldDriverCoreScenes::schemaUnionRendering),
                 Scene.of("wd.physicsParity", 200, WorldDriverCoreScenes::physicsParity),
                 Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
                 Scene.of("wd.jumpWaitsForOnGround", 200, WorldDriverCoreScenes::jumpWaitsForOnGround),
                 Scene.of("wd.climbableGroundJump", 200, WorldDriverCoreScenes::climbableGroundJump),
                 Scene.of("wd.buoyantJumpStaysABob", 200, WorldDriverCoreScenes::buoyantJumpStaysABob),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
-                Scene.of("wd.pathArchiveJson", 200, WorldDriverCoreScenes::pathArchiveJson),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
                 Scene.of("wd.pathArchiveCapture", 400, WorldDriverCoreScenes::pathArchiveCapture),
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
-                Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics),
                 Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema),
                 Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
                 Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
@@ -372,224 +356,16 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             "42_combat: melee engage clears a zombie pack");
 
     // ==================================================================================
-    // Pure-CPU / in-memory arenas (no world, no avatar) — resolve on the first RUN tick.
+    // Node facts, read through mc.debug.cells.
     // ==================================================================================
 
-    /** Ported from {@code AgentGameTest#pinchArena}: deterministic regression guard for the planner
-     *  BOXED local-minimum vertical-escape fix ({@link PinchArena}). Pure CPU on an in-memory grid. */
-    private static void pinch(SceneContext ctx) {
-        StringBuilder log = new StringBuilder("[wd.pinch]\n");
-        boolean anyReached = false;
-        for (int budget : new int[]{150, 300, 600, 2000, 60000}) {
-            PinchArena.Result r = PinchArena.run(budget);
-            log.append("  maxNodes=").append(budget).append(": ").append(r).append('\n');
-            anyReached |= r.reached;
-        }
-        TestMod.LOG.info(log.toString());
-        if (!anyReached)
-            ctx.fail("pinch: vertical-escape failed to scale the cliff at every budget; see [wd.pinch] log");
-    }
-
-    /** Ported from {@code AgentGameTest#horizonArena}: deterministic gate for the receding-horizon
-     *  early-stop ({@link PlanningConfig#pathfinderHorizonBlocks}) + soft-commit early-stop that fix the
-     *  long-haul freeze. Pure CPU ({@link HorizonArena} on a GridWorldView corridor). */
-    private static void horizon(SceneContext ctx) {
-        HorizonArena.Result off = HorizonArena.run(0);
-        HorizonArena.Result on = HorizonArena.run(48);
-        TestMod.LOG.info("[wd.horizon] off={} on={}", off, on);
-
-        final int minReach = HorizonArena.CORRIDOR_LEN - 20;   // inlined AgentGameTestSupport.HorizonArenaMinReach()
-        if (!(on.firstExpanded < off.firstExpanded))
-            ctx.fail("horizon: horizon=48 should expand fewer nodes than horizon=0; off=" + off + " on=" + on);
-        if (on.firstEndX < 40 || on.firstEndX > 90)
-            ctx.fail("horizon: horizon=48 first segment should end ~48 blocks out, got x=" + on.firstEndX);
-        if (!(off.firstEndX > on.firstEndX))
-            ctx.fail("horizon: horizon=0 should commit a longer segment than horizon=48; off=" + off + " on=" + on);
-        if (on.chainEndX < minReach)
-            ctx.fail("horizon: horizon=48 chain should reach the corridor end (~" + HorizonArena.CORRIDOR_LEN
-                    + "), got x=" + on.chainEndX);
-
-        HorizonArena.Result soft = HorizonArena.run(0, 150);
-        TestMod.LOG.info("[wd.horizon] soft={}", soft);
-        if (!(soft.firstExpanded < off.firstExpanded))
-            ctx.fail("horizon: softCommit=150 should expand fewer nodes than the full grind; off=" + off + " soft=" + soft);
-        if (soft.firstExpanded > 400)
-            ctx.fail("horizon: softCommit=150 first search should stop near the soft budget, expanded=" + soft.firstExpanded);
-        if (soft.chainEndX < minReach)
-            ctx.fail("horizon: softCommit chain should still reach the corridor end, got x=" + soft.chainEndX);
-    }
-
-    /** Ported from {@code AgentGameTest#inputReleaseGate}: pure-CPU guard for the manual-input clobber
-     *  fix ({@link InputReleaseGate}) — the idle client tick must not clear the human's keybinds unless
-     *  the bot itself dirtied them. */
-    private static void inputReleaseGate(SceneContext ctx) {
-        InputReleaseGate g = new InputReleaseGate();
-
-        for (int t = 0; t < 100; t++)
-            if (g.consumeRelease())
-                ctx.fail("inputReleaseGate: released with no bot input at idle tick " + t + " (clobbers manual keys)");
-
-        g.markDirtied();
-        if (!g.consumeRelease())
-            ctx.fail("inputReleaseGate: no release after the bot dirtied the keybinds");
-        if (g.consumeRelease())
-            ctx.fail("inputReleaseGate: released twice for a single drive burst");
-
-        for (int t = 0; t < 20; t++) g.markDirtied();
-        if (!g.consumeRelease())
-            ctx.fail("inputReleaseGate: no release after a sustained drive burst");
-        for (int t = 0; t < 50; t++)
-            if (g.consumeRelease())
-                ctx.fail("inputReleaseGate: released again while idle after the burst at tick " + t);
-
-        g.markDirtied();
-        if (!g.consumeRelease())
-            ctx.fail("inputReleaseGate: gate did not re-arm for a second drive burst");
-    }
-
-    /** Pure-CPU guard for the mouse-side human/bot coexistence gate ({@link MouseYieldGate}):
-     *  release the cursor while the bot drives, keep re-releasing it (vanilla re-grabs on any
-     *  click), let a double-tap of ESC take it back for the rest of the burst, and hand it back
-     *  automatically when the burst ends. Mirrors {@code wd.inputReleaseGate} for the keybinds. */
-    private static void mouseYieldGate(SceneContext ctx) {
-        final int linger = 3;
-        MouseYieldGate g = new MouseYieldGate(linger);
-
-        // Idle: never touches a cursor nobody asked us to touch.
-        for (int t = 0; t < 50; t++)
-            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
-                ctx.fail("mouseYieldGate: acted on an idle tick " + t + " (steals the human's cursor)");
-
-        // Drive → release once, then stay released without re-issuing.
-        g.markDriving();
-        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
-            ctx.fail("mouseYieldGate: no release on the first driving tick");
-        if (!g.yielded()) ctx.fail("mouseYieldGate: yielded() false right after releasing");
-        g.markDriving();
-        if (g.tick(true, false, false, false) != MouseYieldGate.Action.NONE)
-            ctx.fail("mouseYieldGate: acted again while the cursor was already free");
-
-        // Sticky: a click re-grabbed the cursor (vanilla MouseHandler.onPress) → release again.
-        g.markDriving();
-        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
-            ctx.fail("mouseYieldGate: did not re-release after a click re-grabbed the cursor");
-
-        // A screen owns the cursor: hands off entirely.
-        g.markDriving();
-        if (g.tick(true, false, true, false) != MouseYieldGate.Action.NONE)
-            ctx.fail("mouseYieldGate: touched the cursor while a screen was open");
-
-        // Burst ends → cursor handed back exactly once.
-        for (int t = 0; t <= linger; t++) g.tick(true, false, false, false);
-        if (g.yielded()) ctx.fail("mouseYieldGate: still yielded after the burst ended");
-        for (int t = 0; t < 20; t++)
-            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
-                ctx.fail("mouseYieldGate: kept acting after handing the cursor back at tick " + t);
-
-        // Double-tap ESC: the human owns the cursor for the REST of this burst.
-        g.markDriving();
-        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
-            ctx.fail("mouseYieldGate: gate did not re-arm for a second drive burst");
-        g.markDriving();
-        if (g.tick(true, true, false, false) != MouseYieldGate.Action.GRAB)
-            ctx.fail("mouseYieldGate: ESC double-tap did not grab the cursor back");
-        if (!g.reclaimed()) ctx.fail("mouseYieldGate: reclaimed() false after the ESC double-tap");
-        for (int t = 0; t < 20; t++) {
-            g.markDriving();
-            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
-                ctx.fail("mouseYieldGate: stole the cursor back at tick " + t + " after the human reclaimed it");
-        }
-
-        // Next burst re-arms the yield.
-        for (int t = 0; t <= linger; t++) g.tick(true, false, false, true);
-        if (g.reclaimed()) ctx.fail("mouseYieldGate: reclaim latch survived the end of the burst");
-        g.markDriving();
-        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
-            ctx.fail("mouseYieldGate: did not yield again on the burst after a reclaim");
-
-        // Setting off mid-yield → cursor returned, and never taken again.
-        if (g.tick(false, false, false, false) != MouseYieldGate.Action.GRAB)
-            ctx.fail("mouseYieldGate: disabling mouseYield did not hand the cursor back");
-        for (int t = 0; t < 20; t++) {
-            g.markDriving();
-            if (g.tick(false, false, false, true) != MouseYieldGate.Action.NONE)
-                ctx.fail("mouseYieldGate: acted with mouseYield off at tick " + t);
-        }
-    }
-
-    /** Ported from {@code AgentGameTest#schemaUnionRendering}: pure-CPU rendering matrix for
-     *  gap #67-④ — an open JSON field must render a JSON array {@code "type"}, never a typeless
-     *  schema, which one MCP client took as licence to send the value JSON-stringified. Reads the
-     *  real {@code tools/list} ({@link McpTools#list}); a field of a tagged union is looked up in
-     *  each {@code oneOf} variant. The validation suite's {@code 65_schema_union.js} covers the
-     *  nested unions through the decoder. */
-    private static void schemaUnionRendering(SceneContext ctx) {
-        List<String> anyJson = List.of("object", "array", "string", "number", "boolean");
-        assertUnionType(ctx, "mc.wait.condition", "value", anyJson);
-        assertUnionType(ctx, "mc.events", "data", anyJson);
-        assertUnionType(ctx, "mc.events", "value", anyJson);
-        assertUnionType(ctx, "mc.skill", "args", anyJson);
-    }
-
-    private static void assertUnionType(SceneContext ctx, String toolName, String propName, List<String> expectedTypes) {
-        Map<String, Object> tool = null;
-        for (Map<String, Object> t : McpTools.list(WorldDriver.registry())) {
-            if (toolName.equals(t.get("name"))) { tool = t; break; }
-        }
-        if (tool == null) { ctx.fail("schemaUnionRendering: tool not found in tools/list: " + toolName); return; }
-
-        Object inputSchemaObj = tool.get("inputSchema");
-        if (!(inputSchemaObj instanceof Map<?, ?> inputSchema)) {
-            ctx.fail("schemaUnionRendering: " + toolName + ": inputSchema not an object: " + inputSchemaObj); return; }
-        Object propSchemaObj = property(inputSchema, propName);
-        if (!(propSchemaObj instanceof Map<?, ?> propSchema)) {
-            ctx.fail("schemaUnionRendering: " + toolName + "." + propName + ": property schema not an object: " + propSchemaObj); return; }
-
-        Object type = propSchema.get("type");
-        if (type == null)
-            ctx.fail("schemaUnionRendering: " + toolName + "." + propName + ": inputSchema has NO \"type\" key "
-                    + "(typeless any() — the gap#67-④ defect). Full property schema: " + propSchema);
-        if (!(type instanceof List<?> typeList) || !typeList.equals(expectedTypes))
-            ctx.fail("schemaUnionRendering: " + toolName + "." + propName + ": type must be " + expectedTypes
-                    + ", got " + type);
-    }
-
-    /** {@code name}'s schema among an object schema's properties, or those of any of its {@code oneOf} variants. */
-    private static Object property(Map<?, ?> schema, String name) {
-        if (schema.get("properties") instanceof Map<?, ?> props && props.get(name) != null) return props.get(name);
-        if (schema.get("oneOf") instanceof List<?> variants) {
-            for (Object v : variants) {
-                if (v instanceof Map<?, ?> m && property(m, name) instanceof Object found) return found;
-            }
-        }
-        return null;
-    }
-
-    /** Ported from {@code AgentGameTest#pathArchiveJsonArena}: JSON round-trip gate for
-     *  {@link PathArchive} — {@code demo() → toJson() → fromJson()} reproduces identical structural
-     *  sizes for every top-level collection (+ v2 block-state SNBT / block-entity NBT). Pure CPU. */
-    private static void pathArchiveJson(SceneContext ctx) {
-        PathArchive a = PathArchive.demo();
-        String json = a.toJson();
-        PathArchive b = PathArchive.fromJson(json);
-        if (b.header().seed() != a.header().seed()) ctx.fail("pathArchiveJson: seed did not round-trip");
-        if (b.segments().size() != a.segments().size()) ctx.fail("pathArchiveJson: segments did not round-trip");
-        if (b.trajectory().size() != a.trajectory().size()) ctx.fail("pathArchiveJson: trajectory did not round-trip");
-        if (b.segments().get(0).nodes().size() != a.segments().get(0).nodes().size()) ctx.fail("pathArchiveJson: nodes did not round-trip");
-        if (b.envelope().size() != a.envelope().size()) ctx.fail("pathArchiveJson: envelope did not round-trip");
-        PathArchive.EnvelopeCell ea = a.envelope().get(0);
-        PathArchive.EnvelopeCell eb = b.envelope().get(0);
-        if (!java.util.Objects.equals(ea.state(), eb.state()))
-            ctx.fail("pathArchiveJson: envelope state did not round-trip: " + ea.state() + " vs " + eb.state());
-        if (!java.util.Objects.equals(ea.nbt(), eb.nbt()))
-            ctx.fail("pathArchiveJson: envelope nbt did not round-trip: " + ea.nbt() + " vs " + eb.nbt());
-    }
-
-    /** Ported from {@code AgentGameTest#nodePhysicsArena}: verifies {@link NodePhysics#compute}
-     *  returns accurate pose-fit and hazard facts for representative cells (open 2-high, 1-cap pocket,
-     *  lava underfoot) + the edit-aware toBreak/toPlace pose-fit flips. */
+    /** The pose-fit and hazard facts {@code mc.debug.cells} answers for a node: an open 2-high cell, a
+     *  1-high capped pocket, lava underfoot, and the flips a planned dig ({@code toBreak}) and placement
+     *  ({@code toPlace}) make to the pose fit. */
     private static void nodePhysics(SceneContext ctx) {
         ServerLevel level = ctx.level();
+        if (level.dimension() != net.minecraft.world.level.Level.OVERWORLD)
+            ctx.fail("mc.debug.cells without a bot reads the overworld, and this scene's level is " + level.dimension());
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() - 21;   // legacy floorY 179 = origin.y(200)−21
 
@@ -610,44 +386,53 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx + 4, floorY, cz), Blocks.LAVA.defaultBlockState());
 
         BlockPos stand = new BlockPos(cx, floorY + 1, cz);
-        NodePhysics.Facts f = NodePhysics.compute(level, stand, null, null);
+        BotDebugContracts.NodeFacts f = nodeFacts(stand, null, List.of(), List.of());
         if (!(f.fitStand() && "none".equals(f.ceilingForces())))
             ctx.fail("nodePhysics: open cell should stand; fitStand=" + f.fitStand() + " ceilingForces=" + f.ceilingForces());
 
         BlockPos pocket = new BlockPos(cx + 2, floorY + 1, cz);
-        NodePhysics.Facts g = NodePhysics.compute(level, pocket, stand, null);
+        BotDebugContracts.NodeFacts g = nodeFacts(pocket, stand, List.of(), List.of());
         if (!(!g.fitStand()
                 && ("crouch".equals(g.ceilingForces()) || "crawl".equals(g.ceilingForces())
                     || "suffocate".equals(g.ceilingForces()))))
             ctx.fail("nodePhysics: 1-cap pocket should not stand; fitStand=" + g.fitStand() + " ceilingForces=" + g.ceilingForces());
 
         BlockPos lavaFoot = new BlockPos(cx + 4, floorY + 1, cz);
-        NodePhysics.Facts h = NodePhysics.compute(level, lavaFoot, null, null);
+        BotDebugContracts.NodeFacts h = nodeFacts(lavaFoot, null, List.of(), List.of());
         if (!"lava".equals(h.footHazard()))
             ctx.fail("nodePhysics: lava underfoot should be footHazard=lava; got=" + h.footHazard());
 
         // Edit-aware: the planned toBreak/toPlace change the pose-fit verdict.
         BlockPos cap = new BlockPos(cx + 2, floorY + 2, cz);
-        NodePhysics.Facts gBroke = NodePhysics.compute(level, pocket, stand, null,
-                java.util.List.of(cap), java.util.List.of());
+        BotDebugContracts.NodeFacts gBroke = nodeFacts(pocket, stand, List.of(cap), List.of());
         if (!(gBroke.fitStand() && "none".equals(gBroke.ceilingForces())))
             ctx.fail("nodePhysics: pocket with toBreak{cap} should stand; fitStand=" + gBroke.fitStand()
                     + " ceilingForces=" + gBroke.ceilingForces());
 
         BlockPos standHead = new BlockPos(cx, floorY + 2, cz);
-        NodePhysics.Facts fPlaced = NodePhysics.compute(level, stand, null, null,
-                java.util.List.of(), java.util.List.of(standHead));
+        BotDebugContracts.NodeFacts fPlaced = nodeFacts(stand, null, List.of(), List.of(standHead));
         if (fPlaced.fitStand())
             ctx.fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand=" + fPlaced.fitStand());
     }
 
+    /** The facts {@code mc.debug.cells} answers for the node at {@code foot}, entered from {@code prev} (or nowhere),
+     *  with the entering edge's digs and placements done. Read from the server's overworld. */
+    private static BotDebugContracts.NodeFacts nodeFacts(BlockPos foot, BlockPos prev, List<BlockPos> toBreak,
+                                                         List<BlockPos> toPlace) {
+        BotDebugContracts.NodeQuery q = new BotDebugContracts.NodeQuery(Targets.pos(foot),
+                Optional.ofNullable(prev).map(Targets::pos), Optional.empty(),
+                toBreak.stream().map(Targets::pos).toList(), toPlace.stream().map(Targets::pos).toList());
+        BotDebugContracts.CellsReading r = Calls.now(DebugApi.of(Calls.api())
+                .cells(new BotDebugContracts.CellsParams(Optional.empty(), List.of(), Optional.of(q))));
+        return r.node().orElseThrow(() -> new SceneFailure("mc.debug.cells answered no node facts: " + r));
+    }
+
     // ==================================================================================
-    // Physics and configuration arenas driven by a server-side player.
+    // Physics and configuration arenas driven by a parked bot's body step and held keys.
     // ==================================================================================
 
-    /** Ported from {@code AgentGameTest#physicsParity}: physics-parity gate for
-     *  {@link ServerPlayerBody} — the pumped server-side player must reproduce vanilla movement
-     *  (horizontal travel, a jumped +1 step-up, a standing-jump apex ~1.25). */
+    /** Physics parity of the server-side bot's body: driven only by held keys and body steps, it must
+     *  reproduce vanilla movement (horizontal travel, a jumped +1 step-up, a standing-jump apex ~1.25). */
     private static void physicsParity(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -655,13 +440,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        for (int i = 0; i < 3; i++) { av.commandMove(0, 0); av.step(); }
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.press(bot.keys().move(0, 0));
+        bot.step(3);
         double startY = fp.getY(), z0 = fp.getZ();
         fp.setSprinting(true);
-        for (int i = 0; i < 20; i++) { fp.setYRot(0f); av.commandForward(1f); av.step(); }
+        bot.press(bot.keys().move(0, 1));
+        for (int i = 0; i < 20; i++) { fp.setYRot(0f); bot.step(); }
+        bot.release();
         double disp = fp.getZ() - z0;
         fp.setSprinting(false);
         if (disp <= 2.0)
@@ -670,14 +457,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: navigator left the floor: dy=" + (fp.getY() - startY));
 
         // 2) Standing jump apex ~1.25.
-        ServerPlayerBody av2 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp2 = av2.fakePlayer();
-        ctx.cleanup(() -> fp2.discard());
-        for (int i = 0; i < 3; i++) { av2.step(); }
+        SceneBot bot2 = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp2 = bot2.player();
+        bot2.step(3);
         double jy0 = fp2.getY(), maxY = jy0;
         for (int i = 0; i < 30; i++) {
-            av2.commandJump(i == 0);
-            av2.step();
+            bot2.press(bot2.keys().jump(i == 0));
+            bot2.step();
             maxY = Math.max(maxY, fp2.getY());
             if (i > 3 && fp2.onGround()) break;
         }
@@ -689,19 +475,21 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         //    STANDING on the block, not by where it is after a fixed tick count: a vanilla sprint-jump
         //    carries it over the one-block row and off the ±5 floor well inside 30 ticks, which read
         //    as climbed=-6.29 the first time this ran on the pumped server-side player.
-        ServerPlayerBody av3 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp3 = av3.fakePlayer();
-        ctx.cleanup(() -> fp3.discard());
+        SceneBot bot3 = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp3 = bot3.player();
         for (int dx = -1; dx <= 1; dx++)
             level.setBlockAndUpdate(new BlockPos(cx + dx, standY, cz + 3), Blocks.STONE.defaultBlockState());
-        for (int i = 0; i < 3; i++) { av3.step(); }
+        bot3.step(3);
         double su0 = fp3.getY();
         double climbed = 0;
         fp3.setSprinting(true);
         for (int i = 0; i < 30 && climbed < 0.9; i++) {
-            fp3.setYRot(0f); av3.commandForward(1f); av3.commandJump(fp3.onGround()); av3.step();
+            fp3.setYRot(0f);
+            bot3.press(bot3.keys().move(0, 1).jump(fp3.onGround()));
+            bot3.step();
             if (fp3.onGround()) climbed = Math.max(climbed, fp3.getY() - su0);
         }
+        bot3.release();
         if (climbed < 0.9)
             ctx.fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
 
@@ -730,19 +518,18 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        for (int i = 0; i < 3; i++) av.step();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.step(3);
 
         fp.setPos(cx + 0.5, standY + 8, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
-        av.step();
+        bot.step();
 
         double prev = fp.getY(), worstRise = 0, riseAt = -1;
+        bot.press(bot.keys().jump(true));
         for (int i = 0; i < 10; i++) {
-            av.commandJump(true);
-            av.step();
+            bot.step();
             double rise = fp.getY() - prev;
             if (rise > worstRise) { worstRise = rise; riseAt = i; }
             prev = fp.getY();
@@ -1144,14 +931,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  red is diagnosable from the run that produced it rather than from a second one with logging
      *  on. */
     private static HeldJump heldJump(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        for (int i = 0; i < 3; i++) av.step();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.step(3);
         // The stance the FIRST jump is decided from — sampled HERE, not after the loop, because a
         // player that rose during the loop would report the depth it ended at as if it were the depth
         // its decision was made at. The level's entity loop does not tick this player; its baseTick
-        // runs inside ServerPlayerBody.step(), which is what keeps getFluidHeight live, so without
+        // runs inside the body step, which is what keeps getFluidHeight live, so without
         // those three settle steps it would read 0.
         double fluidAtRest = fp.getFluidHeight(FluidTags.WATER);
         double restY = fp.getY();
@@ -1167,9 +953,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         StringBuilder head = new StringBuilder();
         double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
         int later = 0, minTick = -1;
+        bot.press(bot.keys().jump(true));
         for (int i = 0; i < 60; i++) {
-            av.commandJump(true);
-            av.step();
+            bot.step();
             double rise = fp.getY() - prev;
             if (i == 0) first = rise;
             else if (rise > 0.3) later++;
@@ -1219,22 +1005,20 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        for (int i = 0; i < 3; i++) av.step();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.step(3);
 
         double y0 = fp.getY();
         if (Math.abs(y0 - standY) > 1.0E-6)
             ctx.fail("jumpWaitsForOnGround: the player did not settle flush on the floor: y=" + y0
                     + " (expected " + standY + ") — the arena, not the gate, is wrong");
         fp.setOnGround(false);
-        av.commandJump(true);
-        av.step();
+        bot.press(bot.keys().jump(true));
+        bot.step();
         double refused = fp.getY() - y0;
         boolean groundAfterRefusal = fp.onGround();
-        av.commandJump(true);
-        av.step();
+        bot.step();
         double jumped = fp.getY() - y0;
         ctx.record("jump.refusedRise", String.format(java.util.Locale.ROOT, "%.4f", refused));
         ctx.record("jump.onGroundAfterRefusal", String.valueOf(groundAfterRefusal));
@@ -1247,47 +1031,51 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + " onGroundAfterRefusal=" + groundAfterRefusal + " (a ground jump is +0.42)");
     }
 
-    /** Ported from {@code AgentGameTest#buildBlockWhitelistArena}: gates {@link BuildBlocks#isUsableBuildBlock}
-     *  + the {@link LevelWorldView} placement-count delegation (bamboo/sand rejected; the Agent-settable
-     *  whitelist override). */
+    /** The build-block predicate as {@code mc.debug.cells} reads it, and the bot's placeable-block count
+     *  ({@code mc.debug.body} hands) that delegates to it: bamboo and sand rejected by default; the
+     *  {@code buildBlockWhitelist} setting overrides both. */
     private static void buildBlockWhitelist(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-        SceneArena.buildFloor(level, cx, cz, floorY);
 
         List<String> savedWl = Harness.list("buildBlockWhitelist");
         ctx.cleanup(() -> Harness.set("buildBlockWhitelist", java.util.List.copyOf(savedWl)));
 
         // Default heuristic: full cube → usable; bamboo (thin column) / sand (FallingBlock) → NOT usable.
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
+        // The blocks stand in a row twenty above the origin; nothing else in this scene is built there.
+        net.minecraft.world.level.block.Block[] matrix = {Blocks.DIRT, Blocks.COBBLESTONE, Blocks.BAMBOO, Blocks.SAND};
+        var read = WorldDriverBuildScenes.classify(ctx, matrix);
+        if (!read.get(Blocks.DIRT).buildBlock())
             ctx.fail("buildBlockWhitelist: dirt must be a usable build block");
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.COBBLESTONE))
+        if (!read.get(Blocks.COBBLESTONE).buildBlock())
             ctx.fail("buildBlockWhitelist: cobblestone must be a usable build block");
-        if (BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
+        if (read.get(Blocks.BAMBOO).buildBlock())
             ctx.fail("buildBlockWhitelist: bamboo must NOT be a usable build block (thin, no footing)");
-        if (BuildBlocks.isUsableBuildBlock(Blocks.SAND))
+        if (read.get(Blocks.SAND).buildBlock())
             ctx.fail("buildBlockWhitelist: sand must NOT be usable (FallingBlock drops over gaps)");
 
-        // LevelWorldView count delegates to the predicate: dirt+bamboo inventory → only dirt counts.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        // The bot's count delegates to the predicate: dirt+bamboo inventory → only dirt counts. The bot is
+        // parked well above the row and never stepped, so it needs no floor.
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 10, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 10));
         fp.getInventory().add(new ItemStack(Items.BAMBOO, 20));
-        LevelWorldView w = new LevelWorldView(level, fp);
-        if (w.placeableBlockCount() != 10)
-            ctx.fail("buildBlockWhitelist: placeableBlockCount should ignore bamboo, expected 10 got " + w.placeableBlockCount());
+        int count = bot.body().hands().placeableBlocks();
+        if (count != 10)
+            ctx.fail("buildBlockWhitelist: placeableBlockCount should ignore bamboo, expected 10 got " + count);
 
         // Whitelist override: pin to bamboo only → dirt now rejected, bamboo allowed by explicit id.
         Harness.set("buildBlockWhitelist", java.util.List.copyOf(Set.of("minecraft:bamboo")));
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
+        read = WorldDriverBuildScenes.classify(ctx, matrix);
+        if (!read.get(Blocks.BAMBOO).buildBlock())
             ctx.fail("buildBlockWhitelist: whitelisted bamboo must be usable when explicitly listed");
-        if (BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
+        if (read.get(Blocks.DIRT).buildBlock())
             ctx.fail("buildBlockWhitelist: dirt must be rejected when whitelist excludes it");
-        if (w.placeableBlockCount() != 20)
-            ctx.fail("buildBlockWhitelist: whitelist=[bamboo] → count should be the 20 bamboo, got " + w.placeableBlockCount());
+        count = bot.body().hands().placeableBlocks();
+        if (count != 20)
+            ctx.fail("buildBlockWhitelist: whitelist=[bamboo] → count should be the 20 bamboo, got " + count);
 
         TestMod.LOG.info("[wd.buildBlockWhitelist] default + whitelist-override matrix all pass");
     }
@@ -1489,62 +1277,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 if (maxDev > 4.0) ctx.fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
             });
         });
-    }
-
-    // ==================================================================================
-    // Chat-readback buffer semantics — pure JVM, no client.
-    // ==================================================================================
-
-    /** Ported from {@code AgentGameTest#clientChatLogSemantics}: regression guard for the
-     *  chat-readback buffer behind {@code mc.client.chat.*} — seq monotonic/stable, {@code since()}
-     *  oldest-first, {@code tail()} newest-first + sinceSeq-bounded, eviction drops oldest without
-     *  rewinding seq. Runs on a PRIVATE {@link ClientChatLog.Buffer} instance (never the live global
-     *  log). {@code ClientChatLog.Buffer} is a pure data structure and loads on a dedicated server
-     *  (the legacy twin was itself a dedicated-server GameTest). */
-    private static void clientChatLogSemantics(SceneContext ctx) {
-        ClientChatLog.Buffer log = new ClientChatLog.Buffer();
-        long base = log.nextSeq();
-
-        log.record("system", "feedback-A", 100L, false);
-        log.record("player", "<bob> hi", 101L, false);
-        log.record("system", "feedback-B", 102L, false);
-        log.record(null, "kindless", 103L, true);
-
-        if (log.nextSeq() != base + 4) ctx.fail("clientChatLogSemantics: nextSeq must advance by exactly one per record");
-        var all = log.since(base);
-        if (all.size() != 4) ctx.fail("clientChatLogSemantics: since(base) returns every recorded line");
-        if (!(all.get(0).text().equals("feedback-A") && all.get(2).text().equals("feedback-B")))
-            ctx.fail("clientChatLogSemantics: since() must be oldest-first (stable chronological order)");
-        if (!(all.get(0).seq() == base && all.get(2).seq() == base + 2))
-            ctx.fail("clientChatLogSemantics: seq values are assigned in arrival order");
-        if (!(all.get(1).kind().equals("player") && all.get(0).kind().equals("system")))
-            ctx.fail("clientChatLogSemantics: kind survives round-trip");
-        if (!all.get(3).kind().equals("system"))
-            ctx.fail("clientChatLogSemantics: null kind normalizes to system — the drain's row encode must never NPE");
-        if (!(all.get(3).self() && !all.get(1).self()))
-            ctx.fail("clientChatLogSemantics: self flag survives round-trip");
-        if (!log.since(base + 4).isEmpty())
-            ctx.fail("clientChatLogSemantics: since(nextSeq) is empty — no phantom lines");
-
-        var t2 = log.tail(2, base);
-        if (!(t2.size() == 2 && t2.get(0).text().equals("kindless") && t2.get(1).text().equals("feedback-B")))
-            ctx.fail("clientChatLogSemantics: tail(cap) returns the newest cap entries, newest first");
-        if (log.tail(10, base + 3).size() != 1)
-            ctx.fail("clientChatLogSemantics: tail() respects the sinceSeq lower bound");
-        if (!log.tail(10, base + 4).isEmpty())
-            ctx.fail("clientChatLogSemantics: tail(nextSeq) is empty — no phantom lines");
-
-        for (int i = 0; i < 600; i++) log.record("system", "spam-" + i, 200L, false);
-        var tail = log.since(0);
-        if (tail.size() != 512) ctx.fail("clientChatLogSemantics: buffer caps at 512, got " + tail.size());
-        if (!tail.get(tail.size() - 1).text().equals("spam-599"))
-            ctx.fail("clientChatLogSemantics: newest line survives eviction");
-        if (!(tail.get(0).seq() > base))
-            ctx.fail("clientChatLogSemantics: oldest entries evicted, seq never reused");
-
-        // reference Locale so the import matches the legacy shell's import set (no unused-import churn)
-        TestMod.LOG.info("[wd.clientChatLogSemantics] {} lines, seq monotonic, eviction cap 512 OK",
-                String.format(Locale.ROOT, "%d", tail.size()));
     }
 
     /**

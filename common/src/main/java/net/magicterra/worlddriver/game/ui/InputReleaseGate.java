@@ -18,7 +18,7 @@ package net.magicterra.worlddriver.game.ui;
  * presses (manual play, no agent), nothing is ever dirtied, so the human's keys are
  * never cleared.
  *
- * <p>Pure logic, no client classes — unit-tested headless (testkit scene {@code wd.inputReleaseGate}).
+ * <p>Pure logic, no client classes — unit-tested headless ({@code InputReleaseGateTest}).
  */
 public final class InputReleaseGate {
     private boolean dirty;
