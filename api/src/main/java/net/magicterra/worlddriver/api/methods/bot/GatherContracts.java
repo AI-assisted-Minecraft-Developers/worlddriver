@@ -3,18 +3,27 @@ package net.magicterra.worlddriver.api.methods.bot;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockOrTag;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.AwaitMs;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /** The body tasks that turn the world into items: {@code mc.bot.mine}, {@code craft}, {@code smelt} and {@code farm}. */
 public final class GatherContracts {
@@ -23,48 +32,41 @@ public final class GatherContracts {
     // ------------------------------------------------------------------ mine
 
     /** Either {@code blocks} to look for, or the one cell {@code pos} to break. */
-    public record MineParams(String bot, List<String> blocks, Optional<BlockPosition> pos, int quantity, int radius,
-                             int awaitMs) {
+    @Named("MineParams")
+    public record MineParams(
+            @Default("self") @BotRef String bot,
+            @Doc("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs']. Required unless pos.") @Default("[]")
+            @Length(max = 64) List<@BlockOrTag String> blocks,
+            @Doc("Break this one cell instead: walk within reach unless already there, then dig it.")
+            Optional<BlockPosition> pos,
+            @Doc("How many blocks to break.") @Default("1") @Range(min = 1, max = 256) int quantity,
+            @Doc("Horizontal scan radius; the vertical one is the mine.searchVerticalRadius setting.") @Default("16")
+            @Range(min = 1, max = 64) int radius,
+            @Default("0") @AwaitMs int awaitMs) implements SelfChecked {
         public static MineParams cell(String bot, BlockPosition pos) {
             return new MineParams(bot, List.of(), Optional.of(pos), 1, 16, 0);
+        }
+
+        @Override public void check(DecodeContext at) {
+            if (pos.isPresent() == !blocks.isEmpty()) {
+                at.field(pos.isPresent() ? "pos" : "blocks")
+                        .fail(ApiIssue.Code.INVALID_VALUE, "give either blocks to look for or one pos to break, not both or neither");
+            }
         }
     }
 
     /** {@code broken} counts blocks destroyed, not items picked up; {@code pos} echoes a one-cell mine. */
-    public record Mined(List<String> blocks, Optional<BlockPosition> pos, int quantity, int radius, int broken) {}
+    @Variant("mine")
+    public record Mined(
+            @Length(max = 64) List<@BlockOrTag String> blocks,
+            Optional<BlockPosition> pos,
+            @Range(min = 1, max = 256) int quantity,
+            @Range(min = 1, max = 64) int radius,
+            @Range(min = 0) int broken) {}
 
-    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class, "MineParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(MineParams::bot),
-            ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 64))
-                    .describe("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs']. Required unless pos.")
-                    .defaulted(List.of()).forGetter(MineParams::blocks),
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION)
-                    .describe("Break this one cell instead: walk within reach unless already there, then dig it.")
-                    .optional().forGetter(MineParams::pos),
-            ApiField.field("quantity", ApiTypes.integer(1, 256)).describe("How many blocks to break.")
-                    .defaulted(1).forGetter(MineParams::quantity),
-            ApiField.field("radius", ApiTypes.integer(1, 64))
-                    .describe("Horizontal scan radius; the vertical one is the mine.searchVerticalRadius setting.")
-                    .defaulted(16).forGetter(MineParams::radius),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(MineParams::awaitMs),
-            MineParams::new)
-            .checked(GatherContracts::checkMine);
+    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class);
 
-    private static void checkMine(MineParams p, DecodeContext at) {
-        if (p.pos().isPresent() == !p.blocks().isEmpty()) {
-            at.field(p.pos().isPresent() ? "pos" : "blocks")
-                    .fail(ApiIssue.Code.INVALID_VALUE, "give either blocks to look for or one pos to break, not both or neither");
-        }
-    }
-
-    public static final UnionType<Mined> MINE_RESULT = ApiTypes.taggedUnion("MineResult", "kind",
-            ApiTypes.variant("mine", Mined.class, ApiTypes.record(Mined.class, null,
-                    ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 64)).required().forGetter(Mined::blocks),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(Mined::pos),
-                    ApiField.field("quantity", ApiTypes.integer(1, 256)).required().forGetter(Mined::quantity),
-                    ApiField.field("radius", ApiTypes.integer(1, 64)).required().forGetter(Mined::radius),
-                    ApiField.field("broken", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Mined::broken),
-                    Mined::new)));
+    public static final UnionType<Mined> MINE_RESULT = ApiTypes.union("MineResult", "kind", ApiTypes.record(Mined.class));
 
     public static final MethodSpec<MineParams, ActionResponse<Mined>> MINE = MethodSpec.of("mc.bot.mine", MINE_PARAMS,
                     Responses.response("Mine", MINE_RESULT),
@@ -77,25 +79,20 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ craft
 
-    public record CraftParams(String bot, String item, int count, int awaitMs) {}
+    @Named("CraftParams")
+    public record CraftParams(
+            @Default("self") @BotRef String bot,
+            @Doc("The item to end up with, e.g. minecraft:wooden_pickaxe.") @ResourceId String item,
+            @Default("1") @Range(min = 1, max = 256) int count,
+            @Default("0") @AwaitMs int awaitMs) {}
 
     /** {@code crafted}: items the crafting steps produced, intermediate ones included. */
-    public record Crafted(String item, int count, int crafted) {}
+    @Variant("craft")
+    public record Crafted(@ResourceId String item, @Range(min = 1, max = 256) int count, @Range(min = 0) int crafted) {}
 
-    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class, "CraftParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(CraftParams::bot),
-            ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The item to end up with, e.g. minecraft:wooden_pickaxe.")
-                    .required().forGetter(CraftParams::item),
-            ApiField.field("count", ApiTypes.integer(1, 256)).defaulted(1).forGetter(CraftParams::count),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(CraftParams::awaitMs),
-            CraftParams::new);
+    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class);
 
-    public static final UnionType<Crafted> CRAFT_RESULT = ApiTypes.taggedUnion("CraftResult", "kind",
-            ApiTypes.variant("craft", Crafted.class, ApiTypes.record(Crafted.class, null,
-                    ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(Crafted::item),
-                    ApiField.field("count", ApiTypes.integer(1, 256)).required().forGetter(Crafted::count),
-                    ApiField.field("crafted", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Crafted::crafted),
-                    Crafted::new)));
+    public static final UnionType<Crafted> CRAFT_RESULT = ApiTypes.union("CraftResult", "kind", ApiTypes.record(Crafted.class));
 
     public static final MethodSpec<CraftParams, ActionResponse<Crafted>> CRAFT = MethodSpec.of("mc.bot.craft", CRAFT_PARAMS,
                     Responses.response("Craft", CRAFT_RESULT),
@@ -108,28 +105,24 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ smelt
 
-    public record SmeltParams(String bot, String item, int count, Optional<String> fuel, int awaitMs) {}
+    @Named("SmeltParams")
+    public record SmeltParams(
+            @Default("self") @BotRef String bot,
+            @Doc("The ingredient, e.g. minecraft:raw_iron.") @ResourceId String item,
+            @Doc("Capped at what the inventory holds.") @Default("1") @Range(min = 1, max = 256) int count,
+            @Doc("Omitted: picked from the inventory by burn time.") Optional<@ResourceId String> fuel,
+            @Default("0") @AwaitMs int awaitMs) {}
 
     /** {@code fuel}: what was loaded, absent when the furnace never got any. */
-    public record Smelted(String item, int count, Optional<String> fuel) {}
+    @Variant("smelt")
+    public record Smelted(
+            @ResourceId String item,
+            @Range(min = 1, max = 256) int count,
+            Optional<@Length(min = 1, max = 256) String> fuel) {}
 
-    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class, "SmeltParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(SmeltParams::bot),
-            ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The ingredient, e.g. minecraft:raw_iron.")
-                    .required().forGetter(SmeltParams::item),
-            ApiField.field("count", ApiTypes.integer(1, 256)).describe("Capped at what the inventory holds.")
-                    .defaulted(1).forGetter(SmeltParams::count),
-            ApiField.field("fuel", CommonTypes.RESOURCE_ID).describe("Omitted: picked from the inventory by burn time.")
-                    .optional().forGetter(SmeltParams::fuel),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(SmeltParams::awaitMs),
-            SmeltParams::new);
+    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class);
 
-    public static final UnionType<Smelted> SMELT_RESULT = ApiTypes.taggedUnion("SmeltResult", "kind",
-            ApiTypes.variant("smelt", Smelted.class, ApiTypes.record(Smelted.class, null,
-                    ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(Smelted::item),
-                    ApiField.field("count", ApiTypes.integer(1, 256)).required().forGetter(Smelted::count),
-                    ApiField.field("fuel", ApiTypes.string(1, 256)).optional().forGetter(Smelted::fuel),
-                    Smelted::new)));
+    public static final UnionType<Smelted> SMELT_RESULT = ApiTypes.union("SmeltResult", "kind", ApiTypes.record(Smelted.class));
 
     public static final MethodSpec<SmeltParams, ActionResponse<Smelted>> SMELT = MethodSpec.of("mc.bot.smelt", SMELT_PARAMS,
                     Responses.response("Smelt", SMELT_RESULT),
@@ -144,6 +137,7 @@ public final class GatherContracts {
     /** Most cells a farm box may cover: every one is rescanned after each harvest. */
     public static final int MAX_FARM_CELLS = 4096;
 
+    @Named("Crop")
     public enum Crop implements WireName {
         WHEAT("minecraft:wheat"), CARROTS("minecraft:carrots"), POTATOES("minecraft:potatoes"), BEETROOTS("minecraft:beetroots");
 
@@ -152,41 +146,38 @@ public final class GatherContracts {
         @Override public String wireName() { return id; }
     }
 
-    public record FarmParams(String bot, BlockPosition from, BlockPosition to, List<Crop> crops, boolean replant,
-                             int awaitMs) {}
+    @Named("FarmParams")
+    public record FarmParams(
+            @Default("self") @BotRef String bot,
+            BlockPosition from,
+            BlockPosition to,
+            @Default("[\"minecraft:wheat\",\"minecraft:carrots\",\"minecraft:potatoes\",\"minecraft:beetroots\"]")
+            @Length(min = 1, max = 4) List<Crop> crops,
+            @Doc("Put the seed back on the farmland after each harvest.") @Default("true") boolean replant,
+            @Default("0") @AwaitMs int awaitMs) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            long cells = cells(from, to);
+            if (cells > MAX_FARM_CELLS) {
+                at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box covers " + cells + " cells, max "
+                        + MAX_FARM_CELLS + "; every cell is rescanned after each harvest, so keep the Y span to the crop layer");
+            }
+        }
+    }
 
-    public record Farmed(BlockPosition from, BlockPosition to, List<Crop> crops, boolean replant, int harvested,
-                         int replanted) {}
+    @Variant("farm")
+    public record Farmed(
+            BlockPosition from,
+            BlockPosition to,
+            @Length(min = 1, max = 4) List<Crop> crops,
+            boolean replant,
+            @Range(min = 0) int harvested,
+            @Range(min = 0) int replanted) {}
 
-    public static final ApiType<Crop> CROP = ApiTypes.enumOf("Crop", Crop.class);
+    public static final ApiType<Crop> CROP = ApiTypes.of(Crop.class);
 
-    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class, "FarmParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(FarmParams::bot),
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::from),
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::to),
-            ApiField.field("crops", ApiTypes.list(CROP, 1, 4)).defaulted(List.of(Crop.values()))
-                    .forGetter(FarmParams::crops),
-            ApiField.field("replant", ApiTypes.bool()).describe("Put the seed back on the farmland after each harvest.")
-                    .defaulted(true).forGetter(FarmParams::replant),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(FarmParams::awaitMs),
-            FarmParams::new)
-            .checked((p, at) -> {
-                long cells = cells(p.from(), p.to());
-                if (cells > MAX_FARM_CELLS) {
-                    at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box covers " + cells + " cells, max "
-                            + MAX_FARM_CELLS + "; every cell is rescanned after each harvest, so keep the Y span to the crop layer");
-                }
-            });
+    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class);
 
-    public static final UnionType<Farmed> FARM_RESULT = ApiTypes.taggedUnion("FarmResult", "kind",
-            ApiTypes.variant("farm", Farmed.class, ApiTypes.record(Farmed.class, null,
-                    ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Farmed::from),
-                    ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Farmed::to),
-                    ApiField.field("crops", ApiTypes.list(CROP, 1, 4)).required().forGetter(Farmed::crops),
-                    ApiField.field("replant", ApiTypes.bool()).required().forGetter(Farmed::replant),
-                    ApiField.field("harvested", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Farmed::harvested),
-                    ApiField.field("replanted", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Farmed::replanted),
-                    Farmed::new)));
+    public static final UnionType<Farmed> FARM_RESULT = ApiTypes.union("FarmResult", "kind", ApiTypes.record(Farmed.class));
 
     public static final MethodSpec<FarmParams, ActionResponse<Farmed>> FARM = MethodSpec.of("mc.bot.farm", FARM_PARAMS,
                     Responses.response("Farm", FARM_RESULT),
