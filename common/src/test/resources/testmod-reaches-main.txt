@@ -227,12 +227,6 @@ bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/BotRegistry
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverBridgeScenes -> bot/control/Locomotor
-bot/stagewright/scene/WorldDriverBridgeScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverBridgeScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverBridgeScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
-bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
 bot/stagewright/scene/WorldDriverClientAirScenes -> bot/rules/Goal
@@ -331,14 +325,6 @@ bot/stagewright/scene/WorldDriverNpcScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverNpcScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverNpcScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverNpcScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Locomotor
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/planning/PathFinder
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/rules/Move
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/rules/SearchProfile
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverParkourVoidScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverPortalScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverPortalScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverPortalScenes -> game/body/ServerPlayerBody

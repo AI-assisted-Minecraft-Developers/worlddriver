@@ -1,8 +1,15 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import java.util.List;
+import java.util.Optional;
+
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.minecraft.core.BlockPos;
 
 /**
  * A walk a scene ticks itself ({@code mc.bot.goto}, then {@code bot.tick()} per tick), read back the way the
@@ -30,5 +37,11 @@ final class NavWalk {
     /** The navigator trace {@code name}, or {@code ""} when the navigator holds none. */
     static String trace(BotDebugContracts.NavigatorReading r, String name) {
         return r.traces().getOrDefault(name, "");
+    }
+
+    /** {@code cell} as {@code bot}'s planner view classifies it ({@code mc.debug.cells}). */
+    static BotDebugContracts.Cell cell(SceneBot bot, BlockPos cell) {
+        return Calls.now(DebugApi.of(Calls.api()).cells(new BotDebugContracts.CellsParams(Optional.of(bot.ref()),
+                List.of(Targets.pos(cell)), Optional.empty()))).cells().get(0);
     }
 }
