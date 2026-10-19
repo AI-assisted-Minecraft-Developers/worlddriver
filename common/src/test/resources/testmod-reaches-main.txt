@@ -331,9 +331,6 @@ bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/rules/Move
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/rules/SearchProfile
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverPortalScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverPortalScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverPortalScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverProcessScenes -> bot/behavior/BridgeProcess

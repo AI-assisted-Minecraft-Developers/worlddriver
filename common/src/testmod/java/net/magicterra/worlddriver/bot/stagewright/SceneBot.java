@@ -17,14 +17,19 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractApi;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
 
 /**
  * A server player bot a scene spawned through {@code mc.bot.roster}, and the calls a scene makes on it. Every
@@ -237,6 +242,44 @@ public final class SceneBot {
     public Responses.ActionSnapshot<BuildContracts.Escaped> escape(int targetY) {
         return Calls.started("escape to " + targetY, Calls.now(tasks().escape(new BuildContracts.EscapeParams(ref,
                 Optional.of(targetY), 0))));
+    }
+
+    // ---------------------------------------------------------------- hands
+
+    /** Bring {@code item} to the main hand from anywhere in the bag; whether it is there now. */
+    public boolean hold(Item item) {
+        return Calls.now(InteractApi.of(Calls.api()).holdItem(new InteractContracts.HoldParams(ref,
+                BuiltInRegistries.ITEM.getKey(item).toString()))) instanceof Responses.Held;
+    }
+
+    /** Face the middle of {@code cell} at once. */
+    public void lookAt(BlockPos cell) {
+        Calls.now(InteractApi.of(Calls.api()).lookAt(new InteractContracts.LookParams(ref, Optional.of(Targets.pos(cell)),
+                Optional.empty(), Optional.empty(), 0)));
+    }
+
+    /**
+     * Right-click with the main hand as the bot is aimed, the way a bucket or a flint-and-steel is used: what
+     * vanilla answered ({@code CONSUME}, {@code PASS}, …), or the refusal.
+     */
+    public String use() {
+        return used(Calls.now(InteractApi.of(Calls.api()).useItem(new InteractContracts.UseParams(ref, Optional.empty(),
+                Optional.empty(), Optional.empty(), InteractContracts.Hand.MAIN, false, false))));
+    }
+
+    /** Right-click {@code face} of {@code cell} with the main hand, without turning first: what vanilla answered, or the refusal. */
+    public String useOn(BlockPos cell, Direction face) {
+        return used(Calls.now(InteractApi.of(Calls.api()).useItem(new InteractContracts.UseParams(ref,
+                Optional.of(Targets.pos(cell)), Optional.empty(), Optional.of(InteractContracts.Face.valueOf(face.name())),
+                InteractContracts.Hand.MAIN, false, false))));
+    }
+
+    private static String used(Responses.ImmediateResponse r) {
+        return switch (r) {
+            case Responses.Used u -> u.result().name();
+            case Responses.Refused<?> no -> "refused " + no.reason().wireName() + ": " + no.message();
+            default -> String.valueOf(r);
+        };
     }
 
     /** Stop whatever the bot is doing and let go of its keys. */
