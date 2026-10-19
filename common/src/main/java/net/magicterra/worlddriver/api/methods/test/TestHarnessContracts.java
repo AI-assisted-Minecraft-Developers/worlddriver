@@ -133,17 +133,32 @@ public final class TestHarnessContracts {
     // ------------------------------------------------------------------ bots
 
     public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark {}
+
+    /** Which half of a bot's tick to run. */
+    public enum Part implements WireName {
+        /** The brain, then the body's step. */
+        ALL("all"),
+        /** Only the body's physics step: no perceiving, reflexes or task. */
+        BODY("body"),
+        /** Only the brain: perceiving, reflexes and task leave their input on the body, and nothing moves. */
+        BRAIN("brain");
+
+        private final String wire;
+        Part(String wire) { this.wire = wire; }
+        @Override public String wireName() { return wire; }
+    }
+
     /**
      * Advance the ticking bots {@code ticks} times now, stopping early once none is busy when {@code untilIdle}.
-     * With {@code bot}, only that bot, parked or not; with {@code bodyOnly}, only its body's physics step, with
-     * no perceiving, reflexes or task.
+     * With {@code bot}, only that bot, parked or not, and only the {@code part} of its tick asked for.
      */
-    public record Tick(int ticks, boolean untilIdle, Optional<String> bot, boolean bodyOnly) implements BotsOp {
-        public static Tick once() { return new Tick(1, false, Optional.empty(), false); }
-        public static Tick of(int ticks) { return new Tick(ticks, false, Optional.empty(), false); }
-        public static Tick untilIdle(int max) { return new Tick(max, true, Optional.empty(), false); }
-        public static Tick bot(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), false); }
-        public static Tick body(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), true); }
+    public record Tick(int ticks, boolean untilIdle, Optional<String> bot, Part part) implements BotsOp {
+        public static Tick once() { return new Tick(1, false, Optional.empty(), Part.ALL); }
+        public static Tick of(int ticks) { return new Tick(ticks, false, Optional.empty(), Part.ALL); }
+        public static Tick untilIdle(int max) { return new Tick(max, true, Optional.empty(), Part.ALL); }
+        public static Tick bot(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), Part.ALL); }
+        public static Tick body(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), Part.BODY); }
+        public static Tick brain(String bot) { return new Tick(1, false, Optional.of(bot), Part.BRAIN); }
     }
     public record Count() implements BotsOp {}
     /** Remove every bot but {@code self}: off the tick list and out of the roster, a player one discarded. */
@@ -175,9 +190,10 @@ public final class TestHarnessContracts {
                     ApiField.field("untilIdle", ApiTypes.bool()).defaulted(false).forGetter(Tick::untilIdle),
                     ApiField.field("bot", Responses.BOT_REF).describe("Only this bot, parked or not.")
                             .optional().forGetter(Tick::bot),
-                    ApiField.field("bodyOnly", ApiTypes.bool())
-                            .describe("Only the body's physics step: no perceiving, reflexes or task. Needs bot.")
-                            .defaulted(false).forGetter(Tick::bodyOnly),
+                    ApiField.field("part", ApiTypes.enumOf("TestTickPart", Part.class))
+                            .describe("all; body: only the physics step; brain: perceiving, reflexes and task, and no "
+                                    + "step, so a press can change the input before a body tick. body and brain need bot.")
+                            .defaulted(Part.ALL).forGetter(Tick::part),
                     Tick::new)),
             ApiTypes.variant("count", Count.class, ApiTypes.record(Count.class, null, Count::new)),
             ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)),
@@ -205,7 +221,7 @@ public final class TestHarnessContracts {
 
     public static final MethodSpec<BotsOp, BotsReply> BOTS = MethodSpec.of("mc.test.bots", BOTS_PARAMS, BOTS_REPLY,
                     "The tick list every server-side bot is advanced from. tick advances them now, within the call, as "
-                            + "many times as asked, or one bot alone, or only its body; count answers how many are on it "
+                            + "many times as asked, or one bot alone, or only its body or its brain; count answers how many are on it "
                             + "and how many are busy; clear removes every bot but self; park takes a bot off the list "
                             + "and unpark puts it back. Server thread only.")
             .hidden().effects(MethodSpec.Effect.BODY_TASK);

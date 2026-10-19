@@ -105,12 +105,18 @@ public final class Harness {
 
     /** Advance {@code bot} alone until it is idle or {@code maxTicks} ran out; the ticks it took. */
     public static int tickUntilIdle(String bot, int maxTicks) {
-        return ticked(new TestHarnessContracts.Tick(maxTicks, true, java.util.Optional.of(bot), false)).ticks();
+        return ticked(new TestHarnessContracts.Tick(maxTicks, true, java.util.Optional.of(bot),
+                TestHarnessContracts.Part.ALL)).ticks();
     }
 
     /** Step only {@code bot}'s body {@code ticks} times: its physics, with no perceiving, reflexes or task. */
     public static void step(String bot, int ticks) {
         ticked(TestHarnessContracts.Tick.body(bot, ticks));
+    }
+
+    /** Run only {@code bot}'s brain once: it leaves its input on the body, and nothing moves until {@link #step}. */
+    public static void think(String bot) {
+        ticked(TestHarnessContracts.Tick.brain(bot));
     }
 
     private static TestHarnessContracts.Ticked ticked(TestHarnessContracts.Tick tick) {

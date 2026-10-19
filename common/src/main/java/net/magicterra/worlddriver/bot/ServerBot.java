@@ -186,16 +186,21 @@ public abstract class ServerBot implements Bot {
      * level, then the reflexes and the scheduler — and the body's step. Runs on a finished bot
      * too: an idle bot still floats when it drowns and steps out of a cactus.
      */
-    @Override public Locomotor.Status tick() {
+    @Override public Locomotor.Status tick() { return tick(true); }
+
+    /** {@link #tick()} without the body's step: a test harness that changes the input before {@link #stepBody}. */
+    public Locomotor.Status think() { return tick(false); }
+
+    private Locomotor.Status tick(boolean step) {
         Body body = body();
         brain.perceive(body);
         if (brain.clutch(body)) {
-            step();
+            if (step) step();
             return last;
         }
         brain.refreshThreats(body, ((ServerLevel) entity().level()).getAllEntities());
         brain.act(body);
-        step();
+        if (step) step();
         if (tasked && !finished && brain.userProcess() == null) {
             finished = true;
             if (last == Locomotor.Status.MOVING) last = Locomotor.Status.REACHED;

@@ -180,6 +180,9 @@ public final class SceneBot {
     /** One body step. */
     public void step() { step(1); }
 
+    /** Run only the brain once; {@link #step()} then moves the body on what it, and any press after it, left. */
+    public void think() { Harness.think(ref); }
+
     /** A press that changes nothing yet, to add keys to. */
     public TestHarnessContracts.Press keys() { return Harness.keys(ref); }
 
