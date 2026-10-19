@@ -4,19 +4,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
+import net.magicterra.worlddriver.api.schema.KeyedValueType;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
+import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.schema.annotation.As;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * The test harness's hold on the settings and the bots: {@code mc.test.settings} and {@code mc.test.bots}.
@@ -30,6 +38,7 @@ public final class TestHarnessContracts {
     // ------------------------------------------------------------------ settings
 
     /** What a pin puts in place once it has saved the settings. */
+    @Named("TestBaseline")
     public enum Baseline implements WireName {
         /** The settings the scenes were written against: the newer behaviours off, breaking and placing off. */
         TEST("test"),
@@ -43,31 +52,73 @@ public final class TestHarnessContracts {
         @Override public String wireName() { return wire; }
     }
 
+    private static final KeyedValueType SETTING_VALUES = SettingsContracts.SETTING_VALUES;
+
+    private static final KeyedValueType WRITE_VALUES = SettingsContracts.SETTING_VALUES.atLeast(1);
+
+    private static final ApiType<List<String>> KEY_LIST = ApiTypes.list(ApiTypes.string(1, 64), SettingsContracts.TYPES.size());
+
+    @Tag("op") @Named("TestSettingsParams")
     public sealed interface SettingsOp permits Pin, Unpin, Write, Read {}
     /**
      * {@code untimed} also lifts the planner's wall-clock budgets ({@code pathfinder.maxMs} and
      * {@code pathfinder.sliceMs}) past what a user may set, so a search ends on its node budget alone and a
      * scene plans the same on a slow machine as on a fast one.
      */
-    public record Pin(Baseline baseline, boolean untimed) implements SettingsOp {
+    @Variant("pin")
+    public record Pin(
+            @Default("test") Baseline baseline,
+            @Doc("Also lift the planner's wall-clock budgets.") @Default("false") boolean untimed) implements SettingsOp {
         public static Pin of(Baseline baseline) { return new Pin(baseline, false); }
     }
-    public record Unpin(int pin) implements SettingsOp {}
-    public record Write(List<Entry> values) implements SettingsOp {
+    @Variant("unpin")
+    public record Unpin(@Range(min = 1) int pin) implements SettingsOp {}
+    @Variant("write")
+    public record Write(@As(value = TestHarnessContracts.class, field = "WRITE_VALUES") List<Entry> values)
+            implements SettingsOp, SelfChecked {
         /** Write {@code values}, in the map's iteration order. */
         public static Write of(Map<String, ?> values) {
             List<Entry> entries = new java.util.ArrayList<>();
             values.forEach((k, v) -> entries.add(new Entry(k, v)));
             return new Write(entries);
         }
-    }
-    public record Read(List<String> keys) implements SettingsOp {}
 
+        @Override
+        public void check(DecodeContext at) {
+            for (Entry e : values) {
+                if (SettingsContracts.CONTROLS.contains(e.key())) {
+                    at.field("values").field(e.key()).fail(ApiIssue.Code.INVALID_VALUE, e.key() + " is a control, not a setting");
+                }
+            }
+        }
+    }
+    @Variant("read")
+    public record Read(@As(value = TestHarnessContracts.class, field = "KEY_LIST") List<String> keys)
+            implements SettingsOp, SelfChecked {
+        @Override
+        public void check(DecodeContext at) {
+            for (int i = 0; i < keys.size(); i++) {
+                String k = keys.get(i);
+                if (!SettingsContracts.isKnown(k)) {
+                    at.field("keys").index(i).fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
+                }
+            }
+        }
+    }
+
+    @Tag("op") @Named("TestSettingsReply")
     public sealed interface SettingsReply permits Pinned, Unpinned, Written, Values {}
-    public record Pinned(int pin) implements SettingsReply {}
-    public record Unpinned(int pin) implements SettingsReply {}
-    public record Written(List<Entry> values) implements SettingsReply {}
-    public record Values(List<Entry> values) implements SettingsReply {
+    @Variant("pin")
+    public record Pinned(@Range(min = 1) int pin) implements SettingsReply {}
+    @Variant("unpin")
+    public record Unpinned(@Range(min = 1) int pin) implements SettingsReply {}
+    @Variant("write")
+    public record Written(
+            @Doc("What each key holds after the write.")
+            @As(value = TestHarnessContracts.class, field = "SETTING_VALUES") List<Entry> values) implements SettingsReply {}
+    @Variant("read")
+    public record Values(@As(value = TestHarnessContracts.class, field = "SETTING_VALUES") List<Entry> values)
+            implements SettingsReply {
         /** What {@code key} holds. */
         public Object get(String key) {
             for (Entry e : values) if (e.key().equals(key)) return e.value();
@@ -75,52 +126,9 @@ public final class TestHarnessContracts {
         }
     }
 
-    private static final ApiType<String> KEY = ApiTypes.string(1, 64).withCheck((k, at) -> {
-        if (!SettingsContracts.isKnown(k)) at.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
-    });
+    public static final UnionType<SettingsOp> SETTINGS_PARAMS = ApiTypes.union(SettingsOp.class);
 
-    public static final ApiType<SettingsOp> SETTINGS_PARAMS = ApiTypes.<SettingsOp>taggedUnion("TestSettingsParams", "op",
-            ApiTypes.variant("pin", Pin.class, ApiTypes.record(Pin.class, null,
-                    ApiField.field("baseline", ApiTypes.enumOf("TestBaseline", Baseline.class)).defaulted(Baseline.TEST)
-                            .forGetter(Pin::baseline),
-                    ApiField.field("untimed", ApiTypes.bool()).describe("Also lift the planner's wall-clock budgets.")
-                            .defaulted(false).forGetter(Pin::untimed),
-                    Pin::new)),
-            ApiTypes.variant("unpin", Unpin.class, ApiTypes.record(Unpin.class, null,
-                    ApiField.field("pin", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Unpin::pin),
-                    Unpin::new)),
-            ApiTypes.variant("write", Write.class, ApiTypes.record(Write.class, null,
-                    ApiField.field("values", SettingsContracts.SETTING_VALUES.atLeast(1)).required().forGetter(Write::values),
-                    Write::new)),
-            ApiTypes.variant("read", Read.class, ApiTypes.record(Read.class, null,
-                    ApiField.field("keys", ApiTypes.list(KEY, SettingsContracts.TYPES.size())).required().forGetter(Read::keys),
-                    Read::new)))
-            .withCheck(TestHarnessContracts::checkSettings);
-
-    private static void checkSettings(SettingsOp op, DecodeContext at) {
-        if (op instanceof Write w) {
-            for (Entry e : w.values()) {
-                if (SettingsContracts.CONTROLS.contains(e.key())) {
-                    at.field("values").field(e.key()).fail(ApiIssue.Code.INVALID_VALUE, e.key() + " is a control, not a setting");
-                }
-            }
-        }
-    }
-
-    public static final ApiType<SettingsReply> SETTINGS_REPLY = ApiTypes.<SettingsReply>taggedUnion("TestSettingsReply", "op",
-            ApiTypes.variant("pin", Pinned.class, ApiTypes.record(Pinned.class, null,
-                    ApiField.field("pin", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Pinned::pin),
-                    Pinned::new)),
-            ApiTypes.variant("unpin", Unpinned.class, ApiTypes.record(Unpinned.class, null,
-                    ApiField.field("pin", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Unpinned::pin),
-                    Unpinned::new)),
-            ApiTypes.variant("write", Written.class, ApiTypes.record(Written.class, null,
-                    ApiField.field("values", SettingsContracts.SETTING_VALUES).describe("What each key holds after the write.")
-                            .required().forGetter(Written::values),
-                    Written::new)),
-            ApiTypes.variant("read", Values.class, ApiTypes.record(Values.class, null,
-                    ApiField.field("values", SettingsContracts.SETTING_VALUES).required().forGetter(Values::values),
-                    Values::new)));
+    public static final UnionType<SettingsReply> SETTINGS_REPLY = ApiTypes.union(SettingsReply.class);
 
     public static final MethodSpec<SettingsOp, SettingsReply> SETTINGS = MethodSpec.of("mc.test.settings",
                     SETTINGS_PARAMS, SETTINGS_REPLY,
@@ -131,9 +139,11 @@ public final class TestHarnessContracts {
 
     // ------------------------------------------------------------------ bots
 
+    @Tag("op") @Named("TestBotsParams")
     public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark {}
 
     /** Which half of a bot's tick to run. */
+    @Named("TestTickPart")
     public enum Part implements WireName {
         /** The brain, then the body's step. */
         ALL("all"),
@@ -151,7 +161,14 @@ public final class TestHarnessContracts {
      * Advance the ticking bots {@code ticks} times now, stopping early once none is busy when {@code untilIdle}.
      * With {@code bot}, only that bot, parked or not, and only the {@code part} of its tick asked for.
      */
-    public record Tick(int ticks, boolean untilIdle, Optional<String> bot, Part part) implements BotsOp {
+    @Variant("tick")
+    public record Tick(
+            @Default("1") @Range(min = 1, max = 100_000) int ticks,
+            @Default("false") boolean untilIdle,
+            @Doc("Only this bot, parked or not.") Optional<@BotRef String> bot,
+            @Doc("all; body: only the physics step; brain: perceiving, reflexes and task, and no step, so a press can "
+                    + "change the input before a body tick. body and brain need bot.")
+            @Default("all") Part part) implements BotsOp {
         public static Tick once() { return new Tick(1, false, Optional.empty(), Part.ALL); }
         public static Tick of(int ticks) { return new Tick(ticks, false, Optional.empty(), Part.ALL); }
         public static Tick untilIdle(int max) { return new Tick(max, true, Optional.empty(), Part.ALL); }
@@ -159,64 +176,35 @@ public final class TestHarnessContracts {
         public static Tick body(String bot, int ticks) { return new Tick(ticks, false, Optional.of(bot), Part.BODY); }
         public static Tick brain(String bot) { return new Tick(1, false, Optional.of(bot), Part.BRAIN); }
     }
+    @Variant("count")
     public record Count() implements BotsOp {}
     /** Remove every bot but {@code self}: off the tick list and out of the roster, a player one discarded. */
+    @Variant("clear")
     public record Clear() implements BotsOp {}
     /** Take {@code bot} off the tick list; it stays addressable, and only a {@code tick} naming it moves it. */
-    public record Park(String bot) implements BotsOp {}
+    @Variant("park")
+    public record Park(@BotRef String bot) implements BotsOp {}
     /** Put a parked {@code bot} back on the tick list. */
-    public record Unpark(String bot) implements BotsOp {}
+    @Variant("unpark")
+    public record Unpark(@BotRef String bot) implements BotsOp {}
 
+    @Tag("op") @Named("TestBotsReply")
     public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked {}
     /** {@code ticks} it advanced; {@code busy}, the bots still on a task after it. */
-    public record Ticked(int ticks, int busy) implements BotsReply {}
+    @Variant("tick")
+    public record Ticked(@Range(min = 0) int ticks, @Range(min = 0) int busy) implements BotsReply {}
     /** {@code ticking}: the bots on the tick list; {@code busy}: those on a task. */
-    public record Counted(int ticking, int busy) implements BotsReply {}
-    public record Cleared(int removed) implements BotsReply {}
+    @Variant("count")
+    public record Counted(@Range(min = 0) int ticking, @Range(min = 0) int busy) implements BotsReply {}
+    @Variant("clear")
+    public record Cleared(@Range(min = 0) int removed) implements BotsReply {}
     /** Whether {@code bot} is now off the tick list. */
-    public record Parked(String bot, boolean parked) implements BotsReply {}
+    @Variant("park")
+    public record Parked(@BotRef String bot, boolean parked) implements BotsReply {}
 
-    private static final RecordType<Park> PARK = ApiTypes.record(Park.class, null,
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Park::bot),
-            Park::new);
-    private static final RecordType<Unpark> UNPARK = ApiTypes.record(Unpark.class, null,
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Unpark::bot),
-            Unpark::new);
+    public static final UnionType<BotsOp> BOTS_PARAMS = ApiTypes.union(BotsOp.class);
 
-    public static final ApiType<BotsOp> BOTS_PARAMS = ApiTypes.<BotsOp>taggedUnion("TestBotsParams", "op",
-            ApiTypes.variant("tick", Tick.class, ApiTypes.record(Tick.class, null,
-                    ApiField.field("ticks", ApiTypes.integer(1, 100_000)).defaulted(1).forGetter(Tick::ticks),
-                    ApiField.field("untilIdle", ApiTypes.bool()).defaulted(false).forGetter(Tick::untilIdle),
-                    ApiField.field("bot", Responses.BOT_REF).describe("Only this bot, parked or not.")
-                            .optional().forGetter(Tick::bot),
-                    ApiField.field("part", ApiTypes.enumOf("TestTickPart", Part.class))
-                            .describe("all; body: only the physics step; brain: perceiving, reflexes and task, and no "
-                                    + "step, so a press can change the input before a body tick. body and brain need bot.")
-                            .defaulted(Part.ALL).forGetter(Tick::part),
-                    Tick::new)),
-            ApiTypes.variant("count", Count.class, ApiTypes.record(Count.class, null, Count::new)),
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)),
-            ApiTypes.variant("park", Park.class, PARK),
-            ApiTypes.variant("unpark", Unpark.class, UNPARK));
-
-    private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
-
-    public static final ApiType<BotsReply> BOTS_REPLY = ApiTypes.<BotsReply>taggedUnion("TestBotsReply", "op",
-            ApiTypes.variant("tick", Ticked.class, ApiTypes.record(Ticked.class, null,
-                    ApiField.field("ticks", COUNT).required().forGetter(Ticked::ticks),
-                    ApiField.field("busy", COUNT).required().forGetter(Ticked::busy),
-                    Ticked::new)),
-            ApiTypes.variant("count", Counted.class, ApiTypes.record(Counted.class, null,
-                    ApiField.field("ticking", COUNT).required().forGetter(Counted::ticking),
-                    ApiField.field("busy", COUNT).required().forGetter(Counted::busy),
-                    Counted::new)),
-            ApiTypes.variant("clear", Cleared.class, ApiTypes.record(Cleared.class, null,
-                    ApiField.field("removed", COUNT).required().forGetter(Cleared::removed),
-                    Cleared::new)),
-            ApiTypes.variant("park", Parked.class, ApiTypes.record(Parked.class, null,
-                    ApiField.field("bot", Responses.BOT_REF).required().forGetter(Parked::bot),
-                    ApiField.field("parked", ApiTypes.bool()).required().forGetter(Parked::parked),
-                    Parked::new)));
+    public static final UnionType<BotsReply> BOTS_REPLY = ApiTypes.union(BotsReply.class);
 
     public static final MethodSpec<BotsOp, BotsReply> BOTS = MethodSpec.of("mc.test.bots", BOTS_PARAMS, BOTS_REPLY,
                     "The tick list every server-side bot is advanced from. tick advances them now, within the call, as "
@@ -235,10 +223,20 @@ public final class TestHarnessContracts {
      * {@code toolFor} puts the best tool for that block in hand. {@code hit} strikes an entity once through the
      * body's own attack, which the attack verbs build on: no reach test, no footing guard and no swing of its own.
      */
-    public record Press(String bot, Optional<Double> forward, Optional<Double> left, Optional<Boolean> jump,
-                        Optional<Boolean> sneak, Optional<Boolean> sprint, Optional<Boolean> attack,
-                        Optional<Boolean> use, Optional<BlockPosition> aimAt, Optional<BlockPosition> toolFor,
-                        Optional<Integer> hit) {
+    @Named("TestPress")
+    public record Press(
+            @BotRef String bot,
+            Optional<@Range(min = -1, max = 1) Double> forward,
+            Optional<@Range(min = -1, max = 1) Double> left,
+            Optional<Boolean> jump,
+            Optional<Boolean> sneak,
+            Optional<Boolean> sprint,
+            Optional<Boolean> attack,
+            Optional<Boolean> use,
+            Optional<BlockPosition> aimAt,
+            Optional<BlockPosition> toolFor,
+            @Doc("An entity id in the bot's level, struck once: no reach test, no footing guard, no swing.")
+            Optional<Integer> hit) {
         public static Press of(String bot) {
             return new Press(bot, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
@@ -278,30 +276,12 @@ public final class TestHarnessContracts {
     }
 
     /** What the bot's body reports holding after the press. */
-    public record Pressed(String bot, TestInputContracts.HeldKeys held) {}
+    @Named("TestPressed")
+    public record Pressed(@BotRef String bot, TestInputContracts.HeldKeys held) {}
 
-    private static final ApiType<Double> IMPULSE = ApiTypes.number(-1, 1);
+    public static final RecordType<Press> PRESS = ApiTypes.record(Press.class);
 
-    public static final RecordType<Press> PRESS = ApiTypes.record(Press.class, "TestPress",
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Press::bot),
-            ApiField.field("forward", IMPULSE).optional().forGetter(Press::forward),
-            ApiField.field("left", IMPULSE).optional().forGetter(Press::left),
-            ApiField.field("jump", ApiTypes.bool()).optional().forGetter(Press::jump),
-            ApiField.field("sneak", ApiTypes.bool()).optional().forGetter(Press::sneak),
-            ApiField.field("sprint", ApiTypes.bool()).optional().forGetter(Press::sprint),
-            ApiField.field("attack", ApiTypes.bool()).optional().forGetter(Press::attack),
-            ApiField.field("use", ApiTypes.bool()).optional().forGetter(Press::use),
-            ApiField.field("aimAt", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::aimAt),
-            ApiField.field("toolFor", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::toolFor),
-            ApiField.field("hit", ApiTypes.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
-                    .describe("An entity id in the bot's level, struck once: no reach test, no footing guard, no swing.")
-                    .optional().forGetter(Press::hit),
-            Press::new);
-
-    public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class, "TestPressed",
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Pressed::bot),
-            ApiField.field("held", TestInputContracts.HELD_KEYS).required().forGetter(Pressed::held),
-            Pressed::new);
+    public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class);
 
     public static final MethodSpec<Press, Pressed> PRESS_KEYS = MethodSpec.of("mc.test.input.press", PRESS, PRESSED,
                     "Hold or let go of a bot's keys, as a player at the keyboard would; each stays until the next press "
