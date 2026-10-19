@@ -51,18 +51,41 @@ consumer depends on the api for compiling only and must not bundle it.
 
 ## Why it runs without Minecraft
 
-The generator's classpath is the compiled classes of `:api` and `:common` plus DataFixerUpper and its
-four libraries, and nothing else. It lives in `:common` because the settings' defaults it prints are
-fields there, which is also why its output is a zip beside the api jars rather than inside them:
-`:common` compiles against those jars. It loads `CoreMethods`, which lists only the descriptions. A description that reached
-into the game (named a client class, needed a registry) fails the build here, which is the check that
-keeps the contract layer separate from the game. The settings' defaults are read from the config
-classes, which name no game class either.
+The generator is `:api`'s `gen` source set, which the jars leave out. It runs on the compiled classes of
+`:api` plus DataFixerUpper and its four libraries, and nothing else. It loads `CoreMethods`, which lists
+only the descriptions. A description that reached into the game (named a client class, needed a registry)
+fails the build here, which is the check that keeps the contract layer separate from the game. The
+settings' defaults come from the settings records in `api/methods/setting/`, which name no game class
+either. `:common` takes the output from there: it checks the declarations and copies them into the mod jar.
+
+## Writing a contract
+
+A contract is a Java record. Its wire type is read off the declaration the first time it is used, by
+`ApiTypes.record(X.class)` or `MethodSpec.of(name, Params.class, Result.class, description)`.
+
+- Each component is a field. An `Optional` one may be absent; one with `@Default("…")` takes that value
+  when absent (the text itself for a string, JSON for anything else); any other is required.
+  `@Wire("…")` gives a wire name that is not a Java name.
+- `@Doc` on a component describes the field; on a record, an enum or an annotation it describes the type.
+- Rules about a value sit on its type: `@Range`, `@Length`, `@Pattern`, `@OneOf`, `@OnlyTrue`,
+  `@OnlyObject`, `@AsString` (a 64-bit integer written as a decimal string) and `@TsAlias`. A rule used in
+  several places is an annotation of its own that carries them, such as `CommonTypes.ResourceId` or
+  `Responses.BotRef`.
+- `@Named` gives a record or an enum its name in the TypeScript declarations. An enum implements
+  `WireName`, which spells its constants.
+- A sealed interface marked `@Tag("…")` is a union of its records, each marked `@Variant("…")`. A union
+  of only some records is `ApiTypes.union(name, tag, records…)`.
+- A rule across fields is the record's `check`, from `SelfChecked`.
+- A shape no annotation can state, such as an enum whose values are computed when the class loads, is
+  a constant built with the factories at the end of `ApiTypes`, which a component names with `@As`.
+
+A mistake in the annotations fails when the type is first built; `RecordTypeTest` builds every
+contract class, so it fails the build.
 
 ## Adding a method
 
-1. Write its records and `ApiType`s in its family's `*Contracts` class under `api/methods/<family>/`,
-   ending in a `MethodSpec` constant.
+1. Write its parameter and result records in its family's `*Contracts` class under
+   `api/methods/<family>/`, ending in a `MethodSpec` constant.
 2. Add the constant to `CoreMethods.all()` in `api/methods/`.
 3. Bind a handler in the application and add it to the core batch.
 4. Delete whatever hand-written wrapper `prelude.js` had for it; the generated one replaces it.

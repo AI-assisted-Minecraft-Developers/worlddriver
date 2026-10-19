@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-20
 
+- **Contracts are annotated records.** A method's parameters and result are plain Java records whose
+  wire type is read off the declaration: `@Doc`, `@Default`, `@Range`, `@Pattern` and the rest, unions as
+  sealed interfaces with `@Tag` and `@Variant`, cross-field rules as `SelfChecked.check`. The positional
+  `ApiTypes.record` builders, `ApiField.field`, `taggedUnion`, `variant` and `withCheck` are gone, and the
+  scalar factories are the schema package's own. The generated declarations are unchanged, except as noted
+  below. The artifact generator moved into `:api`.
+- **The setting keys are declared in one record per layer.** `api/methods/setting/` holds
+  `BotSettings`, `ControlSettings` and the rest, one component per key with its type, prose and default;
+  each config field starts from its record's `DEFAULTS`, so a default is written once. `SettingDefs` and
+  `SettingDefaults` are gone. A read without keys, the schema and the manual now list the keys layer by
+  layer instead of in the old hand-kept order.
+- **A build verb's block description no longer leaks.** It was attached to the shared resource-id type,
+  so every resource id in the schema carried it.
+- **`maxMs` in `mc.debug.*` tops out at 2^62** instead of 2^62 − 1, a bound an annotation can state.
+- **Java callers see a few records change.** `mc.observe.cursor` takes a `CursorParams` of its own, the
+  client's look is a `ClientLook`, and the client's item rows hold `maxDamage`, `damage` and `durability`
+  as components (a constructor still takes a `Wear`). The wire is unchanged.
 - **Values on the wire are Gson trees.** `ApiType` reads and writes `JsonElement`, `ApiRegistry.dispatch`
   takes one and `route` takes a `JsonObject`, `JsonValue` wraps a Gson tree (`JsonValue.of(JsonElement)`,
   `json()`), and `ApiType.codec()` goes through `JsonOps`. The hand-rolled `JsonCodec` is gone: requests are

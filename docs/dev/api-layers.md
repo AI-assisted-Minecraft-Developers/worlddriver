@@ -11,7 +11,7 @@ Bottom up. A layer uses only the layers below it, and only the top one names Min
 
 | Layer | Package | Answers | May use |
 |---|---|---|---|
-| schema | `api/schema/` | What a value looks like: decoding Gson trees, refusals, the TypeScript it generates | Gson, DataFixerUpper |
+| schema | `api/schema/` | What a value looks like, read off annotated records: decoding Gson trees, refusals, the TypeScript it generates | Gson, DataFixerUpper |
 | methods | `api/methods/<family>/` | What each method takes and answers | schema, `call/`, `registry/` |
 | runtime | `api/registry/` `api/call/` `api/thread/` `api/action/` | How a call is queued, cancelled, moved between threads and turned into an error | everything below |
 | game | `api/game/` | How game objects and API values convert, and the host's hooks | everything, and Minecraft |

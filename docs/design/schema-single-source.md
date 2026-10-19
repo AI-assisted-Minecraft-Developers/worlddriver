@@ -64,7 +64,8 @@ unusable parameter documentation to every model client.
 ## Where to look
 
 - `api/schema/ApiType.java`, `ApiTypes.java`, `RecordType.java` — the types: decode with every issue
-  collected, encode, JSON Schema and TypeScript from one object.
+  collected, encode, JSON Schema and TypeScript from one object. `Reflected.java` reads them off the
+  annotated contract records.
 - `api/schema/MethodSpec.java` — a method's description; `api/methods/` holds the core ones.
 - `api/registry/ApiRegistry.java` — publishing batches, the namespace policy, and the decode–run–encode
   dispatch, the single point every transport calls.

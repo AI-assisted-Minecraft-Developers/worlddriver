@@ -161,8 +161,14 @@ action, replaces the bot's current task, can be cancelled, and its result answer
 Register it with `BodyTasks` (`api/game/`) during your mod's setup:
 
 ```java
-public record DanceParams(String bot, int beats, int awaitMs) implements BodyTasks.Params {}
+@Named("DanceParams")
+public record DanceParams(@Default("self") @BotRef String bot, @Range(min = 1, max = 64) int beats,
+                          @Default("0") @AwaitMs int awaitMs) implements BodyTasks.Params {}
+@Variant("dance")
 public record Danced(int beats) {}
+
+static final ApiType<DanceParams> DANCE_PARAMS = ApiTypes.record(DanceParams.class);
+static final UnionType<Danced> DANCE_RESULT = ApiTypes.union("DanceResult", "kind", ApiTypes.record(Danced.class));
 
 BodyTasks.register("mymod.dance", DANCE_PARAMS, DANCE_RESULT, "Dance on the spot.",
         (p, body) -> new TaskStep<Danced>() {
@@ -175,11 +181,12 @@ BodyTasks.register("mymod.dance", DANCE_PARAMS, DANCE_RESULT, "Dance on the spot
         });
 ```
 
-The name is `<modid>.<verb>`, never under `mc.`. The parameter record has `bot` (declared with
-`Responses.BOT_REF`, defaulting to `self`) and `awaitMs` (`Responses.AWAIT_MS`, defaulting to 0);
-the call answers `accepted` or `refused` like every task. `DANCE_RESULT` is a tagged union on `kind`.
-Its tags join every other action result's kinds, and each variant needs a record class no other
-action result uses, so a tag or class already taken fails the registration.
+The name is `<modid>.<verb>`, never under `mc.`. The parameter record has `bot` (`@BotRef`,
+defaulting to `self`) and `awaitMs` (`@AwaitMs`, defaulting to 0); the call answers `accepted` or
+`refused` like every task. `DANCE_RESULT` is a union on `kind`, each record tagged by its `@Variant`
+(how a contract is written: [api-artifacts.md](api-artifacts.md#writing-a-contract)). Its tags join
+every other action result's kinds, and each variant needs a record class no other action result uses,
+so a tag or class already taken fails the registration.
 
 The factory runs on the bot's game thread when the call arrives. To start nothing, it throws
 `BodyTasks.Refusal` with a reason and a message. `tick` runs once a game tick until it answers
