@@ -11,14 +11,6 @@ import java.util.function.Consumer;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Attack;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlastFooting;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -36,7 +28,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -1647,7 +1638,7 @@ public final class JourneyEndRungs {
                 // by construction (vanilla's cage lid is a solid 5x5 of iron bars over the only
                 // qualifying floor), so the walk is the test. A candidate must also be within reach
                 // of the crystal — a perfect stand 4 cells away that cannot swing is not a remedy.
-                Blast blast = blastFor(rig, crystal);
+                blastFor(rig, crystal, blast -> {
                 String refusal = blast.refusal();
                 BlockPos betterStand = null;
                 if (refusal != null) {
@@ -1660,15 +1651,14 @@ public final class JourneyEndRungs {
                 java.util.function.Consumer<Runnable> reseat = chosen == null
                         ? next -> rig.hold(1, CRYSTAL_RESEAT_TICKS, next)
                         : next -> rig.settle(JourneyTasks.goToBlock(chosen), CRYSTAL_RESEAT_TICKS, next);
-                reseat.accept(() -> {
+                reseat.accept(() -> blastFor(rig, crystal, after -> {
                 rig.evidence("crystal." + i + ".reseat", chosen != null
                         ? "footing would be destroyed by the blast; moving to " + chosen.toShortString()
                           + " (standing on " + blockAt(rig, chosen.below()) + ") → after the move at "
                           + xyz(rig.player().blockPosition()) + ", "
-                          + (blastFor(rig, crystal).refusal() == null
-                                  ? "no longer refused" : "still refused")
+                          + (after.refusal() == null ? "no longer refused" : "still refused")
                         : refusal == null ? "footing already withstands this blast; did not move"
-                        : "swing refused, but no footing within radius " + BlastFooting.STAND_SURVEY_RADIUS
+                        : "swing refused, but no footing within radius " + blast.surveyRadius()
                           + " both withstands this blast and reaches the crystal");
                 JourneyDuel.SwingAt swing = new JourneyDuel.SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 fight(rig, JourneyDuel.SwingAt.KIND, swing, CRYSTAL_SWING_TICKS + 50, () -> {
@@ -1680,6 +1670,7 @@ public final class JourneyEndRungs {
                                     + swing.refusal() + "«") + ")");
                     smashCrystal(ctx, rig, crystals, i + 1);
                 });
+                }));
                 });
                 });
             });
@@ -2339,64 +2330,32 @@ public final class JourneyEndRungs {
     // =====================================================================================
 
     /**
-     * Run {@code step} until it says the fight is over or {@code ticks} run out, then {@code then}.
-     *
-     * <p>A roster bot is driven from the scene each tick through its {@link JourneyDuel#arms verb arms}. self
-     * gets the step as its own client task, as these fights always ran there: <b>a reach left in place</b> —
-     * no verb runs a scene's per-tick fight on self, and its hands are its client body's. See
-     * {@link JourneyRig#runOnSelf}.
+     * Run {@code step} until it says the fight is over or {@code ticks} run out, then {@code then}: the bot is
+     * driven from the scene each tick through its {@link JourneyDuel#arms verb arms}.
      */
     private static void fight(JourneyRig rig, String kind, JourneyDuel.Step step, int ticks, Runnable then) {
-        SceneBot bot = rig.serverBotOrNull();
-        if (bot == null) { rig.runOnSelf(onSelf(kind, step), ticks, then); return; }
-        JourneyDuel.Arms arms = JourneyDuel.arms(bot);
+        JourneyDuel.Arms arms = JourneyDuel.arms(rig);
         rig.runEachTick(kind, () -> step.tick(rig.player(), arms), ticks, then);
     }
 
     /** Why a swing at {@code target} would be refused for the blast (null when it would not be), and the stands
      *  around the bot where it would not be. */
-    private record Blast(String refusal, List<BlockPos> stands) {}
+    private record Blast(String refusal, List<BlockPos> stands, int surveyRadius) {}
 
     /**
-     * {@link Blast} for the run's bot: a roster bot's through {@code mc.debug.body}'s {@code blastFrom}. self has
-     * no such reading — {@code mc.debug.body} reads server-side bots — so self's is still the footing guard's
-     * own functions over the server's copy of the player, a reach left in place.
+     * {@link Blast} for the run's bot, through {@code mc.debug.body}'s {@code blastFrom}, handed to {@code then}
+     * once it lands: within the call for a roster bot, a tick or so later for self, whose body is read on the
+     * client.
      */
-    private static Blast blastFor(JourneyRig rig, Entity target) {
-        SceneBot bot = rig.serverBotOrNull();
-        if (bot == null) {
-            Player p = rig.player();
-            return new Blast(BlastFooting.refuseSwing(p, target),
-                    BlastFooting.qualifyingStands(p.level(), p.blockPosition(), BlastFooting.needFor(target)));
-        }
-        var b = Calls.now(DebugApi.of(Calls.api()).body(new BotDebugContracts.BodyParams(bot.ref(),
-                Optional.empty(), Optional.of(target.getId())))).blast().orElseThrow();
-        List<BlockPos> stands = new ArrayList<>();
-        for (var c : b.stands()) stands.add(new BlockPos(c.x(), c.y(), c.z()));
-        return new Blast(b.refusal().orElse(null), stands);
-    }
-
-    /** {@code step} as self's client task, its arms the client body's own. */
-    private static BotProcess onSelf(String kind, JourneyDuel.Step step) {
-        return new BotProcess() {
-            @Override public String kind() { return kind; }
-            @Override public String failure() { return null; }
-            @Override public void attach(BotState st) { }
-            @Override public boolean tick(Body a, WorldView w, BotState st) { return step.tick(a.asPlayer(), armsOf(a)); }
-        };
-    }
-
-    /** A client body's arms, or null when it has no hands. */
-    private static JourneyDuel.Arms armsOf(Body a) {
-        Attack h = a.attack().orElse(null);
-        Equipment eq = a.equipment().orElse(null);
-        BlockInteraction b = a.blockInteraction().orElse(null);
-        if (h == null || eq == null || b == null) return null;
-        return new JourneyDuel.Arms() {
-            @Override public String attack(Entity target) { h.attackEntity(target); return h.lastAttackRefusal(); }
-            @Override public void useKey(boolean down) { eq.commandUseItem(down); }
-            @Override public void standStill() { a.commandMove(0, 0); a.commandJump(false); b.breakHold(false); }
-        };
+    private static void blastFor(JourneyRig rig, Entity target, java.util.function.Consumer<Blast> then) {
+        var answer = DebugApi.of(Calls.api()).body(new BotDebugContracts.BodyParams(rig.bot(),
+                Optional.empty(), Optional.of(target.getId()))).toCompletableFuture();
+        rig.whenLanded("mc.debug.body blastFrom", answer, 40, r -> {
+            var b = r.blast().orElseThrow();
+            List<BlockPos> stands = new ArrayList<>();
+            for (var c : b.stands()) stands.add(new BlockPos(c.x(), c.y(), c.z()));
+            then.accept(new Blast(b.refusal().orElse(null), stands, b.surveyRadius()));
+        });
     }
 
 

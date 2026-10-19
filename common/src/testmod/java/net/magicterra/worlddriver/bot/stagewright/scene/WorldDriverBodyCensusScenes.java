@@ -9,7 +9,6 @@ import java.util.Map;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
@@ -784,15 +783,11 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     /**
      * Whether attacking through the avatar seam swings the arm.
      *
-     * <p>Driven through {@link ServerPlayerBody#attackEntityUnchecked} on purpose, bypassing
-     * {@code CombatProcess}: that process swings at its own call site, so measuring through it would
-     * report the call site's behaviour and say nothing about the seam. The prediction under test is
-     * that {@code bot/sim/} contains no {@code swing(} at all, which means every OTHER caller of the
-     * seam gets no swing.
-     *
-     * <p>The one probe still on the body class: no {@code mc.*} method reaches the seam alone
-     * ({@code mc.bot.attackEntity} swings at its own call site too), so it wraps the bot's player in a body
-     * of its own, as the seam's callers hold it.
+     * <p>Driven through {@code mc.test.input.press}'s {@code hit}, the body's unchecked attack, on purpose,
+     * bypassing {@code CombatProcess}: that process swings at its own call site, and so does
+     * {@code mc.bot.attackEntity}, so measuring through either would report the call site's behaviour and say
+     * nothing about the seam. The prediction under test is that the body contains no {@code swing(} at all,
+     * which means every OTHER caller of the seam gets no swing.
      */
     private static String swinging(ServerLevel level, ServerPlayer fp,
                                    SceneBot avatar, int cx, int floorY, int cz) {
@@ -802,7 +797,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         level.addFreshEntity(target);
         try {
             fp.swinging = false;
-            new ServerPlayerBody(fp).attackEntityUnchecked(target);
+            avatar.press(avatar.keys().hit(target.getId()));
             return "after an attack through the avatar seam swinging=" + fp.swinging
                     + ", attackAnim=" + String.format(Locale.ROOT, "%.2f", fp.attackAnim)
                     + " (a real player's handleInteract calls swing(hand,true))";

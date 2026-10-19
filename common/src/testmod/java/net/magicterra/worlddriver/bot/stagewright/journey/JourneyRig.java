@@ -14,6 +14,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.stagewright.Routes;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
@@ -2896,6 +2897,21 @@ public final class JourneyRig {
         pendingAnswers.put(key, answer);
     }
 
+    /**
+     * Hand {@code answer} to {@code then} once it has landed: within the call for a roster bot, for self on the
+     * first rig tick after the client answered. A failed call, or one that has not landed within
+     * {@code withinTicks}, fails the scene.
+     */
+    <T> void whenLanded(String what, java.util.concurrent.CompletableFuture<T> answer, int withinTicks,
+                        java.util.function.Consumer<T> then) {
+        Runnable deliver = () -> {
+            if (!answer.isDone()) { ctx.fail("journey: " + what + " did not answer within " + withinTicks + " ticks"); return; }
+            then.accept(Calls.now(answer));
+        };
+        if (answer.isDone()) { deliver.run(); return; }
+        await(answer::isDone, withinTicks, deliver);
+    }
+
     private void drainLandedAnswers() {
         if (pendingAnswers.isEmpty()) return;
         var it = pendingAnswers.entrySet().iterator();
@@ -2913,32 +2929,28 @@ public final class JourneyRig {
     }
 
     /**
-     * Press ({@code down}) or release the use key and leave it so — a bite, a drawn bow — on the run's bot.
-     *
-     * <p>A roster bot through {@code mc.test.input.press}. <b>self: a reach left in place.</b> The api has one
-     * right-click ({@code mc.bot.useItem}) and no held one, and {@code mc.test.input.press} drives server bots
-     * only; so self's held use still goes through the client avatar's {@code commandUseItem}, from the server
-     * thread, as it always has. A client with no {@code LocalPlayer} is recorded and skipped.
+     * Press keys on the run's bot through {@code mc.test.input.press}, and leave them so: a roster bot's within
+     * the call, self's on the client thread, its answer written under {@code actuator.press} once it lands — a
+     * client with no {@code LocalPlayer} answers that it has none.
      */
+    void press(java.util.function.UnaryOperator<net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Press> keys) {
+        var press = keys.apply(Harness.keys(bot()));
+        if (helm().serverBotOrNull() != null) { Harness.press(press); return; }
+        recordWhenLanded("actuator.press", Harness.pressLater(press));
+    }
+
+    /** Press ({@code down}) or release the use key and leave it so — a bite, a drawn bow — on the run's bot. */
     void holdUseKey(boolean down) {
-        SceneBot bot = helm().serverBotOrNull();
-        if (bot != null) { bot.press(bot.keys().use(down)); return; }
-        net.magicterra.worlddriver.bot.BotApi api = net.magicterra.worlddriver.bot.BotHooks.impl();
-        net.magicterra.worlddriver.game.body.Body client = api == null ? null : api.clientAvatar();
-        if (client == null) {
-            evidence("actuator.noClientAvatar", "the client has no LocalPlayer (loading, dead or changing"
-                    + " dimension), so the use key was not " + (down ? "pressed" : "released"));
-            return;
-        }
-        client.equipment().ifPresent(e -> e.commandUseItem(down));
+        press(k -> k.use(down));
     }
 
     /**
      * Drive the bot from the scene itself, {@code eachTick} once per tick, for at most {@code ticks}, then
-     * {@code then}: the roster bot's side of a scene-written task (a push into a portal, a swing, the dragon
-     * fight). The bot's own task is cancelled first, as starting the task this replaces once replaced it, so the
-     * scene's inputs are the only ones; {@code kind} names it in the heartbeat. Ends when {@code eachTick} says
-     * so, when the bot leaves the world, or when the ticks run out.
+     * {@code then}: a scene-written task (a push into a portal, a swing, the dragon fight), its inputs pressed
+     * through {@link #press}. The bot's own task is cancelled first, as starting the task this replaces once
+     * replaced it, so the scene's inputs are the only ones; {@code kind} names it in the heartbeat. Ends when
+     * {@code eachTick} says so, when the bot leaves the world, or when the ticks run out. self's presses land on
+     * the client a tick or so after the server tick that sent them.
      */
     void runEachTick(String kind, BooleanSupplier eachTick, int ticks, Runnable then) {
         driving = kind;
@@ -2946,29 +2958,6 @@ public final class JourneyRig {
         helm().cancel();
         int[] waited = {0};
         await(() -> bodyLeftTheWorld() || eachTick.getAsBoolean() || ++waited[0] >= ticks, ticks + 100, then);
-    }
-
-    /**
-     * Run a scene-written process on self for at most {@code ticks}, then {@code then}. <b>A reach left in
-     * place</b>: no verb takes a scene's own per-tick driver, so the client's user task still gets it through
-     * {@code BotHooks.impl().runProcess}, as every task on self once did. A roster bot gets the same inputs
-     * through {@code mc.test.input.press} instead; see the caller.
-     */
-    void runOnSelf(net.magicterra.worlddriver.bot.behavior.BotProcess process, int ticks, Runnable then) {
-        net.magicterra.worlddriver.bot.BotApi api = net.magicterra.worlddriver.bot.BotHooks.impl();
-        if (api == null) {
-            ctx.fail("journey: real-player run, but BotHooks has no implementation — the client half is not in this JVM");
-            return;
-        }
-        driving = process.kind();
-        legTicks = 0;
-        api.runProcess(process);
-        int[] waited = {0};
-        await(() -> !Boolean.TRUE.equals(api.userTaskLeg().get("busy")) || bodyLeftTheWorld()
-                || ++waited[0] >= ticks, ticks + 100, () -> {
-            if (Boolean.TRUE.equals(api.userTaskLeg().get("busy"))) helm().cancel();
-            then.run();
-        });
     }
 
     /** A landed answer as a row: a use's interaction result, a hold's item, a refusal's words, or the failure. */

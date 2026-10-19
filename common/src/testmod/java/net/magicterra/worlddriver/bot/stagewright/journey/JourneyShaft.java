@@ -1,10 +1,13 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -794,7 +797,14 @@ public final class JourneyShaft {
         // Collision shapes, not blocksMotion — same intent (swamp groundwater is not air and mining
         // it is a no-op, so an air test would spend the whole budget breaking water that was never
         // in the way), asked of the thing that actually stops a jump.
-        List<BlockPos> overhead = BodyGeometry.pillarRiseBlockers(rig.player());
+        //
+        // Read through mc.debug.body's rise, which self answers from the client a tick or so later, so the rest of
+        // the course runs once the reading lands. A pillar rises one whole block: the cell it jumped from is where
+        // its block goes, and vanilla refuses a placement that intersects the placer's own box.
+        rig.whenLanded("mc.debug.body rise", DebugApi.of(Calls.api())
+                .body(BotDebugContracts.BodyParams.rise(rig.bot(), 1.0)).toCompletableFuture(), 40, body -> {
+        List<BlockPos> overhead = new ArrayList<>();
+        for (var c : body.riseBlockers().orElseThrow()) overhead.add(new BlockPos(c.x(), c.y(), c.z()));
         BlockPos ceiling = overhead.isEmpty() ? at.above(2) : overhead.get(0);
         rig.evidence(climbKey(step, ""), String.format("%d,%d,%d above=%s onGround=%s water=%s",
                 at.getX(), at.getY(), at.getZ(), overheadRow(lvl, overhead),
@@ -1024,6 +1034,7 @@ public final class JourneyShaft {
                                 + " retries left unused); handing off to the caller's fallback");
             then.run();
         }));
+        });
     }
 
     /** How far around the bot's own column to look for a source that could be feeding the water it

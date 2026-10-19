@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.api.methods.interact.InteractApi;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.stagewright.Calls;
-import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.boss.EnderDragonPart;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
@@ -18,9 +17,8 @@ import net.minecraft.world.item.ItemStack;
  * swing at one thing only when it is in reach ({@link SwingAt}, the crystals), and hold the arena's centre and
  * hit the dragon whenever a part of it comes close, drawing the bow while it circles ({@link DuelTheDragon}).
  *
- * <p>Each is a {@link Step} over the bot's player and its {@link Arms}, so one fight runs on either bot: a
- * roster bot's arms are the hand verbs and {@code mc.test.input.press} ({@link #arms(SceneBot)}), self's are its
- * client body, run as its own task ({@code JourneyEndRungs.fight}).
+ * <p>Each is a {@link Step} over the bot's player and its {@link Arms}, so one fight runs on either bot, its
+ * arms the hand verbs and {@code mc.test.input.press} ({@link #arms(JourneyRig)}).
  */
 final class JourneyDuel {
     private JourneyDuel() {}
@@ -46,27 +44,31 @@ final class JourneyDuel {
     }
 
     /**
-     * A roster bot's arms: {@code mc.bot.attackEntity} for a swing — which refuses out of reach and declines a
+     * The run's bot's arms: {@code mc.bot.attackEntity} for a swing — which refuses out of reach and declines a
      * swing the footing guard would, as the body's own swing did, and also turns the bot toward what it hit — and
      * {@code mc.test.input.press} for the use key and for standing still.
+     *
+     * <p>self answers on the client thread, after the tick that asked: its swing reports no refusal to the step,
+     * and the refusal, if any, lands as evidence under {@code duel.attack} instead.
      *
      * <p><b>A part of the dragon cannot be named.</b> The verb resolves an entity id in the level, and a dragon's
      * parts are not level entities, so a swing at a part goes to the dragon itself — which vanilla takes as a
      * hit on its body, a quarter of a head hit. {@link DuelTheDragon}'s {@code headHits} counts swings AIMED at
      * the head; on a roster bot none of them lands as one.
      */
-    static Arms arms(SceneBot bot) {
+    static Arms arms(JourneyRig rig) {
         return new Arms() {
             @Override public String attack(Entity target) {
                 Entity named = target instanceof EnderDragonPart part ? part.parentMob : target;
-                var r = Calls.now(InteractApi.of(Calls.api()).attackEntity(
-                        new InteractContracts.AttackParams(bot.ref(), named.getId())));
-                return r instanceof Responses.Refused<?> no ? no.message() : null;
+                var answer = InteractApi.of(Calls.api()).attackEntity(
+                        new InteractContracts.AttackParams(rig.bot(), named.getId())).toCompletableFuture();
+                if (!answer.isDone()) { rig.recordWhenLanded("duel.attack", answer); return null; }
+                return Calls.now(answer) instanceof Responses.Refused<?> no ? no.message() : null;
             }
 
-            @Override public void useKey(boolean down) { bot.press(bot.keys().use(down)); }
+            @Override public void useKey(boolean down) { rig.holdUseKey(down); }
 
-            @Override public void standStill() { bot.press(bot.keys().move(0, 0).jump(false).attack(false)); }
+            @Override public void standStill() { rig.press(k -> k.move(0, 0).jump(false).attack(false)); }
         };
     }
 

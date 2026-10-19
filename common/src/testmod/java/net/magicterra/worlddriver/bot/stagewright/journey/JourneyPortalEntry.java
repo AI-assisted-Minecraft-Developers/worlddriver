@@ -8,19 +8,13 @@ import java.util.List;
 import java.util.Set;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
-import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 
@@ -362,85 +356,40 @@ public final class JourneyPortalEntry {
     // =============================================================== stepping in ====
 
     /**
-     * Hold forward until the bot's own cell is a portal block.
+     * Hold forward until the bot's own cell is a portal block, for at most {@code ticks}, then {@code then}.
      *
      * <p>The move the pathfinder structurally cannot make: its destination has no floor, so
      * {@code canStandAt} refuses it and no {@code Goal} can name it. One block of walking with the
      * aim held is what a player does, and it is all this needs to be.
      *
      * <p>Re-aimed every tick. An aim is an angle, not a target — the bot moves while it walks, so a
-     * yaw computed once is a yaw for where the bot used to be.
+     * yaw computed once is a yaw for where the bot used to be. Once it stands in a portal block forward is let
+     * go at once: the hold that follows is what re-arms vanilla's one-tick portal flag, and a bot still walking
+     * would drift out of the column it just fell into.
      *
-     * <p><b>It releases the sneak the walk left behind, and that one line is the difference between
-     * this working and not working at all.</b> {@code DrivePhase} brakes into its goal with
-     * {@code avatarSneak(a, brakeSneak)} + {@code p.setShiftKeyDown(brakeSneak)}, and nothing clears
-     * either when the process ends — {@code ServerPlayerBody.step} re-applies {@code pendingSneak}
+     * <p><b>It releases the sneak the walk left behind, and that one key is the difference between
+     * this working and not working at all.</b> {@code DrivePhase} brakes into its goal with a held sneak, and
+     * nothing clears it when the process ends — {@code ServerPlayerBody.step} re-applies {@code pendingSneak}
      * on every step, so the flag survives into whatever runs next. Vanilla's
      * {@code Player.maybeBackOffFromEdge} refuses to let a sneaking player walk off ANY edge, and a
      * portal cell with no floor is precisely an edge. Measured in
      * {@code wd.portalEntryStepsInFromTheOpenRow} before this line: the walk arrived at the doorstep
      * in 11 ticks, then sixty ticks of held forward moved the bot zero cells.
      */
-    public static BotProcess stepInto(BlockPos cell, int ticks) { return new StepInto(cell, ticks); }
-
-    /**
-     * {@link #stepInto} on the run's bot, for at most {@code ticks}, then {@code then}.
-     *
-     * <p>A roster bot gets the process's inputs through {@code mc.test.input.press}, re-pressed every tick as
-     * the process re-applied them: aimed at the cell, forward held, jump, dig and sneak let go — until it
-     * stands in a portal block, when forward is let go at once. self has no such input, so on self the process
-     * itself still runs as its user task ({@link JourneyRig#runOnSelf}, a reach left in place).
-     */
     static void pushInto(JourneyRig rig, BlockPos cell, int ticks, Runnable then) {
-        SceneBot bot = rig.serverBotOrNull();
-        if (bot == null) { rig.runOnSelf(stepInto(cell, ticks), ticks + 20, then); return; }
         var at = Targets.pos(cell);
         rig.runEachTick("portalStepIn", () -> {
             var p = rig.player();
             if (p.level().getBlockState(p.blockPosition()).is(Blocks.NETHER_PORTAL)) {
-                bot.press(bot.keys().move(0, 0));
+                rig.press(k -> k.move(0, 0));
                 return true;
             }
-            bot.press(bot.keys().aimAt(at).jump(false).attack(false).sneak(false).move(0, 1));
+            rig.press(k -> k.aimAt(at).jump(false).attack(false).sneak(false).move(0, 1));
             return false;
         }, ticks, () -> {
-            bot.press(bot.keys().move(0, 0));
+            rig.press(k -> k.move(0, 0));
             then.run();
         });
-    }
-
-    private static final class StepInto implements BotProcess {
-        private final BlockPos cell;
-        private final int ticks;
-        private int elapsed;
-
-        StepInto(BlockPos cell, int ticks) { this.cell = cell; this.ticks = ticks; }
-
-        @Override public String kind() { return "portalStepIn"; }
-        @Override public String failure() { return null; }
-
-        @Override public void attach(BotState st) { }
-
-        @Override
-        public boolean tick(Body a, WorldView w, BotState st) {
-            LivingEntity p = a.entity();
-            if (p != null && p.level().getBlockState(p.blockPosition()).is(Blocks.NETHER_PORTAL)) {
-                // In. Stop pushing at once — the hold that follows is what re-arms vanilla's
-                // one-tick portal flag, and a bot still walking would drift out of the column it
-                // just fell into.
-                a.commandMove(0, 0);
-                return true;
-            }
-            a.aimAtBlock(cell);
-            a.commandJump(false);
-            a.blockInteraction().ifPresent(h -> h.breakHold(false));
-            // The brake the arriving walk latched, every tick, because step() re-applies it every
-            // tick. See the javadoc: a sneaking player will not step off a ledge, and this move is one.
-            a.commandSneak(false);
-            if (p != null) p.setShiftKeyDown(false);
-            a.commandForward(1f);
-            return ++elapsed >= ticks;
-        }
     }
 
     // =================================================================== the rung ====
