@@ -7,8 +7,8 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -66,7 +66,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
                 minY[0] = Math.min(minY[0], body.getY());
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     ctx.record("progress", String.format(Locale.ROOT, "reached the goal at tick %s, lowest y=%.2f, health %.1f",
@@ -118,7 +118,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
                 if (t > 5 && surfacedTick[0] < 0 && body.onGround() && body.getY() >= GROUND + 1 - 0.05) surfacedTick[0] = t;
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     int dirtLeft = body.getInventory().countItem(Items.DIRT);
@@ -202,7 +202,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
                 minY[0] = Math.min(minY[0], body.getY());
             };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
                 ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     ctx.record("progress", String.format(Locale.ROOT,

@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.server.level.ServerPlayer;
@@ -71,7 +71,7 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
         // Where the player was before the helm moved it. A respawn replaces the ServerPlayer, so
         // the helm's own cleanup restores an entity that is no longer in the world; this cleanup is
         // registered after it (LIFO: runs first) and puts the NEW player where the old one was.
-        List<ServerPlayer> before = SceneBody.humanPlayers(ctx);
+        List<ServerPlayer> before = SceneBot.humanPlayers(ctx);
         final ServerPlayer was = before.isEmpty() ? null : before.get(0);
         final double hx = was == null ? 0 : was.getX(), hy = was == null ? 0 : was.getY(), hz = was == null ? 0 : was.getZ();
         final float hYaw = was == null ? 0 : was.getYRot(), hPitch = was == null ? 0 : was.getXRot();
@@ -79,7 +79,7 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
         ClientHelm helm = ClientHelm.adopt(ctx, start, 0f);
         final ServerPlayer body = helm.player();
         ctx.cleanup(() -> {
-            List<ServerPlayer> now = SceneBody.humanPlayers(ctx);
+            List<ServerPlayer> now = SceneBot.humanPlayers(ctx);
             if (was != null && !now.isEmpty() && now.get(0) != body) {
                 ServerPlayer p = now.get(0);
                 p.setGameMode(hadMode);
@@ -101,10 +101,10 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                     body.connection.handleClientCommand(new ServerboundClientCommandPacket(
                             ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
                     ctx.await(() -> {
-                        List<ServerPlayer> h = SceneBody.humanPlayers(ctx);
+                        List<ServerPlayer> h = SceneBot.humanPlayers(ctx);
                         return !h.isEmpty() && !h.get(0).isDeadOrDying();
                     }).within(100).then(() -> {
-                        ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
+                        ServerPlayer again = SceneBot.humanPlayers(ctx).get(0);
                         again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
                         helm.sync(20, () -> walkTo(ctx, "respawned.goto", start, back -> {
                             ctx.check(back instanceof Accepted).as("E: after respawn, the same request is accepted again: " + back).isTrue();

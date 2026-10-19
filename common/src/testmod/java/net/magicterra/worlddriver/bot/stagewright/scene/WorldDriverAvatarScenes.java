@@ -1,28 +1,23 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
-import net.magicterra.worlddriver.application.PlayerSnapshots;
-
-
-import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
-import com.mojang.authlib.GameProfile;
 import dev.architectury.event.events.common.PlayerEvent;
-import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.behavior.ElytraProcess;
-import net.magicterra.worlddriver.game.body.JoinedPlayers;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.stagewright.contract.SceneFailure;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractApi;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveApi;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -49,16 +44,12 @@ import net.minecraft.world.phys.Vec3;
  * central ServerPlayer-avatar break/place capability claim.</b> Their assertion thresholds are
  * LOAD-BEARING GOLDEN VALUES — the iron-sword recharge {@code ceil(20/1.6)=13} ticks, cooked-beef
  * {@code beefLeft==1}, the empty-then-full recharge bar, etc. — and are translated one-for-one with
- * no number moved. The canonical wave-6 substitutions apply: {@code helper.getLevel()} →
- * {@link SceneContext#level()}; absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} →
- * {@code origin.y + 20} / {@code floorY=200} → {@code origin.y}; {@code PlayerBot.create} →
- * {@link PlayerBot#createIsolated} and {@code ServerPlayerBody.create} →
- * {@link ServerPlayerBody#createUnique} (the per-scene isolated player — the shell these tests
- * were promoted to a REQUIRED regression guard on; it changes identity only, not the player physics
- * the golden numbers measure); legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer};
- * {@code try/finally} config save/restore → {@link BotConfig#pinnedBaseline()}; {@code throw} →
- * {@link SceneContext#fail}. Each world-touching scene registers {@code ctx.cleanup} to discard its
- * avatar(s) and air-scrub its footprint (#40). ⛔ No Avatar scene calls {@code level.tick()}.
+ * no number moved. Each bot is a roster player ({@link SceneBot#spawn}: one joined player per bot, the
+ * shell these tests were promoted to a REQUIRED regression guard on; it changes identity only, not the
+ * player physics the golden numbers measure), posed through its vanilla {@link ServerPlayer}, driven by
+ * held keys ({@code mc.test.input.press}) and moved by body steps only ({@link SceneBot#step}); settings are
+ * pinned through {@link Harness#pin}. Each world-touching scene air-scrubs its footprint in a
+ * {@code ctx.cleanup} (#40). ⛔ No Avatar scene calls {@code level.tick()}.
  *
  * <p>{@code equipMainHand} is reproduced here as a private static, because it is this family's
  * alone. {@code buildFloor} and {@code clearBox} are NOT: the wave-2/3 "each provider
@@ -109,8 +100,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         final int bx = ax + 20, bz = az + 20, floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> {
             SceneArena.clearBox(level, ax, floorY, az, 6, 8);
             SceneArena.clearBox(level, bx, floorY, bz, 6, 8);
@@ -124,20 +114,19 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
             }
-        PlayerBot a = SceneBody.bare(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
-        PlayerBot b = SceneBody.bare(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
-        ctx.cleanup(() -> { a.fakePlayer().discard(); b.fakePlayer().discard(); });
-        ServerPlayer fpA = a.fakePlayer(), fpB = b.fakePlayer();
+        SceneBot a = SceneBot.spawn(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
+        SceneBot b = SceneBot.spawn(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
+        ServerPlayer fpA = a.player(), fpB = b.player();
 
         if (fpA == fpB)
             ctx.fail("both server agents are literally the same entity ("
-                    + System.identityHashCode(fpA) + "): JoinedPlayers.BOTS.shared(level) is a"
-                    + " per-level singleton, so agents (and concurrent arenas) fight over one player");
+                    + System.identityHashCode(fpA) + "): the roster handed two bots one shared"
+                    + " player, so agents (and concurrent arenas) fight over one player");
 
         // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.
         Vec3 bStart = fpB.position();
-        a.avatar().commandMove(0f, 1f);
-        for (int i = 0; i < 20; i++) { a.avatar().step(); }
+        a.press(a.keys().move(0, 1));
+        a.step(20);
         Vec3 bEnd = fpB.position();
         double bDrift = bStart.distanceTo(bEnd);
         double aMoved = fpA.position().distanceTo(new Vec3(ax + 0.5, floorY + 1, az + 0.5));
@@ -159,8 +148,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         Harness.set("navigatorDebug", false);
 
@@ -168,17 +156,17 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.player();
 
         // --- (A) A HELD USE COMPLETES: eating. ---
         fp.getInventory().clearContent();
         fp.getInventory().setItem(0, new ItemStack(Items.COOKED_BEEF, 2));
         fp.getInventory().selected = 0;
         fp.getFoodData().setFoodLevel(6);              // hungry, so the meal has somewhere to go
-        driver.avatar().commandUseItem(true);
-        for (int i = 0; i < 40; i++) driver.avatar().step();   // cooked beef = 32 ticks to eat
-        driver.avatar().commandUseItem(false);
+        driver.press(driver.keys().use(true));
+        driver.step(40);                               // cooked beef = 32 ticks to eat
+        driver.press(driver.keys().use(false));
         int beefLeft = fp.getInventory().getItem(0).getCount();
         int food = fp.getFoodData().getFoodLevel();
         TestMod.LOG.warn("[wd.serverAvatarTickFidelity] after holding use 40t on cooked beef: beefLeft={} foodLevel={}"
@@ -192,7 +180,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         fp.getCooldowns().addCooldown(Items.ENDER_PEARL, 10);
         if (!fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL))
             ctx.fail("rig broken: the cooldown did not even register");
-        for (int i = 0; i < 15; i++) driver.avatar().step();
+        driver.step(15);
         boolean stillCooling = fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL);
         TestMod.LOG.warn("[wd.serverAvatarTickFidelity] 10t cooldown after 15 ticks: stillOnCooldown={}", stillCooling);
         if (stillCooling)
@@ -203,12 +191,12 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         fp.getInventory().clearContent();
         fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
         fp.getInventory().selected = 0;
-        for (int i = 0; i < 30; i++) driver.avatar().step();   // bar fills on the sword
+        driver.step(30);                               // bar fills on the sword
         float charged = fp.getAttackStrengthScale(0.0f);
         if (charged < 1.0f)
             ctx.fail("rig broken: bar not full after 30 ticks (" + charged + ")");
         fp.getInventory().setItem(0, new ItemStack(Items.IRON_AXE));   // swap: different item
-        driver.avatar().step();
+        driver.step();
         float afterSwap = fp.getAttackStrengthScale(0.0f);
         TestMod.LOG.warn("[wd.serverAvatarTickFidelity] recharge scale: onSword={} oneTickAfterSwapToAxe={}"
                 + " (vanilla: the swap empties the bar)", charged, afterSwap);
@@ -228,8 +216,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         Harness.set("navigatorDebug", false);
 
@@ -237,12 +224,12 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.player();
         fp.getInventory().clearContent();
         equipMainHand(fp, new ItemStack(Items.IRON_SWORD));
         // Let the weapon SWAP land before timing anything (gap #47 empties the bar on swap).
-        driver.avatar().step();
+        driver.step();
 
         fp.resetAttackStrengthTicker();               // just swung: bar empty
         Attack a0 = attackOf(fp);
@@ -263,7 +250,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         int readyAt = -1;
         float prev = s0;
         for (int t = 1; t <= period + 2; t++) {
-            driver.avatar().step();                   // the one tick-clock a FakePlayer gets
+            driver.step();                            // the one tick-clock a parked bot gets
             Attack a = attackOf(fp);
             float s = (float) a.strengthScale();
             int cd = a.cooldownTicks();
@@ -293,9 +280,12 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                     + " sword=" + period + " — the field is not reading the held weapon");
     }
 
-    /** {@code mc.observe.player}'s attack readiness for a player the player list does not hold. */
+    /** {@code mc.observe.player}'s attack readiness for the bot's player, which joined the player list. */
     private static Attack attackOf(ServerPlayer fp) {
-        return PlayerSnapshots.of(fp, Optional.empty()).attack();
+        ObserveContracts.PlayerReading r = Calls.now(ObserveApi.of(Calls.api())
+                .player(new ObserveContracts.PlayerParams(Optional.of(fp.getGameProfile().getName()))));
+        return r.player().orElseThrow(() -> new SceneFailure("mc.observe.player does not find "
+                + fp.getGameProfile().getName() + " in the player list")).attack();
     }
 
     // ==================================================================================
@@ -321,23 +311,25 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> av.fakePlayer().discard());
-        ServerPlayer fp = av.fakePlayer();
+        SceneBot av = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = av.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-        LevelWorldView w = new LevelWorldView(level, fp);
 
-        // BREAK: aim + break the floor block → becomes air.
-        av.selectTool(breakTarget);
-        av.aimAtBlock(breakTarget);
-        av.breakHold(true);
+        // BREAK: the tool for it, aim + hold attack on the floor block → becomes air.
+        av.press(av.keys().toolFor(Targets.pos(breakTarget)).aimAt(Targets.pos(breakTarget)).attack(true));
+        av.press(av.keys().attack(false));
         boolean broke = level.getBlockState(breakTarget).isAir();
 
-        // PLACE: hold a placeable + fill the empty cell against the floor face.
-        av.holdPlaceable();
-        av.place(w::isSolid, placeCell);
+        // PLACE: dirt in hand, then a right click on the floor's top face under the empty cell — the click the
+        // body's own place makes against the first solid neighbour, here the floor.
+        var hands = InteractApi.of(Calls.api());
+        Calls.now(hands.holdItem(new InteractContracts.HoldParams(av.ref(), "minecraft:dirt")));
+        Responses.ImmediateResponse used = Calls.now(hands.useItem(new InteractContracts.UseParams(av.ref(),
+                Optional.of(Targets.pos(placeCell.below())), Optional.empty(), Optional.of(InteractContracts.Face.UP),
+                InteractContracts.Hand.MAIN, false, false)));
+        ctx.record("place.used", String.valueOf(used));
         boolean placed = !level.getBlockState(placeCell).isAir();
 
         TestMod.LOG.info("[wd.serverCapability] broke={} placed={}", broke, placed);
@@ -354,8 +346,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dz = -1; dz <= 1; dz++)
@@ -371,26 +362,35 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         Harness.set("elytraDebug", false);
         Harness.untimed(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
+        ServerPlayer fp = driver.player();
         fp.getInventory().clearContent();
         fp.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));   // fresh wing (full durability)
-        // No fireworks: pure glide takeoff (boost needs a ticked firework entity).
-        driver.runProcess(new ElytraProcess(
-                new BlockPos(cx + 400, floorY + 40, cz), null, 0f, false, 0, 2000, 3.0, true));
-        BotTicker.register(driver);
+        // No fireworks: pure glide takeoff (boost needs a ticked firework entity). Reactive flight toward a cell
+        // 400 east, 2000 ticks at most, done within 3 blocks: the ElytraProcess this scene always started.
+        Calls.started("elytraFly", Calls.now(SceneBot.tasks().elytraFly(new MoveContracts.ElytraParams(driver.ref(),
+                Optional.of(Targets.pos(new BlockPos(cx + 400, floorY + 40, cz))), Optional.empty(), Optional.empty(),
+                Optional.of(true), Optional.of(false), 40, Optional.of(2000), 3.0, false, 0, 0))));
 
+        // Ticked one bot at a time, which hands a tick that throws back to the caller instead of dropping the bot
+        // the way the server's own tick does: a crash fails the tick call, so it cannot pass as a bot that stopped.
         boolean flewAtSomePoint = false;
-        for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++) {
-            BotTicker.tickAll();
+        String crashed = null;
+        for (int t = 0; t < 60 && driver.busy(); t++) {
+            try {
+                driver.tick();
+            } catch (SceneFailure e) {
+                crashed = e.getMessage();
+                break;
+            }
             if (fp.isFallFlying()) flewAtSomePoint = true;
         }
-        boolean crashed = !driver.finished() && BotTicker.activeCount() == 0;
-        TestMod.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) finished={} active={} crashed={}",
+        var status = driver.status();
+        TestMod.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) busy={} lastEnd={} crashed={}",
                 flewAtSomePoint, fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), BotTicker.activeCount(), crashed);
-        if (crashed)
-            ctx.fail("server ElytraProcess crashed the tick (driver removed unfinished)");
+                status.busy(), status.lastProcessEnd(), crashed);
+        if (crashed != null)
+            ctx.fail("server ElytraProcess crashed the tick: " + crashed);
         if (!flewAtSomePoint)
             ctx.fail("server ElytraProcess never entered fall-flying (startFallFlying failed)");
     }
@@ -411,28 +411,30 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
     private static void serverBotJoinsPastModdedPayloadScene(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        final String name = "wd-payload-probe";
+        BlockPos at = ctx.origin().above(20);
 
-        // Sent from the login event, as L2Core sends its sync: inside placeNewPlayer.
+        // Sent from the login event, as L2Core sends its sync: inside placeNewPlayer. Armed only while the roster
+        // spawns the bot, so the player that joins in that window is the bot.
+        boolean[] armed = {false};
         int[] sentAtJoin = {0};
         PlayerEvent.PlayerJoin onJoin = player -> {
-            if (!name.equals(player.getGameProfile().getName())) return;
+            if (!armed[0]) return;
             player.connection.send(new ClientboundCustomPayloadPacket(new ProbePayload()));
             sentAtJoin[0]++;
         };
         PlayerEvent.PLAYER_JOIN.register(onJoin);
         ctx.cleanup(() -> PlayerEvent.PLAYER_JOIN.unregister(onJoin));
 
-        GameProfile profile = new GameProfile(
-                UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)), name);
         ServerPlayer bot;
+        armed[0] = true;
         try {
-            bot = new JoinedPlayers().unique(level, profile);
-        } catch (RuntimeException e) {
-            ctx.fail("the bot did not join past a modded payload sent at login: " + e);
+            bot = SceneBot.spawn(ctx, level, at.getX() + 0.5, at.getY(), at.getZ() + 0.5).player();
+        } catch (SceneFailure e) {
+            ctx.fail("the bot did not join past a modded payload sent at login: " + e.getMessage());
             return;
+        } finally {
+            armed[0] = false;
         }
-        ctx.cleanup(bot::discard);
         ctx.record("sentAtJoin", sentAtJoin[0]);
         // Without this the scene would pass on a run where the payload was never sent at all.
         if (sentAtJoin[0] != 1)

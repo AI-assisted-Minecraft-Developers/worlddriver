@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.api.methods.debug;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -8,10 +9,12 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.WireName;
 
 /**
  * What a server-side bot's insides read right now: {@code mc.debug.navigator}, {@code mc.debug.body} and
@@ -199,17 +202,27 @@ public final class BotDebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.cells
 
-    /** {@code node}: also answer the pose and fall facts of standing at that cell. */
-    public record CellsParams(Optional<String> bot, List<BlockPosition> cells, Optional<NodeQuery> node) {}
+    /**
+     * {@code node}: also answer the pose and fall facts of standing at that cell. {@code side}, with {@code bot}
+     * self only: whose view of self's player classifies the cells.
+     */
+    public record CellsParams(Optional<String> bot, Optional<Side> side, List<BlockPosition> cells,
+                              Optional<NodeQuery> node) {}
+
+    /** self's two views: the client's, which self plans with, and the server's of the same player. */
+    public enum Side implements WireName {
+        CLIENT, SERVER;
+        @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
+    }
 
     /** A node between {@code prev} and {@code next}, with the entering edge's digs and placements already done. */
     public record NodeQuery(BlockPosition foot, Optional<BlockPosition> prev, Optional<BlockPosition> next,
                             List<BlockPosition> toBreak, List<BlockPosition> toPlace) {}
 
-    /** One cell as the world view classifies it. */
+    /** One cell as the world view classifies it. {@code breakCost}: what digging it costs a search; absent when it cannot be. */
     public record Cell(BlockPosition pos, boolean known, boolean solid, boolean passable, boolean hazard, boolean water,
                        boolean climbable, boolean leaves, boolean fallingBlock, boolean breakableObstruction,
-                       boolean standOn, boolean standAt) {}
+                       boolean standOn, boolean standAt, Optional<Double> breakCost) {}
 
     public record NodeFacts(boolean fitStand, boolean fitCrouch, boolean fitCrawl, String ceilingForces,
                             boolean inWaterFoot, boolean submergedEye, boolean underfootSolid, String footHazard,
@@ -229,10 +242,19 @@ public final class BotDebugContracts {
     public static final RecordType<CellsParams> CELLS_PARAMS = ApiTypes.record(CellsParams.class, "CellsParams",
             ApiField.field("bot", Responses.BOT_REF).describe("Omitted: the overworld as the server level reads it.")
                     .optional().forGetter(CellsParams::bot),
+            ApiField.field("side", ApiTypes.enumOf("CellSide", Side.class))
+                    .describe("With bot self: client (omitted), the view self plans with; server, the view of the server "
+                            + "a client here hosts, over the same player.")
+                    .optional().forGetter(CellsParams::side),
             ApiField.field("cells", ApiTypes.list(CommonTypes.BLOCK_POSITION, 4096)).defaulted(List.of())
                     .forGetter(CellsParams::cells),
             ApiField.field("node", NODE_QUERY).optional().forGetter(CellsParams::node),
-            CellsParams::new);
+            CellsParams::new)
+            .checked((p, at) -> {
+                if (p.side().isPresent() && !p.bot().map("self"::equals).orElse(false)) {
+                    at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "a side is self's, and bot does not name self");
+                }
+            });
 
     private static final RecordType<Cell> CELL = ApiTypes.record(Cell.class, "DebugCell",
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Cell::pos),
@@ -247,6 +269,7 @@ public final class BotDebugContracts {
             ApiField.field("breakableObstruction", ApiTypes.bool()).required().forGetter(Cell::breakableObstruction),
             ApiField.field("standOn", ApiTypes.bool()).required().forGetter(Cell::standOn),
             ApiField.field("standAt", ApiTypes.bool()).required().forGetter(Cell::standAt),
+            ApiField.field("breakCost", ApiTypes.number()).optional().forGetter(Cell::breakCost),
             Cell::new);
 
     private static final RecordType<NodeFacts> NODE_FACTS = ApiTypes.record(NodeFacts.class, "NodeFacts",
@@ -273,6 +296,7 @@ public final class BotDebugContracts {
 
     public static final MethodSpec<CellsParams, CellsReading> CELLS = MethodSpec.of("mc.debug.cells", CELLS_PARAMS, CELLS_READING,
                     "Cells as the planner's world view classifies them, a bot's or the server level's, and on request "
-                            + "the pose and fall facts of standing at one. Read on the server thread.")
+                            + "the pose and fall facts of standing at one. Read on the server thread; self's client view "
+                            + "on the client thread.")
             .hidden();
 }

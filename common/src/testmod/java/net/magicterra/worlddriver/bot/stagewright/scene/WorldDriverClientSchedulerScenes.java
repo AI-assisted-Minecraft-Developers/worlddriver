@@ -2,23 +2,29 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.Bail;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.ChainState;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessName;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.Reflexes;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slot;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
-import net.magicterra.worlddriver.bot.behavior.SleepProcess;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
@@ -52,17 +58,35 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
 
     private static final int GROUND = 20;
 
-    /** One reading of {@code mc.bot.status} per server tick of a watch window. */
-    private record Sample(String chain, Map<?, ?> chains) {}
+    /**
+     * Self's {@code mc.bot.status}, asked again each time the last answer has landed. Each server tick of a watch
+     * window reads the latest answer that landed, which trails the client by a tick or two; null until one has.
+     */
+    private static final class StatusFeed {
+        private CompletableFuture<ImmediateResponse> inFlight;
+        private BotStatus last;
 
-    private static Sample sample(ClientHelm helm) {
-        Map<String, Object> s = helm.bot().status();
-        Object chains = s.get("chains");
-        return new Sample(String.valueOf(s.get("activeChain")), chains instanceof Map<?, ?> m ? m : Map.of());
+        BotStatus poll() {
+            if (inFlight == null || inFlight.isDone()) {
+                if (inFlight != null && !inFlight.isCompletedExceptionally() && inFlight.join() instanceof Status s) {
+                    s.status().ifPresent(b -> last = b);
+                }
+                inFlight = ControlApi.of(api()).status(StatusParams.self()).toCompletableFuture();
+            }
+            return last;
+        }
     }
 
-    private static Object bailOf(Sample s, String chain) {
-        return s.chains().get(chain) instanceof Map<?, ?> one ? one.get("bail") : null;
+    /** The reflex chain in control in {@code s}, or null. */
+    private static String chainOf(BotStatus s) {
+        return s == null ? null : s.reflexes().flatMap(Reflexes::activeChain).orElse(null);
+    }
+
+    /** The bail {@code chain} reports in {@code s}, or null. */
+    private static Bail bailOf(BotStatus s, String chain) {
+        if (s == null || s.reflexes().isEmpty()) return null;
+        ChainState one = s.reflexes().get().chains().get(chain);
+        return one == null ? null : one.bail().orElse(null);
     }
 
     private static Mob stillHostile(SceneContext ctx, EntityType<? extends Mob> type, int dx, int dy, int dz) {
@@ -108,11 +132,12 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         helm.sync(20, () -> {
             final int window = 120;
             final int[] t = { 0 }, bunkerTicks = { 0 }, firstRetreat = { -1 };
-            final Object[] bail = { null };
+            final Bail[] bail = { null };
+            final StatusFeed feed = new StatusFeed();
             ctx.await(() -> {
-                Sample s = sample(helm);
-                if ("bunker".equals(s.chain())) bunkerTicks[0]++;
-                if ("retreat".equals(s.chain()) && firstRetreat[0] < 0) firstRetreat[0] = t[0];
+                BotStatus s = feed.poll();
+                if ("bunker".equals(chainOf(s))) bunkerTicks[0]++;
+                if ("retreat".equals(chainOf(s)) && firstRetreat[0] < 0) firstRetreat[0] = t[0];
                 if (bail[0] == null) bail[0] = bailOf(s, "bunker");
                 return ++t[0] >= window;
             }).within(window + 100).then(() -> {
@@ -123,7 +148,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                         .as("A: retreat takes over within 40 ticks: at tick " + firstRetreat[0]).isTrue();
                 ctx.check(bunkerTicks[0] <= 3).as("B: after bailing, bunker does not reclaim control every tick: active for "
                         + bunkerTicks[0] + " ticks").isTrue();
-                ctx.check(bail[0] instanceof Map<?, ?> m && "water".equals(m.get("reason")))
+                ctx.check(bail[0] != null && "water".equals(bail[0].reason()))
                         .as("C: the bunker bail is visible in status: " + bail[0]).isTrue();
             });
         });
@@ -154,17 +179,22 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         Harness.set("duskUrgent", true);
         Harness.set("duskUrgentDryRun", false);
         // Time packets reach the client once a second; wait for the night to be the client's too.
-        helm.sync(40, () -> {
-            helm.bot().runProcess(new HoldStill(1_000));
+        // A user task that holds still for the whole window: a follow of something that is not here clears the
+        // keys and idles until cancelled.
+        helm.sync(40, () -> ask(ctx, "standStill", SceneBot.tasks().follow(new MoveContracts.FollowParams(ClientHelm.SELF,
+                new MoveContracts.QuarryType("minecraft:ender_dragon"), 3, 0, 0, Optional.empty(), 0)), started -> {
+            Calls.started("the standing-still follow", started);
             final int window = 300;
             final int[] t = { 0 }, duskTicks = { 0 }, userTicks = { 0 };
-            final Object[] bail = { null }, endReason = { null };
+            final Bail[] bail = { null };
+            final String[] endReason = { null };
+            final StatusFeed feed = new StatusFeed();
             ctx.await(() -> {
-                Sample s = sample(helm);
-                if ("duskSecure".equals(s.chain())) duskTicks[0]++;
-                if ("user".equals(s.chain())) userTicks[0]++;
+                BotStatus s = feed.poll();
+                if ("duskSecure".equals(chainOf(s))) duskTicks[0]++;
+                if ("user".equals(chainOf(s))) userTicks[0]++;
                 if (bail[0] == null) bail[0] = bailOf(s, "duskSecure");
-                if (endReason[0] == null) endReason[0] = helm.slot("bunker").get("endReason");
+                if (endReason[0] == null && s != null) endReason[0] = s.slots().bunker().endReason().orElse(null);
                 return ++t[0] >= window;
             }).within(window + 100).then(() -> {
                 ctx.record("observed", "duskSecure was the active chain for " + duskTicks[0] + " ticks, user for " + userTicks[0]
@@ -173,9 +203,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                         .as("test setup: the bunker on the beach ends with unsafe-site: " + endReason[0]).isTrue();
                 ctx.check(duskTicks[0] <= 3).as("A: after the failure it does not restart every tick: duskSecure active for " + duskTicks[0] + " ticks").isTrue();
                 ctx.check(userTicks[0] >= window - 40).as("B: the user task regains control: user active for " + userTicks[0] + " ticks").isTrue();
-                ctx.check(bail[0] instanceof Map<?, ?>).as("C: the duskSecure bail is visible in status: " + bail[0]).isTrue();
+                ctx.check(bail[0] != null).as("C: the duskSecure bail is visible in status: " + bail[0]).isTrue();
             });
-        });
+        }));
     }
 
     /**
@@ -203,23 +233,28 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "stone slab at y=" + GROUND + ", bed at " + foot.toShortString() + " (facing east), start " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        helm.sync(20, () -> {
-            helm.bot().runProcess(new SleepProcess(null, 16));
+        helm.sync(20, () -> ask(ctx, "sleep", SceneBot.tasks().sleep(new MoveContracts.SleepParams(ClientHelm.SELF,
+                Optional.empty(), 16, 0)), started -> {
+            Calls.started("the sleep", started);
             final int[] waited = { 0 };
+            final StatusFeed feed = new StatusFeed();
+            final Slot[] walking = { null };
             ctx.await(() -> {
                 waited[0]++;
-                return Boolean.TRUE.equals(helm.slot("goto").get("active")) && waited[0] >= 15;
+                BotStatus s = feed.poll();
+                walking[0] = s == null ? null : s.slots().goTo();
+                return walking[0] != null && walking[0].active() && waited[0] >= 15;
             }).within(200).then(() -> {
                 double gap = helm.flatDistance(foot);
                 ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
-                        gap, helm.slot("goto")));
+                        gap, walking[0]));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
                 var control = ControlApi.of(api());
                 ask(ctx, "cancel", control.cancel(CancelParams.process(ProcessName.SLEEP)), stopped -> helm.sync(5, () ->
                         ask(ctx, "afterCancel.status", control.status(StatusParams.self()), reply -> {
                     Optional<BotStatus> status = reply instanceof Status s ? s.status() : Optional.empty();
-                    Map<?, ?> go = helm.slot("goto");
-                    ctx.check(Boolean.FALSE.equals(go.get("active")))
+                    Optional<Slot> go = status.map(b -> b.slots().goTo());
+                    ctx.check(go.isPresent() && !go.get().active())
                             .as("A: after the sleep task is cancelled, the goto slot is no longer active: " + go).isTrue();
                     Optional<String> active = status.flatMap(BotStatus::activeProcess);
                     ctx.check(status.isPresent() && active.isEmpty())
@@ -229,6 +264,6 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                             .as("C: the most recent process end is recorded as sleep: " + end).isTrue();
                 })));
             });
-        });
+        }));
     }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.cells` reads self too.** With `bot: 'self'` it classifies the cells as a search self
+  starts now would, from the client's own view on the client thread; `side: 'server'` asks the same
+  of the owner's server-side player instead, so the two can be compared. Each cell also reports
+  `breakCost`, absent when the cell cannot be broken.
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

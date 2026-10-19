@@ -6,15 +6,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import com.mojang.authlib.GameProfile;
-
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -208,6 +206,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // The switch this row used to print was deleted with the fake players. The key stays, so an
         // archived row and a new one line up and the run's premise is still written down.
         ctx.record("census.armProperty", "retired (the server-side player entity is always a JoinedBody; the switch was removed)");
+        // Asked here rather than left to the spawn below, whose refusal the column's own catch would swallow and
+        // record as a column that could not be built.
+        if (ctx.server() != null && !ctx.server().isDedicatedServer()) {
+            ctx.skip("The census measures a roster bot, and a headless player bot is not created beside a real "
+                    + "client; its readings are taken on the stagewrightDedicatedServer* gates.");
+        }
 
         // ---- column A: the fake-player factory's player — gone, and recorded as gone ----
         //
@@ -217,26 +221,17 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // of going missing, which would read like a census that lost a column. The two-column runs
         // from before the deletion are the archive this scene was built to leave.
         ctx.record("census.factoryColumnSource", "unavailable/the fake-player factories were deleted (the server-side player entity is always a JoinedBody)");
-        ServerPlayerBody factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
+        SceneBot factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
             throw new IllegalStateException("the fake-player factories were deleted");
         });
 
-        // ---- column B: a JoinedBody, minted directly rather than through the seam ----
-        // Directly, from a JoinedPlayers of its own, exactly as it was minted while column A
-        // still existed: the census player never shares the seam's cache with the scene players, and
-        // its readings stay comparable with the archived two-column runs.
+        // ---- column B: a JoinedBody, a roster bot of its own ----
+        // Its own roster player, as every server-side bot is: the census player shares nothing with the scene
+        // players, and its readings stay comparable with the archived two-column runs. Its profile name is the
+        // roster's (s<N>), no longer the fixed wd-census.
         final int jx = ox + COLUMN_GAP;
-        ServerPlayerBody joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
-            JoinedPlayers bodies = new JoinedPlayers();
-            GameProfile profile = new GameProfile(
-                    java.util.UUID.nameUUIDFromBytes(
-                            "OfflinePlayer:wd-census".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                    "wd-census");
-            ServerPlayer body = bodies.unique(level, profile);
-            body.setPos(jx + 0.5, floorY + 1, oz + 0.5);
-            body.setDeltaMovement(Vec3.ZERO);
-            return new ServerPlayerBody(body);
-        });
+        SceneBot joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz,
+                () -> SceneBot.spawn(ctx, level, jx + 0.5, floorY + 1, oz + 0.5));
 
         // ---- phase 2: the three quantities the synchronous phase structurally cannot read ----
         ServerTickWatch factoryWatch = ServerTickWatch.arm("factory", factoryAvatar, ox, floorY, oz);
@@ -265,13 +260,13 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * @return the player that was measured, so phase 2 can go on asking it questions across real
      *         server ticks, or {@code null} if this column could not be minted at all.
      */
-    private static ServerPlayerBody measureColumn(SceneContext ctx, String column, ServerLevel level,
+    private static SceneBot measureColumn(SceneContext ctx, String column, ServerLevel level,
                                       int cx, int floorY, int cz,
-                                      java.util.function.Supplier<ServerPlayerBody> mint) {
+                                      java.util.function.Supplier<SceneBot> mint) {
         pad(level, cx, floorY, cz);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, PAD + 1, 8));
 
-        ServerPlayerBody avatar;
+        SceneBot avatar;
         try {
             avatar = mint.get();
         } catch (RuntimeException | LinkageError e) {
@@ -282,16 +277,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                     + ": " + String.valueOf(e.getMessage()));
             return null;
         }
-        ServerPlayer fp = avatar.fakePlayer();
-        ctx.cleanup(() -> {
-            try {
-                fp.discard();
-            } catch (RuntimeException ignored) {
-                // A player that cannot be discarded is a leak worth nothing here: the scene has
-                // already recorded everything it came for, and throwing from a cleanup would convert a
-                // finished census into a failure of the NEXT scene.
-            }
-        });
+        // The roster removes the bot when the scene ends.
+        ServerPlayer fp = avatar.player();
 
         ctx.record(key(column, "identity"), identity(fp));
         ctx.record(key(column, "tickChain"), tickChain(fp));
@@ -391,14 +378,14 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
          * part {@code check_scene_arena.py} scores, and the couple of blocks of headroom sit 20+
          * above whatever the world generated.
          */
-        static ServerTickWatch arm(String column, ServerPlayerBody avatar,
+        static ServerTickWatch arm(String column, SceneBot avatar,
                                    int cx, int floorY, int cz) {
             if (avatar == null) {
                 return new ServerTickWatch(column, null, "unavailable/this column could not create its player entity (see identity)",
                         0, 0, 0L);
             }
             try {
-                ServerPlayer fp = avatar.fakePlayer();
+                ServerPlayer fp = avatar.player();
                 fp.setPos(cx + 0.5, floorY + 8, cz + 0.5);
                 fp.setDeltaMovement(Vec3.ZERO);
                 fp.fallDistance = 0.0F;
@@ -458,22 +445,17 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     /**
      * Which topology this run is, read off the running game rather than echoed from a flag.
      *
-     * <p>Deliberately the same two questions {@code JourneyRig} asks, for the same reason: a launch
-     * can set a property and then fail to do the thing the property promises, and a coordinate that
-     * repeated the property would be confidently wrong on exactly those runs. {@code
-     * isDedicatedServer()} is false only inside a client hosting its own world; {@code
-     * BotHooks.isAvailable()} is the driver's CLIENT half, registered only by a loader's client
-     * entrypoint — on a dedicated server that code is not merely unexercised, it is absent.
+     * <p>A launch can set a property and then fail to do the thing the property promises, and a coordinate
+     * that repeated the property would be confidently wrong on exactly those runs. {@code
+     * isDedicatedServer()} is false only inside a client hosting its own world, which is also the only JVM
+     * that holds the driver's CLIENT half (registered only by a loader's client entrypoint — on a dedicated
+     * server that code is not merely unexercised, it is absent).
      */
     private static String topology(SceneContext ctx) {
         MinecraftServer server = ctx.server();
         boolean dedicated = server == null || server.isDedicatedServer();
-        boolean clientHalf = BotHooks.isAvailable();
-        List<ServerPlayer> humans = new ArrayList<>();
-        for (ServerPlayer p : ctx.level().players()) {
-            if (p instanceof JoinedPlayers.JoinedBody) continue;
-            humans.add(p);
-        }
+        boolean clientHalf = !dedicated;
+        List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         String kind = !dedicated ? "integratedServer"
                 : humans.isEmpty() ? "dedicatedServer" : "dedicatedServerWithClient";
         StringBuilder s = new StringBuilder(kind).append(" (real players ").append(humans.size());
@@ -530,7 +512,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         } catch (NoSuchMethodException e) {
             emptyTick = false;
         }
-        return "avatar.step()/BotTicker"
+        return "mc.test.bots body step/tick"
                 + "; in the ServerLevel entity tick list=" + inLevel
                 + "; tick() overridden by a subclass=" + emptyTick
                 + " (an empty override cuts off channel one)"
@@ -577,7 +559,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * only home — and that is the override this player class empties. A flat series is the defect; a
      * counting-down series is its absence.
      */
-    private static String invulnerableTimeSeries(ServerPlayer fp, ServerPlayerBody avatar) {
+    private static String invulnerableTimeSeries(ServerPlayer fp, SceneBot avatar) {
         fp.invulnerableTime = 20;
         StringBuilder s = new StringBuilder("set to 20, then per tick: ");
         for (int i = 0; i < 5; i++) {
@@ -597,7 +579,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * print the same.
      */
     private static String fallDistanceSeries(ServerLevel level, ServerPlayer fp,
-                                             ServerPlayerBody avatar, int cx, int floorY, int cz) {
+                                             SceneBot avatar, int cx, int floorY, int cz) {
         double startY = floorY + 12;
         fp.setPos(cx + 0.5, startY, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
@@ -626,7 +608,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * one the defect lets through; the difference only appears from the second orb onwards.
      */
     private static String experienceOrbs(ServerLevel level, ServerPlayer fp,
-                                         ServerPlayerBody avatar, int cx, int floorY, int cz) {
+                                         SceneBot avatar, int cx, int floorY, int cz) {
         int before = fp.totalExperience;
         List<ExperienceOrb> spawned = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
@@ -649,14 +631,14 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * height is what collides. A player whose pose flips to {@code CROUCHING} while its box stays 1.8
      * tall still cannot fit under a slab, and those two readings are what tell that story apart.
      */
-    private static String poseSeries(ServerPlayer fp, ServerPlayerBody avatar) {
-        avatar.commandSneak(false);
+    private static String poseSeries(ServerPlayer fp, SceneBot avatar) {
+        avatar.press(avatar.keys().sneak(false));
         avatar.step();
         String standing = fp.getPose() + "/" + String.format(Locale.ROOT, "%.2f", fp.getBbHeight());
-        avatar.commandSneak(true);
+        avatar.press(avatar.keys().sneak(true));
         for (int i = 0; i < 5; i++) avatar.step();
         String sneaking = fp.getPose() + "/" + String.format(Locale.ROOT, "%.2f", fp.getBbHeight());
-        avatar.commandSneak(false);
+        avatar.press(avatar.keys().sneak(false));
         avatar.step();
         return "standing pose/height=" + standing + ", after sneaking for 5 ticks=" + sneaking
                 + " (a real player should read CROUCHING/1.50)";
@@ -665,11 +647,11 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     /** Distance walked, and the walk statistic that should have counted it. Both, for the same
      *  reason the fall probe records both: a zero statistic beside a zero displacement is a broken
      *  rig, not a missing statistic. */
-    private static String walkStat(ServerPlayer fp, ServerPlayerBody avatar,
+    private static String walkStat(ServerPlayer fp, SceneBot avatar,
                                    int cx, int floorY, int cz) {
         int before = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
         Vec3 from = fp.position();
-        avatar.commandMove(0f, 1f);
+        avatar.press(avatar.keys().move(0, 1));
         // Bounded by DISTANCE, not by a tick count. A tick count needs a per-tick speed to prove it
         // is safe, and this probe cannot know that speed — that is one of the things it is here to
         // measure, and the two columns may not share it. The first version of this probe asserted
@@ -690,7 +672,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             ticks++;
         }
         boolean hitCap = ticks >= WALK_TICK_CAP;
-        avatar.commandMove(0f, 0f);
+        avatar.press(avatar.keys().move(0, 0));
         avatar.step();
         int after = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
         double moved = from.distanceTo(fp.position());
@@ -736,7 +718,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * {@code FoodData.tick} only converts exhaustion into saturation once it passes 4.0, so a
      * food-level reading would show nothing here even when the mechanism works perfectly.
      */
-    private static String jumpExhaustion(ServerPlayer fp, ServerPlayerBody avatar,
+    private static String jumpExhaustion(ServerPlayer fp, SceneBot avatar,
                                          int cx, int floorY, int cz) {
         // Start from a known cell on solid ground: jumpApex ran just before this and left the player
         // entity wherever its fall ended.
@@ -754,9 +736,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         boolean groundedAtPress = fp.onGround();
         float before = fp.getFoodData().getExhaustionLevel();
         double startY = fp.getY();
-        avatar.commandJump(true);
+        avatar.press(avatar.keys().jump(true));
         avatar.step();
-        avatar.commandJump(false);
+        avatar.press(avatar.keys().jump(false));
         double apex = startY;
         for (int i = 0; i < 30 && fp.getY() >= startY - 0.01; i++) {
             avatar.step();
@@ -783,12 +765,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * velocity, apex ≈ 1.25 blocks). What this row is FOR is the {@code Stats.JUMP} beside it — a
      * jump that visibly happens while the statistic stays flat is the reading that matters.
      */
-    private static String jumpApex(ServerPlayer fp, ServerPlayerBody avatar, int floorY) {
+    private static String jumpApex(ServerPlayer fp, SceneBot avatar, int floorY) {
         int jumpBefore = fp.getStats().getValue(Stats.CUSTOM.get(Stats.JUMP));
         double startY = fp.getY();
-        avatar.commandJump(true);
+        avatar.press(avatar.keys().jump(true));
         avatar.step();
-        avatar.commandJump(false);
+        avatar.press(avatar.keys().jump(false));
         double apex = fp.getY();
         for (int i = 0; i < 30 && fp.getY() >= startY - 0.01; i++) {
             avatar.step();
@@ -807,16 +789,20 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * report the call site's behaviour and say nothing about the seam. The prediction under test is
      * that {@code bot/sim/} contains no {@code swing(} at all, which means every OTHER caller of the
      * seam gets no swing.
+     *
+     * <p>The one probe still on the body class: no {@code mc.*} method reaches the seam alone
+     * ({@code mc.bot.attackEntity} swings at its own call site too), so it wraps the bot's player in a body
+     * of its own, as the seam's callers hold it.
      */
     private static String swinging(ServerLevel level, ServerPlayer fp,
-                                   ServerPlayerBody avatar, int cx, int floorY, int cz) {
+                                   SceneBot avatar, int cx, int floorY, int cz) {
         var target = EntityType.ARMOR_STAND.create(level);
         if (target == null) return "unavailable/could not create an armour stand in this runtime";
         target.setPos(cx + 1.5, floorY + 1, cz + 0.5);
         level.addFreshEntity(target);
         try {
             fp.swinging = false;
-            avatar.attackEntityUnchecked(target);
+            new ServerPlayerBody(fp).attackEntityUnchecked(target);
             return "after an attack through the avatar seam swinging=" + fp.swinging
                     + ", attackAnim=" + String.format(Locale.ROOT, "%.2f", fp.attackAnim)
                     + " (a real player's handleInteract calls swing(hand,true))";
@@ -839,7 +825,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * driver's route never calls {@code mineBlock}, so the tool cannot wear.
      */
     private static String mineDrop(ServerLevel level, ServerPlayer fp,
-                                   ServerPlayerBody avatar, int cx, int floorY, int cz) {
+                                   SceneBot avatar, int cx, int floorY, int cz) {
         BlockPos bare = new BlockPos(cx + 1, floorY + 1, cz);
         BlockPos withTool = new BlockPos(cx + 2, floorY + 1, cz);
         level.setBlockAndUpdate(bare, Blocks.STONE.defaultBlockState());
@@ -849,9 +835,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, box)) e.discard();
         fp.getInventory().clearContent();
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
-        avatar.aimAtBlock(bare);
-        avatar.breakHold(true);
-        avatar.breakHold(false);
+        avatar.press(avatar.keys().aimAt(Targets.pos(bare)).attack(true));
+        avatar.press(avatar.keys().attack(false));
         int bareDrops = level.getEntitiesOfClass(ItemEntity.class, box).size();
         boolean bareGone = level.getBlockState(bare).isAir();
 
@@ -859,9 +844,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         ItemStack pick = new ItemStack(Items.IRON_PICKAXE);
         fp.getInventory().items.set(0, pick);
         fp.getInventory().selected = 0;
-        avatar.aimAtBlock(withTool);
-        avatar.breakHold(true);
-        avatar.breakHold(false);
+        avatar.press(avatar.keys().aimAt(Targets.pos(withTool)).attack(true));
+        avatar.press(avatar.keys().attack(false));
         int toolDrops = level.getEntitiesOfClass(ItemEntity.class, box).size();
         int damage = fp.getInventory().getItem(0).getDamageValue();
         for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, box)) e.discard();

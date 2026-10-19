@@ -1,19 +1,29 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.BiFunction;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
+import net.magicterra.worlddriver.api.game.Positions;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.Cell;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.CellsParams;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.CellsReading;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.Side;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
-import net.magicterra.worlddriver.game.ui.ClientWorld;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -27,9 +37,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SlabType;
 
 /**
- * The two planners' views of one world, cell by cell. The shipped client plans through
- * {@link ClientWorldView}; the {@code wd.*} suite and the server ladder plan through
- * {@link LevelWorldView}. Wherever the two disagree on a cell, a route the suite validated is not
+ * The two planners' views of one world, cell by cell. The shipped client plans through its client
+ * view; the {@code wd.*} suite and the server ladder plan through a server-level view. Both are read
+ * through {@code mc.debug.cells} for self, once as the client sees it and once with
+ * {@code side: server}, each from a freshly begun search. Wherever the two disagree on a cell, a route the suite validated is not
  * a route the client will emit, and the scene "ran" on a different set of rules than the product.
  * This scene asks both views the same questions over a palette of the terrains the split is
  * known to bite on and records every disagreement as a row; the check is that there are none.
@@ -116,22 +127,23 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         return e;
     }
 
-    /** The questions, named the way the navigator asks them. */
-    private record Question(String name, BiFunction<WorldView, BlockPos, Object> ask) {}
+    /** The questions, named the way the navigator asks them; a break cost no search can pay reads as Infinity. */
+    private record Question(String name, Function<Cell, Object> ask) {}
 
     private static List<Question> questions() {
         return List.of(
-                new Question("isSolid", WorldView::isSolid),
-                new Question("isPassable", WorldView::isPassable),
-                new Question("isHazard", WorldView::isHazard),
-                new Question("isWater", WorldView::isWater),
-                new Question("isClimbable", WorldView::isClimbable),
-                new Question("isLeaves", WorldView::isLeaves),
-                new Question("isFallingBlock", WorldView::isFallingBlock),
-                new Question("isBreakableObstruction", WorldView::isBreakableObstruction),
-                new Question("canStandOn", WorldView::canStandOn),
-                new Question("canStandAt", WorldView::canStandAt),
-                new Question("breakCost", (w, p) -> String.format(Locale.ROOT, "%.1f", w.breakCost(p))));
+                new Question("isSolid", Cell::solid),
+                new Question("isPassable", Cell::passable),
+                new Question("isHazard", Cell::hazard),
+                new Question("isWater", Cell::water),
+                new Question("isClimbable", Cell::climbable),
+                new Question("isLeaves", Cell::leaves),
+                new Question("isFallingBlock", Cell::fallingBlock),
+                new Question("isBreakableObstruction", Cell::breakableObstruction),
+                new Question("canStandOn", Cell::standOn),
+                new Question("canStandAt", Cell::standAt),
+                new Question("breakCost", c -> c.breakCost()
+                        .map(v -> String.format(Locale.ROOT, "%.1f", v)).orElse("Infinity")));
     }
 
     private static void worldViewParity(SceneContext ctx) {
@@ -145,12 +157,14 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
                 ctx.setBlock(dx, GROUND, dz, Blocks.STONE);
                 for (int dy = 1; dy <= 3; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
             }
+        List<BlockPosition> cells = new ArrayList<>();
         for (int i = 0; i < palette.size(); i++) {
             Entry en = palette.get(i);
             BlockPos foot = footOf(ctx, i);
             level.setBlockAndUpdate(foot.below(), en.under());
             if (en.behind() != null) level.setBlockAndUpdate(foot.north(), en.behind());
             level.setBlockAndUpdate(foot, en.foot());
+            for (BlockPos cell : cellsOf(foot)) cells.add(Positions.position(cell));
         }
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
         ctx.record("test setup", palette.size() + " terrain types, grid of " + COLUMNS + " columns, foot cell y=" + (GROUND + 1) + ", spacing " + SPACING + "; bot starts at " + start.toShortString());
@@ -164,36 +178,47 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
 
         // Let the client receive the palette before either view is asked.
         helm.sync(40, () -> {
-            WorldView server = new LevelWorldView(level, helm.player());
-            WorldView client = clientView();
-            server.beginSearch();
-            client.beginSearch();
-            List<String> rows = new ArrayList<>();
-            int asked = 0;
-            for (int i = 0; i < palette.size(); i++) {
-                Entry en = palette.get(i);
-                BlockPos foot = footOf(ctx, i);
-                for (BlockPos cell : new BlockPos[] { foot.below(), foot, foot.above() }) {
-                    String where = cell.getY() < foot.getY() ? "below" : cell.getY() > foot.getY() ? "above" : "foot";
-                    for (Question q : questions()) {
-                        Object c = q.ask().apply(client, cell), s = q.ask().apply(server, cell);
-                        asked++;
-                        if (!String.valueOf(c).equals(String.valueOf(s)))
-                            rows.add(en.name() + "/" + where + " " + q.name() + " client=" + c + " server=" + s);
-                    }
-                }
-            }
-            ctx.record("queries", asked + " queries, " + rows.size() + " mismatched rows");
-            ctx.record("differences", rows.isEmpty() ? "none" : String.join("; ", rows));
-            ctx.check(rows.isEmpty()).as("both views give the same answers for the same world (" + rows.size() + " mismatched rows)").isTrue();
+            // The server side answers inline on this thread; the client's hops and answers a tick or more later.
+            CellsReading server = Calls.now(DebugApi.of(api()).cells(
+                    new CellsParams(Optional.of(ClientHelm.SELF), Optional.of(Side.SERVER), cells, Optional.empty())));
+            // Not SceneCalls.ask: its record line would carry every cell of the reply.
+            CompletableFuture<CellsReading> client = DebugApi.of(api()).cells(
+                    new CellsParams(Optional.of(ClientHelm.SELF), Optional.empty(), cells, Optional.empty())).toCompletableFuture();
+            ctx.await(client::isDone).within(40).then(() -> compare(ctx, palette, Calls.now(client), server));
         });
     }
 
-    /** The client's own level and player, the ones the shipped client bot plans over. Built here,
-     *  behind the adopt() skip, so a dedicated server never reaches the client class; through
-     *  {@link ClientWorld}'s method references, because a lambda returning the client's player as
-     *  a {@code Player} would make this whole class unloadable there. */
-    private static WorldView clientView() {
-        return new ClientWorldView(ClientWorld::level, ClientWorld::player);
+    private static BlockPos[] cellsOf(BlockPos foot) {
+        return new BlockPos[] { foot.below(), foot, foot.above() };
+    }
+
+    private static void compare(SceneContext ctx, List<Entry> palette, CellsReading client, CellsReading server) {
+        ctx.record("views", "client=" + client.view() + ", server=" + server.view());
+        Map<BlockPosition, Cell> c = byPos(client), s = byPos(server);
+        List<String> rows = new ArrayList<>();
+        int asked = 0;
+        for (int i = 0; i < palette.size(); i++) {
+            Entry en = palette.get(i);
+            BlockPos foot = footOf(ctx, i);
+            for (BlockPos cell : cellsOf(foot)) {
+                String where = cell.getY() < foot.getY() ? "below" : cell.getY() > foot.getY() ? "above" : "foot";
+                Cell cc = c.get(Positions.position(cell)), sc = s.get(Positions.position(cell));
+                for (Question q : questions()) {
+                    Object cv = cc == null ? "missing" : q.ask().apply(cc), sv = sc == null ? "missing" : q.ask().apply(sc);
+                    asked++;
+                    if (!String.valueOf(cv).equals(String.valueOf(sv)))
+                        rows.add(en.name() + "/" + where + " " + q.name() + " client=" + cv + " server=" + sv);
+                }
+            }
+        }
+        ctx.record("queries", asked + " queries, " + rows.size() + " mismatched rows");
+        ctx.record("differences", rows.isEmpty() ? "none" : String.join("; ", rows));
+        ctx.check(rows.isEmpty()).as("both views give the same answers for the same world (" + rows.size() + " mismatched rows)").isTrue();
+    }
+
+    private static Map<BlockPosition, Cell> byPos(CellsReading reading) {
+        Map<BlockPosition, Cell> m = new HashMap<>();
+        for (Cell cell : reading.cells()) m.put(cell.pos(), cell);
+        return m;
     }
 }

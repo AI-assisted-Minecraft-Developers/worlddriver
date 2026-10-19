@@ -1,11 +1,4 @@
 # What testmod code still uses past api/ and protocol/; ArchitectureTest lets this list only shrink.
-bot/stagewright/ClientHelm -> bot/BotApi
-bot/stagewright/ClientHelm -> bot/BotHooks
-bot/stagewright/ClientHelm -> bot/behavior/BotProcess
-bot/stagewright/ClientHelm -> bot/behavior/Intent
-bot/stagewright/ClientHelm -> bot/behavior/IntentProcess
-bot/stagewright/ClientHelm -> bot/rules/Goal
-bot/stagewright/ClientHelm -> config/BotConfig
 bot/stagewright/LivingBody -> game/body/Body
 bot/stagewright/NpcBot -> bot/ActionTickets
 bot/stagewright/NpcBot -> bot/Bot
@@ -21,7 +14,6 @@ bot/stagewright/SceneBody -> bot/BotTicker
 bot/stagewright/SceneBody -> bot/PlayerBot
 bot/stagewright/SceneBody -> game/body/JoinedPlayers
 bot/stagewright/SceneBody -> game/body/ServerPlayerBody
-bot/stagewright/ScenePlan -> bot/control/Navigator
 bot/stagewright/ScenePlan -> bot/rules/Move
 bot/stagewright/journey/HoldStill -> bot/behavior/BotProcess
 bot/stagewright/journey/HoldStill -> bot/behavior/BotState
@@ -196,14 +188,6 @@ bot/stagewright/scene/WorldDriverActuatorSplitScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverAvatarScenes -> application/PlayerSnapshots
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/behavior/ElytraProcess
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverAvatarScenes -> config/BotConfig
-bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/JoinedPlayers
-bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/control/route/PathSmoothing
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/planning/PathFinder
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/rules/Capability
@@ -221,8 +205,6 @@ bot/stagewright/scene/WorldDriverBiasScenes -> bot/rules/modifiers/ShorelineHug
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverBiasScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBiasScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverBodyCensusScenes -> bot/BotHooks
-bot/stagewright/scene/WorldDriverBodyCensusScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverBodyCensusScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/BotRegistry
@@ -236,18 +218,6 @@ bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
-bot/stagewright/scene/WorldDriverClientAirScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverClientDigScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/ClientWorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> bot/world/WorldView
-bot/stagewright/scene/WorldDriverClientParityScenes -> game/ui/ClientWorld
-bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverClientSchedulerScenes -> bot/behavior/SleepProcess
-bot/stagewright/scene/WorldDriverClientWaterScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder

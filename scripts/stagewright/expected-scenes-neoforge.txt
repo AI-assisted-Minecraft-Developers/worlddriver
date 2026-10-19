@@ -71,7 +71,6 @@ wd.deepWaterSubmergedCross
 wd.vineOverWaterCross
 wd.padOverWaterCross
 wd.padClusterCross
-wd.deepWaterFloatBeeline
 # Core family — the navigator and pathfinder basics every other family assumes.
 wd.agentRpcSmoke
 wd.pinch

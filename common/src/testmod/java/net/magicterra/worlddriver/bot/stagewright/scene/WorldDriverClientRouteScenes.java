@@ -10,14 +10,16 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorParams;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
 
 /**
@@ -100,7 +102,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
      * Look before walking, then walk what was looked at. The preview action of the flat lane ends
      * reached; the goto with its {@code planId} arrives and its result reports {@code adopted}.
      * How many searches the navigator made on the way is recorded, not judged
-     * ({@code NavigatorTelemetry.lastStats} moves once per search): the off-path safety re-search supersedes the
+     * ({@code mc.debug.navigator}'s {@code searches} counter): the off-path safety re-search supersedes the
      * adopted route on the first tick of any lane longer than three cells, and cells are not
      * comparable either (the adoption straightens, trims and fast-forwards). Then the bot is
      * put six cells off the previewed line, past the adoption gate's four, and the same call must
@@ -122,20 +124,17 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.record("preview.result", String.valueOf(preview));
                 ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
                         .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
-                final NavigatorTelemetry clientTel = NavigatorTelemetry.of(helm.player().getUUID(), true);   // the client bot of this player
-                clientTel.lastStats = null;
                 askByName(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
                 final int[] arrived = { -1 };
-                final int[] searches = { 0 };
-                final NavigatorTelemetry.PathStats[] seen = { null };
                 ClientHelm.TickWatcher watch = t -> {
                     if (arrived[0] < 0 && helm.flatDistance(goal) <= 1.0) arrived[0] = t;
-                    NavigatorTelemetry.PathStats st = clientTel.lastStats;
-                    if (st != null && st != seen[0]) { seen[0] = st; searches[0]++; }
                 };
-                awaitEnd(ctx, actionId(walked), 400, watch, trip -> {
+                awaitEnd(ctx, actionId(walked), 400, watch, trip ->
+                // The searches of the goto just ended: its navigator is the last one self was asked to run.
+                ask(ctx, "adopt.navigator", DebugApi.of(api()).navigator(NavigatorParams.of(ClientHelm.SELF)), nav -> {
+                    long searches = nav.counter("searches");
                     Map<?, ?> adoption = result(trip).get("plan") instanceof Map<?, ?> a ? a : Map.of();
-                    ctx.record("adopt.end", trip + ", " + helm.where() + ", arrived at tick " + arrived[0] + ", full searches: " + searches[0]);
+                    ctx.record("adopt.end", trip + ", " + helm.where() + ", arrived at tick " + arrived[0] + ", full searches: " + searches);
                     ctx.check(Boolean.TRUE.equals(adoption.get("adopted")))
                             .as("C: the goto with a planId adopts the preview: " + adoption).isTrue();
                     ctx.check(arrived[0] >= 0 || helm.flatDistance(goal) <= 1.5)
@@ -147,7 +146,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     // end is 12 cells away. Measuring to the edge instead was tried and broke
                     // wd.entityLeash* and wd.pillarLedger* (see StallDetectPhase.offPath), so
                     // until that is re-homed the count here documents the cost rather than gating on it.
-                    ctx.record("E full searches after adoption (not judged)", String.valueOf(searches[0]));
+                    ctx.record("E full searches after adoption (not judged)", String.valueOf(searches));
                     // Part two: preview the way back, then stand six cells off the line.
                     goTo(ctx, "preview2.reply", start, Map.of("plan", "preview", "route", Map.of("risk", "normal")), back ->
                     awaitEnd(ctx, actionId(back), 200, t -> { }, backPreview -> {
@@ -169,7 +168,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                             });
                         });
                     }));
-                });
+                }));
                 });
             });
         }));

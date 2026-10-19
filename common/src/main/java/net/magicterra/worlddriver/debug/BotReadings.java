@@ -49,6 +49,7 @@ import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -169,7 +170,21 @@ final class BotReadings {
         WorldView view;
         String whose;
         Level level;
-        if (p.bot().isPresent()) {
+        if (p.bot().isPresent() && BotRegistry.isSelf(p.bot().get())) {
+            // The server's view of the player a client here hosts the world for: the half of self the server holds.
+            ServerPlayer owner = null;
+            for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+                if (server.isSingleplayerOwner(sp.getGameProfile())) { owner = sp; break; }
+            }
+            if (owner == null) {
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "self has no player on this server: it is not a world a client here hosts");
+            }
+            level = owner.level();
+            view = new LevelWorldView(level, owner);
+            view.beginSearch();
+            whose = "self (server)";
+        } else if (p.bot().isPresent()) {
             ServerBot bot = serverBot(p.bot().get());
             view = bot.world();
             level = bot.entity().level();
@@ -179,12 +194,18 @@ final class BotReadings {
             view = new LevelWorldView(level, null);
             whose = "server";
         }
+        return reading(whose, view, level, p);
+    }
+
+    /** {@code p}'s cells as {@code view} classifies them, and its node in {@code level}. */
+    static CellsReading reading(String whose, WorldView view, Level level, CellsParams p) {
         List<Cell> cells = new ArrayList<>();
         for (BlockPosition c : p.cells()) {
             BlockPos b = cell(c);
+            double cost = view.breakCost(b);
             cells.add(new Cell(c, view.isKnown(b), view.isSolid(b), view.isPassable(b), view.isHazard(b), view.isWater(b),
                     view.isClimbable(b), view.isLeaves(b), view.isFallingBlock(b), view.isBreakableObstruction(b),
-                    view.canStandOn(b), view.canStandAt(b)));
+                    view.canStandOn(b), view.canStandAt(b), Double.isFinite(cost) ? Optional.of(cost) : Optional.empty()));
         }
         Optional<NodeFacts> node = p.node().map(q -> node(level, q));
         return new CellsReading(whose, level.dimension().location().toString(), cells, node);

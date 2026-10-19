@@ -1303,7 +1303,7 @@ public final class ControlConfig {
      *  quick-start stub / water bee-line) instead of churning the reject loop.
      *  <p>STRICTLY scoped so it can NOT exempt a truly mis-anchored segment: a fumbled continuation behind
      *  a wall / up a cliff fails the open-water LOS or the ±2 Y band and STILL rejects; a dry (non-floating)
-     *  foot is never exempt. Verified by {@code deepWaterFloatBeelineArena} (OFF rejects, ON accepts, a
+     *  foot is never exempt. Verified by {@code DeepWaterFloatBeelineTest} (OFF rejects, ON accepts, a
      *  walled line still rejects, a dry foot still rejects).
      *  <p><b>Default ON</b> — the live A/B this note gated on has landed; flip OFF to A/B against it. Historic note: byte-identical no-op while OFF, which was the pre-flip state, and remains true if you flip it back win
      *  (the parent does the live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */

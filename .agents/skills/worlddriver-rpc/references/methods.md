@@ -412,7 +412,7 @@ A server-side bot's body as the driver judges it: its footing, its hands, its wo
 
 ### `mc.debug.cells`
 
-Cells as the planner's world view classifies them, a bot's or the server level's, and on request the pose and fall facts of standing at one. Read on the server thread.
+Cells as the planner's world view classifies them, a bot's or the server level's, and on request the pose and fall facts of standing at one. Read on the server thread; self's client view on the client thread.
 
 - Params: `CellsParams` (may be omitted); reply: `CellsReading`
 - Effects: snapshot_read; not in MCP tools/list
@@ -3311,14 +3311,17 @@ interface BodyReading {
     reach?: Reach;
     blast?: Blast;
 }
+type CellSide = 'client' | 'server';
 interface NodeQuery { foot: BlockPosition; prev?: BlockPosition; next?: BlockPosition; toBreak?: BlockPosition[]; toPlace?: BlockPosition[]; }
 interface CellsParams {
     /** Omitted: the overworld as the server level reads it. */
     bot?: BotRef;
+    /** With bot self: client (omitted), the view self plans with; server, the view of the server a client here hosts, over the same player. */
+    side?: CellSide;
     cells?: BlockPosition[];
     node?: NodeQuery;
 }
-interface DebugCell { pos: BlockPosition; known: boolean; solid: boolean; passable: boolean; hazard: boolean; water: boolean; climbable: boolean; leaves: boolean; fallingBlock: boolean; breakableObstruction: boolean; standOn: boolean; standAt: boolean; }
+interface DebugCell { pos: BlockPosition; known: boolean; solid: boolean; passable: boolean; hazard: boolean; water: boolean; climbable: boolean; leaves: boolean; fallingBlock: boolean; breakableObstruction: boolean; standOn: boolean; standAt: boolean; breakCost?: number; }
 interface NodeFacts { fitStand: boolean; fitCrouch: boolean; fitCrawl: boolean; ceilingForces: string; inWaterFoot: boolean; submergedEye: boolean; underfootSolid: boolean; footHazard: string; fallFromPrev: number; fallSurvivable: boolean; jumpNeeded: boolean; jumpFeasible: boolean; }
 interface CellsReading { view: string; dimension: string; cells: DebugCell[]; node?: NodeFacts; }
 interface NavigatorParams {
