@@ -4,12 +4,6 @@ bot/stagewright/SceneBody -> bot/BotTicker
 bot/stagewright/SceneBody -> bot/PlayerBot
 bot/stagewright/SceneBody -> game/body/JoinedPlayers
 bot/stagewright/SceneBody -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientDriverApi
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> application/client/ClientHooks
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> bot/BotHooks
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/Body
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/JoinedPlayers
-bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Navigator

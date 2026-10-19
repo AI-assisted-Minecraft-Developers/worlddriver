@@ -1,22 +1,29 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
+import net.magicterra.worlddriver.api.methods.client.ClientApi;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.application.client.ClientDriverApi;
-import net.magicterra.worlddriver.application.client.ClientHooks;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.JoinedPlayers;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.api.methods.screen.ScreenApi;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
+import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.server.MinecraftServer;
@@ -30,61 +37,37 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>The question this exists to answer</h2>
  *
- * On the integrated topology the playthrough ladder ADOPTS the client's real player, and it drives
- * that player through <b>two different paths that do not agree about which object is authoritative</b>:
+ * On an integrated server the client's player exists twice: the {@code ServerPlayer} and the
+ * {@code LocalPlayer}. Vanilla's client is authoritative for the selected hotbar slot and the
+ * rotation — the slot travels up via {@code ServerboundSetCarriedItemPacket}, rotation every tick in
+ * {@code ServerboundMovePlayerPacket.Rot} — so a write to the server copy of either is a write the
+ * client never agreed to, and the next packet can silently undo it. A driver that actuates the
+ * client's player by writing its server copy is therefore wrong, and the two scenes here measure by
+ * how much:
  *
  * <ul>
- *   <li><b>The tasks</b> — {@code settle}/{@code drive}/{@code legStart}, 113 call sites — go
- *       {@code BotApi.runProcess} → the client's {@code UserTaskChain} → {@code BotProcess.tick(Minecraft,…)}
- *       → {@code ClientPlayerBody}, whose field is literally {@code mc.player}. That half really is
- *       {@code LocalPlayer}, driven by client input and client physics.</li>
- *   <li><b>The single-shot actuations</b> — {@code rig.body().avatar().holdItem/aimAtBlock/useItemInHand/…},
- *       36 call sites plus all of {@code breakItWhereItStands} — go through the
- *       {@link ServerPlayerBody} built in {@code JourneyRig.spawnBody()}, which writes the
- *       <b>ServerPlayer</b> directly: {@code inv.selected = i}, {@code fp.setYRot(...)}.</li>
+ *   <li>{@code wd.actuatorSplitOnAnAdoptedBody}, the ruler, makes the server-side writes directly —
+ *       {@code inv.selected = i}, {@code setYRot(...)} — and records both sides;</li>
+ *   <li>{@code wd.actuatorSplitThroughTheClientAvatar}, the twin, makes the same two changes through
+ *       the client's own input ({@code mc.client.input.setHotbarSlot}, {@code mc.test.input.press}
+ *       on self) and asserts the client ends where it was sent.</li>
  * </ul>
  *
- * <p>Vanilla's client is authoritative for both of those quantities. The selected hotbar slot is
- * owned by the client and travels up via {@code ServerboundSetCarriedItemPacket}; rotation travels up
- * every tick in {@code ServerboundMovePlayerPacket.Rot}. So a server-side write to either is a write
- * the client never agreed to, and the next packet can silently undo it.
+ * <h2>What the ruler does NOT do</h2>
  *
- * <h2>Why measure instead of just fixing the 36 sites</h2>
+ * <b>It asserts no fix.</b> It performs the server-side writes, then reads BOTH sides and records the
+ * pair. The check it makes is only that the reading was obtainable at all; the numbers themselves are
+ * recorded unconditionally, on PASS as well, because a divergence that first appears six months from
+ * now is invisible unless the healthy value is already in the record.
  *
- * Because rungs 1–13 currently PASS, and they are <b>full</b> of exactly these calls — filling a
- * bucket, lighting a portal, crafting, placing the frame. So one of two things is true, and they
- * demand opposite priorities:
- *
- * <ul>
- *   <li>the divergence does not actually happen (the client never contests these writes in this
- *       scenario) — then rerouting those 36 sites is a near-zero-behaviour refactor, safe to land
- *       whenever; or</li>
- *   <li>it does happen and the ladder has been getting away with it — then it is a live defect and
- *       outranks everything else.</li>
- * </ul>
- *
- * <p>Rerouting first and re-running the ladder cannot distinguish them: green before, green after,
- * and no reading either way. That is this repo's own discipline (an assertion must be able to fail
- * while the defect is present) applied to a refactor instead of to a test.
- *
- * <h2>What it does NOT do</h2>
- *
- * <b>It changes no actuator and asserts no fix.</b> It performs the two writes the way the ladder
- * performs them today, then reads BOTH sides and records the pair. The check it makes is only that
- * the reading was obtainable at all; the numbers themselves are recorded unconditionally, on PASS as
- * well, because a divergence that first appears six months from now is invisible unless the healthy
- * value is already in the record.
- *
- * <p><b>Reads only, never marshalled writes.</b> The client side is read through
- * {@code mc.client.player}, which reports {@code inventory.selectedSlot} and {@code look.yaw/pitch} off the
- * real {@code LocalPlayer}. That route hops to the client thread and waits — acceptable here because
- * this scene is not inside a task and holds no tick-critical deadline. It would NOT be acceptable
- * from inside {@code JourneyRig}'s await predicate, which is the deadlock this design is otherwise
- * careful to avoid, and the reason the fix in A0 must use a fire-and-forget form instead.
+ * <p>The client side is read through {@code mc.client.player}, which reports
+ * {@code inventory.selectedSlot} and {@code look.yaw/pitch} off the real {@code LocalPlayer}. It
+ * answers on the client thread, which the scene's server thread may not wait for, so each reading is
+ * asked for and the scene continues when it lands.
  *
  * <h2>Two samples, and why both are needed</h2>
  *
- * <b>Same tick</b> answers "did the server-side write land". <b>After {@link #SETTLE_TICKS} real
+ * <b>At the write</b> answers "did the write land". <b>After {@link #SETTLE_TICKS} real
  * ticks</b> answers "did the client overwrite it". Only the second can see the packet arrive, and only the first can tell a
  * write that never landed from one that landed and was reverted — printing one without the other
  * reproduces the ambiguity the player parity census ({@code wd.bodyParityCensus}) had to grow a
@@ -100,7 +83,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                 // required would promise the gate a failure mode that does not exist.
                 Scene.of("wd.actuatorSplitOnAnAdoptedBody", 200,
                         WorldDriverActuatorSplitScenes::actuatorSplit).withRequired(false),
-                // The A0 twin. Same measurement, taken through the avatar the rungs now use, so the
+                // The twin. Same measurement, taken through the client's own input, so the
                 // pair reads as a before/after in ONE run. Deliberately a SECOND scene rather than an
                 // edit to the first: the first is the ruler for the raw divergence, and if anyone
                 // ever routes those call sites back to the server avatar, it goes on saying so.
@@ -137,51 +120,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     private static void actuatorSplit(SceneContext ctx) {
         // Read off the running game, never echoed from a -D: a launch can set a property and then
         // fail to do what it promised, and this scene's whole value is being unable to lie.
-        MinecraftServer server = ctx.server();
-        boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", topology(ctx));
-        if (!integrated || !BotHooks.isAvailable()) {
-            ctx.skip("This scene is meaningful only on an integrated server: it needs both a server-side "
-                    + "player entity and a real LocalPlayer in the same JVM");
-        }
-        List<ServerPlayer> humans = humanPlayers(ctx);
-        if (humans.isEmpty()) {
-            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
-                    + "or has disconnected");
-        }
-
-        ServerPlayer real = humans.get(0);
-
-        // ---- WHO, before anything else, and the scene REFUSES rather than reporting beside it ----
-        //
-        // Every server-side player the driver mints is a JoinedBody, so this JVM can hold one as well
-        // as the client's player, and picking the wrong one would produce a full set of
-        // plausible numbers describing the wrong subject — "the server write landed and the client
-        // did not overwrite it" would be
-        // trivially true of a player no client has ever heard of. Every row below is void in that case,
-        // so this must not be a row a reader has to notice: a criterion that depends on someone
-        // checking a name before reading the numbers fails exactly when the numbers are interesting.
-        //
-        // Asked STRUCTURALLY, not by name, through SceneBody.isDriverMinted. `agent-body-N` is a
-        // naming convention (JoinedPlayers.profileFor) and conventions get changed by people
-        // who do not know this scene reads them; one shared predicate means a minted type added
-        // later cannot slip through here as "not a JoinedBody, therefore a real person".
-        boolean driverMinted = SceneBody.isDriverMinted(real);
-        ctx.record("body", real.getGameProfile().getName() + " (" + real.getClass().getSimpleName()
-                + ", inPlayerList=" + real.level().players().contains(real)
-                + ", driverMinted=" + driverMinted + ")");
-        if (driverMinted) {
-            ctx.fail("Picked the wrong player entity: got the driver-minted " + real.getClass().getSimpleName()
-                    + " " + real.getGameProfile().getName() + ", not the client's real player. "
-                    + "This entire reading is void: a player entity with no client trivially shows "
-                    + "\"the server wrote and nobody overwrote it\", which is not the question this scene asks. "
-                    + "The exclusion criterion in humanPlayers() needs fixing.");
-        }
-
-        // The SAME wrapper JourneyRig.spawnBody() builds around an adopted player. Not a
-        // reimplementation of its writes: if ServerPlayerBody's actuators change, this scene has to
-        // change with them, and a copy would keep reporting the old mechanism's behaviour forever.
-        ServerPlayerBody avatar = new ServerPlayerBody(real);
+        ServerPlayer real = clientsPlayer(ctx);
 
         // ---- put it back, registered BEFORE the first write ---------------------------------
         //
@@ -191,16 +131,12 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // and is right to; an item pushed into a player's inventory is the same class of residue.
         //
         // Registered here rather than at the end because cleanups drain on PASS, FAIL and TIMEOUT
-        // alike, and the interesting exits are the other two. The wrong-player refusal above cannot
-        // reach this point, by design — it fires before anything is written — but the final check
-        // and the await budget both can end the scene after the writes have landed, and a restore
-        // written after them would be skipped on exactly those runs.
+        // alike, and the interesting exits are the other two: the final check and the await budget
+        // both can end the scene after the writes have landed, and a restore written after them
+        // would be skipped on exactly those runs.
         //
-        // NOT restored through `Body`. `holdItem` is the verb under measurement, and a cleanup
-        // that runs the thing it is measuring fails silently precisely when that thing is broken —
-        // and then lands on the NEXT scene, which is a shape this repo has already paid for. The
-        // raw field is the primitive underneath it, so a restore can fail here only if the field
-        // itself is unwritable.
+        // Restored through the raw fields, the primitive underneath any actuator, so a restore can
+        // fail here only if the field itself is unwritable.
         ItemStack slotWas = real.getInventory().items.get(TARGET_SLOT).copy();
         int selectedWas = real.getInventory().selected;
         float yawWas = real.getYRot();
@@ -224,25 +160,30 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             //
             // Recording such a row elsewhere would only move a tautology somewhere visible. The
             // CLIENT does own these two quantities, but it takes them back by packet on a LATER
-            // tick — which is exactly why the scene asks that question below as
-            // `serverSlotSameTick` against `clientSlotSameTick`, two sources compared, rather than
-            // by reading one field twice. Teardown has no later tick, so the
-            // question cannot be asked from here at all.
+            // tick — which is exactly why the scene asks that question below as the server's slot
+            // against the client's, two sources compared, rather than by reading one field twice.
+            // Teardown has no later tick, so the question cannot be asked from here at all.
         });
 
+        // ---- 0. the client, before anything is written ----------------------------------------
+        // Nothing below touches the LocalPlayer, so this reading is also what the client holds the
+        // instant the writes complete: the client's side of the at-the-write sample.
+        readClient(ctx, "client.beforeWrite", atWrite -> writeAndMeasure(ctx, real, atWrite));
+    }
+
+    /** The ruler's two server-side writes, and both sides read again {@link #SETTLE_TICKS} later. */
+    private static void writeAndMeasure(SceneContext ctx, ServerPlayer real, ClientReading atWrite) {
+        float[] clientLookAtWrite = atWrite.look();
+
         // ---- 1. the hotbar slot -------------------------------------------------------------
-        // Give the player something to select, so holdItem has a real target rather than failing for
-        // the uninteresting reason that the item is absent. Recorded, because "the switch did not
-        // happen" and "there was nothing to switch to" are different findings and must never print
-        // alike.
+        // Something to select, so the write selects a real stack. The write is a server-side
+        // holdItem: the selected index, on the server's copy of the player.
         real.getInventory().items.set(TARGET_SLOT, new ItemStack(Items.STONE, 1));
         int slotBefore = real.getInventory().selected;
-        boolean held = avatar.holdItem(Items.STONE);
+        real.getInventory().selected = TARGET_SLOT;
         int serverSlotSameTick = real.getInventory().selected;
-        Integer clientSlotSameTick = clientSelectedSlot();
 
         ctx.record("slot.before", slotBefore);
-        ctx.record("slot.holdItemReturned", held);
         // WHICH THREAD DID THE WRITING. Without this row an "agree" reading is ambiguous in the one
         // direction that matters: a cross-thread write to client state usually does NOT throw (few
         // of these vanilla fields carry a thread assertion), so an actuator that agrees today can be
@@ -251,20 +192,21 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // different moments and nothing guarantees the harness runs them on the same thread.
         ctx.record("thread.atWrite", Thread.currentThread().getName());
         ctx.record("slot.server.sameTick", serverSlotSameTick);
-        ctx.record("slot.client.sameTick", render(clientSlotSameTick));
-        ctx.record("slot.sameTickAgreement", agree(serverSlotSameTick, clientSlotSameTick));
+        ctx.record("slot.client.atWrite", render(atWrite.slot()));
 
         // ---- 2. the aim ---------------------------------------------------------------------
         // A cell far enough off-axis that the resulting angles cannot coincide with whatever the
-        // player happened to be facing — an aim that agrees by luck measures nothing.
+        // player happened to be facing — an aim that agrees by luck measures nothing. The write is a
+        // server-side aimAtBlock: the server copy's yaw and pitch, set to face the cell's centre.
         BlockPos aimAt = chooseAimTarget(real);
         ctx.record("aim.targetChoiceBasis", aimChoiceEvidence(real, aimAt));
         float yawBefore = real.getYRot();
         float pitchBefore = real.getXRot();
-        avatar.aimAtBlock(aimAt);
+        float[] aimed = aimFromEyeTo(real, aimAt);
+        real.setYRot(aimed[0]);
+        real.setXRot(aimed[1]);
         float serverYawSameTick = real.getYRot();
         float serverPitchSameTick = real.getXRot();
-        float[] clientLookSameTick = clientLook();
         // WHERE the player stood when the angle was written, and what the angle therefore had to be.
         // An aim stores ANGLES, not a target — the player moving afterwards silently invalidates it,
         // and at this range (~8.6 blocks) three quarters of a block of drift is worth the entire
@@ -277,17 +219,19 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         ctx.record("aim.targetBlock", aimAt.toShortString());
         ctx.record("aim.before", deg(yawBefore) + " / " + deg(pitchBefore));
         ctx.record("aim.server.sameTick", deg(serverYawSameTick) + " / " + deg(serverPitchSameTick));
-        ctx.record("aim.client.sameTick", renderLook(clientLookSameTick));
+        ctx.record("aim.client.atWrite", renderLook(clientLookAtWrite));
 
         // ---- 3. let real ticks pass, then ask both sides again --------------------------------
         // The whole point: only after the client has ticked can its packet contest either write.
+        // The server side is read when the client's reading lands, so the two are a tick apart at most.
         int[] waited = {0};
-        ctx.await(() -> ++waited[0] >= SETTLE_TICKS).within(SETTLE_TICKS + 100).then(() -> {
+        ctx.await(() -> ++waited[0] >= SETTLE_TICKS).within(SETTLE_TICKS + 100).then(() ->
+                readClient(ctx, "client.after" + SETTLE_TICKS + "Ticks", after -> {
             int serverSlotAfter = real.getInventory().selected;
-            Integer clientSlotAfter = clientSelectedSlot();
+            Integer clientSlotAfter = after.slot();
             float serverYawAfter = real.getYRot();
             float serverPitchAfter = real.getXRot();
-            float[] clientLookAfter = clientLook();
+            float[] clientLookAfter = after.look();
 
             ctx.record("thread.atRecheck", Thread.currentThread().getName());
             ctx.record("slot.server.after" + SETTLE_TICKS + "Ticks", serverSlotAfter);
@@ -329,20 +273,19 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                     requirementDrift(posAtWrite, real.position(), wantAtWrite, wantHere));
             boolean clientFollowed = aimSatisfies(clientLookAfter, wantAtWrite);
             // "The client was already facing that way" is a third outcome and must be reported on
-            // its own. The same-tick reading is taken the instant the server write completes; the
-            // server actuator touches only ServerPlayer fields, so the LocalPlayer in the same JVM
-            // has had no reason to move yet, and that reading is the client's pre-write state. If
+            // its own. The at-the-write reading is the client's pre-write state: the server writes
+            // touch only ServerPlayer fields, so the LocalPlayer has had no reason to move. If
             // the client already met the geometric requirement then, this run's control proves
             // nothing: meeting it is a coincidence, and not meeting it would only mean the client
             // turned away later. It is not folded into the two branches above because that would
             // print a coincidence as "WARNING: criterion ineffective" and send someone to
             // investigate a criterion that is fine; a false "fails" costs as much as a false "works".
             //
-            // Both branches compare against wantAtWrite, not wantHere. Pairing a same-tick reading
+            // Both branches compare against wantAtWrite, not wantHere. Pairing an at-the-write reading
             // with a requirement computed 10 ticks later puts quantities from two moments into one
             // inequality; if the bot moved at all, the branches would contradict each other because
             // of the sampling times, not because the client actually turned.
-            boolean clientAlreadyThere = aimSatisfies(clientLookSameTick, wantAtWrite);
+            boolean clientAlreadyThere = aimSatisfies(clientLookAtWrite, wantAtWrite);
             // The margin, printed. Whether the control holds comfortably or by a fraction of a
             // degree is not visible from "valid" alone, and the difference decides whether anyone
             // should trust it next month.
@@ -352,15 +295,15 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                     : clientAlreadyThere
                             ? "void for this run: before the write the client was already facing "
                                     + aimAt.toShortString()
-                                    + " (same-tick reading " + renderLook(clientLookSameTick)
+                                    + " (reading at the write " + renderLook(clientLookAtWrite)
                                     + ", geometric requirement " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
                                     + "). This is a coincidence; this run cannot distinguish \"the server drove "
                                     + "the client\" from \"the client was already there\", so draw no conclusion from it"
                             : clientFollowed
                                     ? "WARNING: through the server actuator, the client's facing also reached the "
-                                            + "geometric requirement (before the write " + renderLook(clientLookSameTick)
+                                            + "geometric requirement (before the write " + renderLook(clientLookAtWrite)
                                             + ", after " + SETTLE_TICKS + " ticks "
-                                            + renderLook(clientLookAfter) + "). The twin scene's A0 aim "
+                                            + renderLook(clientLookAfter) + "). The twin scene's aim "
                                             + "criterion no longer distinguishes the two paths, so its pass is no "
                                             + "longer evidence; investigate it"
                                     : "valid: for the same target block through the server actuator, the client's "
@@ -379,58 +322,22 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                             + "and look); without them every agreement row above is meaningless and this "
                             + "scene measured nothing")
                     .isTrue();
-        });
+        }));
     }
 
     /**
-     * The same measurement, taken through {@code BotApi.clientAvatar()} — the avatar the rungs use
-     * after A0.
+     * The same measurement, taken through the client's own input: {@code mc.client.input.setHotbarSlot}
+     * for the slot and {@code mc.test.input.press} on self for the aim, both of which act on the
+     * {@code LocalPlayer} on the client thread.
      *
-     * <p><b>The acceptance criterion for A0, and it is designed to be able to fail.</b> Its sibling
+     * <p><b>The acceptance criterion, and it is designed to be able to fail.</b> Its sibling
      * measured the raw divergence and found it total: server slot 4 vs client 0, server aim
      * (−55.32, 29.55) vs client (283.23, 0.00), unchanged ten ticks later. If routing the same two
-     * writes through the client's own avatar does not close that gap, this scene says so.
-     *
-     * <p><b>A green row here is necessary and not sufficient</b>, and the {@code thread.*} rows are
-     * why. These calls run on the SERVER thread — the open defect stated on
-     * {@code BotApi.clientAvatar()} — and a cross-thread write to client state usually does not
-     * throw. So agreement measured here can be agreement that happens to hold, not agreement that is
-     * guaranteed. Read the thread rows before reading the numbers.
+     * changes through the client's own input does not close that gap, this scene says so.
      */
     private static void actuatorSplitClient(SceneContext ctx) {
-        MinecraftServer server = ctx.server();
-        boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", topology(ctx));
-        if (!integrated || !BotHooks.isAvailable()) {
-            ctx.skip("This scene is meaningful only on an integrated server: it needs both a server-side "
-                    + "player entity and a real LocalPlayer in the same JVM");
-        }
-        List<ServerPlayer> humans = humanPlayers(ctx);
-        if (humans.isEmpty()) {
-            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
-                    + "or has disconnected");
-        }
-        ServerPlayer real = humans.get(0);
-
-        // Same structural refusal as the sibling, and for the same reason: a player entity no client
-        // owns would make "both sides agree" trivially true and this scene would certify the fix on
-        // the strength of never having tested it.
-        boolean driverMinted = SceneBody.isDriverMinted(real);
-        ctx.record("body", real.getGameProfile().getName() + " (" + real.getClass().getSimpleName()
-                + ", driverMinted=" + driverMinted + ")");
-        if (driverMinted) {
-            ctx.fail("Picked the wrong player entity: got the driver-minted " + real.getClass().getSimpleName()
-                    + "; this entire reading is void. This scene is the acceptance criterion for A0, and "
-                    + "accepting against a player entity with no client is the same as not testing at all.");
-        }
-
-        // THE ONE DIFFERENCE from the sibling: the avatar comes from the client, not from a
-        // ServerPlayerBody wrapped around the ServerPlayer.
-        Body client = BotHooks.impl() == null ? null : BotHooks.impl().clientAvatar();
-        if (client == null) {
-            ctx.fail("BotApi.clientAvatar() returned null: the client has no LocalPlayer, so the A0 path "
-                    + "was never exercised in this run and must not be read as \"fixed\"");
-        }
+        ServerPlayer real = clientsPlayer(ctx);
 
         // No inventory staging here, unlike the sibling: this scene's probe does not read contents,
         // so putting an item in would be a write with no reader — and one more thing to restore.
@@ -443,17 +350,16 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             real.setXRot(pitchWas);
         });
 
-        // WARNING: setSelectedSlot, NOT holdItem — and this is the whole difference between measuring A0
-        // and measuring this scene's own staging mistake.
+        // WARNING: setHotbarSlot, NOT holdItem — and this is the whole difference between measuring the
+        // route and measuring this scene's own staging mistake.
         //
-        // `holdItem` on the client resolves through BotInteract.ensureHolding, which searches the
-        // CLIENT's inventory for the item. The staging above puts the stone into the SERVER's copy,
-        // and the client learns about it only when a container/slot packet arrives — not in this
-        // tick. So a client holdItem would return false here for a reason that has nothing to do
-        // with the actuator being tested, and the criterion below would go red while A0 was working
+        // `holdItem` on the client searches the CLIENT's inventory for the item, and what a staging
+        // step puts into the SERVER's copy reaches the client only when a container/slot packet
+        // arrives. So a client holdItem could fail for a reason that has nothing to do with the
+        // route being tested, and the criterion below would go red while the route was working
         // perfectly. That is the shape this file exists to avoid: a failure whose cause is the test.
         //
-        // setSelectedSlot asks the identical question with no dependency on inventory CONTENTS —
+        // setHotbarSlot asks the identical question with no dependency on inventory CONTENTS —
         // it writes the client's `selected` and sends the ServerboundSetCarriedItemPacket, which is
         // exactly the mechanism whose absence the sibling scene measured (server 4 / client 0).
         // ---- the probe must MOVE something, or a green here certifies nothing ----------------
@@ -468,69 +374,91 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // So the target is DERIVED from the reading: +4 mod 9 is provably a different slot from
         // whatever the client is on, whatever that turns out to be. Now "the client ends on the
         // target slot" can only be true if something actually moved it.
-        Integer clientSlotBefore = clientSelectedSlot();
-        int targetSlot = clientSlotBefore == null ? TARGET_SLOT : (clientSlotBefore + 4) % 9;
-        ctx.record("slot.clientBeforeAction", render(clientSlotBefore));
-        ctx.record("slot.targetSlot", targetSlot + " (derived from the client reading before the action, "
-                + "so it is guaranteed to differ from it; with a hard-coded constant, this criterion would "
-                + "pass with zero contribution whenever the client already happened to be on that slot)");
+        readClient(ctx, "client.beforeAction", before -> {
+            Integer clientSlotBefore = before.slot();
+            int targetSlot = clientSlotBefore == null ? TARGET_SLOT : (clientSlotBefore + 4) % 9;
+            ctx.record("slot.clientBeforeAction", render(clientSlotBefore));
+            ctx.record("slot.targetSlot", targetSlot + " (derived from the client reading before the action, "
+                    + "so it is guaranteed to differ from it; with a hard-coded constant, this criterion would "
+                    + "pass with zero contribution whenever the client already happened to be on that slot)");
+            ask(ctx, "slot.action", ScreenApi.of(api()).setHotbarSlot(
+                            new ScreenContracts.HotbarParams(targetSlot, Optional.empty())),
+                    selected -> parkThenAim(ctx, real, clientSlotBefore, targetSlot));
+        });
+    }
 
-        ctx.record("thread.atWrite", Thread.currentThread().getName());
-        client.equipment().orElseThrow().setSelectedSlot(targetSlot);
-        int serverSlot = real.getInventory().selected;
-        Integer clientSlot = clientSelectedSlot();
-        ctx.record("slot.action", "setSelectedSlot(" + targetSlot + ") (not holdItem: it looks the item "
-                + "up in the client's inventory contents, while this scene's test setup placed it only in the "
-                + "server's copy, so it would fail on the test setup rather than on the defect)");
-        ctx.record("slot.server.sameTick", serverSlot);
-        ctx.record("slot.client.sameTick", render(clientSlot));
-        ctx.record("slot.sameTickAgreement", agree(serverSlot, clientSlot));
-
+    /** The twin's aim half: park the client's facing away from the target, then aim it there. */
+    private static void parkThenAim(SceneContext ctx, ServerPlayer real, Integer clientSlotBefore, int targetSlot) {
         // Same disease on the aim half, same cure. Point the client at a cell in the OPPOSITE
         // direction first, so "finally facing the target block" cannot be satisfied by wherever it
         // already happened to be looking. Without this, a client idly facing that quadrant hands the aim criterion a
-        // free pass and A0 gets credit for an angle it never wrote.
+        // free pass and the route gets credit for an angle it never wrote.
         //
         // Yes, the parking uses the verb under test — but it cannot manufacture a false GREEN, only
-        // a red. If aimAtBlock is broken the park does nothing, and then either the client is left
+        // a red. If the aim is broken the park does nothing, and then either the client is left
         // where it was (the precondition check below fires and says so) or it is left satisfying the
         // requirement by luck (same check fires). A broken actuator cannot reach a pass through
         // this door; that is the difference between this and a cleanup that runs its own verb.
         BlockPos aimAt = chooseAimTarget(real);
         ctx.record("aim.targetChoiceBasis", aimChoiceEvidence(real, aimAt));
         BlockPos parkAt = chooseParkTarget(real, aimFromEyeTo(real, aimAt));
-        client.aimAtBlock(parkAt);
-        float[] clientLookParked = clientLook();
+        ask(ctx, "aim.park", aimSelf(parkAt), parkedKeys -> readClient(ctx, "client.parked", parked -> {
+            float[] clientLookParked = parked.look();
+            // The slot change has had the park's round trip to reach the server; a side that has not
+            // caught up shows here, and the verdict waits for the reading after the settle.
+            int serverSlot = real.getInventory().selected;
+            ctx.record("slot.server.afterAction", serverSlot);
+            ctx.record("slot.client.afterAction", render(parked.slot()));
+            ctx.record("slot.agreementAfterAction", agree(serverSlot, parked.slot()));
 
-        // Same reason as the sibling: the actuator writes angles, so the requirement must be pinned
-        // to the moment it was asked for. Judging at +10 ticks against a recomputed requirement would
-        // let a player that merely MOVED fail this criterion, and A0 would be blamed for physics.
-        Vec3 posAtWrite = real.position();
-        float[] wantAtWrite = aimFromEyeTo(real, aimAt);
-        // The precondition, measured BEFORE the real aim: parked and provably not already on target.
-        boolean parkedAway = !aimSatisfies(clientLookParked, wantAtWrite);
-        ctx.record("aim.parkBlock", parkAt.toShortString());
-        ctx.record("aim.clientBeforeAction", renderLook(clientLookParked));
-        ctx.record("aim.preconditionHolds", clientLookParked == null
-                ? "the client's facing could not be read; cannot judge"
-                : parkedAway ? "yes: before the action the client did not meet the target's geometric "
-                        + "requirement, so \"finally meets it\" can only be caused by this action"
-                        : "WARNING: no: before the action the client already met the target's geometric "
-                                + "requirement; this run's aim criterion can pass with zero contribution, "
-                                + "so do not read it as A0 passing");
+            // Same reason as the sibling: the actuator writes angles, so the requirement must be pinned
+            // to the moment it was asked for. Judging at +10 ticks against a recomputed requirement would
+            // let a player that merely MOVED fail this criterion, and the route would be blamed for physics.
+            Vec3 posAtWrite = real.position();
+            float[] wantAtWrite = aimFromEyeTo(real, aimAt);
+            // The precondition, measured BEFORE the real aim: parked and provably not already on target.
+            boolean parkedAway = !aimSatisfies(clientLookParked, wantAtWrite);
+            ctx.record("aim.parkBlock", parkAt.toShortString());
+            ctx.record("aim.clientBeforeAction", renderLook(clientLookParked));
+            ctx.record("aim.preconditionHolds", clientLookParked == null
+                    ? "the client's facing could not be read; cannot judge"
+                    : parkedAway ? "yes: before the action the client did not meet the target's geometric "
+                            + "requirement, so \"finally meets it\" can only be caused by this action"
+                            : "WARNING: no: before the action the client already met the target's geometric "
+                                    + "requirement; this run's aim criterion can pass with zero contribution, "
+                                    + "so do not read it as the route passing");
 
-        client.aimAtBlock(aimAt);
-        float[] clientLookNow = clientLook();
-        ctx.record("aim.targetBlock", aimAt.toShortString());
-        ctx.record("aim.server.sameTick", deg(real.getYRot()) + " / " + deg(real.getXRot()));
-        ctx.record("aim.client.sameTick", renderLook(clientLookNow));
+            ask(ctx, "aim.action", aimSelf(aimAt), aimedKeys -> readClient(ctx, "client.afterAction", now -> {
+                ctx.record("aim.targetBlock", aimAt.toShortString());
+                ctx.record("aim.server.afterAction", deg(real.getYRot()) + " / " + deg(real.getXRot()));
+                ctx.record("aim.client.afterAction", renderLook(now.look()));
+                Twin twin = new Twin(aimAt, clientSlotBefore, targetSlot, clientLookParked, parkedAway,
+                        posAtWrite, wantAtWrite, now.look());
+                int[] waited = {0};
+                ctx.await(() -> ++waited[0] >= SETTLE_TICKS).within(SETTLE_TICKS + 100).then(() ->
+                        readClient(ctx, "client.after" + SETTLE_TICKS + "Ticks", judgeTwin(ctx, real, twin)));
+            }));
+        }));
+    }
 
-        int[] waited = {0};
-        ctx.await(() -> ++waited[0] >= SETTLE_TICKS).within(SETTLE_TICKS + 100).then(() -> {
-            ctx.record("thread.atRecheck", Thread.currentThread().getName());
+    /** What the twin set up and saw before the settle, for judging after it. */
+    private record Twin(BlockPos aimAt, Integer clientSlotBefore, int targetSlot, float[] clientLookParked,
+                        boolean parkedAway, Vec3 posAtWrite, float[] wantAtWrite, float[] clientLookNow) {}
+
+    /** The twin's rows after the settle, then its verdicts. */
+    private static Consumer<ClientReading> judgeTwin(SceneContext ctx, ServerPlayer real, Twin twin) {
+        BlockPos aimAt = twin.aimAt();
+        Integer clientSlotBefore = twin.clientSlotBefore();
+        int targetSlot = twin.targetSlot();
+        float[] clientLookParked = twin.clientLookParked();
+        boolean parkedAway = twin.parkedAway();
+        Vec3 posAtWrite = twin.posAtWrite();
+        float[] wantAtWrite = twin.wantAtWrite();
+        float[] clientLookNow = twin.clientLookNow();
+        return after -> {
             int serverSlotAfter = real.getInventory().selected;
-            Integer clientSlotAfter = clientSelectedSlot();
-            float[] clientLookAfter = clientLook();
+            Integer clientSlotAfter = after.slot();
+            float[] clientLookAfter = after.look();
             ctx.record("slot.server.after" + SETTLE_TICKS + "Ticks", serverSlotAfter);
             ctx.record("slot.client.after" + SETTLE_TICKS + "Ticks", render(clientSlotAfter));
             ctx.record("slot.finalAgreement", agree(serverSlotAfter, clientSlotAfter));
@@ -543,7 +471,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             // WARNING: EVERY evidence row is written BEFORE the first ctx.check, and the order matters.
             //
             // A failing check throws, so anything recorded after it never reaches the results file.
-            // The two halves of A0 — the slot and the aim — are INDEPENDENT: the aim rows are not
+            // The two halves — the slot and the aim — are INDEPENDENT: the aim rows are not
             // context for the slot criterion, they are the only description of a separate subject.
             // Recording them after the slot check meant that a broken slot half deleted the entire
             // aim diagnosis from the record, and the reader would be told nothing about the half
@@ -551,8 +479,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             float[] want = aimFromEyeTo(real, aimAt);
             boolean aimed = aimSatisfies(clientLookAfter, wantAtWrite);
 
-            // THE SAME CRITERION FOR THE OTHER HALF. A0 rerouted `aimAtBlock` at 8 call sites and
-            // nothing above could go red if that regressed: every aim row was ctx.record. A scene
+            // THE SAME CRITERION FOR THE OTHER HALF. Without it nothing here could go red if the aim
+            // route regressed: every aim row would be ctx.record. A scene
             // that only PRINTS the quantity it exists to protect is the shape this repo keeps
             // paying for — the reading is there, and no run fails when it goes wrong.
             //
@@ -571,9 +499,9 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             // rewrites yaw/pitch, verbatim when the tick is snap-exempt (aimAtBlockSnap asks for
             // that) and otherwise clamped to 30°/tick yaw and 20°/tick pitch. So a red here has a
             // third cause besides "the write failed": the write landing and then being filtered or
-            // overwritten by a later actuator in the same tick. The two samples already tell those
-            // apart; without this row the reader has to notice that themselves, and the whole point
-            // of the same-tick sample is lost the moment nobody reads it next to the later one.
+            // overwritten by a later actuator. The two samples already tell those apart; without
+            // this row the reader has to notice that themselves, and the whole point of the
+            // first sample after the action is lost the moment nobody reads it next to the later one.
             //
             // Note SETTLE_TICKS is generous enough that slewing alone cannot explain a red: the
             // measured gaps are 12-24° yaw and 26-30° pitch, and ten ticks of even the CLAMPED rate
@@ -582,22 +510,22 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             ctx.record("aim.client.didWriteLand", clientLookNow == null || clientLookAfter == null
                     ? "could not be read; cannot judge"
                     : aimSatisfies(clientLookNow, wantAtWrite)
-                            ? (aimed ? "landed and held (on target in the same tick, still on target after "
+                            ? (aimed ? "landed and held (on target right after the action, still on target after "
                                              + SETTLE_TICKS + " ticks)"
-                                     : "WARNING: reverted after landing: on target in the same tick at "
+                                     : "WARNING: reverted after landing: on target right after the action at "
                                              + renderLook(clientLookNow)
                                              + ", then " + renderLook(clientLookAfter) + " after "
                                              + SETTLE_TICKS + " ticks. The actuator write succeeded and "
                                              + "something later overwrote it; check LookController and "
-                                             + "other rotation writes in the same tick")
+                                             + "other rotation writes")
                             : (aimed ? "late: still " + renderLook(clientLookNow)
-                                             + " in the same tick, on target only after " + SETTLE_TICKS
+                                             + " right after the action, on target only after " + SETTLE_TICKS
                                              + " ticks. The criterion passes, but this path does not "
-                                             + "take effect synchronously"
+                                             + "take effect when its reply lands"
                                      : "WARNING: never landed: the geometric requirement is not met "
-                                             + "either in the same tick or after " + SETTLE_TICKS
+                                             + "either right after the action or after " + SETTLE_TICKS
                                              + " ticks. The write itself had no effect, which is what "
-                                             + "a genuinely broken A0 path looks like"));
+                                             + "a genuinely broken route looks like"));
             // ---- verdicts, all of them after every row above is safely in the file ----------
             // Instrument first: an unreadable client side makes every agreement row above meaningless.
             ctx.check(clientSlotAfter != null && clientLookAfter != null)
@@ -625,12 +553,12 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                             + "can pass with zero contribution")
                     .isTrue();
             ctx.check(clientSlotAfter != null && clientSlotAfter == targetSlot)
-                    .as("A0 criterion: the client's own selected slot should be " + targetSlot + ", actual "
+                    .as("route criterion: the client's own selected slot should be " + targetSlot + ", actual "
                             + render(clientSlotAfter) + ". This fails while the defect is present: before "
                             + "the fix, the same write left the client on its pre-action slot")
                     .isTrue();
             ctx.check(aimed)
-                    .as("A0 criterion (aim half): the client's own facing should point at "
+                    .as("route criterion (aim half): the client's own facing should point at "
                             + aimAt.toShortString()
                             + ", geometric requirement " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
                             + ", actual " + renderLook(clientLookAfter)
@@ -643,53 +571,65 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                             + "On failure, read the aim.client.didWriteLand and aim.requirementDrift rows "
                             + "first to tell the causes apart")
                     .isTrue();
-        });
+        };
     }
 
-    // ------------------------------------------------------------------ client-side reads
+    // ------------------------------------------------------------------ the client side
 
     /**
-     * The client's own selected slot, or null when it cannot be read.
+     * The client's own selected slot and {yaw, pitch}, each null when {@code mc.client.player} did not
+     * report it.
      *
      * <p>Null rather than a sentinel number, and rendered as {@code unavailable/<reason>} — a slot of
      * {@code -1} or {@code 0} standing in for "not read" is the exact confusion this repo keeps
      * paying for, where 0 means "not computed yet" and is read as "computed as zero".
      */
-    private static Integer clientSelectedSlot() {
-        Map<?, ?> cp = clientPlayer();
-        if (cp == null || !(cp.get("inventory") instanceof Map<?, ?> inv)) return null;
-        return inv.get("selectedSlot") instanceof Number n ? n.intValue() : null;
-    }
+    private record ClientReading(Integer slot, float[] look) {
+        static ClientReading of(ClientContracts.ClientPlayer cp) {
+            return new ClientReading(cp.inventory().map(ClientContracts.Inventory::selectedSlot).orElse(null),
+                    cp.look().map(l -> new float[]{(float) l.yaw(), (float) l.pitch()}).orElse(null));
+        }
 
-    /** The client's own {yaw, pitch}, or null when it cannot be read. */
-    private static float[] clientLook() {
-        Map<?, ?> cp = clientPlayer();
-        if (cp == null) return null;
-        if (!(cp.get("look") instanceof Map<?, ?> look)) return null;
-        if (!(look.get("yaw") instanceof Number y) || !(look.get("pitch") instanceof Number p)) return null;
-        return new float[]{y.floatValue(), p.floatValue()};
+        @Override
+        public String toString() { return "slot " + render(slot) + ", look " + renderLook(look); }
     }
 
     /**
-     * {@code mc.client.player}'s payload, or null if the route is unavailable or reports no player.
-     *
-     * <p>Exceptions are swallowed deliberately and turned into null: this scene's subject is the
-     * DIVERGENCE, and a client that cannot answer is a reading it must report rather than a crash
-     * that replaces every other reading with a stack trace.
-     *
-     * <p>Read through the client impl rather than the API: the reading belongs to THIS server tick,
-     * so the server thread waits for the client thread here, which the API refuses a game thread.
+     * Asks the client for its reading and continues the scene when it lands; a call that fails fails
+     * the scene. The reply comes from the client thread, which the scene's server thread may not wait for.
      */
-    private static Map<?, ?> clientPlayer() {
-        try {
-            ClientDriverApi client = ClientHooks.impl();
-            if (client == null) return null;
-            Object r = ClientContracts.CLIENT_PLAYER.encode(client.player());
-            if (!(r instanceof Map<?, ?> m)) return null;
-            return Boolean.TRUE.equals(m.get("present")) ? m : null;
-        } catch (RuntimeException e) {
-            return null;
+    private static void readClient(SceneContext ctx, String tag, Consumer<ClientReading> then) {
+        ask(ctx, tag, ClientApi.of(api()).player(new NoParams()).thenApply(ClientReading::of), then);
+    }
+
+    /** Turns the client's own player to face {@code cell}'s centre, on the client thread. */
+    private static CompletableFuture<TestHarnessContracts.Pressed> aimSelf(BlockPos cell) {
+        return Harness.pressLater(Harness.keys(ClientHelm.SELF).aimAt(Targets.pos(cell)));
+    }
+
+    /**
+     * The client's own player, on an integrated server — the one topology where its server copy and
+     * its {@code LocalPlayer} share a JVM. Skips anywhere else.
+     *
+     * <p>A player entity no client owns would make "both sides agree" trivially true, and the twin
+     * would certify the route on the strength of never having tested it. {@link SceneBot#humanPlayers}
+     * answers an integrated server with its singleplayer owner only, which a bot can never be.
+     */
+    private static ServerPlayer clientsPlayer(SceneContext ctx) {
+        MinecraftServer server = ctx.server();
+        if (server == null || server.isDedicatedServer()) {
+            ctx.skip("This scene is meaningful only on an integrated server: it needs both a server-side "
+                    + "player entity and a real LocalPlayer in the same JVM");
         }
+        List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
+        if (humans.isEmpty()) {
+            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
+                    + "or has disconnected");
+        }
+        ServerPlayer real = humans.get(0);
+        ctx.record("body", real.getGameProfile().getName() + " (" + real.getClass().getSimpleName()
+                + ", the singleplayer owner)");
+        return real;
     }
 
     /**
@@ -898,27 +838,16 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
     // ------------------------------------------------------------------ topology
 
-    /** Everyone on this level who is not one of the driver's own minted bot players. */
-    private static List<ServerPlayer> humanPlayers(SceneContext ctx) {
-        List<ServerPlayer> out = new ArrayList<>();
-        for (ServerPlayer p : ctx.level().players()) {
-            if (p instanceof JoinedPlayers.JoinedBody) continue;
-            out.add(p);
-        }
-        return out;
-    }
-
     /** Which topology this run is, asked of the game rather than echoed from a flag. */
     private static String topology(SceneContext ctx) {
         MinecraftServer server = ctx.server();
         boolean dedicated = server == null || server.isDedicatedServer();
-        List<ServerPlayer> humans = humanPlayers(ctx);
+        List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         String kind = !dedicated ? "integratedServer"
                 : humans.isEmpty() ? "dedicatedServer" : "dedicatedServerWithClient";
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("kind", kind);
         m.put("realPlayers", humans.size());
-        m.put("mc.bot.*InThisJvm", BotHooks.isAvailable());
         return m.toString();
     }
 }
