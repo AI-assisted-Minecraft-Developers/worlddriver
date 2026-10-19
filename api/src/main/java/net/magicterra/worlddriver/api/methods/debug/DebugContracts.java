@@ -4,17 +4,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
-import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * The path-debugging methods: {@code mc.debug.pathChart}, {@code mc.debug.plan} and {@code mc.debug.replay}.
@@ -24,13 +30,9 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 public final class DebugContracts {
     private DebugContracts() {}
 
-    private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
-    private static final ApiType<Long> LONG_COUNT = ApiTypes.int64(0, Long.MAX_VALUE);
-    /** Search costs and goal estimates, rounded: tenths of a block's walking cost. */
-    private static final ApiType<Long> COST = ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE);
-
     // ------------------------------------------------------------------ mc.debug.pathChart
 
+    @Named("ChartView")
     public enum ChartView implements net.magicterra.worlddriver.api.schema.WireName {
         DASHBOARD("dashboard"), THREE_VIEW("threeview");
         private final String wire;
@@ -38,10 +40,22 @@ public final class DebugContracts {
         @Override public String wireName() { return wire; }
     }
 
-    public record ChartParams(ChartView view, int width, int height, boolean includeCandidates, boolean save,
-                              Optional<String> name) {}
+    @Named("ChartParams")
+    public record ChartParams(
+            @Doc("dashboard: A* candidates, every planned route and the walked trajectory on a top-down map, with an "
+                    + "elevation profile and speed / heading series. threeview: front, side and top projections of "
+                    + "planned against actual.")
+            @Default("dashboard")
+            ChartView view,
+            @Default("1280") @Range(min = 256, max = 4096) int width,
+            @Default("960") @Range(min = 256, max = 4096) int height,
+            @Doc("Draw the expanded-node heat (dashboard only).") @Default("true") boolean includeCandidates,
+            @Doc("false renders and answers the size without writing a file.") @Default("true") boolean save,
+            @Doc("Omitted: pathchart-NNNN-<ms>.")
+            Optional<@Pattern(value = "[A-Za-z0-9_.-]{1,64}", expected = "a file name without extension") String> name) {}
 
     /** How the charted goto ended, or that it still walks. */
+    @Named("ChartOutcome")
     public enum ChartOutcome implements WireName {
         RUNNING("running"), SUCCESS("success"), NO_PATH("no_path"), STUCK("stuck"), TIMEOUT("timeout"),
         CANCELLED("cancelled"), ERROR("error");
@@ -52,40 +66,21 @@ public final class DebugContracts {
     }
 
     /** {@code path} and {@code bytes} are present when the chart was saved. */
-    public record Chart(ChartView view, ChartOutcome outcome, int plans, int candidates, int samples, int width, int height,
-                        Optional<String> path, Optional<Long> bytes) {}
+    @Named("Chart")
+    public record Chart(
+            ChartView view,
+            @Doc("How the charted goto ended; running while it walks.") ChartOutcome outcome,
+            @Range(min = 0) int plans,
+            @Range(min = 0) int candidates,
+            @Range(min = 0) int samples,
+            @Range(min = 0) int width,
+            @Range(min = 0) int height,
+            @Doc("Absolute path of the PNG.") Optional<String> path,
+            Optional<@Range(min = 0) Long> bytes) {}
 
-    private static final ApiType<ChartView> CHART_VIEW = ApiTypes.enumOf("ChartView", ChartView.class);
+    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record(ChartParams.class);
 
-    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record(ChartParams.class, "ChartParams",
-            ApiField.field("view", CHART_VIEW)
-                    .describe("dashboard: A* candidates, every planned route and the walked trajectory on a top-down "
-                            + "map, with an elevation profile and speed / heading series. threeview: front, side and top "
-                            + "projections of planned against actual.")
-                    .defaulted(ChartView.DASHBOARD).forGetter(ChartParams::view),
-            ApiField.field("width", ApiTypes.integer(256, 4096)).defaulted(1280).forGetter(ChartParams::width),
-            ApiField.field("height", ApiTypes.integer(256, 4096)).defaulted(960).forGetter(ChartParams::height),
-            ApiField.field("includeCandidates", ApiTypes.bool()).describe("Draw the expanded-node heat (dashboard only).")
-                    .defaulted(true).forGetter(ChartParams::includeCandidates),
-            ApiField.field("save", ApiTypes.bool()).describe("false renders and answers the size without writing a file.")
-                    .defaulted(true).forGetter(ChartParams::save),
-            ApiField.field("name", ApiTypes.pattern("[A-Za-z0-9_.-]{1,64}", "a file name without extension"))
-                    .describe("Omitted: pathchart-NNNN-<ms>.").optional().forGetter(ChartParams::name),
-            ChartParams::new);
-
-    public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class, "Chart",
-            ApiField.field("view", CHART_VIEW).required().forGetter(Chart::view),
-            ApiField.field("outcome", ApiTypes.enumOf("ChartOutcome", ChartOutcome.class))
-                    .describe("How the charted goto ended; running while it walks.")
-                    .required().forGetter(Chart::outcome),
-            ApiField.field("plans", COUNT).required().forGetter(Chart::plans),
-            ApiField.field("candidates", COUNT).required().forGetter(Chart::candidates),
-            ApiField.field("samples", COUNT).required().forGetter(Chart::samples),
-            ApiField.field("width", COUNT).required().forGetter(Chart::width),
-            ApiField.field("height", COUNT).required().forGetter(Chart::height),
-            ApiField.field("path", ApiTypes.string()).describe("Absolute path of the PNG.").optional().forGetter(Chart::path),
-            ApiField.field("bytes", LONG_COUNT).optional().forGetter(Chart::bytes),
-            Chart::new);
+    public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class);
 
     public static final MethodSpec<ChartParams, Chart> PATH_CHART = MethodSpec.of("mc.debug.pathChart", CHART_PARAMS, CHART,
                     "Render the current goto's pathfinding chart to a PNG under config/worlddriver/debug/ and answer its "
@@ -100,9 +95,22 @@ public final class DebugContracts {
      * server's world, with its own bag deciding what it may place and dig with. {@code route} absent plans as a
      * bare search does, with the settings' cost model; {@code maxNodes} and {@code maxMs} absent take the settings'.
      */
-    public record PlanParams(Optional<String> bot, GotoContracts.Target target, Optional<BlockPosition> from,
-                             Optional<RouteContracts.Route> route, boolean chain, int maxSegments,
-                             Optional<Integer> maxNodes, Optional<Long> maxMs) {
+    @Named("PathPlanParams")
+    public record PlanParams(
+            @Doc("Omitted or self: the client's player and world. A named bot: that bot in the server's world.")
+            Optional<@BotRef String> bot,
+            GotoContracts.Target target,
+            @Doc("The start foot. Omitted: where the bot stands.") Optional<BlockPosition> from,
+            @Doc("Plan as mc.bot.goto would with this route. Omitted: a bare search with the settings' cost model.")
+            Optional<RouteContracts.Route> route,
+            @Doc("Feed each committed segment's end back in as the next start until the goal or no progress: the "
+                    + "navigator's segment chain, simulated read-only.")
+            @Default("false")
+            boolean chain,
+            @Doc("Chain cap.") @Default("40") @Range(min = 1, max = 200) int maxSegments,
+            @Doc("Omitted: pathfinder.maxNodes.") Optional<@Range(min = 1, max = 10000000) Integer> maxNodes,
+            // Half the long range, so a budget added to a clock reading cannot overflow.
+            @Doc("Omitted: pathfinder.maxMs.") Optional<@Range(min = 1, max = 1L << 62) Long> maxMs) {
         public static PlanParams of(String bot, GotoContracts.Target target) {
             return new PlanParams(Optional.of(bot), target, Optional.empty(), Optional.empty(), false, 40,
                     Optional.empty(), Optional.empty());
@@ -118,20 +126,33 @@ public final class DebugContracts {
         }
     }
 
+    @Tag("mode") @Named("PlanReply")
     public sealed interface PlanReply permits SinglePlan, ChainPlan {}
 
-    public record MoveCost(int n, long cost) {}
+    @Named("MoveCost")
+    public record MoveCost(@Range(min = 0) int n, long cost) {}
 
     /**
      * The edge entering a node: its move, its cost, the cells it digs and fills on the way, and what each cost
      * modifier added to the cost, by name (absent: none charged).
      */
-    public record PlanEdge(BlockPosition to, Optional<String> move, long cost, List<BlockPosition> breaks,
-                           List<BlockPosition> places, Map<String, Double> taxes) {
+    @Named("PlanEdge")
+    public record PlanEdge(
+            BlockPosition to,
+            @Doc("Absent on the start node.") Optional<String> move,
+            long cost,
+            @Length(max = 64) List<BlockPosition> breaks,
+            @Length(max = 64) List<BlockPosition> places,
+            @Doc("Cost modifier name → what it added.") @Default("{}") @Length(max = 64) Map<String, Double> taxes) {
         public double tax(String name) { return taxes.getOrDefault(name, 0.0); }
     }
 
-    public record Search(int expanded, long computeMs, long wallMs, long finalCost) {}
+    @Named("PlanSearch")
+    public record Search(
+            @Range(min = 0) int expanded,
+            @Range(min = 0) long computeMs,
+            @Range(min = 0) long wallMs,
+            long finalCost) {}
 
     /**
      * {@code taxes}: each cost modifier's total over the path. {@code prunedBy}: the edges each hard constraint
@@ -139,144 +160,77 @@ public final class DebugContracts {
      * {@code sightBudgetExhausted}: the search spent its ray budget and was rerun without {@code route.sight}.
      * {@code snapshotTruncated}: the box scanned for entities was capped.
      */
-    public record Conditions(Map<String, Double> taxes, Map<String, Integer> prunedBy, Optional<String> blockedBy,
-                             boolean sightBudgetExhausted, boolean snapshotTruncated) {
+    @Named("PlanConditions")
+    public record Conditions(
+            @Doc("Each cost modifier's total over the path.") @Length(max = 64) Map<String, Double> taxes,
+            @Doc("Hard constraint name → edges it refused.")
+            @Length(max = 64) Map<String, @Range(min = 0) Integer> prunedBy,
+            @Doc("constraint:<name>: the route's own constraint that refused the most. Absent without a route or when "
+                    + "none of its constraints refused anything.")
+            Optional<String> blockedBy,
+            @Doc("The ray budget ran out; the search was rerun without route.sight.") boolean sightBudgetExhausted,
+            @Doc("The box scanned for entities was capped.") boolean snapshotTruncated) {
         public double tax(String name) { return taxes.getOrDefault(name, 0.0); }
     }
 
     /** The goal estimate at the start and at the committed end; {@code hDelta} below zero is progress. */
-    public record Estimate(long hStart, long hEnd, long hDelta, boolean forward) {}
+    @Named("PlanEstimate")
+    public record Estimate(
+            long hStart,
+            long hEnd,
+            long hDelta,
+            @Doc("The committed end is nearer the goal than the start.") boolean forward) {}
 
     /**
      * One search. {@code maxStepDrop} is the largest single-node fall the planner routed; {@code moves} is
      * each move's count and summed cost; {@code conditions} what the cost model and the hard constraints did.
      */
-    public record SinglePlan(BlockPosition start, boolean goalReached, int pathLen, BlockPosition end,
-                             Search search, Estimate estimate, int maxStepDrop, List<Integer> yProfile, List<String> nodes,
-                             Map<String, MoveCost> moves, int breaks, int places, List<PlanEdge> edges,
-                             Conditions conditions) implements PlanReply {
+    @Variant("single")
+    public record SinglePlan(
+            BlockPosition start,
+            boolean goalReached,
+            @Range(min = 0) int pathLen,
+            BlockPosition end,
+            Search search,
+            Estimate estimate,
+            int maxStepDrop,
+            @Doc("Each node's y along the committed path.") List<Integer> yProfile,
+            @Doc("\"x,y,z\" per node.") List<String> nodes,
+            @Length(max = 256) Map<String, MoveCost> moves,
+            @Range(min = 0) int breaks,
+            @Range(min = 0) int places,
+            @Doc("The edge entering each node, in path order.") List<PlanEdge> edges,
+            Conditions conditions) implements PlanReply {
         /** The path's cells, start first. */
         public List<BlockPosition> cells() { return edges.stream().map(PlanEdge::to).toList(); }
     }
 
-    public record Segment(BlockPosition end, long hEnd, long hDelta, int expanded, boolean goalReached,
-                          Optional<BlockPosition> sunkTailCut) {}
+    @Named("PlanSegment")
+    public record Segment(
+            BlockPosition end,
+            long hEnd,
+            long hDelta,
+            @Range(min = 0) int expanded,
+            boolean goalReached,
+            @Doc("Where the committed path was cut back from its sunk tail.") Optional<BlockPosition> sunkTailCut) {}
 
     /** {@code maxRegression}: the worst overshoot back past the best progress so far (cost units; /10 ≈ blocks). */
-    public record ChainPlan(BlockPosition start, boolean reached, int segments, int backwardSegments,
-                            long maxRegression, long totalExpanded, long hStart, long hFinal, List<Segment> trail)
+    @Variant("chain")
+    public record ChainPlan(
+            BlockPosition start,
+            boolean reached,
+            @Range(min = 0) int segments,
+            @Range(min = 0) int backwardSegments,
+            long maxRegression,
+            @Range(min = 0) long totalExpanded,
+            long hStart,
+            long hFinal,
+            @Length(max = 200) List<Segment> trail)
             implements PlanReply {}
 
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class, "PathPlanParams",
-            ApiField.field("bot", Responses.BOT_REF)
-                    .describe("Omitted or self: the client's player and world. A named bot: that bot in the server's world.")
-                    .optional().forGetter(PlanParams::bot),
-            ApiField.field("target", GotoContracts.TARGET).required().forGetter(PlanParams::target),
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The start foot. Omitted: where the bot stands.")
-                    .optional().forGetter(PlanParams::from),
-            ApiField.field("route", RouteContracts.ROUTE)
-                    .describe("Plan as mc.bot.goto would with this route. Omitted: a bare search with the settings' cost model.")
-                    .optional().forGetter(PlanParams::route),
-            ApiField.field("chain", ApiTypes.bool())
-                    .describe("Feed each committed segment's end back in as the next start until the goal or no progress: "
-                            + "the navigator's segment chain, simulated read-only.")
-                    .defaulted(false).forGetter(PlanParams::chain),
-            ApiField.field("maxSegments", ApiTypes.integer(1, 200)).describe("Chain cap.").defaulted(40)
-                    .forGetter(PlanParams::maxSegments),
-            ApiField.field("maxNodes", ApiTypes.integer(1, 10_000_000)).describe("Omitted: pathfinder.maxNodes.")
-                    .optional().forGetter(PlanParams::maxNodes),
-            ApiField.field("maxMs", ApiTypes.int64(1, Long.MAX_VALUE / 2)).describe("Omitted: pathfinder.maxMs.")
-                    .optional().forGetter(PlanParams::maxMs),
-            PlanParams::new);
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class);
 
-    private static final ApiType<MoveCost> MOVE_COST = ApiTypes.record(MoveCost.class, "MoveCost",
-            ApiField.field("n", COUNT).required().forGetter(MoveCost::n),
-            ApiField.field("cost", COST).required().forGetter(MoveCost::cost),
-            MoveCost::new);
-
-    private static final ApiType<PlanEdge> PLAN_EDGE = ApiTypes.record(PlanEdge.class, "PlanEdge",
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(PlanEdge::to),
-            ApiField.field("move", ApiTypes.string()).describe("Absent on the start node.").optional().forGetter(PlanEdge::move),
-            ApiField.field("cost", COST).required().forGetter(PlanEdge::cost),
-            ApiField.field("breaks", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::breaks),
-            ApiField.field("places", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::places),
-            ApiField.field("taxes", ApiTypes.map(ApiTypes.number(), 64)).describe("Cost modifier name → what it added.")
-                    .defaulted(Map.of()).forGetter(PlanEdge::taxes),
-            PlanEdge::new);
-
-    private static final ApiType<Search> SEARCH = ApiTypes.record(Search.class, "PlanSearch",
-            ApiField.field("expanded", COUNT).required().forGetter(Search::expanded),
-            ApiField.field("computeMs", LONG_COUNT).required().forGetter(Search::computeMs),
-            ApiField.field("wallMs", LONG_COUNT).required().forGetter(Search::wallMs),
-            ApiField.field("finalCost", COST).required().forGetter(Search::finalCost),
-            Search::new);
-
-    private static final ApiType<Conditions> CONDITIONS = ApiTypes.record(Conditions.class, "PlanConditions",
-            ApiField.field("taxes", ApiTypes.map(ApiTypes.number(), 64))
-                    .describe("Each cost modifier's total over the path.").required().forGetter(Conditions::taxes),
-            ApiField.field("prunedBy", ApiTypes.map(COUNT, 64))
-                    .describe("Hard constraint name → edges it refused.").required().forGetter(Conditions::prunedBy),
-            ApiField.field("blockedBy", ApiTypes.string())
-                    .describe("constraint:<name>: the route's own constraint that refused the most. "
-                            + "Absent without a route or when none of its constraints refused anything.")
-                    .optional().forGetter(Conditions::blockedBy),
-            ApiField.field("sightBudgetExhausted", ApiTypes.bool())
-                    .describe("The ray budget ran out; the search was rerun without route.sight.")
-                    .required().forGetter(Conditions::sightBudgetExhausted),
-            ApiField.field("snapshotTruncated", ApiTypes.bool())
-                    .describe("The box scanned for entities was capped.").required().forGetter(Conditions::snapshotTruncated),
-            Conditions::new);
-
-    private static final ApiType<Estimate> ESTIMATE = ApiTypes.record(Estimate.class, "PlanEstimate",
-            ApiField.field("hStart", COST).required().forGetter(Estimate::hStart),
-            ApiField.field("hEnd", COST).required().forGetter(Estimate::hEnd),
-            ApiField.field("hDelta", COST).required().forGetter(Estimate::hDelta),
-            ApiField.field("forward", ApiTypes.bool()).describe("The committed end is nearer the goal than the start.")
-                    .required().forGetter(Estimate::forward),
-            Estimate::new);
-
-    private static final ApiType<Segment> SEGMENT =ApiTypes.record(Segment.class, "PlanSegment",
-            ApiField.field("end", CommonTypes.BLOCK_POSITION).required().forGetter(Segment::end),
-            ApiField.field("hEnd", COST).required().forGetter(Segment::hEnd),
-            ApiField.field("hDelta", COST).required().forGetter(Segment::hDelta),
-            ApiField.field("expanded", COUNT).required().forGetter(Segment::expanded),
-            ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(Segment::goalReached),
-            ApiField.field("sunkTailCut", CommonTypes.BLOCK_POSITION)
-                    .describe("Where the committed path was cut back from its sunk tail.").optional()
-                    .forGetter(Segment::sunkTailCut),
-            Segment::new);
-
-    public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.taggedUnion("PlanReply", "mode",
-            ApiTypes.variant("single", SinglePlan.class, ApiTypes.record(SinglePlan.class, null,
-                    ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(SinglePlan::start),
-                    ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(SinglePlan::goalReached),
-                    ApiField.field("pathLen", COUNT).required().forGetter(SinglePlan::pathLen),
-                    ApiField.field("end", CommonTypes.BLOCK_POSITION).required().forGetter(SinglePlan::end),
-                    ApiField.field("search", SEARCH).required().forGetter(SinglePlan::search),
-                    ApiField.field("estimate", ESTIMATE).required().forGetter(SinglePlan::estimate),
-                    ApiField.field("maxStepDrop", ApiTypes.integer()).required().forGetter(SinglePlan::maxStepDrop),
-                    ApiField.field("yProfile", ApiTypes.list(ApiTypes.integer(), Integer.MAX_VALUE))
-                            .describe("Each node's y along the committed path.").required().forGetter(SinglePlan::yProfile),
-                    ApiField.field("nodes", ApiTypes.list(ApiTypes.string(), Integer.MAX_VALUE)).describe("\"x,y,z\" per node.")
-                            .required().forGetter(SinglePlan::nodes),
-                    ApiField.field("moves", ApiTypes.map(MOVE_COST, 256)).required().forGetter(SinglePlan::moves),
-                    ApiField.field("breaks", COUNT).required().forGetter(SinglePlan::breaks),
-                    ApiField.field("places", COUNT).required().forGetter(SinglePlan::places),
-                    ApiField.field("edges", ApiTypes.list(PLAN_EDGE, Integer.MAX_VALUE))
-                            .describe("The edge entering each node, in path order.").required().forGetter(SinglePlan::edges),
-                    ApiField.field("conditions", CONDITIONS).required().forGetter(SinglePlan::conditions),
-                    SinglePlan::new)),
-            ApiTypes.variant("chain", ChainPlan.class, ApiTypes.record(ChainPlan.class, null,
-                    ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(ChainPlan::start),
-                    ApiField.field("reached", ApiTypes.bool()).required().forGetter(ChainPlan::reached),
-                    ApiField.field("segments", COUNT).required().forGetter(ChainPlan::segments),
-                    ApiField.field("backwardSegments", COUNT).required().forGetter(ChainPlan::backwardSegments),
-                    ApiField.field("maxRegression", COST).required().forGetter(ChainPlan::maxRegression),
-                    ApiField.field("totalExpanded", LONG_COUNT).required().forGetter(ChainPlan::totalExpanded),
-                    ApiField.field("hStart", COST).required().forGetter(ChainPlan::hStart),
-                    ApiField.field("hFinal", COST).required().forGetter(ChainPlan::hFinal),
-                    ApiField.field("trail", ApiTypes.list(SEGMENT, 200)).required().forGetter(ChainPlan::trail),
-                    ChainPlan::new)));
+    public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.union(PlanReply.class);
 
     public static final MethodSpec<PlanParams, PlanReply> PLAN = MethodSpec.of("mc.debug.plan", PLAN_PARAMS, PLAN_REPLY,
                     "One read-only A* search from a fixed start to a goto target: no walking, no block edits. The measurement "
@@ -288,6 +242,7 @@ public final class DebugContracts {
     // ------------------------------------------------------------------ mc.debug.walkPlan
 
     /** How a given plan is walked: verbatim with no search, or adopted with the live recovery and repath left on. */
+    @Named("WalkMode")
     public enum WalkMode implements WireName {
         REPLAY, FOLLOW;
         @Override public String wireName() { return name().toLowerCase(java.util.Locale.ROOT); }
@@ -299,9 +254,18 @@ public final class DebugContracts {
      * last node's block. {@code from}: the foot the plan is anchored to, absent the first node. {@code goalReached}:
      * whether the plan's last node is the goal; a best-effort plan is one the navigator may replace with its own.
      */
-    public record WalkPlanParams(String bot, List<PlanEdge> plan, Optional<GotoContracts.Target> goal,
-                                 Optional<BlockPosition> from, WalkMode mode, boolean goalReached,
-                                 Optional<RouteContracts.Route> route) {
+    @Named("WalkPlanParams")
+    public record WalkPlanParams(
+            @Doc("A server-side bot.") @BotRef String bot,
+            @Doc("The nodes and the edge entering each, in path order.") @Length(max = 4096) List<PlanEdge> plan,
+            @Doc("Omitted: the last node's block.") Optional<GotoContracts.Target> goal,
+            @Doc("The foot the plan is anchored to. Omitted: the first node.") Optional<BlockPosition> from,
+            @Doc("replay: verbatim, no search; whatever would drop the plan ends the walk. follow: adopted with the "
+                    + "live recovery and repath on.")
+            @Default("replay")
+            WalkMode mode,
+            @Doc("The last node is the goal, not a best-effort end.") @Default("true") boolean goalReached,
+            @Doc("The route conditions the navigator walks under.") Optional<RouteContracts.Route> route) {
         public static WalkPlanParams replay(String bot, List<PlanEdge> plan) {
             return new WalkPlanParams(bot, plan, Optional.empty(), Optional.empty(), WalkMode.REPLAY, true, Optional.empty());
         }
@@ -320,29 +284,12 @@ public final class DebugContracts {
     }
 
     /** The task started; {@code nodes}: the plan's length. Its progress reads from {@code mc.bot.status} and {@code mc.debug.navigator}. */
-    public record WalkingPlan(String bot, int nodes) {}
+    @Named("WalkingPlan")
+    public record WalkingPlan(@BotRef String bot, @Range(min = 0) int nodes) {}
 
-    public static final ApiType<WalkPlanParams> WALK_PLAN_PARAMS = ApiTypes.record(WalkPlanParams.class, "WalkPlanParams",
-            ApiField.field("bot", Responses.BOT_REF).describe("A server-side bot.").required().forGetter(WalkPlanParams::bot),
-            ApiField.field("plan", ApiTypes.list(PLAN_EDGE, 4096)).describe("The nodes and the edge entering each, in path order.")
-                    .required().forGetter(WalkPlanParams::plan),
-            ApiField.field("goal", GotoContracts.TARGET).describe("Omitted: the last node's block.").optional().forGetter(WalkPlanParams::goal),
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The foot the plan is anchored to. Omitted: the first node.")
-                    .optional().forGetter(WalkPlanParams::from),
-            ApiField.field("mode", ApiTypes.enumOf("WalkMode", WalkMode.class))
-                    .describe("replay: verbatim, no search; whatever would drop the plan ends the walk. follow: adopted with the "
-                            + "live recovery and repath on.")
-                    .defaulted(WalkMode.REPLAY).forGetter(WalkPlanParams::mode),
-            ApiField.field("goalReached", ApiTypes.bool()).describe("The last node is the goal, not a best-effort end.")
-                    .defaulted(true).forGetter(WalkPlanParams::goalReached),
-            ApiField.field("route", RouteContracts.ROUTE).describe("The route conditions the navigator walks under.")
-                    .optional().forGetter(WalkPlanParams::route),
-            WalkPlanParams::new);
+    public static final ApiType<WalkPlanParams> WALK_PLAN_PARAMS = ApiTypes.record(WalkPlanParams.class);
 
-    public static final ApiType<WalkingPlan> WALKING_PLAN = ApiTypes.record(WalkingPlan.class, "WalkingPlan",
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(WalkingPlan::bot),
-            ApiField.field("nodes", COUNT).required().forGetter(WalkingPlan::nodes),
-            WalkingPlan::new);
+    public static final ApiType<WalkingPlan> WALKING_PLAN = ApiTypes.record(WalkingPlan.class);
 
     public static final MethodSpec<WalkPlanParams, WalkingPlan> WALK_PLAN = MethodSpec.of("mc.debug.walkPlan",
                     WALK_PLAN_PARAMS, WALKING_PLAN,
@@ -353,52 +300,47 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.replay
 
-    public record ReplayParams(String bot, Optional<String> file, boolean restoreBlocks, boolean replan) {
+    @Named("ReplayParams")
+    public record ReplayParams(
+            @Doc("self, this client's player, or a server-side bot.") @Default("self") @BotRef String bot,
+            @Doc("Under config/worlddriver/replays/. Omitted: the newest plan archive.")
+            Optional<@Pattern(value = "[A-Za-z0-9_.-]{1,128}\\.json", expected = "an archive file name") String> file,
+            @Doc("Put the recorded block envelope back first.") @Default("true") boolean restoreBlocks,
+            @Doc("true: re-issue the recorded goal with normal planning, which is deterministic in identical terrain, "
+                    + "so the live run's repaths reproduce. false: walk the stored plan verbatim.")
+            @Default("true")
+            boolean replan) {
         /** Walk {@code file}'s stored plan verbatim on {@code bot}, in the terrain as it stands. */
         public static ReplayParams plan(String bot, String file) {
             return new ReplayParams(bot, Optional.of(file), false, false);
         }
     }
 
+    @Tag("mode") @Named("ReplayReply")
     public sealed interface ReplayReply permits Replanned, Replayed {}
 
     /** {@code fidelity}: whether every restored cell had its full block state, or older cells fell back to defaults. */
-    public record Replanned(String file, String goal, int envelopeCells, int restoredBlocks, String fidelity)
+    @Variant("replan")
+    public record Replanned(
+            String file,
+            @Doc("For display only; its wording is not a format to parse.") String goal,
+            @Range(min = 0) int envelopeCells,
+            @Range(min = 0) int restoredBlocks,
+            String fidelity)
             implements ReplayReply {}
 
-    public record Replayed(String file, int segments, int plannedNodes, int restoredBlocks, String fidelity)
+    @Variant("plan")
+    public record Replayed(
+            String file,
+            @Range(min = 0) int segments,
+            @Range(min = 0) int plannedNodes,
+            @Range(min = 0) int restoredBlocks,
+            String fidelity)
             implements ReplayReply {}
 
-    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class, "ReplayParams",
-            ApiField.field("bot", Responses.BOT_REF).describe("self, this client's player, or a server-side bot.")
-                    .defaulted("self").forGetter(ReplayParams::bot),
-            ApiField.field("file", ApiTypes.pattern("[A-Za-z0-9_.-]{1,128}\\.json", "an archive file name"))
-                    .describe("Under config/worlddriver/replays/. Omitted: the newest plan archive.")
-                    .optional().forGetter(ReplayParams::file),
-            ApiField.field("restoreBlocks", ApiTypes.bool()).describe("Put the recorded block envelope back first.")
-                    .defaulted(true).forGetter(ReplayParams::restoreBlocks),
-            ApiField.field("replan", ApiTypes.bool())
-                    .describe("true: re-issue the recorded goal with normal planning, which is deterministic in identical "
-                            + "terrain, so the live run's repaths reproduce. false: walk the stored plan verbatim.")
-                    .defaulted(true).forGetter(ReplayParams::replan),
-            ReplayParams::new);
+    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class);
 
-    public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.taggedUnion("ReplayReply", "mode",
-            ApiTypes.variant("replan", Replanned.class, ApiTypes.record(Replanned.class, null,
-                    ApiField.field("file", ApiTypes.string()).required().forGetter(Replanned::file),
-                    ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.")
-                            .required().forGetter(Replanned::goal),
-                    ApiField.field("envelopeCells", COUNT).required().forGetter(Replanned::envelopeCells),
-                    ApiField.field("restoredBlocks", COUNT).required().forGetter(Replanned::restoredBlocks),
-                    ApiField.field("fidelity", ApiTypes.string()).required().forGetter(Replanned::fidelity),
-                    Replanned::new)),
-            ApiTypes.variant("plan", Replayed.class, ApiTypes.record(Replayed.class, null,
-                    ApiField.field("file", ApiTypes.string()).required().forGetter(Replayed::file),
-                    ApiField.field("segments", COUNT).required().forGetter(Replayed::segments),
-                    ApiField.field("plannedNodes", COUNT).required().forGetter(Replayed::plannedNodes),
-                    ApiField.field("restoredBlocks", COUNT).required().forGetter(Replayed::restoredBlocks),
-                    ApiField.field("fidelity", ApiTypes.string()).required().forGetter(Replayed::fidelity),
-                    Replayed::new)));
+    public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.union(ReplayReply.class);
 
     public static final MethodSpec<ReplayParams, ReplayReply> REPLAY = MethodSpec.of("mc.debug.replay", REPLAY_PARAMS,
                     REPLAY_REPLY,
