@@ -179,6 +179,31 @@ public final class Routes {
                 b.requireTool()));
     }
 
+    /** Never enter a cell with {@code count} or more hostiles within {@code radius}: {@code MobCluster}, forbid. */
+    public Routes mobCluster(int count, double radius) {
+        Route b = r();
+        RouteContracts.Mobs mobs = new RouteContracts.Mobs(Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.of(new RouteContracts.Cluster(count, radius, Enforcement.FORBID, 300.0)), List.of());
+        return with(new Route(b.via(), b.mode(), b.breakPolicy(), b.place(), b.parkour(), b.risk(), b.yRange(), b.hug(),
+                b.leash(), b.regions(), Optional.of(mobs), b.sight(), b.corridor(), b.ledge(), b.requireTool()));
+    }
+
+    /** Stay out of sight of {@code of} within {@code range}: {@code SightExposure}, avoided (120 per observer) or forbidden. */
+    public Routes sight(RouteContracts.SightOf of, double range, Enforcement mode) {
+        Route b = r();
+        RouteContracts.Sight sight = new RouteContracts.Sight(Optional.of(of), Optional.empty(), range, mode, 120.0, 1.62);
+        return with(new Route(b.via(), b.mode(), b.breakPolicy(), b.place(), b.parkour(), b.risk(), b.yRange(), b.hug(),
+                b.leash(), b.regions(), b.mobs(), Optional.of(sight), b.corridor(), b.ledge(), b.requireTool()));
+    }
+
+    /** Keep every cell within {@code radius} of the polyline through {@code points}: {@code Corridor}, forbid. */
+    public Routes corridor(List<BlockPos> points, double radius) {
+        Route b = r();
+        RouteContracts.Corridor corridor = new RouteContracts.Corridor(positions(points), radius, Enforcement.FORBID, 20.0);
+        return with(new Route(b.via(), b.mode(), b.breakPolicy(), b.place(), b.parkour(), b.risk(), b.yRange(), b.hug(),
+                b.leash(), b.regions(), b.mobs(), b.sight(), Optional.of(corridor), b.ledge(), b.requireTool()));
+    }
+
     /** Reach {@code cells} in order, within one block each, before the goal. */
     public Routes via(BlockPos... cells) {
         Route b = r();

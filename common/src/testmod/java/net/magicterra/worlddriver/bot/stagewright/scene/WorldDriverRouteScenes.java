@@ -1,34 +1,23 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Enforcement;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorSettings;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.RouteParams;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.rules.Constraint;
-import net.magicterra.worlddriver.bot.rules.CostModifier;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.rules.SearchProfile;
-import net.magicterra.worlddriver.bot.rules.SearchScope;
-import net.magicterra.worlddriver.bot.rules.constraints.Corridor;
-import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
-import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,23 +26,27 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * The constraint layer of route selection on a headless server-side player: a {@code route} object
- * goes through {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
- * {@link SearchProfile} is searched with the same {@link SearchScope#gather} snapshot the navigator
- * takes, and the assertions read the route. Runs on every topology (the verb layer above it,
- * {@code wd.clientRoute*}, only where the client half is), which is why the parser is covered here
- * rather than in the client scenes.
+ * The constraint layer of route selection on a headless server-side player: a {@code route} goes to
+ * {@code mc.debug.plan} exactly as {@code mc.bot.goto} would send it, which searches with the same
+ * entity snapshot the navigator takes, and the assertions read the route. Runs where a server bot may be
+ * created (the verb layer above it, {@code wd.clientRoute*}, only where the client half is).
+ *
+ * <p>What a condition is — a cluster cell, a cell in a skeleton's view, the distance from a polyline — is
+ * restated here over the scene's own mobs and blocks, so a route is judged against the world the scene
+ * built rather than against the planner's own reading of it.
  *
  * <p>Arenas are built from {@code origin.y + 40} like the Bias family; mobs are {@code NoAi} and
  * persistent, and every scene first waits until the level's entity index can answer for them (a
  * freshly force-loaded chunk holds the entity before it can be queried — the CombatSense lesson).
- * Baseline pinned; nothing here digs or places. The last scene walks a real {@link Navigator} and changes
- * the arena under it, which is the navigator's side of the same question: a route chosen on yesterday's
- * blocks.
+ * Baseline pinned; nothing here digs or places. The last scene walks a real goto and changes the arena
+ * under it, which is the navigator's side of the same question: a route chosen on yesterday's blocks.
  */
 public final class WorldDriverRouteScenes implements SceneProvider {
 
@@ -96,17 +89,59 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ctx.await(() -> level.getEntitiesOfClass(Mob.class, box).size() >= n).within(200).then(then);
     }
 
-    /** A finder over {@code profile} with the navigator's own snapshot source, the bot excluded. */
-    private static PathFinder finder(ServerLevel level, ServerPlayer body, LevelWorldView w, SearchProfile profile) {
-        return new PathFinder(w, profile)
-                .withScopeSource((s, g, p) -> SearchScope.gather(level, body.getId(), s, g, p))
-                .withOwner("scene");
+    /** One read-only search for {@code bot} from {@code start} to stand on {@code goal}, under {@code route}. */
+    private static DebugContracts.SinglePlan plan(SceneBot bot, BlockPos start, BlockPos goal, RouteContracts.Route route) {
+        return bot.plan(DebugContracts.PlanParams.of(bot.ref(), Targets.block(goal)).from(Targets.pos(start)).route(route));
     }
 
-    private static <T> T component(SearchProfile profile, Class<T> type) {
-        for (CostModifier m : profile.bias()) if (type.isInstance(m)) return type.cast(m);
-        for (Constraint c : profile.constraints()) if (type.isInstance(c)) return type.cast(c);
-        return null;
+    /** The path's cells, start first. */
+    private static List<BlockPos> path(DebugContracts.SinglePlan plan) {
+        List<BlockPos> out = new ArrayList<>();
+        for (BlockPosition p : plan.cells()) out.add(Targets.cell(p));
+        return out;
+    }
+
+    /**
+     * How many of {@code mobs} stand within {@code r} of the cell's centre: the definition of a cluster
+     * cell ({@code route.mobs.cluster}), over the mobs the scene placed.
+     */
+    private static int clusterCount(List<? extends Mob> mobs, BlockPos p, double r) {
+        double x = p.getX() + 0.5, y = p.getY(), z = p.getZ() + 0.5;
+        int n = 0;
+        for (Mob m : mobs) {
+            double dx = x - m.getX(), dy = y - m.getY(), dz = z - m.getZ();
+            if (dx * dx + dy * dy + dz * dz <= r * r) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Whether {@code observer} sees the cell: within {@code range}, and a ray from its eyes to the cell
+     * plus a standing player's eye height clear of colliding blocks — the geometry {@code route.sight}
+     * prices, read here from the world.
+     */
+    private static boolean inView(ServerLevel level, Mob observer, BlockPos cell, double range) {
+        Vec3 eye = observer.getEyePosition();
+        Vec3 at = new Vec3(cell.getX() + 0.5, cell.getY() + 1.62, cell.getZ() + 0.5);
+        if (eye.distanceToSqr(at) > range * range) return false;
+        return level.clip(new ClipContext(eye, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, observer))
+                .getType() == HitResult.Type.MISS;
+    }
+
+    /** The distance from {@code (x, y, z)} to the polyline through the centres of {@code points}' floors. */
+    private static double polylineDistance(List<BlockPos> points, double x, double y, double z) {
+        double best = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < points.size(); i++) {
+            BlockPos a = points.get(i), b = points.get(Math.min(i + 1, points.size() - 1));
+            double ax = a.getX() + 0.5, ay = a.getY(), az = a.getZ() + 0.5;
+            double abx = b.getX() + 0.5 - ax, aby = b.getY() - ay, abz = b.getZ() + 0.5 - az;
+            double len2 = abx * abx + aby * aby + abz * abz;
+            double t = len2 <= 1e-12 ? 0 : Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby + (z - az) * abz) / len2));
+            double dx = x - (ax + t * abx), dy = y - (ay + t * aby), dz = z - (az + t * abz);
+            best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz));
+            if (i + 1 >= points.size()) break;
+        }
+        return best;
     }
 
     private static String cells(List<BlockPos> path) {
@@ -133,24 +168,22 @@ public final class WorldDriverRouteScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + 10, y + dy, cz + dz), Blocks.STONE.defaultBlockState());
         }
         BlockPos penGap = new BlockPos(cx + 10, y + 1, cz + 4), freeGap = new BlockPos(cx + 10, y + 1, cz - 4);
-        for (int i = 0; i < 4; i++) spawn(ctx, level, EntityType.ZOMBIE, cx + 10.5, y + 1, cz + 4.5);
+        List<Mob> zombies = new ArrayList<>();
+        for (int i = 0; i < 4; i++) zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx + 10.5, y + 1, cz + 4.5));
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        RouteParams.Parsed route = RouteParams.parse(Map.of("mobs", Map.of("cluster", Map.of("count", 3, "radius", 6))));
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        RouteContracts.Route route = Routes.plain().mobCluster(3, 6).build();
         whenIndexed(ctx, level, new AABB(penGap).inflate(2), 4, () -> {
-            PathFinder.Result res = finder(level, fp, w, route.profile()).findPath(start, new Goal.Block(goal));
-            MobCluster mc = component(route.profile(), MobCluster.class);
-            int pen = mc.count(penGap, 6);
+            DebugContracts.SinglePlan res = plan(bot, start, goal, route);
+            List<BlockPos> path = path(res);
+            int pen = clusterCount(zombies, penGap, 6);
             int worst = 0;
-            for (BlockPos p : res.path()) worst = Math.max(worst, mc.count(p, 6));
-            ctx.record("route", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
-                    + " snapshotTruncated=" + res.snapshotTruncated() + ": " + cells(res.path()));
+            for (BlockPos p : path) worst = Math.max(worst, clusterCount(zombies, p, 6));
+            ctx.record("route", "goalReached=" + res.goalReached() + " cells=" + path.size() + " prunedBy=" + res.conditions().prunedBy()
+                    + " snapshotTruncated=" + res.conditions().snapshotTruncated() + ": " + cells(path));
             ctx.check(pen >= 3).as("A: the gap holding the zombies is a mob-cluster cell (" + pen + " mobs within 6 blocks)").isTrue();
             ctx.check(res.goalReached()).as("B: the search reaches the goal").isTrue();
-            ctx.check(res.path().contains(freeGap)).as("C: the route passes through the empty gap " + freeGap.toShortString()).isTrue();
+            ctx.check(path.contains(freeGap)).as("C: the route passes through the empty gap " + freeGap.toShortString()).isTrue();
             ctx.check(worst < 3).as("D: no cell on the route is a mob-cluster cell: at most " + worst + " mobs within 6 blocks of any cell").isTrue();
         });
     }
@@ -161,7 +194,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * {@code sight: avoid} the route hugs the wall's shadow, no ray budget is spent out; with
      * {@code sight: forbid} a goal in the shadow is still reached (not best-effort — a spent
      * budget reruns without sight and would pass that check by the wrong failure mode, so the
-     * flag is asserted too). Then the bot WALKS the avoid route and {@code ThreatScanner} counts
+     * flag is asserted too). Then the bot WALKS the avoid route and its own threat scan counts
      * the ticks the skeleton could see it.
      */
     private static void staysOutOfSkeletonSight(SceneContext ctx) {
@@ -179,53 +212,48 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         skeleton.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));   // the arena is in the sun
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
         BlockPos shadowGoal = new BlockPos(cx + 18, y + 1, cz - 3);
+        final double range = 32;
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
-        ctx.cleanup(() -> BotTicker.unregister(driver));
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Map<String, Object> sight = Map.of("of", "ranged", "range", 32, "mode", "avoid");
-        RouteParams.Parsed avoid = RouteParams.parse(Map.of("sight", sight));
-        RouteParams.Parsed forbid = RouteParams.parse(Map.of("sight", Map.of("of", "ranged", "range", 32, "mode", "forbid")));
+        RouteContracts.Route avoid = Routes.plain().sight(RouteContracts.SightOf.RANGED, range, Enforcement.AVOID).build();
+        RouteContracts.Route forbid = Routes.plain().sight(RouteContracts.SightOf.RANGED, range, Enforcement.FORBID).build();
 
         whenIndexed(ctx, level, new AABB(skeleton.blockPosition()).inflate(2), 1, () -> {
-            PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));
-            PathFinder.Result hugged = finder(level, fp, w, avoid.profile()).findPath(start, new Goal.Block(goal));
-            SightExposure se = component(avoid.profile(), SightExposure.class);
+            DebugContracts.SinglePlan plain = plan(bot, start, goal, Routes.plain().build());
+            DebugContracts.SinglePlan hugged = plan(bot, start, goal, avoid);
             int plainSeen = 0, huggedSeen = 0;
-            for (BlockPos p : plain.path()) if (se.seen(p) > 0) plainSeen++;
-            for (BlockPos p : hugged.path()) if (se.seen(p) > 0) huggedSeen++;
-            ctx.record("straight", "cells=" + plain.path().size() + " exposed " + plainSeen + ": " + cells(plain.path()));
-            ctx.record("sightAvoid", "goalReached=" + hugged.goalReached() + " cells=" + hugged.path().size() + " exposed " + huggedSeen
-                    + " sightBudgetExhausted=" + hugged.sightBudgetExhausted() + " rays=" + se.raysFired()
-                    + " observers=" + se.observers().size() + ": " + cells(hugged.path()));
+            for (BlockPos p : path(plain)) if (inView(level, skeleton, p, range)) plainSeen++;
+            for (BlockPos p : path(hugged)) if (inView(level, skeleton, p, range)) huggedSeen++;
+            ctx.record("straight", "cells=" + plain.pathLen() + " exposed " + plainSeen + ": " + cells(path(plain)));
+            ctx.record("sightAvoid", "goalReached=" + hugged.goalReached() + " cells=" + hugged.pathLen() + " exposed " + huggedSeen
+                    + " sightBudgetExhausted=" + hugged.conditions().sightBudgetExhausted()
+                    + " taxes=" + hugged.conditions().taxes() + ": " + cells(path(hugged)));
             ctx.check(plainSeen >= 12).as("A: most of the straight route without sight is in view: " + plainSeen + " cells").isTrue();
-            ctx.check(hugged.goalReached() && !hugged.sightBudgetExhausted()).as("B: the sight-avoiding search reaches the goal without exhausting the ray budget").isTrue();
+            ctx.check(hugged.goalReached() && !hugged.conditions().sightBudgetExhausted())
+                    .as("B: the sight-avoiding search reaches the goal without exhausting the ray budget").isTrue();
             ctx.check(huggedSeen <= 6).as("C: the sight-avoiding route has at most 6 exposed cells: " + huggedSeen).isTrue();
-            PathFinder.Result held = finder(level, fp, w, forbid.profile()).findPath(start, new Goal.Block(shadowGoal));
-            ctx.record("sightForbid", "goalReached=" + held.goalReached() + " cells=" + held.path().size()
-                    + " sightBudgetExhausted=" + held.sightBudgetExhausted() + " prunedBy=" + held.prunedBy());
-            ctx.check(held.goalReached() && !held.sightBudgetExhausted())
+            DebugContracts.SinglePlan held = plan(bot, start, shadowGoal, forbid);
+            ctx.record("sightForbid", "goalReached=" + held.goalReached() + " cells=" + held.pathLen()
+                    + " sightBudgetExhausted=" + held.conditions().sightBudgetExhausted() + " prunedBy=" + held.conditions().prunedBy());
+            ctx.check(held.goalReached() && !held.conditions().sightBudgetExhausted())
                     .as("D: forbid mode reaches the goal in the wall's shadow (not best-effort) without exhausting the budget").isTrue();
 
             // Now walk it: the bot drives the avoid route while the skeleton's view is sampled.
-            Intent intent = new Intent(List.of(new Goal.Block(goal)), avoid.profile().bias(),
-                    avoid.profile().capability(), avoid.profile().constraints(), null);
-            driver.runProcess(new IntentProcess(intent));
-            BotTicker.register(driver);
+            bot.goTo(Targets.block(goal), avoid);
             final int[] ticks = { 0 }, seen = { 0 };
             final StringBuilder trace = new StringBuilder();
             ctx.await(() -> {
                 ticks[0]++;
-                ThreatScanner.Scan scan = ThreatScanner.compute(level, fp, 40);
+                ObserveContracts.Threats scan = bot.threats(40);
                 boolean visible = false;
-                for (ThreatScanner.Threat t : scan.threats()) if (t.canSeeMe()) { visible = true; break; }
+                for (ObserveContracts.Threat t : scan.threats()) if (t.canSeeMe()) { visible = true; break; }
                 if (visible) seen[0]++;
                 if (ticks[0] % 3 == 1 && ticks[0] <= 120)
                     trace.append(String.format(Locale.ROOT, " t%d:%.1f,%.1f/%.0f°%s", ticks[0],
                             fp.getX() - cx, fp.getZ() - cz, fp.getYRot(), visible ? "!" : ""));
-                return driver.finished() || ticks[0] >= 600;
+                return !bot.busy() || ticks[0] >= 600;
             }).within(700).then(() -> {
                 double gap = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
                 ctx.record("trace", "relative dx,dz/yaw, ! marks a tick in view: " + trace);
@@ -239,8 +267,8 @@ public final class WorldDriverRouteScenes implements SceneProvider {
 
     /**
      * The goal walled in by the caller's own forbid region: the search is best-effort and
-     * {@code blockedBy} over the intent's declared constraints names {@code ForbidRegion} —
-     * whatever the built-in filters pruned meanwhile.
+     * {@code blockedBy} over the route's own constraints names {@code ForbidRegion} — whatever the
+     * built-in filters pruned meanwhile.
      */
     private static void blockedNamesTheConstraint(SceneContext ctx) {
         Harness.pin(ctx);
@@ -248,19 +276,15 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 13, -4, 4);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 10, y + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Map<String, Object> box = Map.of("shape", "box", "min", Map.of("x", cx + 7, "y", y, "z", cz - 4),
-                "max", Map.of("x", cx + 13, "y", y + 4, "z", cz + 4), "mode", "forbid");
-        RouteParams.Parsed route = RouteParams.parse(Map.of("regions", List.of(box)));
-        PathFinder.Result res = new PathFinder(w, route.profile()).findPath(start, new Goal.Block(goal));
-        String reason = res.blockedBy(route.constraintNames());
-        ctx.record("search", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
-                + " declared=" + route.constraintNames() + " reason=" + reason);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        RouteContracts.Route route = Routes.plain().forbidBox(new BlockPos(cx + 7, y, cz - 4), new BlockPos(cx + 13, y + 4, cz + 4)).build();
+        DebugContracts.SinglePlan res = plan(bot, start, goal, route);
+        String reason = res.conditions().blockedBy().orElse(null);
+        ctx.record("search", "goalReached=" + res.goalReached() + " cells=" + res.pathLen() + " prunedBy=" + res.conditions().prunedBy()
+                + " reason=" + reason);
         ctx.check(!res.goalReached()).as("A: the goal is fully enclosed, so the search can only be best-effort").isTrue();
-        ctx.check(route.constraintNames().contains("ForbidRegion")).as("B: this intent declares ForbidRegion").isTrue();
+        ctx.check(res.conditions().prunedBy().getOrDefault("ForbidRegion", 0) > 0)
+                .as("B: this route's ForbidRegion is in force and refused edges: " + res.conditions().prunedBy()).isTrue();
         ctx.check("constraint:ForbidRegion".equals(reason)).as("C: the cause is constraint:ForbidRegion: " + reason).isTrue();
     }
 
@@ -271,23 +295,17 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 23, -9, 4);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        RouteParams.Parsed route = RouteParams.parse(Map.of("corridor", Map.of(
-                "points", List.of(Map.of("x", cx, "y", y + 1, "z", cz), Map.of("x", cx + 10, "y", y + 1, "z", cz - 6),
-                        Map.of("x", cx + 20, "y", y + 1, "z", cz)),
-                "radius", 2)));
-        Corridor corridor = component(route.profile(), Corridor.class);
-        PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));
-        PathFinder.Result held = new PathFinder(w, route.profile()).findPath(start, new Goal.Block(goal));
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        List<BlockPos> line = List.of(new BlockPos(cx, y + 1, cz), new BlockPos(cx + 10, y + 1, cz - 6), new BlockPos(cx + 20, y + 1, cz));
+        RouteContracts.Route route = Routes.plain().corridor(line, 2).build();
+        DebugContracts.SinglePlan plain = plan(bot, start, goal, Routes.plain().build());
+        DebugContracts.SinglePlan held = plan(bot, start, goal, route);
         double plainWorst = 0, heldWorst = 0;
-        for (BlockPos p : plain.path()) plainWorst = Math.max(plainWorst, corridor.distance(p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
-        for (BlockPos p : held.path()) heldWorst = Math.max(heldWorst, corridor.distance(p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
-        ctx.record("straight", String.format(Locale.ROOT, "cells=%d max distance from the polyline %.2f", plain.path().size(), plainWorst));
+        for (BlockPos p : path(plain)) plainWorst = Math.max(plainWorst, polylineDistance(line, p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
+        for (BlockPos p : path(held)) heldWorst = Math.max(heldWorst, polylineDistance(line, p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
+        ctx.record("straight", String.format(Locale.ROOT, "cells=%d max distance from the polyline %.2f", plain.pathLen(), plainWorst));
         ctx.record("corridor", String.format(Locale.ROOT, "goalReached=%s cells=%d max distance from the polyline %.2f prunedBy=%s: %s",
-                held.goalReached(), held.path().size(), heldWorst, held.prunedBy(), cells(held.path())));
+                held.goalReached(), held.pathLen(), heldWorst, held.conditions().prunedBy(), cells(path(held))));
         ctx.check(plainWorst > 2).as(String.format(Locale.ROOT, "A: without a corridor the route strays %.2f blocks from the polyline", plainWorst)).isTrue();
         ctx.check(held.goalReached()).as("B: the goal is reached under the corridor constraint").isTrue();
         ctx.check(heldWorst <= 2 + 1e-6).as(String.format(Locale.ROOT, "C: every route cell is within radius 2 of the polyline: max %.2f", heldWorst)).isTrue();
@@ -305,28 +323,26 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         slab(level, cx, cz, y, -6, 18, -6, 6);
         // NoAi mobs stand still, so the pens are the cells themselves; a fence ring would only
         // change which edges are walkable, not the cluster arithmetic under test.
-        spawn(ctx, level, EntityType.ZOMBIE, cx - 1.5, y + 1, cz + 0.5);
-        spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz + 2.5);
-        spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz - 1.5);
+        List<Mob> zombies = new ArrayList<>();
+        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx - 1.5, y + 1, cz + 0.5));
+        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz + 2.5));
+        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz - 1.5));
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 16, y + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        RouteParams.Parsed route = RouteParams.parse(Map.of("mobs", Map.of("cluster", Map.of("count", 3, "radius", 6))));
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        RouteContracts.Route route = Routes.plain().mobCluster(3, 6).build();
         whenIndexed(ctx, level, new AABB(start).inflate(4), 3, () -> {
-            PathFinder.Result res = finder(level, fp, w, route.profile()).findPath(start, new Goal.Block(goal));
-            MobCluster mc = component(route.profile(), MobCluster.class);
-            int atStart = mc.count(start, 6);
+            DebugContracts.SinglePlan res = plan(bot, start, goal, route);
+            List<BlockPos> path = path(res);
+            int atStart = clusterCount(zombies, start, 6);
             boolean out = false;
             BlockPos reentry = null;
-            for (BlockPos p : res.path()) {
-                boolean clustered = mc.count(p, 6) >= 3;
+            for (BlockPos p : path) {
+                boolean clustered = clusterCount(zombies, p, 6) >= 3;
                 if (!clustered) out = true;
                 else if (out && reentry == null) reentry = p;
             }
-            ctx.record("search", atStart + " mobs within 6 blocks of the start, goalReached=" + res.goalReached() + " cells=" + res.path().size()
-                    + " prunedBy=" + res.prunedBy() + ": " + cells(res.path()));
+            ctx.record("search", atStart + " mobs within 6 blocks of the start, goalReached=" + res.goalReached() + " cells=" + path.size()
+                    + " prunedBy=" + res.conditions().prunedBy() + ": " + cells(path));
             ctx.check(atStart >= 3).as("A: the start itself is a mob-cluster cell: " + atStart + " mobs").isTrue();
             ctx.check(res.goalReached()).as("B: the rejoin rule takes effect and the search returns a route that reaches the goal").isTrue();
             ctx.check(out && reentry == null).as("C: after leaving the cluster the route never enters another mob-cluster cell"
@@ -348,38 +364,38 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         slab(level, cx, cz, y, -2, 30, -6, 6);
         final int wallX = cx + 18, buildAtX = cx + 4;
         BlockPos goal = new BlockPos(cx + 28, y + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator(NavigatorSettings.named("scene"));
-        navigator.start(new Goal.Block(goal));
-        boolean walled = false;
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.goTo(Targets.block(goal));
+        boolean walled = false, busy = true;
         double replannedAtX = Double.NaN;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
-            if (!walled && navigator.pathLen() > 0 && fp.getX() >= buildAtX) {
+        BotDebugContracts.NavigatorReading nav = bot.navigator();
+        for (int t = 0; t < 600 && busy; t++) {
+            bot.tick();
+            busy = bot.busy();
+            nav = bot.navigator();
+            if (!walled && nav.plan().map(BotDebugContracts.PlanCursor::len).orElse(0) > 0 && fp.getX() >= buildAtX) {
                 for (int dz = -2; dz <= 2; dz++)
                     for (int dy = 1; dy <= 3; dy++)
                         level.setBlockAndUpdate(new BlockPos(wallX, y + dy, cz + dz), Blocks.STONE.defaultBlockState());
                 walled = true;
             }
-            if (walled && Double.isNaN(replannedAtX) && navigator.inspect().tallies().blockReplans > 0) replannedAtX = fp.getX();
+            if (walled && Double.isNaN(replannedAtX) && nav.counter("blockReplans") > 0) replannedAtX = fp.getX();
         }
-        ctx.record("walk", String.format(Locale.ROOT, "status=%s at %.2f,%.2f,%.2f, wall at x=%d built when the bot passed x=%d, "
-                        + "replanned at x=%.2f, %s", s, fp.getX(), fp.getY(), fp.getZ(), wallX, buildAtX, replannedAtX,
-                navigator.inspect().tallies()));
+        ControlContracts.Slot go = bot.gotoSlot();
+        String ended = busy ? "still walking" : go.endReason().orElse("-") + go.lastError().map(e -> " error=" + e).orElse("");
+        ctx.record("walk", String.format(Locale.ROOT, "%s at %.2f,%.2f,%.2f, wall at x=%d built when the bot passed x=%d, "
+                        + "replanned at x=%.2f, counters %s", ended, fp.getX(), fp.getY(), fp.getZ(), wallX, buildAtX, replannedAtX,
+                nav.counters()));
         ctx.check(walled).as("A: the bot started walking and the wall went up behind its back").isTrue();
         ctx.check(!Double.isNaN(replannedAtX) && replannedAtX < wallX - 6)
                 .as(String.format(Locale.ROOT, "B: the navigator replanned for the wall while more than 6 blocks short of it: replanned at x=%.2f, wall at x=%d",
                         replannedAtX, wallX)).isTrue();
-        // Within a block and a half, not REACHED: after the detour the navigator spends the last node a block
+        // Within a block and a half, not arrived: after the detour the navigator spends the last node a block
         // short and slides the rest of the way, which is its own open question and not this scene's.
         double off = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
-        ctx.check(s != Locomotor.Status.FAILED && fp.getX() > wallX + 1 && off <= 1.5)
-                .as(String.format(Locale.ROOT, "C: the bot walked around the wall and stopped %.2f blocks from the goal: %s %s",
-                        off, s, navigator.result().reason())).isTrue();
+        ctx.check(go.lastError().isEmpty() && fp.getX() > wallX + 1 && off <= 1.5)
+                .as(String.format(Locale.ROOT, "C: the bot walked around the wall and stopped %.2f blocks from the goal: %s",
+                        off, ended)).isTrue();
     }
 }
