@@ -1,25 +1,41 @@
 package net.magicterra.worlddriver.api.methods.control;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.ApiType;
-import net.magicterra.worlddriver.api.schema.ApiTypes;
-import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.api.schema.UnionType;
-import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Rostered;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
+import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OneOf;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
+import net.magicterra.worlddriver.api.schema.annotation.Wire;
 
 /**
  * Reading and stopping what the bots do, and which bots there are: {@code mc.bot.status}, {@code mc.bot.cancel},
@@ -35,6 +51,7 @@ public final class ControlContracts {
      * layers spell these names themselves, since they may not name the api; {@code ProcessNameTest} holds the
      * two lists equal.
      */
+    @Named("ProcessName")
     public enum ProcessName implements WireName {
         ALL("all"),
         GOTO("goto"), MINE("mine"), CRAFT("craft"), SMELT("smelt"), SLEEP("sleep"), FOLLOW("follow"),
@@ -52,7 +69,13 @@ public final class ControlContracts {
         @Override public String wireName() { return wire; }
     }
 
-    public record CancelParams(Optional<String> actionId, Optional<String> bot, Optional<ProcessName> process) {
+    @Named("CancelParams")
+    public record CancelParams(
+            @Doc("Cancel this action, on whichever bot runs it.") Optional<@ActionId String> actionId,
+            @Doc("Without actionId: whose processes. Omitted: self.") Optional<@BotRef String> bot,
+            @Doc("Without actionId: all (the default), a process kind (goto, mine, …) or a reflex chain (combat, "
+                    + "bunker, retreat, …).")
+            Optional<ProcessName> process) implements SelfChecked {
 
         /** Cancel the action {@code actionId}, on whichever bot runs it. */
         public static CancelParams action(String actionId) {
@@ -68,32 +91,19 @@ public final class ControlContracts {
         public static CancelParams all() {
             return new CancelParams(Optional.empty(), Optional.empty(), Optional.empty());
         }
+
+        @Override public void check(DecodeContext at) {
+            if (actionId.isEmpty()) return;
+            if (bot.isPresent()) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own bot");
+            if (process.isPresent()) at.field("process").fail(ApiIssue.Code.INVALID_VALUE, "cancel an action or processes, not both");
+        }
     }
 
-    private static final ApiType<ProcessName> PROCESS_NAME = ApiTypes.enumOf("ProcessName", ProcessName.class);
-
-    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class, "CancelParams",
-            ApiField.field("actionId", Responses.ACTION_ID).describe("Cancel this action, on whichever bot runs it.")
-                    .optional().forGetter(CancelParams::actionId),
-            ApiField.field("bot", Responses.BOT_REF).describe("Without actionId: whose processes. Omitted: self.")
-                    .optional().forGetter(CancelParams::bot),
-            ApiField.field("process", PROCESS_NAME)
-                    .describe("Without actionId: all (the default), a process kind (goto, mine, …) or a reflex chain "
-                            + "(combat, bunker, retreat, …).")
-                    .optional().forGetter(CancelParams::process),
-            CancelParams::new)
-            .checked((p, at) -> {
-                if (p.actionId().isEmpty()) return;
-                if (p.bot().isPresent()) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own bot");
-                if (p.process().isPresent()) at.field("process").fail(ApiIssue.Code.INVALID_VALUE, "cancel an action or processes, not both");
-            });
+    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class);
 
     public static final MethodSpec<CancelParams, ImmediateResponse> CANCEL = MethodSpec.of("mc.bot.cancel", CANCEL_PARAMS,
-                    Responses.immediate("Cancel", Stopped.class, ApiTypes.record(Stopped.class, null,
-                            ApiField.field("cancelled", ApiTypes.list(ApiTypes.string(1, 64), 64)).required()
-                                    .forGetter(Stopped::cancelled),
-                            ApiField.field("action", WaitContracts.ANY_ACTION).optional().forGetter(Stopped::action),
-                            Stopped::new)),
+                    Responses.immediate("Cancel", Stopped.class,
+                            ApiTypes.record(Stopped.class, Map.of("action", WaitContracts.ANY_ACTION))),
                     "Stop an action by its actionId, which ends it cancelled with reason requested, or a bot's processes "
                             + "by name; all also releases the held inputs and stands every reflex chain down. Works on a "
                             + "bot that cannot act. An unknown or expired actionId is action_not_found.")
@@ -101,154 +111,112 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ status
 
-    public record StatusParams(Optional<String> bot) {
+    @Named("StatusParams")
+    public record StatusParams(
+            @Doc("Omitted: self when there is a client; the bots list either way.") Optional<@BotRef String> bot) {
 
         /** Self's status, with the registered bots listed. */
         public static StatusParams self() { return new StatusParams(Optional.empty()); }
     }
 
     /** One process slot. {@code lastError} also holds success summaries; {@code lastProcessEnd} says how a task ended. */
-    public record Slot(boolean active, Optional<String> goal, Optional<BlockPosition> target, int pathLen, int pathStep,
-                       Optional<Long> startedAtMs, Optional<String> lastError, Optional<Boolean> goalReached,
-                       Optional<String> endReason, Optional<Double> finalDist) {}
+    @Named("ProcessSlot")
+    public record Slot(
+            boolean active,
+            @Doc("For display only; its wording is not a format to parse.") Optional<String> goal,
+            Optional<BlockPosition> target,
+            @Range(min = 0) int pathLen,
+            @Range(min = 0) int pathStep,
+            Optional<@Range(min = 0) Long> startedAtMs,
+            @Doc("Why the slot last stopped: an Unready word when the bot could not act (no_hands), else a message "
+                    + "for display.")
+            Optional<String> lastError,
+            Optional<Boolean> goalReached,
+            Optional<String> endReason,
+            Optional<Double> finalDist) {}
 
-    public record Slots(Slot goTo, Slot mine, Slot builder, Slot follow, Slot explore, Slot runAway, Slot retreat, Slot look,
-                        Slot elytra, Slot craft, Slot smelt, Slot escape, Slot bunker, Slot combat, Slot plan) {}
+    @Named("ProcessSlots")
+    public record Slots(
+            @Wire("goto") Slot goTo,
+            Slot mine,
+            @Doc("build, clearArea, farm and construct.") Slot builder,
+            Slot follow,
+            Slot explore,
+            Slot runAway,
+            @Doc("The retreat reflex.") Slot retreat,
+            Slot look,
+            Slot elytra,
+            Slot craft,
+            Slot smelt,
+            Slot escape,
+            Slot bunker,
+            Slot combat,
+            @Doc("A route preview's search.") Slot plan) {}
 
     /** How the last task a caller started ended: {@code error} is absent only when it did what it was asked. */
+    @Named("ProcessEnd")
     public record ProcessEnd(String kind, Optional<String> error) {}
 
-    public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen,
-                            boolean sightBudgetExhausted, boolean snapshotTruncated) {}
+    @Named("PathStats")
+    public record PathStats(
+            @Range(min = 0) int expanded,
+            @Range(min = 0) long ms,
+            boolean goalReached,
+            double finalCost,
+            @Range(min = 0) int pathLen,
+            boolean sightBudgetExhausted,
+            boolean snapshotTruncated) {}
 
+    @Named("ChainBail")
     public record Bail(String reason, long ticksLeft) {}
 
-    public record ChainState(double priority, Optional<String> episode, Optional<Bail> bail) {}
+    @Named("ChainState")
+    public record ChainState(
+            @Doc("Its bid on the last tick; the highest steers.") double priority,
+            Optional<String> episode,
+            Optional<Bail> bail) {}
 
-    public record CombatTally(int swings, int wellTimed, int crits, int kills) {}
+    @Named("CombatTally")
+    public record CombatTally(
+            @Range(min = 0) int swings,
+            @Range(min = 0) int wellTimed,
+            @Range(min = 0) int crits,
+            @Range(min = 0) int kills) {}
 
     /** What only this client's player has: the reflex chains that bid against its task. */
-    public record Reflexes(boolean paused, Optional<String> activeProcessDetail, Optional<String> activeChain,
-                           boolean userTaskSuspended, Map<String, ChainState> chains, Optional<PathStats> lastPath,
-                           String clutch, CombatTally combat) {}
+    @Named("Reflexes")
+    public record Reflexes(
+            boolean paused,
+            @Doc("The task's phase, e.g. bunker SEALED.") Optional<String> activeProcessDetail,
+            @Doc("What steers now; absent when nothing does.") Optional<String> activeChain,
+            @Doc("A reflex outbids the task, which waits.") boolean userTaskSuspended,
+            @Length(max = 64) Map<String, ChainState> chains,
+            @Doc("The most recent search, by any process.") Optional<PathStats> lastPath,
+            @Doc("The water-bucket clutch: idle, lip (planned, waiting to walk off) or falling.")
+            @OneOf(name = "ClutchPhase", value = {"idle", "lip", "falling"}) String clutch,
+            @Doc("This engagement's counts.") CombatTally combat) {}
 
-    public record BotStatus(String bot, boolean busy, Optional<String> activeProcess, Optional<ProcessEnd> lastProcessEnd,
-                             Slots slots, Optional<Reflexes> reflexes) {}
+    @Named("BotStatus")
+    public record BotStatus(
+            @BotRef String bot,
+            @Doc("A task holds it.") boolean busy,
+            Optional<String> activeProcess,
+            Optional<ProcessEnd> lastProcessEnd,
+            Slots slots,
+            @Doc("self and the server's bots.") Optional<Reflexes> reflexes) {}
 
-    public record BotSummary(String id, String kind, Optional<Integer> entityId, Optional<BlockPosition> pos, boolean busy) {}
+    @Named("BotSummary")
+    public record BotSummary(
+            @BotRef String id,
+            String kind,
+            @Doc("Absent when its entity is gone.") Optional<@EntityId Integer> entityId,
+            Optional<BlockPosition> pos,
+            boolean busy) {}
 
-    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class, "StatusParams",
-            ApiField.field("bot", Responses.BOT_REF).describe("Omitted: self when there is a client; the bots list either way.")
-                    .optional().forGetter(StatusParams::bot),
-            StatusParams::new);
-
-    private static final ApiType<Slot> SLOT = ApiTypes.record(Slot.class, "ProcessSlot",
-            ApiField.field("active", ApiTypes.bool()).required().forGetter(Slot::active),
-            ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.").optional()
-                    .forGetter(Slot::goal),
-            ApiField.field("target", CommonTypes.BLOCK_POSITION).optional().forGetter(Slot::target),
-            ApiField.field("pathLen", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Slot::pathLen),
-            ApiField.field("pathStep", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Slot::pathStep),
-            ApiField.field("startedAtMs", ApiTypes.int64(0, Long.MAX_VALUE)).optional().forGetter(Slot::startedAtMs),
-            ApiField.field("lastError", ApiTypes.string())
-                    .describe("Why the slot last stopped: an Unready word when the bot could not act (no_hands), "
-                            + "else a message for display.")
-                    .optional().forGetter(Slot::lastError),
-            ApiField.field("goalReached", ApiTypes.bool()).optional().forGetter(Slot::goalReached),
-            ApiField.field("endReason", ApiTypes.string()).optional().forGetter(Slot::endReason),
-            ApiField.field("finalDist", ApiTypes.number()).optional().forGetter(Slot::finalDist),
-            Slot::new);
-
-    private static final ApiType<Slots> SLOTS = ApiTypes.record(Slots.class, "ProcessSlots",
-            ApiField.field("goto", SLOT).required().forGetter(Slots::goTo),
-            ApiField.field("mine", SLOT).required().forGetter(Slots::mine),
-            ApiField.field("builder", SLOT).describe("build, clearArea, farm and construct.").required().forGetter(Slots::builder),
-            ApiField.field("follow", SLOT).required().forGetter(Slots::follow),
-            ApiField.field("explore", SLOT).required().forGetter(Slots::explore),
-            ApiField.field("runAway", SLOT).required().forGetter(Slots::runAway),
-            ApiField.field("retreat", SLOT).describe("The retreat reflex.").required().forGetter(Slots::retreat),
-            ApiField.field("look", SLOT).required().forGetter(Slots::look),
-            ApiField.field("elytra", SLOT).required().forGetter(Slots::elytra),
-            ApiField.field("craft", SLOT).required().forGetter(Slots::craft),
-            ApiField.field("smelt", SLOT).required().forGetter(Slots::smelt),
-            ApiField.field("escape", SLOT).required().forGetter(Slots::escape),
-            ApiField.field("bunker", SLOT).required().forGetter(Slots::bunker),
-            ApiField.field("combat", SLOT).required().forGetter(Slots::combat),
-            ApiField.field("plan", SLOT).describe("A route preview's search.").required().forGetter(Slots::plan),
-            Slots::new);
-
-    private static final ApiType<ProcessEnd> PROCESS_END = ApiTypes.record(ProcessEnd.class, "ProcessEnd",
-            ApiField.field("kind", ApiTypes.string()).required().forGetter(ProcessEnd::kind),
-            ApiField.field("error", ApiTypes.string()).optional().forGetter(ProcessEnd::error),
-            ProcessEnd::new);
-
-    private static final ApiType<PathStats> PATH_STATS = ApiTypes.record(PathStats.class, "PathStats",
-            ApiField.field("expanded", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(PathStats::expanded),
-            ApiField.field("ms", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(PathStats::ms),
-            ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(PathStats::goalReached),
-            ApiField.field("finalCost", ApiTypes.number()).required().forGetter(PathStats::finalCost),
-            ApiField.field("pathLen", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(PathStats::pathLen),
-            ApiField.field("sightBudgetExhausted", ApiTypes.bool()).required().forGetter(PathStats::sightBudgetExhausted),
-            ApiField.field("snapshotTruncated", ApiTypes.bool()).required().forGetter(PathStats::snapshotTruncated),
-            PathStats::new);
-
-    private static final ApiType<ChainState> CHAIN_STATE = ApiTypes.record(ChainState.class, "ChainState",
-            ApiField.field("priority", ApiTypes.number()).describe("Its bid on the last tick; the highest steers.")
-                    .required().forGetter(ChainState::priority),
-            ApiField.field("episode", ApiTypes.string()).optional().forGetter(ChainState::episode),
-            ApiField.field("bail", ApiTypes.record(Bail.class, "ChainBail",
-                    ApiField.field("reason", ApiTypes.string()).required().forGetter(Bail::reason),
-                    ApiField.field("ticksLeft", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).required().forGetter(Bail::ticksLeft),
-                    Bail::new)).optional().forGetter(ChainState::bail),
-            ChainState::new);
-
-    private static final ApiType<Reflexes> REFLEXES = ApiTypes.record(Reflexes.class, "Reflexes",
-            ApiField.field("paused", ApiTypes.bool()).required().forGetter(Reflexes::paused),
-            ApiField.field("activeProcessDetail", ApiTypes.string()).describe("The task's phase, e.g. bunker SEALED.")
-                    .optional().forGetter(Reflexes::activeProcessDetail),
-            ApiField.field("activeChain", ApiTypes.string()).describe("What steers now; absent when nothing does.")
-                    .optional().forGetter(Reflexes::activeChain),
-            ApiField.field("userTaskSuspended", ApiTypes.bool()).describe("A reflex outbids the task, which waits.")
-                    .required().forGetter(Reflexes::userTaskSuspended),
-            ApiField.field("chains", ApiTypes.map(CHAIN_STATE, 64)).required().forGetter(Reflexes::chains),
-            ApiField.field("lastPath", PATH_STATS).describe("The most recent search, by any process.")
-                    .optional().forGetter(Reflexes::lastPath),
-            ApiField.field("clutch", ApiTypes.stringEnum("ClutchPhase", "idle", "lip", "falling"))
-                    .describe("The water-bucket clutch: idle, lip (planned, waiting to walk off) or falling.")
-                    .required().forGetter(Reflexes::clutch),
-            ApiField.field("combat", ApiTypes.record(CombatTally.class, "CombatTally",
-                    ApiField.field("swings", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::swings),
-                    ApiField.field("wellTimed", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::wellTimed),
-                    ApiField.field("crits", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::crits),
-                    ApiField.field("kills", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::kills),
-                    CombatTally::new)).describe("This engagement's counts.").required().forGetter(Reflexes::combat),
-            Reflexes::new);
-
-    private static final ApiType<BotStatus> BOT_STATUS = ApiTypes.record(BotStatus.class, "BotStatus",
-            ApiField.field("bot", Responses.BOT_REF).required().forGetter(BotStatus::bot),
-            ApiField.field("busy", ApiTypes.bool()).describe("A task holds it.").required().forGetter(BotStatus::busy),
-            ApiField.field("activeProcess", ApiTypes.string()).optional().forGetter(BotStatus::activeProcess),
-            ApiField.field("lastProcessEnd", PROCESS_END).optional().forGetter(BotStatus::lastProcessEnd),
-            ApiField.field("slots", SLOTS).required().forGetter(BotStatus::slots),
-            ApiField.field("reflexes", REFLEXES).describe("self and the server's bots.").optional().forGetter(BotStatus::reflexes),
-            BotStatus::new);
-
-    private static final ApiType<BotSummary> BOT_SUMMARY = ApiTypes.record(BotSummary.class, "BotSummary",
-            ApiField.field("id", Responses.BOT_REF).required().forGetter(BotSummary::id),
-            ApiField.field("kind", ApiTypes.string()).required().forGetter(BotSummary::kind),
-            ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("Absent when its entity is gone.")
-                    .optional().forGetter(BotSummary::entityId),
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(BotSummary::pos),
-            ApiField.field("busy", ApiTypes.bool()).required().forGetter(BotSummary::busy),
-            BotSummary::new);
+    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class);
 
     public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of("mc.bot.status", STATUS_PARAMS,
-                    Responses.immediate("Status", Status.class, ApiTypes.record(Status.class, null,
-                            ApiField.field("bots", ApiTypes.list(BOT_SUMMARY, 256))
-                                    .describe("The registered bots, server-side players and mobs; self is not among them.")
-                                    .required().forGetter(Status::bots),
-                            ApiField.field("status", BOT_STATUS).optional().forGetter(Status::status),
-                            Status::new)),
+                    Responses.immediate("Status", Status.class, ApiTypes.record(Status.class)),
                     "Every process slot of one bot, with how its last task ended, plus the list of addressable bots. "
                             + "Works where nothing else does: a dead or paused bot, and a dedicated server.")
             .effects(MethodSpec.Effect.SNAPSHOT_READ)
@@ -256,63 +224,46 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ waypoint
 
+    @Tag("op") @Named("WaypointParams")
     public sealed interface WaypointOp permits Save, Get, ListAll, Delete, Clear {}
-    public record Save(String name, Optional<BlockPosition> pos) implements WaypointOp {}
-    public record Get(String name) implements WaypointOp {}
+    @Variant("save")
+    public record Save(
+            @Length(min = 1, max = 64) String name,
+            @Doc("Omitted: where the player stands.") Optional<BlockPosition> pos) implements WaypointOp {}
+    @Variant("get")
+    public record Get(@Length(min = 1, max = 64) String name) implements WaypointOp {}
+    @Variant("list")
     public record ListAll() implements WaypointOp {}
-    public record Delete(String name) implements WaypointOp {}
+    @Variant("delete")
+    public record Delete(@Length(min = 1, max = 64) String name) implements WaypointOp {}
+    @Variant("clear")
     public record Clear() implements WaypointOp {}
 
-    public record Waypoint(String name, BlockPosition pos) {}
+    @Named("Waypoint")
+    public record Waypoint(@Length(min = 1, max = 64) String name, BlockPosition pos) {}
 
+    @Tag("op") @Named("WaypointReply")
     public sealed interface WaypointReply permits Saved, Got, Listed, Deleted, Cleared {}
-    public record Saved(String name, BlockPosition pos, int count) implements WaypointReply {}
-    public record Got(String name, BlockPosition pos) implements WaypointReply {}
+    @Variant("save")
+    public record Saved(
+            @Length(min = 1, max = 64) String name,
+            BlockPosition pos,
+            @Range(min = 0) int count) implements WaypointReply {}
+    @Variant("get")
+    public record Got(@Length(min = 1, max = 64) String name, BlockPosition pos) implements WaypointReply {}
+    @Variant("list")
     public record Listed(List<Waypoint> waypoints) implements WaypointReply {}
-    public record Deleted(String name, boolean existed, int count) implements WaypointReply {}
-    public record Cleared(int cleared) implements WaypointReply {}
+    @Variant("delete")
+    public record Deleted(
+            @Length(min = 1, max = 64) String name,
+            boolean existed,
+            @Range(min = 0) int count) implements WaypointReply {}
+    @Variant("clear")
+    public record Cleared(@Range(min = 0) int cleared) implements WaypointReply {}
 
-    private static final ApiType<String> WAYPOINT_NAME = ApiTypes.string(1, 64);
+    public static final UnionType<WaypointOp> WAYPOINT_PARAMS = ApiTypes.union(WaypointOp.class);
 
-    public static final UnionType<WaypointOp> WAYPOINT_PARAMS = ApiTypes.taggedUnion("WaypointParams", "op",
-            ApiTypes.variant("save", Save.class, ApiTypes.record(Save.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Save::name),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Omitted: where the player stands.")
-                            .optional().forGetter(Save::pos),
-                    Save::new)),
-            ApiTypes.variant("get", Get.class, ApiTypes.record(Get.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Get::name), Get::new)),
-            ApiTypes.variant("list", ListAll.class, ApiTypes.record(ListAll.class, null, ListAll::new)),
-            ApiTypes.variant("delete", Delete.class, ApiTypes.record(Delete.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Delete::name), Delete::new)),
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)));
-
-    private static final ApiType<Waypoint> WAYPOINT = ApiTypes.record(Waypoint.class, "Waypoint",
-            ApiField.field("name", WAYPOINT_NAME).required().forGetter(Waypoint::name),
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Waypoint::pos),
-            Waypoint::new);
-
-    public static final UnionType<WaypointReply> WAYPOINT_REPLY = ApiTypes.taggedUnion("WaypointReply", "op",
-            ApiTypes.variant("save", Saved.class, ApiTypes.record(Saved.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Saved::name),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Saved::pos),
-                    ApiField.field("count", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Saved::count),
-                    Saved::new)),
-            ApiTypes.variant("get", Got.class, ApiTypes.record(Got.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Got::name),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Got::pos),
-                    Got::new)),
-            ApiTypes.variant("list", Listed.class, ApiTypes.record(Listed.class, null,
-                    ApiField.field("waypoints", ApiTypes.list(WAYPOINT, Integer.MAX_VALUE)).required().forGetter(Listed::waypoints),
-                    Listed::new)),
-            ApiTypes.variant("delete", Deleted.class, ApiTypes.record(Deleted.class, null,
-                    ApiField.field("name", WAYPOINT_NAME).required().forGetter(Deleted::name),
-                    ApiField.field("existed", ApiTypes.bool()).required().forGetter(Deleted::existed),
-                    ApiField.field("count", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Deleted::count),
-                    Deleted::new)),
-            ApiTypes.variant("clear", Cleared.class, ApiTypes.record(Cleared.class, null,
-                    ApiField.field("cleared", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Cleared::cleared),
-                    Cleared::new)));
+    public static final UnionType<WaypointReply> WAYPOINT_REPLY = ApiTypes.union(WaypointReply.class);
 
     public static final MethodSpec<WaypointOp, WaypointReply> WAYPOINT_SPEC = MethodSpec.of("mc.bot.waypoint", WAYPOINT_PARAMS,
                     WAYPOINT_REPLY,
@@ -322,40 +273,37 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ roster
 
+    /** A bot's own name, held to what a player name may be. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[A-Za-z0-9_]{1,16}", expected = "letters, digits and underscores, at most 16, as a player name")
+    public @interface BotName {}
+
+    @Tag("op") @Named("RosterParams")
     public sealed interface RosterOp permits Spawn, Adopt, Remove {}
-    public record Spawn(String name, Optional<String> dimension, Optional<BlockPosition> pos) implements RosterOp {}
-    public record Adopt(int entityId, Optional<String> name) implements RosterOp {}
-    public record Remove(String bot) implements RosterOp {}
+    @Variant("spawn")
+    public record Spawn(
+            @Doc("The bot is player:<name>.") @BotName String name,
+            @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension,
+            @Doc("Omitted: the world spawn.") Optional<BlockPosition> pos) implements RosterOp {}
+    @Variant("adopt")
+    public record Adopt(
+            @Doc("The mob to take over.") @EntityId int entityId,
+            @Doc("The bot is mob:<name>. Omitted: entity:<uuid>.") Optional<@BotName String> name) implements RosterOp {}
+    @Variant("remove")
+    public record Remove(@BotRef String bot) implements RosterOp, SelfChecked {
+        @Override
+        public void check(DecodeContext at) {
+            if (Responses.SELF.equals(bot)) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE,
+                    "self is this client's own player, not a bot on the roster");
+        }
+    }
 
-    private static final ApiType<String> BOT_NAME = ApiTypes.pattern("[A-Za-z0-9_]{1,16}",
-            "letters, digits and underscores, at most 16, as a player name");
 
-    public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.taggedUnion("RosterParams", "op",
-            ApiTypes.variant("spawn", Spawn.class, ApiTypes.record(Spawn.class, null,
-                    ApiField.field("name", BOT_NAME).describe("The bot is player:<name>.").required().forGetter(Spawn::name),
-                    ApiField.field("dimension", CommonTypes.RESOURCE_ID).describe("Omitted: minecraft:overworld.")
-                            .optional().forGetter(Spawn::dimension),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Omitted: the world spawn.")
-                            .optional().forGetter(Spawn::pos),
-                    Spawn::new)),
-            ApiTypes.variant("adopt", Adopt.class, ApiTypes.record(Adopt.class, null,
-                    ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("The mob to take over.")
-                            .required().forGetter(Adopt::entityId),
-                    ApiField.field("name", BOT_NAME).describe("The bot is mob:<name>. Omitted: entity:<uuid>.")
-                            .optional().forGetter(Adopt::name),
-                    Adopt::new)),
-            ApiTypes.variant("remove", Remove.class, ApiTypes.record(Remove.class, null,
-                    ApiField.field("bot", Responses.BOT_REF).required().forGetter(Remove::bot),
-                    Remove::new)
-                    .checked((r, at) -> {
-                        if (Responses.SELF.equals(r.bot())) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE,
-                                "self is this client's own player, not a bot on the roster");
-                    })));
+    public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.union(RosterOp.class);
 
     public static final MethodSpec<RosterOp, ImmediateResponse> ROSTER = MethodSpec.of("mc.bot.roster", ROSTER_PARAMS,
-                    Responses.immediate("Roster", Rostered.class, ApiTypes.record(Rostered.class, null,
-                            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Rostered::bot),
-                            Rostered::new)),
+                    Responses.immediate("Roster", Rostered.class, ApiTypes.record(Rostered.class)),
                     "Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until "
                             + "it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI "
                             + "back and takes a player out of the world. done names the bot. A taken name, or an entity "

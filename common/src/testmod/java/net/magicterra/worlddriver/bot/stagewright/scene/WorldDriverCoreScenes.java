@@ -1744,7 +1744,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(ApiRegistry.await(EventApi.of(api).cursor(new NoParams()), 5_000)
+            cursor.set(ApiRegistry.await(EventApi.of(api).cursor(new EventContracts.CursorParams()), 5_000)
                     .cursor());
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast

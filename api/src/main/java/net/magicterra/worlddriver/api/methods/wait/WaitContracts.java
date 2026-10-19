@@ -3,19 +3,28 @@ package net.magicterra.worlddriver.api.methods.wait;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
+import net.magicterra.worlddriver.api.methods.event.EventContracts.Event;
+import net.magicterra.worlddriver.api.methods.shared.ActionResults;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
-import net.magicterra.worlddriver.api.methods.event.EventCatalog;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.event.EventContracts.Event;
-import net.magicterra.worlddriver.api.methods.shared.ActionResults;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
+import net.magicterra.worlddriver.api.schema.annotation.As;
+import net.magicterra.worlddriver.api.schema.annotation.AsString;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OnlyObject;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * The long waits: {@code mc.wait.event}, {@code mc.wait.worldReady} and {@code mc.wait.condition}, and
@@ -39,26 +48,19 @@ public final class WaitContracts {
     /** Any wait's answer: its {@code done} variant, or {@link Started} for a background one. */
     public sealed interface Outcome permits Started, EventsArrived, WorldReady, ConditionResult {}
 
-    public record Started(String waitId) implements Outcome {}
+    @Variant("started")
+    public record Started(@Length(min = 1, max = 128) String waitId) implements Outcome {}
 
     private static ApiType<Integer> timeoutMs() {
         return ApiTypes.integer(100, MAX_TIMEOUT_MS);
     }
 
-    private static final String BACKGROUND = "Answer {outcome:'started', waitId} at once; the result arrives through "
-            + "mc.wait.result{kind:'wait'} and a wait.done event.";
-
     private static ApiType<Long> elapsedMs() {
         return ApiTypes.int64(0, Long.MAX_VALUE);
     }
 
-    @SuppressWarnings("unchecked")
-    private static <D extends Outcome> UnionType<Outcome> outcome(String name, Class<D> done, RecordType<D> fields) {
-        return ApiTypes.taggedUnion(name, "outcome",
-                ApiTypes.variant("done", done, fields),
-                ApiTypes.variant("started", Started.class, ApiTypes.record(Started.class, null,
-                        ApiField.field("waitId", ApiTypes.string(1, 128)).required().forGetter(Started::waitId),
-                        Started::new)));
+    private static <D extends Record & Outcome> UnionType<Outcome> outcome(String name, Class<D> done) {
+        return ApiTypes.union(name, "outcome", ApiTypes.record(done), ApiTypes.record(Started.class));
     }
 
     private static <P> MethodSpec<P, Outcome> waiting(MethodSpec<P, Outcome> spec) {
@@ -69,89 +71,86 @@ public final class WaitContracts {
 
     // ------------------------------------------------------------------ mc.wait.event
 
-    public record EventParams(long cursor, Optional<List<String>> types, int limit, int timeoutMs, int pollMs,
-                              boolean background) {}
+    @Named("WaitEventParams")
+    public record EventParams(
+            @Doc("Wait for events after this seq.") @AsString @Range(min = 0) long cursor,
+            @Doc("Only these types; omit or [] for every type.")
+            Optional<@Length(max = 256) List<@Length(min = 1, max = 128) String>> types,
+            @Default("32") @Range(min = 1, max = 256) int limit,
+            @Default("5000") @Range(min = 100, max = 120000) int timeoutMs,
+            @Default("100") @Range(min = 50, max = 2000) int pollMs,
+            @Doc("Answer {outcome:'started', waitId} at once; the result arrives through mc.wait.result{kind:'wait'} "
+                    + "and a wait.done event.")
+            @Default("false")
+            boolean background) {}
 
     /** {@code cursor}: the last returned event's seq, or the asked cursor when none came. */
-    public record EventsArrived(List<Event> events, boolean timedOut, long cursor, long ms) implements Outcome {}
+    @Variant("done")
+    public record EventsArrived(
+            @Length(max = 256) List<Event> events,
+            boolean timedOut,
+            @Doc("Pass back as the next call's cursor.") @AsString @Range(min = 0) long cursor,
+            @Range(min = 0) long ms) implements Outcome {}
 
     public static final MethodSpec<EventParams, Outcome> EVENT = waiting(MethodSpec.of("mc.wait.event",
-            ApiTypes.record(EventParams.class, "WaitEventParams",
-                    ApiField.field("cursor", EventContracts.cursor()).describe("Wait for events after this seq.")
-                            .required().forGetter(EventParams::cursor),
-                    ApiField.field("types", EventContracts.typeFilter())
-                            .describe("Only these types; omit or [] for every type.").optional().forGetter(EventParams::types),
-                    ApiField.field("limit", ApiTypes.integer(1, 256)).defaulted(32).forGetter(EventParams::limit),
-                    ApiField.field("timeoutMs", timeoutMs()).defaulted(5000).forGetter(EventParams::timeoutMs),
-                    ApiField.field("pollMs", ApiTypes.integer(50, 2000)).defaulted(100).forGetter(EventParams::pollMs),
-                    ApiField.field("background", ApiTypes.bool()).describe(BACKGROUND).defaulted(false)
-                            .forGetter(EventParams::background),
-                    EventParams::new),
-            outcome("WaitEventReply", EventsArrived.class, ApiTypes.record(EventsArrived.class, null,
-                    ApiField.field("events", ApiTypes.list(EventContracts.EVENT, 256)).required().forGetter(EventsArrived::events),
-                    ApiField.field("timedOut", ApiTypes.bool()).required().forGetter(EventsArrived::timedOut),
-                    ApiField.field("cursor", EventContracts.cursor()).describe("Pass back as the next call's cursor.")
-                            .required().forGetter(EventsArrived::cursor),
-                    ApiField.field("ms", elapsedMs()).required().forGetter(EventsArrived::ms),
-                    EventsArrived::new)),
+            ApiTypes.record(EventParams.class),
+            outcome("WaitEventReply", EventsArrived.class),
             "Wait until an event after cursor (a decimal string, from mc.observe.cursor or a previous reply) of one "
                     + "of types arrives, then answer the ones there are, up to limit. Out of time: events [] and "
                     + "timedOut true. Chain the reply's cursor. Needs a server."));
 
     // ------------------------------------------------------------------ mc.wait.worldReady
 
-    public record WorldReadyParams(int timeoutMs, int pollMs, boolean background) {}
+    @Named("WaitWorldReadyParams")
+    public record WorldReadyParams(
+            @Default("30000") @Range(min = 100, max = 120000) int timeoutMs,
+            @Default("250") @Range(min = 50, max = 2000) int pollMs,
+            @Doc("Answer {outcome:'started', waitId} at once; the result arrives through mc.wait.result{kind:'wait'} "
+                    + "and a wait.done event.")
+            @Default("false")
+            boolean background) {}
 
     /** {@code info}: the last screen reading. */
-    public record WorldReady(boolean ready, long ms, Optional<JsonValue> info) implements Outcome {}
+    @Variant("done")
+    public record WorldReady(
+            boolean ready,
+            @Range(min = 0) long ms,
+            @Doc("The last mc.client.screen.info reading.") Optional<@OnlyObject JsonValue> info) implements Outcome {}
 
     public static final MethodSpec<WorldReadyParams, Outcome> WORLD_READY = waiting(MethodSpec.of("mc.wait.worldReady",
-            ApiTypes.record(WorldReadyParams.class, "WaitWorldReadyParams",
-                    ApiField.field("timeoutMs", timeoutMs()).defaulted(30_000).forGetter(WorldReadyParams::timeoutMs),
-                    ApiField.field("pollMs", ApiTypes.integer(50, 2000)).defaulted(250).forGetter(WorldReadyParams::pollMs),
-                    ApiField.field("background", ApiTypes.bool()).describe(BACKGROUND).defaulted(false)
-                            .forGetter(WorldReadyParams::background),
-                    WorldReadyParams::new),
-            outcome("WaitWorldReadyReply", WorldReady.class, ApiTypes.record(WorldReady.class, null,
-                    ApiField.field("ready", ApiTypes.bool()).required().forGetter(WorldReady::ready),
-                    ApiField.field("ms", elapsedMs()).required().forGetter(WorldReady::ms),
-                    ApiField.field("info", ApiTypes.jsonObject()).describe("The last mc.client.screen.info reading.")
-                            .optional().forGetter(WorldReady::info),
-                    WorldReady::new)),
+            ApiTypes.record(WorldReadyParams.class),
+            outcome("WaitWorldReadyReply", WorldReady.class),
             "Wait until this client is in a world with its player, e.g. after Play Selected World, so later calls do "
                     + "not land on the loading screen. Needs a client; not a server."));
 
     // ------------------------------------------------------------------ mc.wait.condition
 
-    public record ConditionParams(String invoke, Optional<JsonValue> params, Optional<String> field,
-                                  Optional<JsonValue> value, int timeoutMs, int pollMs, boolean background) {}
+    @Named("WaitConditionParams")
+    public record ConditionParams(
+            @Doc("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
+            @Pattern(value = "[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+", expected = "a method name") @Length(max = 128) String invoke,
+            @Doc("Its params, checked against that method's own contract before the wait starts.")
+            Optional<@OnlyObject JsonValue> params,
+            @Doc("Dotted path into the result; omitted: the whole result.")
+            Optional<@Length(min = 1, max = 256) String> field,
+            @Doc("Satisfied when the field equals this; omitted: when it is truthy.") Optional<JsonValue> value,
+            @Default("30000") @Range(min = 100, max = 120000) int timeoutMs,
+            @Default("500") @Range(min = 50, max = 5000) int pollMs,
+            @Doc("Answer {outcome:'started', waitId} at once; the result arrives through mc.wait.result{kind:'wait'} "
+                    + "and a wait.done event.")
+            @Default("false")
+            boolean background) {}
 
     /** {@code value}: what the field held at the last poll; absent when the path led nowhere. */
-    public record ConditionResult(boolean satisfied, Optional<JsonValue> value, long ms) implements Outcome {}
+    @Variant("done")
+    public record ConditionResult(
+            boolean satisfied,
+            @Doc("The field at the last poll.") Optional<JsonValue> value,
+            @Range(min = 0) long ms) implements Outcome {}
 
     public static final MethodSpec<ConditionParams, Outcome> CONDITION = waiting(MethodSpec.of("mc.wait.condition",
-            ApiTypes.record(ConditionParams.class, "WaitConditionParams",
-                    ApiField.field("invoke", EventContracts.pollTarget())
-                            .describe("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
-                            .required().forGetter(ConditionParams::invoke),
-                    ApiField.field("params", EventContracts.pollParams())
-                            .describe("Its params, checked against that method's own contract before the wait starts.")
-                            .optional().forGetter(ConditionParams::params),
-                    ApiField.field("field", ApiTypes.string(1, 256)).describe("Dotted path into the result; omitted: the whole result.")
-                            .optional().forGetter(ConditionParams::field),
-                    ApiField.field("value", ApiTypes.json()).describe("Satisfied when the field equals this; omitted: when it is truthy.")
-                            .optional().forGetter(ConditionParams::value),
-                    ApiField.field("timeoutMs", timeoutMs()).defaulted(30_000).forGetter(ConditionParams::timeoutMs),
-                    ApiField.field("pollMs", ApiTypes.integer(50, 5000)).defaulted(500).forGetter(ConditionParams::pollMs),
-                    ApiField.field("background", ApiTypes.bool()).describe(BACKGROUND).defaulted(false)
-                            .forGetter(ConditionParams::background),
-                    ConditionParams::new),
-            outcome("WaitConditionReply", ConditionResult.class, ApiTypes.record(ConditionResult.class, null,
-                    ApiField.field("satisfied", ApiTypes.bool()).required().forGetter(ConditionResult::satisfied),
-                    ApiField.field("value", ApiTypes.json()).describe("The field at the last poll.")
-                            .optional().forGetter(ConditionResult::value),
-                    ApiField.field("ms", elapsedMs()).required().forGetter(ConditionResult::ms),
-                    ConditionResult::new)),
+            ApiTypes.record(ConditionParams.class),
+            outcome("WaitConditionReply", ConditionResult.class),
             "Poll invoke(params) every pollMs until the dotted field of its result is truthy, or equals value. "
                     + "invoke must be a pollable read such as mc.bot.status; anything else is invalid_params at "
                     + "/invoke. E.g. {invoke:'mc.bot.status', field:'status.busy', value:false}. In live play prefer "
@@ -164,46 +163,43 @@ public final class WaitContracts {
 
     public static final String RESULT_METHOD = "mc.wait.result";
 
+    public static final ApiType<ActionSnapshot<Object>> ANY_ACTION = Responses.snapshot("Any", ActionResults.UNION);
+
+    @Tag("kind") @Named("WaitResultParams")
     public sealed interface Query permits ActionQuery, WaitQuery {}
 
     /** Reading an action never consumes it; it is kept until it ages out. */
-    public record ActionQuery(String actionId) implements Query {}
+    @Variant("action")
+    public record ActionQuery(@ActionId String actionId) implements Query {}
 
     /** {@code consume}: drop the stored result once it is read. */
-    public record WaitQuery(String waitId, boolean consume) implements Query {}
+    @Variant("wait")
+    public record WaitQuery(
+            @Length(min = 1, max = 128) String waitId,
+            @Default("true") boolean consume) implements Query {}
 
+    @Tag("kind") @Named("WaitResultReply")
     public sealed interface Reply permits ActionReply, WaitReply {}
 
-    public record ActionReply(ActionSnapshot<Object> action) implements Reply {}
+    @Variant("action")
+    public record ActionReply(@As(value = WaitContracts.class, field = "ANY_ACTION") ActionSnapshot<Object> action)
+            implements Reply {}
 
     /**
      * Once {@code pending} is false, exactly one of {@code result} (the wait's {@code {outcome:'done', …}}
      * reply) and {@code error} (the ApiError that ended it) is present.
      */
-    public record WaitReply(String waitId, boolean pending, Optional<JsonValue> result, Optional<JsonValue> error)
+    @Variant("wait")
+    public record WaitReply(
+            @Length(min = 1, max = 128) String waitId,
+            boolean pending,
+            Optional<@OnlyObject JsonValue> result,
+            Optional<@OnlyObject JsonValue> error)
             implements Reply {}
 
-    public static final UnionType<Query> RESULT_PARAMS = ApiTypes.taggedUnion("WaitResultParams", "kind",
-            ApiTypes.variant("action", ActionQuery.class, ApiTypes.record(ActionQuery.class, null,
-                    ApiField.field("actionId", Responses.ACTION_ID).required().forGetter(ActionQuery::actionId),
-                    ActionQuery::new)),
-            ApiTypes.variant("wait", WaitQuery.class, ApiTypes.record(WaitQuery.class, null,
-                    ApiField.field("waitId", ApiTypes.string(1, 128)).required().forGetter(WaitQuery::waitId),
-                    ApiField.field("consume", ApiTypes.bool()).defaulted(true).forGetter(WaitQuery::consume),
-                    WaitQuery::new)));
+    public static final UnionType<Query> RESULT_PARAMS = ApiTypes.union(Query.class);
 
-    public static final ApiType<ActionSnapshot<Object>> ANY_ACTION = Responses.snapshot("Any", ActionResults.UNION);
-
-    public static final UnionType<Reply> RESULT_REPLY = ApiTypes.taggedUnion("WaitResultReply", "kind",
-            ApiTypes.variant("action", ActionReply.class, ApiTypes.record(ActionReply.class, null,
-                    ApiField.field("action", ANY_ACTION).required().forGetter(ActionReply::action),
-                    ActionReply::new)),
-            ApiTypes.variant("wait", WaitReply.class, ApiTypes.record(WaitReply.class, null,
-                    ApiField.field("waitId", ApiTypes.string(1, 128)).required().forGetter(WaitReply::waitId),
-                    ApiField.field("pending", ApiTypes.bool()).required().forGetter(WaitReply::pending),
-                    ApiField.field("result", ApiTypes.jsonObject()).optional().forGetter(WaitReply::result),
-                    ApiField.field("error", ApiTypes.jsonObject()).optional().forGetter(WaitReply::error),
-                    WaitReply::new)));
+    public static final UnionType<Reply> RESULT_REPLY = ApiTypes.union(Reply.class);
 
     public static final MethodSpec<Query, Reply> RESULT = MethodSpec.of(RESULT_METHOD, RESULT_PARAMS, RESULT_REPLY,
             "Read an action ({kind:'action', actionId}) or a background wait ({kind:'wait', waitId, consume?}) "

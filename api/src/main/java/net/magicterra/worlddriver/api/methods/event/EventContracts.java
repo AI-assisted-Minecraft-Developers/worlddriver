@@ -3,22 +3,27 @@ package net.magicterra.worlddriver.api.methods.event;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.annotation.AsString;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
 import net.magicterra.worlddriver.api.schema.annotation.Doc;
 import net.magicterra.worlddriver.api.schema.annotation.Length;
 import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OnlyObject;
 import net.magicterra.worlddriver.api.schema.annotation.OnlyTrue;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
 import net.magicterra.worlddriver.api.schema.annotation.Range;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * The event stream as values: the one {@link Event} shape every place an event leaves the JVM writes
@@ -76,21 +81,27 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.observe.cursor
 
-    public record Cursor(long cursor) {}
+    @Named("CursorParams")
+    public record CursorParams() {}
 
-    public static final MethodSpec<CommonTypes.NoParams, Cursor> CURSOR = MethodSpec.of("mc.observe.cursor",
-                    ApiTypes.record(CommonTypes.NoParams.class, "CursorParams", CommonTypes.NoParams::new),
-                    ApiTypes.record(Cursor.class, "Cursor",
-                            ApiField.field("cursor", cursor()).describe("The seq of the newest event so far.")
-                                    .required().forGetter(Cursor::cursor),
-                            Cursor::new),
+    @Named("Cursor")
+    public record Cursor(@Doc("The seq of the newest event so far.") @AsString @Range(min = 0) long cursor) {}
+
+    public static final MethodSpec<CursorParams, Cursor> CURSOR = MethodSpec.of("mc.observe.cursor",
+                    ApiTypes.record(CursorParams.class),
+                    ApiTypes.record(Cursor.class),
                     "The newest event's seq, as a decimal string. Pass it as the cursor of mc.observe.eventsSince or "
                             + "mc.wait.event to get only what happens after now. Needs a server.")
             .asPollable();
 
     // ------------------------------------------------------------------ mc.observe.eventsSince
 
-    public record SinceParams(long cursor, Optional<List<String>> types, int limit) {
+    @Named("EventsSinceParams")
+    public record SinceParams(
+            @Doc("Events after this seq; \"0\" for all retained.") @Default("0") @AsString @Range(min = 0) long cursor,
+            @Doc("Only these types; omit or [] for every type.")
+            Optional<@Length(max = 256) List<@Length(min = 1, max = 128) String>> types,
+            @Default("256") @Range(min = 1, max = 4096) int limit) {
         /** The events after {@code cursor} of {@code types} (every type when none), at the default page size. */
         public static SinceParams after(long cursor, String... types) {
             return new SinceParams(cursor, types.length == 0 ? Optional.empty() : Optional.of(List.of(types)), 256);
@@ -98,22 +109,14 @@ public final class EventContracts {
     }
 
     /** {@code cursor}: the seq of the last event in the page, or the asked cursor when the page is empty. */
-    public record Page(List<Event> events, long cursor) {}
+    @Named("EventPage")
+    public record Page(
+            @Doc("Oldest first.") @Length(max = 4096) List<Event> events,
+            @Doc("Pass back as the next call's cursor.") @AsString @Range(min = 0) long cursor) {}
 
     public static final MethodSpec<SinceParams, Page> EVENTS_SINCE = MethodSpec.of("mc.observe.eventsSince",
-                    ApiTypes.record(SinceParams.class, "EventsSinceParams",
-                            ApiField.field("cursor", cursor()).describe("Events after this seq; \"0\" for all retained.")
-                                    .defaulted(0L).forGetter(SinceParams::cursor),
-                            ApiField.field("types", typeFilter()).describe("Only these types; omit or [] for every type.")
-                                    .optional().forGetter(SinceParams::types),
-                            ApiField.field("limit", ApiTypes.integer(1, 4096)).defaulted(256).forGetter(SinceParams::limit),
-                            SinceParams::new),
-                    ApiTypes.record(Page.class, "EventPage",
-                            ApiField.field("events", ApiTypes.list(EVENT, 4096)).describe("Oldest first.")
-                                    .required().forGetter(Page::events),
-                            ApiField.field("cursor", cursor()).describe("Pass back as the next call's cursor.")
-                                    .required().forGetter(Page::cursor),
-                            Page::new),
+                    ApiTypes.record(SinceParams.class),
+                    ApiTypes.record(Page.class),
                     "The events after cursor, oldest first, at most limit of them. Only the newest 4096 events are kept, "
                             + "so a cursor older than that gets what is left. The driver's own types are "
                             + builtInTypes() + "; whatever mc.events emit names comes too. After an action, returnEvents "
@@ -122,34 +125,94 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.events
 
+    @Tag("op") @Named("EventsParams")
     public sealed interface EventsOp permits Emit, Watch, Unwatch, ListWatchers {}
 
-    public record Emit(String type, Optional<JsonValue> data, Optional<BlockPosition> pos) implements EventsOp {}
+    @Variant("emit")
+    public record Emit(
+            @Length(min = 1, max = 128) String type,
+            @Doc("Any JSON payload; omitted: none.") Optional<JsonValue> data,
+            Optional<BlockPosition> pos) implements EventsOp, SelfChecked {
+        @Override
+        public void check(DecodeContext at) {
+            // A built-in type's listeners read its payload by its contract, whoever sent it.
+            EventCatalog.Entry<?> builtIn = EventCatalog.byType(type);
+            if (builtIn != null) builtIn.payload().decode(data.orElse(JsonValue.NULL).json(), at.field("data"));
+        }
+    }
 
     /**
      * Poll {@code invoke(params)} every {@code everyMs}, walk {@code field} into the result, and emit
      * {@code emitAs} on each poll where the test turns from false to true. The test: equal to
      * {@code value}, numerically above {@code above}, below {@code below}, else truthy.
      */
-    public record Watch(String invoke, Optional<JsonValue> params, Optional<String> field, Optional<JsonValue> value,
-                        Optional<Double> above, Optional<Double> below, String emitAs, int everyMs, boolean once)
-            implements EventsOp {}
+    @Variant("watch")
+    public record Watch(
+            @Doc("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
+            @Pattern(value = "[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+", expected = "a method name") @Length(max = 128) String invoke,
+            @Doc("Its params, checked against that method's own contract.") Optional<@OnlyObject JsonValue> params,
+            @Doc("Dotted path into the result; omitted: the whole result.")
+            Optional<@Length(min = 1, max = 256) String> field,
+            @Doc("Fire when the field equals this.") Optional<JsonValue> value,
+            @Doc("Fire when the field rises above this number.") Optional<Double> above,
+            @Doc("Fire when the field drops below this number.") Optional<Double> below,
+            @Doc("The event type emitted on the rising edge.") @Default("condition.met")
+            @Length(min = 1, max = 128) String emitAs,
+            @Default("1000") @Range(min = 200, max = 60000) int everyMs,
+            @Doc("Remove the watcher after it first fires.") @Default("false") boolean once)
+            implements EventsOp, SelfChecked {
+        @Override public void check(DecodeContext at) {
+            int tests = (value.isPresent() ? 1 : 0) + (above.isPresent() ? 1 : 0) + (below.isPresent() ? 1 : 0);
+            if (tests > 1) {
+                at.field(below.isPresent() ? "below" : "above")
+                        .fail(ApiIssue.Code.INVALID_VALUE, "give at most one of value, above and below");
+            }
+            // A watcher always sends condition.met's payload, which no other built-in type carries.
+            if (EventCatalog.byType(emitAs) != null && !emitAs.equals(EventCatalog.CONDITION_MET.type())) {
+                at.field("emitAs").fail(ApiIssue.Code.INVALID_VALUE,
+                        emitAs + " is a built-in event with its own payload; name a type of your own");
+            }
+        }
+    }
 
-    public record Unwatch(int id) implements EventsOp {}
+    @Variant("unwatch")
+    public record Unwatch(@Range(min = 1) int id) implements EventsOp {}
 
+    @Variant("list")
     public record ListWatchers() implements EventsOp {}
 
+    @Tag("op") @Named("EventsReply")
     public sealed interface EventsReply permits Emitted, Watching, Unwatched, Watchers {}
 
-    public record Emitted(long seq, String type) implements EventsReply {}
+    @Variant("emit")
+    public record Emitted(
+            @AsString @Range(min = 1) long seq,
+            @Length(min = 1, max = 128) String type) implements EventsReply {}
 
-    public record Watching(int id, String invoke, String emitAs, int everyMs) implements EventsReply {}
+    @Variant("watch")
+    public record Watching(
+            @Range(min = 1) int id,
+            @Length(min = 1, max = 128) String invoke,
+            @Length(min = 1, max = 128) String emitAs,
+            @Range(min = 200, max = 60000) int everyMs) implements EventsReply {}
 
-    public record Unwatched(boolean removed) implements EventsReply {}
+    @Variant("unwatch")
+    public record Unwatched(@Doc("False when no such watcher was alive.") boolean removed) implements EventsReply {}
 
-    public record Watcher(int id, String invoke, Optional<String> field, String emitAs, int everyMs, boolean once, int fired) {}
+    @Named("EventWatcher")
+    public record Watcher(
+            @Range(min = 1) int id,
+            @Length(min = 1, max = 128) String invoke,
+            Optional<@Length(min = 1, max = 256) String> field,
+            @Length(min = 1, max = 128) String emitAs,
+            @Range(min = 200, max = 60000) int everyMs,
+            boolean once,
+            @Range(min = 0) int fired) {}
 
-    public record Watchers(List<Watcher> watchers, int count) implements EventsReply {}
+    @Variant("list")
+    public record Watchers(
+            @Length(max = 16) List<Watcher> watchers,
+            @Range(min = 0, max = 16) int count) implements EventsReply {}
 
     /** The most watchers alive at once; each is a poll every {@code everyMs}, for as long as it lives. */
     public static final int MAX_WATCHERS = 16;
@@ -167,86 +230,9 @@ public final class EventContracts {
 
     public static final ApiType<Integer> WATCHER_ID = ApiTypes.integer(1, Integer.MAX_VALUE);
 
-    private static final RecordType<Watch> WATCH_FIELDS = ApiTypes.record(Watch.class, null,
-            ApiField.field("invoke", pollTarget())
-                    .describe("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
-                    .required().forGetter(Watch::invoke),
-            ApiField.field("params", pollParams()).describe("Its params, checked against that method's own contract.")
-                    .optional().forGetter(Watch::params),
-            ApiField.field("field", ApiTypes.string(1, 256)).describe("Dotted path into the result; omitted: the whole result.")
-                    .optional().forGetter(Watch::field),
-            ApiField.field("value", ApiTypes.json()).describe("Fire when the field equals this.")
-                    .optional().forGetter(Watch::value),
-            ApiField.field("above", ApiTypes.number()).describe("Fire when the field rises above this number.")
-                    .optional().forGetter(Watch::above),
-            ApiField.field("below", ApiTypes.number()).describe("Fire when the field drops below this number.")
-                    .optional().forGetter(Watch::below),
-            ApiField.field("emitAs", eventType()).describe("The event type emitted on the rising edge.")
-                    .defaulted("condition.met").forGetter(Watch::emitAs),
-            ApiField.field("everyMs", ApiTypes.integer(200, 60_000)).defaulted(1000).forGetter(Watch::everyMs),
-            ApiField.field("once", ApiTypes.bool()).describe("Remove the watcher after it first fires.")
-                    .defaulted(false).forGetter(Watch::once),
-            Watch::new)
-            .checked((w, at) -> {
-                int tests = (w.value().isPresent() ? 1 : 0) + (w.above().isPresent() ? 1 : 0) + (w.below().isPresent() ? 1 : 0);
-                if (tests > 1) {
-                    at.field(w.below().isPresent() ? "below" : "above")
-                            .fail(ApiIssue.Code.INVALID_VALUE, "give at most one of value, above and below");
-                }
-                // A watcher always sends condition.met's payload, which no other built-in type carries.
-                if (EventCatalog.byType(w.emitAs()) != null && !w.emitAs().equals(EventCatalog.CONDITION_MET.type())) {
-                    at.field("emitAs").fail(ApiIssue.Code.INVALID_VALUE,
-                            w.emitAs() + " is a built-in event with its own payload; name a type of your own");
-                }
-            });
+    public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.union(EventsOp.class);
 
-    public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.taggedUnion("EventsParams", "op",
-            ApiTypes.variant("emit", Emit.class, ApiTypes.record(Emit.class, null,
-                    ApiField.field("type", eventType()).required().forGetter(Emit::type),
-                    ApiField.field("data", ApiTypes.json()).describe("Any JSON payload; omitted: none.")
-                            .optional().forGetter(Emit::data),
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(Emit::pos),
-                    Emit::new)
-                    .checked((e, at) -> {
-                        // A built-in type's listeners read its payload by its contract, whoever sent it.
-                        EventCatalog.Entry<?> builtIn = EventCatalog.byType(e.type());
-                        if (builtIn != null) builtIn.payload().decode(e.data().orElse(JsonValue.NULL).json(), at.field("data"));
-                    })),
-            ApiTypes.variant("watch", Watch.class, WATCH_FIELDS),
-            ApiTypes.variant("unwatch", Unwatch.class, ApiTypes.record(Unwatch.class, null,
-                    ApiField.field("id", WATCHER_ID).required().forGetter(Unwatch::id),
-                    Unwatch::new)),
-            ApiTypes.variant("list", ListWatchers.class, ApiTypes.record(ListWatchers.class, null, ListWatchers::new)));
-
-    private static final RecordType<Watcher> WATCHER = ApiTypes.record(Watcher.class, "EventWatcher",
-            ApiField.field("id", WATCHER_ID).required().forGetter(Watcher::id),
-            ApiField.field("invoke", ApiTypes.string(1, 128)).required().forGetter(Watcher::invoke),
-            ApiField.field("field", ApiTypes.string(1, 256)).optional().forGetter(Watcher::field),
-            ApiField.field("emitAs", eventType()).required().forGetter(Watcher::emitAs),
-            ApiField.field("everyMs", ApiTypes.integer(200, 60_000)).required().forGetter(Watcher::everyMs),
-            ApiField.field("once", ApiTypes.bool()).required().forGetter(Watcher::once),
-            ApiField.field("fired", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Watcher::fired),
-            Watcher::new);
-
-    public static final UnionType<EventsReply> EVENTS_REPLY = ApiTypes.taggedUnion("EventsReply", "op",
-            ApiTypes.variant("emit", Emitted.class, ApiTypes.record(Emitted.class, null,
-                    ApiField.field("seq", ApiTypes.int64String(1)).required().forGetter(Emitted::seq),
-                    ApiField.field("type", eventType()).required().forGetter(Emitted::type),
-                    Emitted::new)),
-            ApiTypes.variant("watch", Watching.class, ApiTypes.record(Watching.class, null,
-                    ApiField.field("id", WATCHER_ID).required().forGetter(Watching::id),
-                    ApiField.field("invoke", ApiTypes.string(1, 128)).required().forGetter(Watching::invoke),
-                    ApiField.field("emitAs", eventType()).required().forGetter(Watching::emitAs),
-                    ApiField.field("everyMs", ApiTypes.integer(200, 60_000)).required().forGetter(Watching::everyMs),
-                    Watching::new)),
-            ApiTypes.variant("unwatch", Unwatched.class, ApiTypes.record(Unwatched.class, null,
-                    ApiField.field("removed", ApiTypes.bool()).describe("False when no such watcher was alive.")
-                            .required().forGetter(Unwatched::removed),
-                    Unwatched::new)),
-            ApiTypes.variant("list", Watchers.class, ApiTypes.record(Watchers.class, null,
-                    ApiField.field("watchers", ApiTypes.list(WATCHER, MAX_WATCHERS)).required().forGetter(Watchers::watchers),
-                    ApiField.field("count", ApiTypes.integer(0, MAX_WATCHERS)).required().forGetter(Watchers::count),
-                    Watchers::new)));
+    public static final UnionType<EventsReply> EVENTS_REPLY = ApiTypes.union(EventsReply.class);
 
     public static final MethodSpec<EventsOp, EventsReply> EVENTS = MethodSpec.of("mc.events", EVENTS_PARAMS, EVENTS_REPLY,
                     "The event stream's server side. emit {type, data?, pos?} injects an event for every reader and "

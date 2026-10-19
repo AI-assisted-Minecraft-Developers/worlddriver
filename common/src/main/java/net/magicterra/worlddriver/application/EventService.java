@@ -22,7 +22,6 @@ import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.event.EventApi;
 import net.magicterra.worlddriver.api.methods.event.EventApiBinding;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
@@ -67,7 +66,7 @@ public final class EventService implements EventApi {
     }
 
     @Override
-    public CompletionStage<EventContracts.Cursor> cursor(CommonTypes.NoParams p, CallContext ctx) {
+    public CompletionStage<EventContracts.Cursor> cursor(EventContracts.CursorParams p, CallContext ctx) {
         return ApiHandlers.run(() -> new EventContracts.Cursor(api.observe.cursor()));
     }
 
