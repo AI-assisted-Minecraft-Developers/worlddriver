@@ -277,13 +277,6 @@ bot/stagewright/scene/WorldDriverCoverageScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/BlastFooting
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/NavigatorGeometry
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> config/ControlConfig
-bot/stagewright/scene/WorldDriverDescentNodeScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverDrownRiseScenes -> bot/PlayerBot
