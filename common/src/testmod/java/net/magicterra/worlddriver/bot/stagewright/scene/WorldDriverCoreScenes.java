@@ -520,8 +520,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         bot.step();
 
         double prev = fp.getY(), worstRise = 0, riseAt = -1;
-        bot.press(bot.keys().jump(true));
         for (int i = 0; i < 10; i++) {
+            bot.press(bot.keys().jump(true));   // every tick: a step clears the press
             bot.step();
             double rise = fp.getY() - prev;
             if (rise > worstRise) { worstRise = rise; riseAt = i; }
@@ -946,8 +946,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         StringBuilder head = new StringBuilder();
         double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
         int later = 0, minTick = -1;
-        bot.press(bot.keys().jump(true));
         for (int i = 0; i < 60; i++) {
+            // Held: a step clears a jump press out of water, so it is pressed again each step.
+            bot.press(bot.keys().jump(true));
             bot.step();
             double rise = fp.getY() - prev;
             if (i == 0) first = rise;
@@ -1011,6 +1012,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         bot.step();
         double refused = fp.getY() - y0;
         boolean groundAfterRefusal = fp.onGround();
+        bot.press(bot.keys().jump(true));   // the step cleared the first press
         bot.step();
         double jumped = fp.getY() - y0;
         ctx.record("jump.refusedRise", String.format(java.util.Locale.ROOT, "%.4f", refused));
