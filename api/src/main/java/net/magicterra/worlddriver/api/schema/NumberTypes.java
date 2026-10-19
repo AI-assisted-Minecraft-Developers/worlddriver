@@ -1,55 +1,40 @@
 package net.magicterra.worlddriver.api.schema;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import net.magicterra.worlddriver.protocol.RejectedNumber;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 
 /** The numeric types behind {@link ApiTypes#integer}, {@link ApiTypes#int64}, {@link ApiTypes#int64String} and {@link ApiTypes#number}. */
 final class NumberTypes {
     private NumberTypes() {}
 
-    /** The exact integer a JSON number denotes, or null when it denotes none. */
-    static BigInteger exactInteger(Object v) {
-        BigDecimal d = exactDecimal(v);
-        if (d == null) return null;
+    /**
+     * The exact decimal a JSON number denotes, or null when it is no finite number. A parsed number keeps
+     * the text it was written as, so no digit is rounded on the way in.
+     */
+    static BigDecimal exactDecimal(Number n) {
+        if (n instanceof Double || n instanceof Float) {
+            double d = n.doubleValue();
+            return Double.isNaN(d) || Double.isInfinite(d) ? null : new BigDecimal(Double.toString(d));
+        }
         try {
-            return d.toBigIntegerExact();
-        } catch (ArithmeticException fraction) {
+            return new BigDecimal(n.toString());
+        } catch (NumberFormatException notANumber) {
             return null;
         }
     }
 
-    /** The exact decimal a JSON number denotes, or null when the value is no finite number. */
-    static BigDecimal exactDecimal(Object v) {
-        if (v instanceof BigDecimal d) return d;
-        if (v instanceof BigInteger i) return new BigDecimal(i);
-        if (v instanceof Long || v instanceof Integer || v instanceof Short || v instanceof Byte) {
-            return BigDecimal.valueOf(((Number) v).longValue());
-        }
-        if (v instanceof Double || v instanceof Float) {
-            double d = ((Number) v).doubleValue();
-            if (Double.isNaN(d) || Double.isInfinite(d)) return null;
-            return new BigDecimal(Double.toString(d));
-        }
-        return null;
-    }
-
-    private static boolean isNumber(Object v) {
-        return v instanceof Number;
-    }
-
     static final class IntegerType<T extends Number> extends ApiType<T> {
         private final long min, max;
-        private final Function<BigInteger, T> narrow;
+        private final Function<Long, T> narrow;
         private final Function<T, Long> widen;
 
-        IntegerType(long min, long max, Function<BigInteger, T> narrow, Function<T, Long> widen) {
+        IntegerType(long min, long max, Function<Long, T> narrow, Function<T, Long> widen) {
             if (min > max) throw new IllegalArgumentException("empty range " + min + ".." + max);
             this.min = min;
             this.max = max;
@@ -57,29 +42,28 @@ final class NumberTypes {
             this.widen = widen;
         }
 
-        @Override protected T read(Object value, DecodeContext at) {
-            if (value instanceof RejectedNumber r) {
-                return at.fail(ApiIssue.Code.INVALID_VALUE, "number " + r.token() + " is " + r.reason());
+        @Override protected T read(JsonElement value, DecodeContext at) {
+            Number n = Json.number(value);
+            BigDecimal d = n == null ? null : exactDecimal(n);
+            // Integral and in range are both read off the decimal as written: 1e999999999 is answered without
+            // spelling out its digits.
+            if (d == null || (d.signum() != 0 && d.stripTrailingZeros().scale() > 0)) return at.mismatch(expected(), value);
+            if (d.compareTo(BigDecimal.valueOf(min)) < 0 || d.compareTo(BigDecimal.valueOf(max)) > 0) {
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
             }
-            if (!isNumber(value)) return at.mismatch(expected(), value);
-            BigInteger i = exactInteger(value);
-            if (i == null) return at.mismatch(expected(), value);
-            if (i.compareTo(BigInteger.valueOf(min)) < 0 || i.compareTo(BigInteger.valueOf(max)) > 0) {
-                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + i);
-            }
-            return narrow.apply(i);
+            return narrow.apply(d.longValue());
         }
 
-        @Override protected Object write(T value) {
+        @Override protected JsonElement write(T value) {
             Objects.requireNonNull(value, "integer");
-            return widen.apply(value);
+            return new JsonPrimitive(widen.apply(value));
         }
 
-        @Override protected Map<String, Object> schemaBody() {
-            Map<String, Object> s = new LinkedHashMap<>();
-            s.put("type", "integer");
-            if (min != Integer.MIN_VALUE && min != Long.MIN_VALUE) s.put("minimum", min);
-            if (max != Integer.MAX_VALUE && max != Long.MAX_VALUE) s.put("maximum", max);
+        @Override protected JsonObject schemaBody() {
+            JsonObject s = new JsonObject();
+            s.addProperty("type", "integer");
+            if (min != Integer.MIN_VALUE && min != Long.MIN_VALUE) s.addProperty("minimum", min);
+            if (max != Integer.MAX_VALUE && max != Long.MAX_VALUE) s.addProperty("maximum", max);
             return s;
         }
 
@@ -101,8 +85,9 @@ final class NumberTypes {
 
         Int64StringType(long min) { this.min = min; }
 
-        @Override protected Long read(Object value, DecodeContext at) {
-            if (!(value instanceof String s)) return at.mismatch(expected(), value);
+        @Override protected Long read(JsonElement value, DecodeContext at) {
+            String s = Json.string(value);
+            if (s == null) return at.mismatch(expected(), value);
             if (!DIGITS.matcher(s).matches()) return at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got \"" + s + "\"");
             long v;
             try { v = Long.parseLong(s); } catch (NumberFormatException e) {
@@ -112,12 +97,12 @@ final class NumberTypes {
             return v;
         }
 
-        @Override protected Object write(Long value) { return Long.toString(value); }
+        @Override protected JsonElement write(Long value) { return new JsonPrimitive(Long.toString(value)); }
 
-        @Override protected Map<String, Object> schemaBody() {
-            Map<String, Object> s = new LinkedHashMap<>();
-            s.put("type", "string");
-            s.put("pattern", "^-?(0|[1-9][0-9]*)$");
+        @Override protected JsonObject schemaBody() {
+            JsonObject s = new JsonObject();
+            s.addProperty("type", "string");
+            s.addProperty("pattern", "^-?(0|[1-9][0-9]*)$");
             return s;
         }
 
@@ -136,29 +121,25 @@ final class NumberTypes {
             this.max = max;
         }
 
-        @Override protected Double read(Object value, DecodeContext at) {
-            if (value instanceof RejectedNumber r) {
-                return at.fail(ApiIssue.Code.INVALID_VALUE, "number " + r.token() + " is " + r.reason());
-            }
-            if (!isNumber(value)) return at.mismatch(expected(), value);
-            BigDecimal d = exactDecimal(value);
-            if (d == null) return at.mismatch(expected(), value);
-            double v = d.doubleValue();
-            if (Double.isInfinite(v)) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "number " + d + " does not fit a double");
-            if (v < min || v > max) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + d);
+        @Override protected Double read(JsonElement value, DecodeContext at) {
+            Number n = Json.number(value);
+            if (n == null || exactDecimal(n) == null) return at.mismatch(expected(), value);
+            double v = n.doubleValue();
+            if (Double.isInfinite(v)) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "number " + n + " does not fit a double");
+            if (v < min || v > max) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
             return v;
         }
 
-        @Override protected Object write(Double value) {
+        @Override protected JsonElement write(Double value) {
             Objects.requireNonNull(value, "number");
-            return value;
+            return new JsonPrimitive(value);
         }
 
-        @Override protected Map<String, Object> schemaBody() {
-            Map<String, Object> s = new LinkedHashMap<>();
-            s.put("type", "number");
-            if (min != Double.NEGATIVE_INFINITY) s.put("minimum", min);
-            if (max != Double.POSITIVE_INFINITY) s.put("maximum", max);
+        @Override protected JsonObject schemaBody() {
+            JsonObject s = new JsonObject();
+            s.addProperty("type", "number");
+            if (min != Double.NEGATIVE_INFINITY) s.addProperty("minimum", min);
+            if (max != Double.POSITIVE_INFINITY) s.addProperty("maximum", max);
             return s;
         }
 

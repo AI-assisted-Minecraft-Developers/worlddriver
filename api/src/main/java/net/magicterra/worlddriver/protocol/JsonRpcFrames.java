@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.protocol;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 
 /**
  * JSON-RPC 2.0 response objects, the same on the WebSocket and the MCP endpoint. An error is
@@ -19,11 +21,11 @@ public final class JsonRpcFrames {
     public static final int INTERNAL_ERROR = -32603;
 
     /** A result. A request without an id is answered with {@code id:null}, never a made-up number. */
-    public static Map<String, Object> result(Object id, Object result) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("jsonrpc", "2.0");
-        m.put("id", id);
-        m.put("result", result);
+    public static JsonObject result(JsonElement id, JsonElement result) {
+        JsonObject m = new JsonObject();
+        m.addProperty("jsonrpc", "2.0");
+        m.add("id", orNull(id));
+        m.add("result", orNull(result));
         return m;
     }
 
@@ -31,21 +33,27 @@ public final class JsonRpcFrames {
      * An error. The {@code id} key is always present, null when the request was too malformed to carry
      * one: a client that tells responses from notifications by "has an id" must be able to classify it.
      */
-    public static Map<String, Object> error(Object id, int code, String message, Object data) {
-        Map<String, Object> err = new LinkedHashMap<>();
-        err.put("code", code);
-        err.put("message", message == null ? "error" : message);
-        if (data != null) err.put("data", data);
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("jsonrpc", "2.0");
-        m.put("id", id);
-        m.put("error", err);
+    public static JsonObject error(JsonElement id, int code, String message, JsonElement data) {
+        JsonObject err = new JsonObject();
+        err.addProperty("code", code);
+        err.addProperty("message", message == null ? "error" : message);
+        if (data != null) err.add("data", data);
+        JsonObject m = new JsonObject();
+        m.addProperty("jsonrpc", "2.0");
+        m.add("id", orNull(id));
+        m.add("error", err);
         return m;
     }
 
     /** A request id JSON-RPC allows: a string, an integer, or null. */
-    public static boolean validId(Object id) {
-        return id == null || id instanceof String || id instanceof Long || id instanceof Integer
-                || id instanceof java.math.BigInteger;
+    public static boolean validId(JsonElement id) {
+        if (id == null || id.isJsonNull()) return true;
+        if (!(id instanceof JsonPrimitive p)) return false;
+        if (p.isString()) return true;
+        if (!p.isNumber()) return false;
+        String n = p.getAsNumber().toString();
+        return n.matches("-?(0|[1-9][0-9]*)");
     }
+
+    private static JsonElement orNull(JsonElement v) { return v == null ? JsonNull.INSTANCE : v; }
 }

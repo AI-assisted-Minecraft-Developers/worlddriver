@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.TestJson;
 import static net.magicterra.worlddriver.application.TestTransports.mcp;
 
 import net.magicterra.worlddriver.api.ProbeMethods;
@@ -7,7 +8,6 @@ import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -58,7 +58,7 @@ class McpConcurrencyTest {
                 if (r.statusCode() == 200) ok++;
                 else {
                     assertEquals(503, r.statusCode(), r.body());
-                    Map<?, ?> err = (Map<?, ?>) ((Map<?, ?>) JsonCodec.decode(r.body())).get("error");
+                    Map<?, ?> err = (Map<?, ?>) ((Map<?, ?>) TestJson.plain(r.body())).get("error");
                     assertEquals(String.valueOf(ServerBusyException.CODE), String.valueOf(err.get("code")));
                     busy++;
                 }

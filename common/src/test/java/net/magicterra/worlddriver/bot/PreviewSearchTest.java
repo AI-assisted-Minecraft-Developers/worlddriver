@@ -79,8 +79,8 @@ class PreviewSearchTest {
     void aSegmentEncodesToTheDeclaredShape() {
         Object wire = GotoContracts.SEGMENT.encode(PreviewSearch.segments(line(10), TABLE, 2).get(1));
         // Compared as text: the encoder's number classes are its own business, the order and values are not.
-        assertEquals("{leg=2, from=3, to=6, risk={exposedTo=[{id=7, type=minecraft:skeleton, cells=3}], nearestMob=2.0, regions=[]}}",
-                String.valueOf(wire));
+        assertEquals("{\"leg\":2,\"from\":3,\"to\":6,\"risk\":{\"exposedTo\":[{\"id\":7,\"type\":\"minecraft:skeleton\",\"cells\":3}],"
+                + "\"nearestMob\":2.0,\"regions\":[]}}", String.valueOf(wire));
     }
 
     @Test

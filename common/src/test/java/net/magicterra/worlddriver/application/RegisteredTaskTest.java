@@ -20,7 +20,6 @@ import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.minecraft.world.entity.LivingEntity;
 import org.junit.jupiter.api.Test;
 
@@ -68,7 +67,7 @@ class RegisteredTaskTest {
     @Test
     void itsResultAnswersAWaitForAnyAction() {
         register("unittest.answers", "unitAnswers", Answers.class, Answers::new, Answers::n);
-        String json = JsonCodec.encode(WaitContracts.ANY_ACTION.encode(new Responses.Succeeded<>("a1", "self", new Answers(3))));
+        String json = String.valueOf(WaitContracts.ANY_ACTION.encode(new Responses.Succeeded<>("a1", "self", new Answers(3))));
         assertEquals("{\"state\":\"succeeded\",\"actionId\":\"a1\",\"bot\":\"self\",\"result\":{\"kind\":\"unitAnswers\",\"n\":3}}", json);
     }
 

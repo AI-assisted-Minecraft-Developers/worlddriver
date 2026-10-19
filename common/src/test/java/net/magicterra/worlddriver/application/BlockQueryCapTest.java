@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,7 +22,7 @@ class BlockQueryCapTest {
 
     private static ApiError query(int radius) {
         try {
-            new DriverApplication().registry().dispatch("mc.query", Map.of("q", "blocks", "filter", Map.of("in_radius", radius)),
+            new DriverApplication().registry().dispatch("mc.query", TestJson.json(Map.of("q", "blocks", "filter", Map.of("in_radius", radius))),
                     CallContext.standalone()).toCompletableFuture().get();
         } catch (ExecutionException e) {
             return ((ApiException) e.getCause()).error();

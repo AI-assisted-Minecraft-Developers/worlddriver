@@ -628,7 +628,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 |---|---|---|---|
 | `navigator.repathEveryTicks` | integer 20–1000000 | `200` | Lower=more responsive; a value past any trip's length keeps the first route. |
 | `navigator.totalTickBudget` | integer 200–36000 | `1200` | Fail after N no-progress ticks. |
-| `navigator.yawHysteresisDeg` | number 0–30 | `5` | Skip yaw write below this delta. |
+| `navigator.yawHysteresisDeg` | number 0–30 | `5.0` | Skip yaw write below this delta. |
 | `mine.searchVerticalRadius` | integer 1–32 | `8` | Vertical band of mine scan. |
 | `breakTimeoutTicks` | integer 20–2000 | `200` | Blacklist stuck block after N ticks. |
 | `paused` | `boolean` |  | True halts all bot processes (keys released); false resumes. |
@@ -636,23 +636,23 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `autoEatFoodThreshold` | integer 0–20 | `18` | Trigger autoEat below this food level. |
 | `autoRespawn` | `boolean` | `false` | Click Respawn on DeathScreen automatically. |
 | `autoRetreat` | `boolean` | `false` | Flee to safety when HP drops below retreatHpThreshold (in-engine reflex; the only reliable mob defense — an MCP round-trip is too slow to react to a swarm) |
-| `retreatHpThreshold` | number 0–20 | `6` | HP at/below which autoRetreat flees. |
+| `retreatHpThreshold` | number 0–20 | `6.0` | HP at/below which autoRetreat flees. |
 | `autoBunker` | `boolean` | `false` | "dig three, fill one" emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with the dug block — the no-gear survival move vs a swarm. Modifies the world. |
-| `bunkerHpThreshold` | number 0–20 | `10` | HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) |
-| `bunkerTriggerRadius` | number 1–16 | `7` | A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) |
+| `bunkerHpThreshold` | number 0–20 | `10.0` | HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) |
+| `bunkerTriggerRadius` | number 1–16 | `7.0` | A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) |
 | `bunkerMinHostiles` | integer 1–10 | `2` | How many surrounding hostiles before digging in. |
 | `bunkerDepth` | integer 1–5 | `2` | Blocks to dig straight down before sealing. |
 | `autoTotem` | `boolean` | `false` | Keep a totem of undying in the offhand. |
 | `autoShield` | `boolean` | `false` | Raise a shield against melee/projectiles when threatened (needs a shield) |
 | `autoHeal` | `boolean` | `false` | Eat/use a healing item when HP below healHpThreshold. |
-| `healHpThreshold` | number 0–20 | `12` | HP at/below which autoHeal uses a healing item. |
+| `healHpThreshold` | number 0–20 | `12.0` | HP at/below which autoHeal uses a healing item. |
 | `autoDodge` | `boolean` | `false` | Sidestep creeper detonations and incoming projectiles. |
 | `creeperKeepDistance` | number 1–16 | `3.5` | A swelling creeper this close makes the bot sprint away. |
-| `projectileDodgeRadius` | number 1–32 | `12` | An incoming projectile predicted to hit within this triggers a sidestep. |
+| `projectileDodgeRadius` | number 1–32 | `12.0` | An incoming projectile predicted to hit within this triggers a sidestep. |
 | `autoFight` | `boolean` | `false` | Auto-attack nearby hostiles scoring above autoFightThreatThreshold (CombatChain) |
 | `autoFightThreatThreshold` | number 0–1 | `0.05` | Threat score a hostile must reach to trigger autoFight. |
-| `combatReach` | number 1–6 | `3` | Melee engage distance (blocks, centre-to-centre) |
-| `kiteDistance` | number 3–32 | `8` | Range a bow/crossbow fight keeps from its target. |
+| `combatReach` | number 1–6 | `3.0` | Melee engage distance (blocks, centre-to-centre) |
+| `kiteDistance` | number 3–32 | `8.0` | Range a bow/crossbow fight keeps from its target. |
 | `combatCrit` | `boolean` | `true` | Time jumps for critical melee hits. |
 | `combatCollectDrops` | `boolean` | `true` | After a KILL/ENGAGE combat clears, walk over the drops near the last kill spot. |
 | `autoEquip` | `boolean` | `false` | Equip best armor/weapon when a fight starts. |
@@ -682,17 +682,17 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `deepWaterMax` | integer 1–64 | `2` | Water depth (blocks) at or above which a water cell is lethal in the HazardField (also used by mc.observe.scene server scene). Raise (e.g. 48) to let the planner route an autoSwim bot across deep ocean toward distant land/wood. |
 | `swimBankClimbMaxHeight` | integer 0–64 | `12` | Tallest bank (blocks) A* will break-CLIMB a staircase up out of deep water onto an elevated far shore (needs allowSwimEscapeBreak). 0 disables; the old water-escape moves only climbed ~2 up, leaving elevated plateaus across deep rivers unreachable. |
 | `sceneQueryMaxRadius` | integer 4–48 | `32` | Mc.observe.scene radius clamp; requests larger than this are truncated (truncated:true in the response) |
-| `pathfinder.dangerPenalty` | number 0–1000 | `30` | Cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on. |
-| `pathfinder.lavaDangerPenalty` | number 0–5000 | `300` | Cost added per lava cell adjacent to a stand position when avoidDanger is on. |
-| `pathfinder.contactDangerPenalty` | number 0–1000 | `60` | Cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a stand position. |
-| `pathfinder.ledgeDangerPenalty` | number 0–1000 | `200` | Cost of a stand position at the lip of a drop the bot would not survive, when avoidDanger is on. |
-| `pathfinder.waterDangerPenalty` | number 0–1000 | `3` | Cost added per node whose foot is in water, when avoidDanger is on; 0=off. |
+| `pathfinder.dangerPenalty` | number 0–1000 | `30.0` | Cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on. |
+| `pathfinder.lavaDangerPenalty` | number 0–5000 | `300.0` | Cost added per lava cell adjacent to a stand position when avoidDanger is on. |
+| `pathfinder.contactDangerPenalty` | number 0–1000 | `60.0` | Cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a stand position. |
+| `pathfinder.ledgeDangerPenalty` | number 0–1000 | `200.0` | Cost of a stand position at the lip of a drop the bot would not survive, when avoidDanger is on. |
+| `pathfinder.waterDangerPenalty` | number 0–1000 | `3.0` | Cost added per node whose foot is in water, when avoidDanger is on; 0=off. |
 | `pathfinder.ledgeDangerMinDrop` | integer 1–64 | `4` | Least drop (blocks) ledgeDangerPenalty counts; the tax fires at the larger of this and the lethal fall height. |
 | `avoidMobs` | `boolean` | `false` | Every goto/follow gets a default route.mobs berth (radius/rangedRadius/penalty from the three settings below, no cluster) unless its route gives mobs or risk itself. Changes pathing noticeably. |
-| `pathfinder.mobAvoidRadius` | number 0–64 | `6` | Default route.mobs.radius: how far a melee mob's berth reaches. |
-| `pathfinder.mobAvoidPenalty` | number 0–1000 | `40` | Default route.mobs.penalty: peak cost at the mob, ramping to 0 at the berth radius. |
+| `pathfinder.mobAvoidRadius` | number 0–64 | `6.0` | Default route.mobs.radius: how far a melee mob's berth reaches. |
+| `pathfinder.mobAvoidPenalty` | number 0–1000 | `40.0` | Default route.mobs.penalty: peak cost at the mob, ramping to 0 at the berth radius. |
 | `rangedAvoidRadius` | integer 4–48 | `16` | Default route.mobs.rangedRadius: the wider berth of a mob that shoots (skeleton/witch), so routes keep more distance from it than from melee mobs. |
-| `fleeDangerBoost` | number 1–20 | `8` | While actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff. |
+| `fleeDangerBoost` | number 1–20 | `8.0` | While actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff. |
 | `navigatorDebug` | `boolean` | `false` | Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) |
 | `navigatorVerticalResync` | `boolean` | `false` | Re-sync the step-pointer when grounded but the target node is ≥2 blocks off VERTICALLY in the horizontal dead-zone with no wall-contact (a descent overshoot / ascent slide-back the other recovery gates miss) → fold into the repath recovery instead of waiting out the ~5s wedge burst. |
 | `navigatorLevelRiserJump` | `boolean` | `false` | JUMP a y-mislabeled +1 riser: when A* labels an edge a LEVEL walk but its floor is actually +1, the bot sprints in level, drops onto the lower cell ONE below the node, and rams the +1 riser it never squared up for (hCol, hSpd≈0). Force a grounded jump up-and-over at once instead of bob-ramming for ~8 ticks until the freeze-breaker recovers. Fires only on a walk-labeled edge whose node is +1 above the grounded foot with a mountable riser dead ahead and a confirmed ram → inert on flat ground / real stepUps. |
@@ -757,7 +757,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `elytraDebug` | `boolean` | `false` | Log per-tick elytra flight controller decisions. |
 | `faithfulBreak` | `boolean` | `false` | A server bot digs at the real speed for its tool instead of in one tick. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
-| `smoothLookDegPerTick` | number 1–180 | `20` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
+| `smoothLookDegPerTick` | number 1–180 | `20.0` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
 | `riskBias` | `boolean` | `false` |  |
 | `riskBias.scale` | integer 0–400 | `15` | Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block) |
 | `pathfinder.maxNodes` | integer 100–1000000 | `100000` | A* node budget. |
@@ -767,9 +767,9 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinder.previewSliceMs` | integer 1–50 | `3` | Per-tick compute slice, ms, of a route PREVIEW (mc.bot.goto plan:true); thinner than sliceMs so a preview beside a walk does not steal the walk's frames. |
 | `sightRaysPerSearch` | integer 100–100000 | `4000` | Most line-of-sight rays one search may fire for route.sight; past it the search reruns without sight (lastPath.sightBudgetExhausted) |
 | `snapshotBoxMax` | integer 16–512 | `96` | Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped scope reports snapshotTruncated. |
-| `detourAlarmRatio` | number 1.1–20 | `3` | Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. |
+| `detourAlarmRatio` | number 1.1–20 | `3.0` | Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. |
 | `routeEventCooldownTicks` | integer 0–6000 | `100` | Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. |
-| `pathfinder.heuristicWeight` | number 1–3 | `1` | Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. |
+| `pathfinder.heuristicWeight` | number 1–3 | `1.0` | Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. |
 | `pathfinderCacheEnabled` | `boolean` | `true` | Per-search blockstate memoise (A/B knob for search throughput) |
 | `collisionAwarePathing` | `boolean` | `true` | Use real collision VoxelShapes (not coarse blocksMotion): cocoa/fences/partial blocks aren't full-cube walls or standable floors. |
 | `pathfinderSurfaceWaterNodes` | `boolean` | `true` |  |
@@ -778,15 +778,15 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `goalFieldCellSize` | integer 1–16 | `4` | Goal-field coarse cell size (blocks) |
 | `goalFieldRadius` | integer 8–192 | `64` | Goal-field horizontal half-extent (blocks; keep ≤ render distance) |
 | `goalFieldVerticalRadius` | integer 4–128 | `32` | Goal-field vertical half-extent (blocks) |
-| `pathfinderDepthPenalty` | number 0–100 | `6` | Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. |
+| `pathfinderDepthPenalty` | number 0–100 | `6.0` | Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. |
 | `pathfinderDepthSlack` | integer 0–64 | `4` | Free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply. |
-| `pathfinderDescendCost` | number 0–200 | `40` | REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes getting stuck climbing ashore from a deep-water bowl: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off. |
-| `pathfinderWaterCellCost` | number ≥ 0 | `35` | PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a long water route cost ∝ length so A* prefers an available LAND route even from a submerged start (fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water arenas unaffected. 0=off. |
-| `pathfinderWaterClimbOutCost` | number ≥ 0 | `40` | PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out (fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, or hops side to side). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off. |
-| `pathfinderSubmergedWaterCost` | number ≥ 0 | `80` | G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn (live: -76% stall when enabled). Keeps the route on the SURFACE. Only descents (so deep-pocket climb-OUT is unaffected); XZ goals get the submerged extra via waterCellCost; underwater-target dives exempt. 0=off. |
-| `pathfinderBridgeCost` | number 0–1000 | `80` | TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. |
-| `pathfinderPillarCost` | `number` | `150` |  |
-| `pathfinderPillarCostStocked` | `number` | `150` |  |
+| `pathfinderDescendCost` | number 0–200 | `40.0` | REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes getting stuck climbing ashore from a deep-water bowl: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off. |
+| `pathfinderWaterCellCost` | number ≥ 0 | `35.0` | PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a long water route cost ∝ length so A* prefers an available LAND route even from a submerged start (fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water arenas unaffected. 0=off. |
+| `pathfinderWaterClimbOutCost` | number ≥ 0 | `40.0` | PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out (fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, or hops side to side). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off. |
+| `pathfinderSubmergedWaterCost` | number ≥ 0 | `80.0` | G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn (live: -76% stall when enabled). Keeps the route on the SURFACE. Only descents (so deep-pocket climb-OUT is unaffected); XZ goals get the submerged extra via waterCellCost; underwater-target dives exempt. 0=off. |
+| `pathfinderBridgeCost` | number 0–1000 | `80.0` | TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. |
+| `pathfinderPillarCost` | `number` | `150.0` |  |
+| `pathfinderPillarCostStocked` | `number` | `150.0` |  |
 | `pathfinderPillarStockBlocks` | `number` | `64` |  |
 | `navigatorRecoveryHopFloorGate` | `boolean` | `true` |  |
 | `navigatorFromEndNoProgressDiscard` | `boolean` | `false` |  |
@@ -803,12 +803,12 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `buildBlockWhitelist` | `string[]` | `[]` | Block ids the bot may PLACE as build/support footing (pillar/bridge/parkour). EMPTY (default) = any non-falling, non-GUI block with a sturdy top face (so mud/soul sand count, bottom slabs/fences don't); non-empty PINS placement to exactly these ids (use to stop the bot grabbing bamboo/thin blocks it can't stand on). Whole-list replace; [] clears. |
 | `mutedEvents` | `string[]` | `[]` | Event types to SUPPRESS from the live push channel (e.g. ["item.pickup","chat.message"]). ALL events push by default; muted ones still record + are pullable via mc.wait.event. Whole-list replace; [] un-mutes everything. |
 | `undrivableMobs` | `string[]` | `[]` | Entity type ids the bot stack never takes over: an order naming entity:<uuid> of one, or /worlddriver mob on one, is refused. Whole-list replace; [] clears. |
-| `pathfinder.avoidZonePenalty` | number 0–5000 | `250` | Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) |
+| `pathfinder.avoidZonePenalty` | number 0–5000 | `250.0` | Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) |
 | `avoidPoints` | `AvoidPoint[]` |  | AGENT-marked danger zones to route AROUND (radius 8 when omitted); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto. |
 | `respawnGraceTicks` | `number` | `60` |  |
 | `autoDrownEscape` | `boolean` | `true` | ACTIVE-process drowning reflex (DrownEscapeChain, priority 500): underwater with air <= drownEscapeAirThreshold PREEMPTS the running process (mine/goto/...) and floats straight up — pure vertical, breaks a solid lid overhead when allowBreak is on — until air >= drownEscapeReleaseAir or the head surfaces and air recovers. Complements the idle-only autoFloatWhenDrowning (gap#76) |
 | `drownEscapeReleaseAir` | `number` | `280` | Air ticks at/above which DrownEscapeChain hands the channel back (wide hysteresis; values >300 clamp to vanilla max) |
-| `combatFrailThreshold` | `number` | `6` |  |
+| `combatFrailThreshold` | `number` | `6.0` |  |
 | `duskUrgent` | `boolean` | `true` |  |
 | `duskUrgentDryRun` | `boolean` | `false` |  |
 | `mineMaxDriftFromStart` | `number` | `32` |  |
@@ -836,9 +836,9 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
-| `lowHealthCareful` | number 0–20 | `6` | At or below this HP the navigator suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables. |
+| `lowHealthCareful` | number 0–20 | `6.0` | At or below this HP the navigator suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables. |
 | `navigatorNoLaunchAtAdjacentBelowNode` | `boolean` | `true` |  |
-| `navigatorNoLaunchWithin` | `number` | `1` |  |
+| `navigatorNoLaunchWithin` | `number` | `1.0` |  |
 | `navigatorDescentNodeHold` | `boolean` | `true` |  |
 | `navigatorDryWedgeFootY` | `boolean` | `false` |  |
 | `navigatorWallCornerNodeAim` | `boolean` | `false` |  |
@@ -874,24 +874,24 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorBankDigGroundBlip` | `boolean` | `true` |  |
 | `navigatorExpectAlarm` | `boolean` | `true` |  |
 | `navigatorWaterClimbLateralGate` | `boolean` | `true` |  |
-| `pathfinderLeafCellCost` | `number` | `25` |  |
-| `pathfinderLilyPadCellCost` | `number` | `20` |  |
-| `pathfinderFloatingClimbOutMult` | `number` | `0` |  |
-| `pathfinderDiagAscendPenalty` | `number` | `0` |  |
-| `pathfinderHeadStrikeTax` | `number` | `6` |  |
+| `pathfinderLeafCellCost` | `number` | `25.0` |  |
+| `pathfinderLilyPadCellCost` | `number` | `20.0` |  |
+| `pathfinderFloatingClimbOutMult` | `number` | `0.0` |  |
+| `pathfinderDiagAscendPenalty` | `number` | `0.0` |  |
+| `pathfinderHeadStrikeTax` | `number` | `6.0` |  |
 | `pathfinderForbidParkourOverTheVoid` | `boolean` | `true` |  |
 | `allowFleeBreak` | `boolean` | `true` |  |
-| `waterFlowPenalty` | `number` | `18` |  |
-| `leafSnagPenalty` | `number` | `20` |  |
-| `pathfinderSteepAscentTax` | `number` | `0` |  |
+| `waterFlowPenalty` | `number` | `18.0` |  |
+| `leafSnagPenalty` | `number` | `20.0` |  |
+| `pathfinderSteepAscentTax` | `number` | `0.0` |  |
 | `pathfinderFloatingBreakTax` | `boolean` | `true` |  |
-| `pathfinderLogBreakTax` | `number` | `3` |  |
+| `pathfinderLogBreakTax` | `number` | `3.0` |  |
 | `pathfinderBreakCostMultiplier` | `number` | `2.5` |  |
-| `deepDarkPenalty` | `number` | `25` |  |
+| `deepDarkPenalty` | `number` | `25.0` |  |
 | `deepDarkMinDepth` | `number` | `8` |  |
 | `cameraSlew` | `boolean` | `true` |  |
-| `cameraSlewDegPerTick` | `number` | `30` |  |
-| `cameraPitchSlewDegPerTick` | `number` | `20` |  |
+| `cameraSlewDegPerTick` | `number` | `30.0` |  |
+| `cameraPitchSlewDegPerTick` | `number` | `20.0` |  |
 | `mouseYield` | `boolean` | `true` |  |
 | `mouseYieldHud` | `boolean` | `true` |  |
 | `keepTickingUnfocused` | `boolean` | `true` |  |
@@ -2052,7 +2052,7 @@ interface SettingValues {
     'navigator.repathEveryTicks'?: number;
     /** Fail after N no-progress ticks. @default 1200 */
     'navigator.totalTickBudget'?: number;
-    /** Skip yaw write below this delta. @default 5 */
+    /** Skip yaw write below this delta. @default 5.0 */
     'navigator.yawHysteresisDeg'?: number;
     /** Vertical band of mine scan. @default 8 */
     'mine.searchVerticalRadius'?: number;
@@ -2068,13 +2068,13 @@ interface SettingValues {
     autoRespawn?: boolean;
     /** Flee to safety when HP drops below retreatHpThreshold (in-engine reflex; the only reliable mob defense — an MCP round-trip is too slow to react to a swarm) @default false */
     autoRetreat?: boolean;
-    /** HP at/below which autoRetreat flees. @default 6 */
+    /** HP at/below which autoRetreat flees. @default 6.0 */
     retreatHpThreshold?: number;
     /** "dig three, fill one" emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with the dug block — the no-gear survival move vs a swarm. Modifies the world. @default false */
     autoBunker?: boolean;
-    /** HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) @default 10 */
+    /** HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) @default 10.0 */
     bunkerHpThreshold?: number;
-    /** A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) @default 7 */
+    /** A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) @default 7.0 */
     bunkerTriggerRadius?: number;
     /** How many surrounding hostiles before digging in. @default 2 */
     bunkerMinHostiles?: number;
@@ -2086,21 +2086,21 @@ interface SettingValues {
     autoShield?: boolean;
     /** Eat/use a healing item when HP below healHpThreshold. @default false */
     autoHeal?: boolean;
-    /** HP at/below which autoHeal uses a healing item. @default 12 */
+    /** HP at/below which autoHeal uses a healing item. @default 12.0 */
     healHpThreshold?: number;
     /** Sidestep creeper detonations and incoming projectiles. @default false */
     autoDodge?: boolean;
     /** A swelling creeper this close makes the bot sprint away. @default 3.5 */
     creeperKeepDistance?: number;
-    /** An incoming projectile predicted to hit within this triggers a sidestep. @default 12 */
+    /** An incoming projectile predicted to hit within this triggers a sidestep. @default 12.0 */
     projectileDodgeRadius?: number;
     /** Auto-attack nearby hostiles scoring above autoFightThreatThreshold (CombatChain) @default false */
     autoFight?: boolean;
     /** Threat score a hostile must reach to trigger autoFight. @default 0.05 */
     autoFightThreatThreshold?: number;
-    /** Melee engage distance (blocks, centre-to-centre) @default 3 */
+    /** Melee engage distance (blocks, centre-to-centre) @default 3.0 */
     combatReach?: number;
-    /** Range a bow/crossbow fight keeps from its target. @default 8 */
+    /** Range a bow/crossbow fight keeps from its target. @default 8.0 */
     kiteDistance?: number;
     /** Time jumps for critical melee hits. @default true */
     combatCrit?: boolean;
@@ -2160,27 +2160,27 @@ interface SettingValues {
     swimBankClimbMaxHeight?: number;
     /** Mc.observe.scene radius clamp; requests larger than this are truncated (truncated:true in the response) @default 32 */
     sceneQueryMaxRadius?: number;
-    /** Cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on. @default 30 */
+    /** Cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on. @default 30.0 */
     'pathfinder.dangerPenalty'?: number;
-    /** Cost added per lava cell adjacent to a stand position when avoidDanger is on. @default 300 */
+    /** Cost added per lava cell adjacent to a stand position when avoidDanger is on. @default 300.0 */
     'pathfinder.lavaDangerPenalty'?: number;
-    /** Cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a stand position. @default 60 */
+    /** Cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a stand position. @default 60.0 */
     'pathfinder.contactDangerPenalty'?: number;
-    /** Cost of a stand position at the lip of a drop the bot would not survive, when avoidDanger is on. @default 200 */
+    /** Cost of a stand position at the lip of a drop the bot would not survive, when avoidDanger is on. @default 200.0 */
     'pathfinder.ledgeDangerPenalty'?: number;
-    /** Cost added per node whose foot is in water, when avoidDanger is on; 0=off. @default 3 */
+    /** Cost added per node whose foot is in water, when avoidDanger is on; 0=off. @default 3.0 */
     'pathfinder.waterDangerPenalty'?: number;
     /** Least drop (blocks) ledgeDangerPenalty counts; the tax fires at the larger of this and the lethal fall height. @default 4 */
     'pathfinder.ledgeDangerMinDrop'?: number;
     /** Every goto/follow gets a default route.mobs berth (radius/rangedRadius/penalty from the three settings below, no cluster) unless its route gives mobs or risk itself. Changes pathing noticeably. @default false */
     avoidMobs?: boolean;
-    /** Default route.mobs.radius: how far a melee mob's berth reaches. @default 6 */
+    /** Default route.mobs.radius: how far a melee mob's berth reaches. @default 6.0 */
     'pathfinder.mobAvoidRadius'?: number;
-    /** Default route.mobs.penalty: peak cost at the mob, ramping to 0 at the berth radius. @default 40 */
+    /** Default route.mobs.penalty: peak cost at the mob, ramping to 0 at the berth radius. @default 40.0 */
     'pathfinder.mobAvoidPenalty'?: number;
     /** Default route.mobs.rangedRadius: the wider berth of a mob that shoots (skeleton/witch), so routes keep more distance from it than from melee mobs. @default 16 */
     rangedAvoidRadius?: number;
-    /** While actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff. @default 8 */
+    /** While actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff. @default 8.0 */
     fleeDangerBoost?: number;
     /** Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) @default false */
     navigatorDebug?: boolean;
@@ -2310,7 +2310,7 @@ interface SettingValues {
     faithfulBreak?: boolean;
     /** Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. @default false */
     smoothLook?: boolean;
-    /** Turn rate when smoothLook on (20°/tick ≈ 400°/s) @default 20 */
+    /** Turn rate when smoothLook on (20°/tick ≈ 400°/s) @default 20.0 */
     smoothLookDegPerTick?: number;
     /** @default false */
     riskBias?: boolean;
@@ -2330,11 +2330,11 @@ interface SettingValues {
     sightRaysPerSearch?: number;
     /** Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped scope reports snapshotTruncated. @default 96 */
     snapshotBoxMax?: number;
-    /** Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. @default 3 */
+    /** Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. @default 3.0 */
     detourAlarmRatio?: number;
     /** Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. @default 100 */
     routeEventCooldownTicks?: number;
-    /** Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. @default 1 */
+    /** Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. @default 1.0 */
     'pathfinder.heuristicWeight'?: number;
     /** Per-search blockstate memoise (A/B knob for search throughput) @default true */
     pathfinderCacheEnabled?: boolean;
@@ -2352,23 +2352,23 @@ interface SettingValues {
     goalFieldRadius?: number;
     /** Goal-field vertical half-extent (blocks) @default 32 */
     goalFieldVerticalRadius?: number;
-    /** Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. @default 6 */
+    /** Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. @default 6.0 */
     pathfinderDepthPenalty?: number;
     /** Free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply. @default 4 */
     pathfinderDepthSlack?: number;
-    /** REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes getting stuck climbing ashore from a deep-water bowl: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off. @default 40 */
+    /** REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes getting stuck climbing ashore from a deep-water bowl: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off. @default 40.0 */
     pathfinderDescendCost?: number;
-    /** PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a long water route cost ∝ length so A* prefers an available LAND route even from a submerged start (fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water arenas unaffected. 0=off. @default 35 */
+    /** PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a long water route cost ∝ length so A* prefers an available LAND route even from a submerged start (fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water arenas unaffected. 0=off. @default 35.0 */
     pathfinderWaterCellCost?: number;
-    /** PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out (fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, or hops side to side). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off. @default 40 */
+    /** PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out (fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, or hops side to side). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off. @default 40.0 */
     pathfinderWaterClimbOutCost?: number;
-    /** G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn (live: -76% stall when enabled). Keeps the route on the SURFACE. Only descents (so deep-pocket climb-OUT is unaffected); XZ goals get the submerged extra via waterCellCost; underwater-target dives exempt. 0=off. @default 80 */
+    /** G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn (live: -76% stall when enabled). Keeps the route on the SURFACE. Only descents (so deep-pocket climb-OUT is unaffected); XZ goals get the submerged extra via waterCellCost; underwater-target dives exempt. 0=off. @default 80.0 */
     pathfinderSubmergedWaterCost?: number;
-    /** TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. @default 80 */
+    /** TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. @default 80.0 */
     pathfinderBridgeCost?: number;
-    /** @default 150 */
+    /** @default 150.0 */
     pathfinderPillarCost?: number;
-    /** @default 150 */
+    /** @default 150.0 */
     pathfinderPillarCostStocked?: number;
     /** @default 64 */
     pathfinderPillarStockBlocks?: number;
@@ -2402,7 +2402,7 @@ interface SettingValues {
     mutedEvents?: string[];
     /** Entity type ids the bot stack never takes over: an order naming entity:<uuid> of one, or /worlddriver mob on one, is refused. Whole-list replace; [] clears. @default [] */
     undrivableMobs?: string[];
-    /** Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) @default 250 */
+    /** Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) @default 250.0 */
     'pathfinder.avoidZonePenalty'?: number;
     /** AGENT-marked danger zones to route AROUND (radius 8 when omitted); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto. */
     avoidPoints?: AvoidPoint[];
@@ -2412,7 +2412,7 @@ interface SettingValues {
     autoDrownEscape?: boolean;
     /** Air ticks at/above which DrownEscapeChain hands the channel back (wide hysteresis; values >300 clamp to vanilla max) @default 280 */
     drownEscapeReleaseAir?: number;
-    /** @default 6 */
+    /** @default 6.0 */
     combatFrailThreshold?: number;
     /** @default true */
     duskUrgent?: boolean;
@@ -2468,11 +2468,11 @@ interface SettingValues {
     pathfinderProgressive?: boolean;
     /** @default true */
     lethalEdgeBrake?: boolean;
-    /** At or below this HP the navigator suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables. @default 6 */
+    /** At or below this HP the navigator suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables. @default 6.0 */
     lowHealthCareful?: number;
     /** @default true */
     navigatorNoLaunchAtAdjacentBelowNode?: boolean;
-    /** @default 1 */
+    /** @default 1.0 */
     navigatorNoLaunchWithin?: number;
     /** @default true */
     navigatorDescentNodeHold?: boolean;
@@ -2544,41 +2544,41 @@ interface SettingValues {
     navigatorExpectAlarm?: boolean;
     /** @default true */
     navigatorWaterClimbLateralGate?: boolean;
-    /** @default 25 */
+    /** @default 25.0 */
     pathfinderLeafCellCost?: number;
-    /** @default 20 */
+    /** @default 20.0 */
     pathfinderLilyPadCellCost?: number;
-    /** @default 0 */
+    /** @default 0.0 */
     pathfinderFloatingClimbOutMult?: number;
-    /** @default 0 */
+    /** @default 0.0 */
     pathfinderDiagAscendPenalty?: number;
-    /** @default 6 */
+    /** @default 6.0 */
     pathfinderHeadStrikeTax?: number;
     /** @default true */
     pathfinderForbidParkourOverTheVoid?: boolean;
     /** @default true */
     allowFleeBreak?: boolean;
-    /** @default 18 */
+    /** @default 18.0 */
     waterFlowPenalty?: number;
-    /** @default 20 */
+    /** @default 20.0 */
     leafSnagPenalty?: number;
-    /** @default 0 */
+    /** @default 0.0 */
     pathfinderSteepAscentTax?: number;
     /** @default true */
     pathfinderFloatingBreakTax?: boolean;
-    /** @default 3 */
+    /** @default 3.0 */
     pathfinderLogBreakTax?: number;
     /** @default 2.5 */
     pathfinderBreakCostMultiplier?: number;
-    /** @default 25 */
+    /** @default 25.0 */
     deepDarkPenalty?: number;
     /** @default 8 */
     deepDarkMinDepth?: number;
     /** @default true */
     cameraSlew?: boolean;
-    /** @default 30 */
+    /** @default 30.0 */
     cameraSlewDegPerTick?: number;
-    /** @default 20 */
+    /** @default 20.0 */
     cameraPitchSlewDegPerTick?: number;
     /** @default true */
     mouseYield?: boolean;

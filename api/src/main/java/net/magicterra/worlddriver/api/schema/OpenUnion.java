@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.api.schema;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 /**
  * A tagged union that takes more variants after it is built: the result of an action, which another mod's
@@ -29,9 +31,9 @@ public final class OpenUnion<T> extends ApiType<T> {
     /** The variants now, in the order they were added. */
     public List<UnionType.Variant<T, ?>> variants() { return current.variants(); }
 
-    @Override protected T read(Object value, DecodeContext at) { return current.read(value, at); }
-    @Override protected Object write(T value) { return current.write(value); }
-    @Override protected Map<String, Object> schemaBody() { return current.schemaBody(); }
+    @Override protected T read(JsonElement value, DecodeContext at) { return current.read(value, at); }
+    @Override protected JsonElement write(T value) { return current.write(value); }
+    @Override protected JsonObject schemaBody() { return current.schemaBody(); }
     @Override public String ts(TsContext ts) { return current.ts(ts); }
     @Override public String expected() { return current.expected(); }
 }

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
+import com.google.gson.JsonObject;
+
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
@@ -70,7 +72,6 @@ import net.magicterra.worlddriver.game.ui.InputReleaseGate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
@@ -199,15 +200,14 @@ public final class BotBrain {
     public <T> void emit(EventCatalog.Entry<T> entry, BlockPos pos, T payload) { emit(events, entry, pos, payload); }
 
     /**
-     * A catalogued event through the bot's emitter. The emitter carries payloads as maps because the
+     * A catalogued event through the bot's emitter. The emitter carries payloads as JSON because the
      * layers below this facade may not name the catalog, so only an entry with an object payload fits.
      */
-    @SuppressWarnings("unchecked")
     static <T> void emit(RouteEvents.Emitter to, EventCatalog.Entry<T> entry, BlockPos pos, T payload) {
-        if (!(entry.payload().encode(payload) instanceof Map<?, ?> tree)) {
+        if (!(entry.payload().encode(payload) instanceof JsonObject tree)) {
             throw new IllegalArgumentException(entry.type() + "'s payload is not an object");
         }
-        to.emit(entry.type(), pos, (Map<String, Object>) tree);
+        to.emit(entry.type(), pos, tree);
     }
 
     /** What the navigators driving this bot's body have done; null until the first tick with a body. */

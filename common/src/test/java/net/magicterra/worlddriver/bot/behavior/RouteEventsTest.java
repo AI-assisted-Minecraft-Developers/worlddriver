@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,7 +32,9 @@ class RouteEventsTest {
         EventCatalog.Entry<?> entry = EventCatalog.byType(t);
         assertNotNull(entry, t + " is not in the event catalog");
         entry.payload().decode(d);
-        out.add(new Ev(t, p, d));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> plain = (Map<String, Object>) TestJson.plain(d);
+        out.add(new Ev(t, p, plain));
     };
     private double savedRatio;
     private int savedCooldown;
@@ -69,7 +72,7 @@ class RouteEventsTest {
         assertEquals("route.blocked", out.get(0).type());
         assertEquals("constraint:ForbidRegion", out.get(0).data().get("reason"));
         assertEquals(true, out.get(0).data().get("bestEffort"));
-        assertEquals(0, out.get(0).data().get("leg"));
+        assertEquals(0L, out.get(0).data().get("leg"));
     }
 
     @Test
@@ -104,7 +107,7 @@ class RouteEventsTest {
         assertEquals(3.0, out.get(0).data().get("ratio"));
         assertEquals("MobCluster", out.get(0).data().get("tax"));
         assertEquals(81L, out.get(0).data().get("taxCost"));
-        assertEquals(1, out.get(0).data().get("leg"));
+        assertEquals(1L, out.get(0).data().get("leg"));
         // a straight route, or a best-effort one, is never a detour
         ev.onSearch(result(line(10), true, Map.of()), goal, null, 1, null, () -> Map.of());
         assertEquals(1, out.size());
@@ -124,9 +127,9 @@ class RouteEventsTest {
         ev.onSearch(result(line(10), true, Map.of()), goal, new BlockPos(0, 64, 0), 0, risk, null);
         assertEquals(1, out.size());
         assertEquals("route.exposed", out.get(0).type());
-        assertEquals(7, ((Map<?, ?>) out.get(0).data().get("observer")).get("id"));
-        assertEquals(3, out.get(0).data().get("cells"));
-        assertEquals(3, out.get(0).data().get("firstCell"));
+        assertEquals(7L, ((Map<?, ?>) out.get(0).data().get("observer")).get("id"));
+        assertEquals(3L, out.get(0).data().get("cells"));
+        assertEquals(3L, out.get(0).data().get("firstCell"));
         assertEquals(Map.of(7, 3), ev.lastExposed());
         // the same observer on the next plan: it was exposed last time too, so nothing
         ev.onSearch(result(line(10), true, Map.of()), goal, new BlockPos(0, 64, 0), 0, risk, null);

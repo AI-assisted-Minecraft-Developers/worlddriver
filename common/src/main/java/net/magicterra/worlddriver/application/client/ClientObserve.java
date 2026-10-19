@@ -5,11 +5,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,130 +72,32 @@ import net.minecraft.world.entity.LivingEntity;
 public final class ClientObserve {
     private ClientObserve() {}
 
-    public static Map<String, Object> observePlayer() {
+    /** What {@code mc.observe.player} adds for the client's own player: the crosshair and the frame rate. */
+    public static Optional<ObserveContracts.ClientView> clientView() {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
-            if (p == null) {
-                return Map.of("present", false);
-            }
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("present", true);
-            out.put("name", p.getGameProfile().getName());
-            out.put("uuid", p.getUUID().toString());
-            out.put("dimension", p.level().dimension().location().toString());
-            Map<String, Object> pos = new LinkedHashMap<>();
-            pos.put("x", p.getX()); pos.put("y", p.getY()); pos.put("z", p.getZ());
-            out.put("pos", pos);
-            Map<String, Object> look = new LinkedHashMap<>();
-            look.put("yaw", p.getYRot()); look.put("pitch", p.getXRot());
-            out.put("look", look);
-            out.put("onGround", p.onGround());
-            // Client-physics truth the SERVER-side mc.observe.player can't give:
-            // the client LocalPlayer's PREDICTED pose + eye position + the
-            // ClientLevel block at the eye/feet cells. pose/eye-height and
-            // isInWall are exactly what the client-tick reflexes (autoSwim,
-            // antiSuffocate) gate on, so this lets an agent see what the client
-            // sees — and diff it against the server when they desync (e.g. a
-            // command-placed block the client crawl-evades). Reached explicitly
-            // via mc.client.player even when a server is attached.
-            var eye = p.getEyePosition();
-            out.put("eyePos", Map.of("x", eye.x, "y", eye.y, "z", eye.z));
-            out.put("pose", p.getPose().name());
-            out.put("inWall", p.isInWall());
-            out.put("inWater", p.isInWater());
-            out.put("underWater", p.isUnderWater());
-            out.put("crouching", p.isCrouching());
-            ClientLevel lvl = mc.level;
-            if (lvl != null) {
-                BlockPos eyeCell = BlockPos.containing(eye);
-                BlockPos feetCell = p.blockPosition();
-                out.put("eyeBlock", BuiltInRegistries.BLOCK.getKey(
-                        lvl.getBlockState(eyeCell).getBlock()).toString());
-                out.put("feetBlock", BuiltInRegistries.BLOCK.getKey(
-                        lvl.getBlockState(feetCell).getBlock()).toString());
-            }
-            out.put("health", p.getHealth());
-            out.put("maxHealth", p.getMaxHealth());
-            // gap#70 (live death #18): air was invisible on both observation paths — a
-            // bot sinking toward drowning gave no signal short of the one-shot
-            // player.enteredWater event. Mirrors ObserveService's field of the same name.
-            out.put("air", p.getAirSupply());
-            out.put("maxAir", p.getMaxAirSupply());
-            out.put("food", p.getFoodData().getFoodLevel());
-            out.put("saturation", p.getFoodData().getSaturationLevel());
-            out.put("xpLevel", p.experienceLevel);
-            // Active MobEffects — regen, hunger debuff from rotten flesh,
-            // potion effects, etc. Empty when nothing is active. Each entry:
-            // {id, amplifier, durationTicks}. Without this a caller can eat
-            // rotten flesh and never know the hunger debuff is ticking.
-            List<Object> fx = new ArrayList<>();
-            for (var inst : p.getActiveEffects()) {
-                Map<String, Object> e = new LinkedHashMap<>();
-                e.put("id", BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString());
-                e.put("amplifier", inst.getAmplifier());
-                e.put("durationTicks", inst.getDuration());
-                fx.add(e);
-            }
-            out.put("effects", fx);
-            // World time so the caller can plan around day/night (mobs spawn
-            // at night, sleep needs night, sky-light ticks matter for farms).
-            if (p.level() != null) {
-                out.put("time", TimeSnap.snapshot(p.level().getDayTime()));
-            }
-            out.put("gameMode", mc.gameMode != null ? mc.gameMode.getPlayerMode().getName() : "unknown");
-            out.put("selectedSlot", p.getInventory().selected);
-            // Same field, same shape as the server snapshot (AttackSnap is the single source).
-            out.put("attack", AttackSnap.snapshot(p));
-            ItemStack held = p.getMainHandItem();
-            Map<String, Object> hand = new LinkedHashMap<>();
-            if (held == null || held.isEmpty()) {
-                hand.put("empty", true);
-            } else {
-                hand.put("id", BuiltInRegistries.ITEM.getKey(held.getItem()).toString());
-                hand.put("count", held.getCount());
-                ItemSnap.putWear(hand, held);
-            }
-            out.put("mainHand", hand);
-            // Full inventory snapshot — saves an openInventory + screen.tree
-            // round-trip every time a caller wants to know "do I have a pickaxe".
-            // ItemSnap.inventoryRows is the single enumeration; the server snapshot
-            // (ObserveService.playerSnapshot) emits this field through the same call, so the
-            // two sides cannot drift the way gap #41's rows did.
-            out.put("inventory", ItemSnap.inventoryRows(p));
-            // Aggregated id -> count, the exact shape mc.recipe.resolve / mc.plan.acquire
-            // take as `have`. Same helper the craft executor counts with, so the bag the
-            // agent plans against is the bag the executor reaches into — and the server
-            // snapshot emits this field through the same call (ObserveService.playerSnapshot).
-            out.put("items", ItemCounts.bag(p));
-            // HitResult — what the camera is aimed at right now (client-side raycast).
-            HitResult hr = mc.hitResult;
-            Map<String, Object> hit = new LinkedHashMap<>();
-            if (hr == null || hr.getType() == HitResult.Type.MISS) {
-                hit.put("type", "miss");
-            } else if (hr.getType() == HitResult.Type.BLOCK
-                    && hr instanceof BlockHitResult bhr) {
-                var bp = bhr.getBlockPos();
-                hit.put("type", "block");
-                hit.put("blockPos", Map.of("x", bp.getX(), "y", bp.getY(), "z", bp.getZ()));
-                hit.put("face", bhr.getDirection().getName());
-                var bs = p.level().getBlockState(bp);
-                hit.put("block", BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString());
-                hit.put("distance", Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
-            } else if (hr.getType() == HitResult.Type.ENTITY
-                    && hr instanceof EntityHitResult ehr) {
-                var ent = ehr.getEntity();
-                hit.put("type", "entity");
-                hit.put("entityId", ent.getId());
-                hit.put("entityType", BuiltInRegistries.ENTITY_TYPE.getKey(ent.getType()).toString());
-                var ep = ent.position();
-                hit.put("pos", Map.of("x", ep.x, "y", ep.y, "z", ep.z));
-                hit.put("distance", Math.sqrt(ent.distanceToSqr(p)));
-            }
-            out.put("hit", hit);
-            out.put("fps", mc.getFps());
-            return out;
+            return p == null ? Optional.<ObserveContracts.ClientView>empty()
+                    : Optional.of(new ObserveContracts.ClientView(crosshair(mc, p), mc.getFps()));
         });
+    }
+
+    /** What the camera is aimed at right now (the client-side raycast). */
+    private static ObserveContracts.Crosshair crosshair(Minecraft mc, LocalPlayer p) {
+        HitResult hr = mc.hitResult;
+        if (hr != null && hr.getType() == HitResult.Type.BLOCK && hr instanceof BlockHitResult bhr) {
+            var bp = bhr.getBlockPos();
+            return new ObserveContracts.BlockHit(Positions.position(bp), bhr.getDirection().getName(),
+                    BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(bp).getBlock()).toString(),
+                    Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
+        }
+        if (hr != null && hr.getType() == HitResult.Type.ENTITY && hr instanceof EntityHitResult ehr) {
+            var ent = ehr.getEntity();
+            var ep = ent.position();
+            return new ObserveContracts.EntityHit(ent.getId(), BuiltInRegistries.ENTITY_TYPE.getKey(ent.getType()).toString(),
+                    new Point(ep.x, ep.y, ep.z), Math.sqrt(ent.distanceToSqr(p)));
+        }
+        return new ObserveContracts.Miss();
     }
 
     public static BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {

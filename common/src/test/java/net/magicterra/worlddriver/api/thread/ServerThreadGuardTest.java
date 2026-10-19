@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.api.thread;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -62,7 +63,7 @@ class ServerThreadGuardTest {
     @Test
     void aForegroundWaitIsRefused() {
         ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
-        assertRefusedFast("mc.wait.condition", () -> api.route("mc.wait.condition", Map.of(
+        assertRefusedFast("mc.wait.condition", () -> TestJson.route(api, "mc.wait.condition", Map.of(
                 "invoke", "probe.echo", "field", "nope", "timeoutMs", 5000)));
     }
 
@@ -73,14 +74,14 @@ class ServerThreadGuardTest {
     @Test
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
         ApiRegistry api = new DriverApplication().registry();
-        assertRefusedFast("awaitMs", () -> api.route("mc.bot.explore",
+        assertRefusedFast("awaitMs", () -> TestJson.route(api, "mc.bot.explore",
                 Map.of("centerX", 0, "centerZ", 0, "bot", "npc:ghost", "awaitMs", 5000)));
     }
 
     @Test
     void aBackgroundWaitIsStillAllowed() {
         ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
-        Map<?, ?> ack = (Map<?, ?>) api.route("mc.wait.condition", Map.of(
+        Map<?, ?> ack = (Map<?, ?>) TestJson.route(api, "mc.wait.condition", Map.of(
                 "invoke", "probe.echo", "background", true));
         assertTrue(ack.containsKey("waitId"), ack.toString());
     }

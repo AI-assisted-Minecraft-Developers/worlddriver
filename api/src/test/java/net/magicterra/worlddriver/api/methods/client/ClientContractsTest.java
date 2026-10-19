@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.api.methods.client;
 
+import com.google.gson.JsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,14 +21,14 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ClickKind;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyRoute;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** The client verbs: what a request may say, and what done, refused and the two container sources look like. */
 class ClientContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
-        return type.decode(JsonCodec.decode(json));
+        return type.decode(JsonParser.parseString(json));
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
@@ -37,7 +38,7 @@ class ClientContractsTest {
     }
 
     private static <R> String encode(MethodSpec<?, R> spec, R value) {
-        return JsonCodec.encode(spec.output().encode(value));
+        return String.valueOf(spec.output().encode(value));
     }
 
     @Test
@@ -89,7 +90,7 @@ class ClientContractsTest {
                 List.of(slot));
         assertEquals("{\"contextId\":\"x-1\",\"hasScreen\":true,\"type\":\"InventoryScreen\","
                         + "\"nodes\":[{\"ref\":41,\"parent\":40,\"depth\":1,\"type\":\"Slot\",\"index\":0}]}",
-                JsonCodec.encode(ScreenContracts.SCREEN_TREE.encode(tree)));
+                String.valueOf(ScreenContracts.SCREEN_TREE.encode(tree)));
     }
 
     @Test
@@ -117,13 +118,12 @@ class ClientContractsTest {
 
     @Test
     void aClientBlockScanKeepsTheShapeTheQueryFallbackReads() {
-        Object tree = ClientContracts.BLOCK_SCAN.encode(new ClientContracts.BlockScan(
+        JsonObject m = ClientContracts.BLOCK_SCAN.encode(new ClientContracts.BlockScan(
                 List.of(new ClientContracts.BlockRow(new BlockPosition(0, 64, 0), "minecraft:oak_stairs",
                         Optional.of(Map.of("facing", "north")))),
-                new BlockPosition(0, 64, 0), 1, Optional.of(List.of(new ClientContracts.ChunkRef(3, -2)))));
-        Map<?, ?> m = (Map<?, ?>) tree;
-        assertTrue(m.get("blocks") instanceof List<?>);
-        assertEquals("{\"x\":3,\"z\":-2}", JsonCodec.encode(((List<?>) m.get("unloaded")).get(0)));
+                new BlockPosition(0, 64, 0), 1, Optional.of(List.of(new ClientContracts.ChunkRef(3, -2))))).getAsJsonObject();
+        assertTrue(m.get("blocks").isJsonArray());
+        assertEquals("{\"x\":3,\"z\":-2}", m.getAsJsonArray("unloaded").get(0).toString());
     }
 
     @Test

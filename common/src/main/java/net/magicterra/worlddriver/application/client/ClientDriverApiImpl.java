@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.application.client;
 
-import java.util.Map;
+import java.util.Optional;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 
@@ -92,7 +94,7 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
         return ClientObserve.scanBlocks(radius, cx, cy, cz, filterIds);
     }
 
-    @Override public Map<String, Object> observePlayer() { return ClientObserve.observePlayer(); }
+    @Override public Optional<ObserveContracts.ClientView> clientView() { return ClientObserve.clientView(); }
 
     @Override
     public java.util.List<net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow> queryEntities(

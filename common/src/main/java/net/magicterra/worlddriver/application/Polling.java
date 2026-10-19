@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.application;
 
-import java.util.Map;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -39,9 +41,9 @@ final class Polling {
     }
 
     /** A pollable method and the params it was checked with. */
-    record Target(String method, Object params) {
+    record Target(String method, JsonElement params) {
         /** One read, given up after {@code budgetMs}; a pollable read has no effect to leave half done. */
-        CompletionStage<Object> read(ApiRegistry api, long budgetMs) {
+        CompletionStage<JsonElement> read(ApiRegistry api, long budgetMs) {
             CallContext ctx = CallContext.withBudget(budgetMs, CancellationToken.NEVER, CallContext.SHARED_WAITS);
             return api.dispatch(method, params, ctx).toCompletableFuture().orTimeout(budgetMs, TimeUnit.MILLISECONDS);
         }
@@ -60,7 +62,7 @@ final class Polling {
             throw ApiException.invalidParam("/invoke", ApiIssue.Code.INVALID_VALUE, why
                     + "; only a bounded read such as mc.bot.status or mc.observe.cursor may be polled");
         }
-        Object tree = params.map(JsonValue::tree).orElse(Map.of());
+        JsonElement tree = params.map(JsonValue::json).orElse(new JsonObject());
         DecodeContext at = DecodeContext.root().field("params");
         spec.input().decode(tree, at);
         if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
@@ -68,8 +70,8 @@ final class Polling {
     }
 
     /** {@code path} walked into a result, as JSON; empty when it leads nowhere. */
-    static Optional<JsonValue> field(Object result, Optional<String> path) {
-        Object v = ApiSupport.walkPath(result, path.orElse(null));
+    static Optional<JsonValue> field(JsonElement result, Optional<String> path) {
+        JsonElement v = ApiSupport.walkPath(result, path.orElse(null));
         return v == null ? Optional.empty() : Optional.of(JsonValue.of(v));
     }
 

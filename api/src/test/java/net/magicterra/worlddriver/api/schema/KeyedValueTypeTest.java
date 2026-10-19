@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** A {key: value} object whose members are typed by their key. */
@@ -26,15 +27,15 @@ class KeyedValueTypeTest {
     }
 
     private static List<ApiIssue> issues(KeyedValueType type, String json) {
-        return assertThrows(ApiException.class, () -> type.decode(JsonCodec.decode(json))).error().issues();
+        return assertThrows(ApiException.class, () -> type.decode(JsonParser.parseString(json))).error().issues();
     }
 
     @Test
     void membersDecodeInTheOrderSentAndEncodeBack() {
-        List<Entry> entries = KNOBS.decode(JsonCodec.decode("{\"depth\":4,\"flag\":true}"));
+        List<Entry> entries = KNOBS.decode(JsonParser.parseString("{\"depth\":4,\"flag\":true}"));
         assertEquals(List.of(new Entry("depth", 4), new Entry("flag", true)), entries);
-        assertEquals("{\"depth\":4,\"flag\":true}", JsonCodec.encode(KNOBS.encode(entries)));
-        assertEquals(List.of(), KNOBS.decode(JsonCodec.decode("{}")));
+        assertEquals("{\"depth\":4,\"flag\":true}", String.valueOf(KNOBS.encode(entries)));
+        assertEquals(List.of(), KNOBS.decode(JsonParser.parseString("{}")));
     }
 
     @Test
@@ -64,12 +65,12 @@ class KeyedValueTypeTest {
 
     @Test
     void theSchemaIsClosedWithOnePropertyPerKey() {
-        Map<String, Object> schema = KNOBS.atLeast(1).schema();
-        assertEquals(false, schema.get("additionalProperties"));
-        assertEquals(1, schema.get("minProperties"));
-        Map<?, ?> props = (Map<?, ?>) schema.get("properties");
+        JsonObject schema = KNOBS.atLeast(1).schema();
+        assertEquals(false, schema.get("additionalProperties").getAsBoolean());
+        assertEquals(1, schema.get("minProperties").getAsInt());
+        JsonObject props = schema.getAsJsonObject("properties");
         assertEquals(List.of("flag", "depth", "dotted.name"), List.copyOf(props.keySet()));
-        assertEquals("On or off.", ((Map<?, ?>) props.get("flag")).get("description"));
+        assertEquals("On or off.", props.getAsJsonObject("flag").get("description").getAsString());
     }
 
     @Test

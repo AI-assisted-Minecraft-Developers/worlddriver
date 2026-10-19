@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,7 +36,7 @@ class SettingsRangeTest {
 
     /** Decode a one-key patch and commit it as the method would. */
     static void patch(String key, Object value) {
-        SettingsContracts.Patch p = (SettingsContracts.Patch) SettingsContracts.PARAMS.decode(patchOf(key, value));
+        SettingsContracts.Patch p = (SettingsContracts.Patch) SettingsContracts.PARAMS.decode(TestJson.json(patchOf(key, value)));
         SettingsCommand.commit(null, p.values());
     }
 
@@ -77,7 +78,8 @@ class SettingsRangeTest {
     void everyDeclaredRangeIsEnforced() {
         int checked = 0;
         for (SettingDefs.Def d : SettingDefs.all()) {
-            Map<String, Object> schema = d.type().schema();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> schema = (Map<String, Object>) TestJson.plain(d.type().schema());
             if (!(schema.get("minimum") instanceof Number lo) || !(schema.get("maximum") instanceof Number hi)) continue;
             if (hi.doubleValue() == Double.MAX_VALUE) continue;   // floored at zero, no ceiling to cross
             String key = d.key();

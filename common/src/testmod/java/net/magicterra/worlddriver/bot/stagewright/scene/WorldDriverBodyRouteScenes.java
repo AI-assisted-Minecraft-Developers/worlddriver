@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.busy;
 
 import java.util.ArrayList;
@@ -223,7 +225,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> call(ApiRegistry api, String method, Map<String, Object> params) {
-        return (Map<String, Object>) api.route(method, params);
+        return (Map<String, Object>) SceneJson.route(api, method, params);
     }
 
     private static Map<String, Object> at(BlockPos p) {

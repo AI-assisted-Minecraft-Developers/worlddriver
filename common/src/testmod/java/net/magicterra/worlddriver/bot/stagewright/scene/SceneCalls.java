@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -130,7 +132,8 @@ final class SceneCalls {
 
     /** Sends {@code method} by name without waiting for it. */
     static CompletableFuture<Object> send(String method, Map<String, Object> params) {
-        return api().dispatch(method, params, CallContext.standalone()).toCompletableFuture();
+        return api().dispatch(method, SceneJson.params(params), CallContext.standalone()).toCompletableFuture()
+                .thenApply(SceneJson::plain);
     }
 
     /** A landed reply as a map; a failure as {@code {error: <the exception>}}. */

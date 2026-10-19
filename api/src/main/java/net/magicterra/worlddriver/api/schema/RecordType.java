@@ -2,13 +2,15 @@ package net.magicterra.worlddriver.api.schema;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 /**
  * A closed JSON object bound to a Java record: unknown keys, a missing required key and a present
@@ -64,16 +66,15 @@ public final class RecordType<O> extends ApiType<O> {
     @Override public String expected() { return name == null ? "an object" : "a " + name + " object"; }
 
     @Override
-    protected O read(Object value, DecodeContext at) {
-        if (!(value instanceof Map<?, ?> map)) return at.mismatch(expected(), value);
+    protected O read(JsonElement value, DecodeContext at) {
+        if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
         return readMembers(map, at, null);
     }
 
     /** Decode the members of {@code map}, ignoring {@code skipKey} (a union's discriminator). */
-    O readMembers(Map<?, ?> map, DecodeContext at, String skipKey) {
+    O readMembers(JsonObject map, DecodeContext at, String skipKey) {
         int before = at.issues().size();
-        for (Object k : map.keySet()) {
-            String key = String.valueOf(k);
+        for (String key : map.keySet()) {
             if (key.equals(skipKey)) continue;
             if (field(key) == null) {
                 at.field(key).fail(ApiIssue.Code.UNKNOWN_FIELD, unknownMessage(key, skipKey));
@@ -83,9 +84,9 @@ public final class RecordType<O> extends ApiType<O> {
         for (int i = 0; i < fields.size(); i++) {
             ApiField<O, ?> f = fields.get(i);
             DecodeContext fat = at.field(f.name);
-            boolean present = map.containsKey(f.name);
-            Object raw = map.get(f.name);
-            if (present && raw == null) {
+            JsonElement raw = map.get(f.name);
+            boolean present = raw != null;
+            if (present && raw.isJsonNull()) {
                 fat.fail(ApiIssue.Code.TYPE_MISMATCH, "null is not a value here; omit the field instead");
                 continue;
             }
@@ -142,14 +143,14 @@ public final class RecordType<O> extends ApiType<O> {
     }
 
     @Override
-    protected Object write(O value) {
+    protected JsonElement write(O value) {
         return writeMembers(value, null, null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    Map<String, Object> writeMembers(O value, String tagName, String tag) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        if (tagName != null) out.put(tagName, tag);
+    JsonObject writeMembers(O value, String tagName, String tag) {
+        JsonObject out = new JsonObject();
+        if (tagName != null) out.addProperty(tagName, tag);
         for (ApiField<O, ?> f : fields) {
             Object v = f.getter.apply(value);
             if (f.presence == ApiField.Presence.OPTIONAL) {
@@ -158,41 +159,40 @@ public final class RecordType<O> extends ApiType<O> {
                 v = o.get();
             }
             if (v == null) throw new IllegalStateException(expected() + " field " + f.name + " is null");
-            out.put(f.name, ((ApiType) f.type).write(v));
+            out.add(f.name, ((ApiType) f.type).write(v));
         }
         return out;
     }
 
     @Override
-    protected Map<String, Object> schemaBody() {
+    protected JsonObject schemaBody() {
         return schemaWithTag(null, null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    Map<String, Object> schemaWithTag(String tagName, String tag) {
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("type", "object");
-        Map<String, Object> props = new LinkedHashMap<>();
+    JsonObject schemaWithTag(String tagName, String tag) {
+        JsonObject s = new JsonObject();
+        s.addProperty("type", "object");
+        JsonObject props = new JsonObject();
         List<String> required = new ArrayList<>();
         if (tagName != null) {
-            // Not Map.of: its iteration order changes from one JVM to the next, and so would the artifacts.
-            Map<String, Object> tagSchema = new LinkedHashMap<>();
-            tagSchema.put("type", "string");
-            tagSchema.put("const", tag);
-            props.put(tagName, tagSchema);
+            JsonObject tagSchema = new JsonObject();
+            tagSchema.addProperty("type", "string");
+            tagSchema.addProperty("const", tag);
+            props.add(tagName, tagSchema);
             required.add(tagName);
         }
         for (ApiField<O, ?> f : fields) {
-            Map<String, Object> p = new LinkedHashMap<>();
-            if (f.description != null) p.put("description", f.description);
-            p.putAll(f.type.schema());
-            if (f.presence == ApiField.Presence.DEFAULTED) p.put("default", ((ApiType) f.type).write(f.defaultValue));
-            props.put(f.name, p);
+            JsonObject p = new JsonObject();
+            if (f.description != null) p.addProperty("description", f.description);
+            for (Map.Entry<String, JsonElement> e : f.type.schema().entrySet()) p.add(e.getKey(), e.getValue());
+            if (f.presence == ApiField.Presence.DEFAULTED) p.add("default", ((ApiType) f.type).write(f.defaultValue));
+            props.add(f.name, p);
             if (f.presence == ApiField.Presence.REQUIRED) required.add(f.name);
         }
-        s.put("properties", props);
-        if (!required.isEmpty()) s.put("required", required);
-        s.put("additionalProperties", false);
+        s.add("properties", props);
+        if (!required.isEmpty()) s.add("required", Json.strings(required));
+        s.addProperty("additionalProperties", false);
         return s;
     }
 

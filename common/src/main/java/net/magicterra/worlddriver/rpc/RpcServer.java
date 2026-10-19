@@ -2,8 +2,10 @@ package net.magicterra.worlddriver.rpc;
 
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
-import net.magicterra.worlddriver.protocol.ServerBusyException;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -54,10 +56,8 @@ import net.magicterra.worlddriver.protocol.JsonRpcFrames;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -366,9 +366,9 @@ public final class RpcServer implements Closeable {
 
         /** A refusal that still carries the request's id, so the caller can correlate it. */
         private static String busyFrame(String line, String why) {
-            Object id = null;
+            JsonElement id = null;
             try {
-                if (JsonCodec.decode(line) instanceof Map<?, ?> req && JsonRpcFrames.validId(req.get("id"))) id = req.get("id");
+                if (JsonParser.parseString(line) instanceof JsonObject req && JsonRpcFrames.validId(req.get("id"))) id = req.get("id");
             } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
             ApiError busy = ApiError.of(ApiError.Code.SERVER_BUSY, "server busy: " + why + "; retry later");
             return encode(JsonRpcFrames.error(id, busy.code().rpcCode, busy.message(), ApiErrors.toTree(busy)));
@@ -380,30 +380,31 @@ public final class RpcServer implements Closeable {
          * game thread (see {@code ApiRegistry.dispatch}).
          */
         private void handleRequest(String line, Channel ch) {
-            Object decoded;
+            JsonElement decoded;
             try {
-                decoded = JsonCodec.decode(line);
+                decoded = JsonParser.parseString(line);
             } catch (Throwable err) {
                 write(ch, JsonRpcFrames.error(null, JsonRpcFrames.PARSE_ERROR, "parse: " + err.getMessage(), null));
                 return;
             }
-            if (!(decoded instanceof Map<?, ?> req)) {
+            if (!(decoded instanceof JsonObject req)) {
                 write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST, "request must be a JSON object", null));
                 return;
             }
-            Object rawId = req.get("id");
-            Object id = JsonRpcFrames.validId(rawId) ? rawId : null;
-            if (!JsonRpcFrames.validId(rawId)) {
+            JsonElement id = req.get("id");
+            if (!JsonRpcFrames.validId(id)) {
                 write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST,
                         "invalid request: id must be a string, an integer or null", null));
                 return;
             }
-            if (!(req.get("method") instanceof String method)) {
+            JsonElement rawMethod = req.get("method");
+            if (!(rawMethod instanceof JsonPrimitive mp && mp.isString())) {
                 write(ch, JsonRpcFrames.error(id, JsonRpcFrames.INVALID_REQUEST,
-                        "invalid request: 'method' must be a string, got " + DecodeContext.describe(req.get("method")), null));
+                        "invalid request: 'method' must be a string, got " + DecodeContext.describe(rawMethod), null));
                 return;
             }
-            Object params = req.get("params");
+            String method = mp.getAsString();
+            JsonElement params = req.get("params");
             // Event-stream subscription is per-connection state, so it's handled at the transport
             // layer: it controls which frames THIS socket receives, not any game behavior.
             if (EventStreamContracts.SUBSCRIBE.equals(method) || EventStreamContracts.UNSUBSCRIBE.equals(method)) {
@@ -426,28 +427,28 @@ public final class RpcServer implements Closeable {
          * inside them), else the server's own cap. A remote client's local timeout is not something
          * this server can know unless it is sent.
          */
-        private static long budgetOf(Map<?, ?> req) {
-            if (req.get("_meta") instanceof Map<?, ?> meta && meta.get("budgetMs") instanceof Number n) {
-                long ms = n.longValue();
+        private static long budgetOf(JsonObject req) {
+            if (req.get("_meta") instanceof JsonObject meta && meta.get("budgetMs") instanceof JsonPrimitive n && n.isNumber()) {
+                long ms = n.getAsNumber().longValue();
                 if (ms > 0) return Math.min(ms, CallContext.SERVER_CAP_MS);
             }
             return CallContext.SERVER_CAP_MS;
         }
 
-        private static void write(Channel ch, Map<String, Object> frame) {
+        private static void write(Channel ch, JsonObject frame) {
             if (!ch.isActive()) return;
             ch.writeAndFlush(new TextWebSocketFrame(encode(frame)));
         }
 
-        private static String encode(Map<String, Object> frame) { return JsonCodec.encode(frame); }
+        private static String encode(JsonObject frame) { return frame.toString(); }
 
         /**
          * The two connection-control calls, decoded by their own contract: a malformed filter is an
          * invalid_params error, never a silent "every type" (it used to fail open that way).
          */
-        private Map<String, Object> subscriptionControl(String method, Object params, Channel ch, Object id) {
+        private JsonObject subscriptionControl(String method, JsonElement params, Channel ch, JsonElement id) {
             try {
-                Object tree = params == null ? Map.of() : params;
+                JsonElement tree = params == null ? new JsonObject() : params;
                 if (EventStreamContracts.SUBSCRIBE.equals(method)) {
                     EventStreamContracts.SubscribeParams p = EventStreamContracts.SUBSCRIBE_PARAMS.decode(tree);
                     Set<String> types = new LinkedHashSet<>(p.types().orElse(List.of()));

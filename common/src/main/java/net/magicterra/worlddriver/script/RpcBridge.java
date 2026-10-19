@@ -1,12 +1,12 @@
 package net.magicterra.worlddriver.script;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.RpcCallException;
 import net.magicterra.worlddriver.rpc.RpcClient;
 
@@ -29,18 +29,18 @@ public final class RpcBridge {
     public String callJson(String method, String paramsJson) {
         // Outside the envelope: a refusal is the script's mistake, not an outcome of the call.
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
-        Map<String, Object> envelope = new LinkedHashMap<>();
+        JsonObject envelope = new JsonObject();
         try (RpcClient c = new RpcClient(host, port)) {
-            Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
-            envelope.put("result", c.call(method, params, RpcClient.DEFAULT_CALL_TIMEOUT_MS));
+            JsonElement params = paramsJson == null ? null : JsonParser.parseString(paramsJson);
+            envelope.add("result", c.call(method, params, RpcClient.DEFAULT_CALL_TIMEOUT_MS));
         } catch (RpcCallException e) {
             ApiError err = e.apiError() != null ? e.apiError() : ApiError.of(ApiError.Code.INTERNAL_ERROR,
                     "rpc error " + e.rpcCode() + ": " + e.getMessage());
-            envelope.put("error", ApiErrors.toTree(err));
+            envelope.add("error", ApiErrors.toTree(err));
         } catch (Exception e) {
-            envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+            envelope.add("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
                     "rpcRoundtrip failed: " + e.getMessage(), java.util.List.of(), ApiError.Execution.UNKNOWN)));
         }
-        return JsonCodec.encode(envelope);
+        return envelope.toString();
     }
 }

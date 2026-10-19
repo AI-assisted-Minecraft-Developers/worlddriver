@@ -1,12 +1,12 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
+import com.google.gson.JsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -20,13 +20,13 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Accepted;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Succeeded;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 class ClearAreaContractsTest {
 
     private static Params decode(String json) {
-        return ClearAreaContracts.PARAMS.decode(JsonCodec.decode(json));
+        return ClearAreaContracts.PARAMS.decode(JsonParser.parseString(json));
     }
 
     private static List<ApiIssue> issues(String json) {
@@ -103,16 +103,15 @@ class ClearAreaContractsTest {
 
     @Test
     void responsesEncodeToTheContractsShapes() {
-        Object accepted = ClearAreaContracts.RESPONSE.encode(new Accepted<>(new Succeeded<>("a1", "player:builder",
-                new Summary(new BlockPosition(10, 64, 21), new BlockPosition(10, 65, 32), Optional.empty())), false));
-        Map<?, ?> m = (Map<?, ?>) accepted;
-        assertEquals("accepted", m.get("outcome"));
-        Map<?, ?> action = (Map<?, ?>) m.get("action");
-        assertEquals("succeeded", action.get("state"));
-        assertEquals("clearArea", ((Map<?, ?>) action.get("result")).get("kind"));
+        JsonObject m = ClearAreaContracts.RESPONSE.encode(new Accepted<>(new Succeeded<>("a1", "player:builder",
+                new Summary(new BlockPosition(10, 64, 21), new BlockPosition(10, 65, 32), Optional.empty())), false)).getAsJsonObject();
+        assertEquals("accepted", m.get("outcome").getAsString());
+        JsonObject action = m.getAsJsonObject("action");
+        assertEquals("succeeded", action.get("state").getAsString());
+        assertEquals("clearArea", action.getAsJsonObject("result").get("kind").getAsString());
 
-        Map<?, ?> refused = (Map<?, ?>) ClearAreaContracts.RESPONSE.encode(new Refused<>(RefusalReason.BOT_UNAVAILABLE, "gone"));
-        assertEquals(Map.of("outcome", "refused", "reason", "bot_unavailable", "message", "gone"), refused);
+        String refused = ClearAreaContracts.RESPONSE.encode(new Refused<>(RefusalReason.BOT_UNAVAILABLE, "gone")).toString();
+        assertEquals("{\"outcome\":\"refused\",\"reason\":\"bot_unavailable\",\"message\":\"gone\"}", refused);
     }
 
     @Test

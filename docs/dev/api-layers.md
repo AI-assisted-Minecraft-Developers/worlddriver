@@ -11,8 +11,8 @@ Bottom up. A layer uses only the layers below it, and only the top one names Min
 
 | Layer | Package | Answers | May use |
 |---|---|---|---|
-| protocol | `protocol/` | How bytes become a value tree, and the JSON-RPC frames | the JDK and Gson |
-| schema | `api/schema/` | What a value looks like: decoding, refusals, the TypeScript it generates | protocol, DataFixerUpper |
+| protocol | `protocol/` | The JSON-RPC frames and the request limits | the JDK and Gson |
+| schema | `api/schema/` | What a value looks like: decoding Gson trees, refusals, the TypeScript it generates | Gson, DataFixerUpper |
 | methods | `api/methods/<family>/` | What each method takes and answers | schema, `call/`, `registry/` |
 | runtime | `api/registry/` `api/call/` `api/thread/` `api/action/` | How a call is queued, cancelled, moved between threads and turned into an error | everything below |
 | game | `api/game/` | How game objects and API values convert, and the host's hooks | everything, and Minecraft |

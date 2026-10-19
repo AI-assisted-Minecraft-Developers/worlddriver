@@ -3,7 +3,11 @@ package net.magicterra.worlddriver.rpc;
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -31,7 +35,6 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.URI;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -102,9 +105,9 @@ public final class RpcClient implements Closeable {
     }
 
     /** Receive every server-pushed notification frame ({@code method}, no {@code id}), on the IO thread. */
-    public void onNotification(Consumer<Map<?, ?>> listener) { handler.notifications = listener; }
+    public void onNotification(Consumer<JsonObject> listener) { handler.notifications = listener; }
 
-    public Object call(String method, Map<String, Object> params) throws IOException {
+    public JsonElement call(String method, JsonObject params) throws IOException {
         return call(method, params, DEFAULT_CALL_TIMEOUT_MS);
     }
 
@@ -114,33 +117,35 @@ public final class RpcClient implements Closeable {
      *
      * @throws RpcCallException for an error response, carrying the API's error when there is one
      */
-    public Object call(String method, Object params, long budgetMs) throws IOException {
-        Map<?, ?> resp = await(send(method, params, budgetMs), budgetMs);
+    public JsonElement call(String method, JsonElement params, long budgetMs) throws IOException {
+        JsonObject resp = await(send(method, params, budgetMs), budgetMs);
         return resultOf(resp);
     }
 
     /** Send one call and return the future of its response frame. */
-    public CompletableFuture<Map<?, ?>> callAsync(String method, Map<String, Object> params, long budgetMs) {
+    public CompletableFuture<JsonObject> callAsync(String method, JsonObject params, long budgetMs) {
         return send(method, params, budgetMs);
     }
 
-    private CompletableFuture<Map<?, ?>> send(String method, Object params, long budgetMs) {
+    private CompletableFuture<JsonObject> send(String method, JsonElement params, long budgetMs) {
         long id = nextId.getAndIncrement();
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("jsonrpc", "2.0");
-        req.put("id", id);
-        req.put("method", method);
-        if (params != null) req.put("params", params);
+        JsonObject req = new JsonObject();
+        req.addProperty("jsonrpc", "2.0");
+        req.addProperty("id", id);
+        req.addProperty("method", method);
+        if (params != null) req.add("params", params);
         // The server sees how long this caller will wait and stops its own wait first.
-        req.put("_meta", Map.of("budgetMs", Math.max(1, budgetMs - 250)));
-        CompletableFuture<Map<?, ?>> f = new CompletableFuture<>();
+        JsonObject meta = new JsonObject();
+        meta.addProperty("budgetMs", Math.max(1, budgetMs - 250));
+        req.add("_meta", meta);
+        CompletableFuture<JsonObject> f = new CompletableFuture<>();
         handler.pending.put(id, f);
         if (!channel.isActive()) {
             handler.pending.remove(id);
             f.completeExceptionally(new EOFException("ws channel closed"));
             return f;
         }
-        channel.writeAndFlush(new TextWebSocketFrame(JsonCodec.encode(req))).addListener(w -> {
+        channel.writeAndFlush(new TextWebSocketFrame(req.toString())).addListener(w -> {
             if (!w.isSuccess()) {
                 handler.pending.remove(id);
                 f.completeExceptionally(new IOException("ws write failed", w.cause()));
@@ -149,7 +154,7 @@ public final class RpcClient implements Closeable {
         return f.whenComplete((r, t) -> handler.pending.remove(id));
     }
 
-    private static Map<?, ?> await(CompletableFuture<Map<?, ?>> f, long budgetMs) throws IOException {
+    private static JsonObject await(CompletableFuture<JsonObject> f, long budgetMs) throws IOException {
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
         try {
             return f.get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
@@ -167,12 +172,12 @@ public final class RpcClient implements Closeable {
     }
 
     /** The result, or the error as an {@link RpcCallException}: standard JSON-RPC {@code error:{code,message,data}}. */
-    private static Object resultOf(Map<?, ?> resp) throws RpcCallException {
-        Object err = resp.get("error");
-        if (err == null) return resp.get("result");
-        if (err instanceof Map<?, ?> e) {
-            int code = e.get("code") instanceof Number n ? n.intValue() : 0;
-            String message = e.get("message") instanceof String s ? s : String.valueOf(err);
+    private static JsonElement resultOf(JsonObject resp) throws RpcCallException {
+        JsonElement err = resp.get("error");
+        if (err == null || err.isJsonNull()) return resp.has("result") ? resp.get("result") : JsonNull.INSTANCE;
+        if (err instanceof JsonObject e) {
+            int code = e.get("code") instanceof JsonPrimitive n && n.isNumber() ? n.getAsInt() : 0;
+            String message = e.get("message") instanceof JsonPrimitive s && s.isString() ? s.getAsString() : err.toString();
             throw new RpcCallException(code, message, ApiErrors.fromTree(e.get("data")));
         }
         throw new RpcCallException(0, "malformed error " + err, null);
@@ -192,8 +197,8 @@ public final class RpcClient implements Closeable {
 
     private static final class ClientHandler extends SimpleChannelInboundHandler<Object> {
         private final WebSocketClientHandshaker handshaker;
-        final Map<Long, CompletableFuture<Map<?, ?>>> pending = new ConcurrentHashMap<>();
-        volatile Consumer<Map<?, ?>> notifications;
+        final Map<Long, CompletableFuture<JsonObject>> pending = new ConcurrentHashMap<>();
+        volatile Consumer<JsonObject> notifications;
         private ChannelPromise handshakeFuture;
 
         ClientHandler(WebSocketClientHandshaker handshaker) {
@@ -212,7 +217,7 @@ public final class RpcClient implements Closeable {
 
         @Override public void channelInactive(ChannelHandlerContext ctx) {
             EOFException closed = new EOFException("ws channel closed");
-            for (CompletableFuture<Map<?, ?>> f : pending.values()) f.completeExceptionally(closed);
+            for (CompletableFuture<JsonObject> f : pending.values()) f.completeExceptionally(closed);
             pending.clear();
         }
 
@@ -247,19 +252,19 @@ public final class RpcClient implements Closeable {
          * when exactly one call is pending; otherwise it is dropped and the calls time out.
          */
         private void route(String line) {
-            Object decoded;
-            try { decoded = JsonCodec.decode(line); } catch (RuntimeException bad) { return; }
-            if (!(decoded instanceof Map<?, ?> resp)) return;
-            if (resp.containsKey("method")) {
-                Consumer<Map<?, ?>> l = notifications;
+            JsonElement decoded;
+            try { decoded = JsonParser.parseString(line); } catch (RuntimeException bad) { return; }
+            if (!(decoded instanceof JsonObject resp)) return;
+            if (resp.has("method")) {
+                Consumer<JsonObject> l = notifications;
                 if (l != null) l.accept(resp);
                 return;
             }
-            Object rid = resp.get("id");
-            CompletableFuture<Map<?, ?>> f = null;
-            if (rid instanceof Number n) {
-                f = pending.remove(n.longValue());
-            } else if (rid == null && pending.size() == 1) {
+            JsonElement rid = resp.get("id");
+            CompletableFuture<JsonObject> f = null;
+            if (rid instanceof JsonPrimitive n && n.isNumber()) {
+                f = pending.remove(n.getAsLong());
+            } else if ((rid == null || rid.isJsonNull()) && pending.size() == 1) {
                 Long only = pending.keySet().iterator().next();
                 f = pending.remove(only);
             }

@@ -1,11 +1,13 @@
 package net.magicterra.worlddriver.api.schema;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 /**
  * A discriminated union: the {@code tagName} member picks the variant, and only that variant's
@@ -67,12 +69,13 @@ public final class UnionType<T> extends ApiType<T> {
     }
 
     @Override
-    protected T read(Object value, DecodeContext at) {
-        if (!(value instanceof Map<?, ?> map)) return at.mismatch(expected(), value);
+    protected T read(JsonElement value, DecodeContext at) {
+        if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
         DecodeContext tagAt = at.field(tagName);
-        if (!map.containsKey(tagName)) return tagAt.fail(ApiIssue.Code.REQUIRED, "missing; expected one of " + tags());
-        Object tag = map.get(tagName);
-        if (!(tag instanceof String s)) return tagAt.mismatch("a string, one of " + tags(), tag);
+        if (!map.has(tagName)) return tagAt.fail(ApiIssue.Code.REQUIRED, "missing; expected one of " + tags());
+        JsonElement tag = map.get(tagName);
+        String s = Json.string(tag);
+        if (s == null) return tagAt.mismatch("a string, one of " + tags(), tag);
         for (Variant<T, ?> v : variants) {
             if (v.tag.equals(s)) return v.type.readMembers(map, at, tagName);
         }
@@ -81,7 +84,7 @@ public final class UnionType<T> extends ApiType<T> {
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    protected Object write(T value) {
+    protected JsonElement write(T value) {
         for (Variant<T, ?> v : variants) {
             if (v.javaType.isInstance(value)) return ((RecordType) v.type).writeMembers(value, tagName, v.tag);
         }
@@ -89,12 +92,12 @@ public final class UnionType<T> extends ApiType<T> {
     }
 
     @Override
-    protected Map<String, Object> schemaBody() {
-        List<Object> oneOf = new ArrayList<>();
+    protected JsonObject schemaBody() {
+        JsonArray oneOf = new JsonArray();
         for (Variant<T, ?> v : variants) oneOf.add(v.type.schemaWithTag(tagName, v.tag));
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("type", "object");
-        s.put("oneOf", oneOf);
+        JsonObject s = new JsonObject();
+        s.addProperty("type", "object");
+        s.add("oneOf", oneOf);
         return s;
     }
 

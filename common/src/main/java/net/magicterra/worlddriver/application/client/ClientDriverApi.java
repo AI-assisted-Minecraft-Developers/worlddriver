@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.application.client;
 
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,7 +22,6 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.OverlaysPar
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Screenshot;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ClickParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.CloseParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Closed;
@@ -59,12 +60,6 @@ public interface ClientDriverApi {
     ServerThreadHop hop();
 
     ScreenInfo readScreenInfo();
-
-    /** {@link #readScreenInfo} as the untyped wait routes read it. */
-    @SuppressWarnings("unchecked")
-    default Map<String, Object> screenInfo() {
-        return (Map<String, Object>) ScreenContracts.SCREEN_INFO.encode(readScreenInfo());
-    }
 
     ScreenTree readScreenTree();
 
@@ -130,11 +125,8 @@ public interface ClientDriverApi {
      */
     BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
 
-    /**
-     * The {@code mc.observe.player} snapshot read from the LocalPlayer, for a client with no server
-     * attached; {@code present:false} with no player.
-     */
-    Map<String, Object> observePlayer();
+    /** What {@code mc.observe.player} adds for the client's own player: crosshair and frame rate; empty with no player. */
+    Optional<ObserveContracts.ClientView> clientView();
 
     /**
      * Client-side entity scan — the server-side {@code mc.query q='entities'} rows, every field

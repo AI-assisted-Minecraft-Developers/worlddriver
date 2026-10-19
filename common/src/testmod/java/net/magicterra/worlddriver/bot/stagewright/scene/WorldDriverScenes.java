@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -225,7 +227,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // (4) mc.bot.setting's contract: one typed member per known key, and an unknown key refused.
         boolean closed = false;
         try {
-            SettingsContracts.PARAMS.decode(Map.of("op", "patch", "values", Map.of("definitelyNotAKnob", true)));
+            SettingsContracts.PARAMS.decode(SceneJson.params(Map.of("op", "patch", "values", Map.of("definitelyNotAKnob", true))));
         } catch (ApiException e) {
             closed = e.error().issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob"));
         }

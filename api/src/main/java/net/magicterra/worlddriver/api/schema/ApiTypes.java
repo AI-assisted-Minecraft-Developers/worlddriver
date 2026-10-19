@@ -1,9 +1,7 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,6 +10,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.mojang.datafixers.util.Function10;
 import com.mojang.datafixers.util.Function11;
 import com.mojang.datafixers.util.Function12;
@@ -39,7 +40,7 @@ public final class ApiTypes {
 
     /** An integer in {@code [min,max]}; {@code 1} and {@code 1.0} are the same integer, {@code 1.2} is none. */
     public static ApiType<Integer> integer(int min, int max) {
-        return new NumberTypes.IntegerType<>(min, max, BigInteger::intValue, Long::valueOf);
+        return new NumberTypes.IntegerType<>(min, max, Long::intValue, Long::valueOf);
     }
 
     /** Any 32-bit integer. */
@@ -49,7 +50,7 @@ public final class ApiTypes {
 
     /** An integer in {@code [min,max]} held as a long; for counts and times that outgrow an int. */
     public static ApiType<Long> int64(long min, long max) {
-        return new NumberTypes.IntegerType<>(min, max, BigInteger::longValue, v -> v);
+        return new NumberTypes.IntegerType<>(min, max, v -> v, v -> v);
     }
 
     /**
@@ -73,11 +74,16 @@ public final class ApiTypes {
     // ------------------------------------------------------------------ booleans and strings
 
     private static final ApiType<Boolean> BOOL = new ApiType<>() {
-        @Override protected Boolean read(Object value, DecodeContext at) {
-            return value instanceof Boolean b ? b : at.mismatch(expected(), value);
+        @Override protected Boolean read(JsonElement value, DecodeContext at) {
+            Boolean b = Json.bool(value);
+            return b != null ? b : at.mismatch(expected(), value);
         }
-        @Override protected Object write(Boolean value) { return Objects.requireNonNull(value, "boolean"); }
-        @Override protected Map<String, Object> schemaBody() { return new LinkedHashMap<>(Map.of("type", "boolean")); }
+        @Override protected JsonElement write(Boolean value) { return new JsonPrimitive(Objects.requireNonNull(value, "boolean")); }
+        @Override protected JsonObject schemaBody() {
+            JsonObject s = new JsonObject();
+            s.addProperty("type", "boolean");
+            return s;
+        }
         @Override public String ts(TsContext ts) { return "boolean"; }
         @Override public String expected() { return "a boolean"; }
         @Override public ApiType<Boolean> describe(String text) {
@@ -106,15 +112,16 @@ public final class ApiTypes {
     /** A boolean that may only be {@code true}: an acknowledgement field. */
     public static ApiType<Boolean> trueOnly() {
         return new ApiType<>() {
-            @Override protected Boolean read(Object v, DecodeContext at) {
-                if (!(v instanceof Boolean b)) return at.mismatch(expected(), v);
+            @Override protected Boolean read(JsonElement v, DecodeContext at) {
+                Boolean b = Json.bool(v);
+                if (b == null) return at.mismatch(expected(), v);
                 return b ? b : at.fail(ApiIssue.Code.INVALID_VALUE, "expected true");
             }
-            @Override protected Object write(Boolean v) { return v; }
-            @Override protected Map<String, Object> schemaBody() {
-                Map<String, Object> s = new LinkedHashMap<>();
-                s.put("type", "boolean");
-                s.put("const", true);
+            @Override protected JsonElement write(Boolean v) { return new JsonPrimitive(v); }
+            @Override protected JsonObject schemaBody() {
+                JsonObject s = new JsonObject();
+                s.addProperty("type", "boolean");
+                s.addProperty("const", true);
                 return s;
             }
             @Override public String ts(TsContext ts) { return "true"; }

@@ -102,8 +102,8 @@ class McpHttpTest {
             ProbeMethods.publish(api, "probe.listed", false);
             String frame = nextData(lines);
             assertTrue(frame.contains("notifications/tools/list_changed"), frame);
-            assertTrue(McpTools.list(api).stream().anyMatch(t -> "probe.listed".equals(t.get("name"))));
-            assertTrue(McpTools.list(api).stream().noneMatch(t -> "probe.hidden".equals(t.get("name"))));
+            assertTrue(McpTools.list(api).stream().anyMatch(t -> "probe.listed".equals(t.get("name").getAsString())));
+            assertTrue(McpTools.list(api).stream().noneMatch(t -> "probe.hidden".equals(t.get("name").getAsString())));
             for (String l = lines.poll(300, TimeUnit.MILLISECONDS); l != null; l = lines.poll(300, TimeUnit.MILLISECONDS)) {
                 assertFalse(l.startsWith("data:"), "a second announcement: " + l);
             }

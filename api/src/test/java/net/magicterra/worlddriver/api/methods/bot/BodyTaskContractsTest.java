@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -21,14 +20,14 @@ import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.shared.ActionResults;
 import net.magicterra.worlddriver.api.methods.CoreMethods;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** The body-task contracts beyond goto and clearArea: defaults, the rules that span fields, and the result shapes. */
 class BodyTaskContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
-        return type.decode(JsonCodec.decode(json));
+        return type.decode(JsonParser.parseString(json));
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
@@ -142,11 +141,11 @@ class BodyTaskContractsTest {
     @Test
     void resultsEncodeUnderTheirOwnKind() {
         assertEquals("{\"kind\":\"mine\",\"blocks\":[\"minecraft:stone\"],\"quantity\":2,\"radius\":16,\"broken\":2}",
-                JsonCodec.encode(GatherContracts.MINE_RESULT.encode(new GatherContracts.Mined(List.of("minecraft:stone"), Optional.empty(), 2, 16, 2))));
-        assertEquals("tower", ((Map<?, ?>) BuildContracts.CONSTRUCT_RESULT.encode(
-                new BuildContracts.Towered(64, 70, Optional.empty(), 6))).get("kind"));
-        assertEquals("groundFallback", ((Map<?, ?>) MoveContracts.ELYTRA_RESULT.encode(
-                new MoveContracts.Flown(MoveContracts.FlightMode.GROUND_FALLBACK, false))).get("mode"));
+                String.valueOf(GatherContracts.MINE_RESULT.encode(new GatherContracts.Mined(List.of("minecraft:stone"), Optional.empty(), 2, 16, 2))));
+        assertEquals("tower", BuildContracts.CONSTRUCT_RESULT.encode(
+                new BuildContracts.Towered(64, 70, Optional.empty(), 6)).getAsJsonObject().get("kind").getAsString());
+        assertEquals("groundFallback", MoveContracts.ELYTRA_RESULT.encode(
+                new MoveContracts.Flown(MoveContracts.FlightMode.GROUND_FALLBACK, false)).getAsJsonObject().get("mode").getAsString());
     }
 
     /**

@@ -14,7 +14,6 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveApiBinding;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.AsciiMap;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.ClientView;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.MapParams;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Plane;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.PlayerParams;
@@ -36,18 +35,14 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -146,9 +141,7 @@ public final class ObserveService implements ObserveApi {
     private static PlayerReading clientPlayer(BotApi bot, ClientDriverApi c, Optional<String> name) {
         if (!(bot.selfEntity() instanceof Player self)) return new PlayerReading(Optional.empty());
         if (name.isPresent() && !name.get().equals(self.getGameProfile().getName())) return new PlayerReading(Optional.empty());
-        Map<String, Object> own = c.observePlayer();
-        ClientView view = new ClientView(ObserveContracts.CROSSHAIR.decode(own.get("hit")), ((Number) own.get("fps")).intValue());
-        return new PlayerReading(Optional.of(PlayerSnapshots.of(self, Optional.of(view))));
+        return new PlayerReading(Optional.of(PlayerSnapshots.of(self, c.clientView())));
     }
 
     /**

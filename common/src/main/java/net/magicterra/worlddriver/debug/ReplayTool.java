@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.debug;
 
+import com.google.gson.JsonObject;
+
 import net.magicterra.worlddriver.debug.PathArchive;
 
 import net.magicterra.worlddriver.api.call.CallContext;
@@ -36,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
@@ -182,7 +183,9 @@ final class ReplayTool {
         return restored.thenCompose(n -> {
             // No server to command, or the command failed: the client places its player at the start anyway.
             try {
-                return api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx).handle((r, t) -> n);
+                JsonObject cmd = new JsonObject();
+                cmd.addProperty("cmd", tp);
+                return api.dispatch("mc.action.runCommand", cmd, ctx).handle((r, t) -> n);
             } catch (RuntimeException noServer) {
                 return CompletableFuture.completedFuture(n);
             }

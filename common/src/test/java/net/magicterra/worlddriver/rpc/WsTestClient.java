@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.protocol.RequestLimits;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -112,7 +112,7 @@ final class WsTestClient implements AutoCloseable {
     }
 
     static Map<?, ?> decode(String s) {
-        return assertInstanceOf(Map.class, JsonCodec.decode(s), "non-object response: " + s);
+        return assertInstanceOf(Map.class, TestJson.plain(s), "non-object response: " + s);
     }
 
     @Override public void close() {

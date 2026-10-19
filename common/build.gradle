@@ -22,7 +22,7 @@ loom {
 // (Scene/SceneContext/SceneProvider) comes from :stagewright-common namedElements
 // (added explicitly below AND already transitively present in main.compileClasspath).
 // The `test` source set is for PURE-JVM unit tests of code that needs no running
-// game — the transports (JsonCodec framing, RpcServer/RpcClient wire contract) are
+// game — the transports (JSON-RPC framing, RpcServer/RpcClient wire contract) are
 // the motivating case: they are plain Netty + java.util and were previously only
 // reachable through a full dogfood run, which is why their framing bugs (an error
 // frame with no `id`, a client that took "the next frame" as its response) survived

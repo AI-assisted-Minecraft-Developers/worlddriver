@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior;
 
+import com.google.gson.JsonObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -35,7 +37,7 @@ public final class RouteEvents {
 
     /** Where events go; production passes {@code DriverHost.emitExternal}. */
     public interface Emitter {
-        void emit(String type, BlockPos pos, Map<String, Object> data);
+        void emit(String type, BlockPos pos, JsonObject data);
     }
 
     /** {@code route.blocked} reasons besides {@code constraint:<name>}: the node or time budget ran
@@ -93,12 +95,12 @@ public final class RouteEvents {
             reason = budget ? BUDGET : TERRAIN;
         }
         if (!fire("route.blocked", reason)) return;
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("reason", reason);
-        data.put("bestEffort", res.hasPath());
-        data.put("cells", res.path().size());
-        data.put("expanded", res.expanded());
-        data.put("leg", leg);
+        JsonObject data = new JsonObject();
+        data.addProperty("reason", reason);
+        data.addProperty("bestEffort", res.hasPath());
+        data.addProperty("cells", res.path().size());
+        data.addProperty("expanded", res.expanded());
+        data.addProperty("leg", leg);
         emitter.emit("route.blocked", foot, data);
     }
 
@@ -113,9 +115,9 @@ public final class RouteEvents {
         double ratio = length(res.path()) / straight;
         if (ratio <= BehaviorConfig.detourAlarmRatio) return;
         if (!fire("route.detour", "")) return;
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("ratio", Math.round(ratio * 100) / 100.0);
-        data.put("cells", res.path().size());
+        JsonObject data = new JsonObject();
+        data.addProperty("ratio", Math.round(ratio * 100) / 100.0);
+        data.addProperty("cells", res.path().size());
         String tax = null;
         double most = 0;
         Map<String, Double> totals = taxes == null ? null : taxes.get();
@@ -125,10 +127,10 @@ public final class RouteEvents {
             }
         }
         if (tax != null) {
-            data.put("tax", tax);
-            data.put("taxCost", Math.round(most));
+            data.addProperty("tax", tax);
+            data.addProperty("taxCost", Math.round(most));
         }
-        data.put("leg", leg);
+        data.addProperty("leg", leg);
         emitter.emit("route.detour", foot, data);
     }
 
@@ -156,16 +158,16 @@ public final class RouteEvents {
             if (lastExposed.containsKey(e.getKey())) continue;
             if (!fire("route.exposed", String.valueOf(e.getKey()))) continue;
             ThreatSnapshot.Threat t = who.get(e.getKey());
-            Map<String, Object> data = new LinkedHashMap<>();
-            Map<String, Object> observer = new LinkedHashMap<>();
-            observer.put("id", t.id());
-            observer.put("type", t.type());
-            if (t.name() != null && !t.name().isEmpty()) observer.put("name", t.name());
-            data.put("observer", observer);
-            data.put("cells", e.getValue());
-            data.put("firstCell", firstCell.get(e.getKey()));
-            data.put("routeCells", cells.size());
-            data.put("leg", leg);
+            JsonObject data = new JsonObject();
+            JsonObject observer = new JsonObject();
+            observer.addProperty("id", t.id());
+            observer.addProperty("type", t.type());
+            if (t.name() != null && !t.name().isEmpty()) observer.addProperty("name", t.name());
+            data.add("observer", observer);
+            data.addProperty("cells", e.getValue());
+            data.addProperty("firstCell", firstCell.get(e.getKey()));
+            data.addProperty("routeCells", cells.size());
+            data.addProperty("leg", leg);
             emitter.emit("route.exposed", foot, data);
         }
         lastExposed = now;

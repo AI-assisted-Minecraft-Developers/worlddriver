@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import java.util.List;
 import java.util.Map;
 
@@ -469,7 +471,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> call(ApiRegistry api, String method, Map<String, Object> params) {
-        return (Map<String, Object>) api.route(method, params);
+        return (Map<String, Object>) SceneJson.route(api, method, params);
     }
 
     static Map<String, Object> at(BlockPos p) {
@@ -521,7 +523,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     static void releaseAtEnd(SceneContext ctx, String ref) {
         ctx.cleanup(() -> {
             ApiRegistry api = WorldDriver.registry();
-            if (api != null) api.route("mc.bot.roster", Map.of("op", "remove", "bot", ref));
+            if (api != null) api.route("mc.bot.roster", SceneJson.params(Map.of("op", "remove", "bot", ref)));
         });
     }
 

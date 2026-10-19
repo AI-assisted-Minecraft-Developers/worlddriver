@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.debug;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.ToNumberPolicy;
+import com.google.gson.reflect.TypeToken;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,9 +17,10 @@ import java.util.Map;
  * <p>Schema version: 1.  All names are kept exactly as specified so the Python
  * analyser can parse the JSON by key name without a translation table.</p>
  *
- * <p>Serialisation uses the project's hand-rolled {@link JsonCodec}.  Numbers
- * decode as {@code Long} (no decimal point) or {@code Double} (decimal /
- * scientific); the {@code asXxx} helpers tolerate any {@link Number} subtype.</p>
+ * <p>Serialisation is Gson over plain maps and lists.  Numbers decode as
+ * {@code Long} (no decimal point) or {@code Double} (decimal / scientific), so a
+ * 64-bit seed keeps every digit; the {@code asXxx} helpers tolerate any
+ * {@link Number} subtype.</p>
  */
 public final class PathArchive {
 
@@ -27,6 +31,10 @@ public final class PathArchive {
     // replay restore). v1 archives (block id only) still decode — the new fields
     // read back as null and the replayer falls back to defaultBlockState().
     public static final int SCHEMA_VERSION = 2;
+
+    /** Nulls written as null, not dropped: a v1 reader tells "absent" from "none" by them. */
+    private static final Gson GSON = new GsonBuilder().serializeNulls().disableHtmlEscaping()
+            .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE).create();
 
     // -----------------------------------------------------------------------
     // Nested record types
@@ -176,7 +184,7 @@ public final class PathArchive {
     // Serialisation: toMap / toJson
     // -----------------------------------------------------------------------
 
-    /** Build a pure JsonCodec-compatible tree (Maps, Lists, primitives). */
+    /** Build a plain tree (Maps, Lists, primitives) for {@link #toJson}. */
     public Map<String, Object> toMap() {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("version", version);
@@ -185,12 +193,12 @@ public final class PathArchive {
         root.put("segments", segmentsToList(segments));
         root.put("envelope", envelopeToList(envelope));
         root.put("trajectory", trajectoryToList(trajectory));
-        root.put("planRef",  planRef);   // null is fine; JsonCodec emits "null"
+        root.put("planRef",  planRef);   // null is written as null
         return root;
     }
 
     public String toJson() {
-        return JsonCodec.encode(toMap());
+        return GSON.toJson(toMap());
     }
 
     // -- header --
@@ -336,7 +344,7 @@ public final class PathArchive {
 
     @SuppressWarnings("unchecked")
     public static PathArchive fromJson(String s) {
-        return fromMap((Map<String, Object>) JsonCodec.decode(s));
+        return fromMap(GSON.fromJson(s, new TypeToken<Map<String, Object>>() {}.getType()));
     }
 
     @SuppressWarnings("unchecked")

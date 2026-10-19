@@ -19,12 +19,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.thread.GameThreads;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * Every callable method, as one immutable {@link Snapshot} replaced whole by each published batch:
@@ -144,16 +147,16 @@ public final class ApiRegistry {
      * an empty object; anything else that is not an object is an error, never an empty object.
      * Every failure arrives as an exceptionally completed stage carrying an {@link ApiException}.
      */
-    public CompletionStage<Object> dispatch(String method, Object paramsTree, CallContext context) {
+    public CompletionStage<JsonElement> dispatch(String method, JsonElement paramsTree, CallContext context) {
         ApiMethod<?, ?> m = method(method);
         if (m == null) {
             return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.METHOD_NOT_FOUND,
                     method == null ? "the request named no method" : "unknown method: " + method));
         }
-        return run(m, paramsTree == null ? Map.of() : paramsTree, context);
+        return run(m, paramsTree == null ? new JsonObject() : paramsTree, context);
     }
 
-    private static <P, R> CompletionStage<Object> run(ApiMethod<P, R> m, Object tree, CallContext context) {
+    private static <P, R> CompletionStage<JsonElement> run(ApiMethod<P, R> m, JsonElement tree, CallContext context) {
         MethodSpec<P, R> spec = m.spec();
         CompletionStage<R> stage;
         try {
@@ -170,7 +173,7 @@ public final class ApiRegistry {
         return f.handleAsync((r, t) -> finish(spec, r, t), ENCODE);
     }
 
-    private static <R> Object finish(MethodSpec<?, R> spec, R result, Throwable failure) {
+    private static <R> JsonElement finish(MethodSpec<?, R> spec, R result, Throwable failure) {
         if (failure != null) throw asApi(failure);
         try {
             return spec.output().encode(result);
@@ -183,10 +186,10 @@ public final class ApiRegistry {
 
     /**
      * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
-     * a Map (wait conditions, watchers, replay). Throws the call's {@link ApiException}. On a game thread
-     * a call that would wait is refused before it starts, as {@link #invokeJson} refuses it.
+     * the parameters as JSON rather than as the method's types. Throws the call's {@link ApiException}.
+     * On a game thread a call that would wait is refused before it starts, as {@link #invokeJson} refuses it.
      */
-    public Object route(String method, Map<String, Object> params) {
+    public JsonElement route(String method, JsonObject params) {
         CallContext ctx = GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
         return await(dispatch(method, params, ctx), CallContext.SERVER_CAP_MS);
     }
@@ -223,26 +226,26 @@ public final class ApiRegistry {
 
     /** {@link #invokeJson(String, String)} as part of {@code caller}: its run, its deadline, its cancellation. */
     public String invokeJson(String method, String paramsJson, CallContext caller) {
-        Map<String, Object> envelope = new LinkedHashMap<>();
+        JsonObject envelope = new JsonObject();
         try {
-            Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+            JsonElement params = paramsJson == null ? null : JsonParser.parseString(paramsJson);
             boolean game = GameThreads.onGameThread();
             CallContext ctx = game ? caller.onGameThread() : caller;
-            CompletionStage<Object> stage = dispatch(method, params, ctx);
-            CompletableFuture<Object> f = stage.toCompletableFuture();
+            CompletionStage<JsonElement> stage = dispatch(method, params, ctx);
+            CompletableFuture<JsonElement> f = stage.toCompletableFuture();
             if (game && !f.isDone()) {
                 f.cancel(false);
                 throw new ApiException(new ApiError(ApiError.Code.INTERNAL_ERROR, method
                         + " did not finish synchronously on a game thread; it may still take effect", List.of(),
                         ApiError.Execution.UNKNOWN));
             }
-            envelope.put("result", await(f, Math.max(1, ctx.remainingMillis())));
-        } catch (JsonCodec.JsonSyntaxException bad) {
-            envelope.put("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
+            envelope.add("result", await(f, Math.max(1, ctx.remainingMillis())));
+        } catch (JsonParseException bad) {
+            envelope.add("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
         } catch (Throwable t) {
-            envelope.put("error", ApiErrors.toTree(asApi(t).error()));
+            envelope.add("error", ApiErrors.toTree(asApi(t).error()));
         }
-        return JsonCodec.encode(envelope);
+        return envelope.toString();
     }
 
     /** {@code t} as an {@link ApiException}, translated once by {@link ApiErrors}. */

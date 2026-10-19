@@ -1,12 +1,12 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
+import com.google.gson.JsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -17,13 +17,13 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.PlanMode;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Position;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 class GotoContractsTest {
 
     private static Params decode(String json) {
-        return GotoContracts.PARAMS.decode(JsonCodec.decode(json));
+        return GotoContracts.PARAMS.decode(JsonParser.parseString(json));
     }
 
     private static List<String> paths(String json) {
@@ -102,8 +102,8 @@ class GotoContractsTest {
 
     @Test
     void scoredIsAnOutcomeBesideAcceptedAndRefused() {
-        Object wire = GotoContracts.RESPONSE.encode(new Scored(4, List.of(), 1.0, false, false));
-        assertEquals("scored", ((Map<?, ?>) wire).get("outcome"));
+        JsonObject wire = GotoContracts.RESPONSE.encode(new Scored(4, List.of(), 1.0, false, false)).getAsJsonObject();
+        assertEquals("scored", wire.get("outcome").getAsString());
         String ts = GotoContracts.RESPONSE.ts(new TsContext());
         assertTrue(ts.contains("GotoResponse"), ts);
     }

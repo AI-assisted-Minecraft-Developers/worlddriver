@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -31,7 +32,7 @@ class EventsWatchTest {
     }
 
     private static Map<?, ?> events(DriverApplication api, Map<String, Object> params) {
-        return (Map<?, ?>) api.registry().route("mc.events", params);
+        return (Map<?, ?>) TestJson.route(api.registry(), "mc.events", params);
     }
 
     private static ApiException refusedAt(String path, DriverApplication api, Map<String, Object> params) {
@@ -82,7 +83,7 @@ class EventsWatchTest {
                 "field", "value", "above", 5, "emitAs", "probe.fired", "everyMs", 200, "once", true));
         assertEquals("watch", ack.get("op"));
         assertTrue(got.await(10, TimeUnit.SECONDS), "the watcher never fired");
-        Map<?, ?> data = (Map<?, ?>) fired.get(0).data().orElseThrow().tree();
+        Map<?, ?> data = (Map<?, ?>) TestJson.plain(fired.get(0).data().orElseThrow().json());
         assertEquals(((Number) ack.get("id")).longValue(), ((Number) data.get("watch")).longValue());
         assertEquals(7L, ((Number) data.get("value")).longValue());
         assertEquals(0L, events(api, Map.of("op", "list")).get("count"), "once removes the watcher after it fires");
@@ -120,6 +121,6 @@ class EventsWatchTest {
         Map<?, ?> r = events(api, Map.of("op", "emit", "type", "test.custom", "data", Map.of("hello", "world")));
         assertEquals("emit", r.get("op"));
         assertEquals(String.valueOf(api.eventSeq.get()), r.get("seq"));
-        assertEquals(Map.of("hello", "world"), api.events.peekLast().data.tree());
+        assertEquals(Map.of("hello", "world"), TestJson.plain(api.events.peekLast().data.json()));
     }
 }

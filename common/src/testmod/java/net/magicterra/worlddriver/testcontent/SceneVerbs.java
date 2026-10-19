@@ -11,7 +11,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -375,7 +374,7 @@ public final class SceneVerbs {
 
     /** File content as an open JSON object. Its null entries are dropped: an absent value is an omitted key. */
     static JsonValue json(Object tree) {
-        return JsonValue.of(withoutNulls(tree));
+        return JsonValue.of(SceneJson.GSON.toJsonTree(withoutNulls(tree)));
     }
 
     private static Object withoutNulls(Object v) {

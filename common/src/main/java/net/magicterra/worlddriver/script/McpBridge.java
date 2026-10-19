@@ -1,10 +1,15 @@
 package net.magicterra.worlddriver.script;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,9 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -46,16 +49,16 @@ public final class McpBridge {
     public String callJson(String toolName, String argsJson) {
         // Outside the envelope: a refusal is the script's mistake, not an outcome of the call.
         ServerThreadGuard.refuseBlocking("an MCP round-trip");
-        Map<String, Object> envelope = new LinkedHashMap<>();
+        JsonObject envelope = new JsonObject();
         try {
-            envelope.put("result", call(toolName, argsJson == null ? null : JsonCodec.decode(argsJson)));
+            envelope.add("result", call(toolName, argsJson == null ? null : JsonParser.parseString(argsJson)));
         } catch (BridgeError e) {
-            envelope.put("error", ApiErrors.toTree(e.error));
+            envelope.add("error", ApiErrors.toTree(e.error));
         } catch (Exception e) {
-            envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+            envelope.add("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
                     "mcpRoundtrip failed: " + e.getMessage(), List.of(), ApiError.Execution.UNKNOWN)));
         }
-        return JsonCodec.encode(envelope);
+        return envelope.toString();
     }
 
     private static final class BridgeError extends RuntimeException {
@@ -63,53 +66,57 @@ public final class McpBridge {
         BridgeError(ApiError error) { super(error.message()); this.error = error; }
     }
 
-    @SuppressWarnings("unchecked")
-    private Object call(String toolName, Object args) throws Exception {
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("name", toolName);
-        if (args != null) params.put("arguments", args);
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("jsonrpc", "2.0");
-        req.put("id", seq.incrementAndGet());
-        req.put("method", "tools/call");
-        req.put("params", params);
+    private JsonElement call(String toolName, JsonElement args) throws Exception {
+        JsonObject params = new JsonObject();
+        params.addProperty("name", toolName);
+        if (args != null) params.add("arguments", args);
+        JsonObject req = new JsonObject();
+        req.addProperty("jsonrpc", "2.0");
+        req.addProperty("id", seq.incrementAndGet());
+        req.addProperty("method", "tools/call");
+        req.add("params", params);
 
         HttpRequest httpReq = HttpRequest.newBuilder(endpoint)
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(JsonCodec.encode(req), StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(req.toString(), StandardCharsets.UTF_8))
                 .build();
         HttpResponse<String> resp = client.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (!(JsonCodec.decode(resp.body()) instanceof Map<?, ?> m)) {
+        if (!(JsonParser.parseString(resp.body()) instanceof JsonObject m)) {
             throw new IllegalStateException("MCP response not an object: " + resp.body());
         }
-        if (m.get("error") instanceof Map<?, ?> err) {
+        if (m.get("error") instanceof JsonObject err) {
             ApiError api = ApiErrors.fromTree(err.get("data"));
             throw new BridgeError(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR,
                     "MCP error " + err.get("code") + ": " + err.get("message")));
         }
-        if (!(m.get("result") instanceof Map<?, ?> rm)) throw new IllegalStateException("MCP result not an object");
-        Map<String, Object> textBlock = null, imageBlock = null;
-        if (rm.get("content") instanceof List<?> cl) {
-            for (Object b : cl) {
-                if (!(b instanceof Map<?, ?> bm)) continue;
-                if ("text".equals(bm.get("type")) && textBlock == null) textBlock = (Map<String, Object>) bm;
-                else if ("image".equals(bm.get("type")) && imageBlock == null) imageBlock = (Map<String, Object>) bm;
+        if (!(m.get("result") instanceof JsonObject rm)) throw new IllegalStateException("MCP result not an object");
+        JsonObject textBlock = null, imageBlock = null;
+        if (rm.get("content") instanceof JsonArray cl) {
+            for (JsonElement b : cl) {
+                if (!(b instanceof JsonObject bm)) continue;
+                String type = string(bm.get("type"));
+                if ("text".equals(type) && textBlock == null) textBlock = bm;
+                else if ("image".equals(type) && imageBlock == null) imageBlock = bm;
             }
         }
-        String text = textBlock == null ? null : (String) textBlock.get("text");
-        if (Boolean.TRUE.equals(rm.get("isError"))) {
-            ApiError api = text == null ? null : ApiErrors.fromTree(JsonCodec.decode(text));
+        String text = textBlock == null ? null : string(textBlock.get("text"));
+        if (rm.get("isError") instanceof JsonPrimitive e && e.isBoolean() && e.getAsBoolean()) {
+            ApiError api = text == null ? null : ApiErrors.fromTree(JsonParser.parseString(text));
             throw new BridgeError(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR, "MCP tool error: " + text));
         }
-        Object inner = rm.containsKey("structuredContent") ? rm.get("structuredContent")
-                : (text == null || text.isEmpty()) ? null : JsonCodec.decode(text);
+        JsonElement inner = rm.has("structuredContent") ? rm.get("structuredContent")
+                : (text == null || text.isEmpty()) ? JsonNull.INSTANCE : JsonParser.parseString(text);
         MethodSpec.ImageHint hint = images.apply(toolName);
-        if (imageBlock != null && inner instanceof Map<?, ?> dm) {
-            Map<String, Object> merged = new LinkedHashMap<>((Map<String, Object>) dm);
-            merged.put(hint != null ? hint.dataField() : "base64", imageBlock.get("data"));
+        if (imageBlock != null && inner instanceof JsonObject dm) {
+            JsonObject merged = dm.deepCopy();
+            merged.add(hint != null ? hint.dataField() : "base64", imageBlock.get("data"));
             return merged;
         }
         return inner;
+    }
+
+    private static String string(JsonElement v) {
+        return v instanceof JsonPrimitive p && p.isString() ? p.getAsString() : null;
     }
 }

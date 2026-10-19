@@ -456,7 +456,7 @@ public final class FixtureRunner {
                     if (route.remove("via") instanceof List<?> vl) {
                         for (Object o : vl) legVia.add(FixtureIO.at(origin, SceneFixture.intsOf(o, "route.via[]", 3)));
                     }
-                    RouteContracts.Route r = RouteContracts.ROUTE.decode(route);
+                    RouteContracts.Route r = RouteContracts.ROUTE.decode(SceneJson.params(route));
                     if (r.fly()) throw new SceneFailure("task " + i + ": route.mode fly is the elytra verb here");
                     r = Routes.of(r).via(legVia.toArray(BlockPos[]::new)).build();
                     yield SceneBot.tasks().goTo(new GotoContracts.Params(ref,
@@ -485,7 +485,7 @@ public final class FixtureRunner {
                     for (String k : List.of("yaw", "pitch", "reactive", "fireworks", "fireworkEveryTicks", "ticks", "stopXZDist")) {
                         if (p.get(k) != null) m.put(k, p.get(k));
                     }
-                    yield SceneBot.tasks().elytraFly(MoveContracts.ELYTRA_PARAMS.decode(m));
+                    yield SceneBot.tasks().elytraFly(MoveContracts.ELYTRA_PARAMS.decode(SceneJson.params(m)));
                 }
                 default -> throw new SceneFailure("task " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
             };

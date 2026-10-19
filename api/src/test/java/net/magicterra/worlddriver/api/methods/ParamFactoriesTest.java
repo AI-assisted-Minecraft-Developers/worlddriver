@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ class ParamFactoriesTest {
     private static final String POS_JSON = "{\"x\":1,\"y\":64,\"z\":-2}";
 
     private static <T> void same(ApiType<T> type, String json, T built) {
-        assertEquals(type.decode(JsonCodec.decode(json)), built, json);
+        assertEquals(type.decode(JsonParser.parseString(json)), built, json);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -33,7 +34,7 @@ class WaitResultTest {
     }
 
     private static Map<?, ?> call(DriverApplication api, String method, Map<String, Object> params) {
-        return (Map<?, ?>) api.registry().route(method, params);
+        return (Map<?, ?>) TestJson.route(api.registry(), method, params);
     }
 
     /** A background wait that is satisfied on its first poll; needs no world. */
@@ -91,7 +92,7 @@ class WaitResultTest {
         assertEquals(Boolean.TRUE, reply.get("satisfied"), r.toString());
         assertFalse(r.containsKey("error"), r.toString());
 
-        Map<?, ?> data = (Map<?, ?>) done.get(10, TimeUnit.SECONDS).data().orElseThrow().tree();
+        Map<?, ?> data = (Map<?, ?>) TestJson.plain(done.get(10, TimeUnit.SECONDS).data().orElseThrow().json());
         assertEquals(id, data.get("waitId"));
         assertEquals("mc.wait.condition", data.get("method"));
         assertEquals(reply, data.get("result"));
@@ -136,7 +137,7 @@ class WaitResultTest {
     void anUnknownActionIsActionNotFound() {
         DriverApplication api = app();
         ApiException e = assertThrows(ApiException.class,
-                () -> api.registry().route("mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
+                () -> TestJson.route(api.registry(), "mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
         assertEquals(ApiError.Code.ACTION_NOT_FOUND, e.error().code());
     }
 }

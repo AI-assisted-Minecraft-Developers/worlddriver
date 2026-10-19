@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -33,9 +34,9 @@ class VerbLifecycleTest {
         ApiBatch one = ProbeMethods.publish(first, "architecture.lifecycle", true);
         ProbeMethods.publish(second, "architecture.lifecycle", true);
 
-        assertEquals(Map.of("value", 1L), first.route("architecture.lifecycle", Map.of()));
-        assertEquals(Map.of("value", 1L), second.route("architecture.lifecycle", Map.of()));
-        assertTrue(McpTools.list(first).stream().noneMatch(t -> "architecture.lifecycle".equals(t.get("name"))));
+        assertEquals(Map.of("value", 1L), TestJson.route(first, "architecture.lifecycle", Map.of()));
+        assertEquals(Map.of("value", 1L), TestJson.route(second, "architecture.lifecycle", Map.of()));
+        assertTrue(McpTools.list(first).stream().noneMatch(t -> "architecture.lifecycle".equals(t.get("name").getAsString())));
         assertFalse(first.registerBatch(one), "the same batch object again is a retry");
         assertEquals(1, first.methods().stream().filter("architecture.lifecycle"::equals).count());
     }

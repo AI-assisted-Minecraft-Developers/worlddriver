@@ -1,12 +1,13 @@
 package net.magicterra.worlddriver.rpc;
 
+import com.google.gson.JsonObject;
+import net.magicterra.worlddriver.TestJson;
 import static net.magicterra.worlddriver.application.TestTransports.rpc;
 
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -75,13 +76,13 @@ class RpcFramingTest {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of(NOTIFICATION, "{\"id\":{ID},\"result\":{\"hp\":20}}");
             try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                Object r = c.call("mc.observe.player", Map.of());
+                Object r = TestJson.plain(c.call("mc.observe.player", new JsonObject()));
                 Map<?, ?> m = assertInstanceOf(Map.class, r, "an event was returned as the response");
                 assertEquals("20", String.valueOf(m.get("hp")));
 
                 // The frame that matters: the NEXT call must still get its own answer.
                 server.script = List.of("{\"id\":{ID},\"result\":\"second\"}");
-                assertEquals("second", c.call("mc.x", Map.of()),
+                assertEquals("second", TestJson.plain(c.call("mc.x", new JsonObject())),
                         "connection is one frame behind — every later call is corrupted");
             }
         }
@@ -93,7 +94,7 @@ class RpcFramingTest {
             server.script = List.of(NOTIFICATION, NOTIFICATION, NOTIFICATION,
                     "{\"id\":{ID},\"result\":\"after3\"}");
             try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                assertEquals("after3", c.call("mc.x", Map.of()));
+                assertEquals("after3", TestJson.plain(c.call("mc.x", new JsonObject())));
             }
         }
     }
@@ -103,7 +104,7 @@ class RpcFramingTest {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of("{\"id\":null,\"error\":{\"code\":-32700,\"message\":\"parse: boom\"}}");
             try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                RpcCallException e = assertThrows(RpcCallException.class, () -> c.call("mc.x", Map.of()));
+                RpcCallException e = assertThrows(RpcCallException.class, () -> TestJson.plain(c.call("mc.x", new JsonObject())));
                 assertTrue(String.valueOf(e.getMessage()).contains("boom"), e.getMessage());
                 assertEquals(-32700, e.rpcCode());
             }
@@ -116,7 +117,7 @@ class RpcFramingTest {
             server.script = List.of("{\"id\":999999,\"result\":\"stale\"}",
                     "{\"id\":{ID},\"result\":\"fresh\"}");
             try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                assertEquals("fresh", c.call("mc.x", Map.of()));
+                assertEquals("fresh", TestJson.plain(c.call("mc.x", new JsonObject())));
             }
         }
     }
@@ -317,8 +318,8 @@ class RpcFramingTest {
                             && !api.registry().methods().contains("mc.events.unsubscribe"),
                     "subscription is the transport's, not a registered method");
             result(raw.roundTrip("{\"id\":8,\"method\":\"mc.events.subscribe\",\"params\":{\"types\":[\"probe.kept\"]}}"));
-            api.emitExternal("probe.dropped", null, JsonValue.of("no"));
-            api.emitExternal("probe.kept", new net.minecraft.core.BlockPos(1, 2, 3), JsonValue.of(Map.of("n", 4)));
+            api.emitExternal("probe.dropped", null, JsonValue.of(TestJson.json("no")));
+            api.emitExternal("probe.kept", new net.minecraft.core.BlockPos(1, 2, 3), JsonValue.of(TestJson.json(Map.of("n", 4))));
             Map<?, ?> frame = WsTestClient.decode(raw.poll(5_000));
             assertEquals("notifications/message", frame.get("method"));
             assertTrue(!frame.containsKey("id"), "a push carries no id: " + frame);
@@ -331,7 +332,7 @@ class RpcFramingTest {
             Map<?, ?> stray = raw.roundTrip("{\"id\":9,\"method\":\"mc.events.unsubscribe\",\"params\":{\"types\":[]}}");
             assertEquals("-32602", code(stray), "unsubscribe takes no params: " + stray);
             result(raw.roundTrip("{\"id\":10,\"method\":\"mc.events.unsubscribe\"}"));
-            api.emitExternal("probe.kept", null, JsonValue.of("late"));
+            api.emitExternal("probe.kept", null, JsonValue.of(TestJson.json("late")));
             assertNull(raw.poll(500), "nothing is pushed after unsubscribe");
         }
     }
@@ -373,7 +374,7 @@ class RpcFramingTest {
                       .addLast(new SimpleChannelInboundHandler<TextWebSocketFrame>() {
                           @Override protected void channelRead0(ChannelHandlerContext x,
                                                                 TextWebSocketFrame f) {
-                              Object decoded = JsonCodec.decode(f.text());
+                              Object decoded = TestJson.plain(f.text());
                               Object id = decoded instanceof Map<?, ?> m ? m.get("id") : 0;
                               for (String line : script) {
                                   x.channel().writeAndFlush(new TextWebSocketFrame(

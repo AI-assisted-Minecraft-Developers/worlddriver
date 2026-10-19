@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.api.schema;
 
 import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import com.google.gson.JsonObject;
 
 /**
  * Everything about one method that is not its implementation: name, description, parameter and
@@ -116,13 +116,13 @@ public final class MethodSpec<P, R> {
     }
 
     /** The MCP annotations: hints for a client, derived from the effects rather than declared twice. */
-    public Map<String, Object> mcpAnnotations() {
-        Map<String, Object> a = new LinkedHashMap<>();
+    public JsonObject mcpAnnotations() {
+        JsonObject a = new JsonObject();
         boolean ro = readOnly();
-        a.put("readOnlyHint", ro);
-        a.put("destructiveHint", !ro && (effects.contains(Effect.WORLD_WRITE) || effects.contains(Effect.BODY_TASK)
+        a.addProperty("readOnlyHint", ro);
+        a.addProperty("destructiveHint", !ro && (effects.contains(Effect.WORLD_WRITE) || effects.contains(Effect.BODY_TASK)
                 || effects.contains(Effect.INVENTORY_WRITE)));
-        a.put("idempotentHint", ro);
+        a.addProperty("idempotentHint", ro);
         return a;
     }
 

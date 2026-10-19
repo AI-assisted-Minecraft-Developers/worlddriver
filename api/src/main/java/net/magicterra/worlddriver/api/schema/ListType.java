@@ -2,10 +2,12 @@ package net.magicterra.worlddriver.api.schema;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 /** A bounded list of one item type, decoded unmodifiable; see {@link ApiTypes#list}. */
 final class ListType<T> extends ApiType<List<T>> {
@@ -18,8 +20,8 @@ final class ListType<T> extends ApiType<List<T>> {
         this.maxItems = maxItems;
     }
 
-    @Override protected List<T> read(Object value, DecodeContext at) {
-        if (!(value instanceof List<?> l)) return at.mismatch(expected(), value);
+    @Override protected List<T> read(JsonElement value, DecodeContext at) {
+        if (!(value instanceof JsonArray l)) return at.mismatch(expected(), value);
         if (l.size() < minItems || l.size() > maxItems) {
             return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + l.size() + " items");
         }
@@ -27,25 +29,25 @@ final class ListType<T> extends ApiType<List<T>> {
         List<T> out = new ArrayList<>(l.size());
         for (int i = 0; i < l.size(); i++) {
             DecodeContext eat = at.index(i);
-            Object raw = l.get(i);
-            if (raw == null) { eat.mismatch(item.expected(), null); continue; }
+            JsonElement raw = l.get(i);
+            if (raw.isJsonNull()) { eat.mismatch(item.expected(), raw); continue; }
             out.add(item.decode(raw, eat));
         }
         return at.issues().size() == before ? Collections.unmodifiableList(out) : null;
     }
 
-    @Override protected Object write(List<T> value) {
-        List<Object> out = new ArrayList<>(value.size());
+    @Override protected JsonElement write(List<T> value) {
+        JsonArray out = new JsonArray(value.size());
         for (T v : value) out.add(item.write(v));
         return out;
     }
 
-    @Override protected Map<String, Object> schemaBody() {
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("type", "array");
-        s.put("items", item.schema());
-        if (minItems > 0) s.put("minItems", minItems);
-        if (maxItems != Integer.MAX_VALUE) s.put("maxItems", maxItems);
+    @Override protected JsonObject schemaBody() {
+        JsonObject s = new JsonObject();
+        s.addProperty("type", "array");
+        s.add("items", item.schema());
+        if (minItems > 0) s.addProperty("minItems", minItems);
+        if (maxItems != Integer.MAX_VALUE) s.addProperty("maxItems", maxItems);
         return s;
     }
 

@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -24,7 +25,7 @@ class WaitConditionTest {
     }
 
     private static ApiException refused(DriverApplication api, String method, Map<String, Object> params, String path) {
-        ApiException e = assertThrows(ApiException.class, () -> api.registry().route(method, params));
+        ApiException e = assertThrows(ApiException.class, () -> TestJson.route(api.registry(), method, params));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.error().code(), e.error().toString());
         assertEquals(path, e.error().issues().get(0).path(), e.error().toString());
         return e;
@@ -56,7 +57,7 @@ class WaitConditionTest {
 
     @Test
     void aSatisfiedConditionAnswersDoneWithTheValue() {
-        Map<?, ?> r = (Map<?, ?>) app().registry().route("mc.wait.condition", Map.of("invoke", "probe.echo",
+        Map<?, ?> r = (Map<?, ?>) TestJson.route(app().registry(), "mc.wait.condition", Map.of("invoke", "probe.echo",
                 "params", Map.of("value", 3), "field", "value", "value", 3));
         assertEquals("done", r.get("outcome"), r.toString());
         assertEquals(Boolean.TRUE, r.get("satisfied"), r.toString());
@@ -65,7 +66,7 @@ class WaitConditionTest {
 
     @Test
     void anUnsatisfiedConditionTimesOutWithoutAValue() {
-        Map<?, ?> r = (Map<?, ?>) app().registry().route("mc.wait.condition", Map.of("invoke", "probe.echo",
+        Map<?, ?> r = (Map<?, ?>) TestJson.route(app().registry(), "mc.wait.condition", Map.of("invoke", "probe.echo",
                 "field", "nope", "timeoutMs", 300, "pollMs", 50));
         assertEquals(Boolean.FALSE, r.get("satisfied"), r.toString());
         assertEquals(false, r.containsKey("value"), "a path that leads nowhere is omitted, not null: " + r);

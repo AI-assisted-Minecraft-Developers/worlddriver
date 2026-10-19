@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 class WorldReadWriteContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
-        return type.decode(JsonCodec.decode(json));
+        return type.decode(JsonParser.parseString(json));
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
@@ -60,7 +60,7 @@ class WorldReadWriteContractsTest {
                 decode(QueryContracts.PARAMS, "{\"q\":\"entities\"}"));
         assertEquals(16, e.filter().inRadius());
         assertEquals("{\"q\":\"blocks\",\"blocks\":[]}",
-                JsonCodec.encode(QueryContracts.REPLY.encode(new QueryContracts.BlockRows(List.of()))));
+                String.valueOf(QueryContracts.REPLY.encode(new QueryContracts.BlockRows(List.of()))));
     }
 
     @Test
@@ -79,7 +79,7 @@ class WorldReadWriteContractsTest {
     @Test
     void eventsAreThereOnlyWhenAskedFor() {
         assertEquals("{\"placed\":3}",
-                JsonCodec.encode(ActionContracts.PLACED.encode(new ActionContracts.Placed(3, Optional.empty()))));
+                String.valueOf(ActionContracts.PLACED.encode(new ActionContracts.Placed(3, Optional.empty()))));
         assertEquals("/blocks", issue(ActionContracts.PLACE_MANY_PARAMS, "{\"blocks\":[]}").path());
     }
 
@@ -92,7 +92,7 @@ class WorldReadWriteContractsTest {
 
     @Test
     void anAbsentPlayerIsAnAbsentField() {
-        assertEquals("{}", JsonCodec.encode(ObserveContracts.PLAYER_REPLY.encode(new ObserveContracts.PlayerReading(Optional.empty()))));
-        assertEquals("{\"type\":\"miss\"}", JsonCodec.encode(ObserveContracts.CROSSHAIR.encode(new ObserveContracts.Miss())));
+        assertEquals("{}", String.valueOf(ObserveContracts.PLAYER_REPLY.encode(new ObserveContracts.PlayerReading(Optional.empty()))));
+        assertEquals("{\"type\":\"miss\"}", String.valueOf(ObserveContracts.CROSSHAIR.encode(new ObserveContracts.Miss())));
     }
 }

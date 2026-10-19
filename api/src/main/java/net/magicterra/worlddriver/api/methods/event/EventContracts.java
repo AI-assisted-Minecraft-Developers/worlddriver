@@ -209,7 +209,7 @@ public final class EventContracts {
                     .checked((e, at) -> {
                         // A built-in type's listeners read its payload by its contract, whoever sent it.
                         EventCatalog.Entry<?> builtIn = EventCatalog.byType(e.type());
-                        if (builtIn != null) builtIn.payload().decode(e.data().orElse(JsonValue.NULL).tree(), at.field("data"));
+                        if (builtIn != null) builtIn.payload().decode(e.data().orElse(JsonValue.NULL).json(), at.field("data"));
                     })),
             ApiTypes.variant("watch", Watch.class, WATCH_FIELDS),
             ApiTypes.variant("unwatch", Unwatch.class, ApiTypes.record(Unwatch.class, null,

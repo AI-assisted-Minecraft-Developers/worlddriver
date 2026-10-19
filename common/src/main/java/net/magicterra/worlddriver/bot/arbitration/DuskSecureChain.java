@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
+import com.google.gson.JsonObject;
+
 import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
@@ -10,7 +12,6 @@ import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import java.util.Map;
 
 /**
  * Idle-only proactive shelter at dusk (controlled re-intro of the shelved BunkerChain).
@@ -193,12 +194,12 @@ public final class DuskSecureChain implements Chain {
      *  {@link ArbitrationConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
     private void announceAutoTrigger(BlockPos p, boolean rearm) {
-        emitter.emit("duskSecure.triggered", p, Map.of(
-                        "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
-                        "depth", ArbitrationConfig.bunkerDepth,
-                        // gap#75-b: distinguishes a re-arm after preemption from a fresh
-                        // dusk trigger in the event stream.
-                        "rearm", rearm));
+        JsonObject data = new JsonObject();
+        data.add("pos", cell(p));
+        data.addProperty("depth", ArbitrationConfig.bunkerDepth);
+        // gap#75-b: distinguishes a re-arm after preemption from a fresh dusk trigger in the event stream.
+        data.addProperty("rearm", rearm);
+        emitter.emit("duskSecure.triggered", p, data);
     }
 
     /** Observe-only canary for {@link ArbitrationConfig#duskUrgentDryRun}: pushes at most one
@@ -208,9 +209,18 @@ public final class DuskSecureChain implements Chain {
      *  #announceAutoTrigger}'s emit shape. */
     private void maybeEmitDryRun(BlockPos p) {
         if (dryRunCooldown > 0) { dryRunCooldown--; return; }
-        emitter.emit("duskSecure.urgentDryRun", p, Map.of(
-                        "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ())));
+        JsonObject data = new JsonObject();
+        data.add("pos", cell(p));
+        emitter.emit("duskSecure.urgentDryRun", p, data);
         dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
+    }
+
+    private static JsonObject cell(BlockPos p) {
+        JsonObject pos = new JsonObject();
+        pos.addProperty("x", p.getX());
+        pos.addProperty("y", p.getY());
+        pos.addProperty("z", p.getZ());
+        return pos;
     }
 
     // Both interrupt paths drop `process`; lastBidTier is only ever consulted while

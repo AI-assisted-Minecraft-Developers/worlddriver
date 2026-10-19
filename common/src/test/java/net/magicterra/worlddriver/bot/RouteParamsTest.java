@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
+import com.google.gson.JsonObject;
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -59,7 +61,7 @@ class RouteParamsTest {
     private static RouteParams.Parsed parse(Object... kv) {
         Map<String, Object> m = new HashMap<>();
         for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
-        return RouteParams.parse(m);
+        return RouteParams.parse(TestJson.obj(m));
     }
 
     private static <T> T only(List<?> xs, Class<T> type) {
@@ -74,7 +76,7 @@ class RouteParamsTest {
 
     /** The paths of the issues a malformed route is refused with. */
     private static List<String> issues(Map<String, Object> route) {
-        ApiException e = assertThrows(ApiException.class, () -> RouteParams.parse(route));
+        ApiException e = assertThrows(ApiException.class, () -> RouteParams.parse(TestJson.obj(route)));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.error().code());
         return e.error().issues().stream().map(ApiIssue::path).toList();
     }
@@ -99,7 +101,7 @@ class RouteParamsTest {
     @Test
     void nullRouteParsesLikeEmpty() {
         BotConfig.avoidMobs = false;
-        assertTrue(RouteParams.parse((Map<String, Object>) null).profile().constraints().isEmpty());
+        assertTrue(RouteParams.parse((JsonObject) null).profile().constraints().isEmpty());
     }
 
     @Test

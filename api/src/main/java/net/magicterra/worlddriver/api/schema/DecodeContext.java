@@ -1,11 +1,10 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import net.magicterra.worlddriver.protocol.RejectedNumber;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
 
 /**
  * Where a decode is (a JSON Pointer) and the issues found so far, shared by every level of one
@@ -41,21 +40,25 @@ public final class DecodeContext {
     }
 
     /** A type_mismatch naming what was expected and what arrived. */
-    public <T> T mismatch(String expected, Object got) {
+    public <T> T mismatch(String expected, JsonElement got) {
         return fail(ApiIssue.Code.TYPE_MISMATCH, "expected " + expected + ", got " + describe(got));
     }
 
     /** How a value reads in a message, without echoing an unbounded string back. */
-    public static String describe(Object v) {
-        if (v == null) return "null";
-        if (v instanceof String s) return "string \"" + (s.length() > 40 ? s.substring(0, 40) + "…" : s) + "\"";
-        if (v instanceof Boolean b) return "boolean " + b;
-        if (v instanceof BigDecimal || v instanceof BigInteger || v instanceof Number) return "number " + v;
-        if (v instanceof Map<?, ?>) return "object";
-        if (v instanceof List<?>) return "array";
-        if (v instanceof RejectedNumber r) {
-            return "number " + r.token() + " (" + r.reason() + ")";
-        }
-        return v.getClass().getSimpleName();
+    public static String describe(JsonElement v) {
+        if (v == null || v.isJsonNull()) return "null";
+        if (v.isJsonObject()) return "object";
+        if (v.isJsonArray()) return "array";
+        JsonPrimitive p = v.getAsJsonPrimitive();
+        if (p.isBoolean()) return "boolean " + p.getAsBoolean();
+        if (p.isNumber()) return "number " + clip(p.getAsNumber().toString());
+        return describe(p.getAsString());
     }
+
+    /** A string as {@link #describe(JsonElement)} shows one. */
+    public static String describe(String s) {
+        return "string \"" + clip(s) + "\"";
+    }
+
+    private static String clip(String s) { return s.length() > 40 ? s.substring(0, 40) + "…" : s; }
 }

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.mcp;
 
+import com.google.gson.JsonObject;
+import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -31,7 +33,9 @@ class SchemaUnionRenderingTest {
 
     private static void assertUnionType(ApiRegistry api, String toolName, String propName) {
         Map<String, Object> tool = null;
-        for (Map<String, Object> t : McpTools.list(api)) {
+        for (JsonObject j : McpTools.list(api)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> t = (Map<String, Object>) TestJson.plain(j);
             if (toolName.equals(t.get("name"))) { tool = t; break; }
         }
         assertNotNull(tool, "tool not found in tools/list: " + toolName);

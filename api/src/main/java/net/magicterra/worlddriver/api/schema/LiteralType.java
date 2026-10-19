@@ -1,8 +1,10 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 
 /** Exactly one string; see {@link ApiTypes#literal}. */
 final class LiteralType extends ApiType<String> {
@@ -10,15 +12,16 @@ final class LiteralType extends ApiType<String> {
 
     LiteralType(String value) { this.value = Objects.requireNonNull(value); }
 
-    @Override protected String read(Object v, DecodeContext at) {
-        if (!(v instanceof String s)) return at.mismatch(expected(), v);
+    @Override protected String read(JsonElement v, DecodeContext at) {
+        String s = Json.string(v);
+        if (s == null) return at.mismatch(expected(), v);
         return value.equals(s) ? s : at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got \"" + s + "\"");
     }
-    @Override protected Object write(String v) { return v; }
-    @Override protected Map<String, Object> schemaBody() {
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("type", "string");
-        s.put("const", value);
+    @Override protected JsonElement write(String v) { return new JsonPrimitive(v); }
+    @Override protected JsonObject schemaBody() {
+        JsonObject s = new JsonObject();
+        s.addProperty("type", "string");
+        s.addProperty("const", value);
         return s;
     }
     @Override public String ts(TsContext ts) { return TsContext.literal(value); }

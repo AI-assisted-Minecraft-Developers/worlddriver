@@ -1,10 +1,11 @@
 package net.magicterra.worlddriver.bot;
 
+import com.google.gson.JsonObject;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.api.game.Positions;
@@ -33,7 +34,6 @@ import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.rules.Region;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
-import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.ColumnRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.Corridor;
 import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
@@ -99,12 +99,12 @@ public final class RouteParams {
                          boolean fly, Set<String> constraintNames) {}
 
     /**
-     * A route still in its JSON form (a scene's literal, a method not yet typed): decoded by the
-     * contract, so a malformed one is {@code invalid_params} at {@code /route/...} like a typed call's.
+     * A route still in its JSON form (a test's literal): decoded by the contract, so a malformed one is
+     * {@code invalid_params} at {@code /route/...} like a typed call's.
      */
-    public static Parsed parse(Map<String, Object> route) {
+    public static Parsed parse(JsonObject route) {
         DecodeContext at = DecodeContext.root().field("route");
-        Route r = RouteContracts.ROUTE.decode(route == null ? Map.of() : route, at);
+        Route r = RouteContracts.ROUTE.decode(route == null ? new JsonObject() : route, at);
         if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
         return parse(r);
     }

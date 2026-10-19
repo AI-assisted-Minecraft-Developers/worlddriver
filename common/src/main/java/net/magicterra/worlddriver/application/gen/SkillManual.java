@@ -12,7 +12,8 @@ import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.bot.SettingDefaults;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 /**
  * The method manual of the {@code worlddriver-rpc} skill: every method, setting and event type in one page,
@@ -81,7 +82,7 @@ final class SkillManual {
         for (SettingDefs.Def d : SettingDefs.all()) {
             Object dflt = defaults.get(d.key());
             out.append("| `").append(d.key()).append("` | ").append(cell(typeOf(d.type(), ts))).append(" | ")
-                    .append(dflt == null ? "" : cell("`" + JsonCodec.encode(encode(d.type(), dflt)) + "`"))
+                    .append(dflt == null ? "" : cell("`" + encode(d.type(), dflt) + "`"))
                     .append(" | ").append(d.description() == null ? "" : cell(d.description())).append(" |\n");
         }
     }
@@ -101,22 +102,22 @@ final class SkillManual {
     /** {@code type}'s TypeScript name, with the range a number type is held to. */
     private static String typeOf(ApiType<?> type, TsContext ts) {
         String name = "`" + type.ts(ts) + "`";
-        Map<String, Object> s = type.schema();
-        Object lo = s.get("minimum"), hi = s.get("maximum");
+        JsonObject s = type.schema();
+        JsonElement lo = s.get("minimum"), hi = s.get("maximum");
         if (lo == null && hi == null) return name;
-        String kind = "integer".equals(s.get("type")) ? "integer" : "number";
-        if (hi == null || ((Number) hi).doubleValue() == Double.MAX_VALUE) return kind + " ≥ " + number(lo);
+        String kind = s.get("type") != null && "integer".equals(s.get("type").getAsString()) ? "integer" : "number";
+        if (hi == null || hi.getAsDouble() == Double.MAX_VALUE) return kind + " ≥ " + number(lo);
         if (lo == null) return kind + " ≤ " + number(hi);
         return kind + " " + number(lo) + "–" + number(hi);
     }
 
-    private static String number(Object n) {
-        double d = ((Number) n).doubleValue();
+    private static String number(JsonElement n) {
+        double d = n.getAsDouble();
         return d == Math.rint(d) && Math.abs(d) < 1e15 ? Long.toString((long) d) : Double.toString(d);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static Object encode(ApiType type, Object value) { return type.encode(value); }
+    private static JsonElement encode(ApiType type, Object value) { return type.encode(value); }
 
     private static String cell(String text) { return text.replace("|", "\\|").replace("\n", " "); }
 

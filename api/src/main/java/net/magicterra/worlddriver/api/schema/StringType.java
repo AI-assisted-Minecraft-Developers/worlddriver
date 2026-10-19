@@ -1,9 +1,11 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 
 /** A string type; immutable, so the narrowing methods return new instances. */
 public final class StringType extends ApiType<String> {
@@ -40,8 +42,9 @@ public final class StringType extends ApiType<String> {
         return s;
     }
 
-    @Override protected String read(Object value, DecodeContext at) {
-        if (!(value instanceof String s)) return at.mismatch(expected(), value);
+    @Override protected String read(JsonElement value, DecodeContext at) {
+        String s = Json.string(value);
+        if (s == null) return at.mismatch(expected(), value);
         if (s.length() < minLength || s.length() > maxLength) {
             return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s.length() + " characters");
         }
@@ -51,14 +54,14 @@ public final class StringType extends ApiType<String> {
         return s;
     }
 
-    @Override protected Object write(String value) { return Objects.requireNonNull(value, "string"); }
+    @Override protected JsonElement write(String value) { return new JsonPrimitive(Objects.requireNonNull(value, "string")); }
 
-    @Override protected Map<String, Object> schemaBody() {
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("type", "string");
-        if (minLength > 0) s.put("minLength", minLength);
-        if (maxLength != Integer.MAX_VALUE) s.put("maxLength", maxLength);
-        if (pattern != null) s.put("pattern", "^(?:" + pattern.pattern() + ")$");
+    @Override protected JsonObject schemaBody() {
+        JsonObject s = new JsonObject();
+        s.addProperty("type", "string");
+        if (minLength > 0) s.addProperty("minLength", minLength);
+        if (maxLength != Integer.MAX_VALUE) s.addProperty("maxLength", maxLength);
+        if (pattern != null) s.addProperty("pattern", "^(?:" + pattern.pattern() + ")$");
         return s;
     }
 

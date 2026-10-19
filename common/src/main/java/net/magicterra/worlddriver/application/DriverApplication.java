@@ -186,7 +186,7 @@ public final class DriverApplication implements DriverHost {
      */
     long emit(String type, BlockPos pos, JsonValue data) {
         EventCatalog.Entry<?> entry = EventCatalog.byType(type);
-        if (entry != null) entry.payload().decode(data.tree());
+        if (entry != null) entry.payload().decode(data.json());
         return append(type, pos, data);
     }
 

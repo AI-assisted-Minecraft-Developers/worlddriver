@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.script;
 
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -26,7 +25,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
@@ -54,7 +52,7 @@ public final class SkillLibrary {
             case GetSkill g -> CompletableFuture.completedFuture(new SkillSource(g.name(), read(g.name())));
             case RunSkill r -> {
                 // On the source's first line, so the lines an error names are the skill's own.
-                String full = "var SKILL = " + JsonCodec.encode(r.args().map(a -> a.tree()).orElse(Map.of())) + "; "
+                String full = "var SKILL = " + r.args().map(a -> a.json().toString()).orElse("{}") + "; "
                         + read(r.name());
                 yield evaluator.run(full, r.timeoutMs(), ctx, "skill-" + r.name())
                         .thenApply(outcome -> new SkillRan(r.name(), outcome));

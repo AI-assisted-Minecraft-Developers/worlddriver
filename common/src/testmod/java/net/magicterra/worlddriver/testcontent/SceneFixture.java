@@ -5,13 +5,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * A hand-built scene as its {@code <name>.json} describes it. The terrain itself is in the
  * sibling {@code <name>.nbt}; this is everything else: where the bot starts, what it holds, what
  * it is told to do, and what the markers said must hold. Plain data, encoded and decoded through
- * {@link JsonCodec} so the file is the same JSON the transports speak.
+ * Gson over plain maps and lists.
  *
  * <p>Positions are relative to the scene's origin marker. {@link #origin} is that marker's place
  * inside the structure (relative to the structure's minimum corner), which is what a placer needs
@@ -82,7 +81,7 @@ public record SceneFixture(
     // ------------------------------------------------------------------ encode
 
     public String toJson() {
-        return JsonCodec.encode(toMap());
+        return SceneJson.GSON.toJson(toMap());
     }
 
     public Map<String, Object> toMap() {
@@ -137,7 +136,7 @@ public record SceneFixture(
     // ------------------------------------------------------------------ decode
 
     public static SceneFixture fromJson(String json) {
-        Object v = JsonCodec.decode(json);
+        Object v = SceneJson.GSON.fromJson(json, Object.class);
         if (!(v instanceof Map<?, ?> m)) throw new IllegalArgumentException("scene fixture: top level is not an object");
         return fromMap(m);
     }

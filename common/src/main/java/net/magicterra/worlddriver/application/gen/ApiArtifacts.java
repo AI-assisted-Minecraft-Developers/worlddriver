@@ -20,7 +20,8 @@ import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.CoreMethods;
 import net.magicterra.worlddriver.bot.SettingDefaults;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 /**
  * Writes what the method descriptions imply, at build time, into one directory:
@@ -53,22 +54,22 @@ public final class ApiArtifacts {
         Files.writeString(dir.resolve("worlddriver.d.ts"), declarations(methods), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("driver-function.d.ts"), DRIVER_FUNCTION, StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("driver-api.js"), wrappers(methods), StandardCharsets.UTF_8);
-        Files.writeString(dir.resolve("methods.json"), JsonCodec.encode(methodTable(methods)), StandardCharsets.UTF_8);
-        Files.writeString(dir.resolve("events.json"), JsonCodec.encode(eventTable()), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("methods.json"), methodTable(methods).toString(), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("events.json"), eventTable().toString(), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("api-reference.md"), reference(methods) + eventReference(), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("skill-methods.md"), SkillManual.render(methods), StandardCharsets.UTF_8);
     }
 
     /** Each built-in event type's payload schema, severity and trust. */
-    static Map<String, Object> eventTable() {
-        Map<String, Object> out = new LinkedHashMap<>();
+    static JsonObject eventTable() {
+        JsonObject out = new JsonObject();
         for (EventCatalog.Entry<?> e : EventCatalog.all()) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("description", e.description());
-            row.put("level", e.level().wireName());
-            row.put("untrusted", e.untrusted());
-            row.put("payloadSchema", e.payload().schema());
-            out.put(e.type(), row);
+            JsonObject row = new JsonObject();
+            row.addProperty("description", e.description());
+            row.addProperty("level", e.level().wireName());
+            row.addProperty("untrusted", e.untrusted());
+            row.add("payloadSchema", e.payload().schema());
+            out.add(e.type(), row);
         }
         return out;
     }
@@ -104,7 +105,7 @@ public final class ApiArtifacts {
     /** Whether {@code {}} is a complete request, so the params may be omitted. */
     static boolean paramsOptional(MethodSpec<?, ?> spec) {
         DecodeContext at = DecodeContext.root();
-        spec.input().decode(Map.of(), at);
+        spec.input().decode(new JsonObject(), at);
         return at.issues().isEmpty();
     }
 
@@ -232,22 +233,24 @@ public final class ApiArtifacts {
         return out.toString();
     }
 
-    static Map<String, Object> methodTable(List<MethodSpec<?, ?>> methods) {
-        Map<String, Object> out = new LinkedHashMap<>();
+    static JsonObject methodTable(List<MethodSpec<?, ?>> methods) {
+        JsonObject out = new JsonObject();
         for (MethodSpec<?, ?> m : methods) {
-            Map<String, Object> e = new LinkedHashMap<>();
-            e.put("description", m.description());
-            e.put("inputSchema", m.input().schema());
-            e.put("outputSchema", m.output().schema());
+            JsonObject e = new JsonObject();
+            e.addProperty("description", m.description());
+            e.add("inputSchema", m.input().schema());
+            e.add("outputSchema", m.output().schema());
             List<String> effects = new ArrayList<>();
             for (MethodSpec.Effect f : m.effects()) effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
             effects.sort(null);
-            e.put("effects", effects);
-            e.put("executionClass", m.executionClass().name().toLowerCase(java.util.Locale.ROOT));
-            e.put("mayWait", m.blocking() == MethodSpec.Blocking.MAY_WAIT);
-            e.put("pollable", m.pollable());
-            e.put("listedInMcp", m.listedInMcp());
-            out.put(m.name(), e);
+            JsonArray effectList = new JsonArray();
+            for (String f : effects) effectList.add(f);
+            e.add("effects", effectList);
+            e.addProperty("executionClass", m.executionClass().name().toLowerCase(java.util.Locale.ROOT));
+            e.addProperty("mayWait", m.blocking() == MethodSpec.Blocking.MAY_WAIT);
+            e.addProperty("pollable", m.pollable());
+            e.addProperty("listedInMcp", m.listedInMcp());
+            out.add(m.name(), e);
         }
         return out;
     }

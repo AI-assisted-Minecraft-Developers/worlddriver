@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,7 +34,6 @@ import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.methods.client.ClientApi;
@@ -1294,7 +1295,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.command("item replace entity " + name + " container.20 with minecraft:emerald 7");
         ctx.command("item replace entity " + name + " container.35 with minecraft:gold_ingot 3");
 
-        Object obs = WorldDriver.registry().route("mc.observe.player", Map.of("name", name));
+        Object obs = SceneJson.route(WorldDriver.registry(), "mc.observe.player", Map.of("name", name));
         Object rows = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("inventory") : null;
         ctx.expect(rows instanceof List<?>).as("observe.player carries an inventory list")
                 .isEqualTo(true);
@@ -1367,7 +1368,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /** {@code mc.observe.player}'s AttackSnap for one named player, or empty when absent. */
     private static Map<?, ?> attackSnap(String name) {
-        Object obs = WorldDriver.registry().route("mc.observe.player", Map.of("name", name));
+        Object obs = SceneJson.route(WorldDriver.registry(), "mc.observe.player", Map.of("name", name));
         Object attack = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("attack") : null;
         return attack instanceof Map<?, ?> a ? a : Map.of();
     }
@@ -1795,7 +1796,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 .eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt")), 5_000);
         List<Map<?, ?>> out = new ArrayList<>();
         for (EventContracts.Event e : page.events())
-            if (e.data().map(JsonValue::tree).orElse(null) instanceof Map<?, ?> m) out.add(m);
+            if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m) out.add(m);
         return out;
     }
 }

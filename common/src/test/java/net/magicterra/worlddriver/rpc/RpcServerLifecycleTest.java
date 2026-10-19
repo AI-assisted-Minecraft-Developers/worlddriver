@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
@@ -82,8 +83,8 @@ class RpcServerLifecycleTest {
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
         try (RpcServer server = impatient(ProbeMethods.install(new DriverApplication()));
              RpcClient client = new RpcClient("127.0.0.1", server.port())) {
-            Object r = client.call("mc.wait.condition", Map.of("invoke", "probe.echo",
-                    "field", "nope", "timeoutMs", 2_500, "pollMs", 100));
+            Object r = TestJson.plain(client.call("mc.wait.condition", TestJson.obj(Map.of("invoke", "probe.echo",
+                    "field", "nope", "timeoutMs", 2_500, "pollMs", 100))));
             assertEquals(Boolean.FALSE, ((Map<?, ?>) r).get("satisfied"), String.valueOf(r));
         }
     }

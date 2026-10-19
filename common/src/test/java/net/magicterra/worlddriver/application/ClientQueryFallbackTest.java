@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +60,7 @@ class ClientQueryFallbackTest {
 
     /** The request as the dispatcher hands it over: decoded by the method's own contract. */
     private static Object query(ClientDriverApi c, Map<String, Object> params) {
-        return ClientQueryFallback.query(c, QueryContracts.PARAMS.decode(params));
+        return ClientQueryFallback.query(c, QueryContracts.PARAMS.decode(TestJson.json(params)));
     }
 
     private static List<EntityRow> entities(Map<String, Object> params) {

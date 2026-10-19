@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.application;
 
+import com.google.gson.JsonElement;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -173,7 +175,7 @@ public final class EventService implements EventApi {
                 try {
                     // A failed read (no world right now) is not satisfied, and the watcher lives on.
                     Optional<JsonValue> value = failure == null ? Polling.field(result, spec.field()) : Optional.empty();
-                    boolean ok = failure == null && test(value.map(JsonValue::tree).orElse(null));
+                    boolean ok = failure == null && test(value.map(JsonValue::json).orElse(null));
                     boolean rising = ok && !lastOk;
                     lastOk = ok;
                     if (rising && !stopped) fire(value);
@@ -183,8 +185,8 @@ public final class EventService implements EventApi {
             });
         }
 
-        private boolean test(Object v) {
-            if (spec.value().isPresent()) return WaitService.looseEquals(v, spec.value().get().tree());
+        private boolean test(JsonElement v) {
+            if (spec.value().isPresent()) return WaitService.looseEquals(v, spec.value().get().json());
             if (spec.above().isPresent()) { Double d = number(v); return d != null && d > spec.above().get(); }
             if (spec.below().isPresent()) { Double d = number(v); return d != null && d < spec.below().get(); }
             return ApiSupport.isTruthy(v);
@@ -202,9 +204,5 @@ public final class EventService implements EventApi {
         }
     }
 
-    private static Double number(Object o) {
-        if (o instanceof Number n) return n.doubleValue();
-        if (o instanceof String s) { try { return Double.parseDouble(s); } catch (NumberFormatException e) { return null; } }
-        return null;
-    }
+    private static Double number(JsonElement o) { return WaitService.asNumber(o); }
 }

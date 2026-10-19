@@ -1,11 +1,8 @@
 package net.magicterra.worlddriver.rpc;
 
+import com.google.gson.JsonObject;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.protocol.JsonCodec;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Frames a driver event as a standard MCP server→client notification so every
@@ -27,15 +24,15 @@ public final class EventNotifications {
 
     /** The full JSON-RPC {@code notifications/message} frame for an event. */
     public static String frame(EventContracts.Event e) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("level", levelFor(e.type()));
-        params.put("logger", "minecraft.events");
-        params.put("data", EventContracts.EVENT.encode(e));
-        Map<String, Object> msg = new LinkedHashMap<>();
-        msg.put("jsonrpc", "2.0");
-        msg.put("method", "notifications/message");
-        msg.put("params", params);
-        return JsonCodec.encode(msg);
+        JsonObject params = new JsonObject();
+        params.addProperty("level", levelFor(e.type()));
+        params.addProperty("logger", "minecraft.events");
+        params.add("data", EventContracts.EVENT.encode(e));
+        JsonObject msg = new JsonObject();
+        msg.addProperty("jsonrpc", "2.0");
+        msg.addProperty("method", "notifications/message");
+        msg.add("params", params);
+        return msg.toString();
     }
 
     /** Map an event type to an RFC 5424 / MCP logging severity level. Since the channel

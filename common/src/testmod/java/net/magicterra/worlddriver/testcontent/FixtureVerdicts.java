@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * {@code <name>.verdicts.jsonl}: one line per run or per human judgement, and the arithmetic
@@ -78,14 +77,14 @@ public final class FixtureVerdicts {
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             String t = line.trim();
             if (t.isEmpty()) continue;
-            if (JsonCodec.decode(t) instanceof Map<?, ?> m) out.add(Record.fromMap(m));
+            if (SceneJson.GSON.fromJson(t, Object.class) instanceof Map<?, ?> m) out.add(Record.fromMap(m));
         }
         return out;
     }
 
     public static void append(Path file, Record r) throws IOException {
         Files.createDirectories(file.getParent());
-        Files.writeString(file, JsonCodec.encode(r.toMap()) + "\n", StandardCharsets.UTF_8,
+        Files.writeString(file, SceneJson.GSON.toJson(r.toMap()) + "\n", StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 

@@ -1,5 +1,11 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -216,15 +222,15 @@ public final class WaitService implements WaitApi {
         DriverApplication.requireClient();
         return run(WaitContracts.WORLD_READY, "worldReady", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
-            AtomicReference<Map<String, Object>> last = new AtomicReference<>();
+            AtomicReference<ScreenInfo> last = new AtomicReference<>();
             // Each probe hops onto the client thread without holding the poller's thread: a client still
             // loading a world can take seconds to drain its task queue.
             return Polling.until(budget, p.pollMs(), cancelled, () -> {
                 ClientDriverApi c = DriverApplication.requireClient();
                 CallContext probe = CallContext.withBudget(POLL_BUDGET_MS, cancelled, CallContext.SHARED_WAITS);
-                return c.hop().submit(c::screenInfo, probe).thenApply(info -> {
+                return c.hop().submit(c::readScreenInfo, probe).thenApply(info -> {
                     last.set(info);
-                    boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
+                    boolean ready = info.worldOpen() && info.hasPlayer();
                     return ready ? Optional.<Outcome>of(new WorldReady(true, msSince(t0), infoOf(info))) : Optional.<Outcome>empty();
                 });
             }, () -> new WorldReady(false, msSince(t0), infoOf(last.get())));
@@ -241,16 +247,16 @@ public final class WaitService implements WaitApi {
                     () -> target.read(api.registry(), Math.min(POLL_BUDGET_MS, Math.max(1, budget))).thenApply(result -> {
                         Optional<JsonValue> value = Polling.field(result, p.field());
                         last.set(value);
-                        Object tree = value.map(JsonValue::tree).orElse(null);
-                        boolean ok = p.value().isPresent() ? looseEquals(tree, p.value().get().tree()) : ApiSupport.isTruthy(tree);
+                        JsonElement tree = value.map(JsonValue::json).orElse(null);
+                        boolean ok = p.value().isPresent() ? looseEquals(tree, p.value().get().json()) : ApiSupport.isTruthy(tree);
                         return ok ? Optional.<Outcome>of(new ConditionResult(true, value, msSince(t0))) : Optional.<Outcome>empty();
                     }),
                     () -> new ConditionResult(false, last.get(), msSince(t0)));
         });
     }
 
-    private static Optional<JsonValue> infoOf(Map<String, Object> info) {
-        return info == null ? Optional.empty() : Optional.of(JsonValue.of(info));
+    private static Optional<JsonValue> infoOf(ScreenInfo info) {
+        return info == null ? Optional.empty() : Optional.of(JsonValue.of(ScreenContracts.SCREEN_INFO.encode(info)));
     }
 
     private static long msSince(long t0) {
@@ -258,24 +264,29 @@ public final class WaitService implements WaitApi {
     }
 
     /**
-     * Equality across number types: a result tree holds Long, BigDecimal or Double where the target
-     * may hold another, and an honest equal must not read as unsatisfied. Numbers compare by value; a
+     * Equality across number types: a result holds a number as written where the target may hold it
+     * another way, and an honest equal must not read as unsatisfied. Numbers compare by value; a
      * boolean or number also matches its string form, as targets written in a script sometimes are.
      */
-    static boolean looseEquals(Object fieldVal, Object target) {
+    static boolean looseEquals(JsonElement fieldVal, JsonElement target) {
         if (Objects.equals(fieldVal, target)) return true;
-        if (fieldVal == null || target == null) return false;
+        if (fieldVal == null || target == null || fieldVal.isJsonNull() || target.isJsonNull()) return false;
         Double a = asNumber(fieldVal), b = asNumber(target);
         if (a != null && b != null) return a.doubleValue() == b.doubleValue();
-        if (fieldVal instanceof Boolean || target instanceof Boolean)
-            return String.valueOf(fieldVal).equalsIgnoreCase(String.valueOf(target));
-        return String.valueOf(fieldVal).equals(String.valueOf(target));
+        if (isBoolean(fieldVal) || isBoolean(target)) return text(fieldVal).equalsIgnoreCase(text(target));
+        return text(fieldVal).equals(text(target));
     }
 
-    private static Double asNumber(Object o) {
-        if (o instanceof Number n) return n.doubleValue();
-        if (o instanceof CharSequence s) {
-            try { return Double.parseDouble(s.toString().trim()); }
+    private static boolean isBoolean(JsonElement v) { return v instanceof JsonPrimitive p && p.isBoolean(); }
+
+    /** A string as itself, any other value as its JSON. */
+    private static String text(JsonElement v) { return v.isJsonPrimitive() ? v.getAsString() : v.toString(); }
+
+    static Double asNumber(JsonElement o) {
+        if (!(o instanceof JsonPrimitive p)) return null;
+        if (p.isNumber()) return p.getAsDouble();
+        if (p.isString()) {
+            try { return Double.parseDouble(p.getAsString().trim()); }
             catch (NumberFormatException e) { return null; }
         }
         return null;

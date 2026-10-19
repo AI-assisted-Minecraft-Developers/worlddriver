@@ -1,15 +1,17 @@
 package net.magicterra.worlddriver.application;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+
 import net.magicterra.worlddriver.application.ItemSnap;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Collection;
 
 /**
  * Pure, stateless helpers shared by {@link DriverApplication} and the {@code *Service}
@@ -52,32 +54,31 @@ final class ApiSupport {
         return m;
     }
 
-    /** Walk a dotted path through nested Map/List. Returns null on miss. */
-    static Object walkPath(Object root, String path) {
-        if (path == null || path.isEmpty()) return root;
-        Object cur = root;
+    /** Walk a dotted path through nested objects and arrays. Returns null on a miss or a JSON null. */
+    static JsonElement walkPath(JsonElement root, String path) {
+        if (path == null || path.isEmpty()) return root == null || root.isJsonNull() ? null : root;
+        JsonElement cur = root;
         for (String part : path.split("\\.")) {
-            if (cur == null) return null;
-            if (cur instanceof Map<?, ?> m) {
+            if (cur instanceof JsonObject m) {
                 cur = m.get(part);
-            } else if (cur instanceof List<?> l) {
+            } else if (cur instanceof JsonArray l) {
                 try { cur = l.get(Integer.parseInt(part)); }
                 catch (NumberFormatException | IndexOutOfBoundsException e) { return null; }
             } else {
                 return null;
             }
         }
-        return cur;
+        return cur == null || cur.isJsonNull() ? null : cur;
     }
 
-    /** JS-style truthy. null, false, 0, "", and empty collections are falsy. */
-    static boolean isTruthy(Object v) {
-        if (v == null) return false;
-        if (v instanceof Boolean b) return b;
-        if (v instanceof Number n) return n.doubleValue() != 0.0;
-        if (v instanceof CharSequence s) return s.length() > 0;
-        if (v instanceof Collection<?> c) return !c.isEmpty();
-        if (v instanceof Map<?, ?> m) return !m.isEmpty();
-        return true;
+    /** JS-style truthy. null, false, 0, "", and empty arrays and objects are falsy. */
+    static boolean isTruthy(JsonElement v) {
+        if (v == null || v.isJsonNull()) return false;
+        if (v instanceof JsonArray a) return !a.isEmpty();
+        if (v instanceof JsonObject o) return !o.isEmpty();
+        JsonPrimitive p = v.getAsJsonPrimitive();
+        if (p.isBoolean()) return p.getAsBoolean();
+        if (p.isNumber()) return p.getAsDouble() != 0.0;
+        return !p.getAsString().isEmpty();
     }
 }

@@ -63,7 +63,7 @@ only the `self` half needs a client.
 | WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.dispatch(method, params, context)` |
 | in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `api.invokeJson` → `dispatch` |
 
-`invokeJson` uses protocol `JsonCodec` for decoding around `dispatch`, answers an envelope
+`invokeJson` parses the params with Gson around `dispatch`, answers an envelope
 `{result}` or `{error}`, and adds no behaviour.
 
 Rhino additionally exposes `Driver.invokeRpc` through `script/RpcBridge`, which
@@ -238,8 +238,7 @@ testmod fixture classes.
 WorldDriverCommon creates `DriverApplication` and exposes it twice: `registry()`, the
 `ApiRegistry` every caller goes through, and `host()`, the `DriverHost` the loader glue and the
 event emitters drive.
-`JsonCodec` writes only value trees (maps, lists, strings, booleans, finite numbers, null); a
-domain value reaches the wire through its contract's `ApiType.encode`, and an event's payload is a
-`JsonValue` from the moment it is emitted. `IntentProcess` and `DuskSecureChain` receive an event
+Every value on the wire is a Gson tree (`JsonElement`); a domain value becomes one through its
+contract's `ApiType.encode`, and an event's payload is a `JsonValue` from the moment it is emitted. `IntentProcess` and `DuskSecureChain` receive an event
 emitter instead of looking up the global API. Each API instance holds its own registry, so an
 extension publishes its batch on whichever instance it is handed.

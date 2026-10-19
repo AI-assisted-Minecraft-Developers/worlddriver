@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.script;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.call.RunContext;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -19,7 +18,6 @@ import net.magicterra.worlddriver.api.methods.script.ScriptContracts.StartPlaybo
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -78,7 +76,7 @@ public final class PlaybookRunner {
         String body = load(s.name());
         if (body == null) throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no playbook named " + s.name());
         // On the body's first line, so the lines an error names are the playbook's own.
-        String full = "var PLAYBOOK = " + JsonCodec.encode(s.args().map(a -> a.tree()).orElse(Map.of())) + "; " + body;
+        String full = "var PLAYBOOK = " + s.args().map(a -> a.json().toString()).orElse("{}") + "; " + body;
         Playbook p = new Playbook(s.name(), RunContext.start("playbook-" + s.name()));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(s.budgetMs());
         CallContext own = new CallContext(deadline, CancellationToken.NEVER, Optional.of(p.run), CallContext.SHARED_WAITS, true);

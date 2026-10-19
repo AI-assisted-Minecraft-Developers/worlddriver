@@ -19,11 +19,13 @@ import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Issue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.ScriptError;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -194,38 +196,45 @@ public final class ScriptEvaluator {
         ((FilteredObservedContext) cx).finishWithin(ENVELOPE_BUDGET_MS);
         ScriptableObject.putProperty(scope, "__userResult", value == null ? null : cx.javaToJS(value, scope), cx);
         ScriptableObject.putProperty(scope, "__thrown", thrown, cx);
-        Map<?, ?> envelope;
+        JsonObject envelope;
         try {
             Object json = cx.evaluateString(scope,
                     "JSON.stringify({result: (typeof __userResult === 'undefined' ? null : __userResult), log: __log, "
                             + "api: (__thrown instanceof DriverApiError) ? {code: __thrown.code, message: __thrown.message, "
                             + "issues: __thrown.issues, execution: __thrown.execution} : null});",
                     "<eval-end>", 1, null);
-            envelope = (Map<?, ?>) JsonCodec.decode(ScriptRuntime.toString(cx, json));
+            envelope = JsonParser.parseString(ScriptRuntime.toString(cx, json)).getAsJsonObject();
         } catch (Throwable t) {
             return new Outcome(runId, Optional.empty(), Optional.of(scriptError(ScriptContracts.SCRIPT_ERROR,
                     "the result is not JSON: " + message(t), null)), List.of(), elapsedMs(start));
         }
-        if (envelope.get("api") instanceof Map<?, ?> api) error = apiError(api, error);
+        if (envelope.get("api") instanceof JsonObject api) error = apiError(api, error);
         List<String> log = new ArrayList<>();
-        if (envelope.get("log") instanceof List<?> l) for (Object o : l) log.add(String.valueOf(o));
-        Optional<JsonValue> result = error != null || envelope.get("result") == null ? Optional.empty()
-                : Optional.of(JsonValue.of(envelope.get("result")));
+        if (envelope.get("log") instanceof JsonArray l) for (JsonElement o : l) log.add(text(o));
+        JsonElement returned = envelope.get("result");
+        Optional<JsonValue> result = error != null || returned == null || returned.isJsonNull() ? Optional.empty()
+                : Optional.of(JsonValue.of(returned));
         return new Outcome(runId, result, Optional.ofNullable(error), log, elapsedMs(start));
     }
 
     /** The error a Driver call reported, at the line the script let it through. */
-    private static ScriptError apiError(Map<?, ?> api, ScriptError thrown) {
+    private static ScriptError apiError(JsonObject api, ScriptError thrown) {
         List<Issue> issues = new ArrayList<>();
-        if (api.get("issues") instanceof List<?> l) {
-            for (Object o : l) {
-                if (o instanceof Map<?, ?> m) {
-                    issues.add(new Issue(String.valueOf(m.get("path")), String.valueOf(m.get("code")), String.valueOf(m.get("message"))));
+        if (api.get("issues") instanceof JsonArray l) {
+            for (JsonElement o : l) {
+                if (o instanceof JsonObject m) {
+                    issues.add(new Issue(text(m.get("path")), text(m.get("code")), text(m.get("message"))));
                 }
             }
         }
-        return new ScriptError(String.valueOf(api.get("code")), String.valueOf(api.get("message")), issues,
-                Optional.of(String.valueOf(api.get("execution"))), thrown == null ? Optional.empty() : thrown.line());
+        return new ScriptError(text(api.get("code")), text(api.get("message")), issues,
+                Optional.of(text(api.get("execution"))), thrown == null ? Optional.empty() : thrown.line());
+    }
+
+    /** A JSON value as a script wrote it into a message: a string as itself, anything else as JSON. */
+    private static String text(JsonElement v) {
+        if (v == null || v.isJsonNull()) return "null";
+        return v.isJsonPrimitive() ? v.getAsString() : v.toString();
     }
 
     private static ScriptError scriptError(String code, String message, Throwable at) {

@@ -272,7 +272,7 @@ public final class SceneCommands {
             return 0;
         }
         try {
-            Object result = api.route(method, params);
+            Object result = SceneJson.route(api, method, params);
             Map<?, ?> m = result instanceof Map<?, ?> mm ? mm : Map.of("result", result);
             String text = reply.of(m);
             src.sendSuccess(() -> Component.literal(text), false);

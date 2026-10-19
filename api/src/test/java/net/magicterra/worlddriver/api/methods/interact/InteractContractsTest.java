@@ -16,14 +16,14 @@ import net.magicterra.worlddriver.api.methods.shared.ActionResults;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** The verbs that act within the call: which targets go together, and what done and refused look like. */
 class InteractContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
-        return type.decode(JsonCodec.decode(json));
+        return type.decode(JsonParser.parseString(json));
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
@@ -45,8 +45,8 @@ class InteractContractsTest {
 
     @Test
     void anInstantLookIsDoneAndASmoothOneIsAnAction() {
-        assertEquals("{\"outcome\":\"done\",\"yaw\":90,\"pitch\":10}",
-                JsonCodec.encode(InteractContracts.LOOK_AT.output().encode(new Responses.Turned(90, 10))));
+        assertEquals("{\"outcome\":\"done\",\"yaw\":90.0,\"pitch\":10.0}",
+                String.valueOf(InteractContracts.LOOK_AT.output().encode(new Responses.Turned(90, 10))));
         assertTrue(ActionResults.UNION.variants().stream().anyMatch(v -> v.tag().equals("lookAt")));
     }
 
@@ -63,7 +63,7 @@ class InteractContractsTest {
 
     @Test
     void aUseSaysWhatItWasUsedOn() {
-        String json = JsonCodec.encode(InteractContracts.USE_ITEM.output().encode(new Responses.Used(Hand.MAIN,
+        String json = String.valueOf(InteractContracts.USE_ITEM.output().encode(new Responses.Used(Hand.MAIN,
                 Interaction.SUCCESS, true, new InteractContracts.OnEntity(7, "minecraft:boat", 1.5,
                         Optional.of("minecraft:boat"), Optional.empty(), Optional.empty()))));
         assertEquals("{\"outcome\":\"done\",\"hand\":\"main\",\"result\":\"success\",\"consumed\":true,\"on\":"
@@ -73,7 +73,7 @@ class InteractContractsTest {
     @Test
     void aRefusalHasTheTasksReasons() {
         assertEquals("{\"outcome\":\"refused\",\"reason\":\"unsupported_capability\",\"message\":\"npc:a has no hands\"}",
-                JsonCodec.encode(InteractContracts.HOLD_ITEM.output().encode(
+                String.valueOf(InteractContracts.HOLD_ITEM.output().encode(
                         new Refused<>(RefusalReason.UNSUPPORTED_CAPABILITY, "npc:a has no hands"))));
     }
 
@@ -84,7 +84,7 @@ class InteractContractsTest {
 
     @Test
     void equipReportsEmptySlotsByAbsence() {
-        String json = JsonCodec.encode(InteractContracts.EQUIP.output().encode(new Responses.Equipped(InteractContracts.Profile.ARMOR,
+        String json = String.valueOf(InteractContracts.EQUIP.output().encode(new Responses.Equipped(InteractContracts.Profile.ARMOR,
                 List.of("minecraft:diamond_helmet"), new InteractContracts.Loadout(Optional.of("minecraft:diamond_helmet"),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()), List.of(),
                 List.of(InteractContracts.ArmorSlot.CHEST))));

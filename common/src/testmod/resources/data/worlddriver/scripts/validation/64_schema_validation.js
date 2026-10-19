@@ -38,15 +38,14 @@ ScriptTest.run("64_schema_validation: enum violation names the allowed set", fun
 
 ScriptTest.run("64_schema_validation: integral double passes an integer slot", function(t) {
     // Driver.invoke round-trips params through JS JSON.stringify first, which
-    // renders 1.0 as the token "1" — so this only ever exercises Long 1
-    // through the integer slot, not JsonCodec's Double branch. Go under
-    // Driver.invoke straight to __api.invokeJson with a hand-written JSON
-    // body so the "1.0" token survives to JsonCodec.decode as a real Double
-    // (JsonCodec parses any token containing '.' as Double.parseDouble).
+    // renders 1.0 as the token "1" — so this only ever exercises 1 through
+    // the integer slot. Go under Driver.invoke straight to __api.invokeJson
+    // with a hand-written JSON body so the "1.0" token reaches the integer
+    // type as written.
     var json = __api.invokeJson("mc.system.waitTicks", '{"ticks":1.0}');
     var res = JSON.parse(json);
     t.assertTrue(res.error === undefined && res.result !== undefined,
-        "waitTicks{ticks:1.0} (real Double) must be accepted, got: " + json);
+        "waitTicks{ticks:1.0} (written with a fraction) must be accepted, got: " + json);
 });
 
 ScriptTest.run("64_schema_validation: non-integral double on an integer slot is rejected", function(t) {

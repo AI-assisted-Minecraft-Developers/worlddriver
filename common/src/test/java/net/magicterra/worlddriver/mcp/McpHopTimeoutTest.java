@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,7 +17,6 @@ import java.util.Map;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -65,6 +65,6 @@ class McpHopTimeoutTest {
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        return assertInstanceOf(Map.class, JsonCodec.decode(resp.body()), "body: " + resp.body());
+        return assertInstanceOf(Map.class, TestJson.plain(resp.body()), "body: " + resp.body());
     }
 }

@@ -1,10 +1,14 @@
 package net.magicterra.worlddriver.api.registry;
 
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -45,45 +49,51 @@ public final class ApiErrors {
     }
 
     /** {@code {code, message, issues, execution}}, the wire form every entry point sends. */
-    public static Map<String, Object> toTree(ApiError e) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("code", e.code().wireName());
-        m.put("message", e.message());
-        List<Object> issues = new java.util.ArrayList<>();
+    public static JsonObject toTree(ApiError e) {
+        JsonObject m = new JsonObject();
+        m.addProperty("code", e.code().wireName());
+        m.addProperty("message", e.message());
+        JsonArray issues = new JsonArray();
         for (ApiIssue i : e.issues()) {
-            Map<String, Object> im = new LinkedHashMap<>();
-            im.put("path", i.path());
-            im.put("code", i.code().wireName());
-            im.put("message", i.message());
+            JsonObject im = new JsonObject();
+            im.addProperty("path", i.path());
+            im.addProperty("code", i.code().wireName());
+            im.addProperty("message", i.message());
             issues.add(im);
         }
-        m.put("issues", issues);
-        m.put("execution", e.execution().wireName());
+        m.add("issues", issues);
+        m.addProperty("execution", e.execution().wireName());
         return m;
     }
 
     /** The inverse of {@link #toTree}, for a bridge that received one; null when {@code tree} is not one. */
-    public static ApiError fromTree(Object tree) {
-        if (!(tree instanceof Map<?, ?> m)) return null;
-        if (!(m.get("code") instanceof String code) || !(m.get("message") instanceof String message)) return null;
+    public static ApiError fromTree(JsonElement tree) {
+        if (!(tree instanceof JsonObject m)) return null;
+        String code = string(m.get("code")), message = string(m.get("message"));
+        if (code == null || message == null) return null;
         ApiError.Code c = null;
         for (ApiError.Code k : ApiError.Code.values()) if (k.wireName().equals(code)) c = k;
         if (c == null) return null;
-        List<ApiIssue> issues = new java.util.ArrayList<>();
-        if (m.get("issues") instanceof List<?> l) {
-            for (Object o : l) {
-                if (o instanceof Map<?, ?> im && im.get("path") instanceof String p && im.get("code") instanceof String ic
-                        && im.get("message") instanceof String msg) {
-                    for (ApiIssue.Code k : ApiIssue.Code.values()) {
-                        if (k.wireName().equals(ic)) issues.add(new ApiIssue(p, k, msg));
-                    }
+        List<ApiIssue> issues = new ArrayList<>();
+        if (m.get("issues") instanceof JsonArray l) {
+            for (JsonElement o : l) {
+                if (!(o instanceof JsonObject im)) continue;
+                String p = string(im.get("path")), ic = string(im.get("code")), msg = string(im.get("message"));
+                if (p == null || ic == null || msg == null) continue;
+                for (ApiIssue.Code k : ApiIssue.Code.values()) {
+                    if (k.wireName().equals(ic)) issues.add(new ApiIssue(p, k, msg));
                 }
             }
         }
         ApiError.Execution ex = ApiError.Execution.UNKNOWN;
-        if (m.get("execution") instanceof String es) {
+        String es = string(m.get("execution"));
+        if (es != null) {
             for (ApiError.Execution k : ApiError.Execution.values()) if (k.wireName().equals(es)) ex = k;
         }
         return new ApiError(c, message, issues, ex);
+    }
+
+    private static String string(JsonElement v) {
+        return v instanceof JsonPrimitive p && p.isString() ? p.getAsString() : null;
     }
 }

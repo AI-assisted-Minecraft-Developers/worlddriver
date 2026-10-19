@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.testcontent.SceneJson;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +80,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
 
     /** The action as {@code mc.wait.result} reads it now. */
     private static Map<?, ?> read(String actionId) {
-        Object r = WorldDriver.registry().route("mc.wait.result", Map.of("kind", "action", "actionId", actionId));
+        Object r = SceneJson.route(WorldDriver.registry(), "mc.wait.result", Map.of("kind", "action", "actionId", actionId));
         return r instanceof Map<?, ?> m && m.get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
 
@@ -220,7 +222,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos goal = ctx.rel(10, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(30, () -> {
-            String cursor = (String) ((Map<?, ?>) WorldDriver.registry().route("mc.observe.cursor", Map.of())).get("cursor");
+            String cursor = (String) ((Map<?, ?>) SceneJson.route(WorldDriver.registry(), "mc.observe.cursor", Map.of())).get("cursor");
             Map<String, Object> box = Map.of("shape", "box",
                     "min", pos(goal.offset(-3, -1, -5)),
                     "max", pos(goal.offset(4, 3, 5)),
@@ -229,7 +231,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
             ctx.check(!action(reply).isEmpty()).as("A: the goto starts: " + reply).isTrue();
             final List<Map<?, ?>> got = new ArrayList<>();
             ctx.await(() -> {
-                Object evs = WorldDriver.registry().route("mc.observe.eventsSince",
+                Object evs = SceneJson.route(WorldDriver.registry(), "mc.observe.eventsSince",
                         Map.of("cursor", cursor, "types", List.of("route.blocked")));
                 if (evs instanceof Map<?, ?> page && page.get("events") instanceof List<?> l)
                     for (Object o : l) if (o instanceof Map<?, ?> e && !got.contains(e)) got.add(e);

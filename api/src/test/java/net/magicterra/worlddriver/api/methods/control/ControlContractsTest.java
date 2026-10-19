@@ -16,14 +16,14 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slot;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slots;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** status, cancel, waypoint and roster: which params go together, and what each answers. */
 class ControlContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
-        return type.decode(JsonCodec.decode(json));
+        return type.decode(JsonParser.parseString(json));
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
@@ -42,7 +42,7 @@ class ControlContractsTest {
 
     @Test
     void aCancelNamesWhatItStopped() {
-        assertEquals("{\"outcome\":\"done\",\"cancelled\":[\"combat\"]}", JsonCodec.encode(ControlContracts.CANCEL.output()
+        assertEquals("{\"outcome\":\"done\",\"cancelled\":[\"combat\"]}", String.valueOf(ControlContracts.CANCEL.output()
                 .encode(new Responses.Stopped(List.of("combat"), Optional.empty()))));
     }
 
@@ -54,7 +54,7 @@ class ControlContractsTest {
         Slot walking = new Slot(true, Optional.of("GoalBlock"), Optional.of(new BlockPosition(1, 2, 3)), 9, 4,
                 Optional.of(1_700_000_000_000L), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         Slots slots = new Slots(walking, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle);
-        String json = JsonCodec.encode(ControlContracts.STATUS.output().encode(new Responses.Status(List.of(),
+        String json = String.valueOf(ControlContracts.STATUS.output().encode(new Responses.Status(List.of(),
                 Optional.of(new BotStatus("npc:a", true, Optional.of("goto"), Optional.empty(), slots, Optional.empty())))));
         assertTrue(json.startsWith("{\"outcome\":\"done\",\"bots\":[],\"status\":{\"bot\":\"npc:a\",\"busy\":true,"
                 + "\"activeProcess\":\"goto\",\"slots\":{\"goto\":{\"active\":true,\"goal\":\"GoalBlock\","
@@ -75,7 +75,7 @@ class ControlContractsTest {
 
     @Test
     void aWaypointAnswerIsTaggedWithItsOp() {
-        assertEquals("{\"op\":\"delete\",\"name\":\"home\",\"existed\":true,\"count\":0}", JsonCodec.encode(
+        assertEquals("{\"op\":\"delete\",\"name\":\"home\",\"existed\":true,\"count\":0}", String.valueOf(
                 ControlContracts.WAYPOINT_SPEC.output().encode(new ControlContracts.Deleted("home", true, 0))));
     }
 
@@ -96,7 +96,7 @@ class ControlContractsTest {
 
     @Test
     void aRosterChangeAnswersTheBot() {
-        assertEquals("{\"outcome\":\"done\",\"bot\":\"player:alex\"}", JsonCodec.encode(
+        assertEquals("{\"outcome\":\"done\",\"bot\":\"player:alex\"}", String.valueOf(
                 ControlContracts.ROSTER.output().encode(new Responses.Rostered("player:alex"))));
     }
 }

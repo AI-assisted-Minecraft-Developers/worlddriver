@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  *   Driver.invoke(method, params)     // in-JVM via ApiRegistry.invokeJson
  *   Driver.invokeRpc(method, params)  // TCP round-trip via RpcBridge.callJson
  *
- * Both paths use the same JsonCodec, so results are byte-identical on success.
+ * Both paths write the same Gson tree, so results are byte-identical on success.
  */
 public final class ScriptManager {
     private final ApiRegistry api;

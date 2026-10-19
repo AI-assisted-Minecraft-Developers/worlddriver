@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.api.call.WaitPermits;
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.EventFeed;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
@@ -19,7 +18,11 @@ import net.magicterra.worlddriver.config.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.rpc.EventNotifications;
-import net.magicterra.worlddriver.protocol.JsonCodec;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 import java.io.ByteArrayInputStream;
@@ -29,9 +32,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -136,7 +136,7 @@ public final class McpServer implements Closeable {
 
     private Set<String> listedNames() {
         Set<String> names = new java.util.LinkedHashSet<>();
-        for (Map<String, Object> t : McpTools.list(api)) names.add(String.valueOf(t.get("name")));
+        for (JsonObject t : McpTools.list(api)) names.add(t.get("name").getAsString());
         return names;
     }
 
@@ -149,8 +149,10 @@ public final class McpServer implements Closeable {
         Set<String> now = listedNames();
         if (now.equals(listed)) return;
         listed = now;
-        String frame = "data: " + JsonCodec.encode(Map.of("jsonrpc", "2.0",
-                "method", "notifications/tools/list_changed")) + "\n\n";
+        JsonObject changed = new JsonObject();
+        changed.addProperty("jsonrpc", "2.0");
+        changed.addProperty("method", "notifications/tools/list_changed");
+        String frame = "data: " + changed + "\n\n";
         for (SseSubscriber sub : sse) sub.offer(frame);
     }
 
@@ -162,9 +164,9 @@ public final class McpServer implements Closeable {
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body><h1>Agent Driver MCP</h1>");
         sb.append("<p>POST JSON-RPC 2.0 to /mcp. Tools:</p><ul>");
-        for (Map<String, Object> t : McpTools.list(api)) {
-            sb.append("<li><code>").append(t.get("name")).append("</code> — ")
-              .append(t.get("description")).append("</li>");
+        for (JsonObject t : McpTools.list(api)) {
+            sb.append("<li><code>").append(t.get("name").getAsString()).append("</code> — ")
+              .append(t.get("description").getAsString()).append("</li>");
         }
         sb.append("</ul></body></html>");
         byte[] body = sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -210,32 +212,30 @@ public final class McpServer implements Closeable {
         byte[] raw = ex.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
         if (raw.length > MAX_BODY_BYTES) { send(ex, 413, "payload exceeds " + MAX_BODY_BYTES + " bytes"); return; }
 
-        Object decoded;
-        try { decoded = JsonCodec.decode(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8)); }
+        JsonElement decoded;
+        try { decoded = JsonParser.parseReader(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8)); }
         catch (Throwable e) { sendJson(ex, 400, jsonRpcError(null, -32700, "parse error: " + e.getMessage())); return; }
 
-        if (!(decoded instanceof Map<?, ?> req)) {
+        if (!(decoded instanceof JsonObject req)) {
             sendJson(ex, 400, jsonRpcError(null, -32600, "request must be JSON object"));
             return;
         }
-        Object rawId = req.get("id");
-        if (!JsonRpcFrames.validId(rawId)) {
+        JsonElement id = req.get("id");
+        if (!JsonRpcFrames.validId(id)) {
             sendJson(ex, 400, jsonRpcError(null, -32600, "id must be a string, an integer or null"));
             return;
         }
-        Object id = rawId;
         // A cast here threw out of the handler, and the HTTP server answers that by dropping
         // the connection without a response.
-        String method = (req.get("method") instanceof String s) ? s : null;
-        Map<String, Object> params = (req.get("params") instanceof Map<?, ?> mp)
-                ? (Map<String, Object>) mp : Map.of();
+        String method = string(req.get("method"));
+        JsonObject params = req.get("params") instanceof JsonObject mp ? mp : new JsonObject();
 
         if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing or non-string method")); return; }
 
         // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no bot.
         // Nothing is dispatched: every client→server notification MCP defines is advisory
         // here, and an id-less tools/call would run a verb whose result nobody can read.
-        if (id == null) { sendNoBody(ex, 202); return; }
+        if (id == null || id.isJsonNull()) { sendNoBody(ex, 202); return; }
 
         if (!postSlots.tryAcquire()) {
             sendJson(ex, 503, jsonRpcError(id, ServerBusyException.CODE, "server busy: "
@@ -249,25 +249,32 @@ public final class McpServer implements Closeable {
                     // always carry structuredContent, which older versions do not define. A
                     // client asking for another version is told so (spec: lifecycle, error
                     // handling) rather than handed a session in a version it did not ask for.
-                    String requested = (params.get("protocolVersion") instanceof String s) ? s : null;
+                    String requested = string(params.get("protocolVersion"));
                     if (!PROTOCOL_VERSION.equals(requested)) {
-                        Map<String, Object> data = new LinkedHashMap<>();
-                        data.put("supported", List.of(PROTOCOL_VERSION));
-                        data.put("requested", requested);
-                        sendJson(ex, 200, JsonCodec.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
-                                "Unsupported protocol version", data)));
+                        JsonObject data = new JsonObject();
+                        JsonArray supported = new JsonArray();
+                        supported.add(PROTOCOL_VERSION);
+                        data.add("supported", supported);
+                        data.addProperty("requested", requested);
+                        sendJson(ex, 200, JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                                "Unsupported protocol version", data).toString());
                         return;
                     }
-                    Map<String, Object> result = Map.of(
-                        "protocolVersion", PROTOCOL_VERSION,
-                        // listChanged: a batch registered after initialize (StageWright's mc.test.*,
-                        // a mod's verbs) is announced with notifications/tools/list_changed on every
-                        // open GET stream. logging:{} advertises notifications/message (the event push).
-                        "capabilities", Map.of(
-                            "tools", Map.of("listChanged", true),
-                            "logging", Map.of()),
-                        "serverInfo", Map.of("name", SERVER_NAME, "version", SERVER_VERSION)
-                    );
+                    JsonObject result = new JsonObject();
+                    result.addProperty("protocolVersion", PROTOCOL_VERSION);
+                    // listChanged: a batch registered after initialize (StageWright's mc.test.*,
+                    // a mod's verbs) is announced with notifications/tools/list_changed on every
+                    // open GET stream. logging:{} advertises notifications/message (the event push).
+                    JsonObject tools = new JsonObject();
+                    tools.addProperty("listChanged", true);
+                    JsonObject capabilities = new JsonObject();
+                    capabilities.add("tools", tools);
+                    capabilities.add("logging", new JsonObject());
+                    result.add("capabilities", capabilities);
+                    JsonObject serverInfo = new JsonObject();
+                    serverInfo.addProperty("name", SERVER_NAME);
+                    serverInfo.addProperty("version", SERVER_VERSION);
+                    result.add("serverInfo", serverInfo);
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "notifications/initialized" -> {
@@ -280,15 +287,18 @@ public final class McpServer implements Closeable {
                     // deliberately NOT applied to the driver event stream (see onEvent),
                     // and storing it did nothing but make the field look load-bearing:
                     // it was written here and read nowhere.
-                    sendJson(ex, 200, jsonRpcResult(id, Map.of()));
+                    sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
                 }
-                case "ping" -> sendJson(ex, 200, jsonRpcResult(id, Map.of()));
+                case "ping" -> sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
                 case "tools/list" -> {
-                    Map<String, Object> result = Map.of("tools", McpTools.list(api));
+                    JsonArray tools = new JsonArray();
+                    for (JsonObject t : McpTools.list(api)) tools.add(t);
+                    JsonObject result = new JsonObject();
+                    result.add("tools", tools);
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "tools/call" -> {
-                    String toolName = (params.get("name") instanceof String n) ? n : null;
+                    String toolName = string(params.get("name"));
                     if (toolName == null) {
                         sendJson(ex, 200, jsonRpcError(id, -32602, "missing tool name"));
                         return;
@@ -296,15 +306,15 @@ public final class McpServer implements Closeable {
                     if (!api.methods().contains(toolName)) {
                         // spec: tools, error handling — an unknown tool is a protocol error.
                         ApiError unknown = ApiError.of(ApiError.Code.METHOD_NOT_FOUND, "unknown tool: " + toolName);
-                        sendJson(ex, 200, JsonCodec.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
-                                unknown.message(), ApiErrors.toTree(unknown))));
+                        sendJson(ex, 200, JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                                unknown.message(), ApiErrors.toTree(unknown)).toString());
                         return;
                     }
                     // Absent arguments are no arguments; present ones that are not an object are reported
                     // by the method's own decode, never turned into {}.
-                    Object args = params.get("arguments");
+                    JsonElement args = params.get("arguments");
                     CallContext context = CallContext.withBudget(budgetOf(params), CancellationToken.NEVER, WAITS);
-                    CompletableFuture<Object> call = api.dispatch(toolName, args, context).toCompletableFuture();
+                    CompletableFuture<JsonElement> call = api.dispatch(toolName, args, context).toCompletableFuture();
                     MethodSpec<?, ?> spec = api.spec(toolName);
                     if (call.isDone()) {
                         sendToolOutcome(ex, id, spec, call);
@@ -470,11 +480,16 @@ public final class McpServer implements Closeable {
     private static final WaitPermits WAITS = WaitPermits.bounded(McpLimits.MCP_MAX_WAITS);
 
     /** The caller's remaining budget from {@code params._meta.budgetMs}, else the server's cap. */
-    private static long budgetOf(Map<String, Object> params) {
-        if (params.get("_meta") instanceof Map<?, ?> meta && meta.get("budgetMs") instanceof Number n && n.longValue() > 0) {
-            return Math.min(n.longValue(), CallContext.SERVER_CAP_MS);
+    private static long budgetOf(JsonObject params) {
+        if (params.get("_meta") instanceof JsonObject meta && meta.get("budgetMs") instanceof JsonPrimitive n && n.isNumber()
+                && n.getAsNumber().longValue() > 0) {
+            return Math.min(n.getAsNumber().longValue(), CallContext.SERVER_CAP_MS);
         }
         return CallContext.SERVER_CAP_MS;
+    }
+
+    private static String string(JsonElement v) {
+        return v instanceof JsonPrimitive p && p.isString() ? p.getAsString() : null;
     }
 
     /**
@@ -483,17 +498,17 @@ public final class McpServer implements Closeable {
      * tells "safe to retry" from "may still apply"; every other API error is a tool error whose text is
      * the {@code ApiError} JSON, so a model reads the issue paths it needs to fix the call.
      */
-    private static void sendToolOutcome(HttpExchange ex, Object id, MethodSpec<?, ?> spec,
-                                        CompletableFuture<Object> call) throws IOException {
-        Object result;
+    private static void sendToolOutcome(HttpExchange ex, JsonElement id, MethodSpec<?, ?> spec,
+                                        CompletableFuture<JsonElement> call) throws IOException {
+        JsonElement result;
         try {
             result = call.join();
         } catch (Throwable t) {
             ApiError e = ApiRegistry.asApi(t).error();
             switch (e.code()) {
-                case SERVER_BUSY, NOT_EXECUTED, OUTCOME_UNKNOWN -> sendJson(ex, 200, JsonCodec.encode(
-                        JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e))));
-                default -> sendJson(ex, 200, jsonRpcResult(id, toolError(JsonCodec.encode(ApiErrors.toTree(e)))));
+                case SERVER_BUSY, NOT_EXECUTED, OUTCOME_UNKNOWN -> sendJson(ex, 200,
+                        JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e)).toString());
+                default -> sendJson(ex, 200, jsonRpcResult(id, toolError(ApiErrors.toTree(e).toString())));
             }
             return;
         }
@@ -507,25 +522,35 @@ public final class McpServer implements Closeable {
      * multimodal model receives the picture as vision input rather than a base64 string. The
      * companion {@code McpBridge} merges the bytes back so in-JVM callers see one shape.
      */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> toolResultContent(MethodSpec<?, ?> spec, Object result) {
+    private static JsonObject toolResultContent(MethodSpec<?, ?> spec, JsonElement result) {
         MethodSpec.ImageHint image = spec == null ? null : spec.image();
-        if (image != null && result instanceof Map<?, ?> raw
-                && raw.get(image.dataField()) instanceof String b64 && !b64.isEmpty()
-                && raw.get(image.formatField()) instanceof String fmt && isImageMimeFormat(fmt)) {
-            Map<String, Object> meta = new LinkedHashMap<>((Map<String, Object>) raw);
+        String b64 = image != null && result instanceof JsonObject raw ? string(raw.get(image.dataField())) : null;
+        String fmt = b64 != null ? string(result.getAsJsonObject().get(image.formatField())) : null;
+        if (b64 != null && !b64.isEmpty() && fmt != null && isImageMimeFormat(fmt)) {
+            JsonObject meta = result.getAsJsonObject().deepCopy();
             meta.remove(image.dataField());
-            Map<String, Object> textBlock = Map.of("type", "text", "text", JsonCodec.encode(meta));
-            Map<String, Object> imageBlock = Map.of("type", "image", "data", b64, "mimeType", "image/" + fmt);
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("content", List.of(textBlock, imageBlock));
-            m.put("structuredContent", meta);
-            m.put("isError", false);
+            JsonArray content = new JsonArray();
+            content.add(block("text", "text", meta.toString()));
+            JsonObject imageBlock = block("image", "data", b64);
+            imageBlock.addProperty("mimeType", "image/" + fmt);
+            content.add(imageBlock);
+            JsonObject m = new JsonObject();
+            m.add("content", content);
+            m.add("structuredContent", meta);
+            m.addProperty("isError", false);
             return m;
         }
-        Map<String, Object> m = toolText(result);
-        if (result instanceof Map<?, ?>) m.put("structuredContent", result);
+        JsonObject m = toolText(result);
+        if (result instanceof JsonObject) m.add("structuredContent", result);
         return m;
+    }
+
+    /** A content block {@code {type, <field>: value}}. */
+    private static JsonObject block(String type, String field, String value) {
+        JsonObject b = new JsonObject();
+        b.addProperty("type", type);
+        b.addProperty(field, value);
+        return b;
     }
 
     private static boolean isImageMimeFormat(String fmt) {
@@ -533,10 +558,12 @@ public final class McpServer implements Closeable {
                 || "webp".equals(fmt) || "gif".equals(fmt);
     }
 
-    private static Map<String, Object> toolText(Object result) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("content", List.of(Map.of("type", "text", "text", JsonCodec.encode(result))));
-        m.put("isError", false);
+    private static JsonObject toolText(JsonElement result) {
+        JsonArray content = new JsonArray();
+        content.add(block("text", "text", result.toString()));
+        JsonObject m = new JsonObject();
+        m.add("content", content);
+        m.addProperty("isError", false);
         return m;
     }
 
@@ -563,19 +590,21 @@ public final class McpServer implements Closeable {
         return type.equalsIgnoreCase("application/json");
     }
 
-    private static Map<String, Object> toolError(String message) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("content", List.of(Map.of("type", "text", "text", message == null ? "error" : message)));
-        m.put("isError", true);
+    private static JsonObject toolError(String message) {
+        JsonArray content = new JsonArray();
+        content.add(block("text", "text", message == null ? "error" : message));
+        JsonObject m = new JsonObject();
+        m.add("content", content);
+        m.addProperty("isError", true);
         return m;
     }
 
-    private static String jsonRpcResult(Object id, Object result) {
-        return JsonCodec.encode(JsonRpcFrames.result(id, result));
+    private static String jsonRpcResult(JsonElement id, JsonElement result) {
+        return JsonRpcFrames.result(id, result).toString();
     }
 
-    private static String jsonRpcError(Object id, int code, String message) {
-        return JsonCodec.encode(JsonRpcFrames.error(id, code, message, null));
+    private static String jsonRpcError(JsonElement id, int code, String message) {
+        return JsonRpcFrames.error(id, code, message, null).toString();
     }
 
     private static void sendJson(HttpExchange ex, int status, String body) throws IOException {
