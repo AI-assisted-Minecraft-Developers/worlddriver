@@ -119,17 +119,7 @@ wd.serverCraftFailTelemetry
 wd.serverCraftFailGridReturn
 
 # Scheduler-semantics family — the ordering and pre-emption rules the process scheduler promises.
-wd.retreatGateMatrix
-wd.navigatorTerminalReportMatrix
-wd.antiSuffocateShouldTriggerMatrix
-wd.chainEpisodeCancelMatrix
-wd.combatGraceMatrix
-wd.frailBlockedMatrix
-wd.urgentBidMatrix
 wd.duskSecureHeldProcessLifecycle
-wd.cancelRouting
-wd.manualSlotGraceMatrix
-wd.nearestFirstScanMatrix
 
 # Survival family — escaping, bunkering, diving, drowning and avoiding suffocation.
 wd.serverEscape
