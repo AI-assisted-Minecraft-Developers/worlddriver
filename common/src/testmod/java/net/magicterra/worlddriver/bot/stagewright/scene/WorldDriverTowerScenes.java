@@ -4,18 +4,12 @@ import java.util.List;
 import java.util.Locale;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.Mth;
@@ -29,12 +23,12 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * <b>One order, many courses</b> — the shape of {@link TowerProcess} the suite has never executed.
+ * <b>One order, many courses</b> — the shape of {@code TowerProcess} the suite has never executed.
  *
  * <h2>Why this family exists</h2>
  *
  * The manifest registers 253 scenes (202 {@code wd.*}). Exactly one of them ever puts a
- * {@link TowerProcess} on a bot — {@code wd.serverTowersOutOfADeepShaft} — and it drives the
+ * {@code TowerProcess} on a bot — {@code wd.serverTowersOutOfADeepShaft} — and it drives the
  * process <b>one course at a time</b>, inside a recursion that lands the bot with a
  * {@code HoldStill} before every single call, in a shaft with stone on all four sides. So the
  * number of scenes that have ever asked one {@code TowerProcess} call to climb from a low place to
@@ -79,11 +73,10 @@ import net.minecraft.world.phys.AABB;
  *       and the engine is expected to be fixed afterwards; do NOT loosen this arm to make it
  *       green.</b> Ordering a tower to the cell the bot already occupies, or to one below it,
  *       exits on {@code TowerProcess:104} with {@code "done (placed=0, feetY=…)"} — the SAME verdict
- *       shape a finished tower reports. A caller cannot tell "never needed to build" from "finished building", which is
- *       exactly the ambiguity the verb refuses to create: {@code VerbOrders.construct} rejects
- *       {@code targetY <= startY} with {@code "targetY … is not above the feet"} before it
- *       ever constructs the process. The constructor has no such guard, and every server-side
- *       caller in the tree — including this file — goes through the constructor. The positive half
+ *       shape a finished tower reports. A caller cannot tell "never needed to build" from "finished building".
+ *       {@code mc.bot.construct} used to refuse {@code targetY <= startY} before constructing the
+ *       process; it now starts it like any other order (see the CHANGELOG), so the verb this file
+ *       goes through and the constructor server-side callers use answer alike. The positive half
  *       of the arm (nothing placed, done on the first tick) is green today and is kept as the
  *       control reading.</li>
  *   <li><b>{@code wd.serverTowersWithAFullBackpack} — expected GREEN, and it is the anti-overfit
@@ -123,11 +116,11 @@ import net.minecraft.world.phys.AABB;
  *       because it is the only reading that splits "never called / no face / no block" — and this process never
  *       calls {@code exAlarms.notePlace}, so a place it silently loses is invisible everywhere
  *       else.</li>
- *   <li><b>Only arm 2 plans.</b> The other four drive {@code PlayerBot.tick()} synchronously
- *       inside the scene body, the way the sibling {@code wd.parkourVoid*} scenes drive their
- *       Navigator: TowerProcess never touches the pathfinder, so a few hundred of its ticks inside one
- *       server tick costs nothing. Arm 2's walk DOES plan, so it runs over
- *       {@code BotTicker} on real server ticks and only its tower half is synchronous.</li>
+ *   <li><b>Only arm 2 plans.</b> The other four drive the bot one whole tick at a time
+ *       ({@code bot.tick()}) synchronously inside the scene body, the way the sibling
+ *       {@code wd.parkourVoid*} scenes drive their walks: TowerProcess never touches the pathfinder,
+ *       so a few hundred of its ticks inside one server tick costs nothing. Arm 2's walk DOES plan,
+ *       so it runs on the tick list over real server ticks and only its tower half is synchronous.</li>
  * </ul>
  */
 public final class WorldDriverTowerScenes implements SceneProvider {
@@ -231,8 +224,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * <p>⚠️ {@link #serverTowersAfterAWalk} deliberately does NOT settle. Not being landed is the
      * one variable that arm exists to hold.
      */
-    private static void settle(ServerPlayerBody av) {
-        for (int i = 0; i < 3; i++) av.step();
+    private static void settle(SceneBot bot) {
+        bot.step(3);
     }
 
     /** Total count of an item across the WHOLE inventory, not the hotbar — a place spends a block
@@ -319,42 +312,44 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /**
-     * Latch the start, run ONE {@link TowerProcess} order to completion (or to {@code budget}), and
-     * record every reading it produced.
+     * Latch the start, run ONE tower order to completion (or to {@code budget}), and record every
+     * reading it produced.
      *
-     * <p>The process is constructed directly, the way {@code JourneyEndRungs.smashCrystal} does,
-     * NOT through the verb ({@code VerbOrders.construct}): the API layer holds guards the constructor does not (see the
-     * class javadoc on arm 4), and routing through it would test the guards instead of the process.
+     * <p>The order goes through {@code mc.bot.construct}, which builds exactly the process
+     * {@code JourneyEndRungs.smashCrystal} constructs ({@code TowerProcess(targetY, block)}, hotbar
+     * only). Its only guards are a 256-block rise and the build height, neither of which any arm here
+     * comes near; it no longer refuses a {@code targetY} at or below the feet.
      *
      * @param columnCells how many cells of the START column to read back afterwards — the reading
      *                    that catches a tower which gained height by leaning into another column
-     * @param beforeEachTick run immediately before every {@code driver.tick()}; the seam
+     * @param beforeEachTick run immediately before every {@code bot.tick()}; the seam
      *                       {@link #apexWatch} samples through, and a no-op everywhere else
      */
-    private static Run runTower(SceneContext ctx, String arm, PlayerBot driver,
+    private static Run runTower(SceneContext ctx, String arm, SceneBot bot,
                                 int targetY, int columnCells, int budget, Runnable beforeEachTick) {
         ServerLevel level = ctx.level();
-        ServerPlayer fp = driver.fakePlayer();
+        ServerPlayer fp = bot.player();
         Run r = new Run();
         BlockPos start = fp.blockPosition();
         r.startX = start.getX(); r.startZ = start.getZ(); r.startFeetY = start.getY();
         r.carriedBefore = carrying(fp, ITEM);
 
-        driver.runProcess(new TowerProcess(targetY, BLOCK_ID));
+        bot.tower(targetY, BLOCK_ID, false);
         int t = 0;
-        for (; t < budget && !driver.finished(); t++) {
+        for (; t < budget && bot.busy(); t++) {
             beforeEachTick.run();
-            driver.tick();
+            bot.tick();
         }
         r.ticks = t;
-        r.finished = driver.finished();
+        r.finished = !bot.busy();
 
         BlockPos end = fp.blockPosition();
         r.endX = end.getX(); r.endZ = end.getZ(); r.endFeetY = end.getY();
         r.carriedAfter = carrying(fp, ITEM);
         r.spent = r.carriedBefore - r.carriedAfter;
-        r.lastError = driver.botState().builder.lastError;
-        r.placeTally = driver.avatar().placeTally();
+        r.lastError = bot.status().slots().builder().lastError().orElse(null);
+        r.placeTally = bot.body().hands().placeTally();
+        bot.cancel();
         r.columnAfter = column(level, r.startX, r.startFeetY, columnCells, r.startZ);
         r.columnPlaced = columnOf(level, r.startX, r.startFeetY, columnCells, r.startZ, BLOCK);
         r.columnSolid = columnSolid(level, r.startX, r.startFeetY, columnCells, r.startZ);
@@ -386,9 +381,17 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         return r;
     }
 
-    /** A server-side player, its driver, and the cleanup that removes both. */
-    private static PlayerBot body(SceneContext ctx, double x, double y, double z) {
-        return SceneBody.managed(ctx, x, y, z);
+    /** A parked roster bot, removed when the scene ends. */
+    private static SceneBot body(SceneContext ctx, double x, double y, double z) {
+        return SceneBot.spawn(ctx, x, y, z);
+    }
+
+    /** A parked roster bot the arm removes itself once its readings are taken; the cleanup removes it
+     *  only if the arm never got that far. */
+    private static SceneBot dropAfterUse(SceneContext ctx, double x, double y, double z, boolean[] removed) {
+        SceneBot bot = SceneBot.spawnBare(ctx, ctx.level(), x, y, z);
+        ctx.cleanup(() -> { if (!removed[0]) bot.remove(); });
+        return bot;
     }
 
     // ---------------------------------------------------------------- arms ----
@@ -423,17 +426,16 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         stageFlatArena(ctx, 3, floorY);
 
-        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = driver.player();
         // Slot 0, because that is the constraint TowerProcess actually has outside creative — see
         // arm 5, which holds the other side of it.
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
-        settle(driver.avatar());
+        settle(driver);
 
         requireStaged(ctx, "tower", fp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
 
@@ -459,7 +461,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /**
      * <b>{@code JourneyEndRungs.smashCrystal}'s own ordering, and the arm expected to be RED.</b>
      *
-     * <p>A twelve-cell runway, an {@link IntentProcess} to its far end, and then — from the walk's
+     * <p>A twelve-cell runway, an {@code mc.bot.goto} to its far end, and then — from the walk's
      * continuation, with <b>no {@code HoldStill} and no {@code onGround} wait</b> — an eight-course
      * tower. That is verbatim the shape the only multi-course production caller uses, and it is the
      * one shape the covered scene structurally cannot produce: {@code towerOneCourse} lands the bot
@@ -493,8 +495,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // server tick is the shape that has wedged this suite before.
         Harness.set("pathfinder.sliceMs", 20);
         Harness.set("pathfinder.maxMs", 2000);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         // The box is not centred on the origin, so this arm stages its own instead of the square.
         ctx.cleanup(() -> clearBox(level, cx, cz, floorY, -3, runway + 3, -3, HEADROOM + 4, -3, 3));
@@ -504,8 +505,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz),
                         Blocks.STONE.defaultBlockState());
 
-        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
         // NO settle(): starting un-landed is arm 2's variable, and the walk provides it.
@@ -516,12 +517,13 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 cx + runway, standY, courses, cz, stock);
 
         final BlockPos far = new BlockPos(cx + runway, standY, cz);
-        BotTicker.register(driver.runProcess(new IntentProcess(new Intent(new Goal.Block(far)))));
-        ctx.await(driver::finished).within(400).then(() -> {
-            BotTicker.unregister(driver);
+        // A started goto puts the bot on the tick list, so the walk runs on real server ticks.
+        driver.goTo(Targets.block(far));
+        ctx.await(() -> !driver.busy()).within(400).then(() -> {
+            driver.park();
             BlockPos at = fp.blockPosition();
             ctx.record("walk.end", "arrived at " + at.toShortString() + " (runway end "
-                    + far.toShortString() + ") | endReason=" + driver.botState().mc_goto.endReason
+                    + far.toShortString() + ") | endReason=" + driver.gotoSlot().endReason().orElse(null)
                     + " | onGround=" + fp.onGround()
                     + " | h=" + String.format(Locale.ROOT, "%.4f",
                             Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z)));
@@ -578,8 +580,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         final int baseY = topY - 3;                        // a pillar, not a single block
         final int catchY = baseY - drop - 1;
@@ -594,11 +595,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         for (int y = baseY; y <= topY; y++)
             level.setBlockAndUpdate(new BlockPos(cx, y, cz), Blocks.STONE.defaultBlockState());
 
-        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
-        settle(driver.avatar());
+        settle(driver);
 
         requireStaged(ctx, "tower", fp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
 
@@ -644,12 +645,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *   <li><b>RED today:</b> the verdict must not read {@code done (placed=…}. That prefix is the
      *       verdict of a tower that <i>built</i>, so a caller receiving it cannot distinguish
      *       "never needed to build" from "finished building" — and the distinction is exactly what it needs in order to
-     *       decide whether to retry, to give up, or to carry on. The client entry point already
-     *       refuses to create the ambiguity: {@code VerbOrders.construct} rejects {@code targetY <=
-     *       startY} with {@code "targetY … is not above the feet (y …)"} before constructing
-     *       anything. The constructor has no such guard, and every server-side caller in the tree —
-     *       {@code JourneyEndRungs}, {@code JourneyShaft}, {@code wd.serverTowersOutOfADeepShaft},
-     *       this file — goes through the constructor.</li>
+     *       decide whether to retry, to give up, or to carry on. {@code mc.bot.construct}, which this
+     *       file goes through, used to refuse {@code targetY <= startY} before constructing anything;
+     *       it now starts the process like any other order, the same process the server-side callers
+     *       ({@code JourneyEndRungs}, {@code JourneyShaft}, {@code wd.serverTowersOutOfADeepShaft})
+     *       construct.</li>
      * </ol>
      *
      * <p>The fix cannot be a constructor guard alone: {@code startFeetY} is not known until the
@@ -672,8 +672,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         stageFlatArena(ctx, 3, floorY);
 
         noOpLeg(ctx, "atLevel", cx - 2, cz, standY, stock, 0, "targetY == current feet cell");
@@ -683,11 +682,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /** One order that asks for no climb at all: its own bot, its own column, its own record keys. */
     private static void noOpLeg(SceneContext ctx, String arm, int x, int z, int standY,
                                 int stock, int dTargetY, String order) {
-        PlayerBot driver = body(ctx, x + 0.5, standY, z + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, x + 0.5, standY, z + 0.5);
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
-        settle(driver.avatar());
+        settle(driver);
 
         requireStaged(ctx, arm, fp, new BlockPos(x, standY, z), x, standY, 1, z, stock);
         final int startFeetY = fp.blockPosition().getY();
@@ -708,9 +707,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 .as(arm + " C: WARNING: RED BY DESIGN — \"never needed to build\" and \"finished building\""
                         + " must not produce the same result message [" + order
                         + "]: got »" + r.lastError + "«, and 'done (placed=…' is what a tower that"
-                        + " actually built reports. VerbOrders.construct already refuses this argument"
-                        + " ('targetY … is not above the feet'); the constructor every server-side"
-                        + " caller uses does not. Fix the verdict, not this line").isTrue();
+                        + " actually built reports. Fix the verdict, not this line").isTrue();
     }
 
     /**
@@ -745,12 +742,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         stageFlatArena(ctx, 3, floorY);
 
-        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = driver.player();
         // Nine hotbar slots of things that are emphatically not blocks — tools, buckets, food — so
         // the hotbar is FULL rather than merely lacking cobblestone. A hotbar with an empty slot
         // would let a future "shuffle the bag into the gap" fix pass without being noticed.
@@ -761,7 +757,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         for (int s = 0; s < hotbar.length; s++) fp.getInventory().items.set(s, new ItemStack(hotbar[s]));
         fp.getInventory().items.set(bagSlot, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
-        settle(driver.avatar());
+        settle(driver);
 
         requireStaged(ctx, "tower", fp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
         ctx.record("tower.hotbar", "slots 0..8 = pickaxes/buckets/food (no BlockItem anywhere in the"
@@ -813,7 +809,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * ladder's own row could not: {@code apexFeetY} is a floored CELL, so "jumped but rose only 0.2"
      * and "never jumped at all" print the same number. A jump that fired peaks at {@code +1.25} in the open and
      * at {@code +0.2} under a lid; one that never fired never leaves {@code +0.00}. Paired with
-     * {@code dbgLastJumpTick}, which says whether an impulse was emitted at all.
+     * the navigator reading's {@code lastJumpTick} counter, which says whether an impulse was emitted at all.
      */
     private static Runnable apexWatch(ServerPlayer fp, String arm, SceneContext ctx) {
         double[] apex = { fp.getY() };
@@ -840,7 +836,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * </pre>
      *
      * A bot on the ground, holding a stack, not in water, sixty ticks, nothing placed. Read against
-     * {@link TowerProcess}'s state machine those four facts pick out exactly one state: {@code
+     * {@code TowerProcess}'s state machine those four facts pick out exactly one state: {@code
      * JUMPING} is left on {@code p.getY() >= jumpFromY + 1.0} and on nothing else, and the jump key
      * is released on its first tick — so <b>a jump that fails to lift the player one whole block ends
      * the order</b>. Not the course: the ORDER. There is no way back to {@code READY}, so the
@@ -886,8 +882,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         // ---- control: the ceiling is in, and the tower must NOT get out from under it ----
         stageFlatArena(ctx, 3, floorY);
@@ -896,11 +891,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, ceilY, cz + dz),
                         Blocks.STONE.defaultBlockState());
 
-        PlayerBot control = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer cfp = control.fakePlayer();
+        boolean[] controlGone = {false};
+        SceneBot control = dropAfterUse(ctx, cx + 0.5, standY, cz + 0.5, controlGone);
+        ServerPlayer cfp = control.player();
         cfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         cfp.getInventory().selected = 0;
-        settle(control.avatar());
+        settle(control);
         // Only the cells UNDER the lid: the staged-column check asserts "the tower's target column is
         // air right now", and the lid deliberately sits inside the four cells the order asks for. A
         // rig check that failed on the arena's own subject would report the ceiling as a staging bug.
@@ -911,7 +907,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Run c = runTower(ctx, "control", control, standY + courses, ceilY - standY, DRIVE_BUDGET,
                 apexWatch(cfp, "control", ctx));
-        ctx.record("control.jumpTick", "last emitted jump impulse t=" + control.avatar().dbgLastJumpTick()
+        ctx.record("control.jumpTick", "last emitted jump impulse t=" + control.navigator().counter("lastJumpTick")
                 + ". Read together with control.apex: not -1 and apex ≈ +0.20 means the bot jumped, hit"
                 + " the lid and fell back (the defective behaviour, followed by 60 ticks stuck in JUMPING);"
                 + " -1 and apex = +0.00 means the bot never jumped because READY named the lid first");
@@ -924,7 +920,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: the bot climbed " + c.climbed() + " courses with"
                     + " stone at y=" + ceilY + " over every column of the arena, so the ceiling was"
                     + " never in the way and nothing this arm measures is about one — " + c.columnAfter);
-        control.fakePlayer().discard();
+        control.remove();
+        controlGone[0] = true;
 
         ctx.check(c.finished).as("A: a tower that cannot rise still reports a result message instead of"
                 + " exhausting the budget: ran " + c.ticks + " of "
@@ -947,11 +944,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         // ---- subject: the same order, the same rig, that one row of stone gone ----
         stageFlatArena(ctx, 3, floorY);
-        PlayerBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer sfp = subject.fakePlayer();
+        SceneBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer sfp = subject.player();
         sfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         sfp.getInventory().selected = 0;
-        settle(subject.avatar());
+        settle(subject);
         requireStaged(ctx, "subject", sfp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
 
         Run s = runTower(ctx, "subject", subject, standY + courses, courses, DRIVE_BUDGET,
@@ -1000,18 +997,18 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         Harness.pin(ctx);
         towerConfig();
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
 
         // ---- control: the player straddles into the lidded column ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
 
-        PlayerBot control = body(ctx, cx + 0.05, standY, cz + 0.5);
-        ServerPlayer cfp = control.fakePlayer();
+        boolean[] controlGone = {false};
+        SceneBot control = dropAfterUse(ctx, cx + 0.05, standY, cz + 0.5, controlGone);
+        ServerPlayer cfp = control.player();
         cfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         cfp.getInventory().selected = 0;
-        settle(control.avatar());
+        settle(control);
         requireStaged(ctx, "control", cfp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
         ctx.record("control.footprint", footprint(cfp) + " | lid " + lid.toShortString() + "="
                 + level.getBlockState(lid).getBlock() + " | cell the caller checks " + own.toShortString()
@@ -1029,7 +1026,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: a player whose box reaches into " + lid.toShortString()
                     + " climbed all " + courses + " courses, so either the stone is not there or the"
                     + " player is not straddling — " + footprint(cfp) + " | " + c.columnAfter);
-        control.fakePlayer().discard();
+        control.remove();
+        controlGone[0] = true;
 
         ctx.check(c.finished).as("A: a result message is reported even when the neighbouring column is sealed: ran " + c.ticks + " of " + DRIVE_BUDGET
                 + " ticks, verdict »" + c.lastError + "«").isTrue();
@@ -1041,11 +1039,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // ---- subject: same arena, same lid, the player a fifth of a block further in ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
-        PlayerBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer sfp = subject.fakePlayer();
+        SceneBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer sfp = subject.player();
         sfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         sfp.getInventory().selected = 0;
-        settle(subject.avatar());
+        settle(subject);
         requireStaged(ctx, "subject", sfp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
         ctx.record("subject.footprint", footprint(sfp) + " | lid still at " + lid.toShortString() + "="
                 + level.getBlockState(lid).getBlock());
