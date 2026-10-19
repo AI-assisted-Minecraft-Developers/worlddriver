@@ -21,8 +21,6 @@ import java.util.function.Consumer;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -187,7 +185,7 @@ public final class ApiRegistry {
     /**
      * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
      * the parameters as JSON rather than as the method's types. Throws the call's {@link ApiException}.
-     * On a game thread a call that would wait is refused before it starts, as {@link #invokeJson} refuses it.
+     * On a game thread a call that would wait is refused before it starts.
      */
     public JsonElement route(String method, JsonObject params) {
         CallContext ctx = GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
@@ -210,42 +208,6 @@ public final class ApiRegistry {
             throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
                     "interrupted while waiting; the call may still take effect", List.of(), ApiError.Execution.UNKNOWN));
         }
-    }
-
-    /**
-     * The in-JVM script entry: parameters as JSON text ({@code null} for none), answer as an envelope
-     * {@code {"result":…}} or {@code {"error":ApiError}} so a script sees the error's code and issues
-     * rather than a Java exception's message.
-     *
-     * <p>On a game thread the call may not wait: a call that would is refused before it starts,
-     * because that thread is what it would be waiting for.
-     */
-    public String invokeJson(String method, String paramsJson) {
-        return invokeJson(method, paramsJson, CallContext.standalone());
-    }
-
-    /** {@link #invokeJson(String, String)} as part of {@code caller}: its run, its deadline, its cancellation. */
-    public String invokeJson(String method, String paramsJson, CallContext caller) {
-        JsonObject envelope = new JsonObject();
-        try {
-            JsonElement params = paramsJson == null ? null : JsonParser.parseString(paramsJson);
-            boolean game = GameThreads.onGameThread();
-            CallContext ctx = game ? caller.onGameThread() : caller;
-            CompletionStage<JsonElement> stage = dispatch(method, params, ctx);
-            CompletableFuture<JsonElement> f = stage.toCompletableFuture();
-            if (game && !f.isDone()) {
-                f.cancel(false);
-                throw new ApiException(new ApiError(ApiError.Code.INTERNAL_ERROR, method
-                        + " did not finish synchronously on a game thread; it may still take effect", List.of(),
-                        ApiError.Execution.UNKNOWN));
-            }
-            envelope.add("result", await(f, Math.max(1, ctx.remainingMillis())));
-        } catch (JsonParseException bad) {
-            envelope.add("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
-        } catch (Throwable t) {
-            envelope.add("error", ApiErrors.toTree(asApi(t).error()));
-        }
-        return envelope.toString();
     }
 
     /** {@code t} as an {@link ApiException}, translated once by {@link ApiErrors}. */

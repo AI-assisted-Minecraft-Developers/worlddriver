@@ -13,7 +13,7 @@ import net.magicterra.worlddriver.rpc.RpcClient;
 /**
  * The body of {@code Driver.system.rpcRoundtrip(method, params)}: the same call made over a fresh
  * WebSocket connection, for the transport-parity checks. Its answer is the envelope
- * {@code ApiRegistry.invokeJson} gives, so the script throws the same {@code DriverApiError} with the
+ * {@link ScriptCalls#invokeJson} gives, so the script throws the same {@code DriverApiError} with the
  * same code and issues whichever way the call went.
  */
 public final class RpcBridge {

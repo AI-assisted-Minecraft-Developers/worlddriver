@@ -16,8 +16,8 @@ WebSocket RPC   ├─→  ApiRegistry.dispatch(method, params, context)  ─→
 in-process Rhino┘
 ```
 
-`ApiRegistry.dispatch` is the only entry; `route(String, Map)` and `invokeJson` are blocking
-wrappers over it for in-JVM callers. It runs the call against the registry's current snapshot,
+`ApiRegistry.dispatch` is the only entry; `route(String, JsonObject)` is a blocking
+wrapper over it for in-JVM callers. It runs the call against the registry's current snapshot,
 an immutable table of every method. Each entry is an `ApiMethod`: a typed `MethodSpec` (name, parameter
 and result types, effects, execution class, whether it may wait, whether it is listed) bound to
 its handler. The registry decodes the parameters with the spec's input type — strictly, so an
@@ -61,7 +61,7 @@ only the `self` half needs a client.
 |---|---|---|
 | MCP over HTTP | `mcp/McpServer` | `tools/call` → `api.dispatch(toolName, args, context)` |
 | WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.dispatch(method, params, context)` |
-| in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `api.invokeJson` → `dispatch` |
+| in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `ScriptCalls.invokeJson` → `dispatch` |
 
 `invokeJson` parses the params with Gson around `dispatch`, answers an envelope
 `{result}` or `{error}`, and adds no behaviour.
@@ -189,7 +189,6 @@ told, so the cursor is best-effort.
 
 | Package | What it is |
 |---|---|
-| `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
 | `api/` | the schema types (`schema/`), the method contracts (`methods/`), the `ApiRegistry` with its handler types (`registry/`), what one call carries (`call/`), the game-thread hops (`thread/`), and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers; `client/` answers the client's own methods (`ClientDriverApi` and `ClientHooks`, reached through `requireClient()`), the one part of it that names client classes |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
@@ -227,10 +226,9 @@ source budget, and a scene registered without a matching manifest entry fails th
 
 ## Dependency guards
 
-`ArchitectureTest` (a `:common` unit test) prevents protocol dependencies on game/transport types,
-API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
+`ArchitectureTest` (a `:common` unit test) prevents API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
 and any production dependency on StageWright. It also holds `api/` to its layers: only the game
-layer may name `net.minecraft`, the schema uses nothing above the protocol, method contracts use
+layer may name `net.minecraft`, the schema uses nothing above itself, method contracts use
 only the schema, `call/` and `registry/`, and no transport touches the game layer. `./gradlew build`
 also runs `verifyJarContents`, which checks that the assembled jars carry no test framework or
 testmod fixture classes.

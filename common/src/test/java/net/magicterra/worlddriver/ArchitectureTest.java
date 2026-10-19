@@ -46,10 +46,10 @@ class ArchitectureTest {
 
     // ---- the api layers: the layers each may use, and which subpackage holds which
     private static final Set<String> API_LAYERS = Set.of("schema", "methods", "registry", "call", "thread", "action", "game");
-    private static final Set<String> RUNTIME = Set.of("protocol", "schema", "methods", "registry", "call", "thread", "action");
+    private static final Set<String> RUNTIME = Set.of("schema", "methods", "registry", "call", "thread", "action");
     private static final Map<String, Set<String>> MAY_USE = Map.of(
-            "schema", Set.of("protocol", "schema"),
-            "methods", Set.of("protocol", "schema", "methods", "registry", "call"),
+            "schema", Set.of("schema"),
+            "methods", Set.of("schema", "methods", "registry", "call"),
             "registry", RUNTIME, "call", RUNTIME, "thread", RUNTIME, "action", RUNTIME);
     private static final Set<String> TRANSPORTS = Set.of("rpc", "mcp", "script");
 
@@ -92,11 +92,7 @@ class ArchitectureTest {
             String text = e.getValue();
             String area = name.split("/")[0];
             List<String> banned = new ArrayList<>();
-            if (area.equals("protocol")) {
-                banned.addAll(List.of("net.minecraft.", "net.fabricmc.", "net.neoforged.", "io.netty.",
-                        "dev.latvian.", "net.magicterra.worlddriver."));
-                text = text.replace("net.magicterra.worlddriver.protocol.", "");   // the protocol may refer to itself
-            } else if (area.equals("api")) {
+            if (area.equals("api")) {
                 for (String p : List.of("rpc", "mcp", "application", "bot", "game", "config", "debug", "script"))
                     banned.add("net.magicterra.worlddriver." + p + ".");
             } else if (area.equals("rpc") || area.equals("mcp")) {
@@ -142,6 +138,18 @@ class ArchitectureTest {
         assertNone(found);
     }
 
+    /** The api module is the method surface and nothing else: the wire framing belongs to the transports. */
+    @Test
+    void theApiModuleHoldsNoWireFraming() {
+        List<String> bad = new ArrayList<>();
+        for (Path p : javaFiles(SOURCE_ROOTS.get(0))) {
+            String name = SOURCE_ROOTS.get(0).relativize(p).toString().replace('\\', '/');
+            if (!name.startsWith("api/")) bad.add(name + ": outside the api package");
+            if (code(p).contains("com.google.gson.stream.")) bad.add(name + ": reads or writes the JSON stream itself");
+        }
+        assertNone(bad);
+    }
+
     @Test
     void theStackBelowTheApiOnlyUsesTheLayersBelowEachLayer() {
         Set<String> found = new TreeSet<>();
@@ -163,8 +171,7 @@ class ArchitectureTest {
     }
 
     /**
-     * The scenes and test content use the driver as another mod would: through {@code api/} and {@code protocol/},
-     * and StageWright. A capability a scene needs that the api lacks is added to the api — or, for a test-only
+     * The scenes and test content use the driver as another mod would: through {@code api/} and StageWright. A capability a scene needs that the api lacks is added to the api — or, for a test-only
      * mutation, to StageWright — never reached past it.
      */
     @Test
@@ -195,7 +202,6 @@ class ArchitectureTest {
     /** The api layer of a class, "unclassified" for an api class outside every layer, null outside the api. */
     private static String apiLayer(String name) {
         String[] parts = name.split("/");
-        if (parts[0].equals("protocol")) return "protocol";
         if (!parts[0].equals("api")) return null;
         if (parts.length == 2) return "unclassified";
         return API_LAYERS.contains(parts[1]) ? parts[1] : "unclassified";
@@ -211,7 +217,7 @@ class ArchitectureTest {
 
     /** Whether a class in stack layer {@code src} may use one in {@code dst}. */
     private static boolean stackAllows(String src, String dst) {
-        if (src.equals(dst) || dst.equals("protocol") || dst.equals("mixin") || dst.equals("config")) return true;
+        if (src.equals(dst) || dst.equals("mixin") || dst.equals("config")) return true;
         if (src.equals("config")) return false;
         // Debug tooling plugs in at the facade and the wiring; nothing it records may depend on it.
         if (dst.equals("debug")) return Set.of("(root)", "bot", "mixin").contains(src);

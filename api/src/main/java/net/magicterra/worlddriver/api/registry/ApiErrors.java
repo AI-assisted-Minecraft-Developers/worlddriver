@@ -14,7 +14,6 @@ import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.protocol.ServerBusyException;
 
 /** One translation from whatever a call threw to the {@link ApiError} every entry point reports. */
 public final class ApiErrors {
@@ -26,8 +25,6 @@ public final class ApiErrors {
         if (api != null) return api.error();
         ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(c);
         if (hop != null) return ApiError.of(hop.code(), hop.getMessage());
-        ServerBusyException busy = ServerBusyException.find(c);
-        if (busy != null) return ApiError.of(ApiError.Code.SERVER_BUSY, busy.getMessage());
         String msg = c.getMessage() == null ? c.getClass().getSimpleName() : c.getMessage();
         // A service rejecting a value the type could not judge (an unknown block id) before it acted.
         if (c instanceof IllegalArgumentException) {

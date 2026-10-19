@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
 import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.protocol.RequestLimits;
 
 
 import io.netty.bootstrap.Bootstrap;

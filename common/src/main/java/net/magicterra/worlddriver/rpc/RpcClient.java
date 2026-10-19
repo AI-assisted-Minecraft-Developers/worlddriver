@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.rpc;
 
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 
-import net.magicterra.worlddriver.protocol.RequestLimits;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;

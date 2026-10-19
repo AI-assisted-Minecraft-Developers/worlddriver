@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 import net.magicterra.worlddriver.application.TestTransports;
 
-import net.magicterra.worlddriver.protocol.ServerBusyException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -53,7 +53,7 @@ class RpcConcurrencyTest {
             }
             assertEquals(extra, early.size(), "busy refusals did not arrive promptly: " + early);
             for (Map<?, ?> r : early) {
-                assertEquals(String.valueOf(ServerBusyException.CODE), String.valueOf(((Map<?, ?>) r.get("error")).get("code")), r.toString());
+                assertEquals(String.valueOf(ApiError.Code.SERVER_BUSY.rpcCode), String.valueOf(((Map<?, ?>) r.get("error")).get("code")), r.toString());
                 long id = ((Number) r.get("id")).longValue();
                 assertTrue(id > cap, "a request within the cap was refused: " + r);
             }

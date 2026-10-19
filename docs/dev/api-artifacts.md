@@ -33,7 +33,7 @@ hand beside it in `references/tips.md`.
 
 Another mod that calls the driver, registers a driver for a mob, or adds a body task compiles
 against `net.magicterra:worlddriver-api`, not against the whole mod. It is the `:api` module: the
-classes under `api/` and `protocol/`, the generated bindings included. `:common` depends on it and
+classes under `api/`, the generated bindings included. `:common` depends on it and
 the loader jars bundle it, so the module boundary is what keeps the api from using the rest of the
 driver. It is published like the other modules, under the mod's version, in two mappings:
 

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   number tokens or non-standard string escapes. Both servers listen on the loopback address only, so those
   rules guarded against nothing. A number field whose value is whole is now written as Gson writes it
   (`2.0`, not `2`); integer fields are unchanged.
+- **The `protocol` package is gone from the api.** The JSON-RPC frames and the request size limit moved
+  to `:common`'s `rpc/`, next to the transports that use them; `invokeJson`, the script entry, moved from
+  `ApiRegistry` to `script/ScriptCalls`. `ServerBusyException` is deleted: every refusal already threw
+  `ApiException` with `server_busy`, whose code is still `-32005`.
 
 ## 2026-10-19
 

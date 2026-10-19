@@ -1,12 +1,13 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import com.google.gson.JsonObject;
 import net.magicterra.worlddriver.TestJson;
 import static net.magicterra.worlddriver.application.TestTransports.rpc;
 
 import net.magicterra.worlddriver.application.DriverApplication;
 
-import net.magicterra.worlddriver.protocol.ServerBusyException;
 
 
 import io.netty.bootstrap.ServerBootstrap;
@@ -222,11 +223,11 @@ class RpcFramingTest {
         // The background-wait cap refuses inside a route, past the transport's own cap check;
         // it must reach the client with the same busy code the transport cap answers with.
         DriverApplication api = new DriverApplication();
-        ProbeMethods.failing(api.registry(),"probe.busy", () -> new ServerBusyException("busy: all background waits are running"));
+        ProbeMethods.failing(api.registry(),"probe.busy", () -> ApiException.of(ApiError.Code.SERVER_BUSY, "busy: all background waits are running"));
         try (RpcServer server = rpc(api);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"probe.busy\",\"params\":{}}");
-            assertEquals(String.valueOf(ServerBusyException.CODE), code(r), "reply: " + r);
+            assertEquals(String.valueOf(ApiError.Code.SERVER_BUSY.rpcCode), code(r), "reply: " + r);
         }
     }
 

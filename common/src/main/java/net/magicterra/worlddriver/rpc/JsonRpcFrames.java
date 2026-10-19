@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.protocol;
+package net.magicterra.worlddriver.rpc;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;

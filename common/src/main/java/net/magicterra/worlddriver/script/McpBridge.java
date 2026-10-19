@@ -23,7 +23,7 @@ import java.util.function.Function;
 
 /**
  * The body of {@code Driver.system.mcpRoundtrip(method, params)}: the same call as an MCP
- * {@code tools/call} over HTTP, answered with the envelope {@code ApiRegistry.invokeJson} gives so a
+ * {@code tools/call} over HTTP, answered with the envelope {@link ScriptCalls#invokeJson} gives so a
  * parity check compares like with like. The result is {@code structuredContent}, with an image's bytes
  * put back under the field its spec names; an error is the {@code ApiError} the server sent, whether
  * as a JSON-RPC error's {@code data} or as a tool error's text.

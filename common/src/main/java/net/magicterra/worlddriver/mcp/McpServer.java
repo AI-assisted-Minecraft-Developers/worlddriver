@@ -8,10 +8,10 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.EventFeed;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.protocol.JsonRpcFrames;
+import net.magicterra.worlddriver.rpc.JsonRpcFrames;
 import java.util.concurrent.CompletableFuture;
 
-import net.magicterra.worlddriver.protocol.RequestLimits;
+import net.magicterra.worlddriver.rpc.RequestLimits;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.config.BuildStamp;
@@ -24,7 +24,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
-import net.magicterra.worlddriver.protocol.ServerBusyException;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -238,7 +237,7 @@ public final class McpServer implements Closeable {
         if (id == null || id.isJsonNull()) { sendNoBody(ex, 202); return; }
 
         if (!postSlots.tryAcquire()) {
-            sendJson(ex, 503, jsonRpcError(id, ServerBusyException.CODE, "server busy: "
+            sendJson(ex, 503, jsonRpcError(id, ApiError.Code.SERVER_BUSY.rpcCode, "server busy: "
                     + McpLimits.MCP_MAX_IN_FLIGHT + " requests already running; retry later"));
             return;
         }

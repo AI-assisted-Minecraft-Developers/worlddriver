@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.protocol;
+package net.magicterra.worlddriver.rpc;
 
 /** Inbound request budget shared by every transport. */
 public final class RequestLimits {

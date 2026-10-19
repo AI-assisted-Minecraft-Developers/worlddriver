@@ -28,7 +28,7 @@ public final class TransportLimits {
 
     /**
      * Requests one WebSocket connection may have running at once. Past it a request is
-     * answered at once with {@link ServerBusyException#CODE} instead of taking a thread: a
+     * answered at once with the {@code server_busy} code instead of taking a thread: a
      * slow call holds its worker until it answers, so an unbounded loop on one socket would
      * otherwise exhaust the JVM's native threads and take the game down. A wait gives its
      * worker back and counts against {@link #RPC_MAX_WAITS_PER_CONNECTION} instead.

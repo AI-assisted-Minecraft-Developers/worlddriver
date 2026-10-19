@@ -17,7 +17,7 @@ import java.util.stream.Stream;
  * Tiny Rhino-backed script manager.
  *
  * Canonical call form, used by all scripts:
- *   Driver.invoke(method, params)     // in-JVM via ApiRegistry.invokeJson
+ *   Driver.invoke(method, params)     // in-JVM via ScriptCalls.invokeJson
  *   Driver.invokeRpc(method, params)  // TCP round-trip via RpcBridge.callJson
  *
  * Both paths write the same Gson tree, so results are byte-identical on success.

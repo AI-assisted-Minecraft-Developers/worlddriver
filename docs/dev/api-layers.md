@@ -1,6 +1,6 @@
 # The `api` layers
 
-`api/` and `protocol/`, the `:api` module, are the method surface every transport calls into, and the
+`api/`, the `:api` module, is the method surface every transport calls into, and the
 part of this repository other builds link against: the generated TypeScript, StageWright's published
 jar, and every client on the wire. This page says how it is layered, why, and what a change to each
 layer obliges you to do. [Architecture](architecture.md) covers how a call travels through it.
@@ -11,7 +11,6 @@ Bottom up. A layer uses only the layers below it, and only the top one names Min
 
 | Layer | Package | Answers | May use |
 |---|---|---|---|
-| protocol | `protocol/` | The JSON-RPC frames and the request limits | the JDK and Gson |
 | schema | `api/schema/` | What a value looks like: decoding Gson trees, refusals, the TypeScript it generates | Gson, DataFixerUpper |
 | methods | `api/methods/<family>/` | What each method takes and answers | schema, `call/`, `registry/` |
 | runtime | `api/registry/` `api/call/` `api/thread/` `api/action/` | How a call is queued, cancelled, moved between threads and turned into an error | everything below |
@@ -22,8 +21,9 @@ and its `<Family>Contracts`: `shared bot interact control action world query obs
 recipe script system debug client screen test`. The implementations live outside `api/`, in
 `application/`, one `<Family>Service` per interface.
 
-Outside `api/`: the three transports (`rpc/`, `mcp/`, `script/`) use protocol, schema and the
-runtime, never the game layer, and so receive events already in their wire form. They subscribe
+Outside `api/`: the three transports (`rpc/`, `mcp/`, `script/`) use the schema and the runtime,
+never the game layer, and so receive events already in their wire form; the wire framing is theirs
+(`rpc/JsonRpcFrames`, `rpc/RequestLimits`, `script/ScriptCalls`). They subscribe
 through `registry/EventFeed`, which the game layer's `DriverHost` extends without naming a game
 type in it; they call through the `ApiRegistry` they are handed, and the game side holds the driver
 by `DriverHost`. Other code in the game, another mod's or the test scenes', finds both through
@@ -64,8 +64,8 @@ use it. `ArchitectureTest` (in `:common`'s unit tests) checks the rest against t
 modules: Minecraft only in the game layer, each `api/` layer using only what the table allows, no
 transport using the game layer.
 
-It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`,
-`protocol/` and StageWright, with no exceptions. A scene that needs something the api does not offer
+It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`
+and StageWright, with no exceptions. A scene that needs something the api does not offer
 gets it added to the api — a reading under the hidden `mc.debug` family, or, for a mutation only a
 test should make, a `mc.test.*` method StageWright provides.
 
