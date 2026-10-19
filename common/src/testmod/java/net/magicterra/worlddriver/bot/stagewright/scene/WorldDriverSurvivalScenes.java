@@ -16,15 +16,6 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.arbitration.Chain;
-import net.magicterra.worlddriver.bot.arbitration.DrownEscapeChain;
-import net.magicterra.worlddriver.bot.arbitration.Priorities;
-import net.magicterra.worlddriver.bot.arbitration.ProcessScheduler;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -52,10 +43,9 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p>{@code wd.antiSuffocateWaterNotSuffocating} plants three real blocks and reads {@code mc.debug.cells}'
  * {@code suffocates} for each; {@code wd.serverObserveAirSupply} reads {@code mc.observe.player}'s air for
- * the bot. {@code wd.drownEscapePreempt} still wires the real {@link DrownEscapeChain} and a placeholder
- * user chain into a {@link ProcessScheduler} by hand over a minted player — no api call builds a scheduler
- * around a stand-in chain. The pure state machines and gate tables that used to run here as scenes
- * (bunker anchor, drowning float, drowning escape, contact escape) are unit tests in {@code common/src/test}.
+ * the bot. The pure state machines and gate tables that used to run here as scenes (bunker anchor,
+ * drowning float, drowning escape and its preemption of a user task, contact escape) are unit tests in
+ * {@code common/src/test}.
  *
  * <p><b>{@code wd.underwaterBase}</b> is the documented legacy HANG RECIDIVIST. Its actuation is
  * BOUNDED (planner {@code sliceMs=1} pinned tiny, node-budget-deterministic; executor capped at 600
@@ -91,7 +81,6 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                 Scene.of("wd.serverBunkerSlope", 400, WorldDriverSurvivalScenes::serverBunkerSlopeScene),
                 Scene.of("wd.surfaceDive", 400, WorldDriverSurvivalScenes::surfaceDiveScene),
                 Scene.of("wd.underwaterBase", 400, WorldDriverSurvivalScenes::underwaterBaseScene),
-                Scene.of("wd.drownEscapePreempt", 400, WorldDriverSurvivalScenes::drownEscapePreemptScene),
                 Scene.of("wd.serverObserveAirSupply", 200, WorldDriverSurvivalScenes::serverObserveAirSupplyScene),
                 Scene.of("wd.antiSuffocateWaterNotSuffocating", 200, WorldDriverSurvivalScenes::antiSuffocateWaterNotSuffocatingScene),
                 Scene.of("wd.serverAntiSuffocateBreaksTheHeadBlock", 200, ctx -> serverAntiSuffocateScene(ctx, true)),
@@ -610,124 +599,6 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         for (DebugContracts.PlanEdge e : plan.edges())
             if (e.move().map("swimDownSurface"::equals).orElse(false)) return true;
         return false;
-    }
-
-    // ==================================================================================
-    // wd.drownEscapePreempt — REAL DrownEscapeChain + ProcessScheduler preempts an active
-    // "user" chain in a flooded 1×1 shaft and floats the bot up (gap#76, live death #25).
-    // ==================================================================================
-
-    private static void drownEscapePreemptScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
-        final int depth = 6;                     // water column floorY+1 .. floorY+depth
-        boolean oEnabled = Harness.flag("autoDrownEscape");
-        int oEnter = Harness.integer("drownEscapeAirThreshold"), oRelease = Harness.integer("drownEscapeReleaseAir");
-        Harness.set("autoDrownEscape", true);
-        Harness.set("drownEscapeAirThreshold", 100);
-        Harness.set("drownEscapeReleaseAir", 280);
-        ctx.cleanup(() -> {
-            Harness.set("autoDrownEscape", oEnabled);
-            Harness.set("drownEscapeAirThreshold", oEnter);
-            Harness.set("drownEscapeReleaseAir", oRelease);
-        });
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -2; dx <= 2; dx++)
-                for (int y = floorY - 1; y <= floorY + depth + 4; y++)
-                    for (int dz = -2; dz <= 2; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        // Defensive clear + sealed 2-layer floor + stone-shelled 1×1 water shaft, open at the top.
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                for (int y = floorY + 1; y <= floorY + depth + 4; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                for (int y = floorY + 1; y <= floorY + depth; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
-                            (dx == 0 && dz == 0 ? Blocks.WATER : Blocks.STONE).defaultBlockState());
-
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-
-        DrownEscapeChain drown = new DrownEscapeChain();
-        drown.sensorForTest(fp::isUnderWater, fp::getAirSupply);
-        final int[] userInterrupts = new int[1];
-        Chain user = new Chain() {           // the "active process" placeholder (death-#25 mine shape)
-            @Override public String name() { return "user"; }
-            @Override public float priority(Body body, WorldView w, BotState st) { return Priorities.USER; }
-            @Override public void tick(Body body, WorldView w, BotState st) { /* keeps digging */ }
-            @Override public void onInterrupt(Body body, Chain by) { userInterrupts[0]++; }
-        };
-        ProcessScheduler sched = new ProcessScheduler();
-        sched.register(drown);
-        sched.register(user);
-        BotState st = new BotState();
-
-        int airSim = 150;
-        fp.setAirSupply(airSim);
-        List<String> flips = new ArrayList<>();
-        String prevChain = "";
-        int preemptTick = -1, releaseTick = -1, airAtPreempt = -1, minAir = Integer.MAX_VALUE;
-        double yAtPreempt = -1, airAtRelease = -1;
-        boolean underAtRelease = true;
-        for (int t = 0; t < 1200 && releaseTick < 0; t++) {
-            sched.tick(null, driver.world(), st);
-            String cur = String.valueOf(sched.currentName());
-            if (!cur.equals(prevChain)) { flips.add(cur + "@t" + t); prevChain = cur; }
-            boolean escape = DrownEscapeChain.NAME.equals(sched.currentName());
-            if (escape && preemptTick < 0) {
-                preemptTick = t; airAtPreempt = fp.getAirSupply(); yAtPreempt = fp.getY();
-            }
-            if (preemptTick >= 0 && !escape && releaseTick < 0) {
-                releaseTick = t; airAtRelease = fp.getAirSupply(); underAtRelease = fp.isUnderWater();
-            }
-            // Actuation mirror of DrownEscapeChain.tick's client keyJump hold.
-            driver.avatar().commandJump(escape);
-            driver.avatar().step();
-            boolean eyeInWater = fp.isEyeInFluid(FluidTags.WATER);
-            airSim = eyeInWater ? Math.max(airSim - 1, -20) : Math.min(airSim + 4, 300);
-            fp.setAirSupply(airSim);
-            minAir = Math.min(minAir, airSim);
-        }
-        TestMod.LOG.info(
-                "[wd.drownEscapePreempt] flips={} preempt@t{} (air={}) release@t{} (air={} under={}) minAir={} "
-                        + "y {}→{} interrupts={} phase={}",
-                flips, preemptTick, airAtPreempt, releaseTick, airAtRelease, underAtRelease, minAir,
-                yAtPreempt, fp.getY(), userInterrupts[0], drown.episodePhase());
-        if (!flips.isEmpty() && !flips.get(0).startsWith("user@"))
-            ctx.fail("gap#76: user chain should hold the channel while air is healthy: " + flips);
-        if (preemptTick < 0)
-            ctx.fail("gap#76 (live death #25): DrownEscapeChain NEVER preempted the active process while "
-                    + "the bot drowned — minAir=" + minAir + " flips=" + flips);
-        if (airAtPreempt > Harness.integer("drownEscapeAirThreshold"))
-            ctx.fail("gap#76: preempted too early, air=" + airAtPreempt + " > threshold " + Harness.integer("drownEscapeAirThreshold"));
-        if (userInterrupts[0] < 1)
-            ctx.fail("gap#76: preemption must interrupt the user chain (onInterrupt)");
-        if (minAir <= 0)
-            ctx.fail("gap#76: air hit " + minAir + " — the escape did not beat the drown clock (death #25 shape)");
-        if (releaseTick < 0)
-            ctx.fail("gap#76: chain never released the channel after surfacing — hysteresis release broken (air="
-                    + fp.getAirSupply() + " under=" + fp.isUnderWater() + ")");
-        if (fp.getY() < yAtPreempt + 2.0)
-            ctx.fail("gap#76: bot did not float up: y " + yAtPreempt + " → " + fp.getY());
-        if (underAtRelease && airAtRelease < Harness.integer("drownEscapeReleaseAir"))
-            ctx.fail("gap#76: released while still underwater below the release level (air=" + airAtRelease
-                    + ") — hysteresis violated");
-        if (!"user".equals(sched.currentName()))
-            ctx.fail("gap#76: channel not handed back to the user task after release: " + sched.currentName());
-        if (drown.episodePhase() != null)
-            ctx.fail("gap#76: episode must clear on release: " + drown.episodePhase());
-        if (flips.size() != 3)
-            ctx.fail("gap#76: expected exactly user→drownEscape→user, no oscillation: " + flips);
     }
 
     // ==================================================================================

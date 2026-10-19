@@ -178,6 +178,7 @@ the hypothesis is settled it should be promoted in the same change, or it become
   `drownEscapeAirThreshold`.
 - `bot/arbitration/Priorities.java` — where 500 sits relative to the other reflexes.
 
-The scenes are `wd.drownEscapeGateMatrix`, `wd.drownEscapePreempt` and `wd.drownEscapeSurface` for the
-decision layer, which run anywhere, and the five `wd.drownEscapeClient*` scenes for the execution
+The decision layer is checked by the unit tests `ReflexGatesTest` (the gate) and `DrownEscapeChainTest`
+(the episode, and the scheduler handing the channel to the escape and back) and the scene
+`wd.drownEscapeSurface`, which run anywhere, and the five `wd.drownEscapeClient*` scenes for the execution
 layer, which execute only on a topology with a real client.

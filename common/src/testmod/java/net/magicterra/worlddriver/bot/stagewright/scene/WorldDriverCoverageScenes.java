@@ -227,7 +227,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.setAirSupply(40);
         bot.goTo(Targets.block(goal));
         // A bot's air does NOT tick on its own terms here (damage-immune family) — drive the air
-        // simulation manually per tick, the same idiom as wd.drownEscapePreempt: −1/tick
+        // simulation manually per tick, the same idiom as DrownEscapeChainTest: −1/tick
         // with eyes under, +4/tick (cap 300) at the surface.
         int airSim = 40;
         int minAir = airSim, maxAir = airSim;

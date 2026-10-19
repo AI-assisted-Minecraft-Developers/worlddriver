@@ -6,10 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.minecraft.core.BlockPos;
@@ -60,6 +64,62 @@ class DrownEscapeChainTest {
         ch.resetEpisodeState();
         ArbitrationConfig.autoDrownEscape = false;
         assertFalse(ch.updateLatch(true, 10), "setting off: chain never latches");
+    }
+
+    /**
+     * The scheduler hands the channel from a user task to the escape when air runs low, and back once the bot
+     * has surfaced and breathed: one preemption, one release, no oscillation (gap#76, live death #25). The body
+     * is a column of water the bot rises through while the escape holds the channel and sinks back into while
+     * it does not; the air drains a point a tick with the eyes under and refills four a tick above, as vanilla's.
+     */
+    @Test
+    void theEscapePreemptsTheUserTaskAndHandsTheChannelBack() {
+        ArbitrationConfig.autoDrownEscape = true;
+        ControlConfig.drownEscapeAirThreshold = 100;
+        ArbitrationConfig.drownEscapeReleaseAir = 280;
+
+        double surface = 6.0;                       // eyes above this row are out of the water
+        double[] eye = { 1.0 };
+        int[] air = { 150 };
+        DrownEscapeChain drown = new DrownEscapeChain();
+        drown.sensorForTest(() -> eye[0] < surface, () -> air[0]);
+        int[] interrupts = new int[1];
+        Chain user = new Chain() {                  // the mining task the bot drowned in
+            @Override public String name() { return "user"; }
+            @Override public float priority(Body body, WorldView w, BotState st) { return Priorities.USER; }
+            @Override public void tick(Body body, WorldView w, BotState st) { }
+            @Override public void onInterrupt(Body body, Chain by) { interrupts[0]++; }
+        };
+        ProcessScheduler sched = new ProcessScheduler();
+        sched.register(drown);
+        sched.register(user);
+        BotState st = new BotState();
+
+        List<String> flips = new ArrayList<>();
+        String prev = "";
+        int preemptAir = -1, releaseAir = -1, minAir = Integer.MAX_VALUE;
+        boolean underAtRelease = true;
+        for (int t = 0; t < 1200 && releaseAir < 0; t++) {
+            sched.tick(null, null, st);
+            String cur = String.valueOf(sched.currentName());
+            if (!cur.equals(prev)) { flips.add(cur); prev = cur; }
+            boolean escape = DrownEscapeChain.NAME.equals(sched.currentName());
+            if (escape && preemptAir < 0) preemptAir = air[0];
+            if (preemptAir >= 0 && !escape) { releaseAir = air[0]; underAtRelease = eye[0] < surface; }
+            // The escape's held jump floats the bot; with it let go the bot settles back toward the bottom.
+            eye[0] = escape ? Math.min(eye[0] + 0.1, surface + 0.5) : Math.max(eye[0] - 0.05, 1.0);
+            air[0] = eye[0] < surface ? Math.max(air[0] - 1, -20) : Math.min(air[0] + 4, 300);
+            minAir = Math.min(minAir, air[0]);
+        }
+
+        assertEquals(List.of("user", DrownEscapeChain.NAME, "user"), flips, "user, the escape, user: no oscillation");
+        assertTrue(preemptAir <= ControlConfig.drownEscapeAirThreshold, "preempted at air " + preemptAir + ", above the threshold");
+        assertEquals(1, interrupts[0], "the preemption interrupts the user task once");
+        assertTrue(minAir > 0, "air reached " + minAir + ": the escape did not beat the drown clock");
+        assertTrue(releaseAir >= 0, "the escape never released the channel after surfacing");
+        assertFalse(underAtRelease && releaseAir < ArbitrationConfig.drownEscapeReleaseAir,
+                "released underwater below the release level (air=" + releaseAir + ")");
+        assertNull(drown.episodePhase(), "the episode clears on release");
     }
 
     /** A world of explicit solid and water cells; everything else is air. */

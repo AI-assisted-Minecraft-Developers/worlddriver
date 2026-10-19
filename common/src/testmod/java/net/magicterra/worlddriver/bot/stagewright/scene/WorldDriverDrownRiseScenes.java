@@ -27,8 +27,8 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>{@code wd.drowningFloatShouldFloatMatrix} — PURE, four boolean rows over
  *       {@code DrowningFloatGate.shouldFloat}. The word {@code should} is literal.</li>
  *   <li>{@code wd.drownEscapeGateMatrix} — PURE, 18 gate rows + 8 lifecycle rows.</li>
- *   <li>{@code wd.drownEscapePreempt} — mints a fake player, feeds {@code sensorForTest}, and
- *       asserts the scheduler's <b>bookkeeping</b>.</li>
+ *   <li>{@code DrownEscapeChainTest#theEscapePreemptsTheUserTaskAndHandsTheChannelBack} — a unit
+ *       test that feeds {@code sensorForTest} and asserts the scheduler's <b>bookkeeping</b>.</li>
  *   <li>{@code wd.drownEscapeSurface} — does assert a rise, but of the <b>Navigator's</b> escape
  *       ({@code navigatorDrowningEscape}), on a {@code ServerPlayerBody}, with the air supply
  *       simulated by hand. It never constructs {@code DrownEscapeChain}.</li>

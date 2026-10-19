@@ -47,11 +47,3 @@ bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchive
 bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchiveRecorder
 bot/stagewright/scene/WorldDriverCoreScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverStationScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/arbitration/Chain
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/arbitration/DrownEscapeChain
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/arbitration/Priorities
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/arbitration/ProcessScheduler
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/behavior/BotState
-bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/world/WorldView
-bot/stagewright/scene/WorldDriverSurvivalScenes -> game/body/Body

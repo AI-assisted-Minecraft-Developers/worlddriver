@@ -120,7 +120,6 @@ wd.serverLowHpEdgePin
 wd.serverBunkerSlope
 wd.surfaceDive
 wd.underwaterBase
-wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating
 # AntiSuffocate on an idle server bot's own brain, and its disarmed counter-arm.
