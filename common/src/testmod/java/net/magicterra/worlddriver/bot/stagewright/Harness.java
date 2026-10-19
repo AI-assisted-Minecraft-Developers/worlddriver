@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.stagewright.scene.SceneContext;
@@ -159,6 +160,14 @@ public final class Harness {
     /** Hold or let go of {@code bot}'s keys; each stays until the next press changes it. */
     public static TestInputContracts.HeldKeys press(TestHarnessContracts.Press press) {
         return now(api().press(press)).held();
+    }
+
+    /**
+     * {@link #press} for self, whose keys are pressed on the client thread: the answer lands there later, and the
+     * scene's server thread must not wait for it.
+     */
+    public static CompletableFuture<TestHarnessContracts.Pressed> pressLater(TestHarnessContracts.Press press) {
+        return api().press(press).toCompletableFuture();
     }
 
     /** The press that starts from nothing changed, for {@code bot}. */

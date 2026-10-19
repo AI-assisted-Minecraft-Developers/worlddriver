@@ -229,46 +229,51 @@ public final class TestHarnessContracts {
     // ------------------------------------------------------------------ input
 
     /**
-     * The keys a server-side bot holds, each kept until the next press changes it; an omitted one stays as it is.
+     * The keys a bot holds, each kept until the next press changes it; an omitted one stays as it is.
      * {@code forward} and {@code left} are the movement impulses, -1 to 1. {@code attack} holds the dig on the cell
      * the bot looks at; {@code use} holds the item in hand. {@code aimAt} turns the bot to a block's centre at once;
-     * {@code toolFor} puts the best tool for that block in hand.
+     * {@code toolFor} puts the best tool for that block in hand. {@code hit} strikes an entity once through the
+     * body's own attack, which the attack verbs build on: no reach test, no footing guard and no swing of its own.
      */
     public record Press(String bot, Optional<Double> forward, Optional<Double> left, Optional<Boolean> jump,
                         Optional<Boolean> sneak, Optional<Boolean> sprint, Optional<Boolean> attack,
-                        Optional<Boolean> use, Optional<BlockPosition> aimAt, Optional<BlockPosition> toolFor) {
+                        Optional<Boolean> use, Optional<BlockPosition> aimAt, Optional<BlockPosition> toolFor,
+                        Optional<Integer> hit) {
         public static Press of(String bot) {
             return new Press(bot, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
         public Press move(double left, double forward) {
-            return new Press(bot, Optional.of(forward), Optional.of(left), jump, sneak, sprint, attack, use, aimAt, toolFor);
+            return new Press(bot, Optional.of(forward), Optional.of(left), jump, sneak, sprint, attack, use, aimAt, toolFor, hit);
         }
         public Press jump(boolean v) {
-            return new Press(bot, forward, left, Optional.of(v), sneak, sprint, attack, use, aimAt, toolFor);
+            return new Press(bot, forward, left, Optional.of(v), sneak, sprint, attack, use, aimAt, toolFor, hit);
         }
         public Press sneak(boolean v) {
-            return new Press(bot, forward, left, jump, Optional.of(v), sprint, attack, use, aimAt, toolFor);
+            return new Press(bot, forward, left, jump, Optional.of(v), sprint, attack, use, aimAt, toolFor, hit);
         }
         public Press sprint(boolean v) {
-            return new Press(bot, forward, left, jump, sneak, Optional.of(v), attack, use, aimAt, toolFor);
+            return new Press(bot, forward, left, jump, sneak, Optional.of(v), attack, use, aimAt, toolFor, hit);
         }
         public Press attack(boolean v) {
-            return new Press(bot, forward, left, jump, sneak, sprint, Optional.of(v), use, aimAt, toolFor);
+            return new Press(bot, forward, left, jump, sneak, sprint, Optional.of(v), use, aimAt, toolFor, hit);
         }
         public Press use(boolean v) {
-            return new Press(bot, forward, left, jump, sneak, sprint, attack, Optional.of(v), aimAt, toolFor);
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, Optional.of(v), aimAt, toolFor, hit);
         }
         public Press aimAt(BlockPosition cell) {
-            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, Optional.of(cell), toolFor);
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, Optional.of(cell), toolFor, hit);
         }
         public Press toolFor(BlockPosition cell) {
-            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, aimAt, Optional.of(cell));
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, aimAt, Optional.of(cell), hit);
+        }
+        public Press hit(int entityId) {
+            return new Press(bot, forward, left, jump, sneak, sprint, attack, use, aimAt, toolFor, Optional.of(entityId));
         }
         /** Every key let go. */
         public Press release() {
             return new Press(bot, Optional.of(0.0), Optional.of(0.0), Optional.of(false), Optional.of(false),
-                    Optional.of(false), Optional.of(false), Optional.of(false), aimAt, toolFor);
+                    Optional.of(false), Optional.of(false), Optional.of(false), aimAt, toolFor, Optional.empty());
         }
     }
 
@@ -288,6 +293,9 @@ public final class TestHarnessContracts {
             ApiField.field("use", ApiTypes.bool()).optional().forGetter(Press::use),
             ApiField.field("aimAt", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::aimAt),
             ApiField.field("toolFor", CommonTypes.BLOCK_POSITION).optional().forGetter(Press::toolFor),
+            ApiField.field("hit", ApiTypes.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
+                    .describe("An entity id in the bot's level, struck once: no reach test, no footing guard, no swing.")
+                    .optional().forGetter(Press::hit),
             Press::new);
 
     public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class, "TestPressed",
@@ -296,8 +304,9 @@ public final class TestHarnessContracts {
             Pressed::new);
 
     public static final MethodSpec<Press, Pressed> PRESS_KEYS = MethodSpec.of("mc.test.input.press", PRESS, PRESSED,
-                    "Hold or let go of a server-side bot's keys, as a player at the keyboard would; each stays until the "
-                            + "next press changes it. Moves nothing by itself: the body moves when it is ticked. Server "
-                            + "thread only.")
-            .hidden().effects(MethodSpec.Effect.BODY_TASK);
+                    "Hold or let go of a bot's keys, as a player at the keyboard would; each stays until the next press "
+                            + "changes it. Moves nothing by itself: the body moves when it is ticked. A server-side bot "
+                            + "on the server thread, answering within the call; self on the client thread, answering "
+                            + "once it has run there.")
+            .hidden().effects(MethodSpec.Effect.BODY_TASK).mayWait();
 }
