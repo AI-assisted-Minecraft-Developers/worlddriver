@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.navigator` says how the last walk ended.** Trace `result` is the navigator's ending
+  (`FAILED: <reason>`, `REACHED`, `GAVE_UP: <how far short>`) until the next goal clears it; absent
+  while a walk is still under way.
 - **`mc.observe.threats` reads a driven mob's scan too.** `bot` may name a mob bot (`mob:<name>` or an
   adopted `entity:<uuid>`), not only a server player bot; the answer is that mob's own scan, which
   counts a mob only when it targets this one.
