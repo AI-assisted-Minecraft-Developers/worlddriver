@@ -2,18 +2,12 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.bot.rules.moves.Fall;
-import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -26,7 +20,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 4, the WaterBank family</b>: the 11
@@ -47,18 +40,15 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *       origin sits at {@code GRID_Y = 200}, the mapped ABSOLUTE Y equals the legacy
  *       absolute Y — the vertical water geometry is literally unchanged, only X/Z relocate
  *       (buoyancy/travel physics is y-invariant in this range);</li>
- *   <li>{@code try/finally} per-key config save/restore → {@link BotConfig#pinnedBaseline()}
- *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
- *       avatar discard) then the SAME keys the legacy body flipped. The one NON-BotConfig
- *       knob, {@link ServerPlayerBody#faithfulBreak} (a static field, not covered by the
- *       pin), is saved/restored via its own {@code ctx.cleanup} in {@link #tallBankDigClimb};</li>
- *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
- *       per-scene player model the legacy shared-FakePlayer parking / anti-contamination
- *       finally blocks (e.g. {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the
- *       legacy per-arena isolation batches) become dead weight and are DROPPED —
- *       the createUnique player cannot bleed into another scene, so those guards had nothing
- *       left to protect;</li>
+ *   <li>{@code try/finally} per-key config save/restore → {@code Harness.pin(ctx)} (the pinned
+ *       baseline, restored when the scene ends) then the SAME keys the legacy body flipped,
+ *       {@code faithfulBreak} among them now that it is a setting;</li>
+ *   <li>{@code ServerPlayerBody.create(...)} → a per-scene roster bot ({@code SceneBot.spawn},
+ *       removed when the scene ends). In the ISOLATED per-scene player model the legacy
+ *       shared-FakePlayer parking / anti-contamination finally blocks (e.g.
+ *       {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the legacy per-arena isolation
+ *       batches) become dead weight and are DROPPED — a per-scene bot cannot bleed into another
+ *       scene, so those guards had nothing left to protect;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects}
  *       (the common single source);</li>
  *   <li>{@code AgentGameTestSupport.buildWaterColumn} → the inlined {@link #buildWaterColumn}
@@ -70,9 +60,9 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *   <li>the {@code gtOnlySkips(...)} probe first line → deleted (the testkit gate
  *       reconciles itself).</li>
  * </ul>
- * The in-body synchronous navigator loops are carried over unchanged (they run on the scene's
- * first RUN tick, same as the legacy GameTest shell), so the old/new-shell A/B compares like
- * with like. The legacy determinism AIR-clear boxes are kept verbatim (harmless under grid
+ * The in-body synchronous walks run on the scene's first RUN tick, same as the legacy GameTest
+ * shell: an {@code mc.bot.goto} ticked one whole bot tick at a time (perceive, reflexes, task,
+ * body) where the first port ticked a bare navigator and the body. The legacy determinism AIR-clear boxes are kept verbatim (harmless under grid
  * isolation — the arena rebuilds over them).
  *
  * <p><b>Lottery / optional governance (this wave's core discipline).</b>
@@ -151,7 +141,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestWaterBank#waterPhysicsParity}: water-physics-parity gate for
-     *  {@link ServerPlayerBody} — a player driven by manual step() in a deep water column must
+     *  the server-side player body — a player driven by manual step() in a deep water column must
      *  reproduce vanilla fluid movement: (1) submerged no-input SINKS SLOWLY (not free-fall),
      *  (2) holding jump BOBS UP, (3) forward swims (slow). */
     private static void waterPhysicsParity(SceneContext ctx) {
@@ -164,40 +154,39 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Harness.pin(ctx);
 
         // (1) Submerged, no input → slow sink (NOT free-fall to the floor).
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        // Each tick presses its keys again, as the old body loop did: a held jump lapses on any step
+        // taken out of water, so pressing it once is not the same input.
+        SceneBot av = SceneBot.spawn(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
+        ServerPlayer fp = av.player();
         SimProbes.grantWaterEffects(fp);
-        for (int i = 0; i < 2; i++) { av.commandMove(0, 0); av.step(); }   // warm up water state
+        for (int i = 0; i < 2; i++) { av.press(av.keys().move(0, 0)); av.step(); }   // warm up water state
         if (!fp.isInWater())
             ctx.fail("waterPhysicsParity: avatar not in water after baseTick (water state not wired)");
         double y0 = fp.getY();
-        for (int i = 0; i < 20; i++) { av.commandMove(0, 0); av.step(); }
+        for (int i = 0; i < 20; i++) { av.press(av.keys().move(0, 0)); av.step(); }
         double sinkDy = fp.getY() - y0;
         if (sinkDy < -1.5 || sinkDy > 0.2)
             ctx.fail("waterPhysicsParity: submerged sink not vanilla-slow: dy=" + sinkDy
                     + " (expected slow water drift, free-fall would be much more negative)");
 
         // (2) Submerged, hold jump → buoyant rise.
-        ServerPlayerBody av2 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 6, cz + 0.5);
-        ServerPlayer fp2 = av2.fakePlayer();
-        ctx.cleanup(() -> fp2.discard());
+        SceneBot av2 = SceneBot.spawn(ctx, level, cx + 0.5, floorY + depth - 6, cz + 0.5);
+        ServerPlayer fp2 = av2.player();
         SimProbes.grantWaterEffects(fp2);
-        for (int i = 0; i < 2; i++) { av2.commandMove(0, 0); av2.step(); }
+        for (int i = 0; i < 2; i++) { av2.press(av2.keys().move(0, 0)); av2.step(); }
         double jy0 = fp2.getY();
-        for (int i = 0; i < 25; i++) { av2.commandJump(true); av2.commandMove(0, 0); av2.step(); }
+        for (int i = 0; i < 25; i++) { av2.press(av2.keys().jump(true).move(0, 0)); av2.step(); }
         double riseDy = fp2.getY() - jy0;
         if (riseDy < 0.8)
             ctx.fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
 
         // (3) Submerged, forward → swims forward (slow), stays in water.
-        ServerPlayerBody av3 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 5, cz + 0.5);
-        ServerPlayer fp3 = av3.fakePlayer();
-        ctx.cleanup(() -> fp3.discard());
+        SceneBot av3 = SceneBot.spawn(ctx, level, cx + 0.5, floorY + depth - 5, cz + 0.5);
+        ServerPlayer fp3 = av3.player();
         SimProbes.grantWaterEffects(fp3);
-        for (int i = 0; i < 2; i++) { av3.commandMove(0, 0); av3.step(); }
+        for (int i = 0; i < 2; i++) { av3.press(av3.keys().move(0, 0)); av3.step(); }
         double z0 = fp3.getZ();
-        for (int i = 0; i < 20; i++) { fp3.setYRot(0f); av3.commandForward(1f); av3.step(); }
+        for (int i = 0; i < 20; i++) { fp3.setYRot(0f); av3.press(av3.keys().move(0, 1)); av3.step(); }
         double swimDz = fp3.getZ() - z0;
         if (swimDz < 0.3 || swimDz > 5.0)
             ctx.fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
@@ -206,7 +195,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 sinkDy, riseDy, swimDz, surface);
     }
 
-    /** Ported from {@code AgentGameTestWaterBank#buoyantWallArena}: the REAL {@link Navigator} must mount
+    /** Ported from {@code AgentGameTestWaterBank#buoyantWallArena}: the REAL navigator must mount
      *  a +5 SHEER wall rising from DEEP water (all buoyant — no dry ledge). Break+place ON. Asserts the
      *  bot reaches the dry plateau behind the wall and the waterline bob stays bounded (≤120 ticks). */
     private static void buoyantWall(SceneContext ctx) {
@@ -260,34 +249,33 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        // This bot's own counters, so another scene climbing out of water cannot move them.
+        BotDebugContracts.NavigatorReading nav0 = bot.navigator();
+        final long engages0 = nav0.counter("waterPillarEngages");
+        final long bails0 = nav0.counter("waterPillarCeilingBails");
+        bot.goTo(Targets.block(goal));
 
-        // This avatar's own counters, so another scene climbing out of water cannot move them.
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        final int engages0 = tel.waterPillarEngages;
-        final int bails0 = tel.waterPillarCeilingBails;
-
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         boolean everDry = false;
         int bobTicks = 0;                 // ticks stuck in-water below the wall top
-        for (int t = 0; t < 800 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 800 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
             if (fp.onGround() && !fp.isInWater()) everDry = true;
             if (fp.isInWater() && fp.getY() < plateauTop) bobTicks++;
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
+        BotDebugContracts.NavigatorReading nav = bot.navigator();
         boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
         TestMod.LOG.info("[wd.buoyantWall] step={} pos=({},{},{}) maxY={} everDry={} onPlateau={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, everDry, onPlateau, bobTicks);
@@ -297,8 +285,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // changes no colour, and colour was the only channel. Recorded on every run, PASS included —
         // a PASS prints no failure text, so this is the only place a reader can see whether the
         // pillar branch was even entered.
-        int engages = tel.waterPillarEngages - engages0;
-        int bails = tel.waterPillarCeilingBails - bails0;
+        long engages = nav.counter("waterPillarEngages") - engages0;
+        long bails = nav.counter("waterPillarCeilingBails") - bails0;
+        long topRise = nav.counter("waterPillarTopRise");
         ctx.record("pillar.engages", engages == 0
                 ? "0 — this run never took the pillar takeover path, so it measured nothing about that path"
                 : String.valueOf(engages));
@@ -308,8 +297,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 : bails + " times past the ceiling at +" + 5 + " above the feet at engage");
         ctx.record("pillar.topRise", engages == 0
                 ? "unavailable/same as above"
-                : tel.waterPillarTopRise + " blocks ("
-                        + (5 - tel.waterPillarTopRise) + " blocks short of the ceiling)");
+                : topRise + " blocks ("
+                        + (5 - topRise) + " blocks short of the ceiling)");
         if (!onPlateau)
             ctx.fail("buoyantWall: BUOYANT +5 wall: Navigator failed to mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
@@ -351,13 +340,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BlockPos vineMid = new BlockPos(cx, base + 3, cz);
         boolean stuckFoot = level.getBlockState(vineFoot).is(Blocks.VINE);
         boolean stuckMid = level.getBlockState(vineMid).is(Blocks.VINE);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot av = SceneBot.spawn(ctx, level, cx + 0.5, base, cz + 0.5);
+        ServerPlayer fp = av.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        boolean climbFoot = w.isClimbable(vineFoot);
-        boolean climbMid = w.isClimbable(vineMid);
+        boolean climbFoot = NavWalk.cell(av, vineFoot).climbable();
+        boolean climbMid = NavWalk.cell(av, vineMid).climbable();
         TestMod.LOG.info("[wd.vineClingFidelityProbe] vine placement: stuckFoot={} stuckMid={} isClimbable(foot)={} isClimbable(mid)={}",
                 stuckFoot, stuckMid, climbFoot, climbMid);
         if (!stuckFoot || !climbFoot)
@@ -365,14 +352,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " did not stick / not climbable (stuckFoot=" + stuckFoot + " isClimbable=" + climbFoot
                     + ") — arena geometry invalid, cannot test cling");
         fp.setYRot(0f);
-        for (int i = 0; i < 2; i++) { av.commandMove(0f, 0f); av.step(); }
+        for (int i = 0; i < 2; i++) { av.press(av.keys().move(0, 0)); av.step(); }
         double y0 = fp.getY();
         double maxY = y0;
         boolean wasOnVine = false;
         for (int t = 0; t < 40; t++) {
             fp.setYRot(0f);
-            av.commandForward(1f);
-            av.commandJump(true);
+            // Pressed every tick: a held jump lapses on each step taken out of water.
+            av.press(av.keys().move(0, 1).jump(true));
             av.step();
             maxY = Math.max(maxY, fp.getY());
             if (fp.onClimbable()) wasOnVine = true;
@@ -491,22 +478,22 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Harness.set("navigator.repathEveryTicks", 1_000_000);
 
         // #1 SILENT-NO-OP GUARD: the vine base MUST be present + climbable, else the repro is vacuous.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
         BlockPos vineBase = new BlockPos(cx, vineBaseY, vineZ);
         boolean vineStuck = level.getBlockState(vineBase).is(Blocks.VINE);
-        boolean vineClimbable = w.isClimbable(vineBase);
-        boolean pocketFloating = w.isFloatingWater(new BlockPos(cx, pocketWaterY, cz + 1));
+        boolean vineClimbable = NavWalk.cell(bot, vineBase).climbable();
+        // Floating water is water standing on water: the cell and the one under it.
+        BlockPos pocket = new BlockPos(cx, pocketWaterY, cz + 1);
+        boolean pocketFloating = NavWalk.cell(bot, pocket).water() && NavWalk.cell(bot, pocket.below()).water();
         BlockPos vineMid = new BlockPos(cx, vineBaseY + 1, vineZ);   // a free-hang climb cell
-        boolean midFreeHang = !w.isSolid(vineMid.north()) && !w.isSolid(vineMid.south())
-                && !w.isSolid(vineMid.east()) && !w.isSolid(vineMid.west());
+        boolean midFreeHang = !NavWalk.cell(bot, vineMid.north()).solid() && !NavWalk.cell(bot, vineMid.south()).solid()
+                && !NavWalk.cell(bot, vineMid.east()).solid() && !NavWalk.cell(bot, vineMid.west()).solid();
         TestMod.LOG.info("[wd.vineOverWaterClimb] geom: vineStuck={} isClimbable(base)={} pocketIsFloatingWater={} midFreeHang={} (expect true/true/false/true)",
                 vineStuck, vineClimbable, pocketFloating, midFreeHang);
         if (!vineStuck || !vineClimbable)
@@ -521,21 +508,22 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " has a SOLID horizontal neighbour — the vine is NOT free-hanging, so the repro is"
                     + " vacuous (a wall-press fix would pass this falsely). Check the geometry.");
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int pocketTicks = 0;                 // ticks in-water in the pocket below the vine = the bug
         boolean everInPocket = false;
         int budget = 220;
-        for (int t = 0; t < budget && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < budget && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
             if (fp.isInWater() && fp.getY() < vineBaseY) { pocketTicks++; everInPocket = true; }
         }
-        boolean arrived = s.ended();
+        String s = NavWalk.step(bot);
+        bot.cancel();
+        boolean arrived = !walking;
         boolean onPlateau = arrived || (fp.getZ() > plateauZ - 0.5 && fp.getY() >= plateauTop - 0.4);
         boolean climbedTop = maxY >= vineTopY - 1;
         TestMod.LOG.info("[wd.vineOverWaterClimb] step={} pos=({},{},{}) maxY={} arrived={} onPlateau={} climbedTop={} everInPocket={} pocketTicks={}",
@@ -607,26 +595,24 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Harness.set("pathfinder.maxMs", 250);
         Harness.set("faithfulBreak", true);   // model the live ~750-tick/block slow stone-mine
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false → must dig
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         double maxY = fp.getY();
         int t = 0;
-        for (; t < 9000 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (; t < 9000 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
         TestMod.LOG.info("[wd.tallBankDigClimb] step={} ticks={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, t, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
@@ -684,17 +670,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Harness.set("allowPlace", true);           // foothold-place is the only climb-out
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);   // deterministic: each repath completes in one go
-        // Predicate-level guard for the root-cause fix: falling blocks stay rejected, mud accepted.
-        if (BuildBlocks.isUsableBuildBlock(Blocks.SAND))
-            ctx.fail("waterLowBank: isUsableBuildBlock: SAND (FallingBlock) must NOT be a usable foothold");
-        if (BuildBlocks.isUsableBuildBlock(Blocks.GRAVEL))
-            ctx.fail("waterLowBank: isUsableBuildBlock: GRAVEL (FallingBlock) must NOT be a usable foothold");
-        if (!BuildBlocks.isUsableBuildBlock(Blocks.MUD))
-            ctx.fail("waterLowBank: isUsableBuildBlock: MUD must be a usable foothold (standable, non-falling)");
+        // The predicate-level guard for the root-cause fix (falling blocks rejected, mud accepted) is
+        // BuildBlocksTest, a unit test over the same isUsableBuildBlock.
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         // Live round69 inventory: sand+gravel (falling, useless), mud (the only usable support), holding sand.
@@ -703,19 +683,18 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.MUD, 17));
         fp.getInventory().selected = 0;     // holding sand (non-usable) like live
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         double maxY = fp.getY();
         int bobTicks = 0;                  // ticks floating below the bank top
-        for (int tt = 0; tt < 800 && s == Locomotor.Status.MOVING; tt++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int tt = 0; tt < 800 && walking; tt++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
             if (fp.isInWater() && fp.getY() < bankTop) bobTicks++;
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         boolean onBank = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= bankTop + 1 - 0.4;
         TestMod.LOG.info("[wd.waterLowBank] step={} pos=({},{},{}) maxY={} onBank={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onBank, bobTicks);
@@ -816,28 +795,26 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         double maxX = fp.getX();
         int wallPressTicks = 0;     // in-water ticks spent pressed against the SHEER face
-        for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 1500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxX = Math.max(maxX, fp.getX());
             if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1)
                 wallPressTicks++;
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         boolean ashore = !fp.isInWater() && fp.onGround()
                 && fp.getZ() > cz + 1.5 && fp.getY() >= surface + 1 - 0.4;
         TestMod.LOG.info("[wd.riverSheerBank] step={} pos=({},{},{}) maxX={} wallPressTicks={} ashore={}",
@@ -903,34 +880,27 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        // (a) Predicate guard for the fall-to-surface fix.
-        BlockPos surfaceCell = new BlockPos(cx + 4, surface, cz);   // top water cell, air above
-        if (new FallIntoWater(1, 0, depth - 1).valid(w, surfaceCell))
-            ctx.fail("deepWaterCross: FallIntoWater to a SUBMERGED bed cell must be invalid"
-                    + " (buoyancy floats the player back to the surface)");
-        if (new Fall(1, 0, 2).valid(w, surfaceCell))
-            ctx.fail("deepWaterCross: Fall to a SUBMERGED bed cell must be invalid");
+        // (a) The predicate guard for the fall-to-surface fix (a Fall / FallIntoWater onto a submerged
+        // bed cell is invalid) is SubmergedLandingTest, a unit test over the same channel as a grid.
 
         // (b) Integration: the floating Navigator crosses the deep channel and climbs out.
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         double maxX = fp.getX();
-        for (int t = 0; t < 2000 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 2000 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxX = Math.max(maxX, fp.getX());
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         boolean ashore = !fp.isInWater() && fp.onGround()
                 && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4;
         TestMod.LOG.info("[wd.deepWaterCross] step={} pos=({},{},{}) maxX={} ashore={}",
@@ -997,33 +967,32 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         // Block-less, the +2 bank is a dig for both the server-side and the client player now that
         // the planner no longer swims into the air cell above the surface; 200 ticks (10 s) still
         // fails loudly on a bob-stall regression. The bot arrives airborne off the last dug step, so the walk is followed for
-        // a few settle ticks after ARRIVED before its landing is judged.
+        // a few settle ticks after ARRIVED before its landing is judged: body steps alone, the walk being over.
         int ashoreTick = -1;
         int settle = 0;
-        for (int t = 0; t < 200 && (s == Locomotor.Status.MOVING || (s.ended() && settle++ < 20)); t++) {
-            if (s == Locomotor.Status.MOVING) s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 200 && (walking || settle++ < 20); t++) {
+            if (walking) { bot.tick(); walking = bot.busy(); }
+            else bot.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround()
                     && fp.getX() >= cx + span - 0.5 && fp.getY() >= bankTop + 1 - 0.4) {
                 ashoreTick = t;
                 break;
             }
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         TestMod.LOG.info("[wd.deepWaterClimboutNoBlock] step={} pos=({},{},{}) ashoreTick={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
         if (ashoreTick < 0)
@@ -1089,29 +1058,28 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false
         fp.getInventory().selected = 0;
         fp.setDeltaMovement(0, 0, 0.45);                        // lateral shove → drift along the face
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(Targets.block(goal));
         int ashoreTick = -1;
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround() && fp.getY() >= bankTop + 1 - 0.4
                     && fp.getX() >= cx + span - 0.5) {
                 ashoreTick = t;
                 break;
             }
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         TestMod.LOG.info("[wd.deepWaterClimboutDrift] step={} pos=({},{},{}) ashoreTick={} (clean baseline ~22)",
                 s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
         if (ashoreTick < 0 || ashoreTick > 120)
@@ -1149,7 +1117,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             for (int y = floorY + 1; y <= top; y++)
                 level.setBlockAndUpdate(new BlockPos(cx + 6, y, z), Blocks.STONE.defaultBlockState());
 
-        Goal.XZ goal = new Goal.XZ(cx + 11, cz);       // east of the wall, SAME Z as the bot
+        GotoContracts.Target goal = Targets.column(cx + 11, cz, 0);   // east of the wall, SAME Z as the bot
 
         Harness.pin(ctx);
         Harness.set("allowBreak", false);
@@ -1159,28 +1127,27 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.setDeltaMovement(0.45, 0, 0);           // shove +X straight into the divider
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(goal);
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        bot.goTo(goal);
         int reachedTick = -1;
-        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         double dGoal = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
         TestMod.LOG.info("[wd.waterFarAimBankCorner] step={} pos=({},{},{}) reachedTick={} dGoal={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTick, String.format("%.1f", dGoal));
         // Round the wall via the gap → reach the east goal column.
-        if (reachedTick < 0 && !s.ended())
+        if (reachedTick < 0 && walking)
             ctx.fail("waterFarAimBankCorner: bot failed to round the divider to the goal"
                     + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
                     + fp.getY() + "," + fp.getZ() + ") step=" + s);
@@ -1245,19 +1212,24 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     /** Topmost water cell of the column the bot floats in, or null once the column is filled. */
-    private static BlockPos topWater(LevelWorldView w, int cx, int cz, int floorY, int surface) {
+    private static BlockPos topWater(SceneBot bot, int cx, int cz, int floorY, int surface) {
         for (int y = surface; y > floorY; y--) {
             BlockPos c = new BlockPos(cx, y, cz);
-            if (w.isWater(c)) return c;
+            if (NavWalk.cell(bot, c).water()) return c;
         }
         return null;
+    }
+
+    /** {@code c} is solid as the bot's planner view classifies it. */
+    private static boolean solid(SceneBot bot, BlockPos c) {
+        return NavWalk.cell(bot, c).solid();
     }
 
     /**
      * J31 POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to
      * the dig. Pins the player inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says
      * "go", vanilla says "no" — and asserts {@code pillarNoPlaceTicks} climbs past
-     * {@link NavigatorConstants#PILLAR_FUTILE_TICKS} anyway.
+     * {@code NavigatorConstants.PILLAR_FUTILE_TICKS} anyway.
      *
      * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum
      * it ever reached was 1.
@@ -1297,50 +1269,48 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // haveBlock, and NOT a FallingBlock
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        final int engages0 = tel.waterPillarEngages;
+        BotDebugContracts.NavigatorReading nav0 = bot.navigator();
+        final long engages0 = nav0.counter("waterPillarEngages");
         // Without this the scene cannot tell its own two failure modes apart. "The cell never turned
         // solid" is what a refused click leaves behind AND what no click at all leaves behind, and
         // this arena is built to assert the first. Under the 2026-08-24 unified threshold it was
         // silently the second for 400 ticks and still reported PASS.
-        final int clicks0 = tel.waterPillarPlaceCalls;
-        int maxNoPlace = 0;
+        final long clicks0 = nav0.counter("waterPillarPlaceCalls");
+        bot.goTo(Targets.block(goal));
+        long maxNoPlace = 0;
         // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
         // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
         boolean sawFutile = false;
         boolean pinning = false;
         BlockPos pinnedAt = null;
         double bandLow = Double.MAX_VALUE, bandHigh = -Double.MAX_VALUE;
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        boolean walking = true;
         int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
-            if (navigator.inspect().pillarPlaceFutile()) sawFutile = true;
+        for (; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            BotDebugContracts.NavigatorReading nav = bot.navigator();
+            if (nav.flag("pillarPlaceFutile")) sawFutile = true;
             // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY
             // until the takeover actually engages — its entry gate wants a bob-stall below a bank
             // it cannot mount, and a bot held still never accumulates one. Only then start
             // holding the band. Pinning from tick 0 is what made the first version of this scene
             // report engages=0.
-            if (!pinning && tel.waterPillarEngages > engages0) pinning = true;
+            if (!pinning && nav.counter("waterPillarEngages") > engages0) pinning = true;
             if (!pinning) continue;
             // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest
             // gate, short of the 1.0 vanilla needs. Re-applied every tick because the climb-out
             // drives forward and jumps, and one un-pinned tick is one tick of real physics.
             // Dead centre in the column on BOTH horizontal axes, so the AABB overlaps the cell on
             // all three and vanilla's refusal is geometric rather than lucky.
-            BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
+            BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
             if (top != null) {
                 pinnedAt = top;
                 fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 1.5);
@@ -1352,21 +1322,27 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 bandLow = Math.min(bandLow, fp.getY() - top.getY());
                 bandHigh = Math.max(bandHigh, fp.getY() - top.getY());
             }
-            maxNoPlace = Math.max(maxNoPlace, navigator.inspect().pillarNoPlaceTicks());
+            maxNoPlace = Math.max(maxNoPlace, nav.counter("pillarNoPlaceTicks"));
         }
-        int engages = tel.waterPillarEngages - engages0;
+        String s = NavWalk.step(bot);
+        bot.cancel();
+        BotDebugContracts.NavigatorReading end = bot.navigator();
+        long engages = end.counter("waterPillarEngages") - engages0;
+        long clicks = end.counter("waterPillarPlaceCalls") - clicks0;
+        String probe = NavWalk.trace(end, "progressProbe");
+        boolean pinnedSolid = pinnedAt != null && solid(bot, pinnedAt);
 
         ctx.record("gate.takeoverEngages", engages);
-        ctx.record("gate.placeClicksFired", tel.waterPillarPlaceCalls - clicks0);
+        ctx.record("gate.placeClicksFired", clicks);
         ctx.record("ledger.peakCount", maxNoPlace);
         ctx.record("ledger.everJudgedFutile", sawFutile);
         ctx.record("pillar.pinnedCell", pinnedAt == null ? "none (the water column was filled)" : pinnedAt.toShortString()
                 + " bot y=" + String.format("%.3f", fp.getY()));
-        ctx.record("pillar.pinnedCellSolid", pinnedAt != null && w.isSolid(pinnedAt));
+        ctx.record("pillar.pinnedCellSolid", pinnedSolid);
         ctx.record("band.feetAboveFillCell", String.format("[%.3f, %.3f]", bandLow, bandHigh)
                 + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
         ctx.record("walk.end", s + " (used " + t + "/400 ticks)");
-        ctx.record("walk.probe", navigator.inspect().progressProbe());
+        ctx.record("walk.probe", probe);
 
         // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
         // every click zeroes it, and with the takeover never engaged it is 0 because the branch
@@ -1375,8 +1351,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (engages == 0)
             ctx.fail("pillarLedger: the water climb-out takeover never engaged — this run never reached"
                     + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
-                    + " defect. probe=" + navigator.inspect().progressProbe());
-        if (pinnedAt != null && w.isSolid(pinnedAt))
+                    + " defect. probe=" + probe);
+        if (pinnedSolid)
             ctx.fail("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
                     + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
                     + " did not produce the band in which every placement is refused.");
@@ -1395,7 +1371,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // in which the crest gate never opened: the cell stays water, the counter climbs, futility
         // fires. That is not this scene's subject — "a refused click is not progress" needs a click to have been
         // refused. It went unnoticed for one whole gate run, which is why it is a guard now.
-        if (tel.waterPillarPlaceCalls - clicks0 == 0)
+        if (clicks == 0)
             ctx.fail("pillarLedger: no click fired during the whole run (the crest gate never opened) — the"
                     + " counter reaching " + maxNoPlace + " means \"nothing was clicked\", not \"clicks had no"
                     + " effect\". This run did not test the behaviour under test.");
@@ -1450,9 +1426,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         // MUD, and this scene is unstageable without it. What it needs is a click vanilla ACCEPTS
@@ -1467,38 +1442,37 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.MUD, 64));
         fp.getInventory().selected = 0;
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        final int engages0 = tel.waterPillarEngages;
-        final int clicks0 = tel.waterPillarPlaceCalls;
+        BotDebugContracts.NavigatorReading nav0 = bot.navigator();
+        final long engages0 = nav0.counter("waterPillarEngages");
+        final long clicks0 = nav0.counter("waterPillarPlaceCalls");
+        bot.goTo(Targets.block(goal));
         int filled = 0;
         boolean pinning = false;
         // The reading that decides this scene: what the ledger held on the tick AFTER a cell
         // actually filled. -1 = no fill was ever observed, which the guards below turn into a
         // staging failure rather than a pass.
-        int ledgerAfterFill = -1;
+        long ledgerAfterFill = -1;
         // The counter ON the fill tick. Without it, "0 afterwards" is satisfied by a counter that
         // was never anything else and the assertion below degenerates to 0 == 0.
-        int ledgerAtFill = -1;
+        long ledgerAtFill = -1;
         boolean fillPending = false;
         boolean engagedAtRead = false;
         int footLow = Integer.MAX_VALUE, footHigh = Integer.MIN_VALUE;
         java.util.Set<BlockPos> wasWater = new java.util.HashSet<>();
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        boolean walking = true;
         int t = 0;
         // 60, not 400. Once the run is long enough for the ledger to climb past the futility line
         // on its own, "it never declared futility" stops being evidence about the FILL and becomes
         // evidence about the budget. This scene asks one question — does a landing zero the
         // counter — so it runs just past the landing and stops.
-        for (; t < 60 && s == Locomotor.Status.MOVING; t++) {
-            BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
-            boolean wasSolidBefore = top == null || w.isSolid(top);
+        for (; t < 60 && walking; t++) {
+            BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
+            boolean wasSolidBefore = top == null || solid(bot, top);
             if (top != null) wasWater.add(top);
-            s = navigator.tick(av, w);
-            av.step();
-            if (!pinning && tel.waterPillarEngages > engages0) pinning = true;
+            bot.tick();
+            walking = bot.busy();
+            BotDebugContracts.NavigatorReading nav = bot.navigator();
+            if (!pinning && nav.counter("waterPillarEngages") > engages0) pinning = true;
             if (pinning) {
                 // A CONSTANT absolute height, and that is the point. Pinning relative to a moving
                 // top would let foot.getY() climb as cells fill, and the high-water half of the
@@ -1523,32 +1497,36 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 // of it. Also record whether the takeover was still engaged at that moment: every
                 // bail path zeroes the same counter, so a bare 0 does not name its own cause.
                 if (fillPending && ledgerAfterFill < 0) {
-                    ledgerAfterFill = navigator.inspect().pillarNoPlaceTicks();
-                    engagedAtRead = navigator.inspect().pillarEngaged();
+                    ledgerAfterFill = nav.counter("pillarNoPlaceTicks");
+                    engagedAtRead = nav.flag("pillarEngaged");
                     fillPending = false;
                 }
-                if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAtFill < 0) {
-                    ledgerAtFill = navigator.inspect().pillarNoPlaceTicks();
+                if (top != null && !wasSolidBefore && solid(bot, top) && ledgerAtFill < 0) {
+                    ledgerAtFill = nav.counter("pillarNoPlaceTicks");
                     fillPending = true;
                 }
             }
         }
-        for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
-        int engages = tel.waterPillarEngages - engages0;
+        String s = NavWalk.step(bot);
+        bot.cancel();
+        for (BlockPos c : wasWater) if (solid(bot, c)) filled++;
+        BotDebugContracts.NavigatorReading end = bot.navigator();
+        long engages = end.counter("waterPillarEngages") - engages0;
+        String probe = NavWalk.trace(end, "progressProbe");
 
         ctx.record("gate.takeoverEngages", engages);
-        ctx.record("gate.placeClicksFired", tel.waterPillarPlaceCalls - clicks0);
+        ctx.record("gate.placeClicksFired", end.counter("waterPillarPlaceCalls") - clicks0);
         ctx.record("pillar.cellsActuallyFilled", filled + "/" + wasWater.size());
         ctx.record("ledger.onFillTick", ledgerAtFill < 0 ? "no fill observed" : String.valueOf(ledgerAtFill));
         ctx.record("ledger.afterFill", ledgerAfterFill < 0 ? "no fill observed" : String.valueOf(ledgerAfterFill));
         ctx.record("ledger.takeoverEngagedAtRead", engagedAtRead);
         ctx.record("feet.cellYRange", footLow > footHigh ? "never pinned" : "[" + footLow + ", " + footHigh + "]");
         ctx.record("walk.end", s + " (used " + t + "/60 ticks)");
-        ctx.record("walk.probe", navigator.inspect().progressProbe());
+        ctx.record("walk.probe", probe);
 
         if (engages == 0)
             ctx.fail("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
-                    + " rows below describe the subject under test. probe=" + navigator.inspect().progressProbe());
+                    + " rows below describe the subject under test. probe=" + probe);
         // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
         // is satisfied by a run in which nothing whatsoever happened.
         if (filled == 0 || ledgerAfterFill < 0)
