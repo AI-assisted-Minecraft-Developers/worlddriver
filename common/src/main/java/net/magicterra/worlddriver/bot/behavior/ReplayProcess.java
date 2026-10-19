@@ -24,22 +24,40 @@ import java.util.List;
  * ticks the Navigator until it terminates. The per-tick trajectory + deviation is
  * captured by the {@code PathArchiveRecorder} that was armed before this process
  * was installed.</p>
+ *
+ * <p>{@code mc.debug.walkPlan} runs it on a server-side bot over a plan the caller gives, verbatim or, in follow
+ * mode, adopted with the navigator's recovery left on.</p>
  */
 public final class ReplayProcess implements BotProcess, Navigating {
 
-    private final Navigator navigator = new Navigator(NavigatorSettings.named("replay"));
+    private final Navigator navigator;
     @Override public Navigator navigator() { return navigator; }
     private final List<BlockPos> plan;
     private final List<Move.Edge> edges;
     private final Goal endGoal;
     private final BlockPos startFoot;
+    private final boolean follow;
+    private final boolean goalReached;
     private boolean begun;
 
     public ReplayProcess(List<BlockPos> plan, List<Move.Edge> edges, Goal endGoal, BlockPos startFoot) {
+        this(plan, edges, endGoal, startFoot, NavigatorSettings.named("replay"), false, true);
+    }
+
+    /**
+     * {@code follow}: adopt the plan with the live recovery and repath left on, instead of replaying it verbatim;
+     * {@code goalReached} then says whether its last node is the goal, since a best-effort plan is one the
+     * navigator is entitled to replace with its own continuation.
+     */
+    public ReplayProcess(List<BlockPos> plan, List<Move.Edge> edges, Goal endGoal, BlockPos startFoot,
+                         NavigatorSettings settings, boolean follow, boolean goalReached) {
+        this.navigator = new Navigator(settings);
         this.plan = plan;
         this.edges = edges;
         this.endGoal = endGoal;
         this.startFoot = startFoot;
+        this.follow = follow;
+        this.goalReached = goalReached;
         navigator.start(endGoal);
     }
 
@@ -57,8 +75,15 @@ public final class ReplayProcess implements BotProcess, Navigating {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
             // exactly as the adoption expects (it must be called from the tick thread).
-            navigator.replay(w, plan, edges, endGoal, startFoot);
             begun = true;
+            if (!follow) {
+                navigator.replay(w, plan, edges, endGoal, startFoot);
+            } else if (!navigator.adoptForTest(w, plan, edges, startFoot, goalReached)) {
+                failure = "the plan was refused: it is not anchored to the foot " + startFoot.toShortString();
+                st.mc_goto.lastError = failure;
+                st.mc_goto.reset();
+                return true;
+            }
         }
         Locomotor.Status s = navigator.tick(a, w);
         st.mc_goto.pathLen = navigator.pathLen();

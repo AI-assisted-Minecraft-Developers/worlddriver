@@ -7,7 +7,8 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
- * The debug methods, {@code mc.debug.*}: the path debugging ({@code pathChart}, {@code plan}, {@code replay}) and the
+ * The debug methods, {@code mc.debug.*}: the path debugging ({@code pathChart}, {@code plan}, {@code walkPlan},
+ * {@code replay}) and the
  * readings of a server-side bot's insides ({@code navigator}, {@code body}, {@code cells}). Registered only where the
  * debug subsystem is.
  */
@@ -21,6 +22,9 @@ public interface DebugApi {
 
     @Spec(value = DebugContracts.class, spec = "PLAN")
     CompletionStage<DebugContracts.PlanReply> plan(DebugContracts.PlanParams p, CallContext ctx);
+
+    @Spec(value = DebugContracts.class, spec = "WALK_PLAN")
+    CompletionStage<DebugContracts.WalkingPlan> walkPlan(DebugContracts.WalkPlanParams p, CallContext ctx);
 
     @Spec(value = DebugContracts.class, spec = "REPLAY")
     CompletionStage<DebugContracts.ReplayReply> replay(DebugContracts.ReplayParams p, CallContext ctx);

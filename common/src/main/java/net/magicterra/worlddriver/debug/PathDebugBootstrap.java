@@ -102,6 +102,11 @@ public final class PathDebugBootstrap {
         }
 
         @Override
+        public CompletionStage<DebugContracts.WalkingPlan> walkPlan(DebugContracts.WalkPlanParams p, CallContext ctx) {
+            return onServer(() -> WalkPlanTool.onServer(p), ctx);
+        }
+
+        @Override
         public CompletionStage<DebugContracts.ReplayReply> replay(DebugContracts.ReplayParams p, CallContext ctx) {
             return ReplayTool.replay(api, p, ctx);
         }

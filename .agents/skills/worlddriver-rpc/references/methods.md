@@ -13,7 +13,7 @@ Every method, `mc.bot.setting` key and event type the driver itself publishes, f
 - [`mc.client.chat`](#mcclientchat) — history, send
 - [`mc.client.input`](#mcclientinput) — click, key, keybind, mouseMove, replaceText, setHotbarSlot, slider, slotClick, typeText
 - [`mc.client.screen`](#mcclientscreen) — close, info, tree
-- [`mc.debug`](#mcdebug) — body, cells, navigator, pathChart, plan, replay
+- [`mc.debug`](#mcdebug) — body, cells, navigator, pathChart, plan, replay, walkPlan
 - [`mc.observe`](#mcobserve) — boss, container, cursor, eventsSince, map, player, scene, threats
 - [`mc.plan`](#mcplan) — acquire
 - [`mc.recipe`](#mcrecipe) — lookup, resolve
@@ -444,6 +444,13 @@ Replay a recorded goto archive: restore its block envelope, teleport this client
 
 - Params: `ReplayParams` (may be omitted); reply: `ReplayReply`
 - Effects: body_task, world_write; may wait
+
+### `mc.debug.walkPlan`
+
+Walk a given plan on a server-side bot as its task, through the same navigator a goto uses: verbatim (replay) or adopted with the live recovery on (follow). Answers once the task is started, on the server thread.
+
+- Params: `WalkPlanParams`; reply: `WalkingPlan`
+- Effects: body_task, world_write; not in MCP tools/list
 
 ## mc.observe
 
@@ -3415,7 +3422,7 @@ interface PlanEdge {
     breaks: BlockPosition[];
     places: BlockPosition[];
     /** Cost modifier name → what it added. */
-    taxes: Record<string, number>;
+    taxes?: Record<string, number>;
 }
 interface PlanConditions {
     /** Each cost modifier's total over the path. */
@@ -3477,6 +3484,24 @@ type ReplayReply =
         fidelity: string;
     }
     | { mode: 'plan'; file: string; segments: number; plannedNodes: number; restoredBlocks: number; fidelity: string; };
+type WalkMode = 'replay' | 'follow';
+interface WalkPlanParams {
+    /** A server-side bot. */
+    bot: BotRef;
+    /** The nodes and the edge entering each, in path order. */
+    plan: PlanEdge[];
+    /** Omitted: the last node's block. */
+    goal?: GotoTarget;
+    /** The foot the plan is anchored to. Omitted: the first node. */
+    from?: BlockPosition;
+    /** replay: verbatim, no search; whatever would drop the plan ends the walk. follow: adopted with the live recovery and repath on. */
+    mode?: WalkMode;
+    /** The last node is the goal, not a best-effort end. */
+    goalReached?: boolean;
+    /** The route conditions the navigator walks under. */
+    route?: Route;
+}
+interface WalkingPlan { bot: BotRef; nodes: number; }
 interface BossParams {
     /** Blocks around the player; 64 covers the End pillars. */
     radius?: number;

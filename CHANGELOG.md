@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **A server-side bot can walk a plan the caller gives.** `mc.debug.walkPlan` (hidden) takes the nodes
+  and their moves, an optional goal (default: the last node), the foot it starts from (default: the
+  first node) and a route profile. `mode: 'replay'` walks it verbatim, with no repath; `'follow'`
+  adopts it as a live goto would, recovery on, and `goalReached: false` lets the navigator replace a
+  best-effort plan with its own continuation. Read the walk back with `mc.debug.navigator`.
 - **`mc.debug.cells` reads self too.** With `bot: 'self'` it classifies the cells as a search self
   starts now would, from the client's own view on the client thread; `side: 'server'` asks the same
   of the owner's server-side player instead, so the two can be compared. Each cell also reports

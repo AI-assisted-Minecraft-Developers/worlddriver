@@ -201,7 +201,7 @@ public final class DebugContracts {
             ApiField.field("breaks", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::breaks),
             ApiField.field("places", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::places),
             ApiField.field("taxes", ApiTypes.map(ApiTypes.number(), 64)).describe("Cost modifier name → what it added.")
-                    .required().forGetter(PlanEdge::taxes),
+                    .defaulted(Map.of()).forGetter(PlanEdge::taxes),
             PlanEdge::new);
 
     private static final ApiType<Search> SEARCH = ApiTypes.record(Search.class, "PlanSearch",
@@ -284,6 +284,72 @@ public final class DebugContracts {
                             + "high so the search repeats exactly, then compare forward progress before and after a change. "
                             + "chain:true answers the whole segment chain (mode chain) instead of one search (mode single).")
             .execution(MethodSpec.ExecutionClass.BULK);
+
+    // ------------------------------------------------------------------ mc.debug.walkPlan
+
+    /** How a given plan is walked: verbatim with no search, or adopted with the live recovery and repath left on. */
+    public enum WalkMode implements WireName {
+        REPLAY, FOLLOW;
+        @Override public String wireName() { return name().toLowerCase(java.util.Locale.ROOT); }
+    }
+
+    /**
+     * Walk {@code plan} on a server-side bot as its task: each edge enters its node, in path order, as
+     * {@code mc.debug.plan} answers them (an edge with no {@code move} is a start node). {@code goal} absent: the
+     * last node's block. {@code from}: the foot the plan is anchored to, absent the first node. {@code goalReached}:
+     * whether the plan's last node is the goal; a best-effort plan is one the navigator may replace with its own.
+     */
+    public record WalkPlanParams(String bot, List<PlanEdge> plan, Optional<GotoContracts.Target> goal,
+                                 Optional<BlockPosition> from, WalkMode mode, boolean goalReached,
+                                 Optional<RouteContracts.Route> route) {
+        public static WalkPlanParams replay(String bot, List<PlanEdge> plan) {
+            return new WalkPlanParams(bot, plan, Optional.empty(), Optional.empty(), WalkMode.REPLAY, true, Optional.empty());
+        }
+        public static WalkPlanParams follow(String bot, List<PlanEdge> plan, boolean goalReached) {
+            return new WalkPlanParams(bot, plan, Optional.empty(), Optional.empty(), WalkMode.FOLLOW, goalReached, Optional.empty());
+        }
+        public WalkPlanParams goal(GotoContracts.Target g) {
+            return new WalkPlanParams(bot, plan, Optional.of(g), from, mode, goalReached, route);
+        }
+        public WalkPlanParams from(BlockPosition foot) {
+            return new WalkPlanParams(bot, plan, goal, Optional.of(foot), mode, goalReached, route);
+        }
+        public WalkPlanParams route(RouteContracts.Route r) {
+            return new WalkPlanParams(bot, plan, goal, from, mode, goalReached, Optional.of(r));
+        }
+    }
+
+    /** The task started; {@code nodes}: the plan's length. Its progress reads from {@code mc.bot.status} and {@code mc.debug.navigator}. */
+    public record WalkingPlan(String bot, int nodes) {}
+
+    public static final ApiType<WalkPlanParams> WALK_PLAN_PARAMS = ApiTypes.record(WalkPlanParams.class, "WalkPlanParams",
+            ApiField.field("bot", Responses.BOT_REF).describe("A server-side bot.").required().forGetter(WalkPlanParams::bot),
+            ApiField.field("plan", ApiTypes.list(PLAN_EDGE, 4096)).describe("The nodes and the edge entering each, in path order.")
+                    .required().forGetter(WalkPlanParams::plan),
+            ApiField.field("goal", GotoContracts.TARGET).describe("Omitted: the last node's block.").optional().forGetter(WalkPlanParams::goal),
+            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The foot the plan is anchored to. Omitted: the first node.")
+                    .optional().forGetter(WalkPlanParams::from),
+            ApiField.field("mode", ApiTypes.enumOf("WalkMode", WalkMode.class))
+                    .describe("replay: verbatim, no search; whatever would drop the plan ends the walk. follow: adopted with the "
+                            + "live recovery and repath on.")
+                    .defaulted(WalkMode.REPLAY).forGetter(WalkPlanParams::mode),
+            ApiField.field("goalReached", ApiTypes.bool()).describe("The last node is the goal, not a best-effort end.")
+                    .defaulted(true).forGetter(WalkPlanParams::goalReached),
+            ApiField.field("route", RouteContracts.ROUTE).describe("The route conditions the navigator walks under.")
+                    .optional().forGetter(WalkPlanParams::route),
+            WalkPlanParams::new);
+
+    public static final ApiType<WalkingPlan> WALKING_PLAN = ApiTypes.record(WalkingPlan.class, "WalkingPlan",
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(WalkingPlan::bot),
+            ApiField.field("nodes", COUNT).required().forGetter(WalkingPlan::nodes),
+            WalkingPlan::new);
+
+    public static final MethodSpec<WalkPlanParams, WalkingPlan> WALK_PLAN = MethodSpec.of("mc.debug.walkPlan",
+                    WALK_PLAN_PARAMS, WALKING_PLAN,
+                    "Walk a given plan on a server-side bot as its task, through the same navigator a goto uses: verbatim "
+                            + "(replay) or adopted with the live recovery on (follow). Answers once the task is started, on "
+                            + "the server thread.")
+            .hidden().effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE);
 
     // ------------------------------------------------------------------ mc.debug.replay
 
