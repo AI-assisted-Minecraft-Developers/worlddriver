@@ -6,14 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -562,9 +555,8 @@ final class JourneyRamp {
      *  <p>Package-private because {@link JourneyPour#footBeforeTower} walks the same alcove under the
      *  same rule, and a second copy of "a short walk with NoBreak" would be a second place to forget it. */
     static void walkTo(JourneyRig rig, BlockPos spot, Runnable then) {
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), STEP_WALK_TICKS,
-                () -> rig.settle(new HoldStill(10), 30, then));
+        rig.settle(JourneyTasks.goTo(Targets.block(spot), JourneyTasks.NO_BREAK), STEP_WALK_TICKS,
+                () -> rig.hold(10, 30, then));
     }
 
     /**
@@ -672,7 +664,7 @@ final class JourneyRamp {
      * {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without it a flight
      * could be built through ten blocks of rock and read as one the bot earned.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Body av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, JourneyHands.Placer av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag) {
         return layWhereItStands(level, player, av, corridor, flight, from, evidence, tag, true);
@@ -689,11 +681,9 @@ final class JourneyRamp {
      * It reports {@link Stop#PENDING} instead — <b>without</b> writing a {@code .step.N} row, because
      * the reason it would print is read from the same too-early world. See {@link Stop#PENDING}.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Body av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, JourneyHands.Placer av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag, boolean settled) {
-        Equipment hand = av.equipment().orElseThrow();
-        BlockInteraction blocks = av.blockInteraction().orElseThrow();
         BlockPos body = player.blockPosition();
         int laid = from;
         while (laid < flight.size()) {
@@ -713,12 +703,12 @@ final class JourneyRamp {
                     && !walkedThrough(flight, shoulder)
                     && !bodyIsInTheWay(player, shoulder)
                     && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
-                    && hand.holdItem(Items.COBBLESTONE)) {
-                JourneyStairs.placeInto(level, blocks, shoulder);
+                    && av.hold(Items.COBBLESTONE)) {
+                JourneyStairs.placeInto(level, av, shoulder);
                 if (level.getBlockState(shoulder).blocksMotion()) laid(shoulder);
             }
-            boolean held = hand.holdItem(Items.COBBLESTONE);
-            if (held) JourneyStairs.placeInto(level, blocks, support);
+            boolean held = av.hold(Items.COBBLESTONE);
+            if (held) JourneyStairs.placeInto(level, av, support);
             // THE WORLD, not the call — the same discipline the stair mend and the backing mend
             // already run on. `placeOn` reports nothing, and a step that was never laid produces the
             // identical row to one that was.
@@ -810,7 +800,7 @@ final class JourneyRamp {
                             BlockPos landing, boolean alreadyAside, int settledAt, String tag,
                             Runnable then) {
         ServerLevel level = rig.ctx().level();
-        Pass p = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
+        Pass p = layWhereItStands(level, rig.player(), JourneyHands.placer(rig), corridor, flight,
                 from, rig::evidence, tag, false);
         if (p.stop() == Stop.PENDING) {
             // ONE WAIT PER COURSE, not one per pass. Every course places exactly once, so a latch
@@ -818,7 +808,7 @@ final class JourneyRamp {
             // before this existed — the fix would then read as working on course 0 and nowhere else.
             if (settledAt != p.laid()) {
                 int course = p.laid();
-                rig.settle(new HoldStill(PLACE_ROUND_TRIP), PLACE_ROUND_TRIP * 2,
+                rig.hold(PLACE_ROUND_TRIP, PLACE_ROUND_TRIP * 2,
                         () -> lay(rig, corridor, flight, course, landing, alreadyAside, course,
                                 tag, then));
                 return;

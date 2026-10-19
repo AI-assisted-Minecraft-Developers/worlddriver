@@ -3,10 +3,6 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 
 /**
  * Rung 07 — the bed. Three wool of ONE colour, and the colour is the whole difficulty.
@@ -72,7 +68,7 @@ final class JourneyBedRung {
         // an empty world rather than "I cannot see that far".
         ctx.cleanup(JourneyRig::seeNormally);
         JourneyRig.seeAtLeast(WorldDriverJourneyScenes.PREY_SEARCH_CHUNKS);
-        rig.settle(new HoldStill(40), 100,
+        rig.hold(40, 100,
                 () -> woolRound(ctx, rig, WOOL_HUNT_ROUNDS, WorldDriverJourneyScenes.PREY_SEARCH_BLOCKS, true));
     }
 
@@ -107,7 +103,7 @@ final class JourneyBedRung {
                         + ": no woolly sheep within " + radius + " blocks, searching again within "
                         + WorldDriverJourneyScenes.PREY_SEARCH_WIDE + " blocks");
                 JourneyRig.seeAtLeast(WorldDriverJourneyScenes.PREY_SEARCH_WIDE_CHUNKS);
-                rig.settle(new HoldStill(40), 100,
+                rig.hold(40, 100,
                         () -> woolRound(ctx, rig, roundsLeft, WorldDriverJourneyScenes.PREY_SEARCH_WIDE, false));
                 return;
             }
@@ -158,7 +154,7 @@ final class JourneyBedRung {
         // it a sheep 90 blocks away fails in two ticks and reads like a broken verb.
         rig.attempting("walk to the " + target.colour() + " sheep " + Math.round(target.distance())
                 + " blocks away");
-        rig.drive(new IntentProcess(new Intent(new Goal.Near(target.where(), 6))), 6_000, () -> {
+        rig.drive(JourneyTasks.goNear(target.where(), 6), 6_000, () -> {
             rig.evidence(r + ".arrived", rig.player().blockPosition().toShortString() + ", "
                     + Math.round(Math.sqrt(rig.player().blockPosition().distSqr(target.where())))
                     + " blocks from the target");
@@ -168,7 +164,7 @@ final class JourneyBedRung {
             rig.evidence(r + ".weapon", rig.holdBestWeapon());
             rig.attempting("kill the " + target.colour() + " sheep (id=" + target.entityId()
                     + "): CombatProcess did not obtain any wool");
-            rig.drive(new CombatProcess(CombatProcess.Mode.KILL, target.entityId(), "minecraft:sheep"),
+            rig.drive(JourneyTasks.kill(target.entityId()),
                     4_000, () -> {
                 // Did the chosen sheep actually die? CombatProcess.pick returns null when the id
                 // cannot be resolved, and tick() reads a null target as "target dead/gone → mission

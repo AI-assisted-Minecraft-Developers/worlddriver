@@ -9,12 +9,12 @@ import java.util.Set;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -383,6 +383,32 @@ public final class JourneyPortalEntry {
      */
     public static BotProcess stepInto(BlockPos cell, int ticks) { return new StepInto(cell, ticks); }
 
+    /**
+     * {@link #stepInto} on the run's bot, for at most {@code ticks}, then {@code then}.
+     *
+     * <p>A roster bot gets the process's inputs through {@code mc.test.input.press}, re-pressed every tick as
+     * the process re-applied them: aimed at the cell, forward held, jump, dig and sneak let go — until it
+     * stands in a portal block, when forward is let go at once. self has no such input, so on self the process
+     * itself still runs as its user task ({@link JourneyRig#runOnSelf}, a reach left in place).
+     */
+    static void pushInto(JourneyRig rig, BlockPos cell, int ticks, Runnable then) {
+        SceneBot bot = rig.serverBotOrNull();
+        if (bot == null) { rig.runOnSelf(stepInto(cell, ticks), ticks + 20, then); return; }
+        var at = Targets.pos(cell);
+        rig.runEachTick("portalStepIn", () -> {
+            var p = rig.player();
+            if (p.level().getBlockState(p.blockPosition()).is(Blocks.NETHER_PORTAL)) {
+                bot.press(bot.keys().move(0, 0));
+                return true;
+            }
+            bot.press(bot.keys().aimAt(at).jump(false).attack(false).sneak(false).move(0, 1));
+            return false;
+        }, ticks, () -> {
+            bot.press(bot.keys().move(0, 0));
+            then.run();
+        });
+    }
+
     private static final class StepInto implements BotProcess {
         private final BlockPos cell;
         private final int ticks;
@@ -571,7 +597,7 @@ public final class JourneyPortalEntry {
                 rig.evidence("portal.clear." + done, cell.toShortString() + " → "
                         + now.getBlockState(cell).getBlock() + " (bot at "
                         + rig.player().blockPosition().toShortString() + ", canBreak="
-                        + rig.body().avatar().canBreak(cell) + ")");
+                        + rig.canBreak(cell) + ")");
                 clearTheDoorway(ctx, rig, portal, door, crossing, attempt, done + 1);
             });
             return;
@@ -614,16 +640,20 @@ public final class JourneyPortalEntry {
      * genuinely different and easier question. Only the degenerate turn is converted. Adding a THIRD
      * shape would have left the degenerate one in the rotation.
      */
-    static Goal legGoal(BlockPos here, BlockPos stand, boolean flatTurn) {
-        Goal.XZ column = new Goal.XZ(stand.getX(), stand.getZ(), 0);
-        return flatTurn && here != null && !column.reached(here) ? column : new Goal.Block(stand);
+    static GotoContracts.Target legGoal(BlockPos here, BlockPos stand, boolean flatTurn) {
+        return asksColumn(here, stand, flatTurn) ? Targets.column(stand.getX(), stand.getZ(), 0) : Targets.block(stand);
+    }
+
+    /** Whether {@link #legGoal} picks the column: a flat turn whose column the bot is not already standing in
+     *  (a radius-0 column is reached exactly when the bot's x and z are the column's). */
+    private static boolean asksColumn(BlockPos here, BlockPos stand, boolean flatTurn) {
+        return flatTurn && here != null && !(here.getX() == stand.getX() && here.getZ() == stand.getZ());
     }
 
     /** What {@link #legGoal} actually picked, for the evidence row — a walk that says "XZ" when it
      *  asked a 3D question is a row that will mislead the next reader the way {@code walk.3} did. */
     static String legShape(BlockPos here, BlockPos stand, boolean flatTurn) {
-        Goal picked = legGoal(here, stand, flatTurn);
-        if (picked instanceof Goal.XZ) return "XZ";
+        if (asksColumn(here, stand, flatTurn)) return "XZ";
         return flatTurn ? "3D (this turn would ask XZ, but the bot is already in that column, so XZ"
                 + " cannot ask anything new)" : "3D";
     }
@@ -660,12 +690,12 @@ public final class JourneyPortalEntry {
             return;
         }
         final boolean flatTurn = (left % 2) == 0;
-        Goal goal = legGoal(here, door.stand(), flatTurn);
+        var goal = legGoal(here, door.stand(), flatTurn);
         final String shape = legShape(here, door.stand(), flatTurn);
         final long began = level.getGameTime();
         final int leg = DOOR_LEGS - left + 1;
-        rig.settle(new IntentProcess(new Intent(goal)), DOOR_LEG_TICKS,
-                () -> rig.settle(new HoldStill(LAND_TICKS), LAND_TICKS + 10, () -> {
+        rig.settle(JourneyTasks.goTo(goal), DOOR_LEG_TICKS,
+                () -> rig.hold(LAND_TICKS, LAND_TICKS + 10, () -> {
             // LET IT LAND BEFORE JUDGING IT. The last edge into a doorstep one row down is a step
             // off a ledge, and `settle` ends on the tick the process reports finished — which is
             // while the bot is still in the air over the cell it is arriving at. Measured in
@@ -700,7 +730,7 @@ public final class JourneyPortalEntry {
         final boolean braking = rig.player().isShiftKeyDown();
         rig.attempting("step from " + stand.toShortString() + " into " + cell.toShortString());
         final long began = rig.player().serverLevel().getGameTime();
-        rig.settle(stepInto(cell, STEP_IN_TICKS), STEP_IN_TICKS + 20, () -> {
+        pushInto(rig, cell, STEP_IN_TICKS, () -> {
             ServerLevel now = rig.player().serverLevel();
             attempt.waited += (int) (now.getGameTime() - began);
             BlockPos at = rig.player().blockPosition();
@@ -770,15 +800,15 @@ public final class JourneyPortalEntry {
             return;
         }
         final int leg = PORTAL_LEGS - legs;
-        BotProcess run;
+        java.util.function.Consumer<Runnable> run;
         String what;
         if (inPortal) {
-            run = new HoldStill(PORTAL_LEG_TICKS);
+            run = next -> rig.hold(PORTAL_LEG_TICKS, PORTAL_LEG_TICKS, next);
             what = "hold still and wait";
         } else {
             BlockPos ready = stepFrom(level, at, portal);
             if (ready != null) {
-                run = stepInto(ready, PORTAL_LEG_TICKS);
+                run = next -> pushInto(rig, ready, PORTAL_LEG_TICKS, next);
                 what = "step in from here into " + ready.toShortString();
             } else {
                 Doorstep door = find(level, portal, at);
@@ -788,13 +818,14 @@ public final class JourneyPortalEntry {
                     return;
                 }
                 boolean flatTurn = (legs % 2) == 0;
-                run = new IntentProcess(new Intent(legGoal(at, door.stand(), flatTurn)));
+                var back = JourneyTasks.goTo(legGoal(at, door.stand(), flatTurn));
+                run = next -> rig.settle(back, PORTAL_LEG_TICKS, next);
                 what = legShape(at, door.stand(), flatTurn) + " walk back to the doorstep "
                         + door.stand().toShortString();
             }
         }
         final long began = level.getGameTime();
-        rig.settle(run, PORTAL_LEG_TICKS, () -> {
+        run.accept(() -> {
             ServerLevel now = rig.player().serverLevel();
             int spent = (int) (now.getGameTime() - began);
             attempt.waited += spent;

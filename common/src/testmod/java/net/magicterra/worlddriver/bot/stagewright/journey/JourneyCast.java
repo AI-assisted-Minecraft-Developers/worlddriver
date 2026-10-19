@@ -2,9 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Items;
@@ -272,7 +269,7 @@ final class JourneyCast {
         // Adjacent, not merely near. A pour is a ray, and a ray aimed at a cell below the bank's lip
         // hits the lip: measured in the arena, where a mould two cells away swallowed the bucket and
         // left the target empty while the use still reported CONSUME.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(water, radius))), 2_000, () -> {
+        rig.settle(JourneyTasks.goNear(water, radius), 2_000, () -> {
             BlockPos at = rig.player().blockPosition();
             // HOW THIS WALK ENDED, on both branches. `rig.settle` runs its callback when the budget
             // is spent just as it does when the process finishes, so the two must be told apart
@@ -496,15 +493,14 @@ final class JourneyCast {
                         // left `aimTarget` null and destroyed nothing: this exact cell, `-4, 63, 55`,
                         // read back as `short_grass` on ladder-8 AND on the rehearsal that was run to
                         // verify that fix.
-                        JourneyHands.swingOffPlant(rig, inTheWay);
-                        rig.settle(new HoldStill(3), 12, () -> {
+                        JourneyHands.swingOffPlant(rig, inTheWay, () -> rig.hold(3, 12, () -> {
                             rig.evidence("cast.cleared." + inTheWay.toShortString(),
                                     String.valueOf(level.getBlockState(inTheWay).getBlock()));
                             pourInto(ctx, rig, target, clearings - 1);
-                        });
+                        }));
                         return;
                     }
-                    rig.mineBlock(inTheWay, 600, () -> rig.settle(new HoldStill(5), 20,
+                    rig.mineBlock(inTheWay, 600, () -> rig.hold(5, 20,
                             () -> pourInto(ctx, rig, target, clearings - 1)));
                     return;
                 }
@@ -612,7 +608,7 @@ final class JourneyCast {
             // fact about the world. Comparing the watcher's t0 against `cast.atUse` would not do
             // this job: t0 is taken after `useItemInHand` has already run.
             JourneyHands.handTrace(rig, "cast", -1);
-            rig.evidence("cast.result", String.valueOf(rig.equipment().useItemInHand()));
+            JourneyHands.useInAir(rig, "cast.result");
             // THE HAND ON CONSECUTIVE SERVER TICKS. `cast.result` is the CLIENT's prediction and
             // `cast.stillFull` is the SERVER ten ticks later; between them sits the moment that
             // decides this rung — the tick on which the server processes the use packet and reads
@@ -629,7 +625,7 @@ final class JourneyCast {
             // and the window has to stop — 6 ticks × 2 players is 12 rows, and the rest of the
             // settle would add 8 more that answer nothing.
             int[] traced = {0};
-            rig.settle(new HoldStill(10), 20, () -> {
+            rig.hold(10, 20, () -> {
                 if (traced[0] < JourneyHands.TRACE_TICKS) {
                     JourneyHands.handTrace(rig, "cast", traced[0]++);
                 }

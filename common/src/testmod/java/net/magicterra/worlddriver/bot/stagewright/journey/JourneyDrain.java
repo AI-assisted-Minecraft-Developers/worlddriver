@@ -183,7 +183,7 @@ final class JourneyDrain {
         // feeding it), and the run then poured the next source onto the un-receded flow, which
         // pinned the stair foot for good (`cast8#12.climb.0.washedOffFed`). When the upstream scan
         // finds no source, a longer wait is the whole remedy, so the wait must be as long as it says.
-        rig.settle(new HoldStill(DRAIN_TICKS), DRAIN_TICKS * 2,
+        rig.hold(DRAIN_TICKS, DRAIN_TICKS * 2,
                 () -> drainTheAlcove(ctx, rig, i, legs - 1, then));
     }
 }

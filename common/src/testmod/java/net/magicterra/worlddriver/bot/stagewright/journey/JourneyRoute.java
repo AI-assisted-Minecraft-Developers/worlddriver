@@ -9,7 +9,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -342,7 +341,7 @@ public final class JourneyRoute {
      */
     public static Found nearestInBand(ServerLevel level, BlockPos centre, String blockId,
                                       int radius, int yMax, int yMin) {
-        Block wanted = RegistryIds.lookup(BuiltInRegistries.BLOCK, blockId)
+        Block wanted = JourneyRig.lookup(BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
@@ -384,7 +383,7 @@ public final class JourneyRoute {
      */
     public static List<Found> poolsInBand(ServerLevel level, BlockPos centre, String blockId,
                                           int radius, int yMax, int yMin, int apart, int limit) {
-        Block wanted = RegistryIds.lookup(BuiltInRegistries.BLOCK, blockId)
+        Block wanted = JourneyRig.lookup(BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         List<Found> hits = new ArrayList<>();
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
@@ -447,7 +446,7 @@ public final class JourneyRoute {
      *  {@link #firstOf} for why a second search needs to be told what the first one already took. */
     public static Found nearest(ServerLevel level, BlockPos centre, String blockId, int radius,
                                 int band, BlockPos avoid, int minAway) {
-        Block wanted = RegistryIds.lookup(BuiltInRegistries.BLOCK, blockId)
+        Block wanted = JourneyRig.lookup(BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
@@ -515,7 +514,7 @@ public final class JourneyRoute {
      */
     public static Found nearestUnderDryGround(ServerLevel level, BlockPos centre, String blockId,
                                               int radius, int band, List<BlockPos> avoid, int minAway) {
-        Block wanted = RegistryIds.lookup(BuiltInRegistries.BLOCK, blockId)
+        Block wanted = JourneyRig.lookup(BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;

@@ -12,23 +12,23 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlastFooting;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import java.util.Optional;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -294,7 +294,7 @@ public final class JourneyEndRungs {
      *  also long enough for the attack-strength ticker to recharge any weapon this ladder owns.
      *  <b>The arena probes reset {@code invulnerableTime} to hit faster; a journey rung may not</b> —
      *  that is cheating the game, and the whole claim of this ladder is that it does not. */
-    private static final int SWING_EVERY = 20;
+    static final int SWING_EVERY = 20;
 
     /** How many crystals the rung will work through. Vanilla builds ten pillars; a couple more is
      *  slack for a respawn arrangement rather than a real expectation. */
@@ -355,7 +355,7 @@ public final class JourneyEndRungs {
      *  bot whose position the dragon's circle never passes, which is what a duel started off-centre
      *  is. Measured: 11 400 ticks off-centre with `closest` never falling to reach. Any approach
      *  resets it, so a long fight with lulls is unaffected. */
-    private static final int DUEL_OUT_OF_REACH_TICKS = 20_000;
+    static final int DUEL_OUT_OF_REACH_TICKS = 20_000;
 
     /** Everything a shaft yields that a tower can stand on, commonest first — copied from the
      *  overworld rungs, where the lesson was learned that a tower asked for a block the bot does not
@@ -437,7 +437,7 @@ public final class JourneyEndRungs {
             return;
         }
         rig.attempting("craft blaze rods into blaze powder (2x2 recipe, no crafting table needed)");
-        rig.drive(new CraftProcess("minecraft:blaze_powder", wantPowder), 8_000, () -> {
+        rig.drive(JourneyTasks.craft("minecraft:blaze_powder", wantPowder), 8_000, () -> {
             rig.evidence("blaze_powder.after", rig.carrying("minecraft:blaze_powder"));
             rig.evidence("blaze_powder.craftError", String.valueOf(rig.slotError("craft")));
             then.run();
@@ -447,7 +447,7 @@ public final class JourneyEndRungs {
     private static void craftTheEyes(SceneContext ctx, JourneyRig rig, int want) {
         if (want <= 0) { judgeTheEyes(ctx, rig); return; }
         rig.attempting("craft eyes of ender: blaze powder + ender pearl");
-        rig.drive(new CraftProcess("minecraft:ender_eye", want), 12_000, () -> {
+        rig.drive(JourneyTasks.craft("minecraft:ender_eye", want), 12_000, () -> {
             rig.evidence("ender_eye.craftError", String.valueOf(rig.slotError("craft")));
             judgeTheEyes(ctx, rig);
         });
@@ -683,15 +683,15 @@ public final class JourneyEndRungs {
         // pointless and building is not. Below the door only: TowerProcess climbs, it cannot descend.
         boolean stalled = leg > 1 && away >= best;
         boolean overhead = home.getY() - at.getY() > RETURN_ARRIVED_WITHIN;
-        BotProcess run;
+        JourneyTasks.Task run;
         String what;
         if (stalled && overhead) {
             String pillar = pillarBlock(rig);
-            run = new TowerProcess(home.getY(), pillar, true);   // reachIntoBag — see JourneyShaft's note
+            run = JourneyTasks.tower(home.getY(), pillar, true);   // reachIntoBag — see JourneyShaft's note
             what = "the previous attempt got no closer; pillar up to y=" + home.getY() + " (using "
                     + pillar + ")";
         } else {
-            run = new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN)));
+            run = JourneyTasks.goNear(home, RETURN_ARRIVED_WITHIN);
             what = "close in on the portal cell (3D goal; the march only handles the horizontal plane)";
         }
         rig.attempting("attempt " + leg + "/" + CLIMB_LEGS + ": " + what + " → " + xyz(home));
@@ -811,7 +811,7 @@ public final class JourneyEndRungs {
         int wz = (int) Math.round(at.getZ() + (goal.getZ() - at.getZ()) * f);
         rig.attempting("march toward " + trek.what() + ": segment " + leg + ", heading for " + wx + ","
                 + wz);
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, MARCH_LEG_TOLERANCE))),
+        rig.settle(JourneyTasks.goToColumn(wx, wz, MARCH_LEG_TOLERANCE),
                 MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
             // MOVED decides whether to sidestep; CLOSED decides whether the wedge streak is over.
@@ -869,7 +869,7 @@ public final class JourneyEndRungs {
         rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " did not move this segment ("
                 + (stuck + 1) + " in a row); turn " + turn + "° and step " + reach + " blocks sideways to "
                 + sx + "," + sz + " (goto " + JourneyLeg.navigatorEnd(rig) + ")");
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
+        rig.settle(JourneyTasks.goToColumn(sx, sz, 3), MARCH_LEG_TICKS / 2,
                 () -> march(ctx, rig, trek, leg + 1, stuck + 1));
     }
 
@@ -1027,7 +1027,7 @@ public final class JourneyEndRungs {
         }
         // Walk into reach first. useBlock would take the click from across the room — see the class
         // note on why this file will not let it.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(frame, EYE_REACH))), 600, () -> {
+        rig.settle(JourneyTasks.goNear(frame, EYE_REACH), 600, () -> {
             ServerLevel level = levelOf(rig);
             // Both the client player and the server-side player: `useBlock` reaches the frame
             // through `handleUseItemOn`, which reads the SERVER's hand. See JourneyHands.holdBoth.
@@ -1036,8 +1036,8 @@ public final class JourneyEndRungs {
                 rig.evidence("eye." + i + ".hand", "could not hold ender_eye; holding " + heldItem(rig));
             }
             double reach = Math.sqrt(rig.player().blockPosition().distSqr(frame));
-            rig.blocks().useBlock(frame, Direction.UP);
-            rig.settle(new HoldStill(2), 10, () -> {
+            JourneyHands.useOn(rig, frame, Direction.UP, "eye." + i + ".use");
+            rig.hold(2, 10, () -> {
                 if (!hasEye(level, frame)) {
                     rig.evidence("eye." + i + ".missed", xyz(frame) + " is still "
                             + level.getBlockState(frame) + " (holding " + heldItem(rig)
@@ -1145,7 +1145,7 @@ public final class JourneyEndRungs {
         // 80 ticks this loop would not supply — see stepThroughPortal, where writing this shape a
         // second time cost two rehearsals. So the resemblance is a coincidence, not a pattern to
         // copy: the thing that makes it safe here is a constant nothing in this file controls.
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(cell))), PORTAL_WALK_TICKS,
+        rig.settle(JourneyTasks.goToBlock(cell), PORTAL_WALK_TICKS,
                 () -> waitFor(rig, () -> THE_END.equals(rig.dimension()), PORTAL_TRANSIT_TICKS, () -> {
                     rig.evidence("step." + attempt, "aimed at " + xyz(cell) + " → stopped at "
                             + xyz(rig.player().blockPosition()) + " (" + rig.dimension() + ")");
@@ -1381,7 +1381,7 @@ public final class JourneyEndRungs {
                     + " all is in island.*.plan");
             return;
         }
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(0, 0, 6))), 6_000, () -> {
+        rig.settle(JourneyTasks.goToColumn(0, 0, 6), 6_000, () -> {
             BlockPos now = rig.player().blockPosition();
             rig.evidence("island." + leg + ".plan", planOf(rig, pillar, stock));
             if (flatDistance(at, now) >= WEDGED_UNDER) { marchInTheEnd(ctx, rig, leg + 1); return; }
@@ -1415,22 +1415,24 @@ public final class JourneyEndRungs {
      * pair the two are one row.
      */
     private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
-        // ⚠️ THIS ROW HAS TWO CHANNELS, and on the integrated helm only one of them has an author.
-        // `rig.slot` reads whichever half is driving; `slot` below is the SERVER's BotState, which
-        // nothing writes when the process was handed to the client (JourneyRig.slot says why). The
-        // three fields taken from it — pathMove, parkourTakeoff, firstPlan — are excluded from
-        // ProcessSlot.snapshot() by design, so there is no routed reading to take instead. Read
-        // `move=` / `first takeoff` / `first plan` as "this half cannot read it" there, never as
-        // "there was none". They become readable once status() carries them; the other four are
-        // correct now.
+        // THREE CHANNELS, each read where it has an author. The slot (active, pathLen, end, err) is the
+        // bot's own status on either helm. move and first takeoff are the driving navigator's plan cursor
+        // (mc.debug.navigator), a tick or two old on self. The hands (place tally, canPlace, placeable
+        // count) are mc.debug.body, which reads server-side bots only, so on self they say "not read".
+        // The goto slot's first plan has no reading at all any more; the row says so rather than print a
+        // value nobody wrote.
         var routed = rig.slot("goto");
-        boolean active = Boolean.TRUE.equals(routed.get("active"));
-        var slot = rig.body().botState().mc_goto;
-        var view = rig.body().world();
+        boolean active = routed.map(ControlContracts.Slot::active).orElse(false);
+        var nav = rig.navigator();
+        var cursor = nav == null ? null : nav.plan().orElse(null);
+        SceneBot bot = rig.serverBotOrNull();
+        var hands = bot == null ? null : bot.body().hands();
         return "placed " + blocksSpent(rig, pillar, stockBefore) + " blocks of " + pillar
                 + "; active=" + active
-                + " pathLen=" + routed.get("pathLen") + " move=" + slot.pathMove
-                + " end=" + routed.get("endReason") + " err=" + routed.get("lastError")
+                + " pathLen=" + routed.map(ControlContracts.Slot::pathLen).orElse(null)
+                + " move=" + (cursor == null ? null : cursor.move().orElse(null))
+                + " end=" + routed.flatMap(ControlContracts.Slot::endReason).orElse(null)
+                + " err=" + routed.flatMap(ControlContracts.Slot::lastError).orElse(null)
                 + (active ? "" : " (the process has ended, so pathLen/move are the empty values left"
                         + " by reset; do not read them as 'there was no plan at all')")
                 // ⚠️ pathLen/move above are the state at the END of the segment, and a segment that
@@ -1438,11 +1440,14 @@ public final class JourneyEndRungs {
                 // every premise holds, because it deliberately does not check for support underfoot.
                 // So that half describes the planning of a falling bot. The place tally's FIRST rows
                 // are the ones taken while there was still ground under the question.
-                + "; first takeoff " + slot.parkourTakeoff
-                + "; first plan " + slot.firstPlan
-                + "; place " + rig.body().avatar().placeTally()
-                + "; canPlace=" + view.canPlace()
-                + " placeableBlockCount=" + view.placeableBlockCount()
+                + "; first takeoff " + (cursor == null ? null : cursor.parkourTakeoff().orElse("none"))
+                + "; first plan not read (no reading carries the goto's first plan)"
+                + (hands == null
+                        ? "; place / canPlace / placeableBlockCount not read (self: mc.debug.body reads"
+                          + " server-side bots only)"
+                        : "; place " + hands.placeTally()
+                          + "; canPlace=" + hands.canPlace()
+                          + " placeableBlockCount=" + hands.placeableBlocks())
                 + " (counts only buildable blocks in the hotbar — the backpack does not count, so 0"
                 + " means this segment could not generate a bridge edge at all, which is a different"
                 + " defect from 'generated, but outpriced by parkour3 at 32')";
@@ -1548,7 +1553,7 @@ public final class JourneyEndRungs {
                 // lift to it; at or above it, the tower reports "not needed" in one tick and
                 // costs nothing.
                 int back = ISLAND_WALK_Y;
-                rig.settle(new TowerProcess(back, pillarBlock(rig), true), 2_000, () -> {
+                rig.settle(JourneyTasks.tower(back, pillarBlock(rig), true), 2_000, () -> {
                     rig.evidence("crystals.sweep" + sweep + ".unwedge", "pillar back up to y=" + back
                             + " before sweeping again → feet at y=" + rig.player().blockPosition().getY()
                             + ", " + rig.slotError("builder"));
@@ -1573,7 +1578,7 @@ public final class JourneyEndRungs {
         String legItem = pillarBlock(rig);
         int legStock = rig.carrying(legItem);
         LegWatch walk = new LegWatch(rig);
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(base.getX(), base.getZ(), 2))),
+        rig.settle(JourneyTasks.goToColumn(base.getX(), base.getZ(), 2),
                 CRYSTAL_WALK_TICKS, walk, () -> {
             rig.evidence("crystal." + i + ".leg", legRow(rig, from, fromUnder, legItem, legStock, walk));
             String pillar = pillarBlock(rig);
@@ -1593,7 +1598,7 @@ public final class JourneyEndRungs {
             rig.evidence("crystal." + i + ".climb.plan",
                     "climb to y=" + top + " using " + pillar + " x" + climbStock);
             LegWatch climb = new LegWatch(rig);
-            rig.settle(new TowerProcess(top, pillar, true), CRYSTAL_CLIMB_TICKS, climb, () -> {
+            rig.settle(JourneyTasks.tower(top, pillar, true), CRYSTAL_CLIMB_TICKS, climb, () -> {
                 rig.evidence("crystal." + i + ".climb",
                         climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
                 // "feetY already ≥ targetY" is the tower's success wording, and it is the WRONG
@@ -1623,10 +1628,10 @@ public final class JourneyEndRungs {
                 // remedy; the goal cell here is the pillar the crystal sits on, so "go nearer" can
                 // mean "come down off the tower you are standing on".
                 double beforeApproach = rig.player().distanceTo(crystal);
-                BotProcess approach = beforeApproach <= MELEE_REACH - 0.5
-                        ? new HoldStill(1)
-                        : new IntentProcess(new Intent(new Goal.Near(base, CRYSTAL_APPROACH)));
-                rig.settle(approach, CRYSTAL_APPROACH_TICKS, () -> {
+                java.util.function.Consumer<Runnable> approach = beforeApproach <= MELEE_REACH - 0.5
+                        ? next -> rig.hold(1, CRYSTAL_APPROACH_TICKS, next)
+                        : next -> rig.settle(JourneyTasks.goNear(base, CRYSTAL_APPROACH), CRYSTAL_APPROACH_TICKS, next);
+                approach.accept(() -> {
                 rig.evidence("crystal." + i + ".approach", String.format(Locale.ROOT,
                         "final approach before the swing: %.1f blocks → %.1f blocks (threshold %.1f)%s%s",
                         beforeApproach, rig.player().distanceTo(crystal), MELEE_REACH,
@@ -1642,30 +1647,31 @@ public final class JourneyEndRungs {
                 // by construction (vanilla's cage lid is a solid 5x5 of iron bars over the only
                 // qualifying floor), so the walk is the test. A candidate must also be within reach
                 // of the crystal — a perfect stand 4 cells away that cannot swing is not a remedy.
-                String refusal = BlastFooting.refuseSwing(rig.player(), crystal);
+                Blast blast = blastFor(rig, crystal);
+                String refusal = blast.refusal();
                 BlockPos betterStand = null;
                 if (refusal != null) {
                     double reach = (MELEE_REACH - 0.5) * (MELEE_REACH - 0.5);
-                    for (BlockPos st : BlastFooting.qualifyingStands(rig.player().level(),
-                            rig.player().blockPosition(), BlastFooting.needFor(crystal))) {
+                    for (BlockPos st : blast.stands()) {
                         if (st.distSqr(base) <= reach) { betterStand = st; break; }
                     }
                 }
                 final BlockPos chosen = betterStand;
-                BotProcess reseat = chosen == null ? new HoldStill(1)
-                        : new IntentProcess(new Intent(new Goal.Block(chosen)));
-                rig.settle(reseat, CRYSTAL_RESEAT_TICKS, () -> {
+                java.util.function.Consumer<Runnable> reseat = chosen == null
+                        ? next -> rig.hold(1, CRYSTAL_RESEAT_TICKS, next)
+                        : next -> rig.settle(JourneyTasks.goToBlock(chosen), CRYSTAL_RESEAT_TICKS, next);
+                reseat.accept(() -> {
                 rig.evidence("crystal." + i + ".reseat", chosen != null
                         ? "footing would be destroyed by the blast; moving to " + chosen.toShortString()
                           + " (standing on " + blockAt(rig, chosen.below()) + ") → after the move at "
                           + xyz(rig.player().blockPosition()) + ", "
-                          + (BlastFooting.refuseSwing(rig.player(), crystal) == null
+                          + (blastFor(rig, crystal).refusal() == null
                                   ? "no longer refused" : "still refused")
                         : refusal == null ? "footing already withstands this blast; did not move"
                         : "swing refused, but no footing within radius " + BlastFooting.STAND_SURVEY_RADIUS
                           + " both withstands this blast and reaches the crystal");
-                SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
-                rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
+                JourneyDuel.SwingAt swing = new JourneyDuel.SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
+                fight(rig, JourneyDuel.SwingAt.KIND, swing, CRYSTAL_SWING_TICKS + 50, () -> {
                     rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "still alive" : "smashed")
                             + " (standing at y=" + rig.player().blockPosition().getY() + ", closest "
                             + String.format(Locale.ROOT, "%.1f", swing.closest()) + " blocks, "
@@ -1765,7 +1771,8 @@ public final class JourneyEndRungs {
                 + "  placed " + blocksSpent(rig, item, stockBefore) + " blocks of " + item
                 + "  lowestY=" + watch.lowestY() + " (excluding the start y=" + from.getY() + ")"
                 + "  took " + watch.ticks() + " ticks"
-                + "  end=" + slot.get("endReason") + " err=" + slot.get("lastError");
+                + "  end=" + slot.flatMap(ControlContracts.Slot::endReason).orElse(null)
+                + " err=" + slot.flatMap(ControlContracts.Slot::lastError).orElse(null);
     }
 
     /**
@@ -1893,9 +1900,9 @@ public final class JourneyEndRungs {
         // ask only for the horizontal half and let the descent fall out of it; the even rounds then
         // finish the last cells in 3D. Either shape alone has been observed to stall.
         boolean flat = (left % 2) == 0;
-        Goal goal = flat ? new Goal.XZ(podium.getX(), podium.getZ(), DUEL_STAND_RADIUS)
-                : new Goal.Near(podium, DUEL_STAND_RADIUS);
-        rig.settle(new IntentProcess(new Intent(goal)), DUEL_MARCH_TICKS, () -> {
+        var goal = flat ? Targets.column(podium.getX(), podium.getZ(), DUEL_STAND_RADIUS)
+                : Targets.near(podium, DUEL_STAND_RADIUS);
+        rig.settle(JourneyTasks.goTo(goal), DUEL_MARCH_TICKS, () -> {
             // Height is its own clause, not a component of the distance: standing 2 below the
             // platform is 2 units of error in a radius but the whole fight in reach, because the
             // head hovers ABOVE the fountain and every block down is a block of reach spent.
@@ -1928,7 +1935,7 @@ public final class JourneyEndRungs {
             // the retry differs from the attempt it repeats by more than its serial number.
             if (rig.lostTheWorld() != null) { then.run(); return; }
             if (me.getY() < podium.getY() - 2) {
-                rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig), true), DUEL_MARCH_TICKS / 3,
+                rig.settle(JourneyTasks.tower(podium.getY(), pillarBlock(rig), true), DUEL_MARCH_TICKS / 3,
                         () -> {
                     rig.evidence("duel.march." + left + ".tower", "pillar up to the podium height y="
                             + podium.getY() + " first → feet at y=" + rig.player().blockPosition().getY()
@@ -1996,8 +2003,8 @@ public final class JourneyEndRungs {
                 + " (DuelTheDragon does not move, so this cell is where the whole fight takes place)");
         rig.attempting("wait at the centre until the dragon is within reach, then hit the head (the"
                 + " head takes full damage, every other part divides it by four)");
-        DuelTheDragon fight = new DuelTheDragon(DUEL_TICKS, MELEE_REACH);
-        rig.settle(fight, DUEL_TICKS + 200, () -> {
+        JourneyDuel.DuelTheDragon fight = new JourneyDuel.DuelTheDragon(DUEL_TICKS, MELEE_REACH);
+        fight(rig, JourneyDuel.DuelTheDragon.KIND, fight, DUEL_TICKS + 200, () -> {
             EnderDragon still = nearestDragon(end, rig.player().position());
             // `still == null` is NOT death. nearestDragon is a box search around the bot over the
             // LOADED entity index, and this rung's own failure path carries a paragraph about exactly
@@ -2328,333 +2335,70 @@ public final class JourneyEndRungs {
     }
 
     // =====================================================================================
-    // Two processes this file needs and the engine does not have.
+    // Running the two fights the engine does not have (JourneyDuel).
     // =====================================================================================
 
     /**
-     * Stand still and hit one thing, at vanilla's own tempo, only when it is genuinely in reach.
+     * Run {@code step} until it says the fight is over or {@code ticks} run out, then {@code then}.
      *
-     * <p>The reach test is the reason this exists rather than a bare {@code attackEntity} call.
-     * {@code Player.attack} checks no distance, so a script could shatter a crystal forty blocks
-     * overhead; gating on {@link #MELEE_REACH} is what makes the climb above it load-bearing. The
-     * twenty-tick cadence is {@code LivingEntity.invulnerableTime} — swinging faster does not do more
-     * damage, it does less, and it also charges the attack-strength meter for free.
+     * <p>A roster bot is driven from the scene each tick through its {@link JourneyDuel#arms verb arms}. self
+     * gets the step as its own client task, as these fights always ran there: <b>a reach left in place</b> —
+     * no verb runs a scene's per-tick fight on self, and its hands are its client body's. See
+     * {@link JourneyRig#runOnSelf}.
      */
-    private static final class SwingAt implements BotProcess {
-
-        private final Entity target;
-        private final int maxTicks;
-        private final double reach;
-        private int elapsed;
-        private int sinceSwing = SWING_EVERY;
-        private int swings;
-        private int refused;
-        private String refusal;
-        private double closest = Double.MAX_VALUE;
-
-        SwingAt(Entity target, int maxTicks, double reach) {
-            this.target = target;
-            this.maxTicks = maxTicks;
-            this.reach = reach;
-        }
-
-        @Override public String kind() { return "journeySwingAt"; }
-        @Override public String failure() { return null; }
-
-        @Override public void attach(BotState st) { }
-
-        @Override
-        public boolean tick(Body a, WorldView w, BotState st) {
-            a.commandMove(0, 0);
-            a.commandJump(false);
-            Attack h = a.attack().orElse(null);
-            BlockInteraction b = a.blockInteraction().orElse(null);
-            LivingEntity p = a.entity();
-            if (p == null || h == null || b == null || !target.isAlive()) return true;
-            b.breakHold(false);
-            double d = p.distanceTo(target);
-            if (d < closest) closest = d;
-            sinceSwing++;
-            if (d <= reach && sinceSwing >= SWING_EVERY) {
-                h.attackEntity(target);
-                sinceSwing = 0;
-                // A swing the driver DECLINED is not a swing. Rung 20 broke because a crystal took
-                // the cage lid out from under the bot, and BlastFooting now refuses that hit — so
-                // this loop can legitimately run its whole budget without the sword ever moving,
-                // and "60 swings, crystal still alive" would describe that as a damage problem. Count what
-                // happened, and carry the reason out: a refusal nobody prints is the silent failure
-                // this rung has already been bitten by.
-                String why = h.lastAttackRefusal();
-                if (why != null) { refused++; if (refusal == null) refusal = why; }
-                else swings++;
-            }
-            return ++elapsed >= maxTicks;
-        }
-
-        int swings() { return swings; }
-
-        int refused() { return refused; }
-
-        /** Why the driver declined the first refused swing, or {@code null} if it never declined. */
-        String refusal() { return refusal; }
-
-        double closest() { return closest == Double.MAX_VALUE ? -1 : closest; }
+    private static void fight(JourneyRig rig, String kind, JourneyDuel.Step step, int ticks, Runnable then) {
+        SceneBot bot = rig.serverBotOrNull();
+        if (bot == null) { rig.runOnSelf(onSelf(kind, step), ticks, then); return; }
+        JourneyDuel.Arms arms = JourneyDuel.arms(bot);
+        rig.runEachTick(kind, () -> step.tick(rig.player(), arms), ticks, then);
     }
+
+    /** Why a swing at {@code target} would be refused for the blast (null when it would not be), and the stands
+     *  around the bot where it would not be. */
+    private record Blast(String refusal, List<BlockPos> stands) {}
 
     /**
-     * Hold the middle of the arena and hit the dragon whenever a part of it comes within reach.
-     *
-     * <p>Aims at the HEAD by preference and settles for whatever else is close, because the head
-     * takes a hit undivided and every other part takes a quarter of it plus one — a loop that is
-     * only ever clipping a wing is winning four times slower than its swing count suggests, and
-     * {@code duel.swings} beside {@code headHits} is what says which happened.
-     *
-     * <p>It does not chase. A flying dragon cannot be caught by a walking player, and the fight
-     * vanilla designs is one of waiting: the boss perches on the fountain, lowers its head, and that is the
-     * window. Steering during that window is worse than standing still, which is why every input is
-     * released on every tick — the same reason {@link HoldStill} exists.
+     * {@link Blast} for the run's bot: a roster bot's through {@code mc.debug.body}'s {@code blastFrom}. self has
+     * no such reading — {@code mc.debug.body} reads server-side bots — so self's is still the footing guard's
+     * own functions over the server's copy of the player, a reach left in place.
      */
-    private static final class DuelTheDragon implements BotProcess {
-
-        private final int maxTicks;
-        private final double reach;
-        private int elapsed;
-        private int sinceSwing = SWING_EVERY;
-        private int swings;
-        private int headHits;
-        private double closest = Double.MAX_VALUE;
-        private int outOfReach;
-        private int arrows;
-        private int ammoBefore = -1;
-        private int drawTicks;
-        private boolean bowBroken;
-        private String bowError;
-        private int bowTicks;   // ticks the ranged branch actually ran
-        private int arrowsAtLastReach;
-        private boolean gaveUp;
-        /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
-         *  a bot standing still — and guessing between them has already cost a round. */
-        private String why = "still fighting";
-        private String closestPart = "none";
-
-        DuelTheDragon(int maxTicks, double reach) {
-            this.maxTicks = maxTicks;
-            this.reach = reach;
+    private static Blast blastFor(JourneyRig rig, Entity target) {
+        SceneBot bot = rig.serverBotOrNull();
+        if (bot == null) {
+            Player p = rig.player();
+            return new Blast(BlastFooting.refuseSwing(p, target),
+                    BlastFooting.qualifyingStands(p.level(), p.blockPosition(), BlastFooting.needFor(target)));
         }
-
-        @Override public String kind() { return "journeyDragonDuel"; }
-        @Override public String failure() { return null; }
-
-        @Override public void attach(BotState st) { }
-
-        @Override
-        public boolean tick(Body a, WorldView w, BotState st) {
-            a.commandMove(0, 0);
-            a.commandJump(false);
-            Attack h = a.attack().orElse(null);
-            Equipment eq = a.equipment().orElse(null);
-            BlockInteraction b = a.blockInteraction().orElse(null);
-            Player p = a.asPlayer();
-            if (p == null || h == null || eq == null || b == null) {
-                why = "the bot's player entity is gone (a.asPlayer()==null or no hands)"; return true;
-            }
-            b.breakHold(false);
-            EnderDragon dragon = nearestDragon(p.level(), p.position());
-            if (dragon != null && dragon.isDeadOrDying()) { why = "the dragon is dying"; return true; }
-            if (dragon == null) {
-                // "Not in the search box" does not mean dead — this file's own death criterion says
-                // exactly that, and the fight loop has to apply it too: a dragon that merely flew
-                // past the search box would otherwise end the duel as if it were finished. Measured:
-                // 5 swings, 5 of them on the head, then the dragon crossed to -66,87,26 and the fight
-                // stopped there with the bot standing on the fountain doing nothing wrong. A circling
-                // dragon leaving and returning is the NORMAL shape of this fight; only death or the
-                // budget ends it.
-                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
-                    gaveUp = true;
-                    why = "gave up: no dragon in the search box for " + outOfReach + " consecutive ticks";
-                    return true;
-                }
-                if (++elapsed >= maxTicks) { why = "budget exhausted (" + maxTicks + " ticks)"; return true; }
-                return false;
-            }
-
-            Entity head = null;
-            Entity nearest = null;
-            String nearestName = "none";
-            float headAway = Float.MAX_VALUE;
-            float nearestAway = Float.MAX_VALUE;
-            for (var part : dragon.getSubEntities()) {
-                float d = p.distanceTo(part);
-                if ("head".equals(part.name)) { head = part; headAway = d; }
-                if (d < nearestAway) { nearestAway = d; nearest = part; nearestName = part.name; }
-            }
-            if (nearestAway < closest) { closest = nearestAway; closestPart = nearestName; }
-
-            sinceSwing++;
-            Entity aim = head != null && headAway <= reach ? head
-                    : nearestAway <= reach ? nearest : null;
-            if (aim != null && sinceSwing >= SWING_EVERY) {
-                if (p.isUsingItem()) eq.commandUseItem(false);   // drop the draw, this is melee now
-                holdSword(p);
-                h.attackEntity(aim);
-                sinceSwing = 0;
-                swings++;
-                if (aim == head) headHits++;
-            }
-            // Out of melee reach is the NORMAL state of this fight, not a lull: a dragon only
-            // brings its head down when it perches, and hits on any other part are quartered by
-            // vanilla (measured: 1 body hit took 200.0 -> 198.8). So the circling phase is where a
-            // bow earns the fight, and the engine has had the draw all along — CombatProcess.
-            // rangedTick draws for BOW_FULL_DRAW ticks and releases on the up-edge. This is the
-            // same mechanism, aimed at the head rather than at whatever part is nearest: an arrow
-            // into the dragon's body is worth a quarter of one into the head, and the dragon presents its
-            // body far more often.
-            // A process that throws dies silently: the driver marks it finished and the rig's settle
-            // returns as if it had completed, so the evidence row still reads "still fighting" while the
-            // fight has in fact stopped. That is exactly what 14594 ticks of a 200000-tick budget
-            // looked like. Name it instead of letting it read as a healthy fight that ran out.
-            try {
-            if (aim == null && head != null && holdBow(p)) {
-                aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
-                // Vanilla's own draw, on vanilla's own counter. getTicksUsingItem() is not frozen for
-                // this bot: the server-side player runs LivingEntity.tick, whose updatingUsingItem()
-                // advances the timer exactly as it does for a real player. Counting ticks and calling
-                // releaseUsing by hand would route around a defect that does not exist — and a test
-                // that drives an engine path by hand stops testing it, which is the worst possible
-                // trade for a rung whose whole job is to exercise the engine. The two real causes of
-                // "0 arrows shot" were the HAND (the bow sat in the bag) and the SEARCH BOX (128 was
-                // narrower than the arena the dragon flies in).
-                bowTicks++;
-                if (bowBroken) { /* one failure is enough; melee still works */ }
-                else {
-                drawTicks = p.isUsingItem() ? p.getTicksUsingItem() : 0;
-                if (drawTicks >= BOW_FULL_DRAW) {
-                    eq.commandUseItem(false);              // up-edge = release = shoot
-                    // Count AMMO, not releases. The first cut incremented here and reported 9516
-                    // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
-                    // called every cycle, so the counter went on climbing while nothing was fired.
-                    // A number that keeps rising after the thing it counts has stopped happening is
-                    // worse than no number.
-                    int now = p.getInventory().countItem(net.minecraft.world.item.Items.ARROW);
-                    if (ammoBefore < 0) ammoBefore = now;
-                    if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
-                } else if (p.isUsingItem()) {
-                    eq.commandUseItem(true);               // already drawing: keep holding
-                } else {
-                    // RE-ARM. commandUseItem is edge-triggered on the avatar's own useHeld flag, so
-                    // once vanilla stops the use by itself — which the melee branch's release does
-                    // every time the dragon comes into reach — isUsingItem() goes false while
-                    // useHeld stays true, and every later commandUseItem(true) is a no-op. The draw
-                    // is then dead for the rest of the fight. Measured: "ranged branch entered for
-                    // 21982 ticks, draw count 7, arrows in stock 256" — it reached 7, was stopped
-                    // once, and never drew again in the remaining 21975 ticks. The down-edge resets
-                    // the flag; the up-edge starts a real draw.
-                    // The down-edge is safe here and does NOT waste an arrow: we only reach this
-                    // branch when isUsingItem() is false, i.e. useItem is already EMPTY, and
-                    // releaseUsingItem() skips the fire on an empty stack and just resets.
-                    eq.commandUseItem(false);
-                    eq.commandUseItem(true);
-                }
-                }
-            }
-            } catch (RuntimeException e) {
-                // Its OWN key. Writing this into `why` would let the later give-up message overwrite
-                // it, so an exception on tick 30 vanished behind "gave up" on tick 21102 — one key, two
-                // writers, last one wins, and the first write was the interesting one.
-                bowError = String.valueOf(e);
-                bowBroken = true;
-            }
-            // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
-            // so this ends a duel the bot is not in, not a fight with lulls. An arrow in flight
-            // counts as being in the fight — giving up while landing hits would report "not in
-            // position" about a bot that is winning.
-            if (aim == null && arrows == arrowsAtLastReach) {
-                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
-                    gaveUp = true;
-                    why = "gave up: out of reach for " + outOfReach + " consecutive ticks";
-                    return true;
-                }
-            } else {
-                outOfReach = 0;
-                arrowsAtLastReach = arrows;
-            }
-            if (++elapsed >= maxTicks) { why = "budget exhausted (" + maxTicks + " ticks)"; return true; }
-            return false;
-        }
-
-        int swings() { return swings; }
-
-        /** True when it stopped because the dragon never came within reach, not because time ran
-         *  out — the two look identical from the outside and mean different things. */
-        boolean gaveUp() { return gaveUp; }
-
-        String why() { return why; }
-
-        /** Everything about the ranged half, as one row. Five runs reported "0 arrows shot" and each
-         *  time the cause was somewhere else entirely — wrong hand, a suspected frozen use-timer, a
-         *  search box narrower than the arena. A count of zero says nothing about which. */
-        String bowRow(Player p) {
-            return "ranged branch entered for " + bowTicks + " ticks, draw count " + drawTicks
-                    + ", arrows in stock " + (p == null ? -1
-                        : p.getInventory().countItem(net.minecraft.world.item.Items.ARROW))
-                    + ", main hand=" + (p == null ? "?" : p.getMainHandItem().getItem())
-                    + (bowError == null ? "" : ", exception=" + bowError);
-        }
-
-        int arrows() { return arrows; }
-
-        int elapsedTicks() { return elapsed; }
-
-        /** Vanilla's own full-draw window: 20 ticks of use is maximum power. */
-        private static final int BOW_FULL_DRAW = 20;
-
-        /** Put the wanted item in the main hand, swapping up from the bag if need be, or say it is
-         *  not carried. Reading the main hand alone was worth exactly zero arrows: the bot walks
-         *  this rung holding a sword or a stack of cobblestone, so a draw gated on "bow in hand" never
-         *  ran once in a whole fight while 256 arrows sat in the bag. Owning is not holding —
-         *  the same shape that cost this rung its buckets. */
-        private static boolean select(Player p, java.util.function.Predicate<ItemStack> want) {
-            var inv = p.getInventory();
-            if (want.test(p.getMainHandItem())) return true;
-            for (int i = 0; i < 9; i++)
-                if (want.test(inv.items.get(i))) { inv.selected = i; return true; }
-            for (int i = 9; i < inv.items.size(); i++) {
-                if (!want.test(inv.items.get(i))) continue;
-                ItemStack bag = inv.items.get(i);
-                inv.items.set(i, inv.items.get(inv.selected));
-                inv.items.set(inv.selected, bag);
-                return true;
-            }
-            return false;
-        }
-
-        private static boolean holdBow(Player p) {
-            return select(p, st -> st.getItem() instanceof net.minecraft.world.item.BowItem);
-        }
-
-        /** A bow in the main hand melees for 1. Swinging without this swap turns every perch —
-         *  the only window vanilla gives full damage — into a wasted one. */
-        private static void holdSword(Player p) {
-            select(p, st -> st.getItem() instanceof net.minecraft.world.item.SwordItem);
-        }
-
-        private static void aimAtPart(Player p, Entity part, double lead) {
-            double dx = part.getX() - p.getX();
-            double dy = (part.getY() + part.getBbHeight() * 0.5 + lead) - (p.getY() + p.getEyeHeight());
-            double dz = part.getZ() - p.getZ();
-            double flat = Math.sqrt(dx * dx + dz * dz);
-            p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-            p.setXRot((float) -Math.toDegrees(Math.atan2(dy, flat)));
-            p.yHeadRot = p.getYRot();
-            p.yBodyRot = p.getYRot();
-        }
-
-        int headHits() { return headHits; }
-
-        double closest() { return closest == Double.MAX_VALUE ? -1 : closest; }
-
-        String closestPart() { return closestPart; }
+        var b = Calls.now(DebugApi.of(Calls.api()).body(new BotDebugContracts.BodyParams(bot.ref(),
+                Optional.empty(), Optional.of(target.getId())))).blast().orElseThrow();
+        List<BlockPos> stands = new ArrayList<>();
+        for (var c : b.stands()) stands.add(new BlockPos(c.x(), c.y(), c.z()));
+        return new Blast(b.refusal().orElse(null), stands);
     }
+
+    /** {@code step} as self's client task, its arms the client body's own. */
+    private static BotProcess onSelf(String kind, JourneyDuel.Step step) {
+        return new BotProcess() {
+            @Override public String kind() { return kind; }
+            @Override public String failure() { return null; }
+            @Override public void attach(BotState st) { }
+            @Override public boolean tick(Body a, WorldView w, BotState st) { return step.tick(a.asPlayer(), armsOf(a)); }
+        };
+    }
+
+    /** A client body's arms, or null when it has no hands. */
+    private static JourneyDuel.Arms armsOf(Body a) {
+        Attack h = a.attack().orElse(null);
+        Equipment eq = a.equipment().orElse(null);
+        BlockInteraction b = a.blockInteraction().orElse(null);
+        if (h == null || eq == null || b == null) return null;
+        return new JourneyDuel.Arms() {
+            @Override public String attack(Entity target) { h.attackEntity(target); return h.lastAttackRefusal(); }
+            @Override public void useKey(boolean down) { eq.commandUseItem(down); }
+            @Override public void standStill() { a.commandMove(0, 0); a.commandJump(false); b.breakHold(false); }
+        };
+    }
+
 
     // =====================================================================================
     // Reading the world.
@@ -2781,7 +2525,7 @@ public final class JourneyEndRungs {
         return best;
     }
 
-    private static EnderDragon nearestDragon(Level level, Vec3 from) {
+    static EnderDragon nearestDragon(Level level, Vec3 from) {
         EnderDragon best = null;
         double bestD = Double.MAX_VALUE;
         for (EnderDragon d : level.getEntitiesOfClass(EnderDragon.class, boxAround(from, DRAGON_SEARCH))) {
@@ -2848,7 +2592,7 @@ public final class JourneyEndRungs {
         // is a no-op that still costs an attempt, and three of those in a row is how a shaft with
         // budget for four blocks runs out after one.
         if (!level.getBlockState(below).blocksMotion()) {
-            rig.settle(new HoldStill(40), 60, () -> digDownTo(ctx, rig, targetY, budget - 1, cap, then));
+            rig.hold(40, 60, () -> digDownTo(ctx, rig, targetY, budget - 1, cap, then));
             return;
         }
         rig.mineCellOrGiveUp(below, 600, () -> {
@@ -2858,7 +2602,7 @@ public final class JourneyEndRungs {
             // is ticking it, and the single-block mine ends on the tick the block turns to air —
             // one avatar step, a tenth of a block of gravity. HoldStill is the settle that does not
             // steer; every process that DOES steer walks the bot off its own hole.
-            rig.settle(new HoldStill(40), 60,
+            rig.hold(40, 60,
                     () -> digDownTo(ctx, rig, targetY, budget - 1, cap, then));
         });
     }
@@ -2934,7 +2678,7 @@ public final class JourneyEndRungs {
     // had drifted apart, and the rungs that fight FIRST (FOOD, BED) could reach neither.
 
     private static Item itemOf(String id) {
-        return RegistryIds.lookup(BuiltInRegistries.ITEM, id).orElseThrow(() -> new IllegalArgumentException("no item " + id));
+        return JourneyRig.lookup(BuiltInRegistries.ITEM, id).orElseThrow(() -> new IllegalArgumentException("no item " + id));
     }
 
     private static String heldItem(JourneyRig rig) {

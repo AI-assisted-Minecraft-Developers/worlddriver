@@ -3,12 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -447,8 +442,7 @@ final class JourneyStairs {
         // hands, so a repair aimed from the far end of the flight is a repair the ladder has not
         // earned — and the walk is short by construction, because the step below the break is
         // itself a step and the goal is satisfied from there.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(f.step(), 2), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 400, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.near(f.step(), 2), JourneyTasks.NO_BREAK), 400, () -> {
             BlockPos body = rig.player().blockPosition();
             // ARM'S LENGTH OR NOTHING. `placeOn` goes straight to `gameMode.useItemOn`, which has
             // no reach gate on this avatar — so without this a mend the bot could not walk to
@@ -522,12 +516,12 @@ final class JourneyStairs {
     /** Click the block into {@code cell} against whichever neighbour is solid. The return value is
      *  read off the WORLD, because a placement can be refused for reasons the caller cannot see. */
     static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
-        return placeInto(level, rig.blocks(), cell);
+        return placeInto(level, JourneyHands.placer(rig), cell);
     }
 
     /**
-     * The same, against the {@link BlockInteraction} alone. Split out so {@link JourneyRamp#layWhereItStands}
-     * can be driven by a scene: a rig is a scene's problem to host, an avatar is not, and this
+     * The same, against a {@link JourneyHands.Placer} alone. Split out so {@link JourneyRamp#layWhereItStands}
+     * can be driven by a scene: a rig is a scene's problem to host, a bot is not, and this
      * method never wanted anything else off it.
      *
      * <h2>Why this takes a {@code level} instead of using the driver's own view</h2>
@@ -539,19 +533,21 @@ final class JourneyStairs {
      * coordinates, silently. Asking the level the bot is actually standing in is what keeps a
      * caller from inheriting the pathfinder's problem.
      *
-     * <p>Goes through {@code placeOn} → {@code gameMode.useItemOn}, which is the path a right click
-     * takes: the item is consumed out of the real inventory and the block lands with its real
-     * neighbour updates. Nothing here is a {@code setBlock}.
+     * <p>Goes through {@code mc.bot.useItem} on the face → {@code gameMode.useItemOn}, which is the path a
+     * right click takes: the item is consumed out of the real inventory and the block lands with its real
+     * neighbour updates. Nothing here is a {@code setBlock}. Unlike the body's {@code placeOn} it replaced,
+     * the verb clicks with what is held and does not first reach for any placeable block — every caller
+     * holds the block it means before calling — and it refuses a face beyond reach.
      *
      * <p>The nether rung's blaze-room builder used to carry a byte-identical private copy of this
      * (its {@code placeAt}), together with the paragraph above. One copy, one place for the next
      * person to read that warning.
      */
-    static boolean placeInto(ServerLevel level, BlockInteraction av, BlockPos cell) {
+    static boolean placeInto(ServerLevel level, JourneyHands.Placer av, BlockPos cell) {
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (!level.getBlockState(against).blocksMotion()) continue;
-            av.placeOn(against, d.getOpposite());
+            av.clickOn(against, d.getOpposite());
             if (level.getBlockState(cell).blocksMotion()) return true;
         }
         return false;

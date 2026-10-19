@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 
 /**
  * The EXECUTOR's side of a rung, as a delta against the rig that owns it — the counterpart to
@@ -18,35 +21,40 @@ import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
  * <p>Naming WHICH refuser needs the executor's own counters, and every existing home for them
  * missed that rung. {@code death.strideGuard} writes only when the bot dies;
  * {@code body.leftTheWorld} only when it falls out of the world; {@link JourneyFlight}'s per-walk
- * deltas only on the {@code walkToColumn} path — while rung 6 hands an {@code IntentProcess} to
- * {@code drive} and ends in TIMEOUT. That intersection — driven directly, timed out, still
- * standing — had no executor-side row at all, so a rung could be pinned for its entire budget
- * and the ledger could say nothing about who pinned it.
+ * deltas only on the {@code walkToColumn} path — while rung 6 hands a walk to {@code drive} and
+ * ends in TIMEOUT. That intersection — driven directly, timed out, still standing — had no
+ * executor-side row at all, so a rung could be pinned for its entire budget and the ledger could
+ * say nothing about who pinned it.
  *
  * <p><b>Why a delta and why the snapshot is taken at construction.</b> The counters belong to
  * the run's bot and every rung of a run shares them, so a cumulative reading on rung 9 is
  * rungs 1–9 added together and no rung's row can be read alone. One rig per rung makes the rig's
  * birth the right baseline — the same reasoning, and the same instant, as {@code futileAtStart}.
- * A NEGATIVE number here would mean the baseline was taken after the ticks it is subtracting,
- * i.e. the instrument is broken and the row is not a reading.
+ * On self the first reading lands a tick or two later, so the baseline is the first one that does
+ * ({@link #baselineIfMissing}). A NEGATIVE number here would mean the baseline was taken after the
+ * ticks it is subtracting, i.e. the instrument is broken and the row is not a reading.
  *
- * <p><b>Nothing here branches on anything.</b> These counters are write-only breadcrumbs and
- * their own docs require that; this class only says what they hold.
+ * <p>Read through {@code mc.debug.navigator}, whose counters carry these by name. <b>Nothing here
+ * branches on anything</b>; this class only says what the counters hold.
  */
 final class NavigatorCensus {
 
-    /** The counters this row reports, read at one instant; all zero before the run has a bot. */
-    private record Counts(int fires, long[] skips, int repaths, int keptPlans, int pinnedNoPlan) {
+    /** The counters this row reports, read at one instant; null before the run has a reading. */
+    private record Counts(long fires, Map<String, Long> skips, long repaths, long keptPlans, long pinnedNoPlan) {
         static Counts now() {
-            NavigatorTelemetry t = JourneyRig.navigatorTelemetry();
-            long[] skips = new long[NavigatorTelemetry.STRIDE_SKIP_REASONS.length];
-            if (t == null) return new Counts(0, skips, 0, 0, 0);
-            for (int i = 0; i < skips.length; i++) skips[i] = t.strideGuardSkips.get(i);
-            return new Counts(t.strideGuardFires, skips, t.guardForcedRepaths, t.guardKeptPlans, t.guardPinnedWithNoPlan);
+            BotDebugContracts.NavigatorReading t = JourneyRig.navigatorOrNull();
+            if (t == null) return null;
+            return new Counts(t.counter("strideGuardFires"), JourneyRig.countersUnder(t, JourneyRig.STRIDE_SKIPS),
+                    t.counter("guardForcedRepaths"), t.counter("guardKeptPlans"), t.counter("guardPinnedWithNoPlan"));
         }
     }
 
-    private final Counts atStart = Counts.now();
+    private Counts atStart = Counts.now();
+
+    /** Take the baseline from the first reading there is, when the rig's birth had none. */
+    void baselineIfMissing() {
+        if (atStart == null) atStart = Counts.now();
+    }
 
     /**
      * One line naming who did and did not refuse to move the bot on this rung.
@@ -66,28 +74,30 @@ final class NavigatorCensus {
      */
     String line() {
         Counts now = Counts.now();
-        NavigatorTelemetry t = JourneyRig.navigatorTelemetry();
+        if (now == null) return "no navigator reading yet (no bot, or self's navigator answers on the client thread and none had landed)";
+        Counts base = atStart != null ? atStart : now;
         long skipSum = 0;
-        StringBuilder sb = new StringBuilder();
-        String[] names = NavigatorTelemetry.STRIDE_SKIP_REASONS;
-        for (int i = 0; i < names.length; i++) {
-            long v = now.skips()[i] - atStart.skips()[i];
+        Map<String, Long> skips = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> e : now.skips().entrySet()) {
+            long v = e.getValue() - base.skips().getOrDefault(e.getKey(), 0L);
+            skips.put(e.getKey(), v);
             skipSum += v;
-            sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
-        int fires = now.fires() - atStart.fires();
+        StringBuilder sb = new StringBuilder();
+        skips.forEach((k, v) -> sb.append(sb.isEmpty() ? "" : ", ").append(k).append('=').append(v));
+        long fires = now.fires() - base.fires();
         return "stride guard on this rung: fired " + fires + " times, let " + skipSum + " ticks pass"
                 + (fires + skipSum == 0
                         ? " (total 0: the guard was never called on this rung, so it is not what held"
                           + " the bot in place; the other two refusers, the footing guard and the"
                           + " unstick hop, have no readings yet)"
                         : ", pass reasons: " + sb)
-                + "; forced repaths " + (now.repaths() - atStart.repaths())
+                + "; forced repaths " + (now.repaths() - base.repaths())
                 + ", pinned at the limit with the plan still advancing "
-                + (now.keptPlans() - atStart.keptPlans())
-                + ", pinned at the limit with no plan " + (now.pinnedNoPlan() - atStart.pinnedNoPlan())
+                + (now.keptPlans() - base.keptPlans())
+                + ", pinned at the limit with no plan " + (now.pinnedNoPlan() - base.pinnedNoPlan())
                 + "; navigator's last tick (shared across the whole playthrough; when this rung is not"
-                + " ticking it is another rung's)=" + (t == null ? "no bot yet" : t.lastTickTrace)
-                + "; last tick with support underfoot=" + (t == null ? "no bot yet" : t.lastSupportedTrace);
+                + " ticking it is another rung's)=" + JourneyRig.navigatorTrace("lastTickTrace")
+                + "; last tick with support underfoot=" + JourneyRig.navigatorTrace("lastSupportedTrace");
     }
 }

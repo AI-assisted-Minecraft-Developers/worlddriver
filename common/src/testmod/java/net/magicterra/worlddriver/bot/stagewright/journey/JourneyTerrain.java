@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -456,15 +455,13 @@ public final class JourneyTerrain {
      * {@code (2r+1)² × rise} cells per search, milliseconds on the server thread, against a walk that
      * costs the run.
      *
-     * <p>Returns an empty list — not a modifier that always answers zero — when the pool has no rim,
-     * so a search with nothing to avoid is handed nothing to ask.
+     * <p>Adds no region — not one that always answers zero — when the pool has no rim, so a search
+     * with nothing to avoid is handed nothing to ask.
      */
     public static RimTax avoidTheRim(ServerLevel level, BlockPos lava) {
-        if (lava == null) return new RimTax(List.of(), 0, "no lake coordinate, so this walk is not taxed");
+        if (lava == null) return new RimTax(java.util.Set.of(), 0, "no lake coordinate, so this walk is not taxed");
         java.util.Set<BlockPos> rim = poolsLipCells(level, lava, LIP_TAX_RADIUS, LIP_TAX_RISE);
-        List<CostModifier> bias = rim.isEmpty() ? List.of()
-                : List.of((from, to, edge, goal, world) -> rim.contains(to) ? LIP_TAX : 0.0);
-        return new RimTax(bias, rim.size(), rim.size() + " rim cells, each step onto one costs an extra "
+        return new RimTax(rim, rim.size(), rim.size() + " rim cells, each step onto one costs an extra "
                 + (int) LIP_TAX + " (a plain walk step is 10, so a detour of up to " + (int) (LIP_TAX / 10)
                 + " blocks is cheaper than stepping on it); radius "
                 + LIP_TAX_RADIUS + ", y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE));
@@ -479,7 +476,43 @@ public final class JourneyTerrain {
      * that shows it. A row that reads 613 → 641 → 688 across one rung's returns is the recompute
      * earning its keep; one that never moves says the snapshot would have done.
      */
-    public record RimTax(List<CostModifier> bias, int cells, String story) {}
+    public record RimTax(java.util.Set<BlockPos> rim, int cells, String story) {
+        /**
+         * {@code route} with the rim priced: each rim cell an avoided cell at {@link #LIP_TAX}, which is the
+         * search's {@code AvoidRegion} over a cell set — charged in full when a step lands on one, as the old
+         * hand-written modifier was. Sent in slices of {@link #CELLS_PER_REGION}, the most one region carries;
+         * the slices are disjoint, so a cell is charged once.
+         */
+        public net.magicterra.worlddriver.bot.stagewright.Routes onto(net.magicterra.worlddriver.bot.stagewright.Routes route) {
+            List<BlockPos> all = new ArrayList<>(rim);
+            for (int i = 0; i < all.size(); i += CELLS_PER_REGION) {
+                route = route.avoidCells(all.subList(i, Math.min(all.size(), i + CELLS_PER_REGION)), LIP_TAX);
+            }
+            return route;
+        }
+
+        /** {@link #onto} a plain route. */
+        public net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route route() {
+            return onto(net.magicterra.worlddriver.bot.stagewright.Routes.plain()).build();
+        }
+    }
+
+    /** The most cells one {@code route.regions} entry may list. */
+    private static final int CELLS_PER_REGION = 4096;
+
+    /**
+     * {@code route} with every cell above feet height {@code ceiling} charged a flat {@code tax}: an avoided box
+     * from {@code ceiling + 1} up, spanning the world's horizontal extent, which charges a step that lands inside
+     * it in full — the same price as a {@code to.getY() > ceiling ? tax : 0} modifier.
+     */
+    static net.magicterra.worlddriver.bot.stagewright.Routes taxAbove(
+            net.magicterra.worlddriver.bot.stagewright.Routes route, int ceiling, double tax) {
+        return route.avoidBox(new BlockPos(-WORLD_EDGE, ceiling + 1, -WORLD_EDGE),
+                new BlockPos(WORLD_EDGE, BUILD_TOP, WORLD_EDGE), tax);
+    }
+
+    private static final int WORLD_EDGE = 30_000_000;
+    private static final int BUILD_TOP = 4_096;
 
     /**
      * The nearest column within {@code r} whose surface is dry, or null.

@@ -10,19 +10,14 @@ import java.util.Map;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.magicterra.worlddriver.bot.rules.Capability;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.CostModifier;
-import net.magicterra.worlddriver.bot.rules.moves.DiagonalAscend;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
-import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.QuartPos;
@@ -294,8 +289,7 @@ public final class JourneyNetherRungs {
         // there when the plan was made — and only a reading taken at THIS instant can tell which.
         rig.evidence(leg + ".fire", JourneyFireCensus.line(rig.ctx().level(), at, want, FIRE_PAD));
         JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
+        rig.settle(JourneyTasks.goTo(Targets.near(want, WAYPOINT_ARRIVE_WITHIN), lipAndBandTax(ceiling).build()),
                 WAYPOINT_LEG_TICKS, flight, () -> {
             // A SEGMENT'S VERDICT IS TAKEN FROM A BOT AT REST. A segment once passed at off=1 with
             // both support cells air, in free fall, and handed the fall to the NEXT segment, which
@@ -456,8 +450,7 @@ public final class JourneyNetherRungs {
         // first is dated after the plan, which is family (b). See JourneyFireCensus.
         rig.evidence(leg + ".fireAgain", JourneyFireCensus.line(rig.ctx().level(), over, want, FIRE_PAD));
         JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
+        rig.settle(JourneyTasks.goTo(Targets.near(want, WAYPOINT_ARRIVE_WITHIN), lipAndBandTax(ceiling).build()),
                 DETOUR_REASK_TICKS, flight, () -> {
             // THE SAME SETTLE AS THE DIRECT SEGMENT, and for the same reason its comment gives: the
             // verdict, the distance and the next segment's starting position are readings of one bot
@@ -556,17 +549,17 @@ public final class JourneyNetherRungs {
     }
 
     /**
-     * The lip tax, built fresh for one walk.
+     * The lip tax, built fresh for one walk, on the crossing's no-parkour route: {@code route.ledge}, the
+     * search's own ledge tax — {@link #LIP_TAX} on every cell beside a drop deeper than {@link #LIP_DROP},
+     * the very test this walk's hand-written modifier made.
      *
      * <p>The threshold is read HERE, on the server thread, and handed to the search as a plain int —
-     * the lambda runs on the search thread, where the only legal thing to touch is the
-     * {@link WorldView} snapshot. Rung 12's version of this tax says so in as many words, and a
-     * lambda holding the live {@code Player} would be calling {@code getHealth()} off-thread on
+     * the search runs on its own thread, where the only legal thing to touch is the world snapshot. A
+     * modifier holding the live {@code Player} would be calling {@code getHealth()} off-thread on
      * every expanded node. Rebuilt per walk so the threshold follows the bot's health down.
      */
-    private static List<CostModifier> lipTax(JourneyRig rig) {
-        return List.of((from, to, edge, goal, world) ->
-                NavigatorGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0);
+    private static Routes lipTax(JourneyRig rig) {
+        return noParkour().ledge(LIP_DROP, LIP_TAX);
     }
 
     /**
@@ -608,14 +601,8 @@ public final class JourneyNetherRungs {
      * magnitude. Pre-registered: if the band-taxed arm still finishes above the band, the tax is not
      * the lever and this comes out again rather than being raised.
      */
-    private static List<CostModifier> lipAndBandTax(int ceiling) {
-        return List.of(
-                (from, to, edge, goal, world) ->
-                        NavigatorGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0,
-                (from, to, edge, goal, world) -> {
-                    int above = to.getY() - ceiling;
-                    return above > 0 ? above * BAND_TAX : 0.0;
-                });
+    private static Routes lipAndBandTax(int ceiling) {
+        return noParkour().ledge(LIP_DROP, LIP_TAX).yRange(null, ceiling, false, BAND_TAX);
     }
 
     /** Per block above a corridor segment's own Y band. See {@link #lipAndBandTax}. */
@@ -803,7 +790,7 @@ public final class JourneyNetherRungs {
         rig.evidence("spawner.spawns", spawnerMob(nether, spawner));
 
         rig.attempting("walk next to the spawner " + spawner.toShortString());
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(spawner, 2))), SPAWNER_APPROACH_TICKS, () -> {
+        rig.settle(JourneyTasks.goNear(spawner, 2), SPAWNER_APPROACH_TICKS, () -> {
             BlockPos stood = rig.player().blockPosition();
             double gap = Math.sqrt(stood.distSqr(spawner));
             rig.evidence("spawner.stoodAt", stood.toShortString()
@@ -913,7 +900,7 @@ public final class JourneyNetherRungs {
         // with is whatever the last approach or quarry walk left there, and a fight lost bare-handed
         // reads exactly like a fight lost to a broken combat loop.
         final String weapon = rig.holdBestWeapon();
-        rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, target.getId(), null));
+        rig.legStart(JourneyTasks.kill(target.getId()));
         double[] highest = {target.getY()};
         int[] waited = {0};
         rig.await(() -> {
@@ -983,7 +970,7 @@ public final class JourneyNetherRungs {
             return;
         }
         rig.attempting("break the spawner on leaving, or it fills the mob cap and the next rung has no endermen");
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(spawner, 3))), 900,
+        rig.settle(JourneyTasks.goNear(spawner, 3), 900,
                 () -> rig.mineBlock(spawner, 900, () -> {
                     var now = BuiltInRegistries.BLOCK.getKey(
                             rig.player().serverLevel().getBlockState(spawner).getBlock());
@@ -1482,7 +1469,7 @@ public final class JourneyNetherRungs {
         // Walk to it FIRST, then engage. CombatProcess scans 32 blocks and gives up in two ticks
         // when nothing matches, so handing it a target that is further away than that reads exactly
         // like a broken combat verb — the same trap the food rung's hunt had to learn.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(man.blockPosition(), 3))),
+        rig.settle(JourneyTasks.goNear(man.blockPosition(), 3),
                 ENDERMAN_APPROACH_TICKS, () -> {
             if (!man.isAlive()) {                      // it died to something else, or despawned
                 tally.append(tally.length() == 0 ? "" : ",").append("×gone on arrival");
@@ -1492,7 +1479,7 @@ public final class JourneyNetherRungs {
             // Re-held after the approach: the walk may have swapped a pickaxe into the hand — see
             // the same note on the blaze fight.
             final String weapon = rig.holdBestWeapon();
-            rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, man.getId(), null));
+            rig.legStart(JourneyTasks.kill(man.getId()));
             int[] waited = {0};
             rig.await(() -> !man.isAlive() || rig.legDone() || ++waited[0] >= ENDERMAN_FIGHT_TICKS,
                     ENDERMAN_FIGHT_TICKS + 100, () -> {
@@ -1604,31 +1591,46 @@ public final class JourneyNetherRungs {
      * established would cost a run and produce a worse sentence.
      */
     private static boolean theViewMatchesTheWorld(SceneContext ctx, JourneyRig rig) {
-        int off = worldViewDisagreements(rig);
+        SceneBot bot = rig.serverBotOrNull();
+        if (bot == null) {
+            // NOT CHECKED ON SELF. mc.debug.cells reads a server-side bot's view only, and self plans on the
+            // client's. The row this wrote before compared the server-side shadow of the real player, whose
+            // view no task of self's ever planned on, so it was never this check on self either.
+            rig.evidence("worldview.disagreements", "not read: self plans on the client's world view, which"
+                    + " mc.debug.cells does not read (it reads server-side bots only)");
+            return true;
+        }
+        int off = worldViewDisagreements(rig, bot);
         rig.evidence("worldview.disagreements", off + "/27 cells (3×3×3 around the bot, read two ways)");
         if (off == 0) return true;
         ctx.fail("the driver's pathfinding view is not the bot's world: " + off + " of the 27 cells around"
-                + " the bot differ between LevelWorldView and ServerLevel. PlayerBot builds one"
-                + " LevelWorldView from fakePlayer().level() in its constructor and never replaces it, and this"
-                + " bot was created in the overworld at the SPAWN rung — so past the portal every search reads"
+                + " the bot differ between the bot's world view (mc.debug.cells) and ServerLevel. A bot's view"
+                + " once was built from the level the bot was created in and never replaced, and this"
+                + " bot was created in the overworld at the SPAWN rung — so past the portal every search would read"
                 + " overworld blocks at Nether coordinates. The rest of this rung (spawner, room, fight) is"
                 + " written and runs once this is fixed");
         return false;
     }
 
-    /** How many of the 27 cells around the bot the two readings disagree about. */
-    private static int worldViewDisagreements(JourneyRig rig) {
+    /** How many of the 27 cells around the bot the two readings disagree about: the bot's own view through
+     *  {@code mc.debug.cells}, and the level. */
+    private static int worldViewDisagreements(JourneyRig rig, SceneBot bot) {
         ServerLevel level = rig.player().serverLevel();
-        var view = rig.body().world();
         BlockPos at = rig.player().blockPosition();
-        int off = 0;
+        List<CommonTypes.BlockPosition> cells = new java.util.ArrayList<>();
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    BlockPos c = at.offset(dx, dy, dz);
-                    if (view.isSolid(c) != level.getBlockState(c).blocksMotion()) off++;
+                    cells.add(Targets.pos(at.offset(dx, dy, dz)));
                 }
             }
+        }
+        var read = Calls.now(DebugApi.of(Calls.api()).cells(
+                new BotDebugContracts.CellsParams(Optional.of(bot.ref()), cells, Optional.empty())));
+        int off = 0;
+        for (BotDebugContracts.Cell c : read.cells()) {
+            BlockPos b = new BlockPos(c.pos().x(), c.pos().y(), c.pos().z());
+            if (c.solid() != level.getBlockState(b).blocksMotion()) off++;
         }
         return off;
     }
@@ -1963,8 +1965,7 @@ public final class JourneyNetherRungs {
      * lava, not about the driver: the approach to a spawner three blocks away has no chasm to leap
      * and no reason to lose a capability.
      */
-    private static final CapabilityProfile NO_PARKOUR =
-            new CapabilityProfile(EnumSet.of(Capability.PARKOUR));
+    private static Routes noParkour() { return Routes.plain().noParkour(); }
 
     /** What a crossing carries from hop to hop. A chain of continuations cannot keep locals. */
     private static final class Crossing {
@@ -2029,8 +2030,7 @@ public final class JourneyNetherRungs {
         // own thread only ever does a hash lookup against an immutable set"), and a lambda holding
         // the live Player would be calling getHealth() off-thread on every expanded node. Re-read
         // each hop so the threshold follows the bot's health down.
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance),
-                        lipTax(rig), NO_PARKOUR, List.of())), hopTicks,
+        rig.settle(JourneyTasks.goTo(Targets.column(wx, wz, hopTolerance), lipTax(rig).build()), hopTicks,
                 flight, () -> settleToGround(rig, what, hop, () -> {
             BlockPos at = rig.player().blockPosition();
             double left = Math.hypot(x - at.getX(), z - at.getZ());
@@ -2074,7 +2074,7 @@ public final class JourneyNetherRungs {
                 c.why = "stopped after hop " + hop + ": " + hazard + " — another hop would get the same"
                         + " answer; the bot must first be got out of here, which is a separate problem";
                 rig.evidence(what + ".flight." + hop, flight.report());
-                rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
+                rig.evidence(what + ".around." + hop, surroundings(rig.player(), at, sole(rig)));
                 recordCrossing(rig, what, c, left, false);
                 onStuck.run();
                 return;
@@ -2114,7 +2114,7 @@ public final class JourneyNetherRungs {
             // of 2026-08-20 spent eight of its ten wedged hops in exactly that state and could not
             // be told from a search that ran and lost.
             rig.evidence(what + ".goto." + hop, JourneyLeg.navigatorEnd(rig));
-            rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
+            rig.evidence(what + ".around." + hop, surroundings(rig.player(), at, sole(rig)));
             if (c.wedged >= MAX_WEDGED_HOPS) {
                 // Says NOTHING about whether the bot moved — it may have walked 200 blocks. What it
                 // says is that four hops in a row failed to get the crossing closer than its own
@@ -2165,9 +2165,9 @@ public final class JourneyNetherRungs {
         if (!falling && !nothingUnderfoot(fp)) { then.run(); return; }
         rig.evidence(what + ".landing." + hop, "when this hop ended the bot was "
                 + (falling ? "still falling" : "unsupported (not yet fast enough to count as falling)")
-                + " (" + surroundings(fp, fp.blockPosition()) + ") — allowing " + LANDING_TICKS
+                + " (" + surroundings(fp, fp.blockPosition(), sole(rig)) + ") — allowing " + LANDING_TICKS
                 + " ticks to land before judging");
-        rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
+        rig.hold(LANDING_TICKS, LANDING_TICKS + 4, then);
     }
 
     /**
@@ -2326,7 +2326,7 @@ public final class JourneyNetherRungs {
      * question is "is the view lying about where the bot is", the view is not the witness to ask.
      * The bot's own chunk is loaded by definition, so this costs no chunk load.
      */
-    static String surroundings(ServerPlayer fp, BlockPos at) {
+    static String surroundings(ServerPlayer fp, BlockPos at, String sole) {
         ServerLevel level = fp.serverLevel();
         StringBuilder sb = new StringBuilder();
         sb.append("below=").append(blockName(level, at.below()))
@@ -2375,14 +2375,28 @@ public final class JourneyNetherRungs {
         // true while the sole is on nothing. wd.crossingRowSeparatesAPerchFromMidAir stages both and
         // measured the two rows BYTE-IDENTICAL before this line existed.
         //
-        // Through NavigatorGeometry, not a local scan: soleOnSolid/soleRow are this repo's single
+        // The driver's own reading, not a local scan: soleOnSolid/soleRow are this repo's single
         // enumeration of "which cells the bot is standing on", and a row that answered it differently
         // from the guards that steer on it is how a diagnosis comes to describe a bot that does not exist.
-        LevelWorldView view = new LevelWorldView(level, fp);
-        sb.append(" sole=")
-          .append(String.format(java.util.Locale.ROOT, "%.4f/0.36", NavigatorGeometry.soleOnSolid(view, fp)))
-          .append(" (").append(NavigatorGeometry.soleRow(view, fp)).append(")");
+        // So the caller hands it in, read where it can be read — see sole(JourneyRig).
+        sb.append(" sole=").append(sole);
         return sb.toString();
+    }
+
+    /**
+     * The run's bot's sole for {@link #surroundings}, as {@code mc.debug.body}'s footing gives it: the solid
+     * area under the sole against the footing the guards need, and the row of cells under it.
+     *
+     * <p>Read for a roster bot only; on self it says it was not read. That reading has no api on self —
+     * {@code mc.debug.body} reads server-side bots — and the row this printed there before was a fresh
+     * world view over the server's copy of the real player, which is not where self's guards read it.
+     */
+    static String sole(JourneyRig rig) {
+        SceneBot bot = rig.serverBotOrNull();
+        if (bot == null) return "not read (self: mc.debug.body reads server-side bots only)";
+        var f = bot.body().footing();
+        return String.format(java.util.Locale.ROOT, "%.4f/%.2f", f.soleOnSolid(), f.footingMin())
+                + " (" + f.soleRow() + ")";
     }
 
     /** How far it is straight down to the first block that would hold the bot, or {@code ">N"}

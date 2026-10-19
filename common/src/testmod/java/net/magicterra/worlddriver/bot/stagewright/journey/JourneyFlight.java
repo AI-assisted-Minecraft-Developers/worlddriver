@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -227,25 +228,43 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
     private JourneyFlight(JourneyRig rig, BlockPos from, int goalX, int goalZ) {
         this.rig = rig;
-        this.tel = NavigatorTelemetry.of(rig.player());
         this.from = from;
         this.goalX = goalX;
         this.goalZ = goalZ;
         this.legLength = (int) Math.round(Math.hypot(from.getX() - goalX, from.getZ() - goalZ));
-        this.repathsAtStart = tel.guardForcedRepaths;
-        this.keptAtStart = tel.guardKeptPlans;
-        this.advancesAtStart = tel.stepAdvancesLogged;
-        this.strideFiresAtStart = tel.strideGuardFires;
-        this.strideSkipsAtStart = new long[NavigatorTelemetry.STRIDE_SKIP_REASONS.length];
-        for (int i = 0; i < strideSkipsAtStart.length; i++)
-            strideSkipsAtStart[i] = tel.strideGuardSkips.get(i);
-        // THE walk boundary, for everything that is budgeted per walk. NavigatorTelemetry#legEpoch's note says why
+        BotDebugContracts.NavigatorReading now = rig.navigator();
+        if (now != null) baseline(now);
+        // THE walk boundary, for everything that is budgeted per walk. The telemetry's legEpoch note says why
         // it is taken from here and not given a definition of its own.
-        tel.newLeg();
+        rig.newNavigatorLeg();
     }
 
-    /** What the navigators driving the rig's bot have done; every delta below is against this. */
-    private final NavigatorTelemetry tel;
+    /**
+     * What the navigators driving the rig's bot had done when this walk began, through {@code mc.debug.navigator};
+     * every delta below is against this. Null until a reading exists: self's lands a tick or two after it is
+     * asked, so a walk begun before the first one is baselined on the first that lands during it.
+     */
+    private BotDebugContracts.NavigatorReading atStart;
+
+    private void baseline(BotDebugContracts.NavigatorReading r) {
+        atStart = r;
+        repathsAtStart = r.counter("guardForcedRepaths");
+        keptAtStart = r.counter("guardKeptPlans");
+        advancesAtStart = r.counter("stepAdvancesLogged");
+        strideFiresAtStart = r.counter("strideGuardFires");
+        strideSkipsAtStart = JourneyRig.countersUnder(r, STRIDE_SKIPS);
+    }
+
+    private static final String STRIDE_SKIPS = "strideGuardSkips.";
+
+    /** The plan cursor of the navigator driving the bot, read once per tick of the walk; null with no plan. */
+    private BotDebugContracts.PlanCursor cursor;
+
+    private BlockPos planNode() {
+        return cursor == null ? null : cursor.node().map(p -> new BlockPos(p.x(), p.y(), p.z())).orElse(null);
+    }
+
+    private String planMove() { return cursor == null ? null : cursor.move().orElse(null); }
 
     /** {@link NavigatorTelemetry#strideGuardFires} and {@link NavigatorTelemetry#strideGuardSkips} when this walk began.
      *
@@ -253,8 +272,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  the distribution is just terrain, and a row printed on every run is a row nobody reads. On
      *  the run that burned, it is the only thing that separates "the guard let the bot through"
      *  from "the guard was never in a position to fire", and those want opposite fixes. */
-    private final int strideFiresAtStart;
-    private final long[] strideSkipsAtStart;
+    private long strideFiresAtStart;
+    private Map<String, Long> strideSkipsAtStart = Map.of();
 
     /** {@link NavigatorTelemetry#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
      *
@@ -262,17 +281,17 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  the plan away. On the 2026-08-20 shuttle that made two opposite diagnoses fit every row —
      *  a bot given a bad plan, and a bot whose good plan kept being discarded under it — and the
      *  evidence map could not choose. A per-walk count, next to the moves the walk covered, can. */
-    private final int repathsAtStart;
+    private long repathsAtStart;
 
     /** {@link NavigatorTelemetry#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
      *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a walk that reports
      *  zero discards may have been pinned to the threshold dozens of times and kept its plan every
      *  time. 0/0 was never pinned; 0/45 walked a rim. One number can no longer say which. */
-    private final int keptAtStart;
+    private long keptAtStart;
 
     /** {@link NavigatorTelemetry#stepAdvancesLogged} when this walk began — the denominator that says whether the
      *  advance log a reader is holding is the WHOLE walk or only its opening. */
-    private final int advancesAtStart;
+    private long advancesAtStart;
 
     /** Start watching a walk that is about to head towards the column {@code (x, z)}. */
     public static JourneyFlight watching(JourneyRig rig, BlockPos from, int x, int z) {
@@ -281,6 +300,9 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
     @Override
     public void tick() {
+        BotDebugContracts.NavigatorReading nav = rig.navigator();
+        if (atStart == null && nav != null) baseline(nav);
+        cursor = nav == null ? null : nav.plan().orElse(null);
         ServerPlayer fp = rig.player();
         ServerLevel level = fp.serverLevel();
         BlockPos at = fp.blockPosition();
@@ -314,14 +336,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // there, so reading it would print `status=REACHED … immersed in lava`, which reads as
         // "the navigator believed it had arrived, in lava" and is simply false. The
         // process's own honest verdict is the goto slot's, so that is what this asks.
-        if (finishedAt == null && rig.body().finished()) {
-            // Server BotState on purpose, and NOT for the usual reason: goalReached/endReason ARE in
-            // ProcessSlot.snapshot(), so `rig.slot("goto")` could serve this. The gate above cannot.
-            // `finished()` asks the SERVER driver whether its process ended, and on the client helm
-            // startLeg never gave it one — so routing the read under a dead gate would change
-            // nothing observable. Gate and reading have to move together; see JourneyRig.slot.
-            var slot = rig.body().botState().mc_goto;
-            finishedAt = "goalReached=" + slot.goalReached + " end=" + slot.endReason
+        if (finishedAt == null && rig.legDone()) {
+            // The goto slot of the bot's own status, gate and reading together: whether the task ended
+            // and what its slot said, on either helm.
+            var slot = rig.slot("goto");
+            finishedAt = "goalReached=" + slot.flatMap(ControlContracts.Slot::goalReached).orElse(null)
+                    + " end=" + slot.flatMap(ControlContracts.Slot::endReason).orElse(null)
                     + " at " + at.toShortString() + " onGround=" + onGround
                     + " support " + names(level, support)
                     + (inLava ? " immersed in lava" : inWater ? " immersed in water" : "");
@@ -450,11 +470,9 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * same two coordinates in a log.
      */
     private void openLeap(ServerPlayer fp) {
-        // Server BotState on purpose: pathMove/pathNode are excluded from ProcessSlot.snapshot(), so
-        // JourneyRig.slot has no routed reading to give. Dead on the client helm until status() carries them.
-        String move = rig.body().botState().mc_goto.pathMove;
+        String move = planMove();
         if (move == null || !move.startsWith("parkour")) { pendingLeap = null; return; }
-        BlockPos node = rig.body().botState().mc_goto.pathNode;
+        BlockPos node = planNode();
         pendingLeapTarget = node;
         String want = node == null ? "no node" : node.toShortString();
         String gap = node == null ? "not measured (no node was held on the take-off tick)"
@@ -528,8 +546,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * blocks off is not executing it, and the plan's quality is beside the point.
      */
     private void watchThePlan(ServerLevel level, ServerPlayer fp, BlockPos at, boolean onGround) {
-        // Server BotState on purpose: pathNode is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-        BlockPos node = rig.body().botState().mc_goto.pathNode;
+        BlockPos node = planNode();
         if (node == null) { ticksWithNoPlan++; return; }
         // WHICH EDGES THIS WALK ACTUALLY COVERED, counted once per node rather than per tick.
         // A walk's fall names one move; this names the full mix. It is also the only honest check
@@ -537,8 +554,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // set on a static and read on another tick can silently do nothing, and a walk that still
         // walks the move it was told to avoid says so here instead of being argued about.
         if (!node.equals(lastPlanNode)) {
-            // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-            String move = rig.body().botState().mc_goto.pathMove;
+            String move = planMove();
             String kind = move == null ? "?" : move;
             moveTally.merge(kind, 1, Integer::sum);
             // The y delta BETWEEN PLAN NODES, which is the descent the planner asked for — see
@@ -569,18 +585,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         double bodyAway = Math.hypot(fp.getX() - goalX, fp.getZ() - goalZ);
         if (nodeAway - bodyAway > backwards) {
             backwards = nodeAway - bodyAway;
-            // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
             backwardsAt = "t=" + t + " bot " + at.toShortString() + " (" + Math.round(bodyAway)
                     + " from the goal), next plan cell " + node.toShortString() + "["
-                    + rig.body().botState().mc_goto.pathMove + "] (" + Math.round(nodeAway)
+                    + planMove() + "] (" + Math.round(nodeAway)
                     + " from the goal)";
         }
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
         if (gap <= worstOffPlan) return;
         worstOffPlan = gap;
-        // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         worstOffPlanAt = "t=" + t + " bot " + at.toShortString() + ", next plan cell "
-                + node.toShortString() + "[" + rig.body().botState().mc_goto.pathMove + "]"
+                + node.toShortString() + "[" + planMove() + "]"
                 + ", the block under it " + blockName(level, node.below());
     }
 
@@ -597,10 +611,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         prevDelta = fp.getDeltaMovement();
         prevContact = contact;
         prevSwept = !fp.serverLevel().noCollision(fp, groundSlab(box));
-        prevSneak = rig.body().avatar().dbgSneak();
-        // Server BotState on purpose: driveTag/jumpTag are excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-        prevDrive = rig.body().botState().mc_goto.driveTag;
-        prevJumpTag = rig.body().botState().mc_goto.jumpTag;
+        // Vanilla's shift-key state, which the body sets from its commanded sneak each tick; the commanded
+        // flag itself has no reading.
+        prevSneak = fp.isShiftKeyDown();
+        prevDrive = cursor == null ? null : cursor.driveTag().orElse(null);
+        prevJumpTag = cursor == null ? null : cursor.jumpTag().orElse(null);
     }
 
     /** The last few ticks, kept so the FIRST notable fall can show its run-up. The contact area
@@ -685,14 +700,24 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // delta rather than the bot's total — see repathsAtStart.
         sb.append("; plan pointing furthest backwards ").append(backwards < 0 ? "not measured"
                 : String.format(Locale.ROOT, "%.2f blocks (%s)", backwards, backwardsAt));
-        int advances = tel.stepAdvancesLogged - advancesAtStart;
+        BotDebugContracts.NavigatorReading tel = rig.navigator();
+        if (tel == null || atStart == null) {
+            sb.append("; navigator counters not read (self's readings had not landed)");
+            sb.append("; at the moment the run ended: ").append(finishedAt == null
+                    ? "nothing; this run was stopped when its tick budget ran out, the process did not"
+                      + " finish on its own"
+                    : finishedAt);
+            if (lava != null) sb.append("; first lava entry ").append(lava);
+            return sb.toString();
+        }
+        long advances = tel.counter("stepAdvancesLogged") - advancesAtStart;
         sb.append("; step advances logged ").append(advances)
-          .append(advances >= NavigatorTelemetry.stepAdvanceBudget()
+          .append(advances >= tel.counter("stepAdvanceBudget")
                   ? " (budget full, later advances were not logged; this run's step log is"
                     + " incomplete)"
                   : " (this run's step log is complete)");
-        int repaths = tel.guardForcedRepaths - repathsAtStart;
-        int kept = tel.guardKeptPlans - keptAtStart;
+        long repaths = tel.counter("guardForcedRepaths") - repathsAtStart;
+        long kept = tel.counter("guardKeptPlans") - keptAtStart;
         // BOTH, ALWAYS, and never the discard alone — see keptAtStart. "0 discards" also covers a
         // run pinned to the threshold every thirty ticks that kept its plan each time, not only a
         // pin that never reached its threshold, and those are opposite terrain reports.
@@ -704,12 +729,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                   : repaths == 0
                   ? " (no plan was ever discarded; the bot was advancing each time the pin reached"
                     + " the threshold)"
-                  : ", last discard " + tel.lastGuardRepath);
+                  : ", last discard " + tel.traces().get("lastGuardRepath"));
         sb.append("; at the moment the run ended: ").append(finishedAt == null
                 ? "nothing; this run was stopped when its tick budget ran out, the process did not"
                   + " finish on its own"
                 : finishedAt);
-        if (lava != null) sb.append("; first lava entry ").append(lava).append("; ").append(strideGuardDelta());
+        if (lava != null) sb.append("; first lava entry ").append(lava).append("; ").append(strideGuardDelta(tel));
         return sb.toString();
     }
 
@@ -722,13 +747,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * hold the order in their head and a bucket added later cannot silently shift the meaning of
      * this row.
      */
-    private String strideGuardDelta() {
+    private String strideGuardDelta(BotDebugContracts.NavigatorReading tel) {
         StringBuilder sb = new StringBuilder("stride guard fired ")
-                .append(tel.strideGuardFires - strideFiresAtStart)
+                .append(tel.counter("strideGuardFires") - strideFiresAtStart)
                 .append(" time(s) during this run; reasons it did not fire: ");
-        for (int i = 0; i < NavigatorTelemetry.STRIDE_SKIP_REASONS.length; i++)
-            sb.append(i == 0 ? "" : ", ").append(NavigatorTelemetry.STRIDE_SKIP_REASONS[i]).append('=')
-              .append(tel.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
+        boolean first = true;
+        for (Map.Entry<String, Long> e : JourneyRig.countersUnder(tel, STRIDE_SKIPS).entrySet()) {
+            sb.append(first ? "" : ", ").append(e.getKey()).append('=')
+              .append(e.getValue() - strideSkipsAtStart.getOrDefault(e.getKey(), 0L));
+            first = false;
+        }
         return sb.toString();
     }
 
@@ -1060,13 +1088,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     /** Where in the plan the navigator was, at the moment asked. A bot that left the ground on step
      *  3 of 40 was following a route; one that left it with the plan exhausted was not. */
     private String planAt() {
-        // Server BotState on purpose, and NOT for the usual reason: pathStep/pathLen ARE in
-        // ProcessSlot.snapshot(). But this string is only ever spliced into planCell's rows, which
-        // also print pathMove/pathNode — and those have no routed reading. Converting this half
-        // alone would build one row out of two channels, one live and one dead, which is a worse
-        // reading than a uniformly dead one. Both halves move when status() carries the plan fields.
-        var slot = rig.body().botState().mc_goto;
-        return "plan step " + slot.pathStep + "/" + slot.pathLen;
+        // From the same plan cursor planCell prints the node and move from, so one row is one channel.
+        return cursor == null ? "plan step 0/0" : "plan step " + cursor.step() + "/" + cursor.len();
     }
 
     /**
@@ -1096,17 +1119,15 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * view can belong to another dimension, and a view is not a witness against itself.
      */
     private String planCell(ServerLevel level, ServerPlayer fp, BlockPos at) {
-        // Server BotState on purpose: pathNode/pathMove are excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-        var slot = rig.body().botState().mc_goto;
-        BlockPos node = slot.pathNode;
+        BlockPos node = planNode();
         if (node == null) {
-            return "the plan has no next cell (" + planAt() + ", move=" + slot.pathMove
+            return "the plan has no next cell (" + planAt() + ", move=" + planMove()
                     + "); no node was steering the bot at this moment";
         }
         BlockPos under = node.below();
         boolean holds = level.getBlockState(under).blocksMotion();
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
-        return "next plan cell " + node.toShortString() + "[" + slot.pathMove + "] (" + planAt()
+        return "next plan cell " + node.toShortString() + "[" + planMove() + "] (" + planAt()
                 + "): that cell=" + blockName(level, node) + ", the block under it "
                 + under.toShortString() + "=" + blockName(level, under)
                 + (holds ? " (holds)" : " (does not hold)")

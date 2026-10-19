@@ -135,7 +135,7 @@ final class JourneyShelter {
             then.run();
             return;
         }
-        rig.mineCellOrGiveUp(rock, QUARRY_LEG_TICKS, () -> rig.settle(new HoldStill(4), 12,
+        rig.mineCellOrGiveUp(rock, QUARRY_LEG_TICKS, () -> rig.hold(4, 12,
                 () -> quarryUntilStocked(rig, keepOut, need, legsLeft - 1, legsTotal, then)));
     }
 

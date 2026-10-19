@@ -559,7 +559,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         pf.getInventory().clearContent();
         aim(pf);
         for (int i = 0; i < SETTLE_TICKS; i++) step(perch);
-        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition());
+        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition(), sole(ctx, pf));
         ctx.record("perch.row", rowPerch);
         ctx.record("perch.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
                 NavigatorGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
@@ -643,6 +643,15 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * do with the sole. The tick wanted is the stale one: the sole already on nothing and the flag
      * still saying {@code true}, which is what {@code fortress.ground.*} printed on the live falls.
      */
+    /** {@link JourneyNetherRungs#surroundings}' sole column for an arena avatar, the way the crossing used to
+     *  compute it for every bot: a world view over the avatar's own level. The rung reads its bot's through
+     *  {@code mc.debug.body} instead; an arena avatar here is not a roster bot, so it keeps the direct read. */
+    private static String sole(SceneContext ctx, ServerPlayer fp) {
+        LevelWorldView view = new LevelWorldView(ctx.level(), fp);
+        return String.format(java.util.Locale.ROOT, "%.4f/0.36", NavigatorGeometry.soleOnSolid(view, fp))
+                + " (" + NavigatorGeometry.soleRow(view, fp) + ")";
+    }
+
     private static String walkToTheStaleTick(SceneContext ctx, ServerPlayerBody av) {
         ServerLevel level = ctx.level();
         ServerPlayer fp = av.fakePlayer();
@@ -656,7 +665,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
             av.commandJump(false);
             av.step();
             if (fp.onGround() && NavigatorGeometry.soleOnSolid(w, fp) <= 0.0)
-                return JourneyNetherRungs.surroundings(fp, fp.blockPosition());
+                return JourneyNetherRungs.surroundings(fp, fp.blockPosition(), sole(ctx, fp));
             if (!fp.onGround()) break;                        // the stale tick was overshot
         }
         ctx.fail("THE RIG, not the subject: after " + WALK_TICKS + " ticks of walking, no tick was"

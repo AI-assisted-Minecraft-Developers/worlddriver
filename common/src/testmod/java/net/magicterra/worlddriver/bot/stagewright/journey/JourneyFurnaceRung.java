@@ -4,10 +4,6 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -88,7 +84,7 @@ final class JourneyFurnaceRung {
         // short the evidence says so by name, and the fallback below is the stone rung's proven
         // shape rather than another guess.
         rig.attempting("top up cobblestone: could not mine " + need + " stone within 32 blocks at the surface");
-        rig.drive(new MineProcess(List.of("minecraft:stone"), need, 32), 12_000, () -> {
+        rig.drive(JourneyTasks.mine(List.of("minecraft:stone"), need, 32), 12_000, () -> {
             int after = rig.carrying("minecraft:cobblestone");
             rig.evidence("furnace.topUp.after", after);
             rig.evidence("furnace.topUp.mined", (after - before) + " blocks (needed " + need + ")");
@@ -127,7 +123,7 @@ final class JourneyFurnaceRung {
         rig.evidence("furnace.stone.shortfall", shortfall);
         rig.attempting("top up at the surveyed stone: could not walk to column " + shaft.getX() + ","
                 + shaft.getZ());
-        rig.drive(new IntentProcess(new Intent(new Goal.XZ(shaft.getX(), shaft.getZ(), 0))), 8_000, () -> {
+        rig.drive(JourneyTasks.goToColumn(shaft.getX(), shaft.getZ(), 0), 8_000, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - shaft.getX(), at.getZ() - shaft.getZ());
             rig.evidence("furnace.stone.arrived", at.toShortString() + ", " + Math.round(away)
@@ -151,7 +147,7 @@ final class JourneyFurnaceRung {
                 Harness.set("allowPlace", place);
                 rig.evidence("furnace.stone.landedY", rig.player().blockPosition().getY());
                 rig.attempting("mine stone: MineProcess did not obtain cobblestone");
-                rig.drive(new MineProcess(List.of("minecraft:stone"), quota, 16), 16_000, () -> {
+                rig.drive(JourneyTasks.mine(List.of("minecraft:stone"), quota, 16), 16_000, () -> {
                     rig.evidence("furnace.stone.cobble", rig.carrying("minecraft:cobblestone"));
                     rig.evidence("furnace.stone.error", String.valueOf(rig.slotError("mine")));
                     // Climb out BEFORE crafting, for the reason the stone rung records: a one-wide

@@ -10,17 +10,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.CostModifier;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
-import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -461,8 +452,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.SPAWN);
         rig.attempting("create an empty-handed bot at world spawn");
 
-        PlayerBot body = rig.spawnBody();
-        var fp = body.fakePlayer();
+        var fp = rig.spawnBody();
 
         int carried = 0;
         for (int i = 0; i < fp.getInventory().getContainerSize(); i++) {
@@ -519,7 +509,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // the pathfinder happened to pillar in time and then, unchanged, spent 1304 ticks
         // ending nine blocks off. Reaching UP is the miner's job (see wd.serverMineCanopyRadius);
         // navigation's job is the column. Same correction as the iron rung, same reason.
-        rig.drive(new IntentProcess(new Intent(new Goal.XZ(tree.getX(), tree.getZ(), 2))), 8_000, () -> {
+        rig.drive(JourneyTasks.goToColumn(tree.getX(), tree.getZ(), 2), 8_000, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - tree.getX(), at.getZ() - tree.getZ());
             rig.evidence("arrived.horizontalDistance", Math.round(away));
@@ -544,7 +534,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // 4, 3 and 1 logs — the low end starves the tool rung. The fix is more TREES in
             // range, not a softer assertion: a player who cannot reach the crown walks to the
             // next trunk, and the assertion stays the next rung's real bill.
-            rig.drive(new MineProcess(List.of(logIdAt(ctx, tree)), 6, 24), 8_000, () ->
+            rig.drive(JourneyTasks.mine(List.of(logIdAt(ctx, tree)), 6, 24), 8_000, () ->
                     fellSecondTreeIfShort(ctx, rig, () -> {
                 int logs = totalLogs(rig);
                 rig.evidence("logs", logs);
@@ -631,8 +621,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.attempting("not enough wood (" + logs + "/" + LOGS_THE_LADDER_NEEDS + "); walk to tree #" + visit);
         // Same XZ-column approach as the first tree, and for the same reason: Goal.Near judges 3D
         // distance, so aiming at a log five blocks up asks the bot to leave the ground.
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(next.getX(), next.getZ(), 2))), 6_000,
-                () -> rig.settle(new MineProcess(List.of(logIdAt(ctx, next)), 6, 24), 8_000,
+        rig.settle(JourneyTasks.goToColumn(next.getX(), next.getZ(), 2), 6_000,
+                () -> rig.settle(JourneyTasks.mine(List.of(logIdAt(ctx, next)), 6, 24), 8_000,
                         () -> fellMoreTreesUntilPaid(ctx, rig, species, left - 1, then)));
     }
 
@@ -719,64 +709,55 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, List.of(),
+        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, RouteContracts.Route.NONE,
                 onArrived, onStuck);
     }
 
     /**
-     * The same walk, with a per-intent cost bias that every attempt of it carries.
+     * The same walk, under route conditions that every attempt of it carries.
      *
-     * <p>{@code Intent} has taken a bias list since it was written — "avoid a region, prefer a Y
-     * band, leash to an anchor" is its own javadoc — and nothing in this suite had ever passed one.
-     * The rung that needed it is 12: the pathfinder's route to the lava runs along the crater's rim,
-     * where the navigator's footing guard sneak-pins the bot at {@code sole = 0.0000} and it can then
-     * never move, and no choice of DESTINATION can steer a route (measured — see
-     * {@link JourneyTerrain#poolsLipCells}).
+     * <p>A goto has taken a route since it was written — "avoid a region, prefer a Y band, leash to an
+     * anchor" — and nothing in this suite had ever passed one. The rung that needed it is 12: the
+     * pathfinder's route to the lava runs along the crater's rim, where the navigator's footing guard
+     * sneak-pins the bot at {@code sole = 0.0000} and it can then never move, and no choice of
+     * DESTINATION can steer a route (measured — see {@link JourneyTerrain#poolsLipCells}).
      *
      * <p>It is threaded onto the midpoint walk as well, and that is not tidiness: the midpoint of a
      * bot wedged on the rim and a column on the far side <b>is the pool</b>, which the same run
-     * printed as {@code lava.viaMidpoint = -10,20 (stuck at -13, 66, 21)}. An unbiased recovery from a
-     * biased walk would walk into exactly what the walk was told to avoid.
+     * printed as {@code lava.viaMidpoint = -10,20 (stuck at -13, 66, 21)}. An unpriced recovery from a
+     * priced walk would walk into exactly what the walk was told to avoid.
      */
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, List<CostModifier> bias,
+                                     int budget, RouteContracts.Route route,
                                      Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, bias, onArrived, onStuck);
+        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, route, onArrived, onStuck);
     }
 
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, int left, Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, left, List.of(), onArrived, onStuck);
-    }
-
-    static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, int left, List<CostModifier> bias,
-                                     Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, left, bias, List.of(), onArrived, onStuck);
+        walkToColumn(rig, what, x, z, tolerance, budget, left, RouteContracts.Route.NONE, onArrived, onStuck);
     }
 
     /**
-     * The same walk again, with HARD constraints as well as soft bias.
+     * The same walk again, with whatever the route forbids as well as what it prices.
      *
-     * <p>{@code Goal.XZ} answers "that column, any Y" — {@link Goal.XZ#ignoresY} is true — so from
-     * above, DIGGING STRAIGHT DOWN is a legal route to it, and where the bot stands above its own
-     * staircase that is the cheapest one. Measured, rung 12's rehearsal of 2026-08-25: asked for
-     * {@code XZ[x=2, z=19, radius=0]} from {@code -3,61,20}, the navigator sank the column at
-     * {@code x=-1, z=20} — {@code -1,58,20}, then 57, 56, 55, 54 — and the first of those is the
-     * support of the tread at {@code -1,59,20}. One step of the descent, one step of the flight.
+     * <p>A column target answers "that column, any Y" — so from above, DIGGING STRAIGHT DOWN is a legal
+     * route to it, and where the bot stands above its own staircase that is the cheapest one. Measured,
+     * rung 12's rehearsal of 2026-08-25: asked for {@code XZ[x=2, z=19, radius=0]} from {@code -3,61,20},
+     * the navigator sank the column at {@code x=-1, z=20} — {@code -1,58,20}, then 57, 56, 55, 54 — and
+     * the first of those is the support of the tread at {@code -1,59,20}. One step of the descent, one step
+     * of the flight.
      *
-     * <p>Which is why the constraint belongs at the CALL SITE and not here: the same helper carries
+     * <p>Which is why the condition belongs at the CALL SITE and not here: the same helper carries
      * the surface walks (prey, home, gravel, the lava approach) where digging a route is ordinary and
      * taking it away would only make honest walking fail. A caller that walks ground the rung cut
-     * itself passes {@link NoBreak}; a caller crossing the world does not.
+     * itself passes {@code breakPolicy=never}; a caller crossing the world does not.
      */
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, int left, List<CostModifier> bias,
-                                     List<net.magicterra.worlddriver.bot.rules.Constraint> hard,
+                                     int budget, int left, RouteContracts.Route route,
                                      Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance), bias,
-                CapabilityProfile.ALL, hard)), budget, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.column(x, z, tolerance), route), budget, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - x, at.getZ() - z);
             int attempt = MAX_WALK_ATTEMPTS - left + 1;
@@ -828,21 +809,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
-                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, hard,
+                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, route,
                         onArrived, onStuck);
                 return;
             }
             int mx = (at.getX() + x) / 2;
             int mz = (at.getZ() + z) / 2;
             rig.evidence(what + ".viaMidpoint", mx + "," + mz + " (stuck at " + at.toShortString() + ")");
-            // The midpoint recovery inherits `hard` for the reason the note above gives about bias:
-            // an unconstrained recovery from a constrained walk walks into exactly what the walk was
+            // The midpoint recovery inherits the route for the reason the note above gives: an
+            // unconstrained recovery from a constrained walk walks into exactly what the walk was
             // forbidden, and it is the recovery — asked from a bot already wedged — that is most
             // likely to find digging the cheapest answer.
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3), bias,
-                            CapabilityProfile.ALL, hard)),
+            rig.settle(JourneyTasks.goTo(Targets.column(mx, mz, 3), route),
                     Math.max(600, budget / 2),
-                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, hard,
+                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, route,
                             onArrived, onStuck));
         });
     }
@@ -909,7 +889,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.generousPathfinding();
         rig.attempting("craft a wooden pickaxe (planks → sticks → crafting_table → wooden_pickaxe)");
 
-        rig.drive(new CraftProcess("minecraft:crafting_table", 1), 4_000, () -> {
+        rig.drive(JourneyTasks.craft("minecraft:crafting_table", 1), 4_000, () -> {
             rig.evidence("crafting_table", rig.carrying("minecraft:crafting_table"));
             rig.attempting("craft a wooden pickaxe: CraftProcess did not complete the 3×3 path");
             craftKeepingTheTable(rig, "minecraft:wooden_pickaxe", 6_000, () -> {
@@ -961,7 +941,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // put the bot two cells off it and the hole filled with water on the fourth
             // pass (`shaft.4 below=water`), after which it floated instead of sinking and
             // mining water is a no-op. In a swamp, two blocks is the whole difference.
-            rig.drive(new IntentProcess(new Intent(new Goal.XZ(stoneShaft.getX(), stoneShaft.getZ(), 0))), 8_000, () -> {
+            rig.drive(JourneyTasks.goToColumn(stoneShaft.getX(), stoneShaft.getZ(), 0), 8_000, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - stoneShaft.getX(), at.getZ() - stoneShaft.getZ());
             rig.evidence("arrived.horizontalDistance", Math.round(away));
@@ -991,7 +971,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // looks: a stone pickaxe (3), the pillar back out of this shaft (one cobble per
                 // course, and the shaft is nine deep), and the furnace (8). Paying the exit out of the
                 // furnace's share is what stranded a run at the bottom of its own hole.
-                rig.drive(new MineProcess(List.of("minecraft:stone"), 32, 16), 26_000, () -> {
+                rig.drive(JourneyTasks.mine(List.of("minecraft:stone"), 32, 16), 26_000, () -> {
                     int cobble = rig.carrying("minecraft:cobblestone");
                     rig.evidence("cobblestone", cobble);
                     rig.noteAdvancement("minecraft:story/mine_stone");
@@ -1096,7 +1076,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         JourneyRig.seeAtLeast(PREY_SEARCH_CHUNKS);
         // A beat before looking: the ticket is applied on the await tick and the chunks it pulls in
         // have to arrive before anything in them exists to be found.
-        rig.settle(new HoldStill(40), 100, () -> hunt(ctx, rig, true));
+        rig.hold(40, 100, () -> hunt(ctx, rig, true));
     }
 
     /**
@@ -1118,7 +1098,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // own comment was already written to make. A survey that cannot see reports an empty world
         // and looks like a working feature.
         JourneyRig.seeAtLeast(PREY_SEARCH_CHUNKS);
-        rig.settle(new HoldStill(40), 100, () -> {
+        rig.hold(40, 100, () -> {
             JourneyRig.Prey prey = rig.nearestPreyTarget(PREY_SEARCH_BLOCKS);
             JourneyRig.seeNormally();
             if (prey == null) {
@@ -1143,8 +1123,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (far == null) { hunt(ctx, rig, false); return; }
         rig.attempting("walk to the " + far.species() + " " + Math.round(far.distance()) + " blocks away");
         walkToColumn(rig, "prey", far.where().getX(), far.where().getZ(), 6, 16_000,
-                () -> rig.settle(new HoldStill(20), 60, () -> hunt(ctx, rig, false)),
-                () -> rig.settle(new HoldStill(20), 60, () -> hunt(ctx, rig, false)));
+                () -> rig.hold(20, 60, () -> hunt(ctx, rig, false)),
+                () -> rig.hold(20, 60, () -> hunt(ctx, rig, false)));
     }
 
     /**
@@ -1185,7 +1165,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     + " — nearby only " + rig.animalsNearby(PREY_SEARCH_BLOCKS)
                     + "; searching again within " + PREY_SEARCH_WIDE + " blocks");
             JourneyRig.seeAtLeast(PREY_SEARCH_WIDE_CHUNKS);
-            rig.settle(new HoldStill(40), 100, () -> huntWide(ctx, rig));
+            rig.hold(40, 100, () -> huntWide(ctx, rig));
             return;
         }
         if (prey == null) {
@@ -1201,7 +1181,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // matches, so handing it a species whose only instance is 40 blocks away is asking it to
         // fail — and it fails in two ticks, which reads like a broken verb rather than a bad script.
         rig.attempting("walk to the prey " + prey.species());
-        rig.drive(new IntentProcess(new Intent(new Goal.Near(prey.where(), 6))), 8_000, () -> {
+        rig.drive(JourneyTasks.goNear(prey.where(), 6), 8_000, () -> {
             rig.evidence("prey.arrived", rig.nearestPrey(24));
             // Weapon in hand BEFORE the swing. CombatProcess has no weapon picker — it swings
             // whatever the last dig left selected — so this rung fought its first animal with a
@@ -1215,7 +1195,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // invisible to its own assertion, and the identical leak at rung 9 (iron) and rung 14
             // (rods) is fatal. `collectByHand`'s note has said "two rungs needing the same walk is
             // what a shared rig is for" since rung 14 hit it; this is the third rung.
-            rig.drive(new CombatProcess(CombatProcess.Mode.KILL, null, prey.species()), 6_000, () ->
+            rig.drive(JourneyTasks.killNearest(prey.species()), 6_000, () ->
               rig.collectAnyOf(RAW_FOODS, JourneyRig.MAX_PICKUP_LEGS, JourneyRig.MAX_PICKUP_LEGS,
                       "kill", () -> {
                 int raw = rig.carryingAnyOf(RAW_FOODS);
@@ -1258,13 +1238,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // "a reading cleared by the very event it describes"). The cost of it being on enter is that a rung which
                 // engages twice reports only the last engagement, so read this as "did the LAST
                 // fight kill something", and pair a zero with `kill.swings` before concluding.
-                rig.evidence("kill.kills", String.valueOf(rig.slotString("combat", "kills"))
+                rig.evidence("kill.kills", String.valueOf(rig.combatTally().map(t -> t.kills()).orElse(null))
                         + " (reset per engagement; this is the last engagement)");
                 // Swings vs kills splits the "no kill" case three ways in one pair of numbers:
                 // 0 swings = the in-range branch never fired (a walk/approach problem, not a
                 // combat one); swings > 0 with kills 0 = hits went out and did not finish it;
                 // and `attackRefusal` names the gate when the swing itself was refused.
-                rig.evidence("kill.swings", String.valueOf(rig.slotString("combat", "swings")));
+                rig.evidence("kill.swings", String.valueOf(rig.combatTally().map(t -> t.swings()).orElse(null)));
                 rig.evidence("kill.preyVitals", String.valueOf(rig.nearestPreyVitals(24)));
                 ctx.expect(raw).as("raw food collected from the kill").isAtLeast(1);
                 walkHome(rig, () -> rig.reach("killed " + prey.species() + ", raw meat ×" + raw));
@@ -1527,7 +1507,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // back into the bag costs one block-break and ends the tax for every rung after this
             // one — which is also simply what a player does with their table.
             rig.attempting("reclaim the crafting table that is still standing");
-            rig.settle(new IntentProcess(new Intent(new Goal.Near(standing, 2))), 600,
+            rig.settle(JourneyTasks.goNear(standing, 2), 600,
                     () -> takeTableWhereItStands(rig, standing, () -> {
                         rig.evidence("craftingTable.reclaimed",
                                 rig.carrying("minecraft:crafting_table"));
@@ -1545,13 +1525,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             }
             rig.evidence("craftingTable.remade", true);
             rig.attempting("craft a replacement crafting table: none is on the ground either");
-            rig.drive(new CraftProcess("minecraft:crafting_table", 1), 6_000, () -> {
+            rig.drive(JourneyTasks.craft("minecraft:crafting_table", 1), 6_000, () -> {
                 if (rig.carrying("minecraft:crafting_table") > 0) { makeRoomForAStation(rig, then); return; }
                 // Out of wood, which is the only way this craft fails. Go and get some — that is
                 // what a player does, and it is the answer the wood BILL has twice failed to be.
                 rig.evidence("craftingTable.remadeError",
                         String.valueOf(rig.slotError("craft")));
-                topUpWood(rig, () -> rig.drive(new CraftProcess("minecraft:crafting_table", 1), 6_000,
+                topUpWood(rig, () -> rig.drive(JourneyTasks.craft("minecraft:crafting_table", 1), 6_000,
                         () -> {
                             rig.evidence("craftingTable.afterTopUp",
                                     rig.carrying("minecraft:crafting_table"));
@@ -1600,8 +1580,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
         rig.attempting("out of wood; cut a tree to replenish it");
         BlockPos target = trunk;
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(target.getX(), target.getZ(), 2))), 6_000,
-                () -> rig.settle(new MineProcess(List.of(logIdAt(rig.ctx(), target)), 6, 24), 8_000,
+        rig.settle(JourneyTasks.goToColumn(target.getX(), target.getZ(), 2), 6_000,
+                () -> rig.settle(JourneyTasks.mine(List.of(logIdAt(rig.ctx(), target)), 6, 24), 8_000,
                         () -> {
                             rig.evidence("wood.toppedUp", totalLogs(rig) + " logs");
                             then.run();
@@ -1624,7 +1604,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                              Runnable then) {
         BlockPos grove = JourneyRoute.firstTree;
         rig.attempting("out of wood and no tree in local scan range; return to the baked grove column, then cut");
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(grove.getX(), grove.getZ(), 3))),
+        rig.settle(JourneyTasks.goToColumn(grove.getX(), grove.getZ(), 3),
                 WOOD_RETURN_TICKS, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence("wood.backAtTheGrove", here.toShortString()
@@ -1634,7 +1614,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     ? "no trunk found back at the grove — the area has been cleared, or the bot never got there"
                     : trunk.toShortString());
             if (trunk == null) { then.run(); return; }
-            rig.settle(new MineProcess(List.of(logIdAt(rig.ctx(), trunk)), 6, 24), 8_000, () -> {
+            rig.settle(JourneyTasks.mine(List.of(logIdAt(rig.ctx(), trunk)), 6, 24), 8_000, () -> {
                 rig.evidence("wood.toppedUp", totalLogs(rig) + " logs");
                 then.run();
             });
@@ -1807,7 +1787,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // walking. What this rung actually requires is asserted below and is not a quota — it is one
         // raw iron — so an unfinished sweep should cost only that sweep and let the second vein and
         // the smelt have their turn.
-        rig.settle(new MineProcess(List.of("minecraft:iron_ore"), 8, 10), 6_000, () -> {
+        rig.settle(JourneyTasks.mine(List.of("minecraft:iron_ore"), 8, 10), 6_000, () -> {
             // The decisive split when this rung fails: an ore still standing means the bot never
             // reached it (navigation/search), an ore turned to air with an empty bag means it broke
             // it and the drop was lost (tool or pickup). Different bugs, different files, and the
@@ -1850,7 +1830,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // it had just towered out of the shaft on — air on every side, air under every side.
         ensureCarrying(rig, "minecraft:furnace", "furnace", () -> makeRoomForAStation(rig, () -> {
         rig.attempting("smelt iron ingots: SmeltProcess did not complete (the furnace must actually burn)");
-        rig.drive(new SmeltProcess("minecraft:raw_iron", raw, null), 12_000, () -> {
+        rig.drive(JourneyTasks.smelt("minecraft:raw_iron", raw, null), 12_000, () -> {
         // LET THE SERVER CATCH UP BEFORE COUNTING. Measured 2026-08-23, ladder-7, two adjacent log
         // lines with nothing between them:
         //
@@ -1944,7 +1924,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // four branches. Fixing it per-rung would be five copies of one sentence, four of which
             // would go stale the next time this helper grows a branch.
             rig.attempting("craft " + itemId + ": CraftProcess did not complete");
-            rig.drive(new CraftProcess(itemId, 1), budget, () -> {
+            rig.drive(JourneyTasks.craft(itemId, 1), budget, () -> {
                 String error = String.valueOf(rig.slotError("craft"));
                 rig.evidence(key + ".crafted", rig.carrying(itemId));
                 rig.evidence(key + ".craftError", error);
@@ -1995,7 +1975,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // same reclaim the crafting table already does, and it was missing here for no better
             // reason than that the furnace's guard was written first.
             rig.attempting("reclaim the " + zh + " that is still standing");
-            rig.settle(new IntentProcess(new Intent(new Goal.Near(standing, 2))), 600,
+            rig.settle(JourneyTasks.goNear(standing, 2), 600,
                     () -> rig.mineBlock(standing, 600, () -> rig.collectByHand(itemId, 1, () -> {
                         rig.evidence(key + ".reclaimed", rig.carrying(itemId));
                         then.run();
@@ -2132,7 +2112,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // The assertion below is 1 — one flint is all a flint-and-steel costs, and asking
                 // for more would be asking the random number generator for a favour.
                 rig.attempting("mine gravel for flint: 10% drop rate, volume over luck");
-                rig.drive(new MineProcess(List.of("minecraft:gravel"), 64, 12), 24_000, () ->
+                rig.drive(JourneyTasks.mine(List.of("minecraft:gravel"), 64, 12), 24_000, () ->
                         // Same hand sweep the iron rung needs, and more load-bearing here: flint is
                         // a one-in-ten roll, so a single flint left lying on the floor is the whole
                         // rung. See collectByHand for why the ladder does this itself.
@@ -2537,8 +2517,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // Taxed too. Backing off is the right DIRECTION and says nothing about the route: two
             // blocks away from the pool can still be reached along its lip, which is where the bot
             // already is and the one place it cannot walk.
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(rx, rz, 1),
-                    JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).bias())), 600, () -> {
+            rig.settle(JourneyTasks.goTo(Targets.column(rx, rz, 1),
+                    JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).route()), 600, () -> {
                 BlockPos back = rig.player().blockPosition();
                 rig.evidence("shaft.backOff." + attempt, back.toShortString()
                         + (Math.hypot(back.getX() - rx, back.getZ() - rz) <= 1
@@ -2571,8 +2551,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // reason JourneyTerrain#avoidTheRim gives: the lake this walk passes beside is not the one the
         // approach measured.
         int attempt = MAX_WALK_ATTEMPTS - left + 1;
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0),
-                JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).bias())), 1_200,
+        rig.settle(JourneyTasks.goTo(Targets.column(dig.getX(), dig.getZ(), 0),
+                JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).route()), 1_200,
                 () -> {
                     // WHAT THIS WALK ACTUALLY DID — the row `walkToColumn` has carried since
                     // 2026-08-17 and this path never got, though it is the one that decides the rung.
@@ -2677,7 +2657,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // walking to within 3 of a SOURCE puts it inside the 8-block check at the top.
             if (other != null && (climbBacks > 0 || left > 0)) {
                 rig.evidence("tunnel.otherPool", other.toShortString() + " (nearest pool found after the fall)");
-                rig.settle(new IntentProcess(new Intent(new Goal.Near(other, 3))), 2_000,
+                rig.settle(JourneyTasks.goNear(other, 3), 2_000,
                         () -> reachLava(ctx, rig, left - 1, climbBacks, then));
                 return;
             }
@@ -2763,7 +2743,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                 ? "hit " + canScoop.getBlockPos().toShortString()
                                 : "hit nothing", TUNNEL_REACH));
                 if (left > 0) {
-                    rig.settle(new IntentProcess(new Intent(new Goal.Near(blocking, 2))), 600,
+                    rig.settle(JourneyTasks.goNear(blocking, 2), 600,
                             () -> reachLava(ctx, rig, left - 1, climbBacks, then));
                     return;
                 }
@@ -2781,13 +2761,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // climbBacks is threaded, not re-defaulted: a budget that resets on every tunnel step is
             // not a budget, and a bot that keeps falling into the same cave would climb forever.
             if (blocking != null && level.getBlockState(blocking).blocksMotion()) {
-                rig.mineBlock(blocking, 2_000, () -> rig.settle(new HoldStill(10), 20,
+                rig.mineBlock(blocking, 2_000, () -> rig.hold(10, 20,
                         () -> reachLava(ctx, rig, left - 1, climbBacks, then)));
                 return;
             }
             // Nothing solid on the line and still no source in view: the bot is looking past it,
             // not through rock. Close the distance instead of digging.
-            rig.settle(new IntentProcess(new Intent(new Goal.Near(src, 2))), 600,
+            rig.settle(JourneyTasks.goNear(src, 2), 600,
                     () -> reachLava(ctx, rig, left - 1, climbBacks, then));
         });
     }
@@ -2814,14 +2794,14 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // spent a whole run's evidence being inverted by hand to decide which. describeRay
             // prints MISS in words, with the range it traced, so the next one says it outright.
             JourneyHands.handsAtUse(rig, "fill");
-            rig.evidence("fill.result", String.valueOf(rig.equipment().useItemInHand()));
+            JourneyHands.useInAir(rig, "fill.result");
             // WAIT before judging, and that is the mirror image of aimThenAct rather than a
             // contradiction of it. The aim must be written to the player that ACTS, with nothing
             // between; the OUTCOME is written by that same client player and has to travel back to
             // the server before `rig.carrying` — which reads the ServerPlayer's inventory — and
             // `ctx.level()` can see it. Judged in the use's own tick, a fill that worked reads
             // exactly like a fill vanilla refused: `lava_bucket=0`, source unchanged.
-            rig.settle(new HoldStill(3), 12, () -> {
+            rig.hold(3, 12, () -> {
                 int filled = rig.carrying("minecraft:lava_bucket");
                 rig.evidence("lava_bucket", filled);
                 // Where the source went is the other half of the reading: a fill that worked empties

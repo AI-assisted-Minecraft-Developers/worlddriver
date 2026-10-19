@@ -4,14 +4,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -271,8 +265,7 @@ public final class JourneyShaft {
                         + " - the tower stops here and the YLevel fallback takes over (no digging); which"
                         + " column it ends in is judged by the water-fill/pour step's own ray gate");
                 rig.evidence(climbName + ".pinnedFallback", true);
-                rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
-                                CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000,
+                rig.settle(JourneyTasks.goTo(Targets.level(surfaceY), JourneyTasks.NO_BREAK), 3_000,
                         () -> recordExit(rig, then));
                 return;
             }
@@ -294,7 +287,7 @@ public final class JourneyShaft {
             // different attempt rather than the same question asked twice: a different column, and a
             // builder that now refuses — by name — the ceiling that ended the first one.
             int beforeFallbackY = rig.player().blockPosition().getY();
-            rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY))), 3_000,
+            rig.settle(JourneyTasks.goToLevel(surfaceY), 3_000,
                     () -> recoverIfLower(rig, surfaceY, beforeFallbackY, then));
         });
     }
@@ -319,8 +312,7 @@ public final class JourneyShaft {
         Harness.set("allowPlace", false);
         Harness.set("allowBreak", false);
         rig.evidence(climbName + ".walkedNotTowered", true);
-        rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
-                        CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.level(surfaceY), JourneyTasks.NO_BREAK), 3_000, () -> {
             Harness.set("allowPlace", couldPlace);
             Harness.set("allowBreak", couldBreak);
             recordExit(rig, then);
@@ -874,11 +866,11 @@ public final class JourneyShaft {
                     then.run();
                     return;
                 }
-                rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1,
+                rig.hold(40, 60, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
                 return;
             }
-            rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then));
+            rig.hold(40, 60, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then));
             return;
         }
         String pillar = pillarBlock(rig);
@@ -894,7 +886,7 @@ public final class JourneyShaft {
         // and losing the hand each time. What keeps the hand across courses is the tower's own
         // `reachIntoBag` opt-in at the settle below. Kept here because the two do different jobs —
         // this one also sets the SERVER's hand and records the failure to do so as `.hand`.
-        var pillarItem = RegistryIds.lookup(BuiltInRegistries.ITEM, pillar)
+        var pillarItem = JourneyRig.lookup(BuiltInRegistries.ITEM, pillar)
                 .orElseThrow(() -> new IllegalArgumentException("no item " + pillar));
         // BOTH PLAYERS, CLIENT AND SERVER. `TowerProcess` places through `gameMode.useItemOn`, and
         // what lands is decided by the hand the SERVER has — which the mine that preceded this
@@ -931,7 +923,7 @@ public final class JourneyShaft {
         // a full hotbar the pickaxe lands where the cobblestone was and the cobblestone goes back to
         // the bag. Rung 9 of 2026-08-22 then reported `no placeable block in hotbar` at both veins
         // while carrying 47 and 105 cobblestone, and both towers placed nothing.
-        rig.settle(new TowerProcess(at.getY() + 1, pillar, true), 200, () -> rig.settle(new HoldStill(20), 40, () -> {
+        rig.settle(JourneyTasks.tower(at.getY() + 1, pillar, true), 200, () -> rig.hold(20, 40, () -> {
             if (rig.player().blockPosition().getY() > at.getY()) {
                 ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then);
                 return;
@@ -1018,7 +1010,7 @@ public final class JourneyShaft {
                 }
                 rig.evidence(climbKey(step, ".washedOff"), "the water washed the bot off the pillar ("
                         + flowNote + "), " + (washedOff - 1) + " retries left");
-                rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
+                rig.hold(20, 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
                 return;
             }
@@ -1310,7 +1302,7 @@ public final class JourneyShaft {
         // standing rows above it on the frame — so the one goal shape that is taxed for descending
         // was the one being used. `Goal.Block` carries a real 3D heuristic and is not taxed.
         BlockPos into = footholdInColumn(lvl, climbColX, climbColZ, at.getY());
-        Goal goal = into != null ? new Goal.Block(into) : new Goal.XZ(climbColX, climbColZ, 0);
+        var goal = into != null ? Targets.block(into) : Targets.column(climbColX, climbColZ, 0);
         int n = DRIFT_ATTEMPTS - tries + 1;
         rig.evidence(climbKey(step, ".driftInto." + n), into != null
                 ? into.toShortString() + " (the standable cell in this column; bot at "
@@ -1322,7 +1314,7 @@ public final class JourneyShaft {
         Harness.set("allowBreak", false);
         // Longer than the 120 ticks the same-height cell needed, because the column's foothold can
         // be several rows under the bot in a hollow alcove and the walk now includes that descent.
-        rig.settle(new IntentProcess(new Intent(goal)), 200, () -> {
+        rig.settle(JourneyTasks.goTo(goal), 200, () -> {
             Harness.set("allowBreak", couldBreak);
             BlockPos back = rig.player().blockPosition();
             if (back.getX() == climbColX && back.getZ() == climbColZ) { then.run(); return; }
@@ -1554,7 +1546,7 @@ public final class JourneyShaft {
                         + " down, and this rung's column is fixed by the survey, so it cannot be changed");
                 return;
             }
-            rig.settle(new HoldStill(40), 60,
+            rig.hold(40, 60,
                     () -> descendByMining(rig, targetY, budget - 1, cap, then, onWetColumn));
             return;
         }
@@ -1577,7 +1569,7 @@ public final class JourneyShaft {
                 // navigator took the shortest way down it could find, landing at 77,83 with the ore
                 // still under 83,75. A shaft is a column, and only a goal that names the column
                 // keeps the bot over its own hole.
-                rig.settle(new HoldStill(40), 60,
+                rig.hold(40, 60,
                         () -> descendByMining(rig, targetY, budget - 1, cap, then, onWetColumn));
         });
     }

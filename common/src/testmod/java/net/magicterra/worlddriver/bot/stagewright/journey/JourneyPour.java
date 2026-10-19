@@ -5,11 +5,8 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -275,8 +272,7 @@ final class JourneyPour {
             rig.evidence(tag + ".raiseTo3D", "this retry uses the 3D goal " + want.toShortString()
                     + " (radius " + POUR_ROW_SLACK + "); the previous attempt's Goal.XZ ignores Y"
                     + " and delivered the bot to the surface of the same column");
-            rig.settle(new IntentProcess(new Intent(new Goal.Near(want, POUR_ROW_SLACK), List.of(),
-                    CapabilityProfile.ALL, List.of(new NoBreak()))), 800, () -> {
+            rig.settle(JourneyTasks.goTo(Targets.near(want, POUR_ROW_SLACK), JourneyTasks.NO_BREAK), 800, () -> {
                 BlockPos landed3d = rig.player().blockPosition();
                 rig.evidence(tag + ".raiseTo3D.landed", landed3d.toShortString() + " (goal "
                         + want.toShortString() + ", distance " + String.format(java.util.Locale.ROOT, "%.2f",
@@ -323,9 +319,8 @@ final class JourneyPour {
                 + " its cheapest cell; this surcharge exists so that it no longer is");
         WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
                 WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS,
-                List.of((from, to, edge, goal, world) ->
-                        to.getY() > alcoveCeiling ? JourneyTerrain.LIP_TAX : 0.0),
-                List.of(new NoBreak()), arrived, stuck);
+                JourneyTerrain.taxAbove(Routes.plain().noBreak(), alcoveCeiling, JourneyTerrain.LIP_TAX).build(),
+                arrived, stuck);
     }
 
     private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
@@ -1126,7 +1121,9 @@ final class JourneyPour {
             // the caller's very next act is to aim at whatever this returns, so the bot ends up
             // pointing at the candidate either way — this only makes the decision and the aim the
             // same act.
-            var fired = fire(rig.avatar(), rig.player(), aim);
+            // Aimed through the hand verb on the run's bot, and on self onto the server's copy as well, so
+            // the ray taken next off rig.player() points where the aim does — see JourneyHands#aimBoth.
+            var fired = fire(c -> JourneyHands.aimBoth(rig, c), rig.player(), aim);
             BlockPos into = landedIn(fired);
             if (target.equals(into)) return aim;
             // Named, and named per candidate. A row that only said "no foot cell to pour from" would
@@ -1160,9 +1157,9 @@ final class JourneyPour {
      * away. Package-private so an isolated arena can fire the production shot at a staged mould
      * instead of hand-rolling a clip beside it.
      */
-    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.game.body.Body av,
+    static net.minecraft.world.phys.BlockHitResult fire(java.util.function.Consumer<BlockPos> aimAt,
                                                         ServerPlayer body, BlockPos at) {
-        av.aimAtBlock(at);
+        aimAt.accept(at);
         return JourneyHands.aimedAt(body, JourneyFill.BUCKET_REACH, false);
     }
 

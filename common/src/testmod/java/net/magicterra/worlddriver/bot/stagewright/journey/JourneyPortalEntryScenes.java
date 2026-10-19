@@ -8,15 +8,10 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -248,36 +243,34 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         Harness.set("allowBreak", false);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared
         // dogfood world back empty — a portal left standing would take the next scene's bot.
         ctx.cleanup(() -> clearBox(ctx));
     }
 
     /** A bot standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
-    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
+    private static SceneBot body(SceneContext ctx, BlockPos foot) {
         return body(ctx, foot, 0.5);
     }
 
     /** The same, with the bot's z inside its own cell named — a stance on the LIP of a block is a
      *  different situation from one at its centre, and one arm here needs the lip. */
-    private static PlayerBot body(SceneContext ctx, BlockPos foot, double dz) {
-        PlayerBot driver = SceneBody.managed(ctx,
-                foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
-        ServerPlayer fp = driver.fakePlayer();
+    private static SceneBot body(SceneContext ctx, BlockPos foot, double dz) {
+        SceneBot driver = SceneBot.spawn(ctx, foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
+        driver.player().getInventory().clearContent();
+        ServerPlayer fp = driver.player();
         // A pickaxe because the ladder's bot has one by rung 13 and because destroyBlock hands the
         // held item to dropResources — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
         // Three physics steps with no input, so the bot is flush before anything is measured.
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
         return driver;
     }
 
-    private static boolean inPortal(PlayerBot driver) {
-        ServerPlayer fp = driver.fakePlayer();
+    private static boolean inPortal(SceneBot driver) {
+        ServerPlayer fp = driver.player();
         return fp.level().getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL);
     }
 
@@ -290,14 +283,42 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * in. What is under test is the entry, and the entry is finished the moment the bot's own cell
      * reads {@code nether_portal}.
      */
-    private static int drive(PlayerBot driver, BotProcess process, int budget) {
-        driver.runProcess(process);
+    private static int drive(SceneBot driver, JourneyTasks.Task task, int budget) {
+        Calls.now(task.start().apply(driver.ref()));
         int t = 0;
-        for (; t < budget && !driver.finished(); t++) {
+        for (; t < budget && driver.busy(); t++) {
             driver.tick();
             if (inPortal(driver)) { t++; break; }
         }
         return t;
+    }
+
+    /**
+     * {@link JourneyPortalEntry#pushInto}'s roster-bot half on this parked bot: aimed at {@code cell}, forward
+     * held, jump, dig and sneak let go, re-pressed every tick, until the bot stands in a portal block or
+     * {@code ticks} run out — the inputs the rung's step-in process applies.
+     */
+    private static int push(SceneBot driver, BlockPos cell, int ticks) {
+        var at = Targets.pos(cell);
+        int t = 0;
+        for (; t < ticks; t++) {
+            driver.press(driver.keys().aimAt(at).jump(false).attack(false).sneak(false).move(0, 1));
+            driver.tick();
+            if (inPortal(driver)) { t++; break; }
+        }
+        driver.press(driver.keys().move(0, 0));
+        return t;
+    }
+
+    /** Whether a radius-0 column target at {@code step} is already reached from {@code at}: same x and z. */
+    private static boolean inColumn(BlockPos at, BlockPos step) {
+        return at.getX() == step.getX() && at.getZ() == step.getZ();
+    }
+
+    /** Let the parked bot stand {@code ticks} with no task: its task cancelled, then ticked. */
+    private static void stand(SceneBot driver, int ticks) {
+        driver.cancel();
+        driver.tick(ticks);
     }
 
     /**
@@ -309,23 +330,23 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * {@code aimAtBlock} is the only thing steering the push, and {@code onGround} because
      * {@code getFrictionInfluencedSpeed} reads it.
      */
-    private static String exactly(PlayerBot driver) {
-        ServerPlayer fp = driver.fakePlayer();
+    private static String exactly(SceneBot driver) {
+        ServerPlayer fp = driver.player();
         return String.format(Locale.ROOT, "%.3f/%.3f/%.3f yaw=%.1f onGround=%s dm=%.3f/%.3f/%.3f",
                 fp.getX(), fp.getY(), fp.getZ(), fp.getYRot(), fp.onGround(),
                 fp.getDeltaMovement().x, fp.getDeltaMovement().y, fp.getDeltaMovement().z);
     }
 
     /** Where the bot is and what it is standing in — the one sentence both arms judge on. */
-    private static String where(PlayerBot driver) {
-        ServerPlayer fp = driver.fakePlayer();
+    private static String where(SceneBot driver) {
+        ServerPlayer fp = driver.player();
         BlockPos at = fp.blockPosition();
         return at.toShortString() + " standing in " + fp.level().getBlockState(at).getBlock();
     }
 
     /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the pour-line arenas
      *  so there is one of it rather than one per file. */
-    private static boolean swing(PlayerBot driver, BlockPos cell) {
+    private static boolean swing(SceneBot driver, BlockPos cell) {
         return JourneyHands.swing(driver, cell);
     }
 
@@ -421,15 +442,15 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 .isTrue();
 
         // ---- control: the goal the alternation used to issue on this turn ----
-        PlayerBot blind = body(ctx, perch, LEDGE_DZ);
-        BlockPos before = blind.fakePlayer().blockPosition();
-        Goal.XZ column = new Goal.XZ(step.getX(), step.getZ(), 0);
+        SceneBot blind = body(ctx, perch, LEDGE_DZ);
+        BlockPos before = blind.player().blockPosition();
+        var column = Targets.column(step.getX(), step.getZ(), 0);
         ctx.record("blind.premise", "XZ(" + step.getX() + "," + step.getZ() + ",0).reached("
-                + before.toShortString() + ") = " + column.reached(before)
+                + before.toShortString() + ") = " + inColumn(before, step)
                 + "; the bot already stands in the target column, so the answer to this question is"
                 + " already \"yes\"");
-        int blindTicks = drive(blind, new IntentProcess(new Intent(column)), LEDGE_TICKS);
-        boolean blindArrived = blind.fakePlayer().blockPosition().equals(step);
+        int blindTicks = drive(blind, JourneyTasks.goTo(column), LEDGE_TICKS);
+        boolean blindArrived = blind.player().blockPosition().equals(step);
         ctx.record("blind.leg", "XZ goal " + step.toShortString() + ": " + before.toShortString()
                 + " → " + where(blind) + " (" + blindTicks + " ticks) "
                 + JourneyLeg.navigatorEnd(blind) + " " + exactly(blind));
@@ -439,28 +460,28 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                     + " that was always walkable: " + where(blind));
 
         // ---- subject: what legGoal issues on the same turn, from the same cell ----
-        PlayerBot seeing = body(ctx, perch, LEDGE_DZ);
-        BlockPos here = seeing.fakePlayer().blockPosition();
-        Goal picked = JourneyPortalEntry.legGoal(here, step, true);
+        SceneBot seeing = body(ctx, perch, LEDGE_DZ);
+        BlockPos here = seeing.player().blockPosition();
+        var picked = JourneyPortalEntry.legGoal(here, step, true);
         ctx.record("picked", JourneyPortalEntry.legShape(here, step, true) + " → " + picked);
-        int seeTicks = drive(seeing, new IntentProcess(new Intent(picked)), LEDGE_TICKS);
+        int seeTicks = drive(seeing, JourneyTasks.goTo(picked), LEDGE_TICKS);
         ctx.record("subject.leg", "goal " + step.toShortString() + ": " + here.toShortString()
                 + " → " + where(seeing) + " (" + seeTicks + " ticks) "
                 + JourneyLeg.navigatorEnd(seeing) + " " + exactly(seeing));
 
         // The alternation has to survive the fix, or this is a deletion wearing a fix's clothes.
         BlockPos far = step.offset(4, 1, 4);
-        Goal stillXz = JourneyPortalEntry.legGoal(far, step, true);
+        var stillXz = JourneyPortalEntry.legGoal(far, step, true);
         ctx.record("alternation", "flat turn asked from " + far.toShortString()
                 + " (not in that column) → " + stillXz);
 
-        ctx.check(picked instanceof Goal.Block).as("A When the bot already stands in the doorstep's"
+        ctx.check(picked instanceof GotoContracts.Position).as("A When the bot already stands in the doorstep's"
                 + " column, the flat turn must not ask XZ again: measured " + picked
-                + " (XZ's answer for this cell is " + column.reached(here) + ")").isTrue();
-        ctx.check(seeing.fakePlayer().blockPosition()).as("B The replacement goal must actually bring"
+                + " (XZ's answer for this cell is " + inColumn(here, step) + ")").isTrue();
+        ctx.check(seeing.player().blockPosition()).as("B The replacement goal must actually bring"
                 + " the bot to the doorstep " + step.toShortString() + ": measured " + where(seeing))
                 .isEqualTo(step);
-        ctx.check(stillXz instanceof Goal.XZ).as("C Outside that column the flat turn must still be XZ;"
+        ctx.check(stillXz instanceof GotoContracts.Column).as("C Outside that column the flat turn must still be XZ;"
                 + " the alternation exists to ask a different question, not to remove one: measured "
                 + stillXz).isTrue();
     }
@@ -523,15 +544,15 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ctx.check(JourneyPortalEntry.cells(level, bottom)).as("THE RIG: six doorway cells").hasSize(6);
 
         // ---- control: the goal the rung used to ask for, and could never reach ----
-        PlayerBot control = body(ctx, start(ctx));
+        SceneBot control = body(ctx, start(ctx));
         StringBuilder trail = new StringBuilder();
         int spent = 0;
         for (int i = 0; i < CONTROL_LEGS && !inPortal(control); i++) {
-            BlockPos before = control.fakePlayer().blockPosition();
-            int t = drive(control, new IntentProcess(new Intent(new Goal.Block(bottom))), LEG_TICKS);
+            BlockPos before = control.player().blockPosition();
+            int t = drive(control, JourneyTasks.goToBlock(bottom), LEG_TICKS);
             spent += t;
             trail.append(i == 0 ? "" : " ").append(i).append(':').append(before.toShortString())
-                    .append("->").append(control.fakePlayer().blockPosition().toShortString())
+                    .append("->").append(control.player().blockPosition().toShortString())
                     .append('/').append(t).append('t');
         }
         int controlFaults = inPortal(control) ? 0 : 1;
@@ -545,12 +566,12 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                     + " got the bot into the portal on its own, so this arm's \"ended inside a"
                     + " nether_portal cell\" criterion cannot tell a fix from a walk that was never"
                     + " blocked — " + trail);
-        control.fakePlayer().discard();
+        control.remove();
 
         // ---- subject ----
         stage(ctx, Front.SLAG);
-        PlayerBot subject = body(ctx, start(ctx));
-        BlockPos from = subject.fakePlayer().blockPosition();
+        SceneBot subject = body(ctx, start(ctx));
+        BlockPos from = subject.player().blockPosition();
 
         JourneyPortalEntry.Doorstep walkIn = JourneyPortalEntry.find(level, bottom, from);
         ctx.record("subject.walkIn", walkIn == null ? "null (no doorstep to walk in from as staged)"
@@ -571,8 +592,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
         boolean opened = swing(subject, slag);
         ctx.record("subject.dig", slag.toShortString() + " → " + level.getBlockState(slag).getBlock()
-                + " (canBreak=" + subject.avatar().canBreak(slag) + ", bot at "
-                + subject.fakePlayer().blockPosition().toShortString() + ")");
+                + " (canBreak=" + subject.reach(slag).canBreak() + ", bot at "
+                + subject.player().blockPosition().toShortString() + ")");
         ctx.check(opened).as("D The cell was actually dug open; otherwise the walk below is measuring a"
                 + " wall that does not exist: "
                 + slag.toShortString() + "=" + level.getBlockState(slag).getBlock()).isTrue();
@@ -583,14 +604,14 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 + ", step into " + after.cell().toShortString());
         if (after == null) return;
 
-        int walked = drive(subject, new IntentProcess(new Intent(new Goal.Block(after.stand()))), LEG_TICKS);
+        int walked = drive(subject, JourneyTasks.goToBlock(after.stand()), LEG_TICKS);
         // Let it land. The last edge into a doorstep one row down is a step off a ledge, and the walk
         // ends on the tick the process reports finished — with the bot still in the air over the
         // cell it is arriving at. Without this settle the arm reads "cannot step in from here" about
         // a cell the bot is a tenth of a second from standing on, and the rung has the same settle
         // for the same reason.
-        drive(subject, new HoldStill(10), 20);
-        BlockPos atDoor = subject.fakePlayer().blockPosition();
+        stand(subject, 10);
+        BlockPos atDoor = subject.player().blockPosition();
         BlockPos ready = JourneyPortalEntry.stepFrom(level, atDoor, bottom);
         ctx.record("subject.walk", from.toShortString() + " → " + atDoor.toShortString()
                 + " (" + walked + " ticks) " + JourneyLeg.navigatorEnd(subject)
@@ -605,10 +626,9 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         // is exactly that. Recorded at the moment of the push because it is one of the two readings
         // that separate "pushed for sixty ticks and did not move" from "ran into something" — the
         // other is `exactly`.
-        boolean braking = subject.fakePlayer().isShiftKeyDown();
+        boolean braking = subject.player().isShiftKeyDown();
         String before = exactly(subject);
-        int pushed = drive(subject, JourneyPortalEntry.stepInto(ready, JourneyPortalEntry.STEP_IN_TICKS),
-                JourneyPortalEntry.STEP_IN_TICKS + 20);
+        int pushed = push(subject, ready, JourneyPortalEntry.STEP_IN_TICKS);
         int subjectFaults = inPortal(subject) ? 0 : 1;
         ctx.record("subject.stepIn", atDoor.toShortString() + " pushed toward " + ready.toShortString()
                 + " (" + pushed + " ticks, shiftKeyDown at the start=" + braking + ") → " + where(subject)

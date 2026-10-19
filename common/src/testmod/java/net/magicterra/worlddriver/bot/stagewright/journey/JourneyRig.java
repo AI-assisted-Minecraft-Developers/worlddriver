@@ -5,29 +5,23 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.api.game.WorldDriver;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.*;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.game.body.JoinedPlayers;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -84,32 +78,25 @@ import net.minecraft.world.level.GameType;
  * {@code journeyDedicatedServerWithClient}), and on {@code journeyIntegratedServer} it climbs on
  * the CLIENT'S REAL PLAYER — a player that takes fall damage, starves, drowns, dies, respawns and
  * earns advancements, because it is a player who joined. The other two still climb on the headless
- * server-side player {@link #spawnBody()} mints, and the bound above is theirs.
+ * roster player {@link #spawnBody()} spawns, and the bound above is theirs.
  *
  * <h2>How a real player gets driven, and why it is the same code</h2>
  *
- * {@code BotProcess.tick(Minecraft,…)} default-bridges to {@code tick(Body,…)} over a
- * {@code ClientPlayerBody}, so ONE process object drives a client {@code LocalPlayer} on the
- * client tick and a headless {@code FakePlayer} on the server tick. That seam is what makes this
- * possible without a second ladder: a rung still builds a {@code TowerProcess} or an
- * {@code IntentProcess} and hands it to {@link #drive}, and only the HELM changes —
- * {@code BotTicker} on the headless topologies, {@code BotApi.runProcess} (the client's
- * own user-task chain) on the integrated one. See {@link #startLeg}.
+ * A rung names a task — {@link JourneyTasks#goTo}, {@link JourneyTasks#tower}, {@link JourneyTasks#mine} — and
+ * hands it to {@link #drive} or {@link #settle}; the task is the {@code mc.bot.*} verb, sent to whichever bot this
+ * run climbs with. On the headless topologies that is a roster player ({@code player:sN}) the server ticks; on the
+ * integrated one it is {@code self}, the client's real player, whose verbs run on the client's own task chain.
+ * Only the bot ref changes, and {@link JourneyHelm} owns the difference.
  *
- * <p><b>What the server thread must never do here is wait.</b> a call's {@code awaitMs}
- * and {@code BotUtil.onClient} both block the calling thread until the client answers, and the
- * caller here is the server thread of a server the client is ticking against. So the start is
- * fire-and-forget ({@code mc.execute}) and completion is polled from the scene's own await
+ * <p><b>What the server thread must never do here is wait.</b> self's calls answer on the client
+ * thread, and the caller here is the server thread of a server the client is ticking against. So a
+ * start is sent and its reply collected later, and completion is polled from the scene's own await
  * predicate, which is the one thing that already runs on every tick of a task.
  *
- * <p><b>Two honest compromises</b>, both stated into the record rather than hidden.
- * {@link #breakItWhereItStands} calls {@code Level#destroyBlock} through a
- * {@link ServerPlayerBody} wrapped around the real player, so an in-place swing is a
- * server-side write on every topology and never exercises the client's multi-tick
- * {@code continueDestroy}. And the joining topology ({@code dedicatedServerWithClient}) keeps the
- * headless server-side player on purpose: the client bot lives in the OTHER process, and a
- * {@code BotProcess} object cannot cross a socket. {@code journey.body} says which of the three a
- * row came from, unconditionally, so no two rows can be compared without it.
+ * <p><b>One honest compromise</b>, stated into the record rather than hidden: the joining topology
+ * ({@code dedicatedServerWithClient}) keeps the headless roster player on purpose, because the client bot
+ * lives in the OTHER process. {@code journey.body} says which of the three a row came from, unconditionally,
+ * so no two rows can be compared without it.
  */
 public final class JourneyRig {
 
@@ -160,7 +147,8 @@ public final class JourneyRig {
 
     // ---- the run's shared state ----
 
-    private static PlayerBot driver;
+    /** The run's bot and the hand on it, or null before SPAWN has made one. */
+    private static JourneyHelm helm;
     private static ChunkPos pinned;
     private static ServerLevel pinnedLevel;
 
@@ -173,15 +161,6 @@ public final class JourneyRig {
      * rows that look comparable and are not, which is the failure these evidence keys prevent.
      */
     private static Boolean realPlayerHelm;
-
-    /**
-     * Whether {@link #spawnBody()} ADOPTED a player rather than minting one.
-     *
-     * <p>Read by {@link #teardown()}, and that is the whole reason it exists: the teardown
-     * {@code discard()}s the player entity, which is right for a fake player and is a way to delete a human's
-     * player entity out from under a live connection.
-     */
-    private static boolean adoptedRealPlayer;
 
     // ---- this stage's state ----
 
@@ -304,18 +283,27 @@ public final class JourneyRig {
      * <p>{@code label} is a name for the evidence rows and nothing more. No ledger row is written
      * under it, so it can safely be the stage whose code is under test.
      *
-     * <p>The bot is handed in rather than spawned: arena scenes already mint one through
-     * {@code SceneBody.managed}, and {@link #spawn} is the LADDER's policy for obtaining a bot (adopt
-     * the client's player, else mint). The previous driver is restored by a cleanup, so a scene cannot
+     * <p>The bot is handed in rather than spawned: arena scenes already spawn one through
+     * {@code SceneBot.spawn}, and {@link #spawnBody} is the LADDER's policy for obtaining a bot (adopt
+     * the client's player, else spawn). The previous helm is restored by a cleanup, so a scene cannot
      * leave the static pointing at a bot that belonged to it — the failure mode of
      * [[a-scene-that-owns-a-global]], which this file would otherwise be the biggest instance of.
+     *
+     * <p>The arena bot is put on the tick list here, as the ladder's own bot is: between tasks the server
+     * ticks it idle, which is what lets it fall, float and pick drops up while a rung waits.
      */
-    static JourneyRig forArena(SceneContext ctx, JourneyStage label, PlayerBot arenaBody) {
-        PlayerBot hadDriver = driver;
-        boolean hadAdopted = adoptedRealPlayer;
-        ctx.cleanup(() -> { driver = hadDriver; adoptedRealPlayer = hadAdopted; });
-        driver = arenaBody;
-        adoptedRealPlayer = false;
+    /** An arena's bot: a parked roster bot standing in {@code foot}, empty-handed, removed when the scene ends. */
+    static SceneBot arenaBot(SceneContext ctx, BlockPos foot) {
+        SceneBot bot = SceneBot.spawn(ctx, foot);
+        bot.player().getInventory().clearContent();
+        return bot;
+    }
+
+    static JourneyRig forArena(SceneContext ctx, JourneyStage label, SceneBot arenaBot) {
+        JourneyHelm hadHelm = helm;
+        ctx.cleanup(() -> helm = hadHelm);
+        helm = JourneyHelm.serverBot(arenaBot);
+        helm.keepTicking();
         JourneyRig rig = new JourneyRig(ctx, label);
         ctx.record("journey.stage", label.name() + "(" + label.label() + ") (arena, not recorded in the ledger)");
         rig.recordFutileGate("no wait in this scene yet: the navigator has not been awaited once");
@@ -376,12 +364,9 @@ public final class JourneyRig {
      *
      * <p>On the integrated topology a real player is already standing in this world, and a rung that
      * spawned a second, invulnerable player entity beside it would be testing the wrong one: verification on the
-     * integrated server is meant to be done by the real player. So the driver is built around the player
-     * that is there: {@code ServerPlayerBody} takes any {@link ServerPlayer}, so every single-shot actuation the
-     * rungs already use ({@code holdItem}, {@code aimAtBlock}, {@code useItemInHand},
-     * {@code placeOn}, {@code canBreak}) and every read ({@code player()}, inventory, advancements)
-     * is unchanged code operating on a real player. Only the per-tick DRIVING changes helms — see
-     * {@link #startLeg}.
+     * integrated server is meant to be done by the real player. So the run's bot is the player that is there,
+     * {@code self}: every task and every single-shot action goes to it through the same {@code mc.bot.*} verbs a
+     * roster bot gets, and every read ({@code player()}, inventory, advancements) is the server's copy of it.
      *
      * <p>Three things are forced rather than trusted. <b>Survival</b>, because a creative player
      * takes no fall damage, needs no food and breaks anything instantly, which would quietly restore
@@ -395,7 +380,7 @@ public final class JourneyRig {
      * is a way to destroy somebody's save if this ever runs against a client a person is using. The
      * ladder is a test topology; do not point it at a world you care about.
      */
-    public PlayerBot spawnBody() {
+    public ServerPlayer spawnBody() {
         ServerLevel level = ctx.level();
         BlockPos spawn = level.getSharedSpawnPos();
         ChunkPos center = new ChunkPos(spawn);
@@ -438,187 +423,110 @@ public final class JourneyRig {
                     "%.1f blocks: %.0f,%.0f,%.0f → %d,%d,%d (world spawn)",
                     wasAt.distanceTo(real.position()),
                     wasAt.x, wasAt.y, wasAt.z, spawn.getX(), surface, spawn.getZ()));
-            driver = new PlayerBot(new ServerPlayerBody(real));
-            adoptedRealPlayer = true;
+            helm = JourneyHelm.self(real);
         } else {
-            driver = PlayerBot.createIsolated(level,
-                    spawn.getX() + 0.5, surface, spawn.getZ() + 0.5);
-            driver.fakePlayer().getInventory().clearContent();
-            adoptedRealPlayer = false;
+            // The bot outlives this scene, so it is spawned bare and released by teardown, never by a cleanup.
+            SceneBot bot = SceneBot.spawnBare(ctx, level, spawn.getX() + 0.5, surface, spawn.getZ() + 0.5);
+            bot.player().getInventory().clearContent();
+            helm = JourneyHelm.serverBot(bot);
+            // On the tick list from here on, idle or not, as a connected player is ticked by its connection: a
+            // meal finishes, health comes back and the bot falls into the hole it dug while no task holds it.
+            helm.keepTicking();
         }
         // Its own key rather than a second write of `journey.body`. This rung ENTERED without a bot
         // and leaves with one, so the two readings are both true and neither contradicts the other —
         // and routing a legitimate change through the clash detector would print a WARN on every
         // single run, which is how a diagnostic teaches its reader to stop looking at it.
         evidence("journey.body.spawned", bodyDescription(ctx));
-        return driver;
+        return helm.player();
     }
 
-    /** The run's bot, or null before SPAWN has made one. */
-    public static PlayerBot bodyOrNull() { return driver; }
+    /** The run's bot's player, or null before SPAWN has made one. */
+    public static ServerPlayer playerOrNull() { return helm == null ? null : helm.player(); }
 
-    /** What the navigators driving the run's bot have done, or null before SPAWN has made one. A rig built
-     *  before the bot exists reads its baseline as zero, which is right: that body has done nothing yet. */
-    static NavigatorTelemetry navigatorTelemetry() {
-        PlayerBot d = driver;
-        return d == null ? null : NavigatorTelemetry.of(d.fakePlayer());
-    }
-
-    /** The run's bot, failing the scene when there is none — every stage above SPAWN needs it. */
-    public PlayerBot body() {
-        if (driver == null) {
-            ctx.fail("journey: no bot player entity yet — SPAWN did not create an avatar, so " + stage.name() + " cannot run");
+    /** The run's helm, failing the scene when there is none — every stage above SPAWN needs it. */
+    private JourneyHelm helm() {
+        if (helm == null) {
+            ctx.fail("journey: no bot player entity yet — SPAWN did not create one, so " + stage.name() + " cannot run");
         }
-        return driver;
+        return helm;
     }
+
+    /** What every call on the run's bot names: {@code self}, or the roster bot's {@code player:sN}. */
+    public String bot() { return helm().ref(); }
 
     /** The bot as a {@link ServerPlayer}, for inventory and progress reads. */
-    public ServerPlayer player() { return body().fakePlayer(); }
+    public ServerPlayer player() { return helm().player(); }
 
-    /**
-     * The actuator every single-shot action must go through — <b>the helm's other half</b>.
-     *
-     * <p>{@link #startLeg} routes the per-tick driving to whichever side owns the player. This routes
-     * the one-shot verbs the same way, and for the same reason. Thirty-six call sites reached
-     * {@code body().avatar()} directly, which is a {@code ServerPlayerBody} even when the bot is
-     * the client's real player — so on the integrated topology they wrote the SERVER's copy of
-     * quantities vanilla lets only the client own.
-     *
-     * <p><b>Measured, not reasoned about</b> ({@code wd.actuatorSplitOnAnAdoptedBody}, integrated
-     * Fabric): the server's selected slot went to 4 while the client's stayed 0; the server's aim
-     * went to (−55.32, 29.55) while the client's stayed (283.23, 0.00). Identical ten ticks later —
-     * so this was never the race it looked like. Nothing propagates in either direction: the two
-     * sides hold unrelated values, and a {@code holdItem} that returns {@code true} has changed a
-     * number the player being steered has never heard of.
-     *
-     * <p><b>Why the ladder still passed.</b> It did not test this. {@code runJourneyServer} is
-     * headless — no client exists, {@code realPlayerHelm} is false, and both halves are the server,
-     * which cannot disagree with itself. Rungs 1–13 are green on a topology where the defect is
-     * unreachable, which is exactly why a fix here must be judged by the scene above rather than by
-     * the ladder going green again.
-     *
-     * <p>Null-safe by falling back: a client that has no {@code LocalPlayer} yet (loading, dead,
-     * changing dimension) gets the server avatar rather than a {@link NullPointerException} — with
-     * the fallback RECORDED, because a silent downgrade to the broken path is the failure this
-     * whole change exists to remove.
-     *
-     * <p><b>⚠️ This is called from the SERVER thread, and that is an open defect</b> — see
-     * {@link BotApi#clientAvatar()}, which states it in full. Scene bodies run on the server thread,
-     * so every use of the avatar returned here touches client state across a thread boundary. It is
-     * not fixed by hopping without waiting (half the callers branch on the return value) nor by
-     * waiting (deadlock: this thread is the one the client ticks against); the shape that works is to
-     * originate single-shot actions from the client tick chain, which is not built. A cross-thread
-     * write to these fields may not throw, so a green reading here is not by itself evidence of
-     * correctness — judge this path only with the calling thread recorded beside the numbers.
-     */
-    public Body avatar() {
-        if (!realPlayerHelm(ctx)) return body().avatar();
-        BotApi bot = BotHooks.impl();
-        Body client = bot == null ? null : bot.clientAvatar();
-        if (client != null) return client;
-        evidence("actuator.fellBackToServerAvatar",
-                "the client has no LocalPlayer (loading, dead or changing dimension), so this single-shot action fell"
-                        + " back to the server avatar — it writes the server's own copy, which the client does not follow");
-        return body().avatar();
+    /** The roster bot this run climbs with, or null when it climbs on self. For the posed-body calls
+     *  ({@code press}, {@code step}) that only a server-side bot takes. */
+    public SceneBot serverBotOrNull() { return helm().serverBotOrNull(); }
+
+    /** The navigator of the bot's running task, or of the last one started; for self the last reading that
+     *  landed, null before any did. */
+    public BotDebugContracts.NavigatorReading navigator() { return helm().navigator(); }
+
+    /** Open a new walk in the bot's navigator telemetry — see {@link JourneyHelm#newLeg}. */
+    void newNavigatorLeg() { helm().newLeg(); }
+
+    /** The run's bot's navigator reading, or null before SPAWN has made one or before self's first one landed. */
+    static BotDebugContracts.NavigatorReading navigatorOrNull() {
+        JourneyHelm h = helm;
+        return h == null ? null : h.navigator();
     }
 
-    /** {@link #avatar()}'s equipment and block interaction. Every journey bot is a player, so an empty
-     *  answer is a rig defect and throws rather than being reported as a scene finding. */
-    public Equipment equipment() { return avatar().equipment().orElseThrow(() -> new IllegalStateException("the journey bot has no hands")); }
-    public BlockInteraction blocks() { return avatar().blockInteraction().orElseThrow(() -> new IllegalStateException("the journey bot has no hands")); }
+    /** One of the navigator reading's traces, or words saying why there is none. */
+    static String navigatorTrace(String name) {
+        BotDebugContracts.NavigatorReading r = navigatorOrNull();
+        if (r == null) return "no navigator reading (no bot yet, or self's first reading has not landed)";
+        String v = r.traces().get(name);
+        return v == null ? "null" : v;
+    }
 
     /**
-     * One process slot's reading, taken from whichever half of the driver actually wrote it —
-     * <b>the read-side twin of {@link #avatar()}</b>.
+     * One process slot of the run's bot's {@code mc.bot.status} — read now for a roster bot, the last answer that
+     * landed for self (a tick or two behind the client). Empty before self's first status landed.
      *
-     * <p><b>There are two {@code BotState} objects and nothing connects them.</b>
-     *
-     * <pre>
-     * common/src/main/.../bot/sim/PlayerBot.java:46   private final BotState botState = new BotState();
-     * common/src/main/.../bot/BotApiImpl.java:73              private final BotState state   = new BotState();
-     * </pre>
-     *
-     * {@link #startLeg} hands the process to {@code BotHooks.impl().runProcess} whenever
-     * {@code realPlayerHelm} holds, so on the integrated topology every process that runs writes the
-     * CLIENT's one. Every slot reading in this suite went to {@code body().botState()} — the
-     * server's. Those are not two views of one number; they are two unrelated objects, and on that
-     * topology the one being read has <b>no author at all</b>.
-     *
-     * <p><b>So the readings were null by construction, and the ladder proves it.</b> Across the full
-     * run of 2026-08-22 every row derived from them was null with <b>zero counterexamples</b>:
-     * {@code vein1.mine.lastError}, {@code vein1.mine.endReason}, three {@code craftError} rows,
-     * every rung's {@code gotoEnd}, and {@code climb.N.stalled}. The last one is the expensive one.
-     * {@code TowerProcess} writes, at the moment it gives up,
-     * {@code stuck (no Y gain in 60t: placed=…, holding=…, phase=…, apexFeetY=…, shortJumps=…, overhead=…)}
-     * — a line that names on its own why a tower gained nothing — and this suite has never once seen
-     * it. A null that means "the process reported no error" and a null that means "nobody ever wrote
-     * the copy being read" render identically, and they want opposite next steps.
-     *
-     * <p>This is the same split {@link #avatar()} documents one field over. The WRITE side was fixed
-     * there — thirty-six call sites moved onto the helm-routed actuator. The READ side was missed.
-     *
-     * <p><b>Threading: this read is safe, and that is not an untidiness to be corrected later.</b>
-     * {@code BotApi.status()} does not marshal onto the client thread; it reads volatiles plus
-     * {@code BotState.snapshot()}, which is {@code synchronized}. That is exactly the off-thread read
-     * {@code mc.bot.status} already performs from the RPC thread on every poll. It is NOT the
-     * {@link net.magicterra.worlddriver.bot.BotApi#clientAvatar()} hazard, and it must not be
-     * "fixed" into an {@code onClient} marshal: the caller here is the server thread, which on an
-     * integrated server is the thread the client ticks against, so waiting on it deadlocks.
-     *
-     * <p><b>Ask by the SNAPSHOT's key, not the field's name.</b> {@code BotState.snapshot()}
-     * publishes the goto slot as {@code "goto"} while the field is {@code mc_goto} (the field could
-     * not be named for a Java keyword), so every caller here asks for {@code "goto"} even though the
-     * call sites this replaced all spelled it {@code mc_goto}. The client's map also carries
-     * top-level entries that are not slots ({@code paused}, {@code chains}, {@code clutch}, …); this
-     * indexes by slot name only, so those are simply not reachable through here.
-     *
-     * <p><b>Only the fields {@code ProcessSlot.snapshot()} publishes come through</b> —
-     * {@code active} / {@code goal} / {@code target} / {@code pathLen} / {@code pathStep} /
-     * {@code startedAtMs} / {@code lastError} / {@code goalReached} / {@code endReason} /
-     * {@code finalDist}, and the last four only when set. {@code pathNode}, {@code pathMove},
-     * {@code driveTag} and {@code jumpTag} are deliberately excluded from that snapshot (see their
-     * javadoc: they are in-process debugging fields, not something an agent steers on), so a caller
-     * that needs one of those has no routed reading available and must say so rather than quietly
-     * reading the server's copy. {@code JourneyFlight} is that caller.
-     *
-     * <p>An unknown slot yields an empty map rather than throwing, so a {@code get} on it returns
-     * null. A slot that does not exist and a slot nobody wrote read alike, which is honest: neither
-     * has anything to say.
+     * <p>One status per bot, whichever helm drives it: the task a rung started on self reports into self's
+     * slots, and those are the ones read here. ({@code pathNode}, {@code pathMove}, {@code driveTag} and
+     * {@code jumpTag} are not slot fields; they come through {@link #navigator()}'s plan cursor.)
      */
-    public Map<?, ?> slot(String name) {
-        Object s = botStatus().get(name);
-        return s instanceof Map<?, ?> m ? m : Map.of();
+    public Optional<ControlContracts.Slot> slot(Function<ControlContracts.Slots, ControlContracts.Slot> kind) {
+        ControlContracts.BotStatus s = helm().status();
+        return s == null ? Optional.empty() : Optional.of(kind.apply(s.slots()));
     }
 
     /** {@code lastError} out of {@link #slot}, or null when that slot has none. */
-    public String slotError(String name) { return slotString(name, "lastError"); }
-
-    /** {@code endReason} out of {@link #slot}, or null when that slot has none. */
-    public String slotEnd(String name) { return slotString(name, "endReason"); }
-
-    /** One field out of one slot of the driving half's status, as a string. Public because a hunt
-     *  that banked nothing has to be able to ask {@code combat} for its swing and kill counts, and
-     *  those live in the combat slot alongside the standard fields. */
-    public String slotString(String name, String key) {
-        Object v = slot(name).get(key);
-        return v == null ? null : String.valueOf(v);
+    public String slotError(Function<ControlContracts.Slots, ControlContracts.Slot> kind) {
+        return slot(kind).flatMap(ControlContracts.Slot::lastError).orElse(null);
     }
 
-    /**
-     * The whole slot map from the half that is driving — {@link #startLeg}'s branch, one field over.
-     *
-     * <p>The fallback is RECORDED for the same reason {@link #avatar()}'s is: dropping silently back
-     * to {@code body().botState()} would restore the exact defect this method exists to remove, and
-     * a diagnostic that fails by returning the broken answer is worse than one that throws.
-     */
-    private Map<String, Object> botStatus() {
-        if (!realPlayerHelm(ctx)) return body().botState().snapshot();
-        BotApi bot = BotHooks.impl();
-        if (bot != null) return bot.status();
-        evidence("slotRead.fellBackToServerState",
-                "real-player run, but BotHooks has no implementation — this slot read fell back to the server BotState while the"
-                        + " process runs on the client's copy, so each lastError/endReason below means 'never written', not 'no error'");
-        return body().botState().snapshot();
+    /** {@code endReason} out of {@link #slot}, or null when that slot has none. */
+    public String slotEnd(Function<ControlContracts.Slots, ControlContracts.Slot> kind) {
+        return slot(kind).flatMap(ControlContracts.Slot::endReason).orElse(null);
+    }
+
+    /** {@link #slot} by a task's {@link JourneyTasks.Task#kind() kind} ({@code goto}, {@code mine}, …). */
+    public Optional<ControlContracts.Slot> slot(String kind) {
+        Function<ControlContracts.Slots, ControlContracts.Slot> pick = slotNamed(kind);
+        return pick == null ? Optional.empty() : slot(pick);
+    }
+
+    /** {@link #slotError} by a task's kind. */
+    public String slotError(String kind) {
+        return slot(kind).flatMap(ControlContracts.Slot::lastError).orElse(null);
+    }
+
+    /** {@link #slotEnd} by a task's kind. */
+    public String slotEnd(String kind) {
+        return slot(kind).flatMap(ControlContracts.Slot::endReason).orElse(null);
+    }
+
+    /** The fight tally the bot's status reports (swings, well-timed, crits, kills), or empty before one landed.
+     *  A hunt that banked nothing asks it for its swing and kill counts. */
+    public Optional<ControlContracts.CombatTally> combatTally() {
+        ControlContracts.BotStatus s = helm().status();
+        return s == null ? Optional.empty() : s.reflexes().map(ControlContracts.Reflexes::combat);
     }
 
     /**
@@ -641,9 +549,9 @@ public final class JourneyRig {
      * hurt" is not a statement anyone should be able to read off this.
      */
     public boolean bodyIsInvulnerable() {
-        PlayerBot d = driver;
-        if (d == null) return true;
-        ServerPlayer fp = d.fakePlayer();
+        JourneyHelm h = helm;
+        if (h == null) return true;
+        ServerPlayer fp = h.player();
         return fp.isInvulnerableTo(fp.damageSources().generic());
     }
 
@@ -657,11 +565,10 @@ public final class JourneyRig {
      * a shape this repo has already paid three weeks for):
      *
      * <ul>
-     *   <li>the server is INTEGRATED — a dedicated server has no client thread to marshal onto, and
-     *       on the joining topology the client bot is in another PROCESS, where a
-     *       {@link BotProcess} object cannot follow it;</li>
-     *   <li>{@link BotHooks#isAvailable()} — the client half of the driver really constructed in
-     *       this JVM, so there is a user-task chain to hand a process to;</li>
+     *   <li>the server is INTEGRATED — a dedicated server has no client thread to drive, and
+     *       on the joining topology the client bot is in another PROCESS;</li>
+     *   <li>the driver is up in this JVM ({@link WorldDriver#registry()}), which on an integrated server
+     *       it is only once the client half has come up at client init, so {@code self} answers;</li>
      *   <li>a human player is actually in the level. {@code stagewright.awaitPlayer} holds the
      *       suite until one is placed, so by the first rung this is settled.</li>
      * </ul>
@@ -671,7 +578,7 @@ public final class JourneyRig {
         if (decided != null) return decided;
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
-        boolean now = integrated && BotHooks.isAvailable() && !humanPlayers(ctx).isEmpty();
+        boolean now = integrated && WorldDriver.registry() != null && !SceneBot.humanPlayers(ctx).isEmpty();
         realPlayerHelm = now;
         return now;
     }
@@ -679,16 +586,16 @@ public final class JourneyRig {
     /** {@link #realPlayerHelm(SceneContext)} for this rung's scene. */
     public boolean drivesRealPlayer() { return realPlayerHelm(ctx); }
 
-    /** What actually advances a {@link BotProcess} this run, named after the two classes that
-     *  differ. See {@link #STEER_KEY} for why this is not folded into {@link #BODY_KEY}. */
+    /** Which bot the verbs go to this run, and on which tick they run. See {@link #STEER_KEY} for why this is
+     *  not folded into {@link #BODY_KEY}. */
     private static String steerDescription(SceneContext ctx) {
         return realPlayerHelm(ctx)
-                ? "clientUserTask/ClientPlayerAvatar (processes run on the client tick); reflexes as read: " + armedReflexes()
-                : "serverTick/BotTicker (processes run on the server tick; no reflex chain, no client physics)";
+                ? "self (mc.bot.* verbs run on the client tick, with client physics); reflexes as read: " + armedReflexes()
+                : "roster bot (mc.bot.* verbs run on the server tick); reflexes as read: " + armedReflexes();
     }
 
     /**
-     * Which survival reflexes are actually armed, read from {@link BotConfig} at the moment the row
+     * Which survival reflexes are actually armed, read from the settings at the moment the row
      * is written.
      *
      * <p>This half of the row used to be the words "preempted by panic/dodge/combat on the way", printed
@@ -718,112 +625,76 @@ public final class JourneyRig {
     }
 
     /**
-     * Start one task's process — <b>the only place either helm is engaged</b>.
+     * Start one task — <b>the only place a task is handed to the bot</b>.
      *
-     * <p>Four call sites used to register with {@code BotTicker} independently
-     * ({@link #drive}, {@link #settle}, {@link #mineBlock}, {@link #mineCellOrGiveUp}). That is the
-     * shape this repo keeps paying for: an invariant with sibling paths that ignore it. Here the
-     * invariant is load-bearing — registering the adopted driver would make
-     * {@code ServerPlayerBody.step()} tick a client-controlled player that its own connection
-     * already ticks, and the client contradicts every such move with its own movement packet. The
-     * step now refuses that player outright, which turns the mistake into an exception in the server
-     * tick rather than rubber-banding. Routing all four through one method makes that structurally unreachable
-     * instead of conventionally avoided.
+     * <p>Four call sites used to start their tasks independently ({@link #drive}, {@link #settle},
+     * {@link #mineBlock}, {@link #mineCellOrGiveUp}). That is the shape this repo keeps paying for: an
+     * invariant with sibling paths that ignore it. Routing all of them through one method keeps the heartbeat's
+     * {@code driving}, the task tick and the endings row true for every task.
      */
-    private void startLeg(PlayerBot d, BotProcess process) {
-        driving = process.kind();
+    private void startLeg(JourneyTasks.Task task) {
+        driving = task.kind();
         legTicks = 0;
-        if (realPlayerHelm(ctx)) {
-            BotApi bot = BotHooks.impl();
-            if (bot == null) {
-                ctx.fail("journey: real-player run, but BotHooks has no implementation — the client half is not in this JVM");
-            }
-            bot.runProcess(process);
-            return;
-        }
-        BotTicker.register(d.runProcess(process));
+        helm().start(task);
     }
 
-    /** Whether the task {@link #startLeg} began has ended, under whichever helm began it. */
-    private boolean legEnded(PlayerBot d) {
-        if (realPlayerHelm(ctx)) {
-            BotApi bot = BotHooks.impl();
-            if (bot == null) return true;
-            // ONE read of the whole task, kept for the continuation. Asking again there would ask a
-            // different moment, and the second answer can already describe the NEXT task.
-            Map<String, Object> now = bot.userTaskLeg();
-            if (Boolean.TRUE.equals(now.get("busy"))) return false;
-            endedLeg = now;
-            return true;
-        }
-        return d.finished();
+    /** Whether the task {@link #startLeg} began has ended: refused, or idle on a status read after it began. */
+    private boolean legEnded() {
+        return helm().ended();
     }
-
-    /** The snapshot that made {@link #legEnded} true, held for {@link #noteLegEnding}. */
-    private Map<String, Object> endedLeg;
 
     /**
-     * Release the task. The client's chain drops its own process; only the server helm holds a
-     * registration that would otherwise keep stepping a player nobody is waiting on.
-     *
-     * <p>Use {@link #noteLeg()} instead where the server helm deliberately did NOT unregister —
-     * {@link #drive} never has, and making it start to would change what the headless ladder does
-     * on the one path that carries a bot out of the world.
+     * Release the task: say how it ended and, when it is still running because the caller's budget ran out
+     * first, cancel it — an order nobody waits on any more must not keep walking the bot into the next step.
      */
-    private void endLeg(PlayerBot d) {
+    private void endLeg() {
         driving = null;
-        noteLeg();
-        if (realPlayerHelm(ctx)) return;
-        BotTicker.unregister(d);
-    }
-
-    /** The client helm's half of {@link #endLeg}, on its own, for the call sites where the server
-     *  helm must stay byte-for-byte what it was. */
-    private void noteLeg() {
-        if (realPlayerHelm(ctx)) noteLegEnding();
+        if (!legEnded()) helm().cancel();
+        noteLegEnding();
     }
 
     /**
      * Start a task whose completion the CALLER watches — the public face of {@link #startLeg}.
      *
      * <p>For the tasks {@link #drive} and {@link #settle} cannot express: a fight ends when the
-     * target dies, not when the process says so, so those rungs own their own await predicate. They
-     * used to reach past this rig and call {@code BotTicker.register} themselves, which
-     * on the real-player helm would have the server tick a player its own client is moving. Pair
+     * target dies, not when the task says so, so those rungs own their own await predicate. Pair
      * with {@link #legDone()} and {@link #legReleased()}.
      */
-    public void legStart(BotProcess process) { startLeg(body(), process); }
+    public void legStart(JourneyTasks.Task task) { startLeg(task); }
 
-    /** Whether the task {@link #legStart} began has ended, under whichever helm began it. */
-    public boolean legDone() { return legEnded(body()); }
+    /** Whether the task {@link #legStart} began has ended. */
+    public boolean legDone() { return legEnded(); }
 
     /** Release the task {@link #legStart} began. Call from the continuation, once. */
-    public void legReleased() { endLeg(body()); }
+    public void legReleased() { endLeg(); }
 
-    /** How every task ended under the real-player helm, in order. See {@link #noteLegEnding}. */
+    /** How every task ended, in order. See {@link #noteLegEnding}. */
     private final List<String> legEndings = new ArrayList<>();
 
     /**
-     * Record HOW the client's chain let go of the task, not merely that it did.
+     * Record HOW the bot let go of the task, not merely that it did.
      *
-     * <p>{@code userTaskBusy()} goes false for four different endings — ran to completion, gave up
-     * on its own, threw, or was cancelled by a higher-priority chain — and the task's {@code error}
-     * carries the reason for all but the first. The real player's helm is the one that has
-     * reflexes at all: Panic (creeper), Dodge (projectile), Combat and Bunker can all preempt the
-     * rung's own process. Without this row a task a creeper interrupted reads exactly like a task
-     * that finished, which is {@code UserTaskChain}'s own documented ambiguity arriving one layer
-     * up.
+     * <p>{@code busy} goes false for four different endings — ran to completion, gave up on its own, threw,
+     * or was cancelled by a higher-priority chain — and the status's {@code lastProcessEnd} carries the reason
+     * for all but the first. Panic (creeper), Dodge (projectile), Combat and Bunker can all preempt the
+     * rung's own task. Without this row a task a creeper interrupted reads exactly like a task that finished.
+     * A start the verb refused is an ending too, and says so.
      *
      * <p>Through {@link #put} rather than {@link #evidence}: it is a running list, not a reading, so
      * it must overwrite itself — the same exemption {@code evidence.clash} takes.
      */
     private void noteLegEnding() {
-        Map<String, Object> end = endedLeg;
-        endedLeg = null;
-        if (end == null) return;
-        Object err = end.get("error");
-        // The reason may be the process's own give-up as well as a preempt, so the label claims neither.
-        String line = String.valueOf(end.get("kind")) + (err == null ? "→completed" : "→not done: " + err);
+        JourneyHelm h = helm();
+        String line;
+        if (h.refusal() != null) {
+            line = h.kind() + "→refused: " + h.refusal();
+        } else {
+            ControlContracts.BotStatus s = h.status();
+            ControlContracts.ProcessEnd end = s == null ? null : s.lastProcessEnd().orElse(null);
+            if (end == null) return;
+            // The reason may be the task's own give-up as well as a preempt, so the label claims neither.
+            line = end.kind() + end.error().map(e -> "→not done: " + e).orElse("→completed");
+        }
         // Collapse an unchanged repeat rather than printing "goto→completed" forty times: a rung that
         // settles per cell would otherwise bury its one interesting ending under its own noise.
         int n = legEndings.size();
@@ -876,10 +747,10 @@ public final class JourneyRig {
      *
      * <ul>
      *   <li>{@code isDedicatedServer()} — false only inside a game client hosting its own world.</li>
-     *   <li>{@link BotHooks#isAvailable()} — the client half of the DRIVER, registered only by a
-     *       loader's client entrypoint. This is the fact that decides whether a rung's failure could
-     *       possibly be client-side code at all: on a dedicated server that code is not merely
-     *       unexercised, it is absent from the JVM.</li>
+     *   <li>whether the driver's CLIENT half is in this JVM: on an integrated server the driver comes up
+     *       at client init, with that half; on a dedicated server there is no client half at all. This is
+     *       the fact that decides whether a rung's failure could possibly be client-side code at all: on a
+     *       dedicated server that code is not merely unexercised, it is absent from the JVM.</li>
      * </ul>
      *
      * <p>The human players are listed with their DIMENSION, and that is the load-bearing part rather
@@ -892,7 +763,7 @@ public final class JourneyRig {
     private static String topology(SceneContext ctx) {
         MinecraftServer server = ctx.server();
         boolean dedicated = server == null || server.isDedicatedServer();
-        boolean driverClientHalf = BotHooks.isAvailable();
+        boolean driverClientHalf = !dedicated && WorldDriver.registry() != null;
         List<ServerPlayer> humans = humanPlayers(ctx);
         String kind;
         if (!dedicated) {
@@ -927,16 +798,11 @@ public final class JourneyRig {
      *
      * <p>{@code ctx.players()} is the whole player list, and the ladder's bot is IN it — every
      * server-side bot player joins. So counting that list would report a human client on the headless topology,
-     * which is the exact thing these rows exist to tell apart. {@link JoinedPlayers.JoinedBody}
-     * is the type only the driver mints, so the test is exact rather than a name match.
+     * which is the exact thing these rows exist to tell apart. {@link SceneBot#humanPlayers} leaves out every
+     * player the roster lists as a bot, so the test is exact rather than a name match.
      */
     private static List<ServerPlayer> humanPlayers(SceneContext ctx) {
-        List<ServerPlayer> out = new ArrayList<>();
-        for (ServerPlayer p : ctx.players()) {
-            if (p instanceof JoinedPlayers.JoinedBody) continue;
-            out.add(p);
-        }
-        return out;
+        return SceneBot.humanPlayers(ctx);
     }
 
     /**
@@ -959,9 +825,9 @@ public final class JourneyRig {
     private static String bodyDescription(SceneContext ctx) {
         boolean helm = realPlayerHelm(ctx);
         String kind = helm ? "real (driven by the client bot)" : "joined (driven by the server tick)";
-        PlayerBot d = driver;
-        if (d == null) return kind + ": before SPAWN, this run has no bot player entity yet";
-        ServerPlayer fp = d.fakePlayer();
+        JourneyHelm h = JourneyRig.helm;
+        if (h == null) return kind + ": before SPAWN, this run has no bot player entity yet";
+        ServerPlayer fp = h.player();
         return kind + ":" + fp.getClass().getSimpleName()
                 + " " + fp.getGameProfile().getName()
                 + " (inPlayerList=" + fp.level().players().contains(fp)
@@ -973,14 +839,14 @@ public final class JourneyRig {
     // ---- driving ----
 
     /**
-     * Run a process to completion, then continue.
+     * Run a task to completion, then continue.
      *
-     * <p>The process is driven by the SERVER's own tick, not by a loop inside this scene's tick.
+     * <p>The task is driven by the game's own tick, not by a loop inside this scene's tick.
      * That distinction is the reason this suite exists in the shape it does: every other scene in
-     * the repo spins {@code BotTicker.tickAll()} up to 1500 times inside one server tick,
-     * which is fast and correct for testing a pathfinder, and useless for a playthrough — the world
-     * does not advance, so no furnace smelts, no crop grows, no mob moves and no portal lights. Here
-     * the driver is registered and the scene waits, so a tick of the bot is a tick of the world.
+     * the repo spins the bots up to 1500 times inside one server tick, which is fast and correct for
+     * testing a pathfinder, and useless for a playthrough — the world does not advance, so no furnace
+     * smelts, no crop grows, no mob moves and no portal lights. Here the verb is sent and the scene
+     * waits, so a tick of the bot is a tick of the world.
      *
      * <p>The chunk pin is refreshed from the wait condition. That is a side effect in a predicate,
      * which is normally worth avoiding; it is done here because the condition is the only code that
@@ -988,13 +854,12 @@ public final class JourneyRig {
      * leave it walking into chunks nothing is holding.
      *
      * @param withinTicks how long this task may take before the scene reports STEP_TIMEOUT
-     * @param then        what to assert once the process finishes
+     * @param then        what to assert once the task finishes
      */
-    public void drive(BotProcess process, int withinTicks, Runnable then) {
-        PlayerBot d = body();
-        startLeg(d, process);
-        await(() -> doneOrLost(d, process.kind()), withinTicks, () -> {
-            noteLeg();
+    public void drive(JourneyTasks.Task task, int withinTicks, Runnable then) {
+        startLeg(task);
+        await(() -> doneOrLost(task.kind()), withinTicks, () -> {
+            noteLegEnding();
             then.run();
         });
     }
@@ -1004,59 +869,34 @@ public final class JourneyRig {
      * this rig must use.
      *
      * <p>Four waits existed; ONE checked whether the bot was still in the world. The other three
-     * ({@code drive}, {@code mineBlock}, and the mine branch of {@code settle}) waited on the driver
+     * ({@code drive}, {@code mineBlock}, and the mine branch of {@code settle}) waited on the task
      * alone, so a fall during any of them spent the whole budget on a corpse and then surfaced from
      * the NEXT wait's entry check — which is why the fall report read "process running at exit: not recorded"
      * and why two arena arms built on the navigator trace beside it both passed: they were reproducing
      * a moment that was never the moment. An invariant with sibling paths that ignore it is the
      * shape this repo keeps paying for; the fix is the predicate, not another call site.
      */
-    private boolean doneOrLost(PlayerBot d, String what) {
-        if (legEnded(d)) return true;
+    private boolean doneOrLost(String what) {
+        if (legEnded()) return true;
         if (!bodyLeftTheWorld()) return false;
         if (drivingWhenLost == null) drivingWhenLost = what;
         return true;
     }
 
     /**
-     * Break ONE named block and wait for it, the same way {@link #drive} runs a process.
+     * Break ONE named block and wait for it, the same way {@link #drive} runs a task.
      *
-     * <p>The seam a scripted route needs that no {@code BotProcess} offers: every process picks its
-     * own targets, and this suite's whole premise is that the caller knows the seed and the driver
-     * only has to execute. {@code PlayerBot.mine} already takes a {@link BlockPos}; this
-     * just registers it and waits, so a stage can spell out a dig block by block instead of asking
-     * a search verb to rediscover coordinates the survey already knows.
+     * <p>The seam a scripted route needs that the searching verbs do not offer: {@code mc.bot.mine} by block
+     * id picks its own targets, and this suite's whole premise is that the caller knows the seed and the
+     * driver only has to execute. {@code mc.bot.mine} with a {@code pos} breaks exactly that cell, walking
+     * within two blocks of it first unless it is already in reach, so a stage can spell out a dig block by
+     * block instead of asking a search verb to rediscover coordinates the survey already knows. Both helms
+     * take the same verb.
      */
     public void mineBlock(BlockPos target, int withinTicks, Runnable then) {
-        PlayerBot d = body();
-        if (realPlayerHelm(ctx)) {
-            walkToAndBreak(d, target, withinTicks, then);
-            return;
-        }
-        BotTicker.register(d.mine(target));
-        await(() -> doneOrLost(d, "mineBlock(" + target.toShortString() + ")"), withinTicks, then);
-    }
-
-    /**
-     * The real-player helm's stand-in for {@code PlayerBot.mine}.
-     *
-     * <p>{@code mine} is not a {@link BotProcess} — it is a navigator goal the SERVER driver checks
-     * every tick plus a swing once navigation stops — so it has nothing to hand a client chain.
-     * This is the same two beats spelled out with the pieces that do cross the helm: an
-     * {@link IntentProcess} to within reach, then the same in-place swing every other cell in this
-     * rig is opened with. Deliberately not {@code mc.bot.mine}: {@code MineProcess} finds its OWN
-     * targets by id and radius, and this suite's premise is that the caller already knows the
-     * coordinate.
-     */
-    private void walkToAndBreak(PlayerBot d, BlockPos target, int withinTicks, Runnable then) {
-        if (breakItWhereItStands(target)) {
-            settle(new HoldStill(1), 4, then);
-            return;
-        }
-        startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2))));
-        await(() -> doneOrLost(d, "mineBlock(" + target.toShortString() + ")"), withinTicks, () -> {
-            noteLeg();
-            breakItWhereItStands(target);
+        startLeg(JourneyTasks.mineCell(target));
+        await(() -> doneOrLost("mineBlock(" + target.toShortString() + ")"), withinTicks, () -> {
+            noteLegEnding();
             then.run();
         });
     }
@@ -1073,97 +913,70 @@ public final class JourneyRig {
      * the caller checks whether the cell actually opened and decides what that means.
      */
     public void mineCellOrGiveUp(BlockPos target, int ticks, Runnable then) {
-        if (breakItWhereItStands(target)) {
+        if (helm().isSelf()) {
+            mineCellOnSelf(target, ticks, then);
+            return;
+        }
+        if (swingNow(target)) {
             // One tick, so the world gets to react — gravel falls, fluid moves — before the next
             // cell is judged. Not zero: opening a whole alcove inside a single server tick would
             // queue every block update behind the carve, the "whole fight in one server tick" failure
             // this repo has already paid for.
-            settle(new HoldStill(1), 4, () -> { sayIfStillThere(target, "swung once in place"); then.run(); });
+            hold(1, 4, () -> { sayIfStillThere(target, "swung once in place"); then.run(); });
             return;
         }
-        PlayerBot d = body();
-        if (realPlayerHelm(ctx)) {
-            // Same GIVE-UP contract, client helm — and the counter is what makes it that rather
-            // than a {@link #mineBlock}: without it a walk that never arrives spends the outer
-            // bound and dies on the framework's generic "await step exceeded", which is the exact
-            // failure this method was extracted to stop.
-            // NoBreak, because THIS WALK IS NOT ALLOWED TO MINE ITS OWN WAY. A* is asked for a
-            // route while `Harness.flag("allowBreak")` is globally true (JourneyRig:1409), so the cheapest
-            // route to a cell the bot cannot swing at is regularly a tunnel — and the rock it
-            // tunnels through belongs to whatever the rung has already built.
-            //
-            // Measured, rung 12's client rehearsal 2026-08-22: `stairs.asCut` reported all 11 steps
-            // intact before the carve, `forge.stairsBroken` 4 of 11 broken after it; the broken cells are
-            // (-4,61,20) (-3,60,20) (-2,59,20) (-1,58,20) — x+1/y−1 each step, which is the flight's
-            // own shape translated one row down. Nothing wandered into the staircase; something
-            // walked the length of it, one row under the treads, opening a cell per step. The rung
-            // then could not climb out, `stairsMend` reported "cannot place a support block (no solid
-            // face to attach to)" three times because the ground beside the gap was gone too, and the
-            // lava trip died on `lava0.upStopped`: take-off cell -1,59,18=dirt, blocked, no jump.
-            //
-            // The cost of forbidding it is measured, not assumed: that same run recorded
-            // `forge.swung=64/67` beside `forge.carved=64/67`. THE WALK OPENED ZERO CELLS.
-            // Every cell that was carved was carved where the bot already stood; the walk's entire
-            // contribution was the four broken treads and a `canBreak=false` from 6.0 m away. The
-            // give-up contract below is what makes that safe — a cell this walk can no longer reach
-            // becomes a `carve.stuck` row, which the carve has always been allowed to carry.
-            //
-            // This is the SECOND time this one line has torn out something the rung built; the
-            // first was the portal frame, and the fix then was `JourneyFill.isFrameCell`, a
-            // by-coordinate exemption for that one set of cells. A whitelist protects the group
-            // somebody remembered — the staircase was never on it. Fixing the walk instead covers
-            // every caller at once, and leaves the whitelist as defence in depth rather than as the
-            // only defence.
-            //
-            // Only this helm. The server helm below goes through `d.mine(target)` into the engine's
-            // own MineProcess, which owns its walking; the asymmetry is real and is left alone
-            // because the client player is the one the ladder is judged on.
-            startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2), List.of(),
-                    CapabilityProfile.ALL, List.of(new NoBreak()))));
-            int[] spent = {0};
-            await(() -> {
-                if (legEnded(d)) return true;
-                if (bodyLeftTheWorld()) {
-                    if (drivingWhenLost == null) {
-                        drivingWhenLost = "mine(" + target.toShortString() + ") (tick " + spent[0]
-                                + "/" + ticks + ", real player)";
-                    }
-                    return true;
-                }
-                return ++spent[0] >= ticks;
-            }, ticks + 100, () -> {
-                endLeg(d);
-                breakItWhereItStands(target);
-                sayIfStillThere(target, "client helm: walked with Goal.Near(2)+NoBreak, then swung in place");
-                then.run();
-            });
+        // The engine's own one-cell mine, which owns its walking. The SAME out-of-world guard settle()
+        // has, through settleLeg: it was missing here once, and a bot that left the world during a mine
+        // kept the whole budget running against a corpse in the void, recorded later as "process running
+        // at exit: not recorded".
+        settleLeg(JourneyTasks.mineCell(target), ticks, null, "mine(" + target.toShortString() + ")", () -> {
+            sayIfStillThere(target, "server helm: ran the engine's own one-cell mine");
+            then.run();
+        });
+    }
+
+    /**
+     * {@link #mineCellOrGiveUp} on self, whose swing is the client's own: a dig held over as many ticks as the
+     * block takes, not a server-side write within one call.
+     *
+     * <p>In reach, the one-cell mine digs where the bot stands and walks nowhere. Out of reach, the walk comes
+     * first, and it walks with {@code breakPolicy=never}, because THIS WALK IS NOT ALLOWED TO MINE ITS OWN WAY:
+     * A* is asked for a route while {@code allowBreak} is globally true, so the cheapest route to a cell the bot
+     * cannot swing at is regularly a tunnel — and the rock it tunnels through belongs to whatever the rung has
+     * already built.
+     *
+     * <p>Measured, rung 12's client rehearsal 2026-08-22: {@code stairs.asCut} reported all 11 steps intact
+     * before the carve, {@code forge.stairsBroken} 4 of 11 broken after it; the broken cells are (-4,61,20)
+     * (-3,60,20) (-2,59,20) (-1,58,20) — x+1/y−1 each step, which is the flight's own shape translated one row
+     * down. Something walked the length of it, one row under the treads, opening a cell per step. The cost of
+     * forbidding it is measured, not assumed: that same run recorded {@code forge.swung=64/67} beside
+     * {@code forge.carved=64/67} — THE WALK OPENED ZERO CELLS. The give-up contract is what makes that safe: a
+     * cell this walk can no longer reach becomes a {@code carve.stuck} row, which the carve has always been
+     * allowed to carry. Only self walks this way; a roster bot's one-cell mine owns its walking, an asymmetry
+     * left alone because the client player is the one the ladder is judged on.
+     */
+    private void mineCellOnSelf(BlockPos target, int ticks, Runnable then) {
+        if (ctx.level().getBlockState(target).isAir()) { then.run(); return; }
+        if (canBreak(target)) {
+            digInPlaceOnSelf(target, ticks, "client helm: in reach, dug in place with mc.bot.mine", then);
             return;
         }
-        BotTicker.register(d.mine(target));
-        // Named here rather than left to startLeg, because this path does not go through it — that
-        // is the same asymmetry the out-of-world note below is about.
-        driving = "mine(" + target.toShortString() + ")";
-        legTicks = 0;
-        int[] waited = {0};
-        // The SAME out-of-world guard settle() has. It was missing here, and the omission was not
-        // free: a bot that left the world during a mine kept the whole budget running against a
-        // corpse in the void, and — because the latch fired later, from the next settle's entry
-        // check — the fall was recorded as "process running at exit: not recorded". Two paths that wait on the
-        // driver, one of them checking whether the driver still has a player to drive, is the shape
-        // this repo has paid for before: an invariant with a sibling path that ignores it.
-        await(() -> {
-            if (d.finished()) return true;
-            if (bodyLeftTheWorld()) {
-                if (drivingWhenLost == null) {
-                    drivingWhenLost = "mine(" + target.toShortString() + ") (tick " + waited[0]
-                            + "/" + ticks + ")";
-                }
-                return true;
+        JourneyTasks.Task walk = JourneyTasks.goTo(Targets.near(target, 2), Routes.plain().noBreak().build());
+        settleLeg(walk, ticks, null, "mine(" + target.toShortString() + ") (real player)", () -> {
+            if (canBreak(target)) {
+                digInPlaceOnSelf(target, ticks, "client helm: walked within 2 blocks with breakPolicy=never, then dug in place", then);
+                return;
             }
-            return ++waited[0] >= ticks;
-        }, ticks + 100, () -> {
-            endLeg(d);
-            sayIfStillThere(target, "server helm: ran the engine's own MineProcess");
+            sayIfStillThere(target, "client helm: walked within 2 blocks with breakPolicy=never and was still out of reach");
+            then.run();
+        });
+    }
+
+    /** self's swing in place: the one-cell mine, started in reach so it does not walk, bounded by {@code ticks}. */
+    private void digInPlaceOnSelf(BlockPos target, int ticks, String how, Runnable then) {
+        settleLeg(JourneyTasks.mineCell(target), ticks, null, "mine(" + target.toShortString() + ") (real player)", () -> {
+            if (ctx.level().getBlockState(target).isAir()) swungInPlace++;
+            sayIfStillThere(target, how);
             then.run();
         });
     }
@@ -1189,17 +1002,18 @@ public final class JourneyRig {
      * read from the scene's level would answer about overworld stone at nether coordinates.
      *
      * <p><b>The gate's own answer, not a distance that resembles it.</b> The row carries
-     * {@code a.canBreak(target)} — the single condition {@link #breakItWhereItStands} consults — and
-     * only then the two halves that decide it. A distance alone cannot be read: the authority
-     * measures EYE to block CENTRE against {@code blockInteractionRange + 0.5}, which sits about
-     * 1.1 blocks of eye height away from the bot-cell-to-target-cell number a reader would compute,
-     * so a band of readings near the limit means nothing on its own. Worse, the authority also
-     * demands an EXPOSED face, so an entombed cell is refused at zero distance and "very close yet not opened"
-     * would have looked like a broken swing. Splitting it means a {@code false} names its own half.
+     * {@code canBreak} — the single condition the in-place swing consults — and only then the two halves
+     * that decide it. A distance alone cannot be read: the authority measures EYE to block CENTRE against
+     * {@code blockInteractionRange + 0.5}, which sits about 1.1 blocks of eye height away from the
+     * bot-cell-to-target-cell number a reader would compute, so a band of readings near the limit means
+     * nothing on its own. Worse, the authority also demands an EXPOSED face, so an entombed cell is refused
+     * at zero distance and "very close yet not opened" would have looked like a broken swing. Splitting it
+     * means a {@code false} names its own half.
      *
-     * <p>The halves are re-derived here rather than read from the avatar, which keeps them private.
-     * That is deliberate and it is also the check: they are printed NEXT TO the authority, so a run
-     * where they disagree with it has caught this row drifting away from the rule it describes.
+     * <p>For a roster bot {@code canBreak} is the driver's own reading ({@code mc.debug.body}'s reach) and the
+     * halves are re-derived here beside it, so a run where they disagree has caught this row drifting away
+     * from the rule it describes. For self the driver has no such reading, and the row says the answer was
+     * re-derived from the server's copy of the player.
      *
      * @param how what this call ALREADY DID, in the past tense — never an imperative. The row this
      *     writes carries every measurement the reader needs (eye distance against its ceiling, cell
@@ -1216,12 +1030,7 @@ public final class JourneyRig {
         if (lvl.getBlockState(target).isAir() && !fluid) return;
         ServerPlayer p = player();
         BlockPos at = p.blockPosition();
-        ServerPlayerBody a = body().avatar();
-        boolean exposed = false;
-        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
-            BlockPos n = target.relative(d);
-            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) { exposed = true; break; }
-        }
+        boolean exposed = exposedFace(lvl, target);
         double reach = p.blockInteractionRange() + 0.5;
         double eyeDist = p.getEyePosition().distanceTo(
                 net.minecraft.world.phys.Vec3.atCenterOf(target));
@@ -1229,7 +1038,8 @@ public final class JourneyRig {
                 + lvl.getBlockState(target).getBlock()
                 + (fluid ? " (also holds " + (lvl.getFluidState(target).isSource() ? "a fluid source" : "flowing fluid") + ")" : "")
                 + "; bot at " + at.toShortString()
-                + ", canBreak=" + a.canBreak(target)
+                + ", canBreak=" + canBreak(target)
+                + (helm().isSelf() ? " (re-derived from the server's copy of the real player)" : "")
                 + " (exposedFace=" + exposed + ", eye distance "
                 + String.format(java.util.Locale.ROOT, "%.2f", eyeDist) + " / limit "
                 + String.format(java.util.Locale.ROOT, "%.2f", reach) + ")"
@@ -1238,7 +1048,28 @@ public final class JourneyRig {
                 + " blocks; " + how);
     }
 
-    /** Cells opened by {@link #breakItWhereItStands} rather than by a walk, this stage. */
+    /**
+     * Whether the bot can break {@code target} from where it stands: a face open to air and the block's centre
+     * within reach of the eye. A roster bot answers with the driver's own reading; self's is re-derived from the
+     * server's copy of the player, the same two halves, since the driver reads no such thing for self.
+     */
+    public boolean canBreak(BlockPos target) {
+        SceneBot bot = helm().serverBotOrNull();
+        if (bot != null) return bot.reach(target).canBreak();
+        ServerPlayer p = player();
+        double eye = p.getEyePosition().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(target));
+        return exposedFace(p.level(), target) && eye <= p.blockInteractionRange() + 0.5;
+    }
+
+    private static boolean exposedFace(net.minecraft.world.level.Level lvl, BlockPos target) {
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            BlockPos n = target.relative(d);
+            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) return true;
+        }
+        return false;
+    }
+
+    /** Cells opened by a swing in place rather than by a walk, this stage. */
     private int swungInPlace;
 
     /** How many of this stage's digs never needed a route. Printed by the carve, because "48/67
@@ -1246,68 +1077,53 @@ public final class JourneyRig {
     public int swungInPlace() { return swungInPlace; }
 
     /**
-     * If the bot can already break this cell, break it — do not route to it.
+     * If the roster bot can already break this cell, break it — do not route to it.
      *
      * <p><b>{@code canBreak} is the same predicate the break itself enforces</b>, and that is what
-     * makes this exact rather than optimistic. {@code ServerPlayerBody.canBreak} delegates to
-     * {@code canBreakFromHere}, which is EXPOSED (some neighbour is not a full solid face) AND IN
-     * RANGE (eye to block centre within {@code blockInteractionRange() + 0.5}) — reach included,
-     * measured from the live eye. {@code breakHold(true)} then gates on that same
-     * {@code canBreakFromHere} and, with {@code faithfulBreak} off, calls {@code Level#destroyBlock}
-     * outright. So a true answer here is not "probably reachable": it is "this swing lands, now,
-     * from exactly where the bot is standing".
+     * makes this exact rather than optimistic: EXPOSED (some neighbour is not a full solid face) AND IN
+     * RANGE (eye to block centre within {@code blockInteractionRange() + 0.5}), measured from the live eye.
+     * The held dig then gates on that same check and, with {@code faithfulBreak} off, destroys the block
+     * outright. So a true answer here is not "probably reachable": it is "this swing lands, now, from exactly
+     * where the bot is standing".
      *
-     * <p><b>Why this is worth a route.</b> {@code PlayerBot.mine} is a navigator goal plus a
-     * swing, and the navigator carves and pillars its way to the goal. On the real ladder of
-     * 2026-08-16 that is what ended rung 12 at its FIRST cell: the mould carve left
-     * {@code forge.carved} at 48 of 67 cells opened and 19 not dug, all nineteen in the alcove's upper
-     * half (y=59..62), and {@code carve.firstStuck} on the first of them read -9,59,36=granite with
-     * the bot at -9,56,34, 3.6 blocks away, {@code canBreak=true} —
-     * three and a half blocks away, exposed, breakable, and the 240-tick budget went on walking
-     * instead. Worse, the walking is what lost the run: the pillars {@code MineProcess} placed to
-     * reach the upper cells ({@code tidy.0} counted ten of them) walked the bot out of its own
-     * shaft, and {@code cell.0.standMissed} (wanted -9,56,36, stopped at -10,66,34 on grass_block)
-     * put it on the SURFACE, ten blocks above the mould, from which every retry reported
-     * {@code canBreak=false} at 12.5 m.
+     * <p><b>Why this is worth a route.</b> The one-cell mine walks within reach first, and the navigator
+     * carves and pillars its way there. On the real ladder of 2026-08-16 that is what ended rung 12 at its
+     * FIRST cell: the mould carve left {@code forge.carved} at 48 of 67 cells opened and 19 not dug, all
+     * nineteen in the alcove's upper half (y=59..62), and {@code carve.firstStuck} on the first of them read
+     * -9,59,36=granite with the bot at -9,56,34, 3.6 blocks away, {@code canBreak=true} — three and a half
+     * blocks away, exposed, breakable, and the 240-tick budget went on walking instead. Worse, the walking is
+     * what lost the run: the pillars placed to reach the upper cells walked the bot out of its own shaft, and
+     * {@code cell.0.standMissed} put it on the SURFACE, ten blocks above the mould, from which every retry
+     * reported {@code canBreak=false} at 12.5 m.
      *
-     * <p><b>This does not take the pillars away</b>, deliberately. Cells genuinely out of reach
-     * still fall through to {@code mine}, which still places, because building up to the alcove's
-     * top row is the only way to reach it — removing that would turn nineteen unopened cells into
-     * more. What changes is that reaching is no longer the FIRST answer to every cell.
+     * <p><b>This does not take the pillars away</b>, deliberately. Cells genuinely out of reach still fall
+     * through to the mine, which still places, because building up to the alcove's top row is the only way to
+     * reach it. What changes is that reaching is no longer the FIRST answer to every cell.
      *
-     * <p><b>The tool is selected first</b>, because {@code destroyBlock(pos, true, fp)} passes the
-     * held item to {@code dropResources}: swinging a fist at stone opens the cell and drops
-     * nothing, and this rung spends the cobblestone it mines. What is NOT reproduced is
-     * {@code MineProcess}'s COLLECT phase — nothing walks to the drop — so a cell opened here is
-     * collected only if it falls inside the avatar's own pickup sweep. That is the one thing this
-     * trades away, and {@code forge.cobblestone} measures it as a DELTA rather than leaving it to
-     * be argued about.
+     * <p><b>The tool is selected first</b>, because the held item decides the drops: swinging a fist at stone
+     * opens the cell and drops nothing, and this rung spends the cobblestone it mines. What is NOT reproduced
+     * is the mine's COLLECT phase — nothing walks to the drop — so a cell opened here is collected only if it
+     * falls inside the bot's own pickup sweep, and {@code forge.cobblestone} measures it as a DELTA.
+     *
+     * <p>A roster bot only: self's swing is the client's multi-tick dig, see {@link #mineCellOnSelf}.
      */
-    public boolean breakItWhereItStands(BlockPos target) {
+    private boolean swingNow(BlockPos target) {
         if (ctx.level().getBlockState(target).isAir()) return true;
-        // DELIBERATELY the server avatar, on every topology — the one exception to {@link #avatar()}.
-        // This method's whole contract is "did this cell open within one call", and it tests the WORLD below to
-        // prove it. The client's `breakHold` only presses a keybind: destruction then takes many
-        // ticks of `continueDestroy`, so a client-routed call would return with the block still
-        // standing and this method would report false for every cell it was actually able to break.
-        // Routing it through avatar() to be consistent would turn every in-place dig into a silent
-        // no-op — the class of change that looks like tidying and removes a capability.
-        ServerPlayerBody a = body().avatar();
-        if (!a.canBreak(target)) return false;
-        a.selectTool(target);
-        a.aimAtBlock(target);
-        a.breakHold(true);
-        a.breakHold(false);
-        // THE WORLD, not the call. `breakHold` returns nothing and refuses silently, so the only
-        // honest test of "did it open" is the block itself — the same rule every placement in this
-        // suite already follows.
+        SceneBot bot = helm().serverBotOrNull();
+        if (!canBreak(target)) return false;
+        var cell = Targets.pos(target);
+        bot.press(bot.keys().toolFor(cell).aimAt(cell).attack(true));
+        bot.press(bot.keys().attack(false));
+        // THE WORLD, not the call. The press answers what the bot holds, not whether a block gave, so the only
+        // honest test of "did it open" is the block itself — the same rule every placement in this suite
+        // already follows.
         if (!ctx.level().getBlockState(target).isAir()) return false;
         swungInPlace++;
         return true;
     }
 
     /**
-     * Run a process for at most {@code ticks} and continue either way.
+     * Run a task for at most {@code ticks} and continue either way.
      *
      * <p>{@link #drive} is right for a task that must succeed — its timeout IS the failure. It is
      * wrong for a task that is one attempt inside a larger plan, because a stalled attempt then
@@ -1319,10 +1135,11 @@ public final class JourneyRig {
      *
      * <p>The counter lives in the predicate because the predicate is the only thing that runs every
      * tick of the wait. The outer bound is deliberately larger so the framework's timeout stays a
-     * backstop for a wait that somehow never evaluates, not the normal exit.
+     * backstop for a wait that somehow never evaluates, not the normal exit. A task still running when
+     * the count runs out is cancelled.
      */
-    public void settle(BotProcess process, int ticks, Runnable then) {
-        settle(process, ticks, null, then);
+    public void settle(JourneyTasks.Task task, int ticks, Runnable then) {
+        settle(task, ticks, null, then);
     }
 
     /**
@@ -1334,10 +1151,10 @@ public final class JourneyRig {
      */
     public interface TickWatcher { void tick(); }
 
-    /** Which process was driving when the bot left the world, and how far into its budget.
+    /** Which task was driving when the bot left the world, and how far into its budget.
      *
      *  <p>Needed because the navigator trace beside it can be arbitrarily stale: it is written on
-     *  NAVIGATOR ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
+     *  NAVIGATOR ticks, and this rung spends much of its time under towers, swings and holds,
      *  none of which tick a navigator. A healthy walking line printed next to a fall therefore proves
      *  nothing about the fall — it can be minutes old and from a different task. Two straight arena
      *  arms built on that line ({@code wd.serverStopsAtTheBridgeHead}, {@code …TurnsAtTheBridgeHead})
@@ -1355,11 +1172,16 @@ public final class JourneyRig {
      * difference is the whole diagnosis. The wait's predicate is the only code that runs on every
      * tick of a task, so it is the only place a trajectory can be recorded from.
      *
-     * <p>The watcher runs BEFORE the completion test, so the tick on which the process first reports
+     * <p>The watcher runs BEFORE the completion test, so the tick on which the task first reports
      * finished is a tick the watcher sees — which is what lets it say whether the bot was on the
      * ground when the walk decided it was done.
      */
-    public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
+    public void settle(JourneyTasks.Task task, int ticks, TickWatcher watcher, Runnable then) {
+        settleLeg(task, ticks, watcher, task.kind(), then);
+    }
+
+    /** {@link #settle}, naming the task for the out-of-world row as {@code what}. */
+    private void settleLeg(JourneyTasks.Task task, int ticks, TickWatcher watcher, String what, Runnable then) {
         // THE one place that runs on every tick of every task of every rung, which is why the
         // out-of-world check lives here and not at the call sites: there are dozens of settles and
         // a bot that has left the world invalidates all of them equally. Same shape as the navigator's
@@ -1367,33 +1189,85 @@ public final class JourneyRig {
         if (bodyLeftTheWorld()) {
             // Record here too. This entry guard latches the fall for every settle AFTER the one the
             // bot actually left during, so when the departure happens somewhere no wait covers,
-            // the report reads "not recorded" and says nothing. Naming the process that was ABOUT to run
+            // the report reads "not recorded" and says nothing. Naming the task that was ABOUT to run
             // is not the same fact as naming the one that was running — say which it is.
             if (drivingWhenLost == null) {
-                drivingWhenLost = "not detected in any wait; the next movement task was going to run " + process.kind()
+                drivingWhenLost = "not detected in any wait; the next movement task was going to run " + what
                         + " (so the fall happened in the scene's own code between two tasks, not in a rig wait)";
             }
             skipSettle(then);
             return;
         }
-        PlayerBot d = body();
-        startLeg(d, process);
+        startLeg(task);
         int[] waited = {0};
         await(() -> {
             if (watcher != null) watcher.tick();
-            if (legEnded(d)) return true;
+            if (legEnded()) return true;
             if (bodyLeftTheWorld()) {
-                // Latched HERE, where the process that was actually driving is in scope. The navigator
+                // Latched HERE, where the task that was actually driving is in scope. The navigator
                 // trace printed beside it only updates on navigator ticks, so on a task driven by a
                 // tower or a swing it describes some earlier task entirely.
                 if (drivingWhenLost == null) {
-                    drivingWhenLost = process.kind() + " (tick " + waited[0] + "/" + ticks + ")";
+                    drivingWhenLost = what + " (tick " + waited[0] + "/" + ticks + ")";
                 }
                 return true;
             }
             return ++waited[0] >= ticks;
         }, ticks + 100, () -> {
-            endLeg(d);
+            endLeg();
+            then.run();
+        });
+    }
+
+    /**
+     * Stand still for {@code ticks} ticks and let physics happen, then continue — at most {@code budget} ticks.
+     *
+     * <p>Sounds like nothing; it is how this bot falls into the hole it just dug without a task steering it
+     * off the column. Every walking verb STEERS, and steering is exactly what ruins a shaft: "be at y=60" is
+     * satisfied anywhere, and "stand on the cell just emptied" still carried the bot sideways one cell at a
+     * time on open ground ({@code 72 → 73 → 74}). So the hold asks for no movement at all: the bot's task is
+     * cancelled, which lets go of every key a previous task latched (a leftover forward impulse would walk the
+     * bot off the hole just as surely as a goal would), and the bot is left to the game's own tick.
+     *
+     * <h2>Waiting longer is not a safer hold, and neither is "wait until it lands"</h2>
+     *
+     * <p>Every ray query in {@link JourneyFill} wants the bot at rest, but a wait of "until the position stops
+     * changing, capped at ten ticks" hit the cap on essentially every call in the rehearsal (2026-08-16): the
+     * recovery happens in an alcove the rung has just flooded, and flowing water pushes an idle player entity
+     * every tick, so "at rest" is a state this rung never reaches. The wait also moves the bot: eight extra
+     * ticks of falling put it on the alcove floor, from which {@code standToFill} found no spot and the fill
+     * walked. A hold that lets the bot travel is not a hold. Two ticks is therefore the number for the fills,
+     * whose fix for a stale aim is to re-aim AFTER those two ticks rather than to spend more of them — see
+     * {@code JourneyFill.scoop}.
+     */
+    public void hold(int ticks, int budget, Runnable then) {
+        hold(ticks, budget, null, then);
+    }
+
+    /** {@link #hold} with something watching the bot on every tick of it. */
+    public void hold(int ticks, int budget, TickWatcher watcher, Runnable then) {
+        if (bodyLeftTheWorld()) {
+            if (drivingWhenLost == null) {
+                drivingWhenLost = "not detected in any wait; the next movement task was going to be a hold"
+                        + " (so the fall happened in the scene's own code between two tasks, not in a rig wait)";
+            }
+            skipSettle(then);
+            return;
+        }
+        driving = "holdStill";
+        legTicks = 0;
+        helm().cancel();
+        int stop = Math.min(ticks, budget);
+        int[] waited = {0};
+        await(() -> {
+            if (watcher != null) watcher.tick();
+            if (bodyLeftTheWorld()) {
+                if (drivingWhenLost == null) drivingWhenLost = "holdStill (tick " + waited[0] + "/" + stop + ")";
+                return true;
+            }
+            return ++waited[0] >= stop;
+        }, budget + 100, () -> {
+            driving = null;
             then.run();
         });
     }
@@ -1413,8 +1287,8 @@ public final class JourneyRig {
      */
     private boolean bodyLeftTheWorld() {
         if (lostTheWorld != null) return true;
-        if (driver == null) return false;
-        ServerPlayer fp = driver.fakePlayer();
+        if (helm == null) return false;
+        ServerPlayer fp = helm.player();
         // Remember the last cell the bot was standing on, and how long ago. The out-of-world line
         // says where the bot ENDED, and a bot falling out of the End travels a long way sideways
         // on the way down — measured 2026-08-18, it left the island somewhere around (14,58,-36) and
@@ -1433,9 +1307,9 @@ public final class JourneyRig {
                 + " @ " + fp.level().dimension().location()
                 + "; process running at exit=" + (drivingWhenLost == null ? "not recorded" : drivingWhenLost)
                 + "; navigator activity on the last supported tick (⚠️ updated only on navigator ticks, may be from another task)="
-                + NavigatorTelemetry.of(fp).lastSupportedTrace
+                + navigatorTrace("lastSupportedTrace")
                 + "; navigator activity on the tick of departure="
-                + NavigatorTelemetry.of(fp).lastTickTrace
+                + navigatorTrace("lastTickTrace")
                 + "; last on the ground=" + (lastGrounded == null ? "never stood firmly during this task"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + " (" + sinceGrounded + " ticks earlier — that cell is the one to inspect)")
@@ -1463,7 +1337,7 @@ public final class JourneyRig {
      * <p>It used to be {@code waited % HEARTBEAT_TICKS == 0} against the per-task counter, which
      * silences exactly the phases that need it most. Measured 2026-08-22, rung 17: the descent into
      * the portal room is {@code digDownTo}, and every step of it is
-     * {@code settle(new HoldStill(40), 60, …)} — 114 tasks, none longer than 60 ticks, so no task
+     * a 40-tick hold inside a 60-tick budget — 114 tasks, none longer than 60 ticks, so no task
      * ever reached 200 and the counter went back to zero at each one. The result was <b>5.7 minutes
      * of total silence</b> from a run that was working perfectly, and telling that apart from a wedge
      * cost a thread dump and two CPU samples. A phase built out of many short tasks is not a quiet
@@ -1512,24 +1386,27 @@ public final class JourneyRig {
      * share is what makes the reading total rather than merely usual.
      */
     private void heartbeat(int budget) {
-        if (driver == null) return;
+        JourneyHelm h = helm;
+        if (h == null) return;
         // EVERY TICK, above the throttle — see JourneyDrownWatch for why a 200-tick sampler cannot
-        // see the 100-tick window it is aimed at.
-        drownWatch.tick(driver.fakePlayer(), () -> botStatus().get("activeChain"),
-                realPlayerHelm(ctx));
+        // see the 100-tick window it is aimed at. self's status is the last that landed, so before the
+        // first one did the chain is unreadable rather than "no chain".
+        ControlContracts.BotStatus status = h.status();
+        drownWatch.tick(h.player(), () -> status.reflexes().flatMap(ControlContracts.Reflexes::activeChain).orElse(null),
+                status != null);
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
         recordNavigatorCensus(navigatorCensus.line());
         recordBodyVitals(bodyVitalsLine());
         recordDrown(drownWatch.line());
-        ServerPlayer fp = driver.fakePlayer();
+        ServerPlayer fp = h.player();
         TestMod.LOG.info(
-                "[journey] heartbeat {} {} {} task tick {}/{} bot={},{},{} @{} inLevel={} processDone={}",
-                stage.name(), driving == null ? "waiting (no driver)" : driving, legPlanLine(), legTicks, budget,
+                "[journey] heartbeat {} {} {} task tick {}/{} bot={},{},{} @{} inLevel={} busy={}",
+                stage.name(), driving == null ? "waiting (no task)" : driving, legPlanLine(), legTicks, budget,
                 fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
                 fp.level().dimension().location(), fp.level().players().contains(fp),
-                driver.finished());
+                status == null ? "no status landed yet" : status.busy());
     }
 
     /**
@@ -1545,18 +1422,31 @@ public final class JourneyRig {
      * heartbeat could not decide it. {@code pathStep}/{@code pathLen} decides it: climbing toward
      * pathLen is the detour, resetting is the churn.
      *
-     * <p>Read through {@link #slot} rather than {@code body().botState()} so a real-player helm
-     * reports the CLIENT's navigator — the one actually driving the ladder. {@code driving} carries a
-     * parenthesised target for some tasks ({@code mine(x,y,z)}), so the slot name is the part before
-     * it; only the fields {@code ProcessSlot.snapshot()} publishes are reachable here.
+     * <p>Read through {@link #slot}, the run's bot's own status, so a real-player helm reports the
+     * client's navigator — the one actually driving the ladder.
      */
     private String legPlanLine() {
         if (driving == null) return "no movement task";
-        String kind = driving.split("\\(")[0];
-        Map<?, ?> s = slot(kind);
-        if (s.isEmpty()) return kind + " slot has no reading";
-        Object t = s.get("target") == null ? s.get("goal") : s.get("target");
-        return "target=" + (t == null ? "none" : t) + " path=" + s.get("pathStep") + "/" + s.get("pathLen");
+        Function<ControlContracts.Slots, ControlContracts.Slot> pick = slotNamed(driving);
+        if (pick == null) return driving + " has no status slot";
+        Optional<ControlContracts.Slot> s = slot(pick);
+        if (s.isEmpty()) return driving + " slot has no reading";
+        Object t = s.get().target().isPresent() ? s.get().target().get() : s.get().goal().orElse(null);
+        return "target=" + (t == null ? "none" : t) + " path=" + s.get().pathStep() + "/" + s.get().pathLen();
+    }
+
+    /** The status slot a task kind reports into, or null for one that has none (a hold). */
+    private static Function<ControlContracts.Slots, ControlContracts.Slot> slotNamed(String kind) {
+        return switch (kind) {
+            case "goto" -> ControlContracts.Slots::goTo;
+            case "mine" -> ControlContracts.Slots::mine;
+            case "builder" -> ControlContracts.Slots::builder;
+            case "craft" -> ControlContracts.Slots::craft;
+            case "smelt" -> ControlContracts.Slots::smelt;
+            case "combat" -> ControlContracts.Slots::combat;
+            case "escape" -> ControlContracts.Slots::escape;
+            default -> null;
+        };
     }
 
     /**
@@ -1568,7 +1458,7 @@ public final class JourneyRig {
     public String lostTheWorld() { return lostTheWorld; }
 
     /**
-     * Hand control to the continuation without running the process at all.
+     * Hand control to the continuation without running the task at all.
      *
      * <p>Deliberately {@link SceneContext#await} and not {@link #await}: the rig's own await pins a
      * region ticket around the bot every tick, and around a bot in free fall that means loading a
@@ -1582,13 +1472,21 @@ public final class JourneyRig {
     /**
      * Wait for a condition, keeping the bot's chunks pinned while waiting.
      *
-     * <p>For the tasks whose completion is a property of the WORLD rather than of a process — a
+     * <p>For the tasks whose completion is a property of the WORLD rather than of a task — a
      * furnace that has finished, a portal that has lit, an item that has appeared.
+     *
+     * <p>A roster bot is on the tick list from SPAWN on, so the server ticks it through every wait, idle or
+     * not, as a connected player is ticked; nothing here steps it. self's status and navigator readings are
+     * kept in flight from here, so what the heartbeat and the guards read is at most a tick or two old.
      */
     public void await(BooleanSupplier done, int withinTicks, Runnable then) {
         ctx.await(() -> {
+            if (helm != null) helm.refresh();
+            // A baseline self could not give at the rig's birth is the first reading that lands.
+            if (futileAtStart == null) futileAtStart = futileSnapshot();
+            navigatorCensus.baselineIfMissing();
+            drainLandedAnswers();
             pinAroundBody();
-            stepIdleBody();
             legTicks++;
             heartbeat(withinTicks);
             noteHurt();
@@ -1600,26 +1498,6 @@ public final class JourneyRig {
             if (diedOf != null) { ctx.fail(diedOf); return; }
             then.run();
         });
-    }
-
-    /**
-     * Give a headless server-side player the server tick nobody else is giving it.
-     *
-     * <p>A connected player is ticked by its connection every server tick, key held or not, so a
-     * meal finishes and health comes back while it stands still. A {@code JoinedBody} advances only
-     * when {@code ServerPlayerBody.step()} pumps it, and between tasks no driver does. The hand
-     * physics hid that, since food never drained; on the vanilla pump {@link JourneyFeed}'s first
-     * bite on the portal-kit rung held the use key on a player nobody ticked and timed out unfed.
-     *
-     * <p>Only while no driver is registered, so a task's step is never doubled, and never on an
-     * adopted real player, whose client ticks it. Walking inputs are released so an idle wait does
-     * not replay a task's last press; a held use survives, which is what a bite needs.
-     */
-    private void stepIdleBody() {
-        PlayerBot d = driver;
-        if (d == null || adoptedRealPlayer || realPlayerHelm(ctx) || BotTicker.isRegistered(d)) return;
-        d.avatar().releaseInputs();
-        d.avatar().step();
     }
 
     /**
@@ -1712,8 +1590,8 @@ public final class JourneyRig {
      */
     private boolean bodyDied() {
         if (diedOf != null) return true;
-        if (driver == null) return false;
-        ServerPlayer fp = driver.fakePlayer();
+        if (helm == null) return false;
+        ServerPlayer fp = helm.player();
         rememberTheBlow(fp);
         if (fp.getHealth() > 0f && !fp.isDeadOrDying()) return false;
         String how = fp.getCombatTracker().getDeathMessage().getString();
@@ -1771,24 +1649,36 @@ public final class JourneyRig {
      * <p><b>All-zero has two readings and the line says so.</b> Either the guard was never called
      * on this run, or the navigator ticked so little that it never got the chance; the sum IS the
      * number of ticks it ran over, so a zero sum is the second and a zero in one bucket with a
-     * non-zero sum is a real share. Naming the buckets from {@link NavigatorTelemetry#STRIDE_SKIP_REASONS}
-     * rather than by index keeps this row and the code filling it from drifting apart.
+     * non-zero sum is a real share. Naming the buckets as the navigator reading names them rather than by
+     * index keeps this row and the code filling it from drifting apart.
      */
     private String strideGuardLine() {
-        NavigatorTelemetry t = navigatorTelemetry();
+        BotDebugContracts.NavigatorReading t = navigatorOrNull();
+        if (t == null) return "stride guard: no navigator reading (self's navigator answers on the client thread, and none had landed)";
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = NavigatorTelemetry.STRIDE_SKIP_REASONS;
-        for (int i = 0; i < names.length; i++) {
-            long v = t == null ? 0 : t.strideGuardSkips.get(i);
-            sum += v;
-            sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
+        for (Map.Entry<String, Long> e : countersUnder(t, STRIDE_SKIPS).entrySet()) {
+            sum += e.getValue();
+            sb.append(sb.isEmpty() ? "" : ", ").append(e.getKey()).append('=').append(e.getValue());
         }
         return "stride guard fired "
-                + (t == null ? 0 : t.strideGuardFires)
+                + t.counter("strideGuardFires")
                 + " times over the run; did not fire for " + sum + " ticks"
                 + (sum == 0 ? " (total 0 — the guard was never called on this run, so the problem is not inside"
                               + " the guard; check first whether the navigator ticked)" : ", by reason: " + sb);
+    }
+
+    /** The prefixes {@code mc.debug.navigator} files the stride guard's skip buckets and the futile gate's buckets under. */
+    static final String STRIDE_SKIPS = "strideGuardSkips.";
+    static final String FUTILE_GATE = "futileGate.";
+
+    /** {@code reading}'s counters named {@code prefix<bucket>}, by bucket, in the reading's order; empty for no reading. */
+    static Map<String, Long> countersUnder(BotDebugContracts.NavigatorReading reading, String prefix) {
+        Map<String, Long> out = new LinkedHashMap<>();
+        if (reading == null) return out;
+        for (Map.Entry<String, Long> e : reading.counters().entrySet())
+            if (e.getKey().startsWith(prefix)) out.put(e.getKey().substring(prefix.length()), e.getValue());
+        return out;
     }
 
     /**
@@ -1797,7 +1687,8 @@ public final class JourneyRig {
      * <p>The counters belong to the run's bot and every rung of a run shares it, so a
      * cumulative reading on rung 9 would be rungs 1–9 added together and no rung's row could be read
      * on its own. One rig per rung ({@code enter} builds exactly one) makes the rig's own birth the
-     * right baseline. {@link JourneyFlight} takes its stride deltas the same way.
+     * right baseline. {@link JourneyFlight} takes its stride deltas the same way. On self the first
+     * reading lands a tick or two after the rig is built, so the baseline is the first one that does.
      *
      * <p>Reported on every outcome — see {@link #recordFutileGate} for where from, and for why the
      * obvious home does not work. Not only on a death like the stride row, and not only on a
@@ -1805,14 +1696,11 @@ public final class JourneyRig {
      * its walks churned 318 searches, so a census that only spoke when something failed would have
      * missed exactly the case that motivated it.
      */
-    private final long[] futileAtStart = futileSnapshot();
+    private Map<String, Long> futileAtStart = futileSnapshot();
 
-    private static long[] futileSnapshot() {
-        NavigatorTelemetry t = navigatorTelemetry();
-        long[] v = new long[NavigatorTelemetry.FUTILE_GATE_BUCKETS.length];
-        for (int i = 0; i < v.length; i++)
-            v[i] = t == null ? 0 : t.futileGateBuckets.get(i);
-        return v;
+    private static Map<String, Long> futileSnapshot() {
+        BotDebugContracts.NavigatorReading t = navigatorOrNull();
+        return t == null ? null : countersUnder(t, FUTILE_GATE);
     }
 
     /**
@@ -1882,8 +1770,8 @@ public final class JourneyRig {
      * this run's two {@code hp.trace} rows both read "0 heals" with five raw beef in the bag.
      */
     private String bodyVitalsLine() {
-        if (driver == null) return "no bot player entity (this rung has no driver yet)";
-        ServerPlayer fp = driver.fakePlayer();
+        if (helm == null) return "no bot player entity (this rung has no bot yet)";
+        ServerPlayer fp = helm.player();
         float hp = fp.getHealth();
         if (hpEnteringRung < 0) hpEnteringRung = hp;
         return String.format("health %.1f→%.1f (max %.1f)", hpEnteringRung, hp, fp.getMaxHealth())
@@ -1909,14 +1797,15 @@ public final class JourneyRig {
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
      *  never judged; 6-8 are what it did with the ones it judged. */
     private String futileGateLine() {
-        long[] now = futileSnapshot();
+        Map<String, Long> now = futileSnapshot();
+        if (now == null) return "no navigator reading yet (self's navigator answers on the client thread, and none had landed)";
+        if (futileAtStart == null) futileAtStart = now;
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = NavigatorTelemetry.FUTILE_GATE_BUCKETS;
-        for (int i = 0; i < names.length; i++) {
-            long v = now[i] - futileAtStart[i];
+        for (Map.Entry<String, Long> e : now.entrySet()) {
+            long v = e.getValue() - futileAtStart.getOrDefault(e.getKey(), 0L);
             sum += v;
-            sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
+            sb.append(sb.isEmpty() ? "" : ", ").append(e.getKey()).append('=').append(v);
         }
         return "this rung completed " + sum + " searches"
                 + (sum == 0 ? " (none: the navigator did not search in this rung; do not read the zeros below as a result)"
@@ -2034,8 +1923,8 @@ public final class JourneyRig {
 
     /** Move the region ticket to the bot's current chunk, if it has left the pinned one. */
     public void pinAroundBody() {
-        if (driver == null) return;
-        ServerPlayer fp = driver.fakePlayer();
+        if (helm == null) return;
+        ServerPlayer fp = helm.player();
         ServerLevel level = fp.serverLevel();
         ChunkPos here = new ChunkPos(fp.blockPosition());
         if (level == pinnedLevel && here.equals(pinned)) return;
@@ -2247,8 +2136,13 @@ public final class JourneyRig {
      * that needed it could not reach it.
      */
     public static net.minecraft.world.item.Item item(String itemId) {
-        return net.magicterra.worlddriver.game.observe.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.ITEM, itemId)
-                .orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
+        return lookup(BuiltInRegistries.ITEM, itemId).orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
+    }
+
+    /** {@code id} in {@code registry}, or empty when it does not parse or names nothing there. */
+    static <T> Optional<T> lookup(net.minecraft.core.Registry<T> registry, String id) {
+        ResourceLocation rl = id == null ? null : ResourceLocation.tryParse(id);
+        return rl == null ? Optional.empty() : registry.getOptional(rl);
     }
 
     /** How many of an item the bot is carrying, across the whole inventory. */
@@ -2416,8 +2310,8 @@ public final class JourneyRig {
         if (drop == null) { leftOnTheGroundAnyOf(itemIds, key, then); return; }
         evidence(key + ".pickup.walks", total - legs + 1);
         evidence(key + ".pickup.target", drop.toShortString());
-        settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
-                () -> settle(new HoldStill(30), 50,
+        settle(JourneyTasks.goToBlock(drop), 600,
+                () -> hold(30, 50,
                         () -> collectAnyOf(itemIds, legs - 1, total, key, then)));
     }
 
@@ -2486,8 +2380,8 @@ public final class JourneyRig {
         evidence(key + ".pickup.walks", total - legs + 1);
         evidence(key + ".pickup.target", drop.toShortString());
         int had = carrying(itemId);
-        settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
-                () -> settle(new HoldStill(30), 50, () -> {
+        settle(JourneyTasks.goToBlock(drop), 600,
+                () -> hold(30, 50, () -> {
                     if (carrying(itemId) == had) whyNothingWasPickedUp(itemId, key, drop);
                     collectByHand(itemId, legs - 1, total, key, then);
                 }));
@@ -2585,7 +2479,7 @@ public final class JourneyRig {
      * ladder out of wood.
      */
     public BlockPos nearestBlock(String blockId, int radius, int yRadius) {
-        var wanted = net.magicterra.worlddriver.game.observe.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.BLOCK, blockId)
+        var wanted = lookup(BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos centre = player().blockPosition();
         ServerLevel lvl = (ServerLevel) player().level();
@@ -2959,39 +2853,24 @@ public final class JourneyRig {
     // ---- teardown ----
 
     /**
-     * Discard the bot and release its chunks. Called once, by the verdict scene.
+     * Let the bot go and release its chunks. Called once, by the verdict scene.
      *
      * <p>Idempotent, and safe to call when the run never made a bot — the verdict scene has to run
      * whether the journey got anywhere or not, and a teardown that threw on an empty run would
      * replace the verdict with a stack trace.
      */
     public static void teardown() {
-        BotTicker.clear();
-        if (driver != null) {
-            // NEVER discard an adopted player. On the integrated topology the bot IS the client's
-            // player: discarding it deletes the entity out from under a live connection, and the
-            // teardown that did it would look like the client crashing.
-            if (!adoptedRealPlayer) {
-                try { driver.fakePlayer().discard(); } catch (RuntimeException ignored) { /* already gone */ }
-            } else {
-                BotApi bot = BotHooks.impl();
-                // Hand the controls back. A process still held by the client's user-task chain would
-                // keep walking the player after the suite has stopped watching, and the next run in
-                // the same JVM would start from wherever that ended.
-                //
-                // A one-tick HoldStill rather than `cancel`, deliberately: cancel marshals through
-                // BotUtil.onClient, which WAITS on the client thread, and this runs on the server
-                // thread during teardown — the one moment the client may already be tearing itself
-                // down. runProcess is fire-and-forget, and installing any process supersedes (and
-                // therefore cancels) whatever was held, with HoldStill releasing the keys.
-                if (bot != null) {
-                    try { bot.runProcess(new HoldStill(1)); }
-                    catch (RuntimeException ignored) { /* client gone */ }
-                }
-            }
-            driver = null;
+        JourneyHelm h = helm;
+        if (h != null) {
+            // A roster bot leaves the world through the roster. NEVER the adopted player: on the integrated
+            // topology the bot IS the client's player, and removing it would delete the entity out from under a
+            // live connection. self is handed back instead — its task cancelled, its keys let go — so a task still
+            // held by the client's chain does not keep walking the player after the suite has stopped watching.
+            // The cancel is sent, not waited for: this runs on the server thread during teardown, the one moment
+            // the client may already be tearing itself down.
+            try { h.release(); } catch (RuntimeException ignored) { /* already gone, or the client is */ }
+            helm = null;
         }
-        adoptedRealPlayer = false;
         realPlayerHelm = null;
         if (pinned != null && pinnedLevel != null) {
             try {
@@ -3001,6 +2880,111 @@ public final class JourneyRig {
         }
         pinned = null;
         pinnedLevel = null;
+    }
+
+    // ---- answers that land later ----
+
+    /** Answers self has not given yet, by the evidence key each is written under when it lands. */
+    private final Map<String, java.util.concurrent.CompletableFuture<?>> pendingAnswers = new LinkedHashMap<>();
+
+    /**
+     * Write {@code answer} as evidence under {@code key} — now when it has landed (every roster bot call), else
+     * on the first tick of a rig wait after it does (self's, which answer on the client thread).
+     */
+    void recordWhenLanded(String key, java.util.concurrent.CompletableFuture<?> answer) {
+        if (answer.isDone()) { evidence(key, landed(answer)); return; }
+        pendingAnswers.put(key, answer);
+    }
+
+    private void drainLandedAnswers() {
+        if (pendingAnswers.isEmpty()) return;
+        var it = pendingAnswers.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            if (!e.getValue().isDone()) continue;
+            it.remove();
+            evidence(e.getKey(), landed(e.getValue()));
+        }
+    }
+
+    /** {@link #landed} for an answer already in (every roster bot call), else says self's is still on its way. */
+    static String landedNow(java.util.concurrent.CompletableFuture<?> f) {
+        return f.isDone() ? landed(f) : "pending (self answers on the client thread)";
+    }
+
+    /**
+     * Press ({@code down}) or release the use key and leave it so — a bite, a drawn bow — on the run's bot.
+     *
+     * <p>A roster bot through {@code mc.test.input.press}. <b>self: a reach left in place.</b> The api has one
+     * right-click ({@code mc.bot.useItem}) and no held one, and {@code mc.test.input.press} drives server bots
+     * only; so self's held use still goes through the client avatar's {@code commandUseItem}, from the server
+     * thread, as it always has. A client with no {@code LocalPlayer} is recorded and skipped.
+     */
+    void holdUseKey(boolean down) {
+        SceneBot bot = helm().serverBotOrNull();
+        if (bot != null) { bot.press(bot.keys().use(down)); return; }
+        net.magicterra.worlddriver.bot.BotApi api = net.magicterra.worlddriver.bot.BotHooks.impl();
+        net.magicterra.worlddriver.game.body.Body client = api == null ? null : api.clientAvatar();
+        if (client == null) {
+            evidence("actuator.noClientAvatar", "the client has no LocalPlayer (loading, dead or changing"
+                    + " dimension), so the use key was not " + (down ? "pressed" : "released"));
+            return;
+        }
+        client.equipment().ifPresent(e -> e.commandUseItem(down));
+    }
+
+    /**
+     * Drive the bot from the scene itself, {@code eachTick} once per tick, for at most {@code ticks}, then
+     * {@code then}: the roster bot's side of a scene-written task (a push into a portal, a swing, the dragon
+     * fight). The bot's own task is cancelled first, as starting the task this replaces once replaced it, so the
+     * scene's inputs are the only ones; {@code kind} names it in the heartbeat. Ends when {@code eachTick} says
+     * so, when the bot leaves the world, or when the ticks run out.
+     */
+    void runEachTick(String kind, BooleanSupplier eachTick, int ticks, Runnable then) {
+        driving = kind;
+        legTicks = 0;
+        helm().cancel();
+        int[] waited = {0};
+        await(() -> bodyLeftTheWorld() || eachTick.getAsBoolean() || ++waited[0] >= ticks, ticks + 100, then);
+    }
+
+    /**
+     * Run a scene-written process on self for at most {@code ticks}, then {@code then}. <b>A reach left in
+     * place</b>: no verb takes a scene's own per-tick driver, so the client's user task still gets it through
+     * {@code BotHooks.impl().runProcess}, as every task on self once did. A roster bot gets the same inputs
+     * through {@code mc.test.input.press} instead; see the caller.
+     */
+    void runOnSelf(net.magicterra.worlddriver.bot.behavior.BotProcess process, int ticks, Runnable then) {
+        net.magicterra.worlddriver.bot.BotApi api = net.magicterra.worlddriver.bot.BotHooks.impl();
+        if (api == null) {
+            ctx.fail("journey: real-player run, but BotHooks has no implementation — the client half is not in this JVM");
+            return;
+        }
+        driving = process.kind();
+        legTicks = 0;
+        api.runProcess(process);
+        int[] waited = {0};
+        await(() -> !Boolean.TRUE.equals(api.userTaskLeg().get("busy")) || bodyLeftTheWorld()
+                || ++waited[0] >= ticks, ticks + 100, () -> {
+            if (Boolean.TRUE.equals(api.userTaskLeg().get("busy"))) helm().cancel();
+            then.run();
+        });
+    }
+
+    /** A landed answer as a row: a use's interaction result, a hold's item, a refusal's words, or the failure. */
+    private static String landed(java.util.concurrent.CompletableFuture<?> f) {
+        if (f.isCompletedExceptionally()) {
+            Throwable t = f.exceptionNow();
+            var a = net.magicterra.worlddriver.api.schema.ApiException.find(t);
+            return "the call failed: " + (a != null ? a.error() : t);
+        }
+        Object r = f.join();
+        if (r instanceof net.magicterra.worlddriver.api.methods.shared.Responses.Used u) return u.result().name();
+        if (r instanceof net.magicterra.worlddriver.api.methods.shared.Responses.Held h) return h.held();
+        if (r instanceof net.magicterra.worlddriver.api.methods.shared.Responses.Refused<?> no) {
+            return "refused: " + no.reason().wireName() + ": " + no.message();
+        }
+        return String.valueOf(r);
     }
 
     /** The world's tick count, for stamping ledger entries. */

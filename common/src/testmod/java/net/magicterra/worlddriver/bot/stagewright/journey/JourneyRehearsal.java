@@ -9,11 +9,9 @@ import java.util.function.Consumer;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -489,12 +487,12 @@ public final class JourneyRehearsal {
      * rungs 1–5, not the rung itself.
      */
     private static void stageFood(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
-        give(body.fakePlayer(), "minecraft:stone_sword", 1);
+        give(body, "minecraft:stone_sword", 1);
         JourneyLedger.staged("rehearsal: gave stone_sword×1");
         ctx.record("rehearsal.gave", "stone_sword×1 (matches weapon=minecraft:stone_sword as measured"
                 + " on rung 6 of the ladder-10 run; no pickaxe, cobblestone or crafting table is given —"
@@ -513,13 +511,13 @@ public final class JourneyRehearsal {
      * pass for a reason the ladder will never have.
      */
     private static void stagePortalLit(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         BlockPos lake = JourneyRoute.lavaLake;
         if (lake.equals(JourneyRoute.UNSURVEYED)) {
             ctx.fail("rehearsal: no lava lake coordinate — wd.rehearse01Recon did not succeed");
@@ -631,13 +629,13 @@ public final class JourneyRehearsal {
      * chosen column would stage the very check the descent depends on.
      */
     private static void stageObsidian(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         BlockPos lava = JourneyRoute.firstLava;
         if (lava.equals(JourneyRoute.UNSURVEYED)) {
             ctx.fail("rehearsal: JourneyRoute.firstLava is still UNSURVEYED — this rung has no target");
@@ -697,13 +695,13 @@ public final class JourneyRehearsal {
      * test.
      */
     private static void stageNether(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         BlockPos at = fp.blockPosition();
         loadAround(level, at, 2);
         BlockPos stand = dryStandNear(level, at, 6, 24);
@@ -911,12 +909,12 @@ public final class JourneyRehearsal {
      * "the staging built a portal" from "the staging built something portal-shaped".
      */
     private static void buildTheDoorwayAndBankIt(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — cannot stage the return doorway");
             return;
         }
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         ServerLevel nether = (ServerLevel) fp.level();
         BlockPos from = fp.blockPosition();
         BlockPos want = new BlockPos(from.getX() + STAGED_DOOR_AWAY, from.getY(), from.getZ());
@@ -1171,13 +1169,13 @@ public final class JourneyRehearsal {
      */
     private static BlockPos standInThePortalRoom(SceneContext ctx, String what,
                                                  Map<String, Integer> kit, String notStaged) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return null;
         }
         ServerLevel level = ctx.level();
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         BlockPos baked = JourneyRoute.stronghold;
 
         // Generate before scanning, and TIME it. framesAround loads what it reads on its own, so
@@ -1466,12 +1464,12 @@ public final class JourneyRehearsal {
      * yet either.
      */
     private static void stageDragon(SceneContext ctx) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         ServerLevel end = ctx.level().getServer().getLevel(net.minecraft.world.level.Level.END);
         if (end == null) {
             ctx.fail("rehearsal: this runtime has no End dimension (a data pack removed minecraft:the_end)"
@@ -1722,12 +1720,12 @@ public final class JourneyRehearsal {
      */
     private static void crossToTheNether(SceneContext ctx, String what, Map<String, Integer> kit,
                                          String notStaged) {
-        PlayerBot body = JourneyRig.bodyOrNull();
+        ServerPlayer body = JourneyRig.playerOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
-        ServerPlayer fp = body.fakePlayer();
+        ServerPlayer fp = body;
         ServerLevel nether = ctx.level().getServer()
                 .getLevel(net.minecraft.world.level.Level.NETHER);
         if (nether == null) {
@@ -1865,7 +1863,7 @@ public final class JourneyRehearsal {
     // =====================================================================================
 
     private static void give(ServerPlayer fp, String itemId, int count) {
-        var item = RegistryIds.lookup(BuiltInRegistries.ITEM, itemId)
+        var item = JourneyRig.lookup(BuiltInRegistries.ITEM, itemId)
                 .orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
         fp.getInventory().add(new ItemStack(item, count));
     }

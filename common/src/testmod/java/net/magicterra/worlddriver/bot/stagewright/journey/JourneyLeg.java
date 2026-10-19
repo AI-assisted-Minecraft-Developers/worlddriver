@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 
 import java.util.Locale;
@@ -105,10 +106,11 @@ final class JourneyLeg {
      *
      * <p>{@code lastError}'s {@code null} is separately ambiguous — {@code BotState}'s own javadoc
      * says "null if last run ok or in-progress", so "none" here means "no error reported" and does
-     * <b>not</b> prove the walk is over. Read it beside {@code end=}.
+     * <b>not</b> prove the walk is over. Read it beside {@code end=}. A walk the rig cancelled when its
+     * budget ran out keeps the cancel's reason here, beside an {@code end=} that stays unavailable.
      */
     static String navigatorEnd(JourneyRig rig) {
-        return navigatorEnd(rig.body());
+        return navigatorEnd(rig.slot(ControlContracts.Slots::goTo).orElse(null));
     }
 
     /**
@@ -142,7 +144,7 @@ final class JourneyLeg {
      * mis-read that allows a doomed one costs ticks this file already knows how to see.
      */
     static boolean searchGaveUp(JourneyRig rig) {
-        String end = rig.slotEnd("goto");
+        String end = rig.slotEnd(ControlContracts.Slots::goTo);
         if (end == null) return false;
         String e = end.toLowerCase(Locale.ROOT);
         return e.contains("no path") || e.contains("unreachable") || e.contains("no route progress");
@@ -151,18 +153,23 @@ final class JourneyLeg {
     /**
      * The same row for a bot that is driven directly rather than through a {@link JourneyRig}.
      *
-     * <p>The A/B scenes in {@code JourneyPortalEntryScenes} run two drivers side by side and have no
-     * rig, so they read {@code botState()} off the driver. They need this reading more than the
+     * <p>The A/B scenes in {@code JourneyPortalEntryScenes} run two bots side by side and have no
+     * rig, so they read the goto slot off each bot's status. They need this reading more than the
      * rungs do, not less: an arm whose walk was cut off by {@code LEDGE_TICKS} and an arm whose
      * search genuinely failed are exactly the confusion an A/B is there to rule out, and an arm
      * that ran out of budget is not evidence about the subject at all.
      */
-    static String navigatorEnd(PlayerBot driver) {
-        var goto_ = driver.botState().mc_goto;
-        String end = goto_.endReason;
-        String err = goto_.lastError;
+    static String navigatorEnd(SceneBot bot) {
+        return navigatorEnd(bot.gotoSlot());
+    }
+
+    /** The row for one goto slot; a null slot is a status that has not landed yet. */
+    static String navigatorEnd(ControlContracts.Slot goTo) {
+        if (goTo == null) return "end=unavailable/no status has landed yet (self answers on the client thread)";
+        String end = goTo.endReason().orElse(null);
+        String err = goTo.lastError().orElse(null);
         return "end=" + (end == null
-                        ? "unavailable/the process was still walking when the budget ran out (endReason"
+                        ? "unavailable/the walk was still going when the budget ran out (endReason"
                           + " is written only on a terminal step; unset means no terminal step was reached)"
                         : end)
                 + " err=" + (err == null ? "none" : err);
