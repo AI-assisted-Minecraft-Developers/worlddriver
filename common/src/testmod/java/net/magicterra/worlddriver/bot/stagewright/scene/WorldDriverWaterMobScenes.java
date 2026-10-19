@@ -1,10 +1,14 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.ENTITY;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.actionId;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.at;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.busy;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.call;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.fill;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.lastTickTrace;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.read;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.releaseAtEnd;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.settled;
 
 import java.util.List;
@@ -16,9 +20,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.bot.Bot;
-import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -80,24 +81,23 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
         fill(ctx.level(), o.offset(WALL_X, -1, -2), o.offset(WALL_X, 1, 2), STONE);
         fill(ctx.level(), o.offset(WALL_X, -3, -2), o.offset(WALL_X, -2, 1), STONE);
         Mob mob = spawn(ctx, type, o);
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> mob.tickCount > 5 && mob.isInWater()).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto naming the " + type.toShortString() + " did not start: " + go); return; }
-            Bot bot = BotRegistry.get(ref);
             int start = ctx.ticks();
             int[] lowest = {mob.blockPosition().getY()};
             java.util.Deque<String> trail = new java.util.ArrayDeque<>();
             ctx.await(() -> {
                 lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
                 if ((ctx.ticks() - start) % 5 == 0) {
-                    trail.addLast("t" + (ctx.ticks() - start) + ": " + NavigatorTelemetry.of(mob).lastTickTrace);
+                    trail.addLast("t" + (ctx.ticks() - start) + ": " + lastTickTrace(api, ref));
                     if (trail.size() > TRAIL) trail.removeFirst();
                 }
-                return !bot.busy() || ctx.ticks() - start >= DEADLINE;
+                return !busy(api, ref) || ctx.ticks() - start >= DEADLINE;
             }).within(DEADLINE + 50).then(() -> {
                 BlockPos stoppedAt = mob.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));
@@ -120,8 +120,8 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
         BlockPos rim = o.offset(COURSE, 3, 3);
         tank(ctx, o);
         Mob cod = spawn(ctx, EntityType.COD, o);
-        String ref = BotRegistry.ENTITY_PREFIX + cod.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + cod.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> cod.tickCount > 5 && cod.isInWater()).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(rim)));
@@ -132,7 +132,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
                     .within(DEADLINE + 50).then(() -> {
                 Map<?, ?> action = read(api, actionId(go));
                 ctx.record("ended", cod.blockPosition().toShortString() + " ticks=" + (ctx.ticks() - start) + " inWater="
-                        + cod.isInWater() + " " + action + " trace=" + NavigatorTelemetry.of(cod).lastTickTrace);
+                        + cod.isInWater() + " " + action + " trace=" + lastTickTrace(api, ref));
                 ctx.check("failed".equals(action.get("state")) && cod.isInWater())
                         .as("the cod's goto to the rim fails, and the cod is still in the water: at "
                                 + cod.blockPosition().toShortString() + ", inWater=" + cod.isInWater() + ", " + action)
@@ -158,19 +158,18 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
         fill(level, o.offset(-2, 0, 4), o.offset(COURSE + 2, 1, 4), STONE);
         fill(level, o.offset(POOL_FROM, -2, -3), o.offset(POOL_TO, -1, 3), WATER);
         Mob mob = spawn(ctx, type, o);
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto naming the " + type.toShortString() + " did not start: " + go); return; }
-            Bot bot = BotRegistry.get(ref);
             int start = ctx.ticks();
             boolean[] swam = {false};
             ctx.await(() -> {
                 swam[0] |= mob.isInWater();
-                return !bot.busy();
+                return !busy(api, ref);
             }).within(1100).then(() -> {
                 BlockPos stoppedAt = mob.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));

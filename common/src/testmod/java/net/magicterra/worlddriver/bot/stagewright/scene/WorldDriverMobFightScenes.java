@@ -1,30 +1,28 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.worlddriver.testcontent.TestMod;
+import java.util.LinkedHashMap;
 import java.util.List;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import java.util.Map;
+import java.util.Optional;
+
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
 
 /**
  * The N7–N10 hostile-mob family, split out of {@link WorldDriverProcessScenes} verbatim so that
@@ -76,6 +74,20 @@ public final class WorldDriverMobFightScenes {
                         WorldDriverMobFightScenes::serverBlazeFightStopsWhenTheBodyFallsOut)));
     }
 
+    /** A bot on the arena's centre with nothing in its bag but {@code weapon}. */
+    private static SceneBot fighter(SceneContext ctx, ServerLevel level, int cx, int floorY, int cz, Item weapon) {
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.player().getInventory().clearContent();
+        bot.player().getInventory().add(new ItemStack(weapon));
+        return bot;
+    }
+
+    /** {@code mc.bot.combat} kill on the nearest {@code type}: the fight a caller orders. */
+    private static void kill(SceneBot bot, String type) {
+        Calls.started("combat kill " + type, Calls.now(SceneBot.tasks().combat(new CombatContracts.Params(bot.ref(),
+                CombatContracts.Mode.KILL, Optional.of(new CombatContracts.FoeType(type)), false, 0))));
+    }
+
     /**
      * Kill a blaze with a driven bot and pick up the rod — the drop, not the kill, is the question.
      *
@@ -99,8 +111,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // The gamerule first, because it is the one explanation for "nothing dropped" that has
@@ -111,10 +122,7 @@ public final class WorldDriverMobFightScenes {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        var fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+        SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.IRON_SWORD);
 
         // TWENTY-FOUR, and the count is the measurement rather than padding. A blaze rod is a
         // uniform 0..1 roll, so ONE kill cannot tell "the player-kill condition failed" from "the
@@ -137,10 +145,9 @@ public final class WorldDriverMobFightScenes {
             if (kbr != null) kbr.setBaseValue(1.0);
             level.addFreshEntity(blaze);
 
-            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
-            BotTicker.register(driver);
+            kill(bot, "minecraft:blaze");
             for (int t = 0; t < 1_200 && blaze.isAlive(); t++) {
-                BotTicker.tickAll();
+                bot.tick();
                 if (blaze.isAlive()) {
                     blaze.tick();                       // its hurt-cooldown, as wd.serverCombat does
                     blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
@@ -148,7 +155,7 @@ public final class WorldDriverMobFightScenes {
                 }
             }
             if (!blaze.isAlive()) killed++;
-            for (int t = 0; t < 10; t++) BotTicker.tickAll();
+            bot.tick(10);
 
             int here = 0;
             for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
@@ -197,8 +204,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         var dragon = new net.minecraft.world.entity.boss.enderdragon.EnderDragon(
@@ -215,20 +221,17 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EnderDragon.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-            var fp = driver.fakePlayer();
-            fp.getInventory().clearContent();
-            fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
+            SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.DIAMOND_SWORD);
+            ServerPlayer fp = bot.player();
 
             float before = dragon.getHealth();
             ctx.record("dragon.hp0", String.format(java.util.Locale.ROOT, "%.1f", before));
 
             // 1. What the existing combat loop does, unchanged — the reading that says whether the
             //    ladder can reuse it or has to learn the parts.
-            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:ender_dragon"));
-            BotTicker.register(driver);
+            kill(bot, "minecraft:ender_dragon");
             for (int t = 0; t < 600; t++) {
-                BotTicker.tickAll();
+                bot.tick();
                 dragon.setPos(cx + 3.5, floorY + 1, cz + 0.5);
                 dragon.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
                 dragon.hurtTime = 0;                     // its own cooldown, as the other fights do
@@ -257,7 +260,7 @@ public final class WorldDriverMobFightScenes {
                 dragon.invulnerableTime = 0;
                 dragon.hurtTime = 0;
                 fp.resetAttackStrengthTicker();
-                for (int t = 0; t < 15; t++) BotTicker.tickAll();   // let the swing recharge
+                bot.tick(15);                                     // let the swing recharge
                 fp.attack(head);
             }
             float afterPart = dragon.getHealth();
@@ -270,7 +273,7 @@ public final class WorldDriverMobFightScenes {
                     .as("the existing combat loop takes health off the dragon").isTrue();
             ctx.expect(afterPart < beforeHead)
                     .as("a hit aimed at the head lands on a multipart boss").isTrue();
-            ctx.passNote("dragon health " + before + " → " + afterCombat + " after CombatProcess"
+            ctx.passNote("dragon health " + before + " → " + afterCombat + " after mc.bot.combat"
                     + " → " + afterPart + " after " + swings + " more hits on the head"
                     + " (dragon pinned; flight and crystals not tested)");
         });
@@ -307,8 +310,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
@@ -321,10 +323,7 @@ public final class WorldDriverMobFightScenes {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        var fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+        SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.IRON_SWORD);
 
         // WHY THIS CENSUS IS HERE, AND WHY IT HAD TO COME FIRST.
         //
@@ -335,8 +334,8 @@ public final class WorldDriverMobFightScenes {
         // each burned ~64k nodes toward a goal 267 blocks straight up — with zero "no route
         // progress" rows to show for it.
         //
-        // NavigatorTelemetry.futileGateBuckets already counts which of the gate's nine doors every search left
-        // by, but it is read by the journey rig and by NOTHING else, so the one scene where the
+        // The navigator's futileGate.* counters already count which of the gate's doors every search left
+        // by, but they were read by the journey rig and by NOTHING else, so the one scene where the
         // gate demonstrably fails has never been able to say which door. Reading the code turns up
         // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
         // judged the search at all) and bucket 7 (CombatProcess re-goals on every blaze block-move,
@@ -362,10 +361,10 @@ public final class WorldDriverMobFightScenes {
         // That premise is no longer true — the creeping-goal scene is now that occasion, every run —
         // but the rim is still not the fix here, because it would alter the fight being measured.
         // noteTheFall() bounds the cost without touching the healthy arm; see the BlazeFightRun note.
-        final long[] futileAtStart = futileSnapshot(fp);
+        final Map<String, Long> futileAtStart = futileSnapshot(bot);
 
         // Round 1: open sky. Measured, not assumed — and it does NOT work.
-        var openRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
+        var openRun = new BlazeFightRun(ctx, level, bot, cx, cz, floorY, 3_000, "open");
         ctx.await(openRun::pump).within(openRun.tickAllowance()).then(() -> {
             var open = openRun.finish();
             // Split per round, and recorded here rather than in a cleanup. The open round is the
@@ -374,7 +373,7 @@ public final class WorldDriverMobFightScenes {
             // record(...) — which serialises ctx.records() into the results file — BEFORE
             // teardown(...) on every outcome, so a row written in a cleanup lands in the log and
             // in the ledger and is absent from the file the verdict is read from.
-            final long[] futileAfterOpen = futileSnapshot(fp);
+            final Map<String, Long> futileAfterOpen = futileSnapshot(bot);
             ctx.record("futileGate.open", futileGateLine(futileAtStart, futileAfterOpen));
             // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
             // player does at a spawner: not a new engine verb, a different room.
@@ -390,10 +389,10 @@ public final class WorldDriverMobFightScenes {
                         if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh)
                             level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
                                     Blocks.STONE.defaultBlockState());
-            var roofedRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
+            var roofedRun = new BlazeFightRun(ctx, level, bot, cx, cz, floorY, 3_000, "roofed");
             ctx.await(roofedRun::pump).within(roofedRun.tickAllowance()).then(() -> {
                 var roofed = roofedRun.finish();
-                ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot(fp)));
+                ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot(bot)));
 
                 ctx.record("body.invulnerable", "true — so this result shows only that the fight can be"
                         + " won, not that the bot would survive it");
@@ -448,19 +447,27 @@ public final class WorldDriverMobFightScenes {
      * {@code +INFINITY}, so the next judged search was trivially "closer" than infinity. Under the
      * measurement the counter never passed 1 against a cap of 5.
      *
-     * <p><b>Four arms.</b> {@code still} holds the goal fixed — the gate left alone. {@code creepSetGoal}
-     * is the recorded baseline, still calling {@code start} on each change, because that contract is
-     * still live for callers that need a terminal cleared. {@code creepRetarget} calls
-     * {@code retarget} — {@code CombatProcess.approach}'s idiom after the fix, at the blaze's exact
-     * descent rate. {@code chase} is the reverse: a quarry the bot CAN reach, re-goaled at the same
-     * rate, where the guard must stay silent.
+     * <p><b>The quarry is a marker the bot follows.</b> {@code mc.bot.follow} re-aims its navigator
+     * whenever the quarry changes block, with the same rule {@code CombatProcess.approach} uses: the
+     * same entity in a new cell is the same pursuit ({@code retarget}), a different entity starts over
+     * ({@code start}). So which re-goal call an arm makes is chosen by moving one armor stand or by
+     * replacing it with a new one. The marker hangs 90 blocks up rather than 200 because follow only
+     * sees quarries within 96 blocks, and it sways sideways one block every other tick instead of
+     * sinking, which would bring it down to the floor within the arm; the gate judges the bot's feet
+     * against the goal that set its baseline, so the direction the quarry moves does not enter it.
      *
-     * <p><b>Every arm runs its full 240 ticks and ignores the navigator's verdict</b>, exactly as
-     * {@code approach} does. An arm that stopped at the first terminal would report a tidy
-     * "6 searches, FAILED" and miss the expensive half: {@code terminal()} stores nothing, so a
-     * latched cap re-reports itself by running another full search every tick until something moves
-     * the bot. That is why the assertion counts searches over the whole arm rather than looking for
-     * the failure row.
+     * <p><b>Four arms.</b> {@code still} holds the goal fixed — the gate left alone. {@code creepSetGoal}
+     * is the recorded baseline, a new quarry on each change, so {@code start} every time, because that
+     * contract is still live for callers that need a terminal cleared. {@code creepRetarget} moves the
+     * one quarry, so {@code retarget}, at the blaze's exact rate. {@code chase} is the reverse: a quarry
+     * the bot CAN reach, re-goaled at the same rate, where the guard must stay silent.
+     *
+     * <p><b>Every arm runs its full 240 ticks and reads the navigator's verdict on every one.</b> The
+     * verdict is cleared by the next re-goal, so it is read on the tick it happens. An arm that stopped
+     * at the first terminal would report a tidy "6 searches, FAILED" and miss the expensive half: a
+     * latched cap that re-reports itself by running another full search every tick until something
+     * moves the bot. That is why the assertion counts searches over the whole arm rather than looking
+     * for the failure row.
      */
     private static void serverFutileGateUnderACreepingGoal(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -487,26 +494,23 @@ public final class WorldDriverMobFightScenes {
         // would buy nothing and spend a minute of every gate run.
         Harness.set("pathfinder.maxNodes", 2_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        fp.getInventory().clearContent();          // nothing to pillar with even if allowPlace flips
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.player().getInventory().clearContent();   // nothing to pillar with even if allowPlace flips
+        ctx.cleanup(() -> {
+            for (ArmorStand m : level.getEntitiesOfClass(ArmorStand.class,
+                    new AABB(cx - 12, floorY, cz - 12, cx + 13, floorY + HIGH + 2, cz + 13))) m.discard();
+        });
 
-        // 200 up, dead centre: no staircase, no wall, nothing to climb. Near(…, 2) rather than
-        // Block so the goal has the same tolerance the combat approach gives it.
-        final BlockPos high = new BlockPos(cx, floorY + 200, cz);
-
-        var still = creepArm(av, fp, w, "still", high, cx, floorY, cz, 0, false);
-        var setGoalArm = creepArm(av, fp, w, "creepSetGoal", high, cx, floorY, cz, 2, false);
-        var retargetArm = creepArm(av, fp, w, "creepRetarget", high, cx, floorY, cz, 2, true);
-        var chase = chaseArm(av, fp, w, cx, floorY, cz);
+        var still = creepArm(bot, level, "still", cx, floorY, cz, 0, false);
+        var setGoalArm = creepArm(bot, level, "creepSetGoal", cx, floorY, cz, 2, false);
+        var retargetArm = creepArm(bot, level, "creepRetarget", cx, floorY, cz, 2, true);
+        var chase = chaseArm(bot, level, cx, floorY, cz);
 
         ctx.record("gate.still", still.line());
         ctx.record("gate.creepSetGoal", setGoalArm.line());
         ctx.record("gate.creepRetarget", retargetArm.line());
         ctx.record("gate.chase", chase.line());
-        ctx.passNote("unreachable goal: fixed / lowered one block every 2 ticks (start baseline vs"
+        ctx.passNote("unreachable goal: fixed / moved one block every 2 ticks (start baseline vs"
                 + " retarget); plus a reachable-chase counter-check. Gate outcomes are in gate.*");
 
         // A census that silently counts nothing reads exactly like a gate that judged everything and
@@ -525,7 +529,7 @@ public final class WorldDriverMobFightScenes {
             ctx.fail("chasing an unreachable goal ran " + retargetArm.searches() + " searches in 240 ticks"
                     + " (cap " + cap + ", allowed " + (cap + 2) + "): " + retargetArm.line());
         if (!retargetArm.noRoute())
-            ctx.fail("the gate never fired: chasing a goal 200 blocks overhead that can be neither dug to"
+            ctx.fail("the gate never fired: chasing a goal " + HIGH + " blocks overhead that can be neither dug to"
                     + " nor built to produced no 'no route progress' within 240 ticks: " + retargetArm.line());
 
         // The reverse. A guard that fires on a healthy pursuit is worse than one that never fires,
@@ -534,7 +538,7 @@ public final class WorldDriverMobFightScenes {
             ctx.fail("the gate fired on a healthy chase: the goal is 8 blocks away on the same floor and"
                     + " the bot kept walking, yet 'no route progress' was reported: " + chase.line());
 
-        recoverArm(ctx, av, fp, w, high, cx, floorY, cz);
+        recoverArm(ctx, bot, level, cx, floorY, cz);
     }
 
     /**
@@ -550,40 +554,38 @@ public final class WorldDriverMobFightScenes {
      * <p>What holds the two apart is that {@code start} means "new journey" and clears everything,
      * while {@code retarget} means "same journey, the cell moved". The caller decides which,
      * because only the caller knows whether the quarry is the same entity. This arm asserts the
-     * engine half of that contract: latch, DON'T move the bot, then set a genuinely new goal within
-     * easy reach — searches must resume and the bot must go.
+     * engine half of that contract: latch, DON'T move the bot, then replace the quarry with a new one
+     * within easy reach, which the follow takes up with {@code start} on the same navigator — searches
+     * must resume and the bot must go.
      */
-    private static void recoverArm(SceneContext ctx, ServerPlayerBody av, ServerPlayer fp,
-                                   LevelWorldView w, BlockPos high, int cx, int floorY, int cz) {
-        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
-        Navigator navigator = new Navigator();
-        BlockPos target = high;
-        navigator.start(new Goal.Near(target, 2));
+    private static void recoverArm(SceneContext ctx, SceneBot bot, ServerLevel level, int cx, int floorY, int cz) {
+        int step = 0;
+        ArmorStand quarry = marker(level, cx + 0.5, floorY + HIGH, cz + 0.5);
+        follow(bot, cx + 0.5, floorY + 1, cz + 0.5, 2);
         boolean latched = false;
         for (int t = 0; t < ARM_TICKS && !latched; t++) {
-            if (t > 0 && t % 2 == 0) {
-                target = target.below();
-                navigator.retarget(new Goal.Near(target, 2));
-            }
-            navigator.tick(av, w);
-            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) latched = true;
-            av.step();
+            if (t > 0 && t % 2 == 0) quarry.setPos(cx + sway(++step) + 0.5, floorY + HIGH, cz + 0.5);
+            bot.tick();
+            if (noRoute(verdict(bot))) latched = true;
         }
-        BlockPos stuckAt = fp.blockPosition();
-        long[] before = futileSnapshot(fp);
-        navigator.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        BlockPos stuckAt = bot.player().blockPosition();
+        Map<String, Long> before = futileSnapshot(bot);
+        quarry.discard();
+        quarry = marker(level, cx + 4.5, floorY + 1, cz + 0.5);
+        String verdict = null;
         for (int t = 0; t < ARM_TICKS; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
+            verdict = verdict(bot);
         }
-        long[] after = futileSnapshot(fp);
-        BlockPos end = fp.blockPosition();
+        Map<String, Long> after = futileSnapshot(bot);
+        BlockPos end = bot.player().blockPosition();
+        bot.cancel();
+        quarry.discard();
         long searches = searchSum(before, after);
         String line = "recover: phase 1 " + (latched ? "latched" : "WARNING: did not latch") + " (bot stopped at "
-                + stuckAt.toShortString() + "); without moving the bot, a new goal 8 blocks away was set;"
-                + " after " + ARM_TICKS + " ticks the navigator ended in " + s + " with the bot at " + end.toShortString()
-                + "; " + futileGateLine(before, after);
+                + stuckAt.toShortString() + "); without moving the bot, a new quarry 4 blocks away was set;"
+                + " after " + ARM_TICKS + " ticks the navigator's verdict was " + (verdict == null ? "still walking" : verdict)
+                + " with the bot at " + end.toShortString() + "; " + futileGateLine(before, after);
         ctx.record("gate.recover", line);
 
         // Phase 1 not latching would make phase 2 vacuous — it would prove a latch can be cleared
@@ -593,10 +595,10 @@ public final class WorldDriverMobFightScenes {
                     + " nothing: " + line);
         else if (searches == 0)
             ctx.fail("the latch outlived the chase that set it: the bot did not move, but after a new"
-                    + " reachable goal 8 blocks away was set, no search started in " + ARM_TICKS
+                    + " reachable quarry 4 blocks away was set, no search started in " + ARM_TICKS
                     + " ticks — a silent freeze with no terminal state and no log: " + line);
         else if (end.equals(stuckAt))
-            ctx.fail("searching resumed but the bot did not move: the new goal is 8 blocks away on the"
+            ctx.fail("searching resumed but the bot did not move: the new quarry is 4 blocks away on the"
                     + " same floor, and after " + ARM_TICKS + " ticks the bot is still at "
                     + end.toShortString() + ": " + line);
     }
@@ -608,31 +610,31 @@ public final class WorldDriverMobFightScenes {
      * and the fix hands it two new ways to be wrong — a counter that survives a re-goal, and a latch
      * that suppresses searches until the bot moves. Both would show up here as a {@code no route
      * progress} on a bot that is plainly making progress. Same floor, same re-goal call, same tick
-     * budget; the only thing that changed is that the goal is eight blocks away instead of two
-     * hundred straight up.
+     * budget; the only thing that changed is that the goal is eight blocks away instead of ninety
+     * straight up.
      */
-    private static ArmReading chaseArm(ServerPlayerBody av, ServerPlayer fp, LevelWorldView w,
-                                       int cx, int floorY, int cz) {
-        fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
-        long[] before = futileSnapshot(fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+    private static ArmReading chaseArm(SceneBot bot, ServerLevel level, int cx, int floorY, int cz) {
+        Map<String, Long> before = futileSnapshot(bot);
+        ArmorStand quarry = marker(level, cx + 4.5, floorY + 1, cz + 0.5);
+        follow(bot, cx - 4.5, floorY + 1, cz + 0.5, 1);
         int regoals = 1;
         boolean noRoute = false;
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        String verdict = null;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (t > 0 && t % 20 == 0) {                 // the quarry strolls back along the floor
-                navigator.retarget(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
+                quarry.setPos(cx + 4 - (t / 20) % 9 + 0.5, floorY + 1, cz + 0.5);
                 regoals++;
             }
-            s = navigator.tick(av, w);
-            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) noRoute = true;
-            av.step();
+            bot.tick();
+            verdict = verdict(bot);
+            if (noRoute(verdict)) noRoute = true;
         }
-        BlockPos end = fp.blockPosition();
-        long[] after = futileSnapshot(fp);
-        return new ArmReading("chase: ran the full " + ARM_TICKS + " ticks, set the goal " + regoals
-                + " times, navigator ended in " + s
+        BlockPos end = bot.player().blockPosition();
+        Map<String, Long> after = futileSnapshot(bot);
+        bot.cancel();
+        quarry.discard();
+        return new ArmReading("chase: ran the full " + ARM_TICKS + " ticks, moved the quarry " + regoals
+                + " times, last verdict " + (verdict == null ? "still walking" : verdict)
                 + ", bot at " + end.getX() + "," + end.getY() + "," + end.getZ()
                 + "; " + futileGateLine(before, after), searchSum(before, after), noRoute);
     }
@@ -647,97 +649,143 @@ public final class WorldDriverMobFightScenes {
      */
     private record ArmReading(String line, long searches, boolean noRoute) {}
 
-    private static long searchSum(long[] before, long[] after) {
+    private static long searchSum(Map<String, Long> before, Map<String, Long> after) {
         long sum = 0;
-        for (int i = 0; i < after.length; i++) sum += after[i] - before[i];
+        for (var e : after.entrySet()) sum += e.getValue() - before.getOrDefault(e.getKey(), 0L);
         return sum;
     }
 
     private static final int ARM_TICKS = 240;
 
+    /** How high the unreachable quarry hangs: out of reach, and inside the 96 blocks follow looks for a quarry in. */
+    private static final int HIGH = 90;
+
+    private static final String MARKER = "minecraft:armor_stand";
+
+    /** A quarry that hangs where it is put. */
+    private static ArmorStand marker(ServerLevel level, double x, double y, double z) {
+        ArmorStand m = new ArmorStand(level, x, y, z);
+        m.setNoGravity(true);
+        level.addFreshEntity(m);
+        return m;
+    }
+
+    /** Sideways offset of the {@code step}th move: back and forth within 8 of the centre, a new cell every step. */
+    private static int sway(int step) {
+        int k = Math.floorMod(step, 32);
+        return k <= 8 ? k : k <= 24 ? 16 - k : k - 32;
+    }
+
     /**
-     * One arm: re-seat the bot, hand the navigator an unreachable goal, and tick.
+     * Re-seat the bot on {@code (x, y, z)} and follow the nearest marker, standing off {@code radius}. No idle
+     * or progress limit: like the combat approach, the follow keeps pursuing whatever its navigator says.
+     */
+    private static void follow(SceneBot bot, double x, double y, double z, int radius) {
+        bot.player().setPos(x, y, z);
+        bot.player().setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        Calls.started("follow the marker", Calls.now(SceneBot.tasks().follow(new MoveContracts.FollowParams(bot.ref(),
+                new MoveContracts.QuarryType(MARKER), radius, 0, 0, Optional.empty(), 0))));
+    }
+
+    /** How the navigator's last walk ended, or null while it is still walking; the next re-goal clears it. */
+    private static String verdict(SceneBot bot) {
+        return bot.navigator().traces().get("result");
+    }
+
+    private static boolean noRoute(String verdict) {
+        return verdict != null && verdict.contains("no route progress");
+    }
+
+    /**
+     * One arm: re-seat the bot, have it follow an unreachable quarry, and tick.
      *
-     * <p>{@code regoalEvery} is the whole experiment. Zero means the goal is set once and never
-     * touched, so {@code searchGov} is reset exactly once, at the start. Two means the goal drops a
-     * block every second tick and is re-issued each time it changes — {@code CombatProcess.approach}
-     * verbatim, at the rate the blaze actually sank. Everything else is identical between the arms,
+     * <p>{@code regoalEvery} is the whole experiment. Zero means the quarry never moves, so the
+     * navigator's search governor is reset exactly once, at the start. Two means the quarry moves a
+     * block every second tick and the follow re-goals each time it does — the combat approach's
+     * idiom, at the rate the blaze actually sank. Everything else is identical between the arms,
      * which is what makes the difference between their census rows readable.
      *
-     * <p>{@code retarget} picks WHICH re-goal call the arm makes. Both shapes stay measured: the
-     * {@code start} arm is the recorded baseline (240 searches out of 240 ticks) and its contract
+     * <p>{@code retarget} picks WHICH re-goal call the arm makes: the same quarry moved
+     * ({@code retarget}), or a new quarry in the next cell ({@code start}). Both shapes stay measured:
+     * the {@code start} arm is the recorded baseline (240 searches out of 240 ticks) and its contract
      * is still live elsewhere — {@code CombatProcess.collectSweep} relies on {@code start} clearing
      * a terminal — so it is a control arm, not a defect left in place.
      *
-     * <p><b>The loop deliberately ignores the navigator's return value</b>, exactly as {@code approach}
-     * does. An arm that stopped at the first terminal could not see the expensive half of this bug:
-     * {@code terminal()} stores nothing, so a latched cap re-reports itself by running another full
-     * search every single tick. Stopping at the terminal turns that into a tidy "6 searches, FAILED"
-     * while the real fight keeps burning one A* per tick behind it.
+     * <p><b>The follow pursues whatever the navigator answers</b>, exactly as {@code approach} does.
+     * An arm that stopped at the first terminal could not see the expensive half of this bug: a
+     * latched cap that re-reports itself by running another full search every single tick. Stopping
+     * at the terminal turns that into a tidy "6 searches, FAILED" while the real fight keeps burning
+     * one A* per tick behind it.
      */
-    private static ArmReading creepArm(ServerPlayerBody av, ServerPlayer fp, LevelWorldView w, String tag,
-                                       BlockPos high, int cx, int floorY, int cz,
+    private static ArmReading creepArm(SceneBot bot, ServerLevel level, String tag, int cx, int floorY, int cz,
                                        int regoalEvery, boolean retarget) {
-        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // every arm starts from the same cell
-        long[] before = futileSnapshot(fp);
-        Navigator navigator = new Navigator();
-        BlockPos target = high;
-        navigator.start(new Goal.Near(target, 2));      // the first order is a new journey in every arm
+        Map<String, Long> before = futileSnapshot(bot);
+        int step = 0;
+        ArmorStand quarry = marker(level, cx + 0.5, floorY + HIGH, cz + 0.5);
+        follow(bot, cx + 0.5, floorY + 1, cz + 0.5, 2);  // every arm starts from the same cell
         int regoals = 1;
         int firstTerminal = -1;
-        String firstError = null;
+        String firstError = null, verdict = null;
         boolean noRoute = false;
-        Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
-                target = target.below();
-                Goal.Near g = new Goal.Near(target, 2);
-                if (retarget) navigator.retarget(g); else navigator.start(g);
+                double x = cx + sway(++step) + 0.5;
+                if (retarget) {
+                    quarry.setPos(x, floorY + HIGH, cz + 0.5);
+                } else {
+                    quarry.discard();
+                    quarry = marker(level, x, floorY + HIGH, cz + 0.5);
+                }
                 regoals++;
             }
-            s = navigator.tick(av, w);
-            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) noRoute = true;
-            if (s != Locomotor.Status.MOVING && firstTerminal < 0) {
+            bot.tick();
+            verdict = verdict(bot);
+            if (noRoute(verdict)) noRoute = true;
+            if (verdict != null && firstTerminal < 0) {
                 firstTerminal = t;
-                firstError = navigator.result().reason();
+                firstError = verdict;
             }
-            av.step();
         }
-        long[] after = futileSnapshot(fp);
+        Map<String, Long> after = futileSnapshot(bot);
+        bot.cancel();
+        quarry.discard();
         return new ArmReading(tag + ": ran the full " + ARM_TICKS + " ticks, set the goal " + regoals + " times, "
                 + (firstTerminal < 0 ? "no terminal state during the run"
                         : "first terminal state at t=" + firstTerminal + " (" + firstError + ")")
-                + ", navigator ended in " + s + "; " + futileGateLine(before, after),
+                + ", last verdict " + (verdict == null ? "still walking" : verdict) + "; " + futileGateLine(before, after),
                 searchSum(before, after), noRoute);
     }
 
-    private static long[] futileSnapshot(ServerPlayer fp) {
-        NavigatorTelemetry t = NavigatorTelemetry.of(fp);
-        long[] v = new long[NavigatorTelemetry.FUTILE_GATE_BUCKETS.length];
-        for (int i = 0; i < v.length; i++) v[i] = t.futileGateBuckets.get(i);
-        return v;
+    private static final String FUTILE = "futileGate.";
+
+    /** The body's futile-gate counters by bucket, from {@code mc.debug.navigator}. */
+    private static Map<String, Long> futileSnapshot(SceneBot bot) {
+        Map<String, Long> out = new LinkedHashMap<>();
+        bot.navigator().counters().forEach((k, v) -> {
+            if (k.startsWith(FUTILE)) out.put(k.substring(FUTILE.length()), v);
+        });
+        return out;
     }
 
     /**
      * One round's share of the futile-search gate, bucket by bucket.
      *
-     * <p>Buckets 0-5 are searches the gate never judged; 6-8 are what it did with the ones it did.
-     * The counters are the body's and outlive one round, so only a DELTA between two
-     * snapshots means anything here.
+     * <p>Buckets up to "no path and blacklist not expired", and "seeded after reset", are searches the gate
+     * never judged; the rest are what it did with the ones it did. The counters are the body's and outlive
+     * one round, so only a DELTA between two snapshots means anything here.
      *
-     * <p>A zero sum gets its own sentence rather than nine {@code =0}s. Nine zeros read exactly like
+     * <p>A zero sum gets its own sentence rather than a row of {@code =0}s. All zeros read exactly like
      * "the gate judged nothing and let everything through", when what they actually say is that the
      * navigator never searched at all this round — the difference between an answer and a dead channel.
      */
-    private static String futileGateLine(long[] before, long[] after) {
+    private static String futileGateLine(Map<String, Long> before, Map<String, Long> after) {
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = NavigatorTelemetry.FUTILE_GATE_BUCKETS;
-        for (int i = 0; i < names.length; i++) {
-            long v = after[i] - before[i];
+        for (var e : after.entrySet()) {
+            long v = e.getValue() - before.getOrDefault(e.getKey(), 0L);
             sum += v;
-            if (i > 0) sb.append(", ");
-            sb.append(names[i]).append('=').append(v);
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(e.getKey()).append('=').append(v);
         }
         return sum == 0
                 ? "no search at all this round — the navigator never searched for a path, so do not read this"
@@ -749,7 +797,7 @@ public final class WorldDriverMobFightScenes {
      * A blaze fight that is spread ACROSS server ticks instead of crammed into one.
      *
      * <p><b>What the old shape cost, and why a yield alone would not have fixed it.</b> This fight
-     * used to be a plain {@code for} loop calling {@link BotTicker#tickAll()} up to
+     * used to be a plain {@code for} loop calling a full bot tick up to
      * {@code budget} times, so the entire fight — every one of those simulated ticks, each of which
      * may run a pathfinder search — happened inside a single {@code MinecraftServer.tickServer()}.
      * On a healthy run that is 785–1355 ms and nobody notices. On three dedicated-NeoForge runs out
@@ -843,6 +891,7 @@ public final class WorldDriverMobFightScenes {
 
         private final SceneContext ctx;
         private final ServerLevel level;
+        private final SceneBot bot;
         private final ServerPlayer fp;
         private final int cx, cz, floorY, budget;
         private final String tag;
@@ -854,16 +903,16 @@ public final class WorldDriverMobFightScenes {
         private int worstAt = -1, serverTicks;
 
         /** Census + budgets at the moment the bot left, so the probe's share can be differenced. */
-        private long[] futileAtFall;
+        private Map<String, Long> futileAtFall;
         private long sliceWas, maxWas;
         private int fellAt = -1;
         private double fellY;
         private boolean fallReported;
         private String postFallCensus;
 
-        BlazeFightRun(SceneContext ctx, ServerLevel level, PlayerBot driver, ServerPlayer fp,
+        BlazeFightRun(SceneContext ctx, ServerLevel level, SceneBot bot,
                       int cx, int cz, int floorY, int budget, String tag) {
-            this.ctx = ctx; this.level = level; this.fp = fp;
+            this.ctx = ctx; this.level = level; this.bot = bot; this.fp = bot.player();
             this.cx = cx; this.cz = cz; this.floorY = floorY; this.budget = budget; this.tag = tag;
 
             blaze = new net.minecraft.world.entity.monster.Blaze(
@@ -874,8 +923,7 @@ public final class WorldDriverMobFightScenes {
             blaze.setTarget(fp);
             fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
 
-            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
-            BotTicker.register(driver);
+            kill(bot, "minecraft:blaze");
             highest = blaze.getY();
         }
 
@@ -910,7 +958,7 @@ public final class WorldDriverMobFightScenes {
         private void noteTheFall() {
             fellAt = t;
             fellY = fp.getY();
-            futileAtFall = futileSnapshot(fp);
+            futileAtFall = futileSnapshot(bot);
             sliceWas = Harness.int64("pathfinder.sliceMs");
             maxWas = Harness.int64("pathfinder.maxMs");
             // Production values, not this scene's MAX_VALUE/2. The probe below wants a bounded
@@ -934,7 +982,7 @@ public final class WorldDriverMobFightScenes {
             fallReported = true;
             Harness.set("pathfinder.sliceMs", sliceWas);
             Harness.set("pathfinder.maxMs", maxWas);
-            postFallCensus = futileGateLine(futileAtFall, futileSnapshot(fp));
+            postFallCensus = futileGateLine(futileAtFall, futileSnapshot(bot));
             net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,
                     postFallCensus);
@@ -976,7 +1024,7 @@ public final class WorldDriverMobFightScenes {
                 // in the same line. Same trap as the wp8 probe whose evidence row has to warn that
                 // its scan generates chunks: a run carrying the probe is not comparable with one
                 // that does not.
-                BotTicker.tickAll();
+                bot.tick();
                 if (blaze.isAlive()) {
                     blaze.tick();
                     highest = Math.max(highest, blaze.getY());
@@ -1088,8 +1136,7 @@ public final class WorldDriverMobFightScenes {
         final int padY = floorY - 200;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
@@ -1112,16 +1159,14 @@ public final class WorldDriverMobFightScenes {
         // does not have would test a guard nobody ships.
         Harness.untimed(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        var fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+        SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.IRON_SWORD);
+        ServerPlayer fp = bot.player();
 
         // Push after a while of fighting, or once the blaze is at half health, whichever comes first:
         // a bot that wins before the push leaves nothing to stage (the navigator's R1 flags made it
         // kill the blaze at ~50 iterations, and the guard never ran).
         final int pushAfter = 200, pushNoEarlierThan = 20;
-        var run = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "fell");
+        var run = new BlazeFightRun(ctx, level, bot, cx, cz, floorY, 3_000, "fell");
         final int[] pushedAt = { -1 };
         run.stageEachIteration(() -> {
             if (pushedAt[0] < 0 && run.iterations() >= pushNoEarlierThan
@@ -1191,8 +1236,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // A lid and four walls, five high — tall enough for an enderman, closed enough that a
@@ -1216,10 +1260,8 @@ public final class WorldDriverMobFightScenes {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        var fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
+        SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.DIAMOND_SWORD);
+        ServerPlayer fp = bot.player();
 
         final int fights = 6;
         final int fightTicks = 4_000;
@@ -1234,16 +1276,15 @@ public final class WorldDriverMobFightScenes {
             level.addFreshEntity(man);
             man.setTarget(fp);
 
-            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:enderman"));
-            BotTicker.register(driver);
+            kill(bot, "minecraft:enderman");
             int t = 0;
             for (; t < fightTicks && man.isAlive(); t++) {
-                BotTicker.tickAll();
+                bot.tick();
                 if (man.isAlive()) man.tick();                 // AI ON: it teleports when hurt
             }
             if (!man.isAlive()) killed++; else slow++;
             ticks.append(ticks.length() == 0 ? "" : ",").append(t);
-            for (int k = 0; k < 10; k++) BotTicker.tickAll();
+            bot.tick(10);
 
             int here = 0;
             for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
@@ -1312,8 +1353,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
         Harness.pin(ctx);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
         level.setBlockAndUpdate(new BlockPos(cx + 3, floorY, cz), Blocks.OBSIDIAN.defaultBlockState());
 
@@ -1327,18 +1367,16 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EndCrystal.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-            var fp = driver.fakePlayer();
-            fp.getInventory().clearContent();
-            fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+            SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.IRON_SWORD);
+            ServerPlayer fp = bot.player();
 
             ctx.record("crystal.alive0", String.valueOf(crystal.isAlive()));
             for (int i = 0; i < 5 && crystal.isAlive(); i++) {
                 fp.resetAttackStrengthTicker();
-                for (int t = 0; t < 15; t++) BotTicker.tickAll();
+                bot.tick(15);
                 fp.attack(crystal);
             }
-            for (int t = 0; t < 20; t++) BotTicker.tickAll();
+            bot.tick(20);
 
             ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
             ctx.record("body.alive", String.valueOf(fp.isAlive()));

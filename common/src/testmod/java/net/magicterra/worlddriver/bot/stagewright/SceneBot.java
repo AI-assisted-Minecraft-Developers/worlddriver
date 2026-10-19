@@ -17,6 +17,10 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractApi;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveApi;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
@@ -234,6 +238,11 @@ public final class SceneBot {
                 Optional.of(targetY), 0))));
     }
 
+    /** One left click on entity {@code entityId} through {@code mc.bot.attackEntity}: {@code Attacked}, or {@code Refused} with why. */
+    public Responses.ImmediateResponse attack(int entityId) {
+        return Calls.now(InteractApi.of(Calls.api()).attackEntity(new InteractContracts.AttackParams(ref, entityId)));
+    }
+
     /** Stop whatever the bot is doing and let go of its keys. */
     public void cancel() {
         Calls.now(ControlApi.of(Calls.api()).cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(ref),
@@ -269,6 +278,11 @@ public final class SceneBot {
     public BotDebugContracts.Reach reach(BlockPos cell) {
         return Calls.now(DebugApi.of(Calls.api()).body(new BotDebugContracts.BodyParams(ref, Optional.of(Targets.pos(cell)),
                 Optional.empty()))).reach().orElseThrow();
+    }
+
+    /** What the bot's own threat scan sees within {@code radius} blocks now, most dangerous first. */
+    public ObserveContracts.Threats threats(int radius) {
+        return Calls.now(ObserveApi.of(Calls.api()).threats(new ObserveContracts.ThreatsParams(radius, Optional.of(ref))));
     }
 
     /** One read-only search from where the bot stands toward {@code target}, as a bare search does. */

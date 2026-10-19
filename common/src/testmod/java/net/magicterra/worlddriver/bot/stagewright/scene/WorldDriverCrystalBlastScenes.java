@@ -8,9 +8,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.game.body.BlastFooting;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -80,8 +79,8 @@ import net.minecraft.world.phys.AABB;
  *       destroyed simply drops the four blocks onto the obsidian, which is still "on the pillar".
  *       This is the real invariant and it is unchanged.</li>
  *   <li><b>Either break the crystal or refuse with a reason.</b> The crystal is broken, <i>or</i>
- *       the driver's {@code Body.lastAttackRefusal} is non-empty AND carries
- *       {@code BlastFooting.footingTag(blockId, resistance)} for the block the scene itself read
+ *       {@code mc.bot.attackEntity} answers a refusal whose reason carries
+ *       {@link #footingTag footingTag(blockId, resistance)} for the block the scene itself read
  *       under the swing stand before the hit. The pair is checked as ONE token on purpose: iron bars
  *       are 6.0 and the blast is 6.0, so asking separately for the id and for "6.0" would be
  *       satisfied by the {@code power=6.0} every refusal prints. A message that merely says "not
@@ -138,12 +137,11 @@ import net.minecraft.world.phys.AABB;
  *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
  *       arm remains no evidence about knockback in either direction. The {@code trajectory} row says
  *       on every run which of the three outcomes this run was.</li>
- *   <li><b>No Navigator, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Navigator
- *       because their subject is a leap; here the subject is which block is under the feet, and
- *       steering would put a second variable between the two arms. The player is created and stepped
- *       exactly the way {@code wd.parkourVoidShortRunway} creates and steps its own —
- *       {@link ServerPlayerBody#createUnique} plus a synchronous {@code av.step()} loop — with
- *       every input released each tick.</li>
+ *   <li><b>No task, no goal, no planning.</b> The sibling void scenes drive a goto because their
+ *       subject is a leap; here the subject is which block is under the feet, and steering would put
+ *       a second variable between the two arms. The bot is spawned parked and only its body is
+ *       stepped ({@code mc.test.bots} body ticks, no perceiving, reflexes or task), every key let
+ *       go, and each swing is one {@code mc.bot.attackEntity}.</li>
  * </ul>
  *
  * <h2>Rig rules</h2>
@@ -215,6 +213,22 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     /** Ticks the loop runs. The first swing lands at {@code t == SWING_EVERY - 1}; the rest is enough
      *  for a player that lost its footing to finish falling {@value #VOID_DEPTH} blocks. */
     private static final int TICKS = 200;
+
+    /** The power vanilla's {@code EndCrystal.hurt} explodes with. */
+    private static final float CRYSTAL_BLAST_POWER = 6.0F;
+
+    /** The resistance a block needs to survive any roll of a {@code power} blast at point-blank
+     *  range, {@code 13 * power / 3 - 0.3}: the driver's own derivation, restated here so the scene
+     *  judges the world by a number it states rather than one it asks the driver for. */
+    private static double blastProofResistance(float power) {
+        return 13.0 * power / 3.0 - 0.3;
+    }
+
+    /** The pair a footing refusal must quote: the block under the sole and its resistance, in the
+     *  driver's refusal wording. Restated, so a change of that wording fails clause A loudly. */
+    private static String footingTag(String blockId, float resistance) {
+        return String.format(Locale.ROOT, "footing=%s resistance=%.1f", blockId, resistance);
+    }
 
     /** Top solid block of the pillar. Standing surface is one above; the catch floor is
      *  {@link #VOID_DEPTH} below that. Same altitude band as {@code wd.parkourAscend}. */
@@ -334,20 +348,21 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      *
      * <p>The loop is deliberately the simplest thing that can produce the measurement: every input is
      * released on every tick, so the only forces acting on the player are gravity, collision and the
-     * explosion. {@code av.step()} runs the player's own vanilla {@code aiStep}, the same
+     * explosion. {@code bot.step()} runs the player's own vanilla {@code aiStep}, the same
      * gravity-then-{@code move()} pipeline the client runs — so a player whose footing has been
      * deleted falls, and one whose footing survived does not.
      */
     private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
                                       EndCrystal crystal, int cx, int cz, int topY, int standY,
                                       int standAt) {
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, standAt, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, standAt, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);   // inert here — the player is already invulnerable
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
         fp.getInventory().selected = 0;
+        // Every key let go once; a press holds until the next one changes it.
+        bot.release();
 
         final double startY = fp.getY();
         int swings = 0, sinceSwing = 0, firstSwingTick = -1, refused = 0;
@@ -357,9 +372,6 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         float resAtSwing = Float.NaN;
 
         for (int t = 0; t < TICKS; t++) {
-            av.commandMove(0, 0);
-            av.commandJump(false);
-            av.breakHold(false);
             sinceSwing++;
             boolean swungNow = false;
             if (crystal.isAlive()) {
@@ -378,12 +390,13 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                                 .getBlock().getExplosionResistance();
                         firstSwingTick = t;
                     }
-                    av.attackEntity(crystal);   // EndCrystal.hurt explodes INSIDE this call
+                    // EndCrystal.hurt explodes INSIDE this call.
+                    Responses.ImmediateResponse hit = bot.attack(crystal.getId());
                     sinceSwing = 0;
                     // A refused call is NOT a swing. Counting it as one would print "10 swings"
                     // over a crystal nothing ever touched, and the swings row is the one that says
                     // whether this arm measured anything at all.
-                    String why = av.lastAttackRefusal();
+                    String why = hit instanceof Responses.Refused<?> r ? r.message() : null;
                     if (why != null) {
                         refused++;
                         if (refusal == null) refusal = why;
@@ -395,7 +408,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
             }
             if (swungNow && underAfterSwing == null)
                 underAfterSwing = blockIdAt(level, swingStand.below());
-            av.step();
+            bot.step();
             // Sampled only after the swing tick's own step, so the minimum never contains the y the
             // bot had when it swung — a minimum that includes its own start cannot contradict the start.
             if (firstSwingTick >= 0 && t >= firstSwingTick)
@@ -413,7 +426,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         // 1200 against a power-6 blast, so a cell that is still solid was never taken.
         boolean soleSurvived = tried
                 && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
-                        >= BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER);
+                        >= blastProofResistance(CRYSTAL_BLAST_POWER);
         // AND WAS THE PLAYER LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
         // Explosion.explode applies an impulse along the vector from the blast, and a player whose
         // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
@@ -435,7 +448,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
         // any refusal carries — the same coincidence that would have made the threshold itself a
         // silent no-op. A refusal that does not quote this exact pair is not a refusal with a reason.
-        String footingTag = tried ? BlastFooting.footingTag(underAtSwing, resAtSwing) : null;
+        String footingTag = tried ? footingTag(underAtSwing, resAtSwing) : null;
         boolean namedTheFooting = refusal != null && footingTag != null
                 && refusal.contains(footingTag);
         BlockPos endAt = fp.blockPosition();
@@ -469,8 +482,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 : "refused " + refused + " times / " + swings + " real swings; first reason: " + refusal);
         ctx.record("blastProofThreshold", String.format(Locale.ROOT,
                 "power=%.1f ⇒ footing resistance must be ≥ %.1f (13*power/3−0.3, derived in BlastFooting); block under the feet at the swing: %s, resistance %s",
-                BlastFooting.CRYSTAL_BLAST_POWER,
-                BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER),
+                CRYSTAL_BLAST_POWER,
+                blastProofResistance(CRYSTAL_BLAST_POWER),
                 tried ? underAtSwing : "-", tried ? resAtSwingText : "not sampled"));
         ctx.record("landing", String.format(Locale.ROOT, "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
                 endAt.toShortString(), blockIdAt(level, endAt.below()), startY, startY - fp.getY()));

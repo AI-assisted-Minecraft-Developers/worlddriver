@@ -207,7 +207,12 @@ public final class BotDebugContracts {
      * self only: whose view of self's player classifies the cells.
      */
     public record CellsParams(Optional<String> bot, Optional<Side> side, List<BlockPosition> cells,
-                              Optional<NodeQuery> node) {}
+                              Optional<NodeQuery> node) {
+        /** {@code bot}'s own view. */
+        public CellsParams(Optional<String> bot, List<BlockPosition> cells, Optional<NodeQuery> node) {
+            this(bot, Optional.empty(), cells, node);
+        }
+    }
 
     /** self's two views: the client's, which self plans with, and the server's of the same player. */
     public enum Side implements WireName {

@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   starts now would, from the client's own view on the client thread; `side: 'server'` asks the same
   of the owner's server-side player instead, so the two can be compared. Each cell also reports
   `breakCost`, absent when the cell cannot be broken.
+- **`mc.debug.navigator` says how the last walk ended.** Trace `result` is the navigator's ending
+  (`FAILED: <reason>`, `REACHED`, `GAVE_UP: <how far short>`) until the next goal clears it; absent
+  while a walk is still under way.
+- **`mc.observe.threats` reads a driven mob's scan too.** `bot` may name a mob bot (`mob:<name>` or an
+  adopted `entity:<uuid>`), not only a server player bot; the answer is that mob's own scan, which
+  counts a mob only when it targets this one.
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

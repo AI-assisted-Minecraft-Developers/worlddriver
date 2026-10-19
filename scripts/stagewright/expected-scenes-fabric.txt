@@ -43,7 +43,6 @@ wd.leashHard
 wd.forbidWater
 wd.forbidDig
 wd.shorelineHug
-wd.shorelineSmoother
 wd.escapeFarthestNoRockDrill
 wd.budgetAwayTunnelChurn
 # WaterBank family — leaving water onto a bank. Two members are optional sensors rather than
@@ -119,17 +118,7 @@ wd.serverCraftFailTelemetry
 wd.serverCraftFailGridReturn
 
 # Scheduler-semantics family — the ordering and pre-emption rules the process scheduler promises.
-wd.retreatGateMatrix
-wd.navigatorTerminalReportMatrix
-wd.antiSuffocateShouldTriggerMatrix
-wd.chainEpisodeCancelMatrix
-wd.combatGraceMatrix
-wd.frailBlockedMatrix
-wd.urgentBidMatrix
 wd.duskSecureHeldProcessLifecycle
-wd.cancelRouting
-wd.manualSlotGraceMatrix
-wd.nearestFirstScanMatrix
 
 # Survival family — escaping, bunkering, diving, drowning and avoiding suffocation.
 wd.serverEscape

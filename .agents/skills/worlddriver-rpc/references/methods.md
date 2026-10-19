@@ -498,7 +498,7 @@ The server's hazard grid around a center: lethal cells, whether the center is co
 
 ### `mc.observe.threats`
 
-Scored hostiles and incoming projectiles around this client's player, or a named server player bot, as that bot's own reflexes see them. For self, empty lists without a client.
+Scored hostiles and incoming projectiles around this client's player, or a named server bot, player or mob, as that bot's own reflexes see them. For self, empty lists without a client.
 
 - Params: `ThreatsParams` (may be omitted); reply: `Threats`
 - Effects: snapshot_read
@@ -3757,7 +3757,7 @@ interface Scene {
 interface ThreatsParams {
     /** Blocks around the player. */
     radius?: number;
-    /** A server player bot: the threats its own scan sees. Omitted: self. */
+    /** A server bot, player or mob: the threats its own scan sees. Omitted: self. */
     bot?: BotRef;
 }
 interface Threat {

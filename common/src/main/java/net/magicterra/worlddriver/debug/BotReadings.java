@@ -33,6 +33,7 @@ import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.Navigating;
 import net.magicterra.worlddriver.bot.control.ExpectAlarms;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.MovementContext;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorConstants;
@@ -40,6 +41,7 @@ import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.bot.control.NavigatorTallies;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.bot.control.WalkResult;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -108,6 +110,11 @@ final class BotReadings {
             put(traces, "planTally", in.planTally());
             put(traces, "rawPlanTally", in.rawPlanTally());
             put(traces, "channels", in.channels());
+            // How the last walk ended, cleared by the next goal: a reader that wants a terminal it may
+            // not see again has to read it on the tick it happened.
+            WalkResult r = nav.result();
+            if (r.status() != Locomotor.Status.MOVING)
+                traces.put("result", r.status() + (r.reason() == null ? "" : ": " + r.reason()));
             String takeoff = in.parkourTakeoff();
             plan = Optional.of(new PlanCursor(Optional.ofNullable(in.pathNode()).map(BotReadings::pos),
                     Optional.ofNullable(in.pathMove()), nav.pathStep(), nav.pathLen(),
