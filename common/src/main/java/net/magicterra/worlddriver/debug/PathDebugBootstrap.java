@@ -42,6 +42,7 @@ public final class PathDebugBootstrap {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
         serverHop = server;
         serverOf = level;
+        installRecorders();
         if (api.registerBatch(batch(api))) {
             LOG.info("[debug] mc.debug.* ready (patch pathDebug on to capture path charts)");
         }
@@ -50,15 +51,19 @@ public final class PathDebugBootstrap {
     /** Install the path recorders once per JVM, and publish the methods on {@code api} if they are not yet. */
     public static synchronized void init(ApiRegistry api) {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
-        if (!recordersInstalled) {
-            PathDebugRecorder recorder = new PathDebugRecorder();
-            PathArchiveRecorder archive = new PathArchiveRecorder();
-            PathArchiveRecorder.activate(archive);
-            PathTraceHolder.SINK = new MultiTrace(recorder, archive);
-            PathChartTool.bind(recorder);
-            recordersInstalled = true;
-        }
+        installRecorders();
         api.registerBatch(batch(api));
+    }
+
+    /** The chart and archive recorders, once per JVM: server bots plan through them too. */
+    private static void installRecorders() {
+        if (recordersInstalled) return;
+        PathDebugRecorder recorder = new PathDebugRecorder();
+        PathArchiveRecorder archive = new PathArchiveRecorder();
+        PathArchiveRecorder.activate(archive);
+        PathTraceHolder.SINK = new MultiTrace(recorder, archive);
+        PathChartTool.bind(recorder);
+        recordersInstalled = true;
     }
 
     private static Supplier<ServerThreadHop> serverHop = () -> null;
@@ -108,7 +113,7 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<DebugContracts.ReplayReply> replay(DebugContracts.ReplayParams p, CallContext ctx) {
-            return ReplayTool.replay(api, p, ctx);
+            return ReplayTool.replay(api, p, ctx, serverHop.get());
         }
 
         @Override

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.replay` replays on a server-side bot, and a dedicated server records path archives.**
+  `bot` names who replays (default `self`); a server bot is put at the recorded start without a
+  teleport packet and runs on the server thread. The path chart and archive recorders are now
+  installed wherever the debug methods are, so `pathArchive` writes archives on a dedicated server too.
 - **`mc.debug.body` reads self, and which cells stop a rise.** With `bot: 'self'` it reads the client's
   own body over the client's world, on the client thread. `rise` asks which cells stop the bot's box
   from rising that many blocks (`riseBlockers`, lowest first), and the blast reading names the radius

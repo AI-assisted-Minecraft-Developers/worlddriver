@@ -440,7 +440,7 @@ One read-only A* search from a fixed start to a goto target: no walking, no bloc
 
 ### `mc.debug.replay`
 
-Replay a recorded goto archive: restore its block envelope, teleport this client's player to the recorded start and run again, writing a replay-run-*.json with the trajectory and its deviation per step. Answers once the run is installed; read its progress from mc.bot.status. An unknown or unreadable file is invalid_params at /file.
+Replay a recorded goto archive: restore its block envelope, put the bot at the recorded start and run again, writing a replay-run-*.json with the trajectory and its deviation per step. Answers once the run is installed; read its progress from mc.bot.status. An unknown or unreadable file is invalid_params at /file.
 
 - Params: `ReplayParams` (may be omitted); reply: `ReplayReply`
 - Effects: body_task, world_write; may wait
@@ -3470,6 +3470,8 @@ type PlanReply =
     }
     | { mode: 'chain'; start: BlockPosition; reached: boolean; segments: number; backwardSegments: number; maxRegression: number; totalExpanded: number; hStart: number; hFinal: number; trail: PlanSegment[]; };
 interface ReplayParams {
+    /** self, this client's player, or a server-side bot. */
+    bot?: BotRef;
     /** Under config/worlddriver/replays/. Omitted: the newest plan archive. */
     file?: string;
     /** Put the recorded block envelope back first. */

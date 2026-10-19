@@ -353,7 +353,12 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.replay
 
-    public record ReplayParams(Optional<String> file, boolean restoreBlocks, boolean replan) {}
+    public record ReplayParams(String bot, Optional<String> file, boolean restoreBlocks, boolean replan) {
+        /** Walk {@code file}'s stored plan verbatim on {@code bot}, in the terrain as it stands. */
+        public static ReplayParams plan(String bot, String file) {
+            return new ReplayParams(bot, Optional.of(file), false, false);
+        }
+    }
 
     public sealed interface ReplayReply permits Replanned, Replayed {}
 
@@ -365,6 +370,8 @@ public final class DebugContracts {
             implements ReplayReply {}
 
     public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class, "ReplayParams",
+            ApiField.field("bot", Responses.BOT_REF).describe("self, this client's player, or a server-side bot.")
+                    .defaulted("self").forGetter(ReplayParams::bot),
             ApiField.field("file", ApiTypes.pattern("[A-Za-z0-9_.-]{1,128}\\.json", "an archive file name"))
                     .describe("Under config/worlddriver/replays/. Omitted: the newest plan archive.")
                     .optional().forGetter(ReplayParams::file),
@@ -395,7 +402,7 @@ public final class DebugContracts {
 
     public static final MethodSpec<ReplayParams, ReplayReply> REPLAY = MethodSpec.of("mc.debug.replay", REPLAY_PARAMS,
                     REPLAY_REPLY,
-                    "Replay a recorded goto archive: restore its block envelope, teleport this client's player to the "
+                    "Replay a recorded goto archive: restore its block envelope, put the bot at the "
                             + "recorded start and run again, writing a replay-run-*.json with the trajectory and its "
                             + "deviation per step. Answers once the run is installed; read its progress from mc.bot.status. "
                             + "An unknown or unreadable file is invalid_params at /file.")

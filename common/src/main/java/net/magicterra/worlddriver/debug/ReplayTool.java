@@ -14,8 +14,12 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ReplayReply;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replanned;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replayed;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.application.client.ClientBot;
+import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
@@ -38,25 +42,44 @@ import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
 
 /**
- * {@code mc.debug.replay}. Loads a recorded path archive, restores its block envelope, teleports this
- * client's player to the recorded start, and re-issues the recorded goal with normal planning (replan, the
- * default) or, with replan false, re-executes the stored plan through the Navigator in replay mode, so a
- * pathfinding wedge reproduces deterministically. The run is captured as a {@code replay-run-*.json} with
- * the actual trajectory and per-step deviation (written by {@link PathArchiveRecorder} when it ends).
+ * {@code mc.debug.replay}. Loads a recorded path archive, restores its block envelope, places the bot —
+ * this client's player or a server-side bot — at the recorded start, and re-issues the recorded goal with
+ * normal planning (replan, the default) or, with replan false, re-executes the stored plan through the
+ * Navigator in replay mode, so a pathfinding wedge reproduces deterministically. The run is captured as a
+ * {@code replay-run-*.json} with the actual trajectory and per-step deviation (written by
+ * {@link PathArchiveRecorder} when it ends).
  *
- * <p>The server's half (restore, teleport) runs here, on the calling worker, before the client's half is
- * handed to the client thread: a game thread may not wait on another, and the teleport is a server command.
+ * <p>The server's half (restore, and for self the teleport) runs here, on the calling worker, before the
+ * bot's half is handed to its thread: a game thread may not wait on another, and the teleport is a server command.
  */
 final class ReplayTool {
     private static final Path REPLAY_DIR = Path.of("config", "worlddriver", "replays");
 
     private ReplayTool() {}
 
-    static CompletionStage<ReplayReply> replay(ApiRegistry api, ReplayParams p, CallContext ctx) {
-        ctx.requireBlockingAllowed("mc.debug.replay");
-        if (!(BotHooks.impl() instanceof ClientBot bot)) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "replay drives this client's player, and there is none");
+    /** The replaying bot's thread, and the bot as the installer drives it. */
+    private record Target(ServerThreadHop hop, ReplayInstaller.Driver driver, boolean self) {}
+
+    private static Target target(String ref, ServerThreadHop server) {
+        if (BotRegistry.isSelf(ref)) {
+            if (!(BotHooks.impl() instanceof ClientBot bot)) {
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "replay on self drives this client's player, and there is none; name a server bot");
+            }
+            return new Target(bot.clientHop(), ReplayInstaller.self(bot.brain()), true);
         }
+        Bot bot = BotRegistry.get(ref);
+        if (!(bot instanceof ServerBot serverBot)) {
+            throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE,
+                    bot == null ? "no bot named " + ref : ref + " is not a server-side bot");
+        }
+        if (server == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no server is attached");
+        return new Target(server, ReplayInstaller.server(serverBot), false);
+    }
+
+    static CompletionStage<ReplayReply> replay(ApiRegistry api, ReplayParams p, CallContext ctx, ServerThreadHop server) {
+        ctx.requireBlockingAllowed("mc.debug.replay");
+        Target bot = target(p.bot(), server);
         Path archivePath = p.file().map(REPLAY_DIR::resolve).orElseGet(ReplayTool::newestPlanArchive);
         if (archivePath == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no replay-*.json plan archive under " + REPLAY_DIR);
@@ -105,8 +128,8 @@ final class ReplayTool {
                         + "(goalDesc=" + a.header().goalDesc() + "); replay it with replan: false");
             }
             BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
-            return prepare(api, cells, start, ctx).thenCompose(restored -> bot.clientHop().submit(() -> {
-                ReplayInstaller.startReplayReplan(bot.brain(), start, goal);
+            return prepare(api, bot, cells, start, ctx).thenCompose(restored -> bot.hop().submit(() -> {
+                ReplayInstaller.startReplayReplan(bot.driver(), start, goal);
                 return new Replanned(file, goal.toString(), a.envelope().size(), restored, fidelity);
             }, ctx));
         }
@@ -139,16 +162,21 @@ final class ReplayTool {
         int[] hStart = a.header().start();
         BlockPos start = hStart != null ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
         Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
-        return prepare(api, cells, start, ctx).thenCompose(restored -> bot.clientHop().submit(() -> {
-            ReplayInstaller.startReplay(bot.brain(), plan, edges, start, endGoal, startFoot, file);
+        return prepare(api, bot, cells, start, ctx).thenCompose(restored -> bot.hop().submit(() -> {
+            ReplayInstaller.startReplay(bot.driver(), plan, edges, start, endGoal, startFoot, file);
             return new Replayed(file, a.segments().size(), plan.size(), restored, fidelity);
         }, ctx));
     }
 
-    /** The server's half: restore the envelope and teleport to the start's block centre; completes with the cells restored. */
-    private static CompletionStage<Integer> prepare(ApiRegistry api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
+    /**
+     * The server's half: restore the envelope and, for self, teleport to the start's block centre; completes with
+     * the cells restored. A server bot is placed on the server thread with its process instead.
+     */
+    private static CompletionStage<Integer> prepare(ApiRegistry api, Target bot, List<WorldCell> cells, BlockPos start,
+                                                    CallContext ctx) {
         CompletionStage<Integer> restored = cells.isEmpty() ? CompletableFuture.completedFuture(0)
                 : WorldDriver.host().restoreCellsOnServer(cells, ctx);
+        if (!bot.self()) return restored;
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
         return restored.thenCompose(n -> {
             // No server to command, or the command failed: the client places its player at the start anyway.
