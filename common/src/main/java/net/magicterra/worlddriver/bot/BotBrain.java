@@ -850,7 +850,7 @@ public final class BotBrain {
         BotProcess mine = installedLeg;
         if (mine == null || userTask.process() == mine) return;
         // A newer task was published (publishLeg from the caller's thread) while this one was still
-        // installed — the next scene's goto enqueued behind the last scene's one-tick HoldStill.
+        // installed — the next scene's goto enqueued behind the last scene's one-tick hold.
         // Its departure is not the new task's ending: publishing busy=false here under the OLD seq
         // overwrote the new task's busy=true before its install ran, and the caller read "ended at
         // tick 0" for a walk that never started. The new task's own install re-points installedLeg.

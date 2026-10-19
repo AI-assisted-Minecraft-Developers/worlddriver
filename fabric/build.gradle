@@ -260,14 +260,14 @@ loom {
             property 'stagewright.autorun', 'true'
             // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
             // 2026-08-20 rule on which player type a scene runs on puts JoinedBody on the DEDICATED
-            // server only, so `SceneBody` refuses to create one here and every scene that needs a
+            // server only, so `SceneBot` refuses to create one here and every scene that needs a
             // headless server-side player is a
             // recorded skip until its family is converted to the client helm.
             // The old doctrine "a topology must vary the RUN, never the subject" still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against
             // the dedicated gate rather than counted as coverage.
             // Hold the suite until the local player is actually placed. Without it the suite arms at
-            // SERVER_STARTED — before that happens — and `SceneBody`'s refusal would be answering a
+            // SERVER_STARTED — before that happens — and `SceneBot`'s refusal would be answering a
             // question whose answer changes part-way through the run: scenes that got in early would
             // create a server-side player, later ones would skip, and the split would be decided by boot speed.
             // `journeyIntegratedServer` has always set this for the same reason.

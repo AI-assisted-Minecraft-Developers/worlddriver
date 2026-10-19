@@ -50,7 +50,7 @@ public final class BotUtil {
      * could: three of the folded call sites held a {@code LocalPlayer}
      * ({@code RetreatChain#fleeFrom}, and BotApiImpl's waypoint and runAway handlers), and handing
      * one to this {@code Entity} parameter makes the VERIFIER prove {@code LocalPlayer <: Entity}
-     * — which loads the class. {@code wd.retreatGateMatrix} and {@code wd.cancelRouting} went from
+     * — which loads the class. Two scheduler scenes (since turned into unit tests) went from
      * PASS to "Cannot load class net.minecraft.client.player.LocalPlayer in environment type
      * SERVER". The hand-written floor did not do this: {@code p.getX()} is an invokevirtual
      * resolved lazily against the local's own type, and on a server that line never runs.
