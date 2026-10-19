@@ -79,7 +79,6 @@ final class ReplayTool {
 
     static CompletionStage<ReplayReply> replay(ApiRegistry api, ReplayParams p, CallContext ctx, ServerThreadHop server) {
         ctx.requireBlockingAllowed("mc.debug.replay");
-        Target bot = target(p.bot(), server);
         Path archivePath = p.file().map(REPLAY_DIR::resolve).orElseGet(ReplayTool::newestPlanArchive);
         if (archivePath == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no replay-*.json plan archive under " + REPLAY_DIR);
@@ -94,6 +93,8 @@ final class ReplayTool {
         } catch (Exception e) {
             throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage());
         }
+        // After the archive: a bad parameter is refused as one whoever the bot is.
+        Target bot = target(p.bot(), server);
 
         // Schema-v2 cells carry the FULL block state as SNBT plus block-entity NBT, so restore is faithful
         // (stair facing, slab half, water level, waterlogged, chest contents, ...). v1 cells (state==null)
