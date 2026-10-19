@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.config;
 
+import net.magicterra.worlddriver.api.methods.setting.BehaviorSettings;
+
 /**
  * Settings read by the verb processes, reflexes, combat and flight ({@code bot/behavior}).
  * Each sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
@@ -13,10 +15,10 @@ public final class BehaviorConfig {
      *  craft placed — a table found already standing (village, player base) is borrowed and
      *  left exactly as it was. Reclaim is best-effort: if it can't finish, the craft's own
      *  result stands unchanged. Default ON; turn OFF to leave placed tables as landmarks. */
-    public static volatile boolean craftReclaimTable = true;
+    public static volatile boolean craftReclaimTable = BehaviorSettings.DEFAULTS.craftReclaimTable();
 
     /** Vertical band (+/-) of mine scans around the player's foot Y. */
-    public static volatile int mineSearchVerticalRadius = 8;
+    public static volatile int mineSearchVerticalRadius = BehaviorSettings.DEFAULTS.mineSearchVerticalRadius();
 
     /** Max horizontal distance (blocks) a single mine command may DRIFT from the
      *  position where it started. Each SEARCH phase re-scans within searchRadius of
@@ -25,29 +27,29 @@ public final class BehaviorConfig {
      *  open ocean chasing red_sand — stranding a survival bot far from start. The
      *  scan rejects any candidate beyond this radius from the start anchor, bounding
      *  a whole mine command to a fixed bubble. Set <=0 to disable the cap. */
-    public static volatile int mineMaxDriftFromStart = 32;
+    public static volatile int mineMaxDriftFromStart = BehaviorSettings.DEFAULTS.mineMaxDriftFromStart();
 
     /** Food level at or below which autoEat will hold useItem on a food item.
      *  Stops when food fills to 20. Baritone default = 18 (one bite of room). */
-    public static volatile int autoEatFoodThreshold = 18;
+    public static volatile int autoEatFoodThreshold = BehaviorSettings.DEFAULTS.autoEatFoodThreshold();
 
     /** HP (half-hearts) at or below which {@link BotConfig#autoHeal} consumes a healing
      *  item (healing/regen potion, golden apple). Default 12 (6 hearts). */
-    public static volatile float healHpThreshold = 12f;
+    public static volatile float healHpThreshold = (float) BehaviorSettings.DEFAULTS.healHpThreshold();
 
     /** Melee engage distance (blocks, centre-to-centre). The combat loop closes to
      *  within this before swinging; vanilla attack reach is ~3.0. */
-    public static volatile double combatReach = 3.0;
+    public static volatile double combatReach = BehaviorSettings.DEFAULTS.combatReach();
 
     /** Ranged kite distance (blocks). With a bow/crossbow the combat loop keeps the
      *  target near this range — backs up when closer, advances when farther. */
-    public static volatile double kiteDistance = 8.0;
+    public static volatile double kiteDistance = BehaviorSettings.DEFAULTS.kiteDistance();
 
     /** Jump before a melee swing so the descending hit lands a 1.5× critical
      *  (vanilla crit needs the attacker airborne + falling). On by default — it's
      *  free extra damage and the pre-jump is timed to the attack cooldown so it
      *  doesn't stall the swing rhythm. */
-    public static volatile boolean combatCrit = true;
+    public static volatile boolean combatCrit = BehaviorSettings.DEFAULTS.combatCrit();
 
     /** Post-kill drop sweep (live 2026-07-21 01:32): melee kites away from the
      *  kill spot, so a "successful" hunt left its meat rotting blocks behind the
@@ -56,7 +58,7 @@ public final class BehaviorConfig {
      *  the last kill position (vanilla pickup is automatic), hard-capped at 100
      *  ticks so an unreachable drop can't wedge the suspended user task. DEFEND
      *  skips the sweep — it exists to resume the task fast, not to loot. */
-    public static volatile boolean combatCollectDrops = true;
+    public static volatile boolean combatCollectDrops = BehaviorSettings.DEFAULTS.combatCollectDrops();
 
     /** Suffocation backstop (sibling of {@link BotConfig#autoSwim}): when a solid block —
      *  classically falling SAND collapsing into the head while digging up/down a
@@ -64,7 +66,7 @@ public final class BehaviorConfig {
      *  suffocated to death mid-dig (a naked bot went HP 17→11 in seconds this way,
      *  dig-out oscillating with no progress). Needs {@link WorldConfig#allowBreak}. Default ON.
      *  Read only by the {@code AntiSuffocate} client-tick reflex — never the planner. */
-    public static volatile boolean antiSuffocate = true;
+    public static volatile boolean antiSuffocate = BehaviorSettings.DEFAULTS.antiSuffocate();
 
     /** Contact-damage escape reflex (death #14, live 2026-07-20): a goto across
      *  desert hugged a cactus cluster and contact damage ground a healthy bot
@@ -75,9 +77,9 @@ public final class BehaviorConfig {
      *  in-fire / magma floor), the {@code ContactDamageEscape} client-tick
      *  reflex faces away from the touching hazard block and walks out of
      *  contact. Default ON. Read only by the reflex — never the planner. */
-    public static volatile boolean contactDamageEscape = true;
+    public static volatile boolean contactDamageEscape = BehaviorSettings.DEFAULTS.contactDamageEscape();
     /** Walk away from an adjacent FLOWING lava front (devil-bench deaths #27/#29/#30). */
-    public static volatile boolean lavaProximityEscape = true;
+    public static volatile boolean lavaProximityEscape = BehaviorSettings.DEFAULTS.lavaProximityEscape();
 
     /** gap#70 (live death #18): an IDLE bot (no movement process) that sinks in
      *  deep water gets ZERO self-rescue — {@link BotConfig#autoSwim}'s lift/beach steer is
@@ -98,7 +100,7 @@ public final class BehaviorConfig {
      *  reflex (AntiSuffocate's pattern), not the autoSwim movement/beach feature,
      *  so it can be toggled without touching autoSwim's active-process
      *  lift/beach semantics. Default ON. */
-    public static volatile boolean autoFloatWhenDrowning = true;
+    public static volatile boolean autoFloatWhenDrowning = BehaviorSettings.DEFAULTS.autoFloatWhenDrowning();
 
     /** Air-supply threshold (ticks; vanilla max 300, drown damage starts at 0)
      *  at/below which {@link #autoFloatWhenDrowning} takes over — 240 ≈ 12s of air
@@ -108,11 +110,11 @@ public final class BehaviorConfig {
      *  to insufficient at the incident's own depth. The float is pure-vertical and
      *  harmless (matrix case (b) still protects "merely diving with plenty of air"),
      *  so triggering earlier costs nothing and buys real margin at depth. gap#70. */
-    public static volatile int drownFloatAirThreshold = 240;
+    public static volatile int drownFloatAirThreshold = BehaviorSettings.DEFAULTS.drownFloatAirThreshold();
     /** {@code route.detour} fires when a route is longer than this × the straight line ({@code RouteEvents}). */
-    public static volatile double detourAlarmRatio = 3.0;
+    public static volatile double detourAlarmRatio = BehaviorSettings.DEFAULTS.detourAlarmRatio();
     /** Debounce of the route events: one per (event, culprit) within this many process ticks. */
-    public static volatile int routeEventCooldownTicks = 100;
+    public static volatile int routeEventCooldownTicks = BehaviorSettings.DEFAULTS.routeEventCooldownTicks();
 
     /** gap#68-⑪: ticks {@link net.magicterra.worlddriver.bot.behavior.reflex.AutoTool} yields the hotbar
      *  selection after detecting an external actor (setHotbarSlot RPC / human scroll)
@@ -121,15 +123,15 @@ public final class BehaviorConfig {
      *  slot switch right before a placement/useItem call silently loses the race.
      *  Values <=1 degrade to a single-tick grace (the arm clamps to >=1, so a zero or
      *  negative live setting can never wedge the yield loop). */
-    public static volatile int manualSlotGraceTicks = 100;
+    public static volatile int manualSlotGraceTicks = BehaviorSettings.DEFAULTS.manualSlotGraceTicks();
 
     /** Block id used when {@link BotConfig#autoBackfill} fires. Must be a vanilla block the player has in their
      *  inventory (creative skips the inventory check via auto-pickItem). */
-    public static volatile String autoBackfillBlock = "minecraft:cobblestone";
+    public static volatile String autoBackfillBlock = BehaviorSettings.DEFAULTS.autoBackfillBlock();
 
     /** Chebyshev radius around the player within which {@link BotConfig#autoBackfill} considers tracked-air
      *  cells for filling. Larger = more aggressive but more pathing per tick. */
-    public static volatile int autoBackfillRadius = 6;
+    public static volatile int autoBackfillRadius = BehaviorSettings.DEFAULTS.autoBackfillRadius();
 
     /** Diagnostic — when on, the elytra flight process validates the
      *  {@link net.magicterra.worlddriver.bot.rules.ElytraPhysics} simulator
@@ -138,7 +140,7 @@ public final class BehaviorConfig {
      *  Used to prove the simulator is tick-exact before the reactive controller
      *  is built on it. Off by default; toggle via
      *  {@code mc.bot.setting{elytraDebug:true}}. */
-    public static volatile boolean elytraDebug = false;
+    public static volatile boolean elytraDebug = BehaviorSettings.DEFAULTS.elytraDebug();
 
     // Last, after every field above: see BotConfig.initialize.
     static { BotConfig.initialize(); }

@@ -3,23 +3,19 @@ package net.magicterra.worlddriver.config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Binds each {@code mc.bot.setting} key to where its value lives. The keys themselves, with their types
- * and prose, are declared by the contract; this side answers, for a key by its wire name, which field
- * holds it or which other way it is read, and what that field held when this build started.
+ * Binds each {@code mc.bot.setting} key to where its value lives. The keys themselves, with their types,
+ * prose and defaults, are declared by the contract's settings records; this side answers, for a key by its
+ * wire name, which field holds it or which other way it is read.
  *
  * <p>A key names the field of the same name unless {@link #HAND} says otherwise: a wire name that is not
  * its field's, or a value that is not one field. {@code SettingsBindingTest} holds every key to a binding
  * and every setting field to exactly one key, so a field added here and not declared there, or the
  * reverse, fails the build instead of answering as unknown.
- *
- * <p><b>Pure.</b> Nothing here touches the game, so the API artifact generator can load it to read the
- * defaults without Minecraft on the classpath.
  *
  * <p>Whether a key does anything is a further question: {@code SettingsConsumerTest} fails if a setting
  * field is unread outside the settings plumbing.
@@ -124,26 +120,5 @@ public final class SettingsRegistry {
     /** The field behind {@code key}, or null for a key {@link #readOf} reads another way. */
     public static Field backingField(String key) {
         return readOf(key) == Read.CONFIG_FIELD ? boundField(key) : null;
-    }
-
-    /**
-     * What {@code key}'s field held when this build started, as a JSON value: a boolean, a number, a
-     * string, or a sorted list of strings for a set. Null for a key with no field behind it.
-     */
-    public static Object compiledDefault(String key) {
-        Field f = boundField(key);
-        if (f == null) return null;
-        String s = BotConfig.COMPILED_DEFAULTS.get(f.getName());
-        if (s == null) return null;
-        Class<?> t = f.getType();
-        if (t == boolean.class) return Boolean.parseBoolean(s);
-        if (t == int.class) return Integer.parseInt(s);
-        if (t == long.class) return Long.parseLong(s);
-        if (t == double.class || t == float.class) return Double.parseDouble(s);
-        if (t == String.class) return s;
-        if (s.isEmpty()) return List.of();
-        String[] items = s.split(",");
-        Arrays.sort(items);
-        return List.of(items);
     }
 }

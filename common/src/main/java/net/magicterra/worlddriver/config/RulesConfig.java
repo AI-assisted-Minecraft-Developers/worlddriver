@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.config;
 
+import net.magicterra.worlddriver.api.methods.setting.RulesSettings;
+
 /**
  * Settings read by the move catalogue, its constraints and its costs ({@code bot/rules}).
  * Each sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
@@ -14,20 +16,20 @@ public final class RulesConfig {
      *  g-tax — no prune, no capability change; OFF = byte-identical search.
      *  Default OFF until the journey+bench A/B goes GREEN (navigatorAscendMovement
      *  precedent). */
-    public static volatile boolean riskBias = false;
+    public static volatile boolean riskBias = RulesSettings.DEFAULTS.riskBias();
 
     /** Max extra cost (in A* cost units, 10 = one walk block) a risk-100 edge
      *  pays under {@link #riskBias}. 40 ≈ a 4-block detour breaks even against
      *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
-    public static volatile int riskBiasScale = 15;
+    public static volatile int riskBiasScale = RulesSettings.DEFAULTS.riskBiasScale();
     /** Per-axis cap, blocks, on the box one search scans for entities ({@code SearchScope.gather});
      *  {@code Level.getEntities} costs by volume, and a capped scope reports {@code snapshotTruncated}. */
-    public static volatile int snapshotBoxMax = 96;
+    public static volatile int snapshotBoxMax = RulesSettings.DEFAULTS.snapshotBoxMax();
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
-    public static volatile double pathfinderDiagAscendPenalty = 0;
+    public static volatile double pathfinderDiagAscendPenalty = RulesSettings.DEFAULTS.pathfinderDiagAscendPenalty();
     /** Extra g-cost on a step down with a block at launch head height past it (R1: 6 took 148.8 s to 142.1 s); see {@code StepDown}. */
-    public static volatile double pathfinderHeadStrikeTax = 6;
+    public static volatile double pathfinderHeadStrikeTax = RulesSettings.DEFAULTS.pathfinderHeadStrikeTax();
 
     /** TOTAL g-cost of one {@code bridgePlace} edge — placing a block into an air
      *  gap and walking onto it. Aerial bridging is SLOW (sneak-place ~1 block/15
@@ -40,7 +42,7 @@ public final class RulesConfig {
      *  bridge only a genuinely unavoidable short gap. Does NOT touch the depth penalty,
      *  so basin-dive protection is unchanged. Old hard-coded value was 30 (walk 10 +
      *  {@link net.magicterra.worlddriver.bot.rules.Move#PLACE_COST 20}). Default {@value}. */
-    public static volatile double pathfinderBridgeCost = 80;
+    public static volatile double pathfinderBridgeCost = RulesSettings.DEFAULTS.pathfinderBridgeCost();
 
     /** Base cost of a {@link net.magicterra.worlddriver.bot.rules.moves.PillarUp} rung
      *  (was the hard-coded {@code Move.PILLAR_COST} 30). Placement consumes inventory,
@@ -53,14 +55,14 @@ public final class RulesConfig {
      *  block, so a ~10-walk stair detour should win; a pillar with NO walkable
      *  alternative (water climb-outs, sealed pits) is still far cheaper than futile.
      *  Live-tunable via mc.bot.setting. */
-    public static volatile double pathfinderPillarCost = 150;
+    public static volatile double pathfinderPillarCost = RulesSettings.DEFAULTS.pathfinderPillarCost();
 
     /** Rung price at {@link #pathfinderPillarStockBlocks}+ blocks, sliding from {@link #pathfinderPillarCost} at none. A dry
      *  rung is ~14 ticks live vs ~21 for stairUpBreak (34-level hill: 53 s at 150, 41 s at 20). Default = no slide. */
-    public static volatile double pathfinderPillarCostStocked = 150;
+    public static volatile double pathfinderPillarCostStocked = RulesSettings.DEFAULTS.pathfinderPillarCostStocked();
 
     /** Stock at which a pillar rung costs {@link #pathfinderPillarCostStocked}. */
-    public static volatile int pathfinderPillarStockBlocks = 64;
+    public static volatile int pathfinderPillarStockBlocks = RulesSettings.DEFAULTS.pathfinderPillarStockBlocks();
 
     /** Max DRY (no-water) fall the planner takes as a plain {@code Fall} move, in blocks.
      *  <b>Default 4 — one block PAST Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live
@@ -79,20 +81,20 @@ public final class RulesConfig {
      *  bot wedged on for 90 s — the dirt staircase was the long-haul start wedge. fall5
      *  (1♥) stays catalogued-but-inert at 4 (raise to 5 to enable). autoEat/regen
      *  absorb the small drip; survival can lower it back to 3 via mc.bot.setting. */
-    public static volatile int pathfinderMaxDryFall = 4;
+    public static volatile int pathfinderMaxDryFall = RulesSettings.DEFAULTS.pathfinderMaxDryFall();
 
     /** Baritone {@code allowParkour4} analogue — enables 4-block cardinal
      *  leaps in A*. Off by default because the leap is at the edge of vanilla
      *  sprint-jump physics; turning it on without jump-boost / Speed makes
      *  the bot pick unreachable goals. Read every Move.Parkour4.valid call. */
-    public static volatile boolean allowParkour4 = false;
+    public static volatile boolean allowParkour4 = RulesSettings.DEFAULTS.allowParkour4();
 
     /** Refuse to PLAN a parkour leap whose gap falls out of the world, whenever the bot could
      *  bridge instead. See {@code Move.overTheVoid}: the cost model cannot express this preference
      *  without pricing a placed block below a walked one, and the two mistakes are not symmetric —
      *  a misjudged leap over a pit costs a climb, a misjudged one over the void ends the run for a
      *  bot that cannot die. */
-    public static volatile boolean pathfinderForbidParkourOverTheVoid = true;
+    public static volatile boolean pathfinderForbidParkourOverTheVoid = RulesSettings.DEFAULTS.pathfinderForbidParkourOverTheVoid();
 
     /** Planner gate: forbid a PARKOUR leap whose landing is the SURFACE of a DEEP
      *  floating-water pocket ({@link WorldView#isFloatingWater}: water at the landing
@@ -125,7 +127,7 @@ public final class RulesConfig {
      *  vineOverWater/parkourAscend) still ARRIVED with it ON, so deep-water CROSSINGS (which swim,
      *  not parkour-stepping-stone) are unaffected. Flip OFF via {@code mc.bot.setting} if a future
      *  geometry needs a parkour leap into deep water as its only exit. */
-    public static volatile boolean pathfinderForbidParkourIntoDeepWater = true;
+    public static volatile boolean pathfinderForbidParkourIntoDeepWater = RulesSettings.DEFAULTS.pathfinderForbidParkourIntoDeepWater();
 
     /** Sibling of {@link #pathfinderForbidParkourIntoDeepWater}, the TAKEOFF complement: forbid any parkour
      *  LAUNCH from a DEEP floating-water source ({@link WorldView#isFloatingWater}: water at foot AND below).
@@ -143,7 +145,7 @@ public final class RulesConfig {
      *  so removing it just routes A* through the swim-to-edge + {@code stepUp}/{@code diagUp} climb-out instead.
      *  1-deep shallow water (solid floor → {@code isFloatingWater} false) is unaffected. Default ON; the gate below predates the flip and describes the
      *  live A/B (the landing-side sibling defaults ON once proven; flip after A/B confirms 409→low + no regression). */
-    public static volatile boolean pathfinderForbidParkourFromFloatingWater = true;
+    public static volatile boolean pathfinderForbidParkourFromFloatingWater = RulesSettings.DEFAULTS.pathfinderForbidParkourFromFloatingWater();
 
     /** Third member of the forbid-parkour-water family (after {@link #pathfinderForbidParkourFromFloatingWater}
      *  takeoff + {@link #pathfinderForbidParkourIntoDeepWater} landing): the GAP DROP-ZONE guard. A rising/flat
@@ -162,7 +164,7 @@ public final class RulesConfig {
      *  {@link net.magicterra.worlddriver.bot.rules.moves.ParkourAscend} (the live -665 case); the flat parkour
      *  siblings can adopt the same per-gap-cell check if a flat-gap water-drop stall surfaces. Default OFF
      *  pending the live planner A/B (confirm A* drops the -665 leap + routes around with the flag ON). */
-    public static volatile boolean pathfinderForbidParkourOverWaterGap = false;
+    public static volatile boolean pathfinderForbidParkourOverWaterGap = RulesSettings.DEFAULTS.pathfinderForbidParkourOverWaterGap();
 
     /** Approach-runway gate for {@link net.magicterra.worlddriver.bot.rules.moves.ParkourAscend} (the +1-up
      *  cardinal parkour leap): a rising sprint-jump needs horizontal MOMENTUM at launch (~5.6 b/s), but a bot
@@ -192,7 +194,7 @@ public final class RulesConfig {
      *  substitutes the straight-up pillar and tops out clean. Dogfood A/B (neoforge, byte-identical
      *  ×3): OFF ⇒ {@code worstBackslide=20.252203415101263}; ON ⇒ {@code 1.2522034151012633}
      *  (the normal pillar-jump-arc settle), {@code reached=true}, NO required scene regressed. */
-    public static volatile boolean pathfinderParkourAscendNeedRunway = true;
+    public static volatile boolean pathfinderParkourAscendNeedRunway = RulesSettings.DEFAULTS.pathfinderParkourAscendNeedRunway();
 
     // Last, after every field above: see BotConfig.initialize.
     static { BotConfig.initialize(); }

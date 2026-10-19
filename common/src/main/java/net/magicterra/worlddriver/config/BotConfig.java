@@ -7,6 +7,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import net.magicterra.worlddriver.api.methods.setting.BotSettings;
+
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
 /**
@@ -25,41 +28,41 @@ public final class BotConfig {
      *  and may inject a single client-side action (hold the use intent for autoEat,
      *  call player.respawn() for autoRespawn). Off by default so a quiet bot
      *  stays quiet. */
-    public static volatile boolean autoEat = false;
+    public static volatile boolean autoEat = BotSettings.DEFAULTS.autoEat();
 
     /** Click the Respawn button (via player.respawn()) the moment a DeathScreen is shown.
      *  Without this, a dead bot sits on the death overlay until a human intervenes. */
-    public static volatile boolean autoRespawn = false;
+    public static volatile boolean autoRespawn = BotSettings.DEFAULTS.autoRespawn();
 
     /** Phase B hand/equipment reflexes (ambient, run concurrently with movement, arbitrating
      *  the use key shield > heal > eat). All off by default so a quiet bot stays quiet. */
-    public static volatile boolean autoTotem  = false;   // keep a totem in the offhand
-    public static volatile boolean autoShield = false;   // raise shield vs incoming
-    public static volatile boolean autoHeal   = false;   // drink/eat to heal when low
+    public static volatile boolean autoTotem  = BotSettings.DEFAULTS.autoTotem();   // keep a totem in the offhand
+    public static volatile boolean autoShield = BotSettings.DEFAULTS.autoShield();   // raise shield vs incoming
+    public static volatile boolean autoHeal   = BotSettings.DEFAULTS.autoHeal();   // drink/eat to heal when low
 
     /** Phase F T0 reflex: while the combat chain is engaged, ensure the best armor
      *  is worn and the best weapon is in hand (sibling of {@link #autoTool}). Off by
      *  default; the explicit {@code mc.bot.equip} verb works regardless. */
-    public static volatile boolean autoEquip = false;
+    public static volatile boolean autoEquip = BotSettings.DEFAULTS.autoEquip();
 
     /** Equipped items below this remaining-durability fraction (0–1) are flagged in
      *  {@code mc.bot.equip}'s {@code lowDurability} report so the agent can go repair
      *  / swap before they break mid-fight. Default 0.1 (10%). */
-    public static volatile double equipDurabilityThreshold = 0.1;
+    public static volatile double equipDurabilityThreshold = BotSettings.DEFAULTS.equipDurabilityThreshold();
 
     /** Hold jump while fully submerged so the bot floats toward the surface
      *  instead of drowning. Released the moment head is in air. Yields to
      *  active processes that own keyJump (mine/build BREAKING/PLACING). */
-    public static volatile boolean autoSwim = false;
+    public static volatile boolean autoSwim = BotSettings.DEFAULTS.autoSwim();
     /** Per-tick slice (ms) of a route PREVIEW ({@code PreviewSearch}): it runs beside a walk and must not steal its frames. */
-    public static volatile long pathfinderPreviewSliceMs = 3;
+    public static volatile long pathfinderPreviewSliceMs = BotSettings.DEFAULTS.pathfinderPreviewSliceMs();
     /** Most sight rays one search may fire for {@code route.sight}; past it the search reruns
      *  without sight rather than pricing the rest as exposed — {@code SightExposure} says why. */
-    public static volatile int sightRaysPerSearch = 4000;
+    public static volatile int sightRaysPerSearch = BotSettings.DEFAULTS.sightRaysPerSearch();
 
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's {@code axisHeight} setting
      *  (default 120, the classic "highway" Y). Read when an Axis goal is constructed. */
-    public static volatile int axisHeight = 120;
+    public static volatile int axisHeight = BotSettings.DEFAULTS.axisHeight();
 
 
     /** Event types muted from the live PUSH channel via
@@ -67,53 +70,53 @@ public final class BotConfig {
      *  pushes to the MCP/WS channel; listing a type here suppresses ONLY its push — the
      *  event is still recorded and retrievable via mc.wait.event / replay. Empty = push
      *  everything. Whole-list replace; pass [] to clear. Persisted across relaunch. */
-    public static volatile Set<String> mutedEvents = Set.of();
+    public static volatile Set<String> mutedEvents = Set.copyOf(BotSettings.DEFAULTS.mutedEvents());
 
     /** Entity type ids the bot stack never takes over: an order or {@code /worlddriver mob} naming one
      *  is refused. The way out for a modded mob that misbehaves when driven. Whole-list replace. */
-    public static volatile Set<String> undrivableMobs = Set.of();
+    public static volatile Set<String> undrivableMobs = Set.copyOf(BotSettings.DEFAULTS.undrivableMobs());
 
     /** Baritone {@code autoTool} analogue — when on, the bot swaps to the
      *  best hotbar tool whenever the player crosshair points at a breakable
      *  block (and no process or chain drives the bot). Default off so
      *  scripted hotbar layouts aren't fighting the bot for the selected
      *  slot. Read every clientTick via maybeAutoTool. */
-    public static volatile boolean autoTool = false;
+    public static volatile boolean autoTool = BotSettings.DEFAULTS.autoTool();
 
     /** Baritone {@code BackfillProcess} analogue — when on, the bot tracks the cells
      *  its own digs broke (never air it only walked through) and refills them with
      *  {@link BehaviorConfig#autoBackfillBlock} whenever no other process owns the keys. Seals mine
      *  tunnels behind a {@code mc.bot.mine} pass. Off by default. */
-    public static volatile boolean autoBackfill = false;
+    public static volatile boolean autoBackfill = BotSettings.DEFAULTS.autoBackfill();
     /** Side of the travel direction an even-width tunnel puts its extra column on: left or right. */
-    public static volatile String tunnelWidthBias = "left";
+    public static volatile String tunnelWidthBias = BotSettings.DEFAULTS.tunnelWidthBias();
 
     /** gap#68-⑧: ticks after a respawn during which autoFight does NOT re-engage and
      *  autoBackfill does NOT auto-start — a freshly-respawned naked bot must not resume
      *  lethal intents (combat kept hunting / orphan digging executed post-respawn). */
-    public static volatile int respawnGraceTicks = 60;
+    public static volatile int respawnGraceTicks = BotSettings.DEFAULTS.respawnGraceTicks();
 
     /** Baritone mob-avoidance analogue. When on, a goto/follow whose {@code route} names neither
      *  {@code mobs} nor {@code risk} gets a default {@code MobCluster} berth from the three settings
      *  below ({@code RouteParams.parse} expands it, so both bots price mobs once, the same way).
      *  Off by default: it changes pathing noticeably. */
-    public static volatile boolean avoidMobs = false;
+    public static volatile boolean avoidMobs = BotSettings.DEFAULTS.avoidMobs();
     /** Default {@code route.mobs.radius}: a melee mob's berth; cost ramps from {@link #mobAvoidPenalty} at the mob to 0 at the edge. */
-    public static volatile double mobAvoidRadius = 6;
+    public static volatile double mobAvoidRadius = BotSettings.DEFAULTS.mobAvoidRadius();
     /** Default {@code route.mobs.penalty}: one mob's peak cost, at zero distance. */
-    public static volatile double mobAvoidPenalty = 40;
+    public static volatile double mobAvoidPenalty = BotSettings.DEFAULTS.mobAvoidPenalty();
     /** Default {@code route.mobs.rangedRadius}: the wider berth of a mob that shoots (skeleton/witch), AltoClef's ranged split. */
-    public static volatile int rangedAvoidRadius = 16;
+    public static volatile int rangedAvoidRadius = BotSettings.DEFAULTS.rangedAvoidRadius();
     /** Cap on stored A* candidate nodes per search (reservoir-downsampled above this). */
-    public static volatile int pathDebugMaxNodes = 4000;
+    public static volatile int pathDebugMaxNodes = BotSettings.DEFAULTS.pathDebugMaxNodes();
     /** Cap on stored per-tick trajectory samples (ring buffer; oldest dropped). */
-    public static volatile int pathDebugMaxSamples = 6000;
+    public static volatile int pathDebugMaxSamples = BotSettings.DEFAULTS.pathDebugMaxSamples();
     /** When true, auto-write a chart on every goto terminal outcome (success and failure). */
-    public static volatile boolean pathChartAutoDump = false;
+    public static volatile boolean pathChartAutoDump = BotSettings.DEFAULTS.pathChartAutoDump();
 
     /** {@code mc.observe.scene} radius clamp (blocks). Requests larger than
      *  this are truncated with a truncated:true report. Default 32. */
-    public static volatile int sceneQueryMaxRadius = 32;
+    public static volatile int sceneQueryMaxRadius = BotSettings.DEFAULTS.sceneQueryMaxRadius();
 
     // ===================== reflection over the persistable set =====================
     // The file itself is BotConfigFile; what lives here is shared with snapshotAll/restoreAll.

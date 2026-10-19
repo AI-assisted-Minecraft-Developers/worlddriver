@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.config;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
-import net.magicterra.worlddriver.bot.SettingDefaults;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
+import net.magicterra.worlddriver.api.schema.annotation.Wire;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,10 +28,10 @@ class SettingsBindingTest {
     @Test
     void everyKeyIsBoundToAField() {
         List<String> bad = new ArrayList<>();
-        for (SettingDefs.Def d : SettingDefs.all()) {
-            boolean bound = SettingsRegistry.readOf(d.key()) == SettingsRegistry.Read.BOT_PAUSED
-                    || SettingsRegistry.boundField(d.key()) != null;
-            if (bound == UNBOUND.contains(d.key())) bad.add(d.key());
+        for (String key : SettingsContracts.TYPES.keySet()) {
+            boolean bound = SettingsRegistry.readOf(key) == SettingsRegistry.Read.BOT_PAUSED
+                    || SettingsRegistry.boundField(key) != null;
+            if (bound == UNBOUND.contains(key)) bad.add(key);
         }
         assertTrue(bad.isEmpty(), "keys bound to no field (or a control bound to one): " + bad);
     }
@@ -42,23 +42,55 @@ class SettingsBindingTest {
         for (Field f : BotConfig.publicFields()) {
             if (SettingsRegistry.isSetting(f)) keysOf.put(f.getName(), new ArrayList<>());
         }
-        for (SettingDefs.Def d : SettingDefs.all()) {
-            Field f = SettingsRegistry.boundField(d.key());
-            if (f != null) keysOf.get(f.getName()).add(d.key());
+        for (String key : SettingsContracts.TYPES.keySet()) {
+            Field f = SettingsRegistry.boundField(key);
+            if (f != null) keysOf.get(f.getName()).add(key);
         }
         List<String> bad = new ArrayList<>();
         keysOf.forEach((field, keys) -> { if (keys.size() != 1) bad.add(field + " ← " + keys); });
-        assertTrue(bad.isEmpty(), "setting fields not bound by exactly one key; declare one in SettingDefs:\n  "
+        assertTrue(bad.isEmpty(), "setting fields not bound by exactly one key; declare one in its layer's settings "
+                + "record:\n  " + String.join("\n  ", bad));
+    }
+
+    /** A key's component is named as the field that holds it, in the record of that field's layer. */
+    @Test
+    void everyComponentNamesItsField() {
+        List<String> bad = new ArrayList<>();
+        for (Class<? extends Record> layer : SettingsContracts.LAYERS) {
+            for (RecordComponent c : layer.getRecordComponents()) {
+                Wire wire = c.getAnnotation(Wire.class);
+                Field f = SettingsRegistry.boundField(wire == null ? c.getName() : wire.value());
+                if (f == null) continue;
+                String owner = f.getDeclaringClass().getSimpleName().replace("Config", "Settings");
+                if (!f.getName().equals(c.getName()) || !owner.equals(layer.getSimpleName())) {
+                    bad.add(layer.getSimpleName() + "." + c.getName() + " → " + f.getDeclaringClass().getSimpleName()
+                            + "." + f.getName());
+                }
+            }
+        }
+        assertTrue(bad.isEmpty(), "components not named as their fields, or in another layer's record:\n  "
                 + String.join("\n  ", bad));
     }
 
-    /** Every compiled-in value decodes as its key's type, so the schema can show it as the default. */
+    /** Each field starts from its key's default, so the schema shows what a fresh build runs with. */
     @Test
-    void everyDefaultFitsItsKey() {
-        Map<String, Object> defaults = assertDoesNotThrow(SettingDefaults::compiled);
-        assertEquals(Boolean.FALSE, defaults.get("autoEat"));
-        assertEquals(1.0, defaults.get("pathfinder.heuristicWeight"));
-        assertTrue(defaults.size() > 200, "only " + defaults.size() + " defaults");
+    void everyFieldStartsFromItsDefault() {
+        List<String> bad = new ArrayList<>();
+        SettingsContracts.DEFAULTS.forEach((key, d) -> {
+            Field f = SettingsRegistry.boundField(key);
+            String s = BotConfig.COMPILED_DEFAULTS.get(f.getName());
+            Class<?> t = f.getType();
+            boolean same = t == float.class ? Float.parseFloat(s) == ((Number) d).floatValue()
+                    : t == double.class ? Double.parseDouble(s) == ((Number) d).doubleValue()
+                    : t == int.class || t == long.class ? Long.parseLong(s) == ((Number) d).longValue()
+                    : t == Set.class ? Set.of(s.isEmpty() ? new String[0] : s.split(",")).equals(Set.copyOf((List<?>) d))
+                    : s.equals(String.valueOf(d));
+            if (!same) bad.add(key + ": field " + s + ", default " + d);
+        });
+        assertTrue(bad.isEmpty(), "fields that do not start from their key's default:\n  " + String.join("\n  ", bad));
+        assertEquals(Boolean.FALSE, SettingsContracts.DEFAULTS.get("autoEat"));
+        assertEquals(1.0, SettingsContracts.DEFAULTS.get("pathfinder.heuristicWeight"));
+        assertTrue(SettingsContracts.DEFAULTS.size() > 200, "only " + SettingsContracts.DEFAULTS.size() + " defaults");
     }
 
     /** A default is the field's to state; prose that states one goes stale the day the field changes. */
@@ -67,9 +99,7 @@ class SettingsBindingTest {
         Pattern claim = Pattern.compile("\\bdflt\\b|\\b(?:on|off) by default\\b|\\bdefaults? (?:to )?(?:on|off|true|false|-?\\d)",
                 Pattern.CASE_INSENSITIVE);
         List<String> bad = new ArrayList<>();
-        for (SettingDefs.Def d : SettingDefs.all()) {
-            if (d.description() != null && claim.matcher(d.description()).find()) bad.add(d.key() + ": " + d.description());
-        }
+        SettingsContracts.DOCS.forEach((key, doc) -> { if (claim.matcher(doc).find()) bad.add(key + ": " + doc); });
         assertTrue(bad.isEmpty(), "descriptions stating a default:\n  " + String.join("\n  ", bad));
     }
 }

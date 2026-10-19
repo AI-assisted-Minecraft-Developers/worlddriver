@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.config;
 
+import net.magicterra.worlddriver.api.methods.setting.WorldSettings;
+
 /**
  * Settings read by the bot's reading of cells ({@code bot/world}): standability, hazards, survival facts.
  * Each sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
@@ -19,25 +21,25 @@ public final class WorldConfig {
      *  treated as full-cube walls). Fixes the jungle "cocoa blocks the path / phantom foothold on a
      *  pod → navigator can't execute → stuck/oscillation" class of bugs. Off = legacy
      *  {@code blocksMotion()} model. */
-    public static volatile boolean collisionAwarePathing = true;
+    public static volatile boolean collisionAwarePathing = WorldSettings.DEFAULTS.collisionAwarePathing();
 
     /** Only the SURFACE water cell (water at the foot, none at the head) is a lateral node; a
      *  submerged cell is reached only through swimUp/swimDown chains. Water exits are the honest
      *  {@code climbOutPlace} edge instead of swimUp "into the air". Off = every water cell is a floor. */
-    public static volatile boolean pathfinderSurfaceWaterNodes = true;
+    public static volatile boolean pathfinderSurfaceWaterNodes = WorldSettings.DEFAULTS.pathfinderSurfaceWaterNodes();
 
     /** Deep water is priced by the water taxes, not charged the HazardField's 10 000 lethal
      *  penalty (which sent every lake crossing to the nearest rim). The lethal verdict stays for
      *  the panic chain, the survival facts and the map. See docs/design/water-and-swimming.md.
      *  Not pinned. */
-    public static volatile boolean pathfinderDeepWaterPriced = true;
+    public static volatile boolean pathfinderDeepWaterPriced = WorldSettings.DEFAULTS.pathfinderDeepWaterPriced();
 
     /** Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.world.ClientWorldView}.
      *  ON = cache getBlockState within a search slice (static-world assumption); the
      *  Navigator's per-tick reads always bypass it. Exposed as a knob purely so the
      *  cache's search-throughput contribution can be A/B-measured live (set false to
      *  read straight through). Default true. */
-    public static volatile boolean pathfinderCacheEnabled = true;
+    public static volatile boolean pathfinderCacheEnabled = WorldSettings.DEFAULTS.pathfinderCacheEnabled();
 
     /** Max collision-box height (blocks) of a floor-resting obstacle the bot
      *  STEPS or SWIMS over, so the pathfinder treats it as passable rather than a
@@ -52,7 +54,7 @@ public final class WorldConfig {
      *  swimming player slides under it. Kept conservative (below a 0.5 slab / 0.875
      *  soul sand) so genuine half-blocks still block; raise toward 0.6 to also walk
      *  through slab cells. 0 = off (legacy strict column intersection). */
-    public static volatile double pathfinderThinObstacleHeight = 0.2;
+    public static volatile double pathfinderThinObstacleHeight = WorldSettings.DEFAULTS.pathfinderThinObstacleHeight();
 
     /** Baritone {@code allowBreak} analogue — the pathfinder may mine
      *  obstructing blocks as part of a route (tunnel through a wall, dig
@@ -62,7 +64,7 @@ public final class WorldConfig {
      *  modify the world; set false for a non-destructive livestream/demo run. Scenes see it
      *  OFF instead, pinned by {@link #applyGameTestBaseline()}.
      *  Read every {@code TraverseBreak}/{@code DownBreak}.eval + WorldView.breakCost. */
-    public static volatile boolean allowBreak = true;
+    public static volatile boolean allowBreak = WorldSettings.DEFAULTS.allowBreak();
 
     /** Water-escape break: when the bot is stuck IN water (a flooded pit, a
      *  high-banked lake/ocean shore it can't {@code stepUp} out of), the
@@ -74,7 +76,7 @@ public final class WorldConfig {
      *  start tunnelling through hills, only out of the water it's drowning in.
      *  Read by {@code SwimAshoreBreak}/{@code SwimTraverseBreak}.eval +
      *  WorldView.escapeBreakCost. Set false to forbid all autonomous mining. */
-    public static volatile boolean allowSwimEscapeBreak = true;
+    public static volatile boolean allowSwimEscapeBreak = WorldSettings.DEFAULTS.allowSwimEscapeBreak();
 
     /** Flee-escape break: when a {@code RunAwayProcess} is actively fleeing, the
      *  pathfinder may mine LEAVES that box the bot in — even when the general
@@ -84,7 +86,7 @@ public final class WorldConfig {
      *  place. Leaves are hardness-0.2 (near-instant), gated to an active flee +
      *  leaves only, so normal demo-safe movement still never breaks anything. Read
      *  by WorldView.breakCost when the search is a flee. Set false to forbid it. */
-    public static volatile boolean allowFleeBreak = true;
+    public static volatile boolean allowFleeBreak = WorldSettings.DEFAULTS.allowFleeBreak();
 
     /** Max height (blocks) of a tall bank the pathfinder will break-CLIMB out of
      *  deep water with the {@link net.magicterra.worlddriver.bot.rules.moves.SwimBankClimbBreak}
@@ -97,14 +99,14 @@ public final class WorldConfig {
      *  bot carve a staircase up a tall river/ocean cliff onto an elevated plateau.
      *  Gated on the same {@link #allowSwimEscapeBreak}; 0 disables it. Bounded so
      *  A* can't carve an arbitrarily tall shaft. Read by SwimBankClimbBreak.eval. */
-    public static volatile int swimBankClimbMaxHeight = 12;
+    public static volatile int swimBankClimbMaxHeight = WorldSettings.DEFAULTS.swimBankClimbMaxHeight();
 
     /** Baritone {@code allowPlace} analogue — the pathfinder may place a
      *  throwaway block to bridge a one-block gap as part of a route. Default ON
      *  (this said "off" while the initialiser said true). Read by
      *  {@code ClientWorldView.canPlace} and the Navigator's place actuators;
      *  {@code LevelWorldView.canPlace} does NOT read it — see the note there. */
-    public static volatile boolean allowPlace = true;
+    public static volatile boolean allowPlace = WorldSettings.DEFAULTS.allowPlace();
 
     /** Baritone {@code maxFallHeightBucket} analogue — the pathfinder may plan a
      *  fall taller than the no-water cap (3 blocks) when the bot has a water
@@ -112,7 +114,7 @@ public final class WorldConfig {
      *  break the fall (MLG) and scooping it back. Default ON (this said "off").
      *  NOT read by {@code WaterBucketFall.valid}, which asks the view — and the
      *  views disagree; see the {@code canPlace} note in {@code LevelWorldView}. */
-    public static volatile boolean allowWaterBucketFall = true;
+    public static volatile boolean allowWaterBucketFall = WorldSettings.DEFAULTS.allowWaterBucketFall();
 
     /** Baritone {@code allowParkourPlace} analogue — the pathfinder may cross a
      *  gap with a sprint-jump onto a block placed mid-air (instead of two slow
@@ -121,19 +123,19 @@ public final class WorldConfig {
      *  check). Off by default — genuinely, unlike {@link #allowPlace} above.
      *  {@code ParkourPlace.eval} reaches it only via WorldView.canParkourPlace,
      *  which BOTH views read live — the coupling {@code canPlace} is missing. */
-    public static volatile boolean allowParkourPlace = false;
+    public static volatile boolean allowParkourPlace = WorldSettings.DEFAULTS.allowParkourPlace();
 
     /** Tallest drop (blocks) the bot will commit to with a water-bucket fall when
      *  {@link #allowWaterBucketFall} is on — Baritone {@code maxFallHeightBucket}
      *  (default 20). Above this, A* finds another way down. */
-    public static volatile int maxWaterBucketFall = 20;
+    public static volatile int maxWaterBucketFall = WorldSettings.DEFAULTS.maxWaterBucketFall();
 
     /** Baritone avoidance analogue — when on, A* adds a soft cost penalty for
      *  standing next to lava/fire so routes keep a one-block buffer from
      *  hazards instead of skimming them (it will still thread a lava-lined
      *  corridor if that's the only way). Purely makes paths safer, so on by
      *  default. Read every WorldView.dangerCost call. */
-    public static volatile boolean avoidDanger = true;
+    public static volatile boolean avoidDanger = WorldSettings.DEFAULTS.avoidDanger();
 
     /** Cost added per <em>fire</em> cell adjacent to a candidate stand position
      *  when {@link #avoidDanger} is on. ~3 walk-steps of detour per hazard
@@ -141,7 +143,7 @@ public final class WorldConfig {
      *  corridor becomes unreachable. Lava is weighted separately (and heavier)
      *  via {@link #lavaDangerPenalty}; contact plants via {@link
      *  #contactDangerPenalty}. */
-    public static volatile double dangerPenaltyPerCell = 30;
+    public static volatile double dangerPenaltyPerCell = WorldSettings.DEFAULTS.dangerPenaltyPerCell();
 
     /** Cost added per <em>lava</em> cell adjacent to a candidate stand position
      *  when {@link #avoidDanger} is on. Lava contact is lethal (burning persists
@@ -156,7 +158,7 @@ public final class WorldConfig {
      *  reverse run at 300 crossed the same arms with ZERO lava contacts. 300 ≈
      *  a 30-block detour per lava neighbour, which the journey absorbed without
      *  losing reachability (still arrived, ~same pace). */
-    public static volatile double lavaDangerPenalty = 300;
+    public static volatile double lavaDangerPenalty = WorldSettings.DEFAULTS.lavaDangerPenalty();
 
     /** Cost added per <em>contact-damage</em> block (cactus, sweet-berry bush,
      *  wither rose, magma block, powder snow) adjacent to a candidate stand
@@ -168,7 +170,7 @@ public final class WorldConfig {
      *  {@link #lavaDangerPenalty}'s 80→300, scaled down because a graze is
      *  survivable and the {@code ContactDamageEscape} reflex now backstops
      *  actual contact). */
-    public static volatile double contactDangerPenalty = 60;
+    public static volatile double contactDangerPenalty = WorldSettings.DEFAULTS.contactDangerPenalty();
 
     /** Cost added when a candidate stand position sits at the lip of a drop
      *  deeper than the bot can survive (a lethal cliff / void edge), when
@@ -222,7 +224,7 @@ public final class WorldConfig {
      *  drop over 4 regardless of health. Borrowing the predicate is right; borrowing
      *  its threshold is not. This guard asks "will this kill the bot"; a crossing
      *  has to ask "will this end the trip", and those have different answers. */
-    public static volatile double ledgeDangerPenalty = 200;
+    public static volatile double ledgeDangerPenalty = WorldSettings.DEFAULTS.ledgeDangerPenalty();
 
     /** Minimum empty blocks below an open neighbour for it to count as a real
      *  cliff for {@link #ledgeDangerPenalty} (so a harmless 1–2 block step-down
@@ -233,7 +235,7 @@ public final class WorldConfig {
      *  what decides — 23 is. Raising it does nothing useful, and lowering it does
      *  not reach the survivable-but-inescapable pit either; that gap is deliberate
      *  and {@link #ledgeDangerPenalty} says why. */
-    public static volatile int ledgeDangerMinDrop = 4;
+    public static volatile int ledgeDangerMinDrop = WorldSettings.DEFAULTS.ledgeDangerMinDrop();
 
     /** Cost added per node where the bot's foot is in water, when {@link
      *  #avoidDanger} is on. Additive, not a ban: a short ford or a sole crossing is
@@ -242,7 +244,7 @@ public final class WorldConfig {
      *  walk's ~0.22 on cost 10, plus the dip that starts each cruise. The old 12 was
      *  priced for the 2 block/s tread it replaced and pushed A* onto any rim it
      *  could find. Set 0 to disable. */
-    public static volatile double waterDangerPenalty = 3;
+    public static volatile double waterDangerPenalty = WorldSettings.DEFAULTS.waterDangerPenalty();
 
     /** Cost for FLOWING water (a current), on top of {@link #waterDangerPenalty}.
      *  Vanilla water pushes the bot ~0.014/tick per flow unit, so crossing a
@@ -254,35 +256,35 @@ public final class WorldConfig {
      *  (b) a directional upstream penalty in {@code directionalCost} so a route that
      *  heads INTO the flow costs more than one going across or with it. Additive and
      *  ≥0 (admissible): a sole crossing is still taken. Set 0 to disable. */
-    public static volatile double waterFlowPenalty = 18;
+    public static volatile double waterFlowPenalty = WorldSettings.DEFAULTS.waterFlowPenalty();
 
     /** Cost for STANDING ON a leaf block (canopy-walking), when {@link #avoidDanger} is on. Leaves
      *  block motion, so A* treats the canopy as a floor and routes ACROSS the bumpy tree-tops, where
      *  the surface snags the hitbox (the wooded-mountain stall). Biases the planner onto the ground
      *  or through the tree. Additive, admissible, not a ban; 0 disables. */
-    public static volatile double leafSnagPenalty = 20;
-    public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
+    public static volatile double leafSnagPenalty = WorldSettings.DEFAULTS.leafSnagPenalty();
+    public static volatile double fleeDangerBoost = WorldSettings.DEFAULTS.fleeDangerBoost();   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
 
     /** §91 steep-ascent chain tax (#15): extra cost on an ascending edge whose landing faces another 2-high wall
      *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks. 0 = off; trial 12. */
-    public static volatile double pathfinderSteepAscentTax = 0.0;
+    public static volatile double pathfinderSteepAscentTax = WorldSettings.DEFAULTS.pathfinderSteepAscentTax();
 
     /** Floating-dig break repricing (§81, ultra#1 flooded-oak churn): when the from-cell
      *  is water the bot digs while floating — vanilla is 25× slow (eyes-in-water ÷5 ×
      *  not-on-ground ÷5) plus bob-drift progress resets, but the planner priced it 5×.
      *  ON = ×25 for floating digs; standing-in-shallow digs (feet dry) stay ×5. */
-    public static volatile boolean pathfinderFloatingBreakTax = true;
+    public static volatile boolean pathfinderFloatingBreakTax = WorldSettings.DEFAULTS.pathfinderFloatingBreakTax();
 
     /** Trunk-aversion multiplier on log breakCost (§81): logs are cheap (hardness 2,
      *  bare-hand correct) so dense-forest A* routes THROUGH trees; this prices the
      *  hidden approach/aim/canopy-snag cost so a walk-around wins. 1.0 = byte-identical. */
-    public static volatile double pathfinderLogBreakTax = 3.0;
+    public static volatile double pathfinderLogBreakTax = WorldSettings.DEFAULTS.pathfinderLogBreakTax();
 
     /** Dig-aversion multiplier on the planner's breakCost (§74): >1 biases A* toward
      *  walking around instead of committing dig-dense mineshaft/cave segments whose hidden
      *  per-block approach/stall costs broke C53/C58/C59 (50-65s worst stalls). Planner
      *  pricing only; executor fallback digs unaffected. 1.0 = byte-identical. */
-    public static volatile double pathfinderBreakCostMultiplier = 2.5;
+    public static volatile double pathfinderBreakCostMultiplier = WorldSettings.DEFAULTS.pathfinderBreakCostMultiplier();
 
     /** Agent-supplied danger zones to route AROUND — each row is
      *  {@code [x, y, z, radius]}. Set via {@code mc.bot.setting{avoidPoints:[...]}}
@@ -299,7 +301,7 @@ public final class WorldConfig {
      *  the zone's radius. High (default 250) so the planner really does detour around
      *  a marked tunnel rather than thread it — the Agent scales/marks more aggressively
      *  when the bot is poorly equipped. */
-    public static volatile double avoidZonePenalty = 250;
+    public static volatile double avoidZonePenalty = WorldSettings.DEFAULTS.avoidZonePenalty();
 
     /** Prefer-surface penalty: cost added PER BLOCK of depth for a foot that sits
      *  ≥{@link #deepDarkMinDepth} below the world-surface HEIGHTMAP at its x,z.
@@ -313,26 +315,26 @@ public final class WorldConfig {
      *  surface path or for a short deliberate dig, but a deep cave route becomes
      *  prohibitively expensive vs any surface detour. Set 0 to disable. Read in
      *  {@code ClientWorldView.dangerCost} (gated on {@link #avoidDanger}). */
-    public static volatile double deepDarkPenalty = 25;
+    public static volatile double deepDarkPenalty = WorldSettings.DEFAULTS.deepDarkPenalty();
     /** Min blocks below the surface heightmap before {@link #deepDarkPenalty} applies
      *  — so a normal valley/river dip, a 1–2 block step-down, or a short dig for
      *  surface stone isn't penalized, only a genuine descent toward a deep cave. */
-    public static volatile int deepDarkMinDepth = 8;
+    public static volatile int deepDarkMinDepth = WorldSettings.DEFAULTS.deepDarkMinDepth();
 
     // --- WorldModel / HazardField (perception slice) ---
     /** Chebyshev radius (blocks) of the HazardField grid recomputed each
      *  decimated tick by WorldModel.update. Larger = wider situational awareness,
      *  higher per-tick cost. Default 12 keeps the grid under 625 cells. */
-    public static volatile int hazardGridRadius = 12;
+    public static volatile int hazardGridRadius = WorldSettings.DEFAULTS.hazardGridRadius();
 
     /** WorldModel only recomputes the HazardField every N client ticks (unless
      *  the player moved to a new block). 1 = every tick (max freshness, higher
      *  CPU); 4 = ~4.8 Hz (good default). Must be ≥ 1. */
-    public static volatile int hazardGridDecimateTicks = 4;
+    public static volatile int hazardGridDecimateTicks = WorldSettings.DEFAULTS.hazardGridDecimateTicks();
 
     /** Water depth (blocks) at or above which a water cell is lethal in the
      *  HazardField (the bot would drown before climbing out). Default 2. */
-    public static volatile int deepWaterMax = 2;
+    public static volatile int deepWaterMax = WorldSettings.DEFAULTS.deepWaterMax();
 
     // Last, after every field above: see BotConfig.initialize.
     static { BotConfig.initialize(); }

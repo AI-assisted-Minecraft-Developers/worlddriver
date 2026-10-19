@@ -7,11 +7,10 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
-import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.TsContext;
-import net.magicterra.worlddriver.bot.SettingDefaults;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -74,17 +73,17 @@ final class SkillManual {
     }
 
     private static void settings(StringBuilder out, TsContext ts) {
-        Map<String, Object> defaults = SettingDefaults.compiled();
         out.append("\n## Settings\n\n");
         out.append("The keys of `mc.bot.setting`, in the order a read without `keys` answers. A default is the "
                 + "value this build ships; a saved settings file may override it.\n\n");
         out.append("| key | type | default | description |\n|---|---|---|---|\n");
-        for (SettingDefs.Def d : SettingDefs.all()) {
-            Object dflt = defaults.get(d.key());
-            out.append("| `").append(d.key()).append("` | ").append(cell(typeOf(d.type(), ts))).append(" | ")
-                    .append(dflt == null ? "" : cell("`" + encode(d.type(), dflt) + "`"))
-                    .append(" | ").append(d.description() == null ? "" : cell(d.description())).append(" |\n");
-        }
+        SettingsContracts.TYPES.forEach((key, type) -> {
+            Object dflt = SettingsContracts.DEFAULTS.get(key);
+            String doc = SettingsContracts.DOCS.get(key);
+            out.append("| `").append(key).append("` | ").append(cell(typeOf(type, ts))).append(" | ")
+                    .append(dflt == null ? "" : cell("`" + encode(type, dflt) + "`"))
+                    .append(" | ").append(doc == null ? "" : cell(doc)).append(" |\n");
+        });
     }
 
     private static void events(StringBuilder out, TsContext ts) {

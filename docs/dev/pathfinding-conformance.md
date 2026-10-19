@@ -28,7 +28,7 @@ window creation can hang. Both cases, and how to tell which one applies, are in
 New `BotConfig` keys must be set over the socket, not through a cached MCP tool schema. An
 MCP client's copy of the tool schemas is frozen when its session starts, so a key added
 after that is stripped from the call before it ever reaches the game. The mod's own side
-is not stale — it serves the schema built from `SettingDefs` — so the
+is not stale — it serves the schema built from the settings records — so the
 socket path always carries the current key set.
 
 Either send `mc.bot.setting` over the WebSocket endpoint directly, or use
@@ -64,14 +64,17 @@ The reading that follows:
 
 All three steps are mandatory.
 
-1. **Declare the field** in the config class of the lowest layer that reads it
-   (`ControlConfig.java` for a navigator flag), as a `public static volatile boolean`
-   defaulting to false.
-2. **Declare the key** with a `def(...)` line in `api/methods/setting/SettingDefs.java`: its
-   wire name (the field's name, unless `SettingsRegistry.HAND` binds it otherwise), its type
-   and what it does. Leave the default out of the prose; the schema shows the field's.
-   `SettingsBindingTest` fails the build on a field with no key or a key with no field. The
-   setter and the read path follow from the binding, so do not hand-wire an apply branch.
+1. **Declare the key** as a component of that layer's settings record in
+   `api/methods/setting/` (`ControlSettings.java` for a navigator flag): named as the field,
+   with `@Wire` when the key differs (and a matching `SettingsRegistry.HAND` line), its type,
+   `@Doc` saying what it does and `@Default` holding the default. Leave the default out of
+   the prose; the schema shows it.
+2. **Declare the field** in the config class of the lowest layer that reads it
+   (`ControlConfig.java` for a navigator flag), as a `public static volatile` field that
+   starts from the record: `= ControlSettings.DEFAULTS.navigatorFoo()`.
+   `SettingsBindingTest` fails the build on a field with no key, a key with no field, or a
+   field that does not start from its default. The setter and the read path follow from the
+   binding, so do not hand-wire an apply branch.
 3. **Read it somewhere.** `SettingsConsumerTest` in `common/src/test` fails the build when a
    setting field is never read outside the settings pipeline. Without that test, a
    knob with no read site is accepted, echoed back as set, and changes nothing.

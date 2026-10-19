@@ -14,7 +14,6 @@ import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.bot.SettingDefaults;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -81,7 +80,6 @@ public final class DriverApplication implements DriverHost {
     private volatile ScriptHost scriptHost;
 
     public DriverApplication() {
-        SettingDefaults.install();
         registry.registerBatch(coreBatch);
         BotTaskService tasks = new BotTaskService(this);
         // Each registered task is its own batch under its mod id, so one that cannot be published (a name

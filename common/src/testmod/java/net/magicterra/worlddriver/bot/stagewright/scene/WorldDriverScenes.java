@@ -14,7 +14,6 @@ import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.stagewright.scene.Scene;
@@ -184,7 +183,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * P2a verb-pipeline regression net — the SPI's own dogfood gate. A pure-function
      * assertion scene (no world ops: it never spawns an avatar or edits blocks, so the bot
      * is cheap and position-invariant — auto slot, default radius, {@code required=true}).
-     * It pins the #280 root fix ({@link SettingDefs} single-source + closed
+     * It pins the #280 root fix (one key table, read off the settings records, and a closed
      * {@code mc.bot.setting} schema) AND the paired verb-registration SPI ({@code mc.test.reset}
      * route + schema present on THIS loader's boot path — the assertion that catches a
      * mis-placed registration hook RED on either loader).
@@ -208,19 +207,19 @@ public final class WorldDriverScenes implements SceneProvider {
      */
     private static void settingRegistryClosed(SceneContext ctx) {
         // (1) Key table non-trivially populated; a floor, since it grows as flags land.
-        int known = SettingDefs.all().size();
+        int known = SettingsContracts.TYPES.size();
         if (known < 200)
-            ctx.fail("settingRegistry: SettingDefs.all().size()=" + known + " < 200 floor");
+            ctx.fail("settingRegistry: SettingsContracts.TYPES.size()=" + known + " < 200 floor");
 
         // (2) Sentinel keys — one per provenance class (apply-special / hand / dotted-alias / apply-only).
         for (String k : List.of("paused", "autoEat", "navigator.repathEveryTicks", "debugFly")) {
-            if (!SettingDefs.isKnown(k))
+            if (!SettingsContracts.isKnown(k))
                 ctx.fail("settingRegistry: sentinel key '" + k + "' missing from the registry "
                         + "(" + known + " keys)");
         }
 
         // (3) A bogus key is NOT known.
-        if (SettingDefs.isKnown("definitelyNotAKnob"))
+        if (SettingsContracts.isKnown("definitelyNotAKnob"))
             ctx.fail("settingRegistry: bogus key 'definitelyNotAKnob' reported known — the "
                     + "unknown-key gate regressed");
 

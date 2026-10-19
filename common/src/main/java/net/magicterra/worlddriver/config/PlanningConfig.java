@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.config;
 
+import net.magicterra.worlddriver.api.methods.setting.PlanningSettings;
+
 /**
  * Settings read by the A* search ({@code bot/planning}).
  * Each sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
@@ -8,10 +10,10 @@ public final class PlanningConfig {
     private PlanningConfig() {}
 
     /** A* node cap surfaced as a tunable knob — Baritone's {@code pathTimeoutMS} analogue. */
-    public static volatile int pathfinderMaxNodes = 100_000;
+    public static volatile int pathfinderMaxNodes = PlanningSettings.DEFAULTS.pathfinderMaxNodes();
 
     /** A* wall-clock cap, ms. */
-    public static volatile long pathfinderMaxMs = 1500;
+    public static volatile long pathfinderMaxMs = PlanningSettings.DEFAULTS.pathfinderMaxMs();
 
     /** Weighted-A* heuristic multiplier (W in {@code f = g + W·h}). W>1 makes the
      *  search greedier toward the goal (bounded-suboptimal A*). The best-effort
@@ -28,7 +30,7 @@ public final class PlanningConfig {
      *  around; inflating h breaks that. Kept as an exposed knob
      *  ({@code mc.bot.setting{pathfinder.heuristicWeight}}) because greedy search can
      *  still help in OPEN terrain — opt in per use, don't ship it on. */
-    public static volatile double pathfinderHeuristicWeight = 1.0;
+    public static volatile double pathfinderHeuristicWeight = PlanningSettings.DEFAULTS.pathfinderHeuristicWeight();
 
     /** Obstacle-aware goal-distance heuristic ({@link net.magicterra.worlddriver.bot.planning.CoarseGoalField}).
      *  When ON, each search builds a coarse, symmetric, goal-rooted cost-to-goal
@@ -38,18 +40,18 @@ public final class PlanningConfig {
      *  best-effort segment (the backtracking oscillation). Degrades to the plain
      *  Euclidean heuristic wherever the field has no value, so it can never be
      *  worse than off. Phase-0 premise test: default OFF until A/B-validated. */
-    public static volatile boolean pathfinderGoalField = false;
+    public static volatile boolean pathfinderGoalField = PlanningSettings.DEFAULTS.pathfinderGoalField();
 
     /** Coarse-grid cell edge in blocks for {@link #pathfinderGoalField} (bigger =
      *  cheaper to build, coarser routing). */
-    public static volatile int goalFieldCellSize = 4;
+    public static volatile int goalFieldCellSize = PlanningSettings.DEFAULTS.goalFieldCellSize();
 
     /** Horizontal half-extent (blocks) of the goal-field box around the search start — keep within
      *  the client render distance so cells map to known terrain. */
-    public static volatile int goalFieldRadius = 64;
+    public static volatile int goalFieldRadius = PlanningSettings.DEFAULTS.goalFieldRadius();
 
     /** Vertical half-extent (blocks) of the goal-field box around the search start. */
-    public static volatile int goalFieldVerticalRadius = 32;
+    public static volatile int goalFieldVerticalRadius = PlanningSettings.DEFAULTS.goalFieldVerticalRadius();
 
     /** Anti-basin-dive heuristic term (cost units per block). For an XZ goal the
      *  estimate is Y-agnostic, so the search treats DESCENDING as free progress
@@ -70,11 +72,11 @@ public final class PlanningConfig {
      *  reliably reproducible via the live client — the search only sees loaded
      *  chunks, which vary per session). Set 0 to disable; tune via the
      *  mc.debug.plan chain harness. */
-    public static volatile double pathfinderDepthPenalty = 6;
+    public static volatile double pathfinderDepthPenalty = PlanningSettings.DEFAULTS.pathfinderDepthPenalty();
 
     /** Blocks of descent below the search start that are free before {@link #pathfinderDepthPenalty} kicks in
      *  (so a normal step-down / small dip isn't charged). Shared with {@link #pathfinderDescendCost}. */
-    public static volatile int pathfinderDepthSlack = 4;
+    public static volatile int pathfinderDepthSlack = PlanningSettings.DEFAULTS.pathfinderDepthSlack();
 
     /** REAL g-cost (not heuristic) charged per block for descending IN WATER or by
      *  BREAKING a block, below {@code searchStartY − {@link #pathfinderDepthSlack}}.
@@ -102,7 +104,7 @@ public final class PlanningConfig {
      *  when going down (climbing is free), so shallow wading across a river isn't
      *  penalised. Default {@value}: the mc.debug.plan water-pit A/B value that flips the real spawn +6-bank water bowl from dive-and-tunnel
      *  (end Y 50) to climb-ashore (end Y 71); deep dives are spared by gate (1). Set 0 to disable. */
-    public static volatile double pathfinderDescendCost = 40;
+    public static volatile double pathfinderDescendCost = PlanningSettings.DEFAULTS.pathfinderDescendCost();
 
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
      *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
@@ -118,7 +120,7 @@ public final class PlanningConfig {
      *  water crossing is still taken (cost beats the land detour or there is none);
      *  Y-aware pos/block goals (a seabed dive) are exempt exactly like descendTax, and
      *  Goal.Block GameTest water arenas are unaffected. Default 35. Set 0 to disable. */
-    public static volatile double pathfinderWaterCellCost = 35;
+    public static volatile double pathfinderWaterCellCost = PlanningSettings.DEFAULTS.pathfinderWaterCellCost();
 
     /** Per-cell g-cost charged for a move whose destination stands ON a leaf canopy (floor =
      *  #minecraft:leaves) or pushes the head INTO leaves. Leaves are full-collision, so A* treats a
@@ -130,7 +132,7 @@ public final class PlanningConfig {
      *  SOFT per-cell tax tips A* onto the ground route around/under the tree. A sole canopy route is
      *  still taken (the penalty decays into the move cost, it does not forbid). Default 25; set 0 to
      *  disable. */
-    public static volatile double pathfinderLeafCellCost = 25;
+    public static volatile double pathfinderLeafCellCost = PlanningSettings.DEFAULTS.pathfinderLeafCellCost();
 
     /** EXTRA per-cell g-cost charged on a SURFACE-WATER cell whose cell-above is a thin breakable
      *  obstruction — canonically a lily pad. The planner treats a pad's thin shape as passable (a fast
@@ -143,7 +145,7 @@ public final class PlanningConfig {
      *  pad-covered crossing is still taken (the penalty decays into the move cost; the break-actuator
      *  remains the fallback). Gated to swim routes (XZ goal) + actual water cells, so dry-land grass
      *  overhead is never taxed. Default 20; set 0 to disable. */
-    public static volatile double pathfinderLilyPadCellCost = 20;
+    public static volatile double pathfinderLilyPadCellCost = PlanningSettings.DEFAULTS.pathfinderLilyPadCellCost();
 
     /** EXTRA per-cell g-cost charged (on top of {@link #pathfinderWaterCellCost}) when
      *  the entered water cell is SUBMERGED — i.e. it has water directly above it, so a
@@ -164,7 +166,7 @@ public final class PlanningConfig {
      *  166-block water-valley journey: 40→80 cut total stall 14 s→7 s (cleared a forced
      *  submerged-descent stall) with no new churn; a higher penalty is directionally safe
      *  because it taxes only DIVING, which a buoyant bot can't do anyway. Set 0 to disable. */
-    public static volatile double pathfinderSubmergedWaterCost = 80;
+    public static volatile double pathfinderSubmergedWaterCost = PlanningSettings.DEFAULTS.pathfinderSubmergedWaterCost();
 
     /** Planner surface-bias: also charge {@link #pathfinderSubmergedWaterCost} on a HORIZONTAL (or
      *  rising) edge that enters a DEEP floating-submerged water cell ({@link WorldView#isFloatingWater}
@@ -186,7 +188,7 @@ public final class PlanningConfig {
      *  unreachable. Reuses {@link #pathfinderSubmergedWaterCost} as the per-cell price.
      *  <p><b>Default OFF</b> — byte-identical no-op until validated; flip ON only on a clean live A/B
      *  win (the parent does live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean pathfinderFloatingSurfaceCross = false;
+    public static volatile boolean pathfinderFloatingSurfaceCross = PlanningSettings.DEFAULTS.pathfinderFloatingSurfaceCross();
 
     /** EXTRA per-cell g-cost charged on a SURFACE-WATER traversal cell whose FOOT+1/FOOT+2 column carries a
      *  hanging-VINE or LEAF obstruction over the water — a tree-canopy (oak_leaves + draped vines, often
@@ -210,7 +212,7 @@ public final class PlanningConfig {
      *  unreachable. Reuses {@link #pathfinderLeafCellCost} as the per-cell price.
      *  <p><b>Default OFF</b> — byte-identical no-op until validated; flip ON only on a clean live A/B win
      *  (the parent does live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean pathfinderVineOverWaterTax = false;
+    public static volatile boolean pathfinderVineOverWaterTax = PlanningSettings.DEFAULTS.pathfinderVineOverWaterTax();
 
     /** EXTRA per-cell g-cost charged on a SURFACE-WATER traversal cell whose FOOT+1 cell holds a
      *  thin breakable obstruction — canonically a SINGLE SPARSE lily pad over deep OPEN water. The existing
@@ -236,7 +238,7 @@ public final class PlanningConfig {
      *  Reuses {@link #pathfinderLilyPadCellCost} as the per-cell price (same obstacle as {@code padCellTax}).
      *  <p><b>Default OFF</b> — byte-identical no-op until validated; flip ON only on a clean live A/B win (the
      *  parent does live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean pathfinderPadOverWaterTax = false;
+    public static volatile boolean pathfinderPadOverWaterTax = PlanningSettings.DEFAULTS.pathfinderPadOverWaterTax();
 
     /** CLUSTER refinement of {@link #pathfinderPadOverWaterTax}: when a pad-over-water cell is ADJACENT (in
      *  its foot+1 4-neighbourhood) to MORE pad-over-water cells, scale the per-pad tax by 1 + the count of
@@ -257,7 +259,7 @@ public final class PlanningConfig {
      *  {@link #pathfinderLilyPadCellCost} per adjacent pad; requires {@code pathfinderPadOverWaterTax} ON.
      *  <p><b>Default OFF</b> — byte-identical no-op until validated; flip ON only on a clean live A/B win (the
      *  parent does live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean pathfinderPadClusterTax = false;
+    public static volatile boolean pathfinderPadClusterTax = PlanningSettings.DEFAULTS.pathfinderPadClusterTax();
 
     /** PER-RISE g-cost charged when an edge CLIMBS OUT of water onto a higher bank —
      *  i.e. {@code from} is a water cell, {@code to} is a non-water cell ABOVE it
@@ -279,7 +281,7 @@ public final class PlanningConfig {
      *  exit and pays nothing → Goal.Block GameTest water arenas are unaffected), and only
      *  when {@code from} is water. Default 40 ≈ one water cell per block of rise. Set 0 to
      *  disable. */
-    public static volatile double pathfinderWaterClimbOutCost = 40;
+    public static volatile double pathfinderWaterClimbOutCost = PlanningSettings.DEFAULTS.pathfinderWaterClimbOutCost();
 
     /** Multiplier on {@link #pathfinderWaterClimbOutCost} ADDED to a climb-out whose SOURCE
      *  water cell is FLOATING (water directly below the foot → buoyant bot, no solid floor to
@@ -298,7 +300,7 @@ public final class PlanningConfig {
      *  the bay, never arrives — WORSE than the pre-fix slow-but-arriving dig. (Replay1 arrived, replay2
      *  failed → ~50% fragile.) Unlike the rare rise>3 surcharge, this hits common low exits and confuses
      *  A*'s distance heuristic. The genre needs a NARROWER trigger or a non-cost approach (fresh cycle). */
-    public static volatile double pathfinderFloatingClimbOutMult = 0;
+    public static volatile double pathfinderFloatingClimbOutMult = PlanningSettings.DEFAULTS.pathfinderFloatingClimbOutMult();
 
     /** Segmented planning to the loaded-chunk frontier. The client only knows
      *  chunks within render distance, so a far goal lies beyond loaded space; the
@@ -324,7 +326,7 @@ public final class PlanningConfig {
      *  in-water starts (the bestAshore climb-out takes priority there). Default ON:
      *  with early-stop it is a pure latency win on far goals and a no-op on near ones
      *  (goal reached before any frontier node is popped). */
-    public static volatile boolean pathfinderFrontierCommit = true;
+    public static volatile boolean pathfinderFrontierCommit = PlanningSettings.DEFAULTS.pathfinderFrontierCommit();
 
     /** Receding-horizon early-stop distance, in BLOCKS of goal-ward progress (0 =
      *  OFF). Generalises {@link #pathfinderFrontierCommit}: that one only truncates a
@@ -341,7 +343,7 @@ public final class PlanningConfig {
      *  search runs to the actual goal). Only fires on genuine goal-ward progress, so a
      *  pinch/wall (no forward node) falls through to the unchanged best-effort backoff. Excluded for
      *  in-water starts (bestAshore wins). ~10 cost units per block ({@code MIN_FRONTIER_GAIN}=50≈5 blocks). */
-    public static volatile int pathfinderHorizonBlocks = 48;
+    public static volatile int pathfinderHorizonBlocks = PlanningSettings.DEFAULTS.pathfinderHorizonBlocks();
 
     /** Soft node-budget early-commit (0 = OFF). The {@link #pathfinderHorizonBlocks}
      *  early-stop only fires when the search can make {@code horizon} blocks of forward
@@ -357,7 +359,7 @@ public final class PlanningConfig {
      *  (a deep pinch still hunting its first viable move / vertical escape), so hard
      *  reachability is unchanged. Pairs with horizon: open terrain commits fast via
      *  horizon, obstacles commit fast via this. */
-    public static volatile int pathfinderSoftCommitNodes = 6000;
+    public static volatile int pathfinderSoftCommitNodes = PlanningSettings.DEFAULTS.pathfinderSoftCommitNodes();
 
     // Last, after every field above: see BotConfig.initialize.
     static { BotConfig.initialize(); }

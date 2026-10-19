@@ -39,6 +39,8 @@ public final class ApiField<O, F> {
     public ApiType<?> type() { return type; }
     public Presence presence() { return presence; }
     public String description() { return description; }
+    /** What an absent field decodes to; null unless the field is {@link Presence#DEFAULTED}. */
+    public Object defaultValue() { return defaultValue; }
 
     /** A field read off a record component. */
     static <O> ApiField<O, Object> of(String name, ApiType<?> type, Presence presence, Object defaultValue,

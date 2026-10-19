@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.api.methods.setting;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,13 +20,25 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.KeyedValueType;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
+import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.annotation.As;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OneOf;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.TsAlias;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * {@code mc.bot.setting}: read the tuning surface, patch it, or apply one of its controls.
  *
- * <p>The keys, their types and their prose are {@link SettingDefs}'. Their defaults are the setting
- * fields' initial values, which this layer cannot read: whoever can see both installs them with
- * {@link #useDefaults}, and the schema and the declarations show them from then on.
+ * <p>The keys are the components of the per-layer settings records, {@link BotSettings} and the ones in
+ * {@link #LAYERS}: a key's type, prose and default are read off its component. A key is bound to the
+ * field that holds it on the config side, by the component's name; {@code SettingsBindingTest} holds every
+ * key to a field and every setting field to a key.
  *
  * <p>Two keys are controls rather than configuration: {@code paused} stops this client's bot and releases
  * its keys, and {@code debugFly} toggles creative flight. Their effects cannot be taken back by restoring a
@@ -30,35 +47,147 @@ import net.magicterra.worlddriver.api.schema.MethodSpec;
 public final class SettingsContracts {
     private SettingsContracts() {}
 
+    /** A block id in a setting. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "a block id such as minecraft:cobblestone")
+    public @interface BlockId {}
+
+    /** An entity type id in a setting. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "an entity type id such as minecraft:squid")
+    public @interface EntityTypeId {}
+
+    /** A key of {@code mc.bot.setting}. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Length(min = 1, max = 64)
+    @TsAlias(name = "SettingKey", type = "keyof SettingValues")
+    public @interface SettingKey {}
+
+    /** Every layer's settings, the facade's first and then each layer down: the order a read without keys answers. */
+    public static final List<Class<? extends Record>> LAYERS = List.of(BotSettings.class, ArbitrationSettings.class,
+            BehaviorSettings.class, ControlSettings.class, PlanningSettings.class, RulesSettings.class,
+            WorldSettings.class, GameSettings.class);
+
+    /** Each key's value type, in {@link #LAYERS} order. */
+    public static final Map<String, ApiType<?>> TYPES;
+
+    /** Each key's description, for the keys that have one. */
+    public static final Map<String, String> DOCS;
+
+    /** Each key's default, as its type decodes it; a key with no field of its own has none. */
+    public static final Map<String, Object> DEFAULTS;
+
+    static {
+        Map<String, ApiType<?>> types = new LinkedHashMap<>();
+        Map<String, String> docs = new LinkedHashMap<>();
+        Map<String, Object> defaults = new LinkedHashMap<>();
+        for (Class<? extends Record> layer : LAYERS) {
+            for (ApiField<?, ?> f : ApiTypes.record(layer).fields()) {
+                if (types.put(f.name(), f.type()) != null) throw new IllegalStateException("setting " + f.name() + " declared twice");
+                if (f.description() != null) docs.put(f.name(), f.description());
+                if (f.defaultValue() != null) defaults.put(f.name(), f.defaultValue());
+            }
+        }
+        TYPES = Collections.unmodifiableMap(types);
+        DOCS = Collections.unmodifiableMap(docs);
+        DEFAULTS = Collections.unmodifiableMap(defaults);
+    }
+
+    public static boolean isKnown(String key) { return TYPES.containsKey(key); }
+
+    /** Written with {@code apply} only. */
+    public static final Set<String> CONTROLS = Set.of("paused", "debugFly");
+    /** Controls with nothing to read back. */
+    public static final Set<String> WRITE_ONLY = Set.of("debugFly");
+
+    public static boolean readable(String key) { return isKnown(key) && !WRITE_ONLY.contains(key); }
+
+    public static boolean patchable(String key) { return isKnown(key) && !CONTROLS.contains(key); }
+
+    public static final KeyedValueType SETTING_VALUES = ApiTypes.keyedValues("SettingValues", TYPES, DOCS, DEFAULTS::get);
+
+    private static final KeyedValueType PATCH_VALUES = SETTING_VALUES.atLeast(1);
+
+    private static final ApiType<List<String>> KEY_LIST =
+            ApiTypes.list(ApiTypes.of(String.class, SettingKey.class), TYPES.size());
+
+    @Tag("op") @Named("SettingsParams")
     public sealed interface SettingsOp permits Read, Patch, Apply {}
-    public record Read(Optional<List<String>> keys) implements SettingsOp {
+
+    @Variant("read")
+    public record Read(
+            @Doc("Omitted: every readable key. Empty: none.")
+            Optional<@As(value = SettingsContracts.class, field = "KEY_LIST") List<String>> keys)
+            implements SettingsOp, SelfChecked {
         /** Read {@code keys}, in that order. */
         public static Read of(String... keys) { return new Read(Optional.of(List.of(keys))); }
 
         /** Read every readable key. */
         public static Read all() { return new Read(Optional.empty()); }
+
+        @Override
+        public void check(DecodeContext at) {
+            List<String> named = keys.orElse(List.of());
+            Set<String> seen = new HashSet<>();
+            for (int i = 0; i < named.size(); i++) {
+                String k = named.get(i);
+                DecodeContext here = at.field("keys").index(i);
+                if (!isKnown(k)) here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
+                else if (!readable(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
+                else if (!seen.add(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
+            }
+        }
     }
 
-    public record Patch(List<Entry> values) implements SettingsOp {
+    @Variant("patch")
+    public record Patch(
+            @Doc("The keys to write and their new values, e.g. {autoEat: true}; validated together and committed "
+                    + "together, so nothing is written unless every value is valid. Keys not named keep their values.")
+            @As(value = SettingsContracts.class, field = "PATCH_VALUES") List<Entry> values)
+            implements SettingsOp, SelfChecked {
         /** Write {@code values}, in the map's iteration order. */
         public static Patch of(Map<String, ?> values) {
             List<Entry> entries = new java.util.ArrayList<>();
             values.forEach((k, v) -> entries.add(new Entry(k, v)));
             return new Patch(entries);
         }
+
+        @Override
+        public void check(DecodeContext at) {
+            for (Entry e : values) {
+                if (CONTROLS.contains(e.key())) {
+                    at.field("values").field(e.key()).fail(ApiIssue.Code.INVALID_VALUE,
+                            e.key() + " is a control; write it with op: 'apply'");
+                }
+            }
+        }
     }
 
-    public record Apply(String control, boolean value) implements SettingsOp {}
+    @Variant("apply")
+    public record Apply(@OneOf(name = "SettingsControl", value = {"paused", "debugFly"}) String control, boolean value)
+            implements SettingsOp {}
 
+    @Tag("op") @Named("SettingsReply")
     public sealed interface SettingsReply permits Values, Patched, Applied {}
 
-    public record Values(List<Entry> values) implements SettingsReply {
+    @Variant("read")
+    public record Values(
+            @Doc("In the order asked for.") @As(value = SettingsContracts.class, field = "SETTING_VALUES") List<Entry> values)
+            implements SettingsReply {
         /** What {@code key} holds, when it was read. */
         public Optional<Object> get(String key) { return valueOf(values, key); }
     }
 
     /** {@code values} are what the keys hold after the commit; a failed save leaves them committed. */
-    public record Patched(List<Entry> values, boolean persisted, Optional<String> persistError) implements SettingsReply {
+    @Variant("patch")
+    public record Patched(
+            @Doc("What each written key holds after the commit, in the order sent.")
+            @As(value = SettingsContracts.class, field = "SETTING_VALUES") List<Entry> values,
+            @Doc("Whether the settings file was written; false leaves the values committed in memory.") boolean persisted,
+            Optional<String> persistError) implements SettingsReply {
         /** What {@code key} holds after the commit, when it was written. */
         public Optional<Object> get(String key) { return valueOf(values, key); }
     }
@@ -68,107 +197,13 @@ public final class SettingsContracts {
         return Optional.empty();
     }
 
-    public record Applied(String control, boolean value) implements SettingsReply {}
+    @Variant("apply")
+    public record Applied(@OneOf(name = "SettingsControl", value = {"paused", "debugFly"}) String control, boolean value)
+            implements SettingsReply {}
 
-    /** Written with {@code apply} only. */
-    public static final Set<String> CONTROLS = Set.of("paused", "debugFly");
-    /** Controls with nothing to read back. */
-    public static final Set<String> WRITE_ONLY = Set.of("debugFly");
+    public static final UnionType<SettingsOp> PARAMS = ApiTypes.union(SettingsOp.class);
 
-    public static boolean readable(String key) { return SettingDefs.isKnown(key) && !WRITE_ONLY.contains(key); }
-
-    public static boolean patchable(String key) { return SettingDefs.isKnown(key) && !CONTROLS.contains(key); }
-
-    /** Each key's value type, in {@link SettingDefs}' order. */
-    public static final Map<String, ApiType<?>> TYPES = types();
-
-    private static Map<String, ApiType<?>> types() {
-        Map<String, ApiType<?>> out = new LinkedHashMap<>();
-        for (SettingDefs.Def d : SettingDefs.all()) out.put(d.key(), d.type());
-        return out;
-    }
-
-    private static Map<String, String> docs() {
-        Map<String, String> out = new LinkedHashMap<>();
-        for (SettingDefs.Def d : SettingDefs.all()) if (d.description() != null) out.put(d.key(), d.description());
-        return out;
-    }
-
-    private static volatile Map<String, Object> defaults = Map.of();
-
-    /** Each key's default, as its type decodes it; a key missing from {@code values} shows none. */
-    public static void useDefaults(Map<String, Object> values) { defaults = Map.copyOf(values); }
-
-    public static final KeyedValueType SETTING_VALUES =
-            ApiTypes.keyedValues("SettingValues", TYPES, docs(), key -> defaults.get(key));
-
-    private static final ApiType<String> SETTING_KEY = ApiTypes.string(1, 64).tsAlias("SettingKey", "keyof SettingValues");
-
-    private static final ApiType<String> CONTROL = ApiTypes.stringEnum("SettingsControl", "paused", "debugFly");
-
-    private static final int MAX_KEYS = TYPES.size();
-
-    public static final ApiType<SettingsOp> PARAMS = ApiTypes.<SettingsOp>taggedUnion("SettingsParams", "op",
-            ApiTypes.variant("read", Read.class, ApiTypes.record(Read.class, null,
-                    ApiField.field("keys", ApiTypes.list(SETTING_KEY, MAX_KEYS))
-                            .describe("Omitted: every readable key. Empty: none.").optional().forGetter(Read::keys),
-                    Read::new)),
-            ApiTypes.variant("patch", Patch.class, ApiTypes.record(Patch.class, null,
-                    ApiField.field("values", SETTING_VALUES.atLeast(1))
-                            .describe("The keys to write and their new values, e.g. {autoEat: true}; validated together "
-                                    + "and committed together, so nothing is written unless every value is valid. Keys not "
-                                    + "named keep their values.")
-                            .required().forGetter(Patch::values),
-                    Patch::new)),
-            ApiTypes.variant("apply", Apply.class, ApiTypes.record(Apply.class, null,
-                    ApiField.field("control", CONTROL).required().forGetter(Apply::control),
-                    ApiField.field("value", ApiTypes.bool()).required().forGetter(Apply::value),
-                    Apply::new)))
-            .withCheck(SettingsContracts::check);
-
-    private static void check(SettingsOp op, DecodeContext at) {
-        switch (op) {
-            case Read r -> {
-                List<String> keys = r.keys().orElse(List.of());
-                Set<String> seen = new HashSet<>();
-                for (int i = 0; i < keys.size(); i++) {
-                    String k = keys.get(i);
-                    DecodeContext here = at.field("keys").index(i);
-                    if (!SettingDefs.isKnown(k)) here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
-                    else if (!readable(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
-                    else if (!seen.add(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
-                }
-            }
-            case Patch p -> {
-                for (Entry e : p.values()) {
-                    if (CONTROLS.contains(e.key())) {
-                        at.field("values").field(e.key()).fail(ApiIssue.Code.INVALID_VALUE,
-                                e.key() + " is a control; write it with op: 'apply'");
-                    }
-                }
-            }
-            case Apply a -> { }
-        }
-    }
-
-    public static final ApiType<SettingsReply> REPLY = ApiTypes.<SettingsReply>taggedUnion("SettingsReply", "op",
-            ApiTypes.variant("read", Values.class, ApiTypes.record(Values.class, null,
-                    ApiField.field("values", SETTING_VALUES).describe("In the order asked for.")
-                            .required().forGetter(Values::values),
-                    Values::new)),
-            ApiTypes.variant("patch", Patched.class, ApiTypes.record(Patched.class, null,
-                    ApiField.field("values", SETTING_VALUES)
-                            .describe("What each written key holds after the commit, in the order sent.")
-                            .required().forGetter(Patched::values),
-                    ApiField.field("persisted", ApiTypes.bool())
-                            .describe("Whether the settings file was written; false leaves the values committed in memory.")
-                            .required().forGetter(Patched::persisted),
-                    ApiField.field("persistError", ApiTypes.string()).optional().forGetter(Patched::persistError),
-                    Patched::new)),
-            ApiTypes.variant("apply", Applied.class, ApiTypes.record(Applied.class, null,
-                    ApiField.field("control", CONTROL).required().forGetter(Applied::control),
-                    ApiField.field("value", ApiTypes.bool()).required().forGetter(Applied::value),
-                    Applied::new)));
+    public static final UnionType<SettingsReply> REPLY = ApiTypes.union(SettingsReply.class);
 
     public static final MethodSpec<SettingsOp, SettingsReply> SPEC = MethodSpec.of("mc.bot.setting", PARAMS, REPLY,
                     "The bot's tuning surface. op 'read' answers {key: value} for the keys asked for, or every readable one. "

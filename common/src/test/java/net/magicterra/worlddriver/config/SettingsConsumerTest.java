@@ -51,7 +51,7 @@ class SettingsConsumerTest {
     /** Files that only move settings around: registering, documenting, applying, reporting. The config
      *  classes that declare them are plumbing as well; see {@link #CONFIG}. */
     private static final Set<String> PLUMBING = Set.of(
-            "SettingsRegistry.java", "SettingDefs.java", "SettingDefaults.java",
+            "SettingsRegistry.java",
             "SettingsCommand.java", "SettingsContracts.java", "SettingsService.java");
 
     /** Where the settings are declared, one {@code *Config} class per layer. */

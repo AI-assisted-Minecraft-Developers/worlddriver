@@ -19,7 +19,6 @@ import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.CoreMethods;
-import net.magicterra.worlddriver.bot.SettingDefaults;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -43,7 +42,6 @@ public final class ApiArtifacts {
 
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
-        SettingDefaults.install();
         List<MethodSpec<?, ?>> methods = new ArrayList<>(CoreMethods.all());
         methods.addAll(DebugApiBinding.specs());   // published only where the debug subsystem is
         write(Path.of(args[0]), methods);

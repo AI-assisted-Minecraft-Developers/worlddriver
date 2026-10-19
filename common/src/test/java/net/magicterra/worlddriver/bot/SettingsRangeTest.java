@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
+import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import org.junit.jupiter.api.AfterEach;
@@ -77,12 +77,12 @@ class SettingsRangeTest {
     @Test
     void everyDeclaredRangeIsEnforced() {
         int checked = 0;
-        for (SettingDefs.Def d : SettingDefs.all()) {
+        for (Map.Entry<String, ApiType<?>> d : SettingsContracts.TYPES.entrySet()) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> schema = (Map<String, Object>) TestJson.plain(d.type().schema());
+            Map<String, Object> schema = (Map<String, Object>) TestJson.plain(d.getValue().schema());
             if (!(schema.get("minimum") instanceof Number lo) || !(schema.get("maximum") instanceof Number hi)) continue;
             if (hi.doubleValue() == Double.MAX_VALUE) continue;   // floored at zero, no ceiling to cross
-            String key = d.key();
+            String key = d.getKey();
             checked++;
             boolean integral = "integer".equals(schema.get("type"));
             double step = integral ? 1 : 0.5;

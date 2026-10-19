@@ -163,6 +163,8 @@ class ArchitectureTest {
             for (String target : usedClasses(text)) {
                 String dst = stackUnit(target);
                 if (FACADE_EXPORTS.contains(target) && stackAllows(src, "bot")) continue;
+                // A setting field starts from the default its key's record in the api declares.
+                if (src.equals("config") && target.startsWith("api/methods/setting/")) continue;
                 if (!configAllows(src, target)) found.add(name + ": uses config " + simpleName(target));
                 if (!target.equals(name) && !stackAllows(src, dst)) found.add(name + ": uses " + dst + " " + simpleName(target));
             }

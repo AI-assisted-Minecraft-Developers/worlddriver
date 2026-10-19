@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
@@ -77,7 +76,7 @@ public final class TestHarnessContracts {
     }
 
     private static final ApiType<String> KEY = ApiTypes.string(1, 64).withCheck((k, at) -> {
-        if (!SettingDefs.isKnown(k)) at.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
+        if (!SettingsContracts.isKnown(k)) at.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
     });
 
     public static final ApiType<SettingsOp> SETTINGS_PARAMS = ApiTypes.<SettingsOp>taggedUnion("TestSettingsParams", "op",
@@ -94,7 +93,7 @@ public final class TestHarnessContracts {
                     ApiField.field("values", SettingsContracts.SETTING_VALUES.atLeast(1)).required().forGetter(Write::values),
                     Write::new)),
             ApiTypes.variant("read", Read.class, ApiTypes.record(Read.class, null,
-                    ApiField.field("keys", ApiTypes.list(KEY, SettingDefs.all().size())).required().forGetter(Read::keys),
+                    ApiField.field("keys", ApiTypes.list(KEY, SettingsContracts.TYPES.size())).required().forGetter(Read::keys),
                     Read::new)))
             .withCheck(TestHarnessContracts::checkSettings);
 

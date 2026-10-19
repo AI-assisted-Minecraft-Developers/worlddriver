@@ -273,10 +273,10 @@ Two kinds of class, one surface:
   its own class and the ones below (`ArchitectureTest` holds it to that). `BotConfig`
   holds the facade's own and enumerates, persists and pins them all. They are common- and
   server-safe, so a dedicated-server scene can read them.
-- The `mc.bot.setting` keys are declared in the api, in `api/methods/setting/SettingDefs`:
-  each key's wire name, its type with any range, and its prose. A key's default is not
-  written there; it is its field's initial value, which `bot/SettingDefaults` hands to the
-  contract at startup and the artifact generator.
+- The `mc.bot.setting` keys are declared in the api, one record per layer in
+  `api/methods/setting/` (`ControlSettings` for `ControlConfig`, and so on): each component is
+  a key, named as its field, with its type and range, its prose and its default. The field
+  starts from the record's `DEFAULTS`, so the default is written once.
 - `SettingsRegistry`, beside the config classes, binds each key to its field by wire name.
   A key names the field of the same name unless the registry's short `HAND` list says
   otherwise.
