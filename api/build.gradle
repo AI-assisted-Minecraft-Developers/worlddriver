@@ -25,15 +25,49 @@ tasks.named('sourcesJar') {
     from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory })
 }
 
-// The d.ts, script wrappers, schemas and reference, as the `artifacts` zip beside the jars. Not in the jars:
-// :common generates them (the setting defaults they print are its fields) and compiles against this jar.
+// The d.ts, script wrappers, schemas and reference, generated from the method descriptions on a classpath with no
+// Minecraft. The generator is a source set of its own, so it never ships in the jars. See docs/dev/api-artifacts.md.
+sourceSets {
+    gen {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    }
+}
+
+configurations {
+    codegenRuntime { transitive = false }
+}
+
+dependencies {
+    codegenRuntime 'com.mojang:datafixerupper:8.0.16'
+    codegenRuntime 'com.google.guava:guava:32.1.2-jre'
+    codegenRuntime 'com.google.guava:failureaccess:1.0.1'
+    codegenRuntime 'it.unimi.dsi:fastutil:8.5.12'
+    codegenRuntime 'com.google.code.gson:gson:2.10.1'
+    codegenRuntime 'org.slf4j:slf4j-api:2.0.9'
+}
+
+def generatedApiDir = layout.buildDirectory.dir('generated/worlddriver-api')
+
+tasks.register('generateApiArtifacts', JavaExec) {
+    group = 'build'
+    description = 'Generates the API d.ts, script wrappers, schemas and reference from the method descriptions.'
+    classpath = sourceSets.gen.output.classesDirs + sourceSets.main.output.classesDirs + configurations.codegenRuntime
+    mainClass = 'net.magicterra.worlddriver.api.gen.ApiArtifacts'
+    inputs.files(sourceSets.gen.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(generatedApiDir)
+    dependsOn tasks.named('compileJava'), tasks.named('compileGenJava')
+    argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
+}
+
+// The same files as the `artifacts` zip beside the jars, for a client that is not Java.
 def apiArtifactsZip = tasks.register('apiArtifactsZip', Zip) {
     group = 'build'
     description = 'Packs the generated API artifacts for publication beside the jars.'
     archiveBaseName = base.archivesName
     archiveClassifier = 'artifacts'
-    dependsOn ':common:generateApiArtifacts'
-    from(project(':common').layout.buildDirectory.dir('generated/worlddriver-api')) {
+    dependsOn 'generateApiArtifacts'
+    from(generatedApiDir) {
         exclude 'driver-api.js', 'skill-methods.md'
     }
     from(rootProject.files('COPYING', 'COPYING.LESSER'))

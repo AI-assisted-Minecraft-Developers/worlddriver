@@ -127,36 +127,10 @@ dependencies {
 
 }
 
-// The API artifacts (d.ts, script wrappers, schemas, reference) are generated from the method
-// descriptions on a classpath with no Minecraft; see docs/dev/api-artifacts.md.
-configurations {
-    codegenRuntime { transitive = false }
-}
-
-dependencies {
-    codegenRuntime 'com.mojang:datafixerupper:8.0.16'
-    codegenRuntime 'com.google.guava:guava:32.1.2-jre'
-    codegenRuntime 'com.google.guava:failureaccess:1.0.1'
-    codegenRuntime 'it.unimi.dsi:fastutil:8.5.12'
-    codegenRuntime 'com.google.code.gson:gson:2.10.1'
-    codegenRuntime 'org.slf4j:slf4j-api:2.0.9'
-}
-
-def generatedApiDir = layout.buildDirectory.dir('generated/worlddriver-api')
+// The API artifacts are :api's to generate; this project checks them and ships them in the mod jar.
 evaluationDependsOn(':api')
-
-def generateApiArtifacts = tasks.register('generateApiArtifacts', JavaExec) {
-    group = 'build'
-    description = 'Generates the API d.ts, script wrappers, schemas and reference from the method descriptions.'
-    def apiClasses = project(':api').sourceSets.main.output.classesDirs
-    classpath = files(sourceSets.main.output.classesDirs) + apiClasses + configurations.codegenRuntime
-    mainClass = 'net.magicterra.worlddriver.application.gen.ApiArtifacts'
-    inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.files(apiClasses).withPathSensitivity(PathSensitivity.RELATIVE)
-    outputs.dir(generatedApiDir)
-    dependsOn tasks.named('compileJava')
-    argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
-}
+def generatedApiDir = project(':api').layout.buildDirectory.dir('generated/worlddriver-api')
+def generateApiArtifacts = project(':api').tasks.named('generateApiArtifacts')
 
 // Gradle fetches a pinned Node, so the TypeScript check runs without one on the PATH.
 apply plugin: 'com.github.node-gradle.node'

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.application.gen;
+package net.magicterra.worlddriver.api.gen;
 
 import java.util.ArrayList;
 import java.util.List;

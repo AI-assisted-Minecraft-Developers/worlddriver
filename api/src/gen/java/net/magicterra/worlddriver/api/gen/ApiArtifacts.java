@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.application.gen;
+package net.magicterra.worlddriver.api.gen;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
