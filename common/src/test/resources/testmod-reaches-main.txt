@@ -189,14 +189,6 @@ bot/stagewright/scene/WorldDriverActuatorSplitScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverActuatorSplitScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverAvatarScenes -> application/PlayerSnapshots
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/behavior/ElytraProcess
-bot/stagewright/scene/WorldDriverAvatarScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverAvatarScenes -> config/BotConfig
-bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/JoinedPlayers
-bot/stagewright/scene/WorldDriverAvatarScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/control/route/PathSmoothing
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/planning/PathFinder
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/rules/Capability
@@ -214,8 +206,6 @@ bot/stagewright/scene/WorldDriverBiasScenes -> bot/rules/modifiers/ShorelineHug
 bot/stagewright/scene/WorldDriverBiasScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverBiasScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBiasScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverBodyCensusScenes -> bot/BotHooks
-bot/stagewright/scene/WorldDriverBodyCensusScenes -> game/body/JoinedPlayers
 bot/stagewright/scene/WorldDriverBodyCensusScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverBodyRouteScenes -> bot/BotRegistry
