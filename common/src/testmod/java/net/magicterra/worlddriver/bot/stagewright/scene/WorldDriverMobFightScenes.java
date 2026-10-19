@@ -905,6 +905,8 @@ public final class WorldDriverMobFightScenes {
         /** Census + budgets at the moment the bot left, so the probe's share can be differenced. */
         private Map<String, Long> futileAtFall;
         private long sliceWas, maxWas;
+        /** The budgets as the fall found them, put back once the probe is reported. */
+        private Harness.Pin budgetsWere;
         private int fellAt = -1;
         private double fellY;
         private boolean fallReported;
@@ -961,6 +963,7 @@ public final class WorldDriverMobFightScenes {
             futileAtFall = futileSnapshot(bot);
             sliceWas = Harness.int64("pathfinder.sliceMs");
             maxWas = Harness.int64("pathfinder.maxMs");
+            budgetsWere = Harness.save();
             // Production values, not this scene's MAX_VALUE/2. The probe below wants a bounded
             // search far more than it wants an untruncated one.
             Harness.set("pathfinder.sliceMs", 6);
@@ -980,8 +983,7 @@ public final class WorldDriverMobFightScenes {
         private void reportTheFall() {
             if (fallReported || fellAt < 0) return;
             fallReported = true;
-            Harness.set("pathfinder.sliceMs", sliceWas);
-            Harness.set("pathfinder.maxMs", maxWas);
+            budgetsWere.close();   // the lifted budgets are past what a write accepts
             postFallCensus = futileGateLine(futileAtFall, futileSnapshot(bot));
             net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,

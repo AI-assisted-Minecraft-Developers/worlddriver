@@ -44,8 +44,16 @@ public final class Harness {
     }
 
     /** Save every setting and put the test baseline in place; closing restores the saved ones. */
-    public static Pin pin() {
-        int id = pinId(Baseline.TEST, false);
+    public static Pin pin() { return held(Baseline.TEST); }
+
+    /**
+     * Save every setting as it is; closing puts them back. The way to hand back a value no write
+     * accepts, such as the lifted budgets {@link #untimed} leaves in place.
+     */
+    public static Pin save() { return held(Baseline.CURRENT); }
+
+    private static Pin held(Baseline baseline) {
+        int id = pinId(baseline, false);
         return () -> now(api().settings(new TestHarnessContracts.Unpin(id)));
     }
 
