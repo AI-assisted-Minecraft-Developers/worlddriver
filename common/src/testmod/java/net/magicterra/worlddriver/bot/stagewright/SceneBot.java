@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.api.methods.bot.BotTaskStubApi;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
@@ -242,6 +243,18 @@ public final class SceneBot {
     public Responses.ActionSnapshot<BuildContracts.Escaped> escape(int targetY) {
         return Calls.started("escape to " + targetY, Calls.now(tasks().escape(new BuildContracts.EscapeParams(ref,
                 Optional.of(targetY), 0))));
+    }
+
+    /** Dig a shelter {@code depth} deep and seal its roof. */
+    public Responses.ActionSnapshot<BuildContracts.Bunkered> bunker(int depth) {
+        return Calls.started("bunker " + depth, Calls.now(tasks().bunker(new BuildContracts.BunkerParams(ref,
+                Optional.of(depth), 0))));
+    }
+
+    /** Get at least {@code minDist} blocks away from {@code from}. */
+    public Responses.ActionSnapshot<MoveContracts.RanAway> runAway(BlockPos from, int minDist) {
+        return Calls.started("run away from " + from.toShortString(), Calls.now(tasks().runAway(
+                new MoveContracts.RunAwayParams(ref, Optional.of(Targets.pos(from)), minDist, 0))));
     }
 
     // ---------------------------------------------------------------- hands

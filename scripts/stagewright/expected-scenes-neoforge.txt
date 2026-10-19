@@ -128,15 +128,11 @@ wd.nearestFirstScanMatrix
 # Survival family — escaping, bunkering, diving, drowning and avoiding suffocation.
 wd.serverEscape
 wd.serverBunker
-wd.serverBunkerAnchorRatchet
 wd.serverEscapeSealedShelter
 wd.serverLowHpEdgePin
 wd.serverBunkerSlope
 wd.surfaceDive
 wd.underwaterBase
-wd.drowningFloatShouldFloatMatrix
-wd.drownEscapeGateMatrix
-wd.contactEscapeGateMatrix
 wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating
