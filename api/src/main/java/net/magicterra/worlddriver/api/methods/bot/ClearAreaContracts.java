@@ -2,19 +2,28 @@ package net.magicterra.worlddriver.api.methods.bot;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.AwaitMs;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * {@code mc.bot.clearArea}: clear, fill or replace the cells of a box, or of a tunnel measured from
@@ -30,91 +39,76 @@ public final class ClearAreaContracts {
     public static final int MAX_CELLS = 4096;
 
     /** Which side of the travel direction an even width puts its extra column on. */
+    @Named("WidthBias")
     public enum WidthBias implements WireName {
         LEFT, RIGHT;
         @Override public String wireName() { return name().toLowerCase(java.util.Locale.ROOT); }
     }
 
+    @Tag("kind") @Named("Region")
     public sealed interface Region permits Box, Tunnel {}
 
     /** Both corners included; each axis spans min..max of the two. */
+    @Named("Box") @Variant("box")
     public record Box(BlockPosition from, BlockPosition to) implements Region {}
 
     /** Starts at the cell in front of the body: its own cell is never dug. */
-    public record Tunnel(Direction direction, int distance, int width, int height, Optional<WidthBias> widthBias)
-            implements Region {}
+    @Named("Tunnel") @Variant("tunnel")
+    public record Tunnel(
+            @Doc("A turning word is snapped to the nearest compass direction.") @Default("forward") Direction direction,
+            @Doc("Cells along the travel direction, counted from the one in front of the body.")
+            @Range(min = 1, max = 64) int distance,
+            @Doc("Across the travel direction; for up/down, along X.") @Default("1") @Range(min = 1, max = 8) int width,
+            @Doc("Up from the feet; for up/down, along Z.") @Default("2") @Range(min = 1, max = 8) int height,
+            @Doc("Side of an even width's extra column. Omitted: the tunnelWidthBias setting. Not allowed for up/down.")
+            Optional<WidthBias> widthBias)
+            implements Region, SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (widthBias.isPresent() && direction.vertical()) {
+                at.field("widthBias").fail(ApiIssue.Code.INVALID_VALUE,
+                        "a vertical tunnel is centred on the body's column and has no bias");
+            }
+        }
+    }
 
+    @Tag("kind") @Named("Edit")
     public sealed interface Edit permits Clear, Fill, Replace {}
+    @Variant("clear")
     public record Clear() implements Edit {}
-    public record Fill(String block) implements Edit {}
-    public record Replace(String from, String to) implements Edit {}
+    @Variant("fill")
+    public record Fill(@ResourceId String block) implements Edit {}
+    @Variant("replace")
+    public record Replace(
+            @Doc("Only cells holding this block are worked.") @ResourceId String from,
+            @ResourceId String to) implements Edit {}
 
-    public record Params(String bot, Region target, Edit edit, int awaitMs) {}
+    @Named("ClearAreaParams")
+    public record Params(
+            @Default("self") @BotRef String bot,
+            Region target,
+            @Default("{\"kind\":\"clear\"}") Edit edit,
+            @Default("0") @AwaitMs int awaitMs) {}
 
     /** The box actually worked, and for a horizontal tunnel the bias it was cut with. */
-    public record Summary(BlockPosition from, BlockPosition to, Optional<WidthBias> widthBias) {}
+    @Variant("clearArea")
+    public record Summary(
+            BlockPosition from,
+            BlockPosition to,
+            @Doc("The bias a horizontal tunnel was cut with.") Optional<WidthBias> widthBias) {}
 
-    public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.enumOf("WidthBias", WidthBias.class);
+    public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.of(WidthBias.class);
 
-    public static final RecordType<Box> BOX = ApiTypes.record(Box.class, "Box",
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Box::from),
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Box::to),
-            Box::new);
+    public static final RecordType<Box> BOX = ApiTypes.record(Box.class);
 
-    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record(Tunnel.class, "Tunnel",
-            ApiField.field("direction", CommonTypes.DIRECTION)
-                    .describe("A turning word is snapped to the nearest compass direction.")
-                    .defaulted(Direction.FORWARD).forGetter(Tunnel::direction),
-            ApiField.field("distance", ApiTypes.integer(1, 64))
-                    .describe("Cells along the travel direction, counted from the one in front of the body.")
-                    .required().forGetter(Tunnel::distance),
-            ApiField.field("width", ApiTypes.integer(1, 8))
-                    .describe("Across the travel direction; for up/down, along X.")
-                    .defaulted(1).forGetter(Tunnel::width),
-            ApiField.field("height", ApiTypes.integer(1, 8))
-                    .describe("Up from the feet; for up/down, along Z.")
-                    .defaulted(2).forGetter(Tunnel::height),
-            ApiField.field("widthBias", WIDTH_BIAS)
-                    .describe("Side of an even width's extra column. Omitted: the tunnelWidthBias setting. "
-                            + "Not allowed for up/down.")
-                    .optional().forGetter(Tunnel::widthBias),
-            Tunnel::new)
-            .checked((t, at) -> {
-                if (t.widthBias().isPresent() && t.direction().vertical()) {
-                    at.field("widthBias").fail(ApiIssue.Code.INVALID_VALUE,
-                            "a vertical tunnel is centred on the body's column and has no bias");
-                }
-            });
+    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record(Tunnel.class);
 
-    public static final UnionType<Region> REGION = ApiTypes.taggedUnion("Region", "kind",
-            ApiTypes.variant("box", Box.class, BOX),
-            ApiTypes.variant("tunnel", Tunnel.class, TUNNEL));
+    public static final UnionType<Region> REGION = ApiTypes.union(Region.class);
 
-    public static final UnionType<Edit> EDIT = ApiTypes.taggedUnion("Edit", "kind",
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)),
-            ApiTypes.variant("fill", Fill.class, ApiTypes.record(Fill.class, null,
-                    ApiField.field("block", CommonTypes.RESOURCE_ID).required().forGetter(Fill::block),
-                    Fill::new)),
-            ApiTypes.variant("replace", Replace.class, ApiTypes.record(Replace.class, null,
-                    ApiField.field("from", CommonTypes.RESOURCE_ID).describe("Only cells holding this block are worked.")
-                            .required().forGetter(Replace::from),
-                    ApiField.field("to", CommonTypes.RESOURCE_ID).required().forGetter(Replace::to),
-                    Replace::new)));
+    public static final UnionType<Edit> EDIT = ApiTypes.union(Edit.class);
 
-    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class, "ClearAreaParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
-            ApiField.field("target", REGION).required().forGetter(Params::target),
-            ApiField.field("edit", EDIT).defaulted(new Clear()).forGetter(Params::edit),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(Params::awaitMs),
-            Params::new);
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
 
-    public static final UnionType<Summary> SUMMARY = ApiTypes.taggedUnion("ClearAreaSummary", "kind",
-            ApiTypes.variant("clearArea", Summary.class, ApiTypes.record(Summary.class, null,
-                    ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Summary::from),
-                    ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Summary::to),
-                    ApiField.field("widthBias", WIDTH_BIAS).describe("The bias a horizontal tunnel was cut with.")
-                            .optional().forGetter(Summary::widthBias),
-                    Summary::new)));
+    public static final UnionType<Summary> SUMMARY = ApiTypes.union("ClearAreaSummary", "kind", ApiTypes.record(Summary.class));
 
     public static final ApiType<ActionResponse<Summary>> RESPONSE = Responses.response("ClearArea", SUMMARY);
 
