@@ -64,10 +64,9 @@ only in the game layer, each `api/` layer using only what the table allows, no t
 game layer.
 
 It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`,
-`protocol/` and StageWright. The uses still past that are listed in
-`common/src/test/resources/testmod-reaches-main.txt`, one `<testmod file> -> <driver class>` per
-line. The list may only shrink: a use not on it fails the test, and so does a line that is no longer
-true, which the failure names so it can be deleted.
+`protocol/` and StageWright, with no exceptions. A scene that needs something the api does not offer
+gets it added to the api — a reading under the hidden `mc.debug` family, or, for a mutation only a
+test should make, a `mc.test.*` method StageWright provides.
 
 ## Changing a public type
 

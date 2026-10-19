@@ -1,1 +1,0 @@
-# What testmod code still uses past api/ and protocol/; ArchitectureTest lets this list only shrink.
