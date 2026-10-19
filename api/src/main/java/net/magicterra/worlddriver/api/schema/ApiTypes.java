@@ -173,6 +173,45 @@ public final class ApiTypes {
         return new JsonType(true);
     }
 
+    // ------------------------------------------------------------------ read off Java declarations
+
+    /**
+     * The wire type of {@code type}: a record, read component by component with the annotations in
+     * {@code api.schema.annotation}; an enum implementing {@link WireName}; a sealed interface marked
+     * {@code @Tag}; or a scalar. Built once per class, so every use shares one object.
+     */
+    public static <T> ApiType<T> of(Class<T> type) {
+        return Reflected.of(type);
+    }
+
+    /** {@link #of} for a record, typed as the record type it is. */
+    public static <R extends Record> RecordType<R> record(Class<R> type) {
+        return Reflected.record(type);
+    }
+
+    /**
+     * A generic record with its type variables bound: each component named in {@code componentTypes} takes
+     * that type (the content type, for an {@code Optional}), the rest are read as usual. Not shared: every
+     * call builds a new type, so bind once per use and keep the result.
+     */
+    public static <R extends Record> RecordType<R> record(Class<R> type, Map<String, ApiType<?>> componentTypes) {
+        return Reflected.record(type, componentTypes);
+    }
+
+    /** {@link #of} for a sealed interface marked {@code @Tag}, typed as the union it is. */
+    public static <T> UnionType<T> union(Class<T> type) {
+        return Reflected.union(type);
+    }
+
+    /**
+     * A union of {@code variants} under the discriminator {@code tagName}, each tagged by its record's
+     * {@code @Variant}: for a union that is not every implementation of one sealed interface.
+     */
+    @SafeVarargs
+    public static <T> UnionType<T> union(String name, String tagName, RecordType<? extends T>... variants) {
+        return Reflected.union(name, tagName, Arrays.asList(variants));
+    }
+
     // ------------------------------------------------------------------ records
 
     /** A record with no fields: the parameters of a method that takes none. */

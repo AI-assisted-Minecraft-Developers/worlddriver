@@ -61,6 +61,9 @@ public final class RecordType<O> extends ApiType<O> {
     /** The TypeScript/documentation name; null for an anonymous record written inline. */
     public String name() { return name; }
 
+    /** The Java class this type builds. */
+    Class<O> javaType() { return type; }
+
     public List<ApiField<O, ?>> fields() { return fields; }
 
     @Override public String expected() { return name == null ? "an object" : "a " + name + " object"; }

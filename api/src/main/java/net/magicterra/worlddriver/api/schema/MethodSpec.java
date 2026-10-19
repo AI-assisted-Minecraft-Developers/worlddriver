@@ -72,6 +72,16 @@ public final class MethodSpec<P, R> {
                 ExecutionClass.SHORT, Blocking.NEVER, false, null);
     }
 
+    /** As {@link #of(String, ApiType, ApiType, String)}, both types read off their classes ({@link ApiTypes#of}). */
+    public static <P, R> MethodSpec<P, R> of(String name, Class<P> input, Class<R> output, String description) {
+        return of(name, ApiTypes.of(input), ApiTypes.of(output), description);
+    }
+
+    /** As {@link #of(String, ApiType, ApiType, String)}, the parameters read off their class. */
+    public static <P, R> MethodSpec<P, R> of(String name, Class<P> input, ApiType<R> output, String description) {
+        return of(name, ApiTypes.of(input), output, description);
+    }
+
     public String name() { return name; }
     public String description() { return description; }
     public ApiType<P> input() { return input; }

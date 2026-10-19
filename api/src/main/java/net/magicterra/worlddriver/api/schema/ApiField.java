@@ -40,6 +40,12 @@ public final class ApiField<O, F> {
     public Presence presence() { return presence; }
     public String description() { return description; }
 
+    /** A field read off a record component. */
+    static <O> ApiField<O, Object> of(String name, ApiType<?> type, Presence presence, Object defaultValue,
+                                      Function<O, Object> getter, String description) {
+        return new ApiField<>(name, type, presence, defaultValue, getter, description);
+    }
+
     /** Start a field named {@code name} holding a {@code V}. */
     public static <V> Spec<V> field(String name, ApiType<V> type) {
         if (name == null || name.isEmpty()) throw new IllegalArgumentException("field name must not be empty");
