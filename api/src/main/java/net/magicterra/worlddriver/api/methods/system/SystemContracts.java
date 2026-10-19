@@ -2,13 +2,16 @@ package net.magicterra.worlddriver.api.methods.system;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OnlyTrue;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
 
 import static net.magicterra.worlddriver.api.methods.shared.CommonTypes.NO_PARAMS;
 
@@ -22,25 +25,19 @@ public final class SystemContracts {
      * {@code version} is pinned and never moves between builds; {@code loadedFrom} and the file's time and
      * size are measured from the file the classes were loaded from, which is what tells two builds apart.
      */
-    public record Version(String modid, String version, long uptimeMs, String loadedFrom, String loadedKind,
-                          Optional<String> builtAt, Optional<Long> builtMs, Optional<Long> sizeBytes,
-                          Optional<String> stampError) {}
+    @Named("Version")
+    public record Version(
+            String modid,
+            String version,
+            @Range(min = 0) long uptimeMs,
+            @Doc("The jar or class directory the running code came from.") String loadedFrom,
+            @Doc("jar, classes, or the URL protocol when no file backs it.") String loadedKind,
+            @Doc("That file's modification time, ISO-8601 UTC.") Optional<String> builtAt,
+            Optional<Long> builtMs,
+            Optional<@Range(min = 0) Long> sizeBytes,
+            @Doc("Why the file could not be read.") Optional<String> stampError) {}
 
-    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record(Version.class, "Version",
-            ApiField.field("modid", ApiTypes.string()).required().forGetter(Version::modid),
-            ApiField.field("version", ApiTypes.string()).required().forGetter(Version::version),
-            ApiField.field("uptimeMs", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(Version::uptimeMs),
-            ApiField.field("loadedFrom", ApiTypes.string()).describe("The jar or class directory the running code came from.")
-                    .required().forGetter(Version::loadedFrom),
-            ApiField.field("loadedKind", ApiTypes.string()).describe("jar, classes, or the URL protocol when no file backs it.")
-                    .required().forGetter(Version::loadedKind),
-            ApiField.field("builtAt", ApiTypes.string()).describe("That file's modification time, ISO-8601 UTC.")
-                    .optional().forGetter(Version::builtAt),
-            ApiField.field("builtMs", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).optional().forGetter(Version::builtMs),
-            ApiField.field("sizeBytes", ApiTypes.int64(0, Long.MAX_VALUE)).optional().forGetter(Version::sizeBytes),
-            ApiField.field("stampError", ApiTypes.string()).describe("Why the file could not be read.")
-                    .optional().forGetter(Version::stampError),
-            Version::new);
+    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record(Version.class);
 
     // Pollable: a constant plus a clock read, no world access.
     public static final MethodSpec<NoParams, Version> VERSION = MethodSpec.of("mc.system.version", NO_PARAMS, VERSION_REPLY,
@@ -59,20 +56,16 @@ public final class SystemContracts {
 
     // ------------------------------------------------------------------ waitTicks
 
-    public record WaitTicksParams(int ticks) {}
+    @Named("WaitTicksParams")
+    public record WaitTicksParams(@Doc("Nominal ticks of 50 ms each.") @Range(min = 0, max = 200) int ticks) {}
 
     /** {@code interrupted}: the call was cancelled or ran out of budget first, so fewer ticks passed. */
-    public record Waited(int waited, Optional<Boolean> interrupted) {}
+    @Named("Waited")
+    public record Waited(@Range(min = 0, max = 200) int waited, Optional<@OnlyTrue Boolean> interrupted) {}
 
-    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class, "WaitTicksParams",
-            ApiField.field("ticks", ApiTypes.integer(0, 200)).describe("Nominal ticks of 50 ms each.")
-                    .required().forGetter(WaitTicksParams::ticks),
-            WaitTicksParams::new);
+    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class);
 
-    public static final ApiType<Waited> WAITED = ApiTypes.record(Waited.class, "Waited",
-            ApiField.field("waited", ApiTypes.integer(0, 200)).required().forGetter(Waited::waited),
-            ApiField.field("interrupted", ApiTypes.trueOnly()).optional().forGetter(Waited::interrupted),
-            Waited::new);
+    public static final ApiType<Waited> WAITED = ApiTypes.record(Waited.class);
 
     public static final MethodSpec<WaitTicksParams, Waited> WAIT_TICKS = MethodSpec.of("mc.system.waitTicks",
                     WAIT_TICKS_PARAMS, WAITED,
