@@ -8,6 +8,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.RecordType;
@@ -20,11 +25,6 @@ import net.magicterra.worlddriver.api.schema.annotation.Pattern;
 import net.magicterra.worlddriver.api.schema.annotation.Range;
 import net.magicterra.worlddriver.api.schema.annotation.TsAlias;
 import net.magicterra.worlddriver.api.schema.annotation.Variant;
-import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts;
-import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 
 /**
  * What every method that starts a body task answers: {@code refused} when nothing started, or
@@ -269,31 +269,21 @@ public final class Responses {
 
     /**
      * The response union of a method whose action result is {@code result}: {@code <name>Response}, tagged
-     * on {@code outcome}, with {@code extra} outcomes after accepted and refused.
+     * on {@code outcome}, with the {@code extra} outcomes after accepted and refused, each tagged by its
+     * record's {@code @Variant}.
      */
-    @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result,
-                                                            UnionType.Variant<ActionResponse<R>, ?>... extra) {
-        RecordType accepted = ApiTypes.record(Accepted.class, Map.of("action", snapshot(name, result)));
-        UnionType.Variant[] all = new UnionType.Variant[2 + extra.length];
-        all[0] = ApiTypes.variant("accepted", (Class) Accepted.class, (RecordType) accepted);
-        all[1] = ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused());
-        System.arraycopy(extra, 0, all, 2, extra.length);
-        return ApiTypes.taggedUnion(name + "Response", "outcome", all);
+    public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result, Class<?>... extra) {
+        RecordType[] all = new RecordType[2 + extra.length];
+        all[0] = ApiTypes.record(Accepted.class, Map.of("action", snapshot(name, result)));
+        all[1] = ApiTypes.record(Refused.class);
+        for (int i = 0; i < extra.length; i++) all[2 + i] = ApiTypes.record((Class) extra[i]);
+        return ApiTypes.union(name + "Response", "outcome", all);
     }
 
     /** {@code <name>Response}, tagged on {@code outcome}: {@code done} as {@code done} describes it, or refused. */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static <D extends ImmediateResponse> UnionType<ImmediateResponse> immediate(String name, Class<D> type,
-                                                                                    RecordType<D> done) {
-        return ApiTypes.taggedUnion(name + "Response", "outcome",
-                ApiTypes.variant("done", type, done),
-                (UnionType.Variant) ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused()));
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static RecordType<Refused<?>> refused() {
-        return (RecordType) ApiTypes.record(Refused.class);
+    public static UnionType<ImmediateResponse> immediate(String name, RecordType<? extends ImmediateResponse> done) {
+        return ApiTypes.union(name + "Response", "outcome", done, (RecordType) ApiTypes.record(Refused.class));
     }
 }

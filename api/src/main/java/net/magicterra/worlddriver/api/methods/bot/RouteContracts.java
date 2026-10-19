@@ -224,7 +224,6 @@ public final class RouteContracts {
         }
     }
 
-    private static final ApiType<Integer> Y = ApiTypes.integer(-4096, 4096);
 
     public static final ApiType<TravelMode> TRAVEL_MODE = ApiTypes.of(TravelMode.class);
     public static final ApiType<Enforcement> ENFORCEMENT = ApiTypes.of(Enforcement.class);

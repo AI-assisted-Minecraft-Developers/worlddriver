@@ -3,8 +3,6 @@ package net.magicterra.worlddriver.api.schema;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
@@ -45,7 +43,7 @@ public abstract class ApiType<T> {
     public abstract String expected();
 
     /** Attach a description; returns {@code this} so a constant can be declared in one expression. */
-    public ApiType<T> describe(String text) {
+    ApiType<T> describe(String text) {
         this.description = text;
         return this;
     }
@@ -100,11 +98,6 @@ public abstract class ApiType<T> {
         return decode(write(value));
     }
 
-    /** This type plus a check over the whole decoded value, for rules that span fields. */
-    public final ApiType<T> withCheck(BiConsumer<T, DecodeContext> check) {
-        return new Checked<>(this, check);
-    }
-
     /** The same rules as a DataFixerUpper {@link Codec}, so a contract value can round-trip through any {@link DynamicOps}. */
     public final Codec<T> codec() {
         ApiType<T> self = this;
@@ -130,38 +123,5 @@ public abstract class ApiType<T> {
                 }
             }
         };
-    }
-
-    /** {@link #withCheck}'s wrapper: the inner type's rules, then the extra check when they passed. */
-    private static final class Checked<T> extends ApiType<T> {
-        private final ApiType<T> inner;
-        private final BiConsumer<T, DecodeContext> check;
-
-        Checked(ApiType<T> inner, BiConsumer<T, DecodeContext> check) {
-            this.inner = Objects.requireNonNull(inner);
-            this.check = Objects.requireNonNull(check);
-            describe(inner.description());
-        }
-
-        @Override protected T read(JsonElement value, DecodeContext at) {
-            int before = at.issues().size();
-            T v = inner.read(value, at);
-            if (at.issues().size() == before && v != null) check.accept(v, at);
-            return at.issues().size() == before ? v : null;
-        }
-
-        @Override protected JsonElement write(T value) { return inner.write(value); }
-        @Override protected JsonObject schemaBody() { return inner.schemaBody(); }
-        @Override public String ts(TsContext ts) { return inner.ts(ts); }
-        @Override public String expected() { return inner.expected(); }
-
-        ApiType<T> inner() { return inner; }
-    }
-
-    /** The type a {@link #withCheck} wrapper decorates, or this type itself. */
-    final ApiType<T> unchecked() {
-        ApiType<T> t = this;
-        while (t instanceof Checked<T> c) t = c.inner();
-        return t;
     }
 }

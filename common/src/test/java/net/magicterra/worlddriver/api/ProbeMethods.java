@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiHandler;
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
@@ -23,26 +25,25 @@ import net.magicterra.worlddriver.application.DriverApplication;
 public final class ProbeMethods {
     private ProbeMethods() {}
 
-    public record Echo(int value) {}
+    @Named("ProbeEcho")
+    public record Echo(@Default("1") @Range(min = 0, max = 1_000_000) int value) {}
 
-    public record Slow(int ms) {}
+    @Named("ProbeSlow")
+    public record Slow(@Range(min = 0, max = 60_000) int ms) {}
 
-    private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class, "ProbeEcho",
-            ApiField.field("value", ApiTypes.integer(0, 1_000_000)).defaulted(1).forGetter(Echo::value),
-            Echo::new);
+    private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class);
 
     public static final MethodSpec<Echo, Echo> ECHO = MethodSpec.of("probe.echo", ECHO_TYPE, ECHO_TYPE,
             "Answers its own value.").asPollable();
 
     public static final MethodSpec<Slow, Echo> SLOW = MethodSpec.of("probe.slow",
-            ApiTypes.record(Slow.class, "ProbeSlow",
-                    ApiField.field("ms", ApiTypes.integer(0, 60_000)).required().forGetter(Slow::ms),
-                    Slow::new),
+            ApiTypes.record(Slow.class),
             ECHO_TYPE, "Holds the calling thread for ms, then answers {value: ms}.");
 
+    @Named("ProbeNone")
     public record None() {}
 
-    private static final RecordType<None> NONE = ApiTypes.record(None.class, "ProbeNone", None::new);
+    private static final RecordType<None> NONE = ApiTypes.record(None.class);
 
     /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
     public static void failing(ApiRegistry api, String name, Supplier<? extends RuntimeException> failure) {

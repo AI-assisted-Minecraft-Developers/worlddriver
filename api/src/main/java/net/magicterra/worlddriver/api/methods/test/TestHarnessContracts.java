@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.api.methods.test;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +25,7 @@ import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.schema.annotation.As;
 import net.magicterra.worlddriver.api.schema.annotation.Default;
 import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
 import net.magicterra.worlddriver.api.schema.annotation.Named;
 import net.magicterra.worlddriver.api.schema.annotation.Range;
 import net.magicterra.worlddriver.api.schema.annotation.Tag;
@@ -56,7 +61,14 @@ public final class TestHarnessContracts {
 
     private static final KeyedValueType WRITE_VALUES = SettingsContracts.SETTING_VALUES.atLeast(1);
 
-    private static final ApiType<List<String>> KEY_LIST = ApiTypes.list(ApiTypes.string(1, 64), SettingsContracts.TYPES.size());
+    /** A setting's key, checked against the key table by the request that names it. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Length(min = 1, max = 64)
+    public @interface Key {}
+
+    private static final ApiType<List<String>> KEY_LIST =
+            ApiTypes.list(ApiTypes.of(String.class, Key.class), SettingsContracts.TYPES.size());
 
     @Tag("op") @Named("TestSettingsParams")
     public sealed interface SettingsOp permits Pin, Unpin, Write, Read {}

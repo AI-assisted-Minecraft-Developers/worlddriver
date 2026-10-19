@@ -8,7 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 /** A string type; immutable, so the narrowing methods return new instances. */
-public final class StringType extends ApiType<String> {
+final class StringType extends ApiType<String> {
     private final int minLength, maxLength;
     private final Pattern pattern;
     private final String meaning;

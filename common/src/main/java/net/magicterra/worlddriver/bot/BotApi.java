@@ -87,8 +87,10 @@ public interface BotApi {
      * client thread and brings the entry back to a neutral state between pooled
      * reuse runs: releases held movement keys, closes any open screen
      * ({@code setScreen(null)}), clears the chat readback log, and cancels a
-     * residual smooth-look process if the {@code look} slot is active. Returns the tokens
-     * {@link TestInputContracts#RESET} describes, naming what it actually did. Client-only —
+     * residual smooth-look process if the {@code look} slot is active. Returns one token per
+     * effect it undid: the cancelled task's kind, {@code combat}, {@code keys:<names>} (with
+     * {@code →still:<names>} for any the release left down), {@code screen:<class>}, and always
+     * {@code chat:<lines cleared>}. Client-only —
      * the verb throws loudly on a dedicated server (no bot impl registered).
      */
     List<String> resetClientEntry();

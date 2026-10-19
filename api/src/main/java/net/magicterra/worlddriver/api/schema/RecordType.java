@@ -15,8 +15,7 @@ import com.google.gson.JsonObject;
 /**
  * A closed JSON object bound to a Java record: unknown keys, a missing required key and a present
  * {@code null} are all issues, each at its own path, and the constructor runs only when every field
- * decoded. Built through the {@code ApiTypes.record} overloads, which tie each field's getter to the
- * matching constructor parameter.
+ * decoded. Read off a Java record by {@code ApiTypes.record}, one field per component, in order.
  */
 public final class RecordType<O> extends ApiType<O> {
     private final Class<O> type;
@@ -32,29 +31,6 @@ public final class RecordType<O> extends ApiType<O> {
         Set<String> seen = new HashSet<>();
         for (ApiField<O, ?> f : this.fields) {
             if (!seen.add(f.name)) throw new IllegalArgumentException("record " + name + " declares field " + f.name + " twice");
-        }
-        checkOrder();
-    }
-
-    /**
-     * Fields are handed to the constructor by position, and the compiler checks only their types, so two
-     * fields of one type listed in the wrong order would compile and swap their values on every decode. When
-     * the wire fields map one to one onto a Java record's components, a field named like a component must sit
-     * at that component's position. A field whose wire name differs from its component ({@code break} for
-     * {@code breakPolicy}) is not checked, nor is a record that flattens a nested value into several fields.
-     */
-    private void checkOrder() {
-        if (type == null || !type.isRecord()) return;
-        var components = type.getRecordComponents();
-        if (components.length != fields.size()) return;
-        for (int i = 0; i < components.length; i++) {
-            for (int c = 0; c < components.length; c++) {
-                if (c != i && components[c].getName().equals(fields.get(i).name)) {
-                    throw new IllegalArgumentException("record " + type.getSimpleName() + ": field '" + fields.get(i).name
-                            + "' is listed at position " + (i + 1) + " but is the record's component " + (c + 1)
-                            + "; list the fields in the record's order");
-                }
-            }
         }
     }
 
@@ -123,11 +99,11 @@ public final class RecordType<O> extends ApiType<O> {
     private BiConsumer<O, DecodeContext> check;
 
     /**
-     * The same record type with a rule spanning its fields, run once every field decoded. Unlike
-     * {@link #withCheck} the result is still a record type, so it can be a union variant; the check
-     * reports at the field it blames ({@code at.field("widthBias").fail(...)}).
+     * The same record type with a rule spanning its fields, run once every field decoded: a
+     * {@link SelfChecked} record's {@code check}. It reports at the field it blames
+     * ({@code at.field("widthBias").fail(...)}).
      */
-    public RecordType<O> checked(BiConsumer<O, DecodeContext> rule) {
+    RecordType<O> checked(BiConsumer<O, DecodeContext> rule) {
         RecordType<O> copy = new RecordType<>(type, name, fields, constructor);
         copy.check = check == null ? rule : check.andThen(rule);
         return copy;

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.testcontent;
 
+import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
 import net.minecraft.util.StringRepresentable;
 
 /**
@@ -7,7 +9,8 @@ import net.minecraft.util.StringRepresentable;
  * survives a world save without a block entity; only {@code goal}, {@code watch} and
  * {@code start} ever need the entity's label and arguments.
  */
-public enum MarkerRole implements StringRepresentable {
+@Named("MarkerRole")
+public enum MarkerRole implements StringRepresentable, WireName {
     /** The scene's coordinate origin; relative positions are measured from here. Exactly one. */
     ORIGIN(0xFFFFFF),
     /** The block the bot's feet start in; the entity may carry a {@code yaw}. Exactly one. */
@@ -44,5 +47,10 @@ public enum MarkerRole implements StringRepresentable {
     @Override
     public String getSerializedName() {
         return name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    @Override
+    public String wireName() {
+        return getSerializedName();
     }
 }

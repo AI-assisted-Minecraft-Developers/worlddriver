@@ -77,9 +77,9 @@ public final class EventCatalog {
 
     public static final Entry<String> ENTITY_DEATH = entry("entity.death", CommonTypes.RESOURCE_ID, Level.NOTICE,
             "A living entity died; the payload is its type.");
-    public static final Entry<String> PLAYER_JOIN = entry("player.join", ApiTypes.string(), Level.INFO,
+    public static final Entry<String> PLAYER_JOIN = entry("player.join", ApiTypes.of(String.class), Level.INFO,
             "A player joined the server; the payload is their name.");
-    public static final Entry<String> PLAYER_LEAVE = entry("player.leave", ApiTypes.string(), Level.INFO,
+    public static final Entry<String> PLAYER_LEAVE = entry("player.leave", ApiTypes.of(String.class), Level.INFO,
             "A player left the server; the payload is their name.");
 
     @Named("ChatMessageEvent")

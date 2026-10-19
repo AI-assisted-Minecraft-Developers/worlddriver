@@ -300,9 +300,7 @@ public final class GotoContracts {
 
     public static final UnionType<Result> RESULT = ApiTypes.union(Result.class);
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT,
-            (UnionType.Variant) ApiTypes.variant("scored", Scored.class, ApiTypes.record(Scored.class)));
+    public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT, Scored.class);
 
     public static final MethodSpec<Params, ActionResponse<Result>> SPEC = MethodSpec.of(METHOD, PARAMS, RESPONSE,
                     "Walk the body to a target under the route's conditions, replacing whatever it was doing. "

@@ -51,14 +51,6 @@ public final class WaitContracts {
     @Variant("started")
     public record Started(@Length(min = 1, max = 128) String waitId) implements Outcome {}
 
-    private static ApiType<Integer> timeoutMs() {
-        return ApiTypes.integer(100, MAX_TIMEOUT_MS);
-    }
-
-    private static ApiType<Long> elapsedMs() {
-        return ApiTypes.int64(0, Long.MAX_VALUE);
-    }
-
     private static <D extends Record & Outcome> UnionType<Outcome> outcome(String name, Class<D> done) {
         return ApiTypes.union(name, "outcome", ApiTypes.record(done), ApiTypes.record(Started.class));
     }

@@ -5,6 +5,7 @@ import java.util.List;
 
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.OpenUnion;
+import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
@@ -49,10 +50,10 @@ public final class ActionResults {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static UnionType<Object> union() {
-        List<UnionType.Variant> all = new ArrayList<>();
+        List<RecordType> all = new ArrayList<>();
         for (UnionType<?> u : PER_METHOD) {
-            for (UnionType.Variant<?, ?> v : u.variants()) all.add(ApiTypes.variant(v.tag(), (Class) v.javaType(), v.type()));
+            for (UnionType.Variant<?, ?> v : u.variants()) all.add(v.type());
         }
-        return ApiTypes.taggedUnion("ActionResult", "kind", all.toArray(new UnionType.Variant[0]));
+        return ApiTypes.union("ActionResult", "kind", all.toArray(new RecordType[0]));
     }
 }

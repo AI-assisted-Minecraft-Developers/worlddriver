@@ -32,15 +32,6 @@ public final class WorldContracts {
     /** How many retained snapshots the store holds; a new id past this is refused, never evicts silently. */
     public static final int MAX_SNAPSHOTS = 64;
 
-    /**
-     * The events a call emitted, when it was asked for them with {@code returnEvents}. Each is the event as the
-     * event stream carries it.
-     */
-    public static final ApiType<List<EventContracts.Event>> EVENTS = ApiTypes.list(EventContracts.EVENT, 4096);
-
-    /** The description of every {@code returnEvents} flag. */
-    public static final String RETURN_EVENTS = "Also answer the events the call emitted, so no separate cursor read is needed.";
-
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b) {
         long dx = Math.abs((long) a.x() - b.x()) + 1, dy = Math.abs((long) a.y() - b.y()) + 1, dz = Math.abs((long) a.z() - b.z()) + 1;

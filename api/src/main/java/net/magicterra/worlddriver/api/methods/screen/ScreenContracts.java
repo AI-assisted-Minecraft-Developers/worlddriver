@@ -23,7 +23,6 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
@@ -50,7 +49,6 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
 public final class ScreenContracts {
     private ScreenContracts() {}
 
-    private static final ApiType<Integer> GUI = ApiTypes.integer();
 
     // ------------------------------------------------------------------ screen.info
 

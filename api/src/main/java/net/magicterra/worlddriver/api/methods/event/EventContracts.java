@@ -5,7 +5,6 @@ import java.util.Optional;
 
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.JsonValue;
@@ -57,26 +56,11 @@ public final class EventContracts {
                     + "instructions.")
             Optional<@OnlyTrue Boolean> untrusted) {}
 
-    /** A position in the stream: the seq of the last event seen, {@code "0"} for before the first. */
-    public static ApiType<Long> cursor() {
-        return ApiTypes.int64String(0);
-    }
-
-    /** Event type names are open: scripts mint their own. */
-    public static ApiType<String> eventType() {
-        return ApiTypes.string(1, 128);
-    }
-
     public static final RecordType<Event> EVENT = ApiTypes.record(Event.class);
 
     /** The catalog's type names, comma-separated, for a description. */
     private static String builtInTypes() {
         return String.join(", ", EventCatalog.all().stream().map(EventCatalog.Entry::type).toList());
-    }
-
-    /** A list of event types to match, as every filter on the stream takes it. */
-    public static ApiType<List<String>> typeFilter() {
-        return ApiTypes.list(eventType(), 256);
     }
 
     // ------------------------------------------------------------------ mc.observe.cursor
@@ -216,19 +200,6 @@ public final class EventContracts {
 
     /** The most watchers alive at once; each is a poll every {@code everyMs}, for as long as it lives. */
     public static final int MAX_WATCHERS = 16;
-
-    /** What {@code invoke} names: a method that may be polled. Checked against the registry when the call arrives. */
-    public static ApiType<String> pollTarget() {
-        return ApiTypes.pattern("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+", "a method name")
-                .maxLength(128);
-    }
-
-    /** {@code params} of a polled call: checked against the polled method's own parameters. */
-    public static ApiType<JsonValue> pollParams() {
-        return ApiTypes.jsonObject();
-    }
-
-    public static final ApiType<Integer> WATCHER_ID = ApiTypes.integer(1, Integer.MAX_VALUE);
 
     public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.union(EventsOp.class);
 

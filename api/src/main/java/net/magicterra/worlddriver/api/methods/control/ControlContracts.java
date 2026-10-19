@@ -102,7 +102,7 @@ public final class ControlContracts {
     public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class);
 
     public static final MethodSpec<CancelParams, ImmediateResponse> CANCEL = MethodSpec.of("mc.bot.cancel", CANCEL_PARAMS,
-                    Responses.immediate("Cancel", Stopped.class,
+                    Responses.immediate("Cancel",
                             ApiTypes.record(Stopped.class, Map.of("action", WaitContracts.ANY_ACTION))),
                     "Stop an action by its actionId, which ends it cancelled with reason requested, or a bot's processes "
                             + "by name; all also releases the held inputs and stands every reflex chain down. Works on a "
@@ -216,7 +216,7 @@ public final class ControlContracts {
     public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class);
 
     public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of("mc.bot.status", STATUS_PARAMS,
-                    Responses.immediate("Status", Status.class, ApiTypes.record(Status.class)),
+                    Responses.immediate("Status", ApiTypes.record(Status.class)),
                     "Every process slot of one bot, with how its last task ended, plus the list of addressable bots. "
                             + "Works where nothing else does: a dead or paused bot, and a dedicated server.")
             .effects(MethodSpec.Effect.SNAPSHOT_READ)
@@ -303,7 +303,7 @@ public final class ControlContracts {
     public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.union(RosterOp.class);
 
     public static final MethodSpec<RosterOp, ImmediateResponse> ROSTER = MethodSpec.of("mc.bot.roster", ROSTER_PARAMS,
-                    Responses.immediate("Roster", Rostered.class, ApiTypes.record(Rostered.class)),
+                    Responses.immediate("Roster", ApiTypes.record(Rostered.class)),
                     "Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until "
                             + "it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI "
                             + "back and takes a player out of the world. done names the bot. A taken name, or an entity "
