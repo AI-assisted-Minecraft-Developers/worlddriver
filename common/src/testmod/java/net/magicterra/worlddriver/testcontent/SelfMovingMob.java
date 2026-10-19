@@ -29,8 +29,10 @@ public class SelfMovingMob extends PathfinderMob {
 
     @Override
     public void travel(Vec3 input) {
+        move(MoverType.SELF, getDeltaMovement());
+        // Gravity every tick, as vanilla's: a mob left resting with no downward speed moves by nothing
+        // the next tick, which is no collision below, so it reads as off the ground every other tick.
         Vec3 v = getDeltaMovement();
-        move(MoverType.SELF, v);
-        setDeltaMovement(v.x * 0.5, onGround() ? 0 : v.y - 0.08, v.z * 0.5);
+        setDeltaMovement(v.x * 0.5, v.y - 0.08, v.z * 0.5);
     }
 }
