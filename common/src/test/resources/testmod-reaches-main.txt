@@ -452,9 +452,7 @@ bot/stagewright/scene/WorldDriverTerrainScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/Move
-bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/moves/PillarUp
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverTerrainScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverTerrainScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/Navigator
