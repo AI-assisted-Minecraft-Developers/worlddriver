@@ -3,15 +3,21 @@ package net.magicterra.worlddriver.api.methods.action;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.world.WorldContracts;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.world.WorldContracts;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
 
 /**
  * The direct world writes beside the bot: {@code mc.action.runCommand}, {@code mc.action.fill} and
@@ -21,12 +27,15 @@ import net.magicterra.worlddriver.api.methods.world.WorldContracts;
 public final class ActionContracts {
     private ActionContracts() {}
 
-    private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
-
     // ------------------------------------------------------------------ runCommand
 
-    public record CommandParams(String cmd, boolean returnEvents) {}
+    @Named("RunCommandParams")
+    public record CommandParams(
+            @Doc("The command, leading slash optional.") @Length(min = 1, max = 32767) String cmd,
+            @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
+            boolean returnEvents) {}
 
+    @Named("CommandVia")
     public enum Via implements WireName {
         FAST_PATH("fast-path"), BRIGADIER("brigadier");
 
@@ -42,28 +51,20 @@ public final class ActionContracts {
      * are the command's own outcome ({@code execute if entity} counts its matches); {@code feedback} is the chat
      * text it would have shown, parse errors included.
      */
-    public record CommandResult(boolean ok, Optional<Via> via, Optional<String> error, boolean success, int value,
-                                List<String> feedback, Optional<List<EventContracts.Event>> events) {}
+    @Named("CommandResult")
+    public record CommandResult(
+            @Doc("Dispatched without throwing.") boolean ok,
+            @Doc("fast-path: a plain setblock written directly, emitting block.place or block.break.")
+            Optional<Via> via,
+            Optional<String> error,
+            @Doc("The command reported success; false when it parsed but failed.") boolean success,
+            @Doc("The command's result value.") int value,
+            @Length(max = 4096) List<String> feedback,
+            Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record(CommandParams.class, "RunCommandParams",
-            ApiField.field("cmd", ApiTypes.string(1, 32_767)).describe("The command, leading slash optional.")
-                    .required().forGetter(CommandParams::cmd),
-            ApiField.field("returnEvents", ApiTypes.bool()).describe(WorldContracts.RETURN_EVENTS).defaulted(false)
-                    .forGetter(CommandParams::returnEvents),
-            CommandParams::new);
+    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record(CommandParams.class);
 
-    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record(CommandResult.class, "CommandResult",
-            ApiField.field("ok", ApiTypes.bool()).describe("Dispatched without throwing.").required().forGetter(CommandResult::ok),
-            ApiField.field("via", ApiTypes.enumOf("CommandVia", Via.class))
-                    .describe("fast-path: a plain setblock written directly, emitting block.place or block.break.")
-                    .optional().forGetter(CommandResult::via),
-            ApiField.field("error", ApiTypes.string()).optional().forGetter(CommandResult::error),
-            ApiField.field("success", ApiTypes.bool()).describe("The command reported success; false when it parsed but failed.")
-                    .required().forGetter(CommandResult::success),
-            ApiField.field("value", ApiTypes.integer()).describe("The command's result value.").required().forGetter(CommandResult::value),
-            ApiField.field("feedback", ApiTypes.list(ApiTypes.string(), 4096)).required().forGetter(CommandResult::feedback),
-            ApiField.field("events", WorldContracts.EVENTS).optional().forGetter(CommandResult::events),
-            CommandResult::new);
+    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record(CommandResult.class);
 
     // One command is budgeted as one short server task; what it does is opaque, so it counts as a world write.
     public static final MethodSpec<CommandParams, CommandResult> RUN_COMMAND = MethodSpec.of("mc.action.runCommand",
@@ -75,23 +76,25 @@ public final class ActionContracts {
 
     // ------------------------------------------------------------------ fill
 
-    public record FillParams(BlockPosition from, BlockPosition to, String type, boolean returnEvents) {}
+    @Named("FillParams")
+    public record FillParams(
+            @Doc("A corner, inclusive.") BlockPosition from,
+            @Doc("The opposite corner, inclusive.") BlockPosition to,
+            @Doc("A block id.") @ResourceId String type,
+            @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
+            boolean returnEvents) implements SelfChecked {
+        @Override
+        public void check(DecodeContext at) {
+            WorldContracts.withinVolume(from, to, at);
+        }
+    }
 
-    public record Filled(int placed, Optional<List<EventContracts.Event>> events) {}
+    @Named("Filled")
+    public record Filled(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record(FillParams.class, "FillParams",
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("A corner, inclusive.").required().forGetter(FillParams::from),
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).describe("The opposite corner, inclusive.").required().forGetter(FillParams::to),
-            ApiField.field("type", CommonTypes.RESOURCE_ID).describe("A block id.").required().forGetter(FillParams::type),
-            ApiField.field("returnEvents", ApiTypes.bool()).describe(WorldContracts.RETURN_EVENTS).defaulted(false)
-                    .forGetter(FillParams::returnEvents),
-            FillParams::new)
-            .checked((p, at) -> WorldContracts.withinVolume(p.from(), p.to(), at));
+    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record(FillParams.class);
 
-    public static final ApiType<Filled> FILLED = ApiTypes.record(Filled.class, "Filled",
-            ApiField.field("placed", COUNT).required().forGetter(Filled::placed),
-            ApiField.field("events", WorldContracts.EVENTS).optional().forGetter(Filled::events),
-            Filled::new);
+    public static final ApiType<Filled> FILLED = ApiTypes.record(Filled.class);
 
     public static final MethodSpec<FillParams, Filled> FILL = MethodSpec.of("mc.action.fill", FILL_PARAMS, FILLED,
                     "Fill a box with one block in a single server task: at most 32768 cells, refused rather than cut "
@@ -101,27 +104,22 @@ public final class ActionContracts {
 
     // ------------------------------------------------------------------ placeMany
 
-    public record Placement(BlockPosition pos, String type) {}
+    @Named("Placement")
+    public record Placement(BlockPosition pos, @Doc("A block id.") @ResourceId String type) {}
 
-    public record PlaceManyParams(List<Placement> blocks, boolean returnEvents) {}
+    @Named("PlaceManyParams")
+    public record PlaceManyParams(
+            @Doc("Written in order; a cell named twice ends as the later one.")
+            @Length(min = 1, max = 4096) List<Placement> blocks,
+            @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
+            boolean returnEvents) {}
 
-    public record Placed(int placed, Optional<List<EventContracts.Event>> events) {}
+    @Named("Placed")
+    public record Placed(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record(PlaceManyParams.class, "PlaceManyParams",
-            ApiField.field("blocks", ApiTypes.list(ApiTypes.record(Placement.class, "Placement",
-                            ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Placement::pos),
-                            ApiField.field("type", CommonTypes.RESOURCE_ID).describe("A block id.").required().forGetter(Placement::type),
-                            Placement::new), 1, 4096))
-                    .describe("Written in order; a cell named twice ends as the later one.")
-                    .required().forGetter(PlaceManyParams::blocks),
-            ApiField.field("returnEvents", ApiTypes.bool()).describe(WorldContracts.RETURN_EVENTS).defaulted(false)
-                    .forGetter(PlaceManyParams::returnEvents),
-            PlaceManyParams::new);
+    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record(PlaceManyParams.class);
 
-    public static final ApiType<Placed> PLACED = ApiTypes.record(Placed.class, "Placed",
-            ApiField.field("placed", COUNT).required().forGetter(Placed::placed),
-            ApiField.field("events", WorldContracts.EVENTS).optional().forGetter(Placed::events),
-            Placed::new);
+    public static final ApiType<Placed> PLACED = ApiTypes.record(Placed.class);
 
     public static final MethodSpec<PlaceManyParams, Placed> PLACE_MANY = MethodSpec.of("mc.action.placeMany", PLACE_MANY_PARAMS,
                     PLACED,

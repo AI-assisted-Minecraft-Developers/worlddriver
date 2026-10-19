@@ -4,15 +4,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
 
 /**
  * Direct world access, beside the bot: {@code mc.world.block}, {@code mc.world.snapshot} and {@code mc.world.restore}.
@@ -36,8 +41,6 @@ public final class WorldContracts {
     /** The description of every {@code returnEvents} flag. */
     public static final String RETURN_EVENTS = "Also answer the events the call emitted, so no separate cursor read is needed.";
 
-    private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
-
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b) {
         long dx = Math.abs((long) a.x() - b.x()) + 1, dy = Math.abs((long) a.y() - b.y()) + 1, dz = Math.abs((long) a.z() - b.z()) + 1;
@@ -53,32 +56,26 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ block
 
-    public record BlockParams(BlockPosition pos, boolean nbt) {}
+    @Named("WorldBlockParams")
+    public record BlockParams(
+            BlockPosition pos,
+            @Doc("Also the block entity's full NBT, as SNBT.") @Default("false") boolean nbt) {}
 
-    public record Light(int block, int sky) {}
+    @Named("Light")
+    public record Light(@Range(min = 0, max = 15) int block, @Range(min = 0, max = 15) int sky) {}
 
-    public record BlockReading(BlockPosition pos, String type, Optional<Map<String, String>> state, Light light,
-                               Optional<String> blockEntity) {}
+    @Named("BlockReading")
+    public record BlockReading(
+            BlockPosition pos,
+            @ResourceId String type,
+            @Doc("Blockstate properties as /setblock spells them; absent for a state without any.")
+            Optional<@Length(max = 64) Map<String, String>> state,
+            Light light,
+            @Doc("With nbt: the SNBT; absent when the cell has no block entity.") Optional<String> blockEntity) {}
 
-    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class, "WorldBlockParams",
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockParams::pos),
-            ApiField.field("nbt", ApiTypes.bool()).describe("Also the block entity's full NBT, as SNBT.")
-                    .defaulted(false).forGetter(BlockParams::nbt),
-            BlockParams::new);
+    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class);
 
-    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class, "BlockReading",
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockReading::pos),
-            ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(BlockReading::type),
-            ApiField.field("state", ApiTypes.map(ApiTypes.string(), 64))
-                    .describe("Blockstate properties as /setblock spells them; absent for a state without any.")
-                    .optional().forGetter(BlockReading::state),
-            ApiField.field("light", ApiTypes.record(Light.class, "Light",
-                    ApiField.field("block", ApiTypes.integer(0, 15)).required().forGetter(Light::block),
-                    ApiField.field("sky", ApiTypes.integer(0, 15)).required().forGetter(Light::sky),
-                    Light::new)).required().forGetter(BlockReading::light),
-            ApiField.field("blockEntity", ApiTypes.string()).describe("With nbt: the SNBT; absent when the cell has no block entity.")
-                    .optional().forGetter(BlockReading::blockEntity),
-            BlockReading::new);
+    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class);
 
     // Pollable: one cell read in one server task.
     public static final MethodSpec<BlockParams, BlockReading> BLOCK = MethodSpec.of("mc.world.block", BLOCK_PARAMS, BLOCK_READING,
@@ -88,33 +85,33 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ snapshot
 
-    public record SnapshotParams(BlockPosition from, BlockPosition to, Optional<String> id, boolean blockEntities) {}
+    @Named("SnapshotParams")
+    public record SnapshotParams(
+            @Doc("A corner, inclusive.") BlockPosition from,
+            @Doc("The opposite corner, inclusive.") BlockPosition to,
+            @Doc("Its name; an id in use is overwritten. Omitted: a new one.")
+            Optional<@Length(min = 1, max = 128) String> id,
+            @Doc("Keep block-entity NBT, so a chest's contents come back too.") @Default("true") boolean blockEntities)
+            implements SelfChecked {
+        @Override
+        public void check(DecodeContext at) {
+            withinVolume(from, to, at);
+        }
+    }
 
     /** {@code from} and {@code to} are the box's min and max corners, whichever order they were given in. */
-    public record Snapshotted(String id, BlockPosition from, BlockPosition to, int blocks, int nonAir, int blockEntities) {}
+    @Named("Snapshotted")
+    public record Snapshotted(
+            @Length(min = 1, max = 128) String id,
+            BlockPosition from,
+            BlockPosition to,
+            @Range(min = 0) int blocks,
+            @Range(min = 0) int nonAir,
+            @Range(min = 0) int blockEntities) {}
 
-    private static final ApiType<String> SNAPSHOT_ID = ApiTypes.string(1, 128);
+    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class);
 
-    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class, "SnapshotParams",
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("A corner, inclusive.").required().forGetter(SnapshotParams::from),
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).describe("The opposite corner, inclusive.")
-                    .required().forGetter(SnapshotParams::to),
-            ApiField.field("id", SNAPSHOT_ID).describe("Its name; an id in use is overwritten. Omitted: a new one.")
-                    .optional().forGetter(SnapshotParams::id),
-            ApiField.field("blockEntities", ApiTypes.bool())
-                    .describe("Keep block-entity NBT, so a chest's contents come back too.")
-                    .defaulted(true).forGetter(SnapshotParams::blockEntities),
-            SnapshotParams::new)
-            .checked((p, at) -> withinVolume(p.from(), p.to(), at));
-
-    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class, "Snapshotted",
-            ApiField.field("id", SNAPSHOT_ID).required().forGetter(Snapshotted::id),
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Snapshotted::from),
-            ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Snapshotted::to),
-            ApiField.field("blocks", COUNT).required().forGetter(Snapshotted::blocks),
-            ApiField.field("nonAir", COUNT).required().forGetter(Snapshotted::nonAir),
-            ApiField.field("blockEntities", COUNT).required().forGetter(Snapshotted::blockEntities),
-            Snapshotted::new);
+    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class);
 
     // Reads the world and writes only this driver's in-memory store, which is not world state.
     public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of("mc.world.snapshot", SNAPSHOT_PARAMS,
@@ -127,24 +124,24 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ restore
 
-    public record RestoreParams(String id, boolean discard, boolean returnEvents) {}
+    @Named("RestoreParams")
+    public record RestoreParams(
+            @Doc("An id mc.world.snapshot answered; an unknown one is invalid_params.")
+            @Length(min = 1, max = 128) String id,
+            @Doc("Forget the snapshot once it is put back.") @Default("false") boolean discard,
+            @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
+            boolean returnEvents) {}
 
-    public record Restored(String id, int restored, int blockEntities, Optional<List<EventContracts.Event>> events) {}
+    @Named("Restored")
+    public record Restored(
+            @Length(min = 1, max = 128) String id,
+            @Doc("Cells written.") @Range(min = 0) int restored,
+            @Range(min = 0) int blockEntities,
+            Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class, "RestoreParams",
-            ApiField.field("id", SNAPSHOT_ID).describe("An id mc.world.snapshot answered; an unknown one is invalid_params.")
-                    .required().forGetter(RestoreParams::id),
-            ApiField.field("discard", ApiTypes.bool()).describe("Forget the snapshot once it is put back.")
-                    .defaulted(false).forGetter(RestoreParams::discard),
-            ApiField.field("returnEvents", ApiTypes.bool()).describe(RETURN_EVENTS).defaulted(false).forGetter(RestoreParams::returnEvents),
-            RestoreParams::new);
+    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class);
 
-    public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class, "Restored",
-            ApiField.field("id", SNAPSHOT_ID).required().forGetter(Restored::id),
-            ApiField.field("restored", COUNT).describe("Cells written.").required().forGetter(Restored::restored),
-            ApiField.field("blockEntities", COUNT).required().forGetter(Restored::blockEntities),
-            ApiField.field("events", EVENTS).optional().forGetter(Restored::events),
-            Restored::new);
+    public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class);
 
     public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of("mc.world.restore", RESTORE_PARAMS, RESTORED,
                     "Put a box mc.world.snapshot kept back exactly, block-entity contents included, and emit world.restore.")
