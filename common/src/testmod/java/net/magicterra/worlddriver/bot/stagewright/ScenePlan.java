@@ -3,20 +3,21 @@ package net.magicterra.worlddriver.bot.stagewright;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanEdge;
 import net.minecraft.core.BlockPos;
 
 /**
- * A plan a scene hands {@code Navigator.adoptForTest} before it TICKS the navigator, built by a factory that
- * checks its shape.
+ * Plans a scene hands {@code mc.debug.walkPlan}: one edge per node, and a factory that checks the shape of a plan
+ * the navigator adopts as its own.
  *
- * <p><b>Why this class exists.</b> A plan is a {@code List<BlockPos>} plus a {@code List<Move.Edge>}, and a
- * plan that omits the start node is indistinguishable by inspection from a deliberately mis-anchored test
- * input. {@code wd.surfacePillarPointerNeedsItsSupport} spent three gate runs executing zero ticks of its own
- * subject because it handed over a plan without the start node. The mis-anchored shape is now asked only of
- * the adoption's verdict, in {@code DeepWaterFloatBeelineTest}, so the one shape left here is the one a
- * ticking scene needs.
+ * <p><b>Why the factory exists.</b> A plan that omits the start node is indistinguishable by inspection from a
+ * deliberately mis-anchored test input. {@code wd.surfacePillarPointerNeedsItsSupport} spent three gate runs
+ * executing zero ticks of its own subject because it handed over a plan without the start node. The mis-anchored
+ * shape is now asked only of the adoption's verdict, in {@code DeepWaterFloatBeelineTest}, so the one shape left
+ * here is the one a walking scene needs.
  *
  * <p><b>The rule this class is the standing reminder of.</b> A scanner matches SHAPE; what decides
  * which family a site belongs to is WHAT THE CALL SITE WANTS IT TO DO, and that is not in the
@@ -24,50 +25,46 @@ import net.minecraft.core.BlockPos;
  * read the call sites first. The same rule saved {@code BotUtil.stepAwayCardinal}, whose two callers'
  * openness tests disagree on thin blocks, so folding them onto one predicate would have loosened both.
  */
-public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
+public final class ScenePlan {
+    private ScenePlan() {}
+
+    /** The edge entering {@code to} by {@code move}, costing 10, breaking and placing nothing. */
+    public static PlanEdge edge(BlockPos to, String move) {
+        return edge(to, move, List.of());
+    }
+
+    /** The edge entering {@code to} by {@code move}, costing 10 and placing {@code places}. */
+    public static PlanEdge edge(BlockPos to, String move, List<BlockPos> places) {
+        return new PlanEdge(Targets.pos(to), Optional.of(move), 10, List.of(), places.stream().map(Targets::pos).toList(),
+                Map.of());
+    }
 
     /**
-     * A plan in the shape every real {@code PathFinder.Result} has, for a scene that goes on to
-     * TICK the navigator — i.e. the 5-arg {@code Navigator.adoptForTest} seam.
+     * A plan in the shape every real search result has, for {@code mode: 'follow'}.
      *
-     * <p>Callers pass only the nodes they want WALKED. This prepends the start node and the
-     * {@code null} lead edge, because {@code PathFinder.build}'s javadoc says the start has no
-     * incoming edge and the adoption relies on it: it sets {@code step = 1} unconditionally,
-     * meaning "the bot already stands on node 0". Hand it a plan without that node and the
-     * pointer starts one past the only edge there was — a plan that is finished the instant it is
-     * adopted, which reports as a clean ARRIVED and executes nothing.
+     * <p>Callers pass only the edges they want WALKED. This prepends the start node with no move, because a
+     * search's start has no incoming edge and the adoption relies on it: it sets {@code step = 1}
+     * unconditionally, meaning "the bot already stands on node 0". Hand it a plan without that node and the
+     * pointer starts one past the only edge there was — a plan that is finished the instant it is adopted,
+     * which reports as a clean ARRIVED and executes nothing.
      *
      * @param foot  where the bot actually stands; becomes node 0
-     * @param nodes the cells to walk, in order, NOT including {@code foot}
-     * @param edges one edge per entry in {@code nodes}; {@code edges.get(i)} must enter
-     *              {@code nodes.get(i)}, and none may be null
+     * @param edges the edges to walk, in order, none entering {@code foot}
      */
-    public static ScenePlan syntheticPlan(BlockPos foot, List<BlockPos> nodes, List<Move.Edge> edges) {
-        if (nodes.isEmpty())
+    public static List<PlanEdge> syntheticPlan(BlockPos foot, List<PlanEdge> edges) {
+        if (edges.isEmpty())
             throw new IllegalArgumentException("syntheticPlan: no nodes to walk — the bot is already there");
-        if (nodes.size() != edges.size())
-            throw new IllegalArgumentException("syntheticPlan: " + nodes.size() + " nodes but "
-                    + edges.size() + " edges — one edge ENTERS each node, so the counts must match");
-        if (foot.equals(nodes.get(0)))
-            throw new IllegalArgumentException("syntheticPlan: nodes[0] is the foot cell " + foot
+        if (edges.get(0).to().equals(Targets.pos(foot)))
+            throw new IllegalArgumentException("syntheticPlan: edges[0] enters the foot cell " + foot
                     + " — pass only the cells to WALK; the start node is this factory's job");
         for (int i = 0; i < edges.size(); i++) {
-            Move.Edge e = edges.get(i);
-            if (e == null)
-                throw new IllegalArgumentException("syntheticPlan: edges[" + i + "] is null — only the "
-                        + "LEAD edge is null, and this factory adds it");
-            if (!e.to.equals(nodes.get(i)))
-                throw new IllegalArgumentException("syntheticPlan: edges[" + i + "].to=" + e.to
-                        + " does not enter nodes[" + i + "]=" + nodes.get(i)
-                        + " — the navigator drives edges.get(i) to reach path.get(i)");
+            if (edges.get(i).move().isEmpty())
+                throw new IllegalArgumentException("syntheticPlan: edges[" + i + "] has no move — only the "
+                        + "LEAD edge has none, and this factory adds it");
         }
-        List<BlockPos> fullNodes = new ArrayList<>(nodes.size() + 1);
-        fullNodes.add(foot);
-        fullNodes.addAll(nodes);
-        List<Move.Edge> fullEdges = new ArrayList<>(edges.size() + 1);
-        fullEdges.add(null);                       // the start has no incoming edge
-        fullEdges.addAll(edges);
-        return new ScenePlan(Collections.unmodifiableList(fullNodes),
-                Collections.unmodifiableList(fullEdges));
+        List<PlanEdge> full = new ArrayList<>(edges.size() + 1);
+        full.add(new PlanEdge(Targets.pos(foot), Optional.empty(), 0, List.of(), List.of(), Map.of()));
+        full.addAll(edges);
+        return Collections.unmodifiableList(full);
     }
 }

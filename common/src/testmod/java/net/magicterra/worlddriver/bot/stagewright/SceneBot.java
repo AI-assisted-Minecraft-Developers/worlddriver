@@ -302,6 +302,11 @@ public final class SceneBot {
         };
     }
 
+    /** Start walking the plan {@code params} give; the bot named in them is this one. */
+    public DebugContracts.WalkingPlan walkPlan(DebugContracts.WalkPlanParams params) {
+        return Calls.now(DebugApi.of(Calls.api()).walkPlan(params));
+    }
+
     /** Stop whatever the bot is doing and let go of its keys. */
     public void cancel() {
         Calls.now(ControlApi.of(Calls.api()).cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(ref),

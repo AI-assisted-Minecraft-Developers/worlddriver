@@ -3,18 +3,14 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -39,9 +35,8 @@ import net.minecraft.world.level.block.Blocks;
  * constants map to {@code origin.y + (legacy_Y − 200)}, which is the legacy absolute Y
  * since every grid origin sits at {@code GRID_Y = 200}.
  *
- * <p>{@code wd.stepUpCrestOrbit} alone still runs a bare navigator over a hand-built body:
- * it injects a scripted plan and re-poses the body around every tick, which no public
- * method does.
+ * <p>{@code wd.stepUpCrestOrbit} hands its bot a scripted plan through {@code mc.debug.walkPlan}
+ * and re-poses the body around every tick.
  *
  * <p><b>Origin slots.</b> All 13 take AUTO slots at the default radius, with ONE
  * exception each way:
@@ -364,7 +359,6 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BlockPos node = new BlockPos(cx, footY, cz);
         BlockPos cont = new BlockPos(cx - 1, footY + 1, cz);   // diagUp continuation, FURTHER + one higher
         BlockPos goalN = new BlockPos(cx - 3, footY + 1, cz);
-        Goal goal = new Goal.Block(goalN);
         final double poseX = node.getX() + 0.5 + 0.74;   // 0.74 b east of centre → cur2 = 0.74² ≈ 0.548
         final double poseY = footY;                       // foot at the node block-Y (|dyNode| ≈ 0)
         final double poseZ = node.getZ() + 0.5;           // centred in Z
@@ -374,53 +368,54 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, poseX, poseY, poseZ);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, poseX, poseY, poseZ);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);       // resistance only — keeps a stray bonk from harming mid-test
-        LevelWorldView w = new LevelWorldView(level, fp);
 
         int[] advanceTick = { -1, -1 };
         int[] nodeDwell = new int[2];
         boolean[] advanced = new boolean[2];
         double[] obsCur2 = { Double.NaN, Double.NaN };
+        List<DebugContracts.PlanEdge> plan = List.of(
+                ScenePlan.edge(approach, "walk"),
+                ScenePlan.edge(node, "stepUp"),
+                ScenePlan.edge(cont, "diagUp"),
+                ScenePlan.edge(goalN, "walk"));
         for (int leg = 0; leg < 2; leg++) {
             Harness.set("navigatorStepUpCrestReach", (leg == 1));
             Harness.set("navigatorDebug", true);
             fp.setPos(poseX, poseY, poseZ);
             fp.setDeltaMovement(0, 0, 0);
-            Navigator navigator = new Navigator();
-            List<BlockPos> plan = List.of(approach, node, cont, goalN);
-            List<Move.Edge> planEdges = List.of(
-                    new Move.Edge(approach, 10, List.of(), List.of(), "walk"),
-                    new Move.Edge(node, 10, List.of(), List.of(), "stepUp"),
-                    new Move.Edge(cont, 10, List.of(), List.of(), "diagUp"),
-                    new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-            navigator.replay(w, plan, planEdges, goal, node);
+            bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), plan)
+                    .goal(Targets.block(goalN)).from(Targets.pos(node)));
 
-            Locomotor.Status s = Locomotor.Status.MOVING;
-            for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
+            boolean walking = true;
+            int endStep = 0;
+            for (int t = 0; t < 200 && walking; t++) {
                 fp.setPos(poseX, poseY, poseZ);
                 fp.setDeltaMovement(0, 0, 0);
-                s = navigator.tick(av, w);
-                av.step();
+                bot.tick();
+                walking = bot.busy();
                 fp.setPos(poseX, poseY, poseZ);     // re-assert after physics too
                 fp.setDeltaMovement(0, 0, 0);
-                BlockPos pn = navigator.inspect().pathNode();
-                if (pn != null && pn.equals(node)) {
+                BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
+                if (at == null) continue;
+                endStep = at.step();
+                if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
                     double dx = (node.getX() + 0.5) - poseX;
                     double dz = (node.getZ() + 0.5) - poseZ;
                     obsCur2[leg] = dx * dx + dz * dz;
                     nodeDwell[leg]++;
                 }
-                if (advanceTick[leg] < 0 && navigator.pathStep() >= 2) {
+                if (advanceTick[leg] < 0 && at.step() >= 2) {
                     advanceTick[leg] = t;
                     advanced[leg] = true;
                 }
             }
-            TestMod.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} step={}",
-                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
-                    String.format(Locale.ROOT, "%.3f", obsCur2[leg]), s);
+            bot.cancel();
+            TestMod.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} walking={}",
+                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], endStep,
+                    String.format(Locale.ROOT, "%.3f", obsCur2[leg]), walking);
         }
         if (!(obsCur2[0] > 0.45 && obsCur2[0] < 1.3))
             ctx.fail("stepUpCrestOrbit: the held pose cur2=" + String.format(Locale.ROOT, "%.3f", obsCur2[0])

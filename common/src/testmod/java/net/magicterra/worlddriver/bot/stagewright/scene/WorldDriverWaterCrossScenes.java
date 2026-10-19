@@ -4,28 +4,18 @@ import java.util.List;
 import java.util.Locale;
 
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanParams;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-// wd.waterStepDownFloat and wd.forbidDigPadRam hand a bare navigator a scripted plan (Navigator.replay)
-// and tick it; the api has no way to impose a plan, so those two stay on the internals until StageWright
-// grows one.
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorSettings;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.rules.SearchProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -67,7 +57,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li>{@code try/finally} per-key config save/restore → {@code Harness.pin(ctx)} (the pinned
  *       baseline, restored when the scene ends) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → a per-scene roster bot ({@code SceneBot.spawn},
- *       removed when the scene ends; the two replay arms keep a bare server-side player). The
+ *       removed when the scene ends; the two replay arms hand theirs a scripted plan through
+ *       {@code mc.debug.walkPlan}). The
  *       legacy per-arena isolation batches drop out — a per-scene player cannot bleed into another
  *       scene;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects};</li>
@@ -332,8 +323,6 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
         level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());   // head-wall at the node cell
 
-        Goal goal = new Goal.Block(goalN);
-
         Harness.pin(ctx);
         Harness.set("allowBreak", false);          // no carving — the stall must be the buoyant reach, not a dig
         Harness.set("allowPlace", false);
@@ -349,48 +338,43 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             Harness.set("navigatorDebug", true);
             // SEED the bot in the EAST-adjacent 1-deep water cell (cx+1), pressed WEST toward the head-walled
             // node, with a small west velocity. It grounds (foot=waterY) but its head is blocked → pins short.
-            ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
-            ServerPlayer fp = av.fakePlayer();
-            final ServerPlayer fpc = fp;
-            ctx.cleanup(() -> fpc.discard());
+            SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, waterY, cz + 0.5);
+            ServerPlayer fp = bot.player();
             fp.setDeltaMovement(-0.10, 0, 0);
             SimProbes.grantWaterEffects(fp);
-            LevelWorldView w = new LevelWorldView(level, fp);
-            Navigator navigator = new Navigator();
             // Plan: step0 = east approach cell (cx+1) → step1 = NODE → cont → goal, all WEST along the shelf.
+            // Replay mode: the safety repath is DISABLED, so the OFF run's wedge is a TRUE permanent stall
+            // (no A* escape muddies the A/B).
             BlockPos approach = new BlockPos(cx + 1, waterY, cz);
-            List<BlockPos> plan = List.of(approach, node, cont, goalN);
-            List<Move.Edge> planEdges = List.of(
-                    new Move.Edge(approach, 10, List.of(), List.of(), "walk"),
-                    new Move.Edge(node,  10, List.of(), List.of(), "stepDown"),   // the water-surface foothold
-                    new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
-                    new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-            // beginReplay: pin the scripted plan with replayMode → the safety repath is DISABLED, so the OFF
-            // run's wedge is a TRUE permanent stall (no A* escape muddies the A/B).
-            navigator.replay(w, plan, planEdges, goal, approach);
+            bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), padPlan(approach, node, cont, goalN))
+                    .goal(Targets.block(goalN)).from(Targets.pos(approach)));
 
-            Locomotor.Status s = Locomotor.Status.MOVING;
-            for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
-                s = navigator.tick(av, w);
-                av.step();
-                BlockPos pn = navigator.inspect().pathNode();
-                if (pn != null && pn.equals(node)) {
+            boolean walking = true;
+            int endStep = 0;
+            for (int t = 0; t < 200 && walking; t++) {
+                bot.tick();
+                walking = bot.busy();
+                BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
+                if (at == null) continue;
+                endStep = at.step();
+                if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
                     double dx = (node.getX() + 0.5) - fp.getX();
                     double dz = (node.getZ() + 0.5) - fp.getZ();
                     minCur2[leg] = Math.min(minCur2[leg], dx * dx + dz * dz);
                     nodeDwell[leg]++;            // ticks the step-pointer sat ON the water node
                 }
                 // ADVANCE = the step-pointer moved PAST the water node (step>=2).
-                if (advanceTick[leg] < 0 && navigator.pathStep() >= 2) {
+                if (advanceTick[leg] < 0 && at.step() >= 2) {
                     advanceTick[leg] = t;
                     advanced[leg] = true;
                 }
             }
-            TestMod.LOG.info("[wd.waterStepDownFloat] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} minCur2={} endPos=({},{},{}) step={}",
-                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
+            TestMod.LOG.info("[wd.waterStepDownFloat] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} minCur2={} endPos=({},{},{}) walking={}",
+                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], endStep,
                     String.format(Locale.ROOT, "%.3f", minCur2[leg]),
                     String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
-                    String.format(Locale.ROOT, "%.2f", fp.getZ()), s);
+                    String.format(Locale.ROOT, "%.2f", fp.getZ()), walking);
+            bot.remove();
         }
         // CONFIRM the pin reproduced: the OFF run must have stayed above the tight reach gate.
         if (minCur2[0] < 0.45)
@@ -415,7 +399,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
     /** Ported from {@code AgentGameTestWaterCross#forbidDigPadRamArena}: the engine-gap per-goto
      *  {@code forbidDig} execution-layer leak — the lily-pad head-on break, the one executor dig-fallback
-     *  that reproduces under a clean {@link NoBreak} plan. Phase A ({@code NoBreak}): the pad MUST survive
+     *  that reproduces under a clean {@code break: never} plan. Phase A ({@code break: never}): the pad MUST survive
      *  (pre-fix RED = the head-on break punches it despite forbidDig). Phase B (no constraint): the pad MUST
      *  be removed (proof the gate is precise). {@code allowBreak=true} throughout — the leak precondition. */
     private static void forbidDigPadRam(SceneContext ctx) {
@@ -445,8 +429,6 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());       // head-wall → deterministic pin
             level.setBlockAndUpdate(padCell, Blocks.LILY_PAD.defaultBlockState());
         };
-        Goal goal = new Goal.Block(goalN);
-
         Harness.pin(ctx);
         Harness.set("allowBreak", true);             // leak precondition: only forbidDig should stop the pad punch
         Harness.set("allowPlace", false);
@@ -456,12 +438,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         // Phase A: forbidDig (NoBreak) — the pad MUST survive.
         setup.run();
-        boolean survivedA = runPadLeg(ctx, level, cx, cz, waterY, node, cont, goalN, goal,
-                new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak())), padCell);
+        boolean survivedA = runPadLeg(ctx, level, cx, cz, waterY, node, cont, goalN,
+                Routes.plain().noBreak().build(), padCell);
         // Phase B: no constraint (precision) — the head-on break MUST fire, removing the pad.
         setup.run();
-        boolean survivedB = runPadLeg(ctx, level, cx, cz, waterY, node, cont, goalN, goal,
-                SearchProfile.NONE, padCell);
+        boolean survivedB = runPadLeg(ctx, level, cx, cz, waterY, node, cont, goalN,
+                Routes.plain().build(), padCell);
         TestMod.LOG.info("[wd.forbidDigPadRam] survivedA(forbidDig)={} survivedB(plain)={}", survivedA, survivedB);
         if (!survivedA)
             ctx.fail("forbidDigPadRam: forbidDig LEAK: the head-on lily-pad break punched the pad despite NoBreak "
@@ -471,32 +453,30 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "(pad removed) — the pad survived, so the gate OVER-KILLED legitimate pad clearance.");
     }
 
-    /** Seed the buoyant pin, drive the scripted plan under {@code profile}, return whether the lily pad at
+    /** Seed the buoyant pin, drive the scripted plan under {@code route}, return whether the lily pad at
      *  {@code padCell} SURVIVED (still a lily pad) after 120 ticks. See {@link #forbidDigPadRam}. */
     private static boolean runPadLeg(SceneContext ctx, ServerLevel level, int cx, int cz, int waterY,
-                                     BlockPos node, BlockPos cont, BlockPos goalN, Goal goal,
-                                     SearchProfile profile, BlockPos padCell) {
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+                                     BlockPos node, BlockPos cont, BlockPos goalN,
+                                     RouteContracts.Route route, BlockPos padCell) {
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, waterY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.setDeltaMovement(-0.10, 0, 0);        // residual west approach momentum → press into the head-wall
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator(NavigatorSettings.DEFAULT.withProfile(profile));
         BlockPos approach = new BlockPos(cx + 1, waterY, cz);
-        List<BlockPos> plan = List.of(approach, node, cont, goalN);
-        List<Move.Edge> planEdges = List.of(
-                new Move.Edge(approach, 10, List.of(), List.of(), "walk"),
-                new Move.Edge(node,  10, List.of(), List.of(), "stepDown"),
-                new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
-                new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-        navigator.replay(w, plan, planEdges, goal, approach);
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 120 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
-        }
+        bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), padPlan(approach, node, cont, goalN))
+                .goal(Targets.block(goalN)).from(Targets.pos(approach)).route(route));
+        bot.tickUntilIdle(120);
+        bot.remove();
         return level.getBlockState(padCell).is(Blocks.LILY_PAD);
+    }
+
+    /** The scripted crossing both water-surface arenas replay: approach, the stepDown onto the node, on west. */
+    private static List<DebugContracts.PlanEdge> padPlan(BlockPos approach, BlockPos node, BlockPos cont, BlockPos goalN) {
+        return List.of(
+                ScenePlan.edge(approach, "walk"),
+                ScenePlan.edge(node, "stepDown"),      // the water-surface foothold
+                ScenePlan.edge(cont, "walk"),
+                ScenePlan.edge(goalN, "walk"));
     }
 
     /** Ported from {@code AgentGameTestWaterCross#deepWaterSubmergedCrossArena}: deep-water submerged-crossing

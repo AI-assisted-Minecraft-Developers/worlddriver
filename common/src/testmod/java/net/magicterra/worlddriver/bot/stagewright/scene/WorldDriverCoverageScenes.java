@@ -3,19 +3,14 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -46,9 +41,8 @@ import net.minecraft.world.level.block.Blocks;
  * counter diff — registry-growth relocation cannot flip them.
  *
  * <p>Each course is a roster bot sent through {@code mc.bot.goto} and ticked in full by the scene,
- * reading the navigator through {@code mc.debug.navigator}. Only
- * {@code wd.surfacePillarPointerNeedsItsSupport} still drives a bare {@code Navigator}: it hands the
- * navigator a synthetic plan, which no api call does.
+ * reading the navigator through {@code mc.debug.navigator}; {@code wd.surfacePillarPointerNeedsItsSupport}
+ * hands its bot a synthetic plan through {@code mc.debug.walkPlan} instead.
  */
 public final class WorldDriverCoverageScenes implements SceneProvider {
 
@@ -774,6 +768,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         return bot.navigator().traces().getOrDefault("progressProbe", "");
     }
 
+    /** The move entering the node the plan steers at now, or null without a plan. */
+    private static String move(SceneBot bot) {
+        return bot.navigator().plan().flatMap(BotDebugContracts.PlanCursor::move).orElse(null);
+    }
+
+    /** The plan's step pointer, 0 without a plan. */
+    private static int step(SceneBot bot) {
+        return bot.navigator().plan().map(BotDebugContracts.PlanCursor::step).orElse(0);
+    }
+
     /** The process-wide count of navigator expectation alarms fired ({@code mc.debug.navigator} counters). */
     private static long alarmsFired(SceneBot bot) {
         return bot.navigator().counter("expectAlarmsFired");
@@ -856,21 +860,18 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // by walk.goalSnapped=false. The real cause was the plan's shape (see the plan below).
         Harness.set("navigatorPillarReachGoalNoSnap", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // something to place
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-
         // Vacuity guards. Each names the way this arena could go green while staging a DIFFERENT
         // case — which is the failure mode a scene about a flag-gated branch is most exposed to.
-        if (!w.isWater(dest))
+        if (!level.getFluidState(dest).is(FluidTags.WATER))
             ctx.fail("surfacePillar: the destination cell " + dest.toShortString() + " is not water; "
                     + "shaftFlooded would be false on both sides, there is no divergence to observe, and a pass proves nothing.");
-        if (w.isWater(dest.above()))
+        if (level.getFluidState(dest.above()).is(FluidTags.WATER))
             ctx.fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, "
                     + "not a water-surface shaft; the carve-out condition does not hold and the assertion degenerates to 0==0.");
         if (!Harness.flag("navigatorPillarSurfacePlace"))
@@ -889,39 +890,21 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // destination therefore cannot ever witness its own placement — not because of buoyancy or
         // water, but by construction. Continuing one cell past it is what buys the climb a tick.
         final BlockPos crest = dest.above();                    // node 2 — the goal, one above dest
-        ScenePlan sp = ScenePlan.syntheticPlan(foot,
-                List.of(dest, crest),
-                List.of(new Move.Edge(dest,  10, List.of(), List.of(support), "pillarUp"),
-                        new Move.Edge(crest, 10, List.of(), List.of(dest),    "pillarUp")));
-        List<BlockPos> plan = sp.nodes();
-        List<Move.Edge> edges = sp.edges();
-
-        Navigator navigator = new Navigator();
-        // GOAL FIRST, then adopt. {@code start} nulls path and edges (Navigator:783-785), so adopting
-        // before it hands the navigator a plan and then throws that plan away. And ticking with NO goal
-        // is not an option either: the per-tick decisions dereference {@code nav.goal} unguarded, so
-        // the first version of this scene died on tick one with an NPE and never reached a single
-        // one of the vacuity gates above — a scene that compiles and asserts nothing.
+        // Follow mode: adopted as a search result, recovery on, which is the world the divergence lives in.
+        // The leading start node is the factory's job; without it the adoption finishes the plan unwalked.
+        List<DebugContracts.PlanEdge> plan = ScenePlan.syntheticPlan(foot, List.of(
+                ScenePlan.edge(dest, "pillarUp", List.of(support)),
+                ScenePlan.edge(crest, "pillarUp", List.of(dest))));
         // The goal is the CREST, not dest. Goal.Block.reached is exact cell equality, so a goal of
         // dest would terminate the run on the very tick the player first rises clear of the support —
         // the one tick the placement becomes legal — and WalkerTickClimb would never get to run it.
-        navigator.start(new Goal.Block(crest));
-        // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
-        // segment is one the navigator may replace, and on the first run it did — inside tick ONE it ran
-        // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
-        // tell was walk.endReason=path-consumed, a class classifyArrival can only return with
-        // seg.pathBestEffort FALSE, which the scene's own adopt had set TRUE — so something re-adopted.
-        // This plan's last node IS the goal cell, so declaring otherwise was simply wrong.
-        if (!navigator.adoptForTest(w, plan, edges, foot, true))
-            ctx.fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); "
-                    + "none of the rows below describe the subject under test.");
-        // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
-        // pointer at all? the adoption starts at step 1, so this reads "the pointer is on the pillarUp
-        // edge" directly rather than inferring it from the plan's shape. Three runs died upstream of every other
-        // guard because nothing asked this one question.
-        if (!"pillarUp".equals(navigator.inspect().pathMove()))
-            ctx.fail("surfacePillar: after adopt the pointer is on " + navigator.inspect().pathMove() + ", not pillarUp; "
-                    + "the subject under test left the pointer before a single tick ran. probe=" + navigator.inspect().progressProbe());
+        // goalReached=TRUE, and it is not cosmetic: a best-effort segment is one the navigator may
+        // replace, and on the first run it did — inside tick ONE it ran a continuation search, adopted a
+        // real path and threw the synthetic pillarUp edge away. The tell was walk.endReason=path-consumed,
+        // a class classifyArrival can only return with seg.pathBestEffort FALSE, which the scene's own adopt
+        // had set TRUE — so something re-adopted. This plan's last node IS the goal cell.
+        bot.walkPlan(DebugContracts.WalkPlanParams.follow(bot.ref(), plan, true)
+                .goal(Targets.block(crest)).from(Targets.pos(foot)));
 
         final double startY = fp.getY();
         double maxY = startY;
@@ -934,27 +917,36 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // and that is deliberate: a placement that lands AFTER the pointer moved on does not undo
         // the advance, it just hides it from a post-hoc read of the world.
         boolean pointerPastUnplaced = false;
-        int maxStep = navigator.pathStep();
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        int maxStep = 0;
+        boolean walking = true;
         int t = 0;
-        for (; t < 200 && s == Locomotor.Status.MOVING; t++) {
-            // BEFORE the tick as well as after: pathMove() reads the edge at the CURRENT step pointer,
+        // The plan is adopted on the walk's first tick, so a pre-tick sample only means something from the second.
+        for (; t < 200 && walking; t++) {
+            // BEFORE the tick as well as after: the move reads the edge at the CURRENT step pointer,
             // and a tick that executes an edge and then consumes its node leaves the pointer past it —
             // so a post-tick-only sample can miss an edge that was run and immediately consumed. The
             // question is "was pillarUp the edge this tick was about to run", and only this side answers it.
-            if ("pillarUp".equals(navigator.inspect().pathMove())) ranPillarUp = true;
-            s = navigator.tick(av, w);
-            av.step();
+            if (t > 0 && "pillarUp".equals(move(bot))) ranPillarUp = true;
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
-            if ("pillarUp".equals(navigator.inspect().pathMove())) ranPillarUp = true;
+            if ("pillarUp".equals(move(bot))) ranPillarUp = true;
             // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
             // from the first tick and would report a placement that never happened.
             if (level.getBlockState(support).blocksMotion()) placed = true;
-            maxStep = Math.max(maxStep, navigator.pathStep());
+            int step = step(bot);
+            maxStep = Math.max(maxStep, step);
             // Order matters: `placed` is refreshed from the world one line above, so this asks
             // "is the support still open water AT THE MOMENT the pointer sits past its edge".
-            if (navigator.pathStep() >= 2 && !placed) pointerPastUnplaced = true;
+            if (step >= 2 && !placed) pointerPastUnplaced = true;
         }
+        BotDebugContracts.NavigatorReading nav = bot.navigator();
+        String walk = nav.traces().getOrDefault("walkResult", "");
+        String s = ending(bot);
+        // The plan is adopted on the walk's first tick and the anchor gate can refuse it there.
+        if (s.contains("the plan was refused"))
+            ctx.fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); "
+                    + "none of the rows below describe the subject under test: " + s);
 
         ctx.record("pillar.destination", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
         ctx.record("pillar.support", support.toShortString() + " placed=" + placed
@@ -981,15 +973,14 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 : "the bot never rose to the placement threshold: this run did not test the divergence; "
                         + "do not read it as a pass");
         // An outcome without its reason is not an instrument: an outcome of "ARRIVED, 1/200 ticks"
-        // names neither the goal snap nor the repath. lastEndReason is written at every terminal()
-        // call site and carries the arrival CLASS, goalSnapped included.
-        ctx.record("walk.endReason", String.valueOf(navigator.result().endReason()));
-        ctx.record("walk.goalSnapped", navigator.result().goalSnapped());
+        // names neither the goal snap nor the repath. The walk result carries the arrival CLASS,
+        // goalSnapped included.
+        ctx.record("walk.result", walk);
         // The plan the navigator ENDED with, next to the one this scene handed it. A swap is the single
         // most likely way this arena stops being about its subject, and inferring it from a terminal
         // class took a full gate run; these two print it.
-        ctx.record("walk.finalPlan", navigator.inspect().planTally());
-        ctx.record("walk.progressProbe", navigator.inspect().progressProbe());
+        ctx.record("walk.finalPlan", nav.traces().getOrDefault("planTally", ""));
+        ctx.record("walk.progressProbe", nav.traces().getOrDefault("progressProbe", ""));
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
         // the WORLD; none of them checks that the SUBJECT ran. Handing the navigator a goal makes it
@@ -1000,7 +991,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // least two very different explanations — a repath swapped the edge, or the goal was snapped
         // off the cell before tick one — and the guard below cannot tell them apart. This one reads
         // the snap bit directly, so it must come first.
-        if (navigator.result().goalSnapped())
+        if (walk.contains("goalSnapped=true"))
             ctx.fail("surfacePillar: snapGoalToStandable moved the goal from " + dest.toShortString()
                     + " to a different cell, so the navigator is not driving toward the cell under test and every row below "
                     + "describes a different move. This step's destination is unstandable by construction (the support "
