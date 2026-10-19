@@ -1,17 +1,30 @@
 package net.magicterra.worlddriver.api.methods.script;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.annotation.As;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.OnlyObject;
+import net.magicterra.worlddriver.api.schema.annotation.Pattern;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * The script runs: {@code mc.script.eval}, the skill library {@code mc.skill} and the boss playbooks
@@ -34,7 +47,11 @@ public final class ScriptContracts {
     // ------------------------------------------------------------------ the outcome of a run
 
     /** One problem with a value an API call was given, as the API reported it. */
-    public record Issue(String path, String code, String message) {}
+    @Named("ScriptIssue")
+    public record Issue(
+            String path,
+            @As(value = ScriptContracts.class, field = "ISSUE_CODE") String code,
+            String message) {}
 
     /**
      * Why a script ended without a value. {@code code} is an API error code when a {@code Driver} call threw
@@ -42,15 +59,33 @@ public final class ScriptContracts {
      * {@code script_error} (the script threw), {@code script_timeout} or {@code script_stopped}. {@code line}
      * is where in the source it was thrown, when the engine knows.
      */
-    public record ScriptError(String code, String message, List<Issue> issues, Optional<String> execution,
-                              Optional<Integer> line) {}
+    @Named("ScriptError")
+    public record ScriptError(
+            @As(value = ScriptContracts.class, field = "ERROR_CODE") String code,
+            String message,
+            List<Issue> issues,
+            @Doc("Present when a Driver call threw: whether that call may have taken effect.")
+            Optional<@As(value = ScriptContracts.class, field = "EXECUTION") String> execution,
+            Optional<@Range(min = 0) Integer> line) {}
 
     /** {@code result} is the value of the script's last expression; absent when it is null or undefined, or {@code error} is set. */
-    public record Outcome(String runId, Optional<JsonValue> result, Optional<ScriptError> error, List<String> log, long ms) {}
+    @Named("ScriptOutcome")
+    public record Outcome(
+            @Length(min = 1, max = 64) String runId,
+            @Doc("Absent when the value is null or undefined, or the script failed.") Optional<JsonValue> result,
+            Optional<ScriptError> error,
+            @Doc("What console.log and console.error wrote, in order.") List<String> log,
+            @Range(min = 0) long ms) {}
 
     public static final String SCRIPT_ERROR = "script_error";
     public static final String SCRIPT_TIMEOUT = "script_timeout";
     public static final String SCRIPT_STOPPED = "script_stopped";
+
+    // Spelled from the enums they mirror, so a new API error code is a script error code too; declared before
+    // the records that use them are built.
+    private static final ApiType<String> ERROR_CODE = errorCode();
+    private static final ApiType<String> ISSUE_CODE = issueCode();
+    private static final ApiType<String> EXECUTION = executionWord();
 
     private static ApiType<String> errorCode() {
         List<String> codes = new ArrayList<>();
@@ -73,50 +108,20 @@ public final class ScriptContracts {
         return ApiTypes.stringEnum("ScriptExecution", words.toArray(String[]::new));
     }
 
-    private static final ApiType<Issue> ISSUE = ApiTypes.record(Issue.class, "ScriptIssue",
-            ApiField.field("path", ApiTypes.string()).required().forGetter(Issue::path),
-            ApiField.field("code", issueCode()).required().forGetter(Issue::code),
-            ApiField.field("message", ApiTypes.string()).required().forGetter(Issue::message),
-            Issue::new);
+    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class);
 
-    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class, "ScriptError",
-            ApiField.field("code", errorCode()).required().forGetter(ScriptError::code),
-            ApiField.field("message", ApiTypes.string()).required().forGetter(ScriptError::message),
-            ApiField.field("issues", ApiTypes.list(ISSUE, Integer.MAX_VALUE)).required().forGetter(ScriptError::issues),
-            ApiField.field("execution", executionWord())
-                    .describe("Present when a Driver call threw: whether that call may have taken effect.")
-                    .optional().forGetter(ScriptError::execution),
-            ApiField.field("line", ApiTypes.integer(0, Integer.MAX_VALUE)).optional().forGetter(ScriptError::line),
-            ScriptError::new);
-
-    public static final ApiType<String> RUN_ID = ApiTypes.string(1, 64);
-
-    private static final ApiType<List<String>> LOG = ApiTypes.list(ApiTypes.string(), Integer.MAX_VALUE);
-
-    public static final ApiType<Outcome> OUTCOME = ApiTypes.record(Outcome.class, "ScriptOutcome",
-            ApiField.field("runId", RUN_ID).required().forGetter(Outcome::runId),
-            ApiField.field("result", ApiTypes.json()).describe("Absent when the value is null or undefined, or the script failed.")
-                    .optional().forGetter(Outcome::result),
-            ApiField.field("error", SCRIPT_ERROR_TYPE).optional().forGetter(Outcome::error),
-            ApiField.field("log", LOG).describe("What console.log and console.error wrote, in order.")
-                    .required().forGetter(Outcome::log),
-            ApiField.field("ms", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(Outcome::ms),
-            Outcome::new);
-
-    private static final ApiType<String> SOURCE = ApiTypes.string(1, MAX_SOURCE_CHARS);
-
-    private static final ApiType<Integer> TIMEOUT_MS = ApiTypes.integer(1, MAX_TIMEOUT_MS);
+    public static final ApiType<Outcome> OUTCOME = ApiTypes.record(Outcome.class);
 
     // ------------------------------------------------------------------ mc.script.eval
 
-    public record EvalParams(String source, int timeoutMs) {}
+    @Named("EvalParams")
+    public record EvalParams(
+            @Doc("JavaScript. The value of its last expression is the result.")
+            @Length(min = 1, max = 65536) String source,
+            @Doc("The run's budget; when it runs out the run is stopped.") @Default("3000")
+            @Range(min = 1, max = 30000) int timeoutMs) {}
 
-    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record(EvalParams.class, "EvalParams",
-            ApiField.field("source", SOURCE).describe("JavaScript. The value of its last expression is the result.")
-                    .required().forGetter(EvalParams::source),
-            ApiField.field("timeoutMs", TIMEOUT_MS).describe("The run's budget; when it runs out the run is stopped.")
-                    .defaulted(DEFAULT_TIMEOUT_MS).forGetter(EvalParams::timeoutMs),
-            EvalParams::new);
+    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record(EvalParams.class);
 
     // The sandbox sentence is negative on purpose: the filter is off by default, and this text reaches every
     // client's prompt, so claiming a sandbox would invite untrusted source.
@@ -133,67 +138,48 @@ public final class ScriptContracts {
 
     // ------------------------------------------------------------------ mc.skill
 
-    public static final ApiType<String> SKILL_NAME = ApiTypes.pattern("[a-z][a-z0-9_]{0,63}", "a skill name such as dig_down");
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z][a-z0-9_]{0,63}", expected = "a skill name such as dig_down")
+    public @interface SkillName {}
 
+    @Tag("op") @Named("SkillParams")
     public sealed interface SkillOp permits SaveSkill, ListSkills, GetSkill, RunSkill, DeleteSkill {}
-    public record SaveSkill(String name, String source) implements SkillOp {}
+    @Variant("save")
+    public record SaveSkill(
+            @SkillName String name,
+            @Doc("Checked for syntax before it is saved; reads its args from SKILL.")
+            @Length(min = 1, max = 65536) String source) implements SkillOp {}
+    @Variant("list")
     public record ListSkills() implements SkillOp {}
-    public record GetSkill(String name) implements SkillOp {}
-    public record RunSkill(String name, Optional<JsonValue> args, int timeoutMs) implements SkillOp {}
-    public record DeleteSkill(String name) implements SkillOp {}
+    @Variant("get")
+    public record GetSkill(@SkillName String name) implements SkillOp {}
+    @Variant("run")
+    public record RunSkill(
+            @SkillName String name,
+            @Doc("The SKILL global. Omitted: an empty object.") Optional<JsonValue> args,
+            @Default("3000") @Range(min = 1, max = 30000) int timeoutMs) implements SkillOp {}
+    @Variant("delete")
+    public record DeleteSkill(@SkillName String name) implements SkillOp {}
 
-    public static final UnionType<SkillOp> SKILL_PARAMS = ApiTypes.taggedUnion("SkillParams", "op",
-            ApiTypes.variant("save", SaveSkill.class, ApiTypes.record(SaveSkill.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(SaveSkill::name),
-                    ApiField.field("source", SOURCE).describe("Checked for syntax before it is saved; reads its args from SKILL.")
-                            .required().forGetter(SaveSkill::source),
-                    SaveSkill::new)),
-            ApiTypes.variant("list", ListSkills.class, ApiTypes.record(ListSkills.class, null, ListSkills::new)),
-            ApiTypes.variant("get", GetSkill.class, ApiTypes.record(GetSkill.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(GetSkill::name), GetSkill::new)),
-            ApiTypes.variant("run", RunSkill.class, ApiTypes.record(RunSkill.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(RunSkill::name),
-                    ApiField.field("args", ApiTypes.json()).describe("The SKILL global. Omitted: an empty object.")
-                            .optional().forGetter(RunSkill::args),
-                    ApiField.field("timeoutMs", TIMEOUT_MS).defaulted(DEFAULT_TIMEOUT_MS).forGetter(RunSkill::timeoutMs),
-                    RunSkill::new)),
-            ApiTypes.variant("delete", DeleteSkill.class, ApiTypes.record(DeleteSkill.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(DeleteSkill::name), DeleteSkill::new)));
+    public static final UnionType<SkillOp> SKILL_PARAMS = ApiTypes.union(SkillOp.class);
 
+    @Tag("op") @Named("SkillReply")
     public sealed interface SkillReply permits SkillSaved, SkillList, SkillSource, SkillRan, SkillDeleted {}
-    public record SkillSaved(String name, int bytes) implements SkillReply {}
-    public record SkillEntry(String name, long bytes) {}
-    public record SkillList(List<SkillEntry> skills) implements SkillReply {}
-    public record SkillSource(String name, String source) implements SkillReply {}
-    public record SkillRan(String name, Outcome outcome) implements SkillReply {}
-    public record SkillDeleted(String name, boolean existed) implements SkillReply {}
+    @Variant("save")
+    public record SkillSaved(@SkillName String name, @Range(min = 0) int bytes) implements SkillReply {}
+    @Named("SkillEntry")
+    public record SkillEntry(@SkillName String name, @Range(min = 0) long bytes) {}
+    @Variant("list")
+    public record SkillList(@Doc("By name.") List<SkillEntry> skills) implements SkillReply {}
+    @Variant("get")
+    public record SkillSource(@SkillName String name, String source) implements SkillReply {}
+    @Variant("run")
+    public record SkillRan(@SkillName String name, Outcome outcome) implements SkillReply {}
+    @Variant("delete")
+    public record SkillDeleted(@SkillName String name, boolean existed) implements SkillReply {}
 
-    private static final ApiType<SkillEntry> SKILL_ENTRY = ApiTypes.record(SkillEntry.class, "SkillEntry",
-            ApiField.field("name", SKILL_NAME).required().forGetter(SkillEntry::name),
-            ApiField.field("bytes", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(SkillEntry::bytes),
-            SkillEntry::new);
-
-    public static final UnionType<SkillReply> SKILL_REPLY = ApiTypes.taggedUnion("SkillReply", "op",
-            ApiTypes.variant("save", SkillSaved.class, ApiTypes.record(SkillSaved.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(SkillSaved::name),
-                    ApiField.field("bytes", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(SkillSaved::bytes),
-                    SkillSaved::new)),
-            ApiTypes.variant("list", SkillList.class, ApiTypes.record(SkillList.class, null,
-                    ApiField.field("skills", ApiTypes.list(SKILL_ENTRY, Integer.MAX_VALUE)).describe("By name.")
-                            .required().forGetter(SkillList::skills),
-                    SkillList::new)),
-            ApiTypes.variant("get", SkillSource.class, ApiTypes.record(SkillSource.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(SkillSource::name),
-                    ApiField.field("source", ApiTypes.string()).required().forGetter(SkillSource::source),
-                    SkillSource::new)),
-            ApiTypes.variant("run", SkillRan.class, ApiTypes.record(SkillRan.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(SkillRan::name),
-                    ApiField.field("outcome", OUTCOME).required().forGetter(SkillRan::outcome),
-                    SkillRan::new)),
-            ApiTypes.variant("delete", SkillDeleted.class, ApiTypes.record(SkillDeleted.class, null,
-                    ApiField.field("name", SKILL_NAME).required().forGetter(SkillDeleted::name),
-                    ApiField.field("existed", ApiTypes.bool()).required().forGetter(SkillDeleted::existed),
-                    SkillDeleted::new)));
+    public static final UnionType<SkillReply> SKILL_REPLY = ApiTypes.union(SkillReply.class);
 
     public static final MethodSpec<SkillOp, SkillReply> SKILL = MethodSpec.of("mc.skill", SKILL_PARAMS, SKILL_REPLY,
                     "A library of saved scripts, kept across sessions under config/worlddriver/scripts/skills/. save "
@@ -206,59 +192,53 @@ public final class ScriptContracts {
 
     // ------------------------------------------------------------------ mc.bot.playbook
 
-    public static final ApiType<String> PLAYBOOK_NAME = ApiTypes.pattern("[a-z][a-z0-9_]{0,63}", "a playbook name such as dragon");
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z][a-z0-9_]{0,63}", expected = "a playbook name such as dragon")
+    public @interface PlaybookName {}
 
+    @Tag("op") @Named("PlaybookParams")
     public sealed interface PlaybookOp permits StartPlaybook, PlaybookStatus, CancelPlaybook {}
-    public record StartPlaybook(String name, int budgetMs, Optional<JsonValue> args) implements PlaybookOp {}
+    @Variant("start")
+    public record StartPlaybook(
+            @Doc("Built in: dragon, wither.") @PlaybookName String name,
+            @Doc("The run's budget; when it runs out the run is stopped.") @Default("600000")
+            @Range(min = 1, max = 1200000) int budgetMs,
+            @Doc("The PLAYBOOK global. dragon and wither read maxRounds; wither reads summon (default true; false "
+                    + "only checks the gear). Omitted: an empty object.")
+            Optional<@OnlyObject JsonValue> args) implements PlaybookOp {}
+    @Variant("status")
     public record PlaybookStatus() implements PlaybookOp {}
+    @Variant("cancel")
     public record CancelPlaybook() implements PlaybookOp {}
 
-    public static final UnionType<PlaybookOp> PLAYBOOK_PARAMS = ApiTypes.taggedUnion("PlaybookParams", "op",
-            ApiTypes.variant("start", StartPlaybook.class, ApiTypes.record(StartPlaybook.class, null,
-                    ApiField.field("name", PLAYBOOK_NAME).describe("Built in: dragon, wither.").required()
-                            .forGetter(StartPlaybook::name),
-                    ApiField.field("budgetMs", ApiTypes.integer(1, MAX_PLAYBOOK_BUDGET_MS))
-                            .describe("The run's budget; when it runs out the run is stopped.")
-                            .defaulted(DEFAULT_PLAYBOOK_BUDGET_MS).forGetter(StartPlaybook::budgetMs),
-                    ApiField.field("args", ApiTypes.jsonObject())
-                            .describe("The PLAYBOOK global. dragon and wither read maxRounds; wither reads summon "
-                                    + "(default true; false only checks the gear). Omitted: an empty object.")
-                            .optional().forGetter(StartPlaybook::args),
-                    StartPlaybook::new)),
-            ApiTypes.variant("status", PlaybookStatus.class, ApiTypes.record(PlaybookStatus.class, null, PlaybookStatus::new)),
-            ApiTypes.variant("cancel", CancelPlaybook.class, ApiTypes.record(CancelPlaybook.class, null, CancelPlaybook::new)));
+    public static final UnionType<PlaybookOp> PLAYBOOK_PARAMS = ApiTypes.union(PlaybookOp.class);
 
+    @Tag("op") @Named("PlaybookReply")
     public sealed interface PlaybookReply permits PlaybookStarted, PlaybookState, PlaybookCancelled {}
-    public record PlaybookStarted(String name, String runId) implements PlaybookReply {}
+    @Variant("start")
+    public record PlaybookStarted(
+            @PlaybookName String name,
+            @Length(min = 1, max = 64) String runId) implements PlaybookReply {}
 
     /**
      * The running playbook, or the last one: {@code active} says which. {@code outcome} is the last run's,
      * present once it has ended.
      */
-    public record PlaybookState(boolean active, Optional<String> name, Optional<String> runId, Optional<Long> startedAtMs,
-                                boolean stopping, Optional<Outcome> outcome) implements PlaybookReply {}
+    @Variant("status")
+    public record PlaybookState(
+            boolean active,
+            Optional<@PlaybookName String> name,
+            Optional<@Length(min = 1, max = 64) String> runId,
+            Optional<@Range(min = 0) Long> startedAtMs,
+            @Doc("Asked to stop and not yet stopped.") boolean stopping,
+            Optional<Outcome> outcome) implements PlaybookReply {}
 
     /** {@code stopped}: the run that was asked to stop, absent when none was running. */
-    public record PlaybookCancelled(Optional<String> stopped) implements PlaybookReply {}
+    @Variant("cancel")
+    public record PlaybookCancelled(Optional<@Length(min = 1, max = 64) String> stopped) implements PlaybookReply {}
 
-    public static final UnionType<PlaybookReply> PLAYBOOK_REPLY = ApiTypes.taggedUnion("PlaybookReply", "op",
-            ApiTypes.variant("start", PlaybookStarted.class, ApiTypes.record(PlaybookStarted.class, null,
-                    ApiField.field("name", PLAYBOOK_NAME).required().forGetter(PlaybookStarted::name),
-                    ApiField.field("runId", RUN_ID).required().forGetter(PlaybookStarted::runId),
-                    PlaybookStarted::new)),
-            ApiTypes.variant("status", PlaybookState.class, ApiTypes.record(PlaybookState.class, null,
-                    ApiField.field("active", ApiTypes.bool()).required().forGetter(PlaybookState::active),
-                    ApiField.field("name", PLAYBOOK_NAME).optional().forGetter(PlaybookState::name),
-                    ApiField.field("runId", RUN_ID).optional().forGetter(PlaybookState::runId),
-                    ApiField.field("startedAtMs", ApiTypes.int64(0, Long.MAX_VALUE)).optional()
-                            .forGetter(PlaybookState::startedAtMs),
-                    ApiField.field("stopping", ApiTypes.bool()).describe("Asked to stop and not yet stopped.")
-                            .required().forGetter(PlaybookState::stopping),
-                    ApiField.field("outcome", OUTCOME).optional().forGetter(PlaybookState::outcome),
-                    PlaybookState::new)),
-            ApiTypes.variant("cancel", PlaybookCancelled.class, ApiTypes.record(PlaybookCancelled.class, null,
-                    ApiField.field("stopped", RUN_ID).optional().forGetter(PlaybookCancelled::stopped),
-                    PlaybookCancelled::new)));
+    public static final UnionType<PlaybookReply> PLAYBOOK_REPLY = ApiTypes.union(PlaybookReply.class);
 
     public static final MethodSpec<PlaybookOp, PlaybookReply> PLAYBOOK = MethodSpec.of("mc.bot.playbook", PLAYBOOK_PARAMS,
                     PLAYBOOK_REPLY,
