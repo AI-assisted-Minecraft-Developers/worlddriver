@@ -104,7 +104,6 @@ wd.serverSmeltStationOpens
 wd.serverCraftTableHoleRim
 wd.serverSmeltFurnaceHoleRim
 wd.smeltFuelPolicy
-wd.serverCraftGridClearHelper
 wd.serverCraftGridConservation
 wd.serverCraftFailTelemetry
 wd.serverCraftFailGridReturn

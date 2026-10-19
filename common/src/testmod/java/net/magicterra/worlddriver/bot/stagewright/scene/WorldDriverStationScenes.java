@@ -14,9 +14,7 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveApi;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeApi;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
-import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -69,7 +67,7 @@ import net.minecraft.world.level.block.Blocks;
  * straddle, and {@code ServerPlayer.doCloseContainer()} would otherwise fake-green the grid tests.
  * The legacy bodies already encode these workarounds; they are carried over verbatim.
  *
- * <p><b>Origin slots / footprints.</b> All 15 take AUTO slots at the default {@code chunkRadius=1}
+ * <p><b>Origin slots / footprints.</b> All 14 take AUTO slots at the default {@code chunkRadius=1}
  * window {@code dx/dz ∈ [−16,+31]}: every footprint fits (the widest is {@code ad.craftTableReclaim}
  * whose second, independent sub-rig is relocated from the legacy +40/+40 diagonal to a compact +16
  * X offset — its INTERNAL geometry is byte-unchanged, and every gate is a position-invariant process
@@ -92,7 +90,6 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 Scene.of("wd.serverCraftTableHoleRim", 400, WorldDriverStationScenes::serverCraftTableHoleRim),
                 Scene.of("wd.serverSmeltFurnaceHoleRim", 400, WorldDriverStationScenes::serverSmeltFurnaceHoleRim),
                 Scene.of("wd.smeltFuelPolicy", 200, WorldDriverStationScenes::smeltFuelPolicy),
-                Scene.of("wd.serverCraftGridClearHelper", 200, WorldDriverStationScenes::serverCraftGridClearHelper),
                 Scene.of("wd.serverCraftGridConservation", 200, WorldDriverStationScenes::serverCraftGridConservation),
                 Scene.of("wd.serverCraftFailTelemetry", 200, WorldDriverStationScenes::serverCraftFailTelemetry),
                 Scene.of("wd.serverCraftFailGridReturn", 200, WorldDriverStationScenes::serverCraftFailGridReturn));
@@ -760,42 +757,6 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // ==================================================================================
     // 2×2 grid clear / conservation / fail-path scenes (gap#67-③⑥).
     // ==================================================================================
-
-    /** Ported from {@code serverCraftGridClearHelperArena} (gap#67-③): the {@code
-     *  clearInventoryCraftGrid()} helper must return material stranded in the 2×2 inventory grid back
-     *  to the inventory. The grid is stuffed directly via {@code InventoryMenu.getCraftSlots()} (#64
-     *  precedent — the exact "residue is sitting there" end state) and the helper called directly. */
-    private static void serverCraftGridClearHelper(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
-        ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
-
-        Harness.clearBots(ctx);
-
-        // Left on the driver's own types: no api method returns the grid on its own. A craft's exit
-        // does (wd.serverCraftFailGridReturn), and only with closeContainer kept from doing it instead.
-        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();
-        InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
-        invMenu.getCraftSlots().setItem(0, new ItemStack(Items.OAK_LOG, 1));
-        invMenu.getCraftSlots().setItem(1, new ItemStack(Items.STICK, 2));
-
-        driver.avatar().clearInventoryCraftGrid();
-
-        boolean gridEmpty = true;
-        for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
-        int logs = countItem(fp, Items.OAK_LOG);
-        int sticks = countItem(fp, Items.STICK);
-        TestMod.LOG.info("[wd.serverCraftGridClearHelper] gridEmpty={} logs={} sticks={}",
-                gridEmpty, logs, sticks);
-        if (!gridEmpty)
-            ctx.fail("wd.serverCraftGridClearHelper: gap#67-③: clearInventoryCraftGrid left material sitting in the 2x2 grid");
-        if (logs != 1 || sticks != 2)
-            ctx.fail("wd.serverCraftGridClearHelper: gap#67-③: stranded grid material not returned to inventory: logs="
-                    + logs + " (want 1) sticks=" + sticks + " (want 2)");
-    }
 
     /** Ported from {@code serverCraftGridConservationArena} (gap#67-③): a normal successful 2×2 craft
      *  (acacia_planks from 1 acacia_log) must finish with the grid EMPTY and the inventory exactly

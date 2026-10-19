@@ -46,4 +46,3 @@ bot/stagewright/scene/WorldDriverCoreScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchive
 bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchiveRecorder
 bot/stagewright/scene/WorldDriverCoreScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverStationScenes -> bot/PlayerBot
