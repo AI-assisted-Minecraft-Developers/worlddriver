@@ -1,24 +1,38 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockOrTag;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.AwaitMs;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.SelfChecked;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
-import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
-import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
+import net.magicterra.worlddriver.api.schema.annotation.Default;
+import net.magicterra.worlddriver.api.schema.annotation.Doc;
+import net.magicterra.worlddriver.api.schema.annotation.Length;
+import net.magicterra.worlddriver.api.schema.annotation.Named;
+import net.magicterra.worlddriver.api.schema.annotation.Range;
+import net.magicterra.worlddriver.api.schema.annotation.Tag;
+import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
  * {@code mc.bot.goto}: walk (or fly) the body to a target under a route's conditions, preview that walk
@@ -31,6 +45,7 @@ public final class GotoContracts {
     public static final String METHOD = "mc.bot.goto";
 
     /** How a positional target is satisfied; ignored when {@code near} is above 0. */
+    @Named("GoalMode")
     public enum GoalMode implements WireName {
         /** Stand on the cell. */
         IN,
@@ -41,6 +56,7 @@ public final class GotoContracts {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
+    @Named("PlanMode")
     public enum PlanMode implements WireName {
         /** Search the route without walking it or interrupting a walk; the action's result describes it. */
         PREVIEW,
@@ -49,27 +65,89 @@ public final class GotoContracts {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
+    /** How close counts as there, for a target that is a cell. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @java.lang.annotation.Target(ElementType.TYPE_USE)
+    @Range(min = 0, max = 64)
+    @Doc("Accept any cell within this Euclidean radius; 0 is exact.")
+    public @interface Near {}
+
+    /** How close counts as there, for a target that is an entity. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @java.lang.annotation.Target(ElementType.TYPE_USE)
+    @Range(min = 0, max = 16)
+    @Doc("Accept any cell within this Euclidean radius; 0 is exact.")
+    public @interface EntityNear {}
+
+    @Tag("kind") @Named("GotoTarget")
     public sealed interface Target permits Position, Column, Level, BlockTarget, EntityType, EntityTarget,
             DirectionTarget, Heading, Waypoint, Axis {}
 
-    public record Position(BlockPosition pos, int near, GoalMode goalMode) implements Target {}
-    public record Column(int x, int z, int near) implements Target {}
-    public record Level(int y) implements Target {}
+    @Variant("position")
+    public record Position(
+            BlockPosition pos,
+            @Default("0") @Near int near,
+            @Default("in") GoalMode goalMode) implements Target {}
+    @Variant("column")
+    public record Column(int x, int z, @Default("0") @Near int near) implements Target {}
+    @Variant("level")
+    public record Level(
+            @Doc("Alone it drowns in sideways branches: add a hard column leash to dig straight.")
+            @Range(min = -4096, max = 4096) int y) implements Target {}
     /** The nearest cell of {@code block} (an id or a {@code #tag}) within {@code radius} that can be stood beside. */
-    public record BlockTarget(String block, int radius) implements Target {}
+    @Variant("block")
+    public record BlockTarget(
+            @BlockOrTag String block,
+            @Default("32") @Range(min = 1, max = 64) int radius) implements Target {}
     /** The nearest entity of {@code type} the body can see. */
-    public record EntityType(String type, int near, GoalMode goalMode) implements Target {}
-    public record EntityTarget(int entityId, int near, GoalMode goalMode) implements Target {}
-    public record DirectionTarget(Direction direction, int distance, int near) implements Target {}
+    @Variant("entityType")
+    public record EntityType(
+            @ResourceId String type,
+            @Default("3") @EntityNear int near,
+            @Default("in") GoalMode goalMode) implements Target {}
+    @Variant("entity")
+    public record EntityTarget(
+            @Doc("The id mc.query entities reports.") @Range(min = 0) int entityId,
+            @Default("3") @EntityNear int near,
+            @Default("in") GoalMode goalMode) implements Target {}
+    @Variant("direction")
+    public record DirectionTarget(
+            @Doc("A turning word follows the body's exact heading, diagonals included.") Direction direction,
+            @Default("8") @Range(min = 1, max = 256) int distance,
+            @Default("0") @Near int near) implements Target {}
     /** Keep going one horizontal way, with no endpoint. */
-    public record Heading(Direction direction) implements Target {}
+    @Variant("heading")
+    public record Heading(
+            @Doc("Horizontal only. A turning word is snapped to the nearest compass direction.") Direction direction)
+            implements Target, SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (direction.vertical()) {
+                at.field("direction").fail(ApiIssue.Code.INVALID_VALUE, "a heading is horizontal; use a level target to go up or down");
+            }
+        }
+    }
     /** A waypoint saved through {@code mc.bot.waypoint}; {@code self} only. */
-    public record Waypoint(String name, int near, GoalMode goalMode) implements Target {}
+    @Variant("waypoint")
+    public record Waypoint(
+            @Length(min = 1, max = 64) String name,
+            @Default("0") @Near int near,
+            @Default("in") GoalMode goalMode) implements Target {}
     /** The nearest world axis or diagonal at the axisHeight setting's Y. */
+    @Variant("axis")
     public record Axis() implements Target {}
 
-    public record Params(String bot, Optional<Target> target, boolean invert, Optional<Route> route,
-                         Optional<PlanMode> plan, boolean includePath, Optional<String> planId, int awaitMs) {
+    @Named("GotoParams")
+    public record Params(
+            @Default("self") @BotRef String bot,
+            @Doc("Required unless planId or plan: 'score'.") Optional<Target> target,
+            @Doc("Flee the target instead of reaching it.") @Default("false") boolean invert,
+            @Doc("Omitted: plain walking.") Optional<Route> route,
+            @Doc("preview searches without walking; score prices route.corridor.points, for self only.")
+            Optional<PlanMode> plan,
+            @Doc("With plan: 'preview', also return the route's cells.") @Default("false") boolean includePath,
+            @Doc("Walk a preview's route; its target and route come from the preview, which the same bot made.")
+            Optional<@Length(min = 1, max = 64) String> planId,
+            @Default("0") @AwaitMs int awaitMs) implements SelfChecked {
 
         /** Walk self to exactly {@code pos}, every other field at its default. */
         public static Params to(BlockPosition pos) {
@@ -92,9 +170,45 @@ public final class GotoContracts {
         public Params awaiting(int ms) {
             return new Params(bot, target, invert, route, plan, includePath, planId, ms);
         }
+
+        @Override public void check(DecodeContext at) {
+            if (planId.isPresent()) {
+                String why = "planId walks the preview's own target and route";
+                if (target.isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, why);
+                if (route.isPresent()) at.field("route").fail(ApiIssue.Code.INVALID_VALUE, why);
+                if (plan.isPresent()) at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, why);
+                if (invert) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, why);
+                if (includePath) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, why);
+                return;
+            }
+            if (plan.orElse(null) == PlanMode.SCORE) {
+                if (target.isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, "score prices route.corridor.points and takes no target");
+                if (invert) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, "score takes no target to invert");
+                if (includePath) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "score has no searched path");
+                if (awaitMs > 0) at.field("awaitMs").fail(ApiIssue.Code.INVALID_VALUE, "score answers at once and starts nothing to wait for");
+                if (route.flatMap(Route::corridor).isEmpty()) {
+                    at.field("route").field("corridor").fail(ApiIssue.Code.REQUIRED, "score prices the corridor's points");
+                }
+                return;
+            }
+            if (target.isEmpty()) {
+                at.field("target").fail(ApiIssue.Code.REQUIRED, "missing; expected " + TARGET.expected());
+                return;
+            }
+            boolean preview = plan.isPresent();
+            if (includePath && !preview) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "only a preview returns a path");
+            if (route.map(Route::fly).orElse(false)) {
+                if (preview) at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, "a preview searches the ground planner; flight has none");
+                if (invert || !hasCell(target.get())) {
+                    at.field("route").field("mode").fail(ApiIssue.Code.INVALID_VALUE,
+                            "flying needs a target cell: position, entityType, entity, waypoint, block, or a direction with near above 0");
+                }
+            }
+        }
     }
 
     /** How the trip is made. */
+    @Named("Travel")
     public enum Travel implements WireName {
         WALK("walk"),
         FLY("fly"),
@@ -109,141 +223,60 @@ public final class GotoContracts {
     }
 
     /** Whether the walk took the previewed route, and why not when it searched again. */
-    public record Adoption(String planId, boolean adopted, Optional<String> reason) {}
+    @Named("PlanAdoption")
+    public record Adoption(
+            @Length(min = 1, max = 64) String planId,
+            @Doc("false: the walk searched again instead.") boolean adopted,
+            @Doc("Why the preview's route was not taken.") Optional<String> reason) {}
 
+    @Tag("kind") @Named("GotoResult")
     public sealed interface Result permits Trip, Preview {}
 
     /** A walk or flight that ended. {@code goal} is the planner's description of the resolved target. */
-    public record Trip(String goal, int via, Travel travel, Optional<Adoption> plan) implements Result {}
+    @Variant("goto")
+    public record Trip(
+            @Doc("For display only; its wording is not a format to parse.") String goal,
+            @Range(min = 0) int via,
+            Travel travel,
+            @Doc("Present when the walk was started by planId.") Optional<Adoption> plan) implements Result {}
 
-    public record Exposure(int id, String type, int cells) {}
+    @Named("Exposure")
+    public record Exposure(int id, String type, @Range(min = 0) int cells) {}
 
+    @Named("SegmentRisk")
     public record SegmentRisk(List<Exposure> exposedTo, Optional<Double> nearestMob, List<String> regions) {}
 
     /** Cells {@code from} (inclusive) to {@code to} (exclusive) of the route, over which the risk is the same. */
-    public record Segment(Optional<Integer> leg, int from, int to, SegmentRisk risk) {}
+    @Named("RiskSegment")
+    public record Segment(
+            @Doc("Which goal's route, when there were via points.") Optional<@Range(min = 0, max = 64) Integer> leg,
+            @Range(min = 0) int from,
+            @Range(min = 0) int to,
+            SegmentRisk risk) {}
 
     /** A preview: the risk in segments rather than the cells; {@code path} only when includePath asked. */
-    public record Preview(String planId, boolean reached, int cells, double cost, int legs, List<Segment> segments,
-                          double detourRatio, boolean bestEffort, boolean sightBudgetExhausted, boolean snapshotTruncated,
-                          int expanded, double ms, Optional<List<BlockPosition>> path) implements Result {}
+    @Variant("routePreview")
+    public record Preview(
+            @Doc("Pass to goto within 60 s to walk this route.") @Length(min = 1, max = 64) String planId,
+            boolean reached,
+            @Range(min = 0) int cells,
+            double cost,
+            @Range(min = 0) int legs,
+            List<Segment> segments,
+            double detourRatio,
+            boolean bestEffort,
+            boolean sightBudgetExhausted,
+            boolean snapshotTruncated,
+            @Range(min = 0) int expanded,
+            double ms,
+            Optional<List<BlockPosition>> path) implements Result {}
 
-    private static final ApiType<GoalMode> GOAL_MODE = ApiTypes.enumOf("GoalMode", GoalMode.class);
-    private static final ApiType<Integer> NEAR = ApiTypes.integer(0, 64)
-            .describe("Accept any cell within this Euclidean radius; 0 is exact.");
-    private static final ApiType<Integer> ENTITY_NEAR = ApiTypes.integer(0, 16)
-            .describe("Accept any cell within this Euclidean radius; 0 is exact.");
 
-    public static final UnionType<Target> TARGET = ApiTypes.taggedUnion("GotoTarget", "kind",
-            ApiTypes.variant("position", Position.class, ApiTypes.record(Position.class, null,
-                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Position::pos),
-                    ApiField.field("near", NEAR).defaulted(0).forGetter(Position::near),
-                    ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(Position::goalMode),
-                    Position::new)),
-            ApiTypes.variant("column", Column.class, ApiTypes.record(Column.class, null,
-                    ApiField.field("x", ApiTypes.integer()).required().forGetter(Column::x),
-                    ApiField.field("z", ApiTypes.integer()).required().forGetter(Column::z),
-                    ApiField.field("near", NEAR).defaulted(0).forGetter(Column::near),
-                    Column::new)),
-            ApiTypes.variant("level", Level.class, ApiTypes.record(Level.class, null,
-                    ApiField.field("y", ApiTypes.integer(-4096, 4096))
-                            .describe("Alone it drowns in sideways branches: add a hard column leash to dig straight.")
-                            .required().forGetter(Level::y),
-                    Level::new)),
-            ApiTypes.variant("block", BlockTarget.class, ApiTypes.record(BlockTarget.class, null,
-                    ApiField.field("block", CommonTypes.BLOCK_OR_TAG).required().forGetter(BlockTarget::block),
-                    ApiField.field("radius", ApiTypes.integer(1, 64)).defaulted(32).forGetter(BlockTarget::radius),
-                    BlockTarget::new)),
-            ApiTypes.variant("entityType", EntityType.class, ApiTypes.record(EntityType.class, null,
-                    ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(EntityType::type),
-                    ApiField.field("near", ENTITY_NEAR).defaulted(3).forGetter(EntityType::near),
-                    ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(EntityType::goalMode),
-                    EntityType::new)),
-            ApiTypes.variant("entity", EntityTarget.class, ApiTypes.record(EntityTarget.class, null,
-                    ApiField.field("entityId", ApiTypes.integer(0, Integer.MAX_VALUE))
-                            .describe("The id mc.query entities reports.").required().forGetter(EntityTarget::entityId),
-                    ApiField.field("near", ENTITY_NEAR).defaulted(3).forGetter(EntityTarget::near),
-                    ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(EntityTarget::goalMode),
-                    EntityTarget::new)),
-            ApiTypes.variant("direction", DirectionTarget.class, ApiTypes.record(DirectionTarget.class, null,
-                    ApiField.field("direction", CommonTypes.DIRECTION)
-                            .describe("A turning word follows the body's exact heading, diagonals included.")
-                            .required().forGetter(DirectionTarget::direction),
-                    ApiField.field("distance", ApiTypes.integer(1, 256)).defaulted(8).forGetter(DirectionTarget::distance),
-                    ApiField.field("near", NEAR).defaulted(0).forGetter(DirectionTarget::near),
-                    DirectionTarget::new)),
-            ApiTypes.variant("heading", Heading.class, ApiTypes.record(Heading.class, null,
-                    ApiField.field("direction", CommonTypes.DIRECTION)
-                            .describe("Horizontal only. A turning word is snapped to the nearest compass direction.")
-                            .required().forGetter(Heading::direction),
-                    Heading::new)
-                    .checked((h, at) -> {
-                        if (h.direction().vertical()) {
-                            at.field("direction").fail(ApiIssue.Code.INVALID_VALUE, "a heading is horizontal; use a level target to go up or down");
-                        }
-                    })),
-            ApiTypes.variant("waypoint", Waypoint.class, ApiTypes.record(Waypoint.class, null,
-                    ApiField.field("name", ApiTypes.string(1, 64)).required().forGetter(Waypoint::name),
-                    ApiField.field("near", NEAR).defaulted(0).forGetter(Waypoint::near),
-                    ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(Waypoint::goalMode),
-                    Waypoint::new)),
-            ApiTypes.variant("axis", Axis.class, ApiTypes.record(Axis.class, null, Axis::new)));
+    public static final UnionType<Target> TARGET = ApiTypes.union(Target.class);
 
-    public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.enumOf("PlanMode", PlanMode.class);
+    public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.of(PlanMode.class);
 
-    public static final RecordType<Params> PARAMS = ApiTypes.record(Params.class, "GotoParams",
-            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
-            ApiField.field("target", TARGET).describe("Required unless planId or plan: 'score'.")
-                    .optional().forGetter(Params::target),
-            ApiField.field("invert", ApiTypes.bool()).describe("Flee the target instead of reaching it.")
-                    .defaulted(false).forGetter(Params::invert),
-            ApiField.field("route", RouteContracts.ROUTE).describe("Omitted: plain walking.").optional().forGetter(Params::route),
-            ApiField.field("plan", PLAN_MODE).describe("preview searches without walking; score prices route.corridor.points, "
-                    + "for self only.").optional().forGetter(Params::plan),
-            ApiField.field("includePath", ApiTypes.bool()).describe("With plan: 'preview', also return the route's cells.")
-                    .defaulted(false).forGetter(Params::includePath),
-            ApiField.field("planId", ApiTypes.string(1, 64))
-                    .describe("Walk a preview's route; its target and route come from the preview, which the same bot made.")
-                    .optional().forGetter(Params::planId),
-            ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(Params::awaitMs),
-            Params::new)
-            .checked(GotoContracts::check);
-
-    /** The combinations no single field can refuse. */
-    private static void check(Params p, net.magicterra.worlddriver.api.schema.DecodeContext at) {
-        if (p.planId().isPresent()) {
-            String why = "planId walks the preview's own target and route";
-            if (p.target().isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, why);
-            if (p.route().isPresent()) at.field("route").fail(ApiIssue.Code.INVALID_VALUE, why);
-            if (p.plan().isPresent()) at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, why);
-            if (p.invert()) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, why);
-            if (p.includePath()) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, why);
-            return;
-        }
-        if (p.plan().orElse(null) == PlanMode.SCORE) {
-            if (p.target().isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, "score prices route.corridor.points and takes no target");
-            if (p.invert()) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, "score takes no target to invert");
-            if (p.includePath()) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "score has no searched path");
-            if (p.awaitMs() > 0) at.field("awaitMs").fail(ApiIssue.Code.INVALID_VALUE, "score answers at once and starts nothing to wait for");
-            if (p.route().flatMap(Route::corridor).isEmpty()) {
-                at.field("route").field("corridor").fail(ApiIssue.Code.REQUIRED, "score prices the corridor's points");
-            }
-            return;
-        }
-        if (p.target().isEmpty()) {
-            at.field("target").fail(ApiIssue.Code.REQUIRED, "missing; expected " + TARGET.expected());
-            return;
-        }
-        boolean preview = p.plan().isPresent();
-        if (p.includePath() && !preview) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "only a preview returns a path");
-        if (p.route().map(Route::fly).orElse(false)) {
-            if (preview) at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, "a preview searches the ground planner; flight has none");
-            if (p.invert() || !hasCell(p.target().get())) {
-                at.field("route").field("mode").fail(ApiIssue.Code.INVALID_VALUE,
-                        "flying needs a target cell: position, entityType, entity, waypoint, block, or a direction with near above 0");
-            }
-        }
-    }
+    public static final RecordType<Params> PARAMS = ApiTypes.record(Params.class);
 
     /** Whether the target resolves to one cell, which a flight needs. */
     private static boolean hasCell(Target t) {
@@ -261,69 +294,15 @@ public final class GotoContracts {
         };
     }
 
-    public static final RecordType<Adoption> ADOPTION = ApiTypes.record(Adoption.class, "PlanAdoption",
-            ApiField.field("planId", ApiTypes.string(1, 64)).required().forGetter(Adoption::planId),
-            ApiField.field("adopted", ApiTypes.bool()).describe("false: the walk searched again instead.")
-                    .required().forGetter(Adoption::adopted),
-            ApiField.field("reason", ApiTypes.string()).describe("Why the preview's route was not taken.")
-                    .optional().forGetter(Adoption::reason),
-            Adoption::new);
+    public static final RecordType<Adoption> ADOPTION = ApiTypes.record(Adoption.class);
 
-    public static final RecordType<Segment> SEGMENT = ApiTypes.record(Segment.class, "RiskSegment",
-            ApiField.field("leg", ApiTypes.integer(0, 64)).describe("Which goal's route, when there were via points.")
-                    .optional().forGetter(Segment::leg),
-            ApiField.field("from", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Segment::from),
-            ApiField.field("to", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Segment::to),
-            ApiField.field("risk", ApiTypes.record(SegmentRisk.class, "SegmentRisk",
-                    ApiField.field("exposedTo", ApiTypes.list(ApiTypes.record(Exposure.class, "Exposure",
-                            ApiField.field("id", ApiTypes.integer()).required().forGetter(Exposure::id),
-                            ApiField.field("type", ApiTypes.string()).required().forGetter(Exposure::type),
-                            ApiField.field("cells", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Exposure::cells),
-                            Exposure::new), Integer.MAX_VALUE)).required().forGetter(SegmentRisk::exposedTo),
-                    ApiField.field("nearestMob", ApiTypes.number()).optional().forGetter(SegmentRisk::nearestMob),
-                    ApiField.field("regions", ApiTypes.list(ApiTypes.string(), Integer.MAX_VALUE)).required().forGetter(SegmentRisk::regions),
-                    SegmentRisk::new)).required().forGetter(Segment::risk),
-            Segment::new);
+    public static final RecordType<Segment> SEGMENT = ApiTypes.record(Segment.class);
 
-    private static final ApiType<List<Segment>> SEGMENTS = ApiTypes.list(SEGMENT, Integer.MAX_VALUE);
-    private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
-
-    public static final UnionType<Result> RESULT = ApiTypes.taggedUnion("GotoResult", "kind",
-            ApiTypes.variant("goto", Trip.class, ApiTypes.record(Trip.class, null,
-                    ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.")
-                            .required().forGetter(Trip::goal),
-                    ApiField.field("via", COUNT).required().forGetter(Trip::via),
-                    ApiField.field("travel", ApiTypes.enumOf("Travel", Travel.class)).required().forGetter(Trip::travel),
-                    ApiField.field("plan", ADOPTION).describe("Present when the walk was started by planId.")
-                            .optional().forGetter(Trip::plan),
-                    Trip::new)),
-            ApiTypes.variant("routePreview", Preview.class, ApiTypes.record(Preview.class, null,
-                    ApiField.field("planId", ApiTypes.string(1, 64)).describe("Pass to goto within 60 s to walk this route.")
-                            .required().forGetter(Preview::planId),
-                    ApiField.field("reached", ApiTypes.bool()).required().forGetter(Preview::reached),
-                    ApiField.field("cells", COUNT).required().forGetter(Preview::cells),
-                    ApiField.field("cost", ApiTypes.number()).required().forGetter(Preview::cost),
-                    ApiField.field("legs", COUNT).required().forGetter(Preview::legs),
-                    ApiField.field("segments", SEGMENTS).required().forGetter(Preview::segments),
-                    ApiField.field("detourRatio", ApiTypes.number()).required().forGetter(Preview::detourRatio),
-                    ApiField.field("bestEffort", ApiTypes.bool()).required().forGetter(Preview::bestEffort),
-                    ApiField.field("sightBudgetExhausted", ApiTypes.bool()).required().forGetter(Preview::sightBudgetExhausted),
-                    ApiField.field("snapshotTruncated", ApiTypes.bool()).required().forGetter(Preview::snapshotTruncated),
-                    ApiField.field("expanded", COUNT).required().forGetter(Preview::expanded),
-                    ApiField.field("ms", ApiTypes.number()).required().forGetter(Preview::ms),
-                    ApiField.field("path", ApiTypes.list(CommonTypes.BLOCK_POSITION, Integer.MAX_VALUE))
-                            .optional().forGetter(Preview::path),
-                    Preview::new)));
+    public static final UnionType<Result> RESULT = ApiTypes.union(Result.class);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT,
-            (UnionType.Variant) ApiTypes.variant("scored", Scored.class, ApiTypes.record(Scored.class, null,
-                    ApiField.field("cells", COUNT).required().forGetter(Scored::cells),
-                    ApiField.field("segments", SEGMENTS).required().forGetter(Scored::segments),
-                    ApiField.field("detourRatio", ApiTypes.number()).required().forGetter(Scored::detourRatio),
-                    ApiField.field("sightBudgetExhausted", ApiTypes.bool()).required().forGetter(Scored::sightBudgetExhausted),
-                    ApiField.field("snapshotTruncated", ApiTypes.bool()).required().forGetter(Scored::snapshotTruncated),
-                    Scored::new)));
+            (UnionType.Variant) ApiTypes.variant("scored", Scored.class, ApiTypes.record(Scored.class)));
 
     public static final MethodSpec<Params, ActionResponse<Result>> SPEC = MethodSpec.of(METHOD, PARAMS, RESPONSE,
                     "Walk the body to a target under the route's conditions, replacing whatever it was doing. "
