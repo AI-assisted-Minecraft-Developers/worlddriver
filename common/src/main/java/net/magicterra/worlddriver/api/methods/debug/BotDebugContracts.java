@@ -119,9 +119,16 @@ public final class BotDebugContracts {
     /**
      * {@code reach}: also answer whether the bot could break that block from where it stands. {@code blastFrom}:
      * also answer whether a swing at that entity would be refused for the blast, and the stands that would not be.
+     * {@code rise}: also answer which cells stop the bot's own box from rising that many blocks.
      */
-    public record BodyParams(String bot, Optional<BlockPosition> reach, Optional<Integer> blastFrom) {
+    public record BodyParams(String bot, Optional<BlockPosition> reach, Optional<Integer> blastFrom, Optional<Double> rise) {
+        public BodyParams(String bot, Optional<BlockPosition> reach, Optional<Integer> blastFrom) {
+            this(bot, reach, blastFrom, Optional.empty());
+        }
         public static BodyParams of(String bot) { return new BodyParams(bot, Optional.empty(), Optional.empty()); }
+        public static BodyParams rise(String bot, double blocks) {
+            return new BodyParams(bot, Optional.empty(), Optional.empty(), Optional.of(blocks));
+        }
     }
 
     /**
@@ -138,17 +145,26 @@ public final class BotDebugContracts {
     /** Whether the block is breakable from here: a face open to air and its centre within reach of the eye. */
     public record Reach(BlockPosition pos, boolean canBreak, boolean exposedFace, double eyeToCentre, double reach) {}
 
-    /** {@code refusal}: why a swing now would be refused for the blast, absent when it would not be. */
-    public record Blast(int entityId, Optional<String> refusal, double need, List<BlockPosition> stands) {}
+    /**
+     * {@code refusal}: why a swing now would be refused for the blast, absent when it would not be. {@code stands}:
+     * the cells within {@code surveyRadius} of the foot whose footing withstands it.
+     */
+    public record Blast(int entityId, Optional<String> refusal, double need, List<BlockPosition> stands, int surveyRadius) {}
 
-    /** {@code dimension}: of the bot's world view, which follows the bot across a portal one tick late. */
+    /**
+     * {@code dimension}: of the bot's world view, which follows the bot across a portal one tick late.
+     * {@code riseBlockers}: the cells in the way of {@code rise}, lowest first, empty when the rise is clear; an
+     * entity that blocks has no cell, so an empty list is also what a rise blocked only by an entity answers.
+     */
     public record BodyReading(String bot, String dimension, Footing footing, Hands hands, boolean logWaiver,
-                              Optional<Reach> reach, Optional<Blast> blast) {}
+                              Optional<Reach> reach, Optional<Blast> blast, Optional<List<BlockPosition>> riseBlockers) {}
 
     public static final RecordType<BodyParams> BODY_PARAMS = ApiTypes.record(BodyParams.class, "BodyParams",
             ApiField.field("bot", Responses.BOT_REF).required().forGetter(BodyParams::bot),
             ApiField.field("reach", CommonTypes.BLOCK_POSITION).optional().forGetter(BodyParams::reach),
             ApiField.field("blastFrom", ApiTypes.integer()).describe("An entity id.").optional().forGetter(BodyParams::blastFrom),
+            ApiField.field("rise", ApiTypes.number(0, 16)).describe("Blocks to sweep the bot's box up by.")
+                    .optional().forGetter(BodyParams::rise),
             BodyParams::new);
 
     private static final RecordType<Footing> FOOTING = ApiTypes.record(Footing.class, "Footing",
@@ -182,6 +198,7 @@ public final class BotDebugContracts {
             ApiField.field("refusal", ApiTypes.string()).optional().forGetter(Blast::refusal),
             ApiField.field("need", ApiTypes.number()).required().forGetter(Blast::need),
             ApiField.field("stands", ApiTypes.list(CommonTypes.BLOCK_POSITION, 1024)).required().forGetter(Blast::stands),
+            ApiField.field("surveyRadius", COUNT).required().forGetter(Blast::surveyRadius),
             Blast::new);
 
     public static final RecordType<BodyReading> BODY_READING = ApiTypes.record(BodyReading.class, "BodyReading",
@@ -193,11 +210,14 @@ public final class BotDebugContracts {
                     .required().forGetter(BodyReading::logWaiver),
             ApiField.field("reach", REACH).optional().forGetter(BodyReading::reach),
             ApiField.field("blast", BLAST).optional().forGetter(BodyReading::blast),
+            ApiField.field("riseBlockers", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).optional()
+                    .forGetter(BodyReading::riseBlockers),
             BodyReading::new);
 
     public static final MethodSpec<BodyParams, BodyReading> BODY = MethodSpec.of("mc.debug.body", BODY_PARAMS, BODY_READING,
-                    "A server-side bot's body as the driver judges it: its footing, its hands, its world view's dimension, "
-                            + "and on request whether a block is in reach or a swing is blast-safe. Read on the server thread.")
+                    "A bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on "
+                            + "request whether a block is in reach, a swing is blast-safe or its box can rise. A "
+                            + "server-side bot's on the server thread; self's on the client thread, from its own body.")
             .hidden();
 
     // ------------------------------------------------------------------ mc.debug.cells

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.body` reads self, and which cells stop a rise.** With `bot: 'self'` it reads the client's
+  own body over the client's world, on the client thread. `rise` asks which cells stop the bot's box
+  from rising that many blocks (`riseBlockers`, lowest first), and the blast reading names the radius
+  its stands were surveyed within.
 - **A server-side bot can walk a plan the caller gives.** `mc.debug.walkPlan` (hidden) takes the nodes
   and their moves, an optional goal (default: the last node), the foot it starts from (default: the
   first node) and a route profile. `mode: 'replay'` walks it verbatim, with no repath; `'follow'`

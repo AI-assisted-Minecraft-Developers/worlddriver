@@ -124,7 +124,13 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<BotDebugContracts.BodyReading> body(BotDebugContracts.BodyParams p, CallContext ctx) {
-            return onServer(() -> BotReadings.body(p), ctx);
+            if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.body(p), ctx);
+            BotApi self = BotHooks.impl();
+            if (self == null) {
+                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "self is this client's own player, and there is no client here; name a server bot"));
+            }
+            return self.clientHop().submit(() -> BotReadings.selfBody(p, self), ctx);
         }
 
         @Override

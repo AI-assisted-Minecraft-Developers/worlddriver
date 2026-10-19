@@ -44,14 +44,17 @@ import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.bot.control.NavigatorTallies;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkResult;
+import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
+import net.magicterra.worlddriver.game.ui.ClientWorld;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
@@ -161,9 +164,18 @@ final class BotReadings {
 
     static BodyReading body(BodyParams p) {
         ServerBot bot = serverBot(p.bot());
-        LivingEntity e = bot.entity();
-        LevelWorldView view = bot.world();
-        Body body = bot.body();
+        return body(p, bot.entity(), bot.body(), bot.world());
+    }
+
+    /** self's body, on the client thread: the client avatar over the client's own world. */
+    static BodyReading selfBody(BodyParams p, BotApi self) {
+        LivingEntity e = self.selfEntity();
+        Body body = self.clientAvatar();
+        if (e == null || body == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        return body(p, e, body, new ClientWorldView(ClientWorld::level, ClientWorld::player));
+    }
+
+    private static BodyReading body(BodyParams p, LivingEntity e, Body body, WorldView view) {
         BlockPos foot = e.blockPosition();
         Footing footing = new Footing(e.onGround(), NavigatorGeometry.soleOnSolid(view, e), NavigatorConstants.FOOTING_MIN,
                 NavigatorGeometry.soleRow(view, e), pos(foot), NavigatorGeometry.lethalDropAdjacent(view, e, foot));
@@ -171,11 +183,12 @@ final class BotReadings {
         boolean breakHeld = body.blockInteraction().map(b -> b.breakHeld()).orElse(false);
         Hands hands = new Hands(breakHeld, Optional.ofNullable(body.lookingAtBlock()).map(BotReadings::pos),
                 player == null ? "none" : player.placeTally(), view.placeableBlockCount(), view.canPlace(),
-                player == null ? Optional.empty() : Optional.ofNullable(player.lastAttackRefusal()));
+                body.attack().map(a -> a.lastAttackRefusal()));
         Optional<Reach> reach = p.reach().map(c -> reach(e, cell(c)));
         Optional<Blast> blast = p.blastFrom().map(id -> blast(e, id));
+        Optional<List<BlockPosition>> rise = p.rise().map(r -> BodyGeometry.riseBlockers(e, r).stream().map(BotReadings::pos).toList());
         return new BodyReading(p.bot(), e.level().dimension().location().toString(), footing, hands, LogWaiver.active(),
-                reach, blast);
+                reach, blast, rise);
     }
 
     static CellsReading cells(CellsParams p, MinecraftServer server) {
@@ -254,7 +267,8 @@ final class BotReadings {
         double need = BlastFooting.needFor(target);
         List<BlockPosition> stands = new ArrayList<>();
         for (BlockPos s : BlastFooting.qualifyingStands(e.level(), e.blockPosition(), need)) stands.add(pos(s));
-        return new Blast(entityId, Optional.ofNullable(BlastFooting.refuseSwing(e, target)), need, stands);
+        return new Blast(entityId, Optional.ofNullable(BlastFooting.refuseSwing(e, target)), need, stands,
+                BlastFooting.STAND_SURVEY_RADIUS);
     }
 
     private static ServerBot serverBot(String ref) {

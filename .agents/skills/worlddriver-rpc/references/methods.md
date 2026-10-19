@@ -405,7 +405,7 @@ Every widget, list row and menu slot on the open screen, with its box in GUI coo
 
 ### `mc.debug.body`
 
-A server-side bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on request whether a block is in reach or a swing is blast-safe. Read on the server thread.
+A bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on request whether a block is in reach, a swing is blast-safe or its box can rise. A server-side bot's on the server thread; self's on the client thread, from its own body.
 
 - Params: `BodyParams`; reply: `BodyReading`
 - Effects: snapshot_read; not in MCP tools/list
@@ -3303,11 +3303,13 @@ interface BodyParams {
     reach?: BlockPosition;
     /** An entity id. */
     blastFrom?: number;
+    /** Blocks to sweep the bot's box up by. */
+    rise?: number;
 }
 interface Footing { onGround: boolean; soleOnSolid: number; footingMin: number; soleRow: string; foot: BlockPosition; lethalDropAdjacent: boolean; }
 interface Hands { breakHeld: boolean; lookingAt?: BlockPosition; placeTally: string; placeableBlocks: number; canPlace: boolean; lastAttackRefusal?: string; }
 interface Reach { pos: BlockPosition; canBreak: boolean; exposedFace: boolean; eyeToCentre: number; reach: number; }
-interface Blast { entityId: number; refusal?: string; need: number; stands: BlockPosition[]; }
+interface Blast { entityId: number; refusal?: string; need: number; stands: BlockPosition[]; surveyRadius: number; }
 interface BodyReading {
     bot: BotRef;
     dimension: string;
@@ -3317,6 +3319,7 @@ interface BodyReading {
     logWaiver: boolean;
     reach?: Reach;
     blast?: Blast;
+    riseBlockers?: BlockPosition[];
 }
 type CellSide = 'client' | 'server';
 interface NodeQuery { foot: BlockPosition; prev?: BlockPosition; next?: BlockPosition; toBreak?: BlockPosition[]; toPlace?: BlockPosition[]; }
