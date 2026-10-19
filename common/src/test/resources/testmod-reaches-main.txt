@@ -259,14 +259,11 @@ bot/stagewright/scene/WorldDriverCoreScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchive
 bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchiveRecorder
 bot/stagewright/scene/WorldDriverCoreScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/ExpectAlarms
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/NavigatorTelemetry
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/rules/Move
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverCoverageScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverCoverageScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/BlastFooting
 bot/stagewright/scene/WorldDriverCrystalBlastScenes -> game/body/ServerPlayerBody

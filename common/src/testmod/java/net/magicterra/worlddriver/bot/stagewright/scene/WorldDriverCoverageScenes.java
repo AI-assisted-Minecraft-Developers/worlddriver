@@ -2,19 +2,19 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.bot.control.ExpectAlarms;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -44,6 +44,11 @@ import net.minecraft.world.level.block.Blocks;
  * <p>Origin slots: AUTO; only {@code wd.bestEffortSpliceCourse} builds past the 11×11 base
  * (dx −8..+13, still inside the default slot window). Gates are outcomes and a monotonic
  * counter diff — registry-growth relocation cannot flip them.
+ *
+ * <p>Each course is a roster bot sent through {@code mc.bot.goto} and ticked in full by the scene,
+ * reading the navigator through {@code mc.debug.navigator}. Only
+ * {@code wd.surfacePillarPointerNeedsItsSupport} still drives a bare {@code Navigator}: it hands the
+ * navigator a synthetic plan, which no api call does.
  */
 public final class WorldDriverCoverageScenes implements SceneProvider {
 
@@ -99,17 +104,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
+        int t = bot.tickUntilIdle(400);
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -125,7 +123,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     /** JUMP-noRise observer rig: a clean +1 step-up course is PLANNED first; once the
      *  bot closes on the riser a bedrock CEILING is slammed over the launch cell, so
      *  every step-up jump is height-capped (peak < +0.75 in the 8-tick watch) —
-     *  JUMP-noRise fires ({@link ExpectAlarms#FIRED}); the ceiling is then lifted
+     *  JUMP-noRise fires ({@code expectAlarmsFired} in {@code mc.debug.navigator}); the ceiling is then lifted
      *  and the navigator must still finish ARRIVED on the plateau. Three prior shapes were
      *  defeated by the stack itself: (v1) wall slam → navigator re-routed around and off the
      *  floor edge; (v2) bare-hand obsidian → the planner's tool-capability gate rejects
@@ -151,20 +149,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        int firedBefore = ExpectAlarms.FIRED.get();
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
+        long firedBefore = alarmsFired(bot);
         int t = 0;
         boolean capped = false;
         boolean lifted = false;
-        for (; t < 600 && s == Locomotor.Status.MOVING; t++) {
+        for (; t < 600 && bot.busy(); t++) {
             if (!capped && fp.getX() > cx - 1.5) {
                 // Route committed, bot closing on the riser — cap the launch cells so the
                 // step-up jump cannot rise (ceiling right above head across the approach).
@@ -173,16 +164,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.BEDROCK.defaultBlockState());
                 capped = true;
             }
-            if (capped && !lifted && ExpectAlarms.FIRED.get() > firedBefore) {
+            if (capped && !lifted && alarmsFired(bot) > firedBefore) {
                 for (int dz = -5; dz <= 5; dz++)
                     for (int dx = -1; dx <= 0; dx++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.AIR.defaultBlockState());
                 lifted = true;
             }
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
         }
-        int fired = ExpectAlarms.FIRED.get() - firedBefore;
+        String s = ending(bot);
+        long fired = alarmsFired(bot) - firedBefore;
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -190,8 +181,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 s, t, fired, capped, lifted, reached);
         if (fired == 0)
             ctx.fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + s
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
-                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " capped=" + capped
+                    + " lastStats=" + lastSearch(bot) + " capped=" + capped
                     + " pos=" + fp.position());
         if (!reached)
             ctx.fail("expectAlarmBlockedJump: navigator never finished after the ceiling lifted: step="
@@ -232,32 +222,31 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("navigatorDrowningEscape", true);   // pinnedBaseline() turns it off for arenas
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
+        // The subject is the navigator's own surfacing override; a full bot tick also runs the drowning
+        // reflexes, which would surface the bot for it and make a pass say nothing about the navigator.
+        Harness.set("autoDrownEscape", false);
+        Harness.set("autoFloatWhenDrowning", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.setAirSupply(40);
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        // FakePlayer air does NOT tick (damage-immune family, #47/#55) — drive the air
+        bot.goTo(Targets.block(goal));
+        // A bot's air does NOT tick on its own terms here (damage-immune family) — drive the air
         // simulation manually per tick, the same idiom as wd.drownEscapePreempt: −1/tick
         // with eyes under, +4/tick (cap 300) at the surface.
         int airSim = 40;
         int minAir = airSim, maxAir = airSim;
         int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        for (; t < 400 && bot.busy(); t++) {
+            bot.tick();
             airSim = fp.isEyeInFluid(FluidTags.WATER)
                     ? Math.max(airSim - 1, -20) : Math.min(airSim + 4, 300);
             fp.setAirSupply(airSim);
             minAir = Math.min(minAir, airSim);
             maxAir = Math.max(maxAir, airSim);
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         TestMod.LOG.warn("[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
@@ -266,7 +255,6 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("drownEscapeSurface: avatar drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
         if (maxAir < 200)
             ctx.fail("drownEscapeSurface: air never recovered (maxAir=" + maxAir + "): t=" + t + " step=" + s
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
                     + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                     + " blockAtFeet=" + level.getBlockState(fp.blockPosition())
                     + " blockAtEye=" + level.getBlockState(BlockPos.containing(fp.getEyePosition())));
@@ -298,17 +286,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        int t = 0;
-        for (; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        SceneBot bot = walkTo(ctx, level, cx - 7 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
+        int t = bot.tickUntilIdle(600);
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         TestMod.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", s, t, fp.position());
@@ -340,17 +321,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
+        int t = bot.tickUntilIdle(400);
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 4 - 0.4;
@@ -429,28 +403,20 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 7 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
         int t = 0;
         boolean enteredPocket = false;
         boolean released = false;
         int churnSeen = 0;
         StringBuilder trace = new StringBuilder();
-        for (; t < 1400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        for (; t < 1400 && bot.busy(); t++) {
+            bot.tick();
             if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5)
                 enteredPocket = true;
-            // The churn counter is package-private; the probe string is the sensor.
+            // The churn counter is not read out on its own; the progress probe string is the sensor.
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("churnEsc=(\\d+)")
-                    .matcher(navigator.inspect().progressProbe());
+                    .matcher(progressProbe(bot));
             if (m.find()) churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
             if (!released && churnSeen >= 2) {
                 // Two churn windows fired (charge widened + escalation re-armed) — open
@@ -463,8 +429,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             }
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         TestMod.LOG.warn("[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
@@ -472,18 +439,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!enteredPocket)
             ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
-                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastStats=" + lastSearch(bot) + " trace=" + trace);
         if (churnSeen < 2)
             ctx.fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
-                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastStats=" + lastSearch(bot) + " trace=" + trace);
         if (!reached)
             ctx.fail("boxedChurnEscalate: navigator never finished after the wall release: churnSeen=" + churnSeen
                     + " released=" + released + " origin=" + cx + "," + cz + " step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
-                    + " endReason=" + navigator.result().endReason() + " trace=" + trace);
+                    + " pos=" + fp.position() + " trace=" + trace);
     }
 
     /** Progressive quick-start stub (Navigator.tryQuickStart + the tryLandBeeline REJECT
@@ -526,36 +490,28 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 7 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
         int t = 0;
         StringBuilder trace = new StringBuilder();
-        for (; t < 600 && s == Locomotor.Status.MOVING; t++) {
+        for (; t < 600 && bot.busy(); t++) {
             // The pre-path quick-start branch runs while the big search is in flight; 40
             // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
             // slice budgets so the big search can actually LAND and supersede the stub.
             if (t == 40) { Harness.set("pathfinder.sliceMs", 6); Harness.set("pathfinder.idleSliceMs", 30); }
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
             if (t % 60 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         TestMod.LOG.warn("[wd.quickStartStub] step={} ticks={} pos={}", s, t, fp.position());
         if (!reached)
             ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
                     + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
-                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastStats=" + lastSearch(bot) + " trace=" + trace);
     }
 
     /** Shared slide-back rig: the bot climbs a committed narrow staircase (dz −1..1);
@@ -589,19 +545,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // every attempt (probe: bot looping fall-offs at dz 2.2-3.7 for 500t).
         BlockPos goal = new BlockPos(cx + 5, standY + 3, cz + 4);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
         int t = 0;
         boolean cut = false;
         StringBuilder trace = new StringBuilder();
-        for (; t < budget && s == Locomotor.Status.MOVING; t++) {
+        for (; t < budget && bot.busy(); t++) {
             if (!cut && fp.getY() >= standY + 1.5 && fp.getX() > cx + 0.5
                     && fp.getZ() < cz + 2.5) {
                 // Mid-climb — cut the full-width stairs out from under the bot (its feet
@@ -617,23 +566,21 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                             level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
                 cut = true;
             }
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
         if (!cut)
             return "rig broken — the bot never climbed the narrow stairs (no cut): step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
-                    + " endReason=" + navigator.result().endReason() + " trace=" + trace;
+                    + " t=" + t + " pos=" + fp.position() + " trace=" + trace;
         if (!reached)
             return "no recovery to the side staircase after the slide-back: step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
-                    + " endReason=" + navigator.result().endReason() + " lastStats=" + NavigatorTelemetry.of(fp).lastStats
+                    + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot)
                     + " trace=" + trace;
         TestMod.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
@@ -680,18 +627,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx + 7, standY, cz);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 7 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
         int t = 0;
         boolean filled = false;
-        for (; t < budget && s == Locomotor.Status.MOVING; t++) {
+        for (; t < budget && bot.busy(); t++) {
             if (!filled && fp.getX() >= cx - 1.6 && fp.getX() < cx - 0.4) {
                 // Bot on the west rim, route committed through the trench — fill it flush.
                 for (int dz = -3; dz <= 3; dz++) {
@@ -703,18 +643,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 }
                 filled = true;
             }
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         if (!filled)
             return "rig broken — the bot never reached the west rim (no fill): step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
-                    + " endReason=" + navigator.result().endReason() + " lastStats=" + NavigatorTelemetry.of(fp).lastStats;
+                    + " pos=" + fp.position() + " lastStats=" + lastSearch(bot);
         if (!reached)
-            return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason();
+            return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position();
         TestMod.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
@@ -775,19 +713,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
+        ServerPlayer fp = bot.player();
         int t = 0;
         boolean capped = false;
         int cappedTicks = 0;
-        for (; t < 700 && s == Locomotor.Status.MOVING; t++) {
+        for (; t < 700 && bot.busy(); t++) {
             if (!capped && fp.getX() > cx - 1.5) {
                 for (int dz = -5; dz <= 5; dz++)
                     for (int dx = -1; dx <= 0; dx++)
@@ -801,9 +732,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     for (int dx = -1; dx <= 0; dx++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.AIR.defaultBlockState());
             }
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
         }
+        String s = ending(bot);
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -813,8 +744,39 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + " t=" + t + " pos=" + fp.position());
         if (!reached)
             ctx.fail("stepUpBackoffCeiling: navigator never finished after the ceiling lifted: step=" + s
-                    + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position()
-                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason());
+                    + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position());
+    }
+
+    // ---------------------------------------------------------------- the walking bot ----
+
+    /** A parked bot with an empty bag at {@code (x, y, z)}, sent walking to {@code goal}; the scene ticks it. */
+    private static SceneBot walkTo(SceneContext ctx, ServerLevel level, double x, double y, double z, BlockPos goal) {
+        SceneBot bot = SceneBot.spawn(ctx, level, x, y, z);
+        bot.player().getInventory().clearContent();
+        bot.goTo(Targets.block(goal));
+        return bot;
+    }
+
+    /** {@code walking} while the goto runs; after, how it ended and its last error. */
+    private static String ending(SceneBot bot) {
+        if (bot.busy()) return "walking";
+        ControlContracts.Slot g = bot.gotoSlot();
+        return g.endReason().orElse("no end reason") + g.lastError().map(e -> " (" + e + ")").orElse("");
+    }
+
+    /** The navigator's last search, as {@code mc.debug.navigator} reads it. */
+    private static String lastSearch(SceneBot bot) {
+        return String.valueOf(bot.navigator().lastSearch().orElse(null));
+    }
+
+    /** The navigator's progress probe line ({@code mc.debug.navigator} traces), empty without a navigator. */
+    private static String progressProbe(SceneBot bot) {
+        return bot.navigator().traces().getOrDefault("progressProbe", "");
+    }
+
+    /** The process-wide count of navigator expectation alarms fired ({@code mc.debug.navigator} counters). */
+    private static long alarmsFired(SceneBot bot) {
+        return bot.navigator().counter("expectAlarmsFired");
     }
 
     /**
