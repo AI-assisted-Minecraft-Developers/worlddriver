@@ -236,8 +236,8 @@ public final class PreviewSearch {
                 plans.put(cur.id, new Plan(cur.id, System.currentTimeMillis(), cur.req.goals(), cur.req.profile(), cur.legs, preview));
                 evict();
             }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> shown = preview != null ? (Map<String, Object>) GotoContracts.RESULT.encode(preview)
+            Map<String, Object> shown = preview != null
+                    ? new LinkedHashMap<>(GotoContracts.RESULT.encode(preview).getAsJsonObject().asMap())
                     : Map.of("planId", cur.id, "ok", false, "error", error);
             state.planResult = shown;
             state.plan.lastError = error;
