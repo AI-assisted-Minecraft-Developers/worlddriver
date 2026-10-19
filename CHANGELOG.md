@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.navigator` says how the last walk ended and what stands on the plan's cells.** Two new
+  traces: `walkResult` (status, end reason, whether the goal was reached, distance left, whether the
+  goal was moved to a standable cell, and why it fell short) once a walk has ended, and
+  `planCellAudit`, the blocks at each plan node's feet, head and floor as the world has them now.
+  They also answer for a task that walks without being a goto, such as `mc.bot.mine`.
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

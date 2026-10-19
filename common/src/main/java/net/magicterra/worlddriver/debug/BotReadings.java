@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.debug;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -40,6 +41,7 @@ import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.bot.control.NavigatorTallies;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.bot.control.WalkResult;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -107,6 +109,8 @@ final class BotReadings {
             put(traces, "planTally", in.planTally());
             put(traces, "rawPlanTally", in.rawPlanTally());
             put(traces, "channels", in.channels());
+            put(traces, "walkResult", walkResult(nav.result()));
+            put(traces, "planCellAudit", in.planCellAudit(e.level()));
             String takeoff = in.parkourTakeoff();
             plan = Optional.of(new PlanCursor(Optional.ofNullable(in.pathNode()).map(BotReadings::pos),
                     Optional.ofNullable(in.pathMove()), nav.pathStep(), nav.pathLen(),
@@ -232,6 +236,14 @@ final class BotReadings {
 
     private static void put(Map<String, String> traces, String name, String value) {
         if (value != null) traces.put(name, value);
+    }
+
+    /** How the navigator's last walk ended, or null while none has since its last start. */
+    private static String walkResult(WalkResult r) {
+        if (r == null || r == WalkResult.NONE) return null;
+        return "status=" + r.status() + " endReason=" + r.endReason() + " goalReached=" + r.goalReached()
+                + " finalDist=" + String.format(Locale.ROOT, "%.3f", r.finalDist())
+                + " goalSnapped=" + r.goalSnapped() + " reason=" + r.reason();
     }
 
     private static List<BlockPos> cells(List<BlockPosition> ps) {
