@@ -440,16 +440,12 @@ bot/stagewright/scene/WorldDriverThinFootingScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/control/NavigatorSettings
-bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/planning/PathFinder
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/CapabilityProfile
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/Move
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/SearchProfile
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/constraints/NoBreak
-bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/moves/Fall
-bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/moves/FallIntoWater
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverWaterCrossScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/BotRegistry

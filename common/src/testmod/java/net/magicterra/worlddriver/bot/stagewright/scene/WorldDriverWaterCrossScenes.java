@@ -3,23 +3,28 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanParams;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
+// wd.waterStepDownFloat and wd.forbidDigPadRam hand a bare navigator a scripted plan (Navigator.replay)
+// and tick it; the api has no way to impose a plan, so those two stay on the internals until StageWright
+// grows one.
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.rules.moves.Fall;
-import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -33,12 +38,18 @@ import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Dogfooded worlddriver scenes — <b>P4b wave 4, the WaterCross family</b>: the 10
+ * Dogfooded worlddriver scenes — <b>P4b wave 4, the WaterCross family</b>: nine of the 10
  * {@code AgentGameTestWaterCross} open-water crossing / planner arenas (goal-snap /
  * anti-basin-dive depth penalty / floating-water climb-out gate / water-surface step-down
  * float / forbidDig pad-ram leak / deep submerged-cross surface bias / vine- & pad-over-water
- * taxes / pad-cluster tax / deep-water-float bee-line anchor-gate), migrated verbatim to
- * testkit {@code wd.*} scenes and their legacy twins retired in the same commit.
+ * taxes / pad-cluster tax), migrated verbatim to testkit {@code wd.*} scenes and their legacy
+ * twins retired in the same commit. The tenth, the deep-water-float bee-line anchor gate, judged a
+ * hand-made continuation over the world view and drove nothing; it is {@code DeepWaterFloatBeelineTest}
+ * now, a unit test over a grid.
+ *
+ * <p>The planner arenas ask {@code mc.debug.plan} (the same bare search, run to completion) and read
+ * cells through {@code mc.debug.cells}; the walking ones are an {@code mc.bot.goto} ticked one whole
+ * bot tick at a time.
  *
  * <p><b>Porting is by the canonical pattern established in {@link WorldDriverScenes} /
  * {@link WorldDriverTerrainScenes} / {@link WorldDriverBiasScenes}</b> (study their class
@@ -53,13 +64,12 @@ import net.minecraft.world.level.block.state.BlockState;
  *       vertical water geometry is literally unchanged (A* is integer-cell, so a planner scene
  *       is position-invariant regardless). {@code wd.goalSnapBuried} keeps its legacy
  *       {@code floorY = 64} (mapped {@code origin.y − 136}); the rest sit at/above origin;</li>
- *   <li>{@code try/finally} per-key config save/restore → {@link BotConfig#pinnedBaseline()}
- *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
- *       avatar discard) then the SAME keys the legacy body flipped;</li>
- *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene server-side player) + {@code ctx.cleanup(() -> fp.discard())}. The
- *       legacy per-arena isolation batches drop out — a player from createUnique cannot bleed
- *       into another scene;</li>
+ *   <li>{@code try/finally} per-key config save/restore → {@code Harness.pin(ctx)} (the pinned
+ *       baseline, restored when the scene ends) then the SAME keys the legacy body flipped;</li>
+ *   <li>{@code ServerPlayerBody.create(...)} → a per-scene roster bot ({@code SceneBot.spawn},
+ *       removed when the scene ends; the two replay arms keep a bare server-side player). The
+ *       legacy per-arena isolation batches drop out — a per-scene player cannot bleed into another
+ *       scene;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects};</li>
  *   <li>{@code AgentGameTestSupport.runSearch}/{@code maxPathY} → the inlined
  *       {@link #runSearch}/{@link #maxPathY} helpers below (faithful copies, promoted-into-class
@@ -82,20 +92,12 @@ import net.minecraft.world.level.block.state.BlockState;
  * ran identically across the ×2×2 dogfood — so it stays {@code required=true}. No WaterCross
  * scene was flaky across the ×2 runs; none is marked optional.
  *
- * <p><b>Origin slots + chunk radius.</b> All 10 take AUTO slots. Two overflow the radius-1
- * window (usable dx/dz {@code [−16,+31]}) and are widened:
- * <ul>
- *   <li>{@code wd.basin} needs {@code .withChunkRadius(2)}: the plateau spans dz {@code 0..44}
- *       (goal at dz +40, plateau built to dz +44), past the +31 edge — radius-2 window is
- *       {@code [−32,+47]}, which covers +44.</li>
- *   <li>{@code wd.deepWaterFloatBeeline} needs {@code .withChunkRadius(4)}: with {@code spanX = 56}
- *       the clear-box / basin floor reach dx {@code cx + spanX + 16 = +72} (far node cx+48, dry
- *       probe platform cx+68±1); +72 overflows radius-2 {@code [−32,+47]} and radius-3
- *       {@code [−48,+63]} — radius-4 window {@code [−64,+79]} covers it (usable dx/dz =
- *       {@code [−16r, 16r+15]}). No scene is pinned to a fixed slot: every gate is a discrete
- *       planner outcome (node-in-lane / reached / accept-reject), integer-cell and
- *       position-invariant.</li>
- * </ul>
+ * <p><b>Origin slots + chunk radius.</b> All nine take AUTO slots. One overflows the radius-1
+ * window (usable dx/dz {@code [−16,+31]}) and is widened: {@code wd.basin} needs
+ * {@code .withChunkRadius(2)}: the plateau spans dz {@code 0..44} (goal at dz +40, plateau built
+ * to dz +44), past the +31 edge — radius-2 window is {@code [−32,+47]}, which covers +44. No scene
+ * is pinned to a fixed slot: every gate is a discrete planner outcome (node-in-lane / reached),
+ * integer-cell and position-invariant.
  */
 public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
@@ -110,9 +112,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 Scene.of("wd.deepWaterSubmergedCross", 200, WorldDriverWaterCrossScenes::deepWaterSubmergedCross),
                 Scene.of("wd.vineOverWaterCross", 200, WorldDriverWaterCrossScenes::vineOverWaterCross),
                 Scene.of("wd.padOverWaterCross", 200, WorldDriverWaterCrossScenes::padOverWaterCross),
-                Scene.of("wd.padClusterCross", 200, WorldDriverWaterCrossScenes::padClusterCross),
-                Scene.of("wd.deepWaterFloatBeeline", 200, WorldDriverWaterCrossScenes::deepWaterFloatBeeline)
-                        .withChunkRadius(4));
+                Scene.of("wd.padClusterCross", 200, WorldDriverWaterCrossScenes::padClusterCross));
     }
 
     /** Ported from {@code AgentGameTestWaterCross#goalSnapBuriedArena}: a {@code goto} whose exact target
@@ -139,24 +139,23 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(buried));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        bot.goTo(Targets.block(buried));
+        boolean walking = true;
         int arrivedTick = -1;
-        for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
-            if (s.ended()) { arrivedTick = t; break; }
+        for (int t = 0; t < 300 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            if (!walking) { arrivedTick = t; break; }
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         double dGoal = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
         TestMod.LOG.info("[wd.goalSnapBuried] step={} pos=({},{},{}) arrivedTick={} dToBuried={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), arrivedTick, String.format("%.1f", dGoal));
         // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within snap radius 6 + slack).
-        if (!s.ended())
+        if (walking)
             ctx.fail("goalSnapBuried: bot never arrived at a buried/unstandable goal"
                     + " (snap failed): step=" + s + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
         if (dGoal > 7.0)
@@ -190,38 +189,35 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, plY - 12, cz + dz), Blocks.STONE.defaultBlockState());
         }
         BlockPos start = new BlockPos(cx, plY + 1, cz + 2);
-        Goal goal = new Goal.XZ(cx, cz + 40);            // ignoresY → the dive-prone case
+        GotoContracts.Target goal = Targets.column(cx, cz + 40, 0);   // ignoresY → the dive-prone case
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);   // each search runs to completion (deterministic)
         Harness.set("pathfinder.maxNodes", 1_000_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, plY + 1, cz + 2);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, plY + 1, cz + 2);
 
         Harness.set("pathfinderDepthPenalty", 0);
-        var r0 = runSearch(w, start, goal);
+        var r0 = runSearch(bot, start, goal);
         Harness.set("pathfinderDepthPenalty", 6);
-        var r6 = runSearch(w, start, goal);
+        var r6 = runSearch(bot, start, goal);
         TestMod.LOG.info("[wd.basin] penalty0: reached={} expanded={} | penalty6: reached={} expanded={}",
-                r0.goalReached(), r0.expanded(), r6.goalReached(), r6.expanded());
+                r0.goalReached(), r0.search().expanded(), r6.goalReached(), r6.search().expanded());
         if (!r6.goalReached())
             ctx.fail("basin: depthPenalty=6 failed to reach via the rim go-around");
-        if (r6.expanded() >= r0.expanded())
+        if (r6.search().expanded() >= r0.search().expanded())
             ctx.fail("basin: depthPenalty did not cut basin-dive exploration: "
-                    + "penalty0 expanded=" + r0.expanded() + " penalty6 expanded=" + r6.expanded());
+                    + "penalty0 expanded=" + r0.search().expanded() + " penalty6 expanded=" + r6.search().expanded());
 
         // Failure-case: a node budget BETWEEN the two counts — penalty=0 burns it in the trap and FAILS;
         // penalty=6 reaches via the rim within it.
-        int budget = (r0.expanded() + r6.expanded()) / 2;
+        int budget = (r0.search().expanded() + r6.search().expanded()) / 2;
         Harness.set("pathfinder.maxNodes", budget);
         Harness.set("pathfinderDepthPenalty", 0);
-        var b0 = runSearch(w, start, goal);
+        var b0 = runSearch(bot, start, goal);
         Harness.set("pathfinderDepthPenalty", 6);
-        var b6 = runSearch(w, start, goal);
+        var b6 = runSearch(bot, start, goal);
         TestMod.LOG.info("[wd.basin] budget={}: penalty0 reached={} | penalty6 reached={}",
                 budget, b0.goalReached(), b6.goalReached());
         if (b0.goalReached() || !b6.goalReached())
@@ -271,7 +267,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
             }
         BlockPos start = new BlockPos(cx, wsurf, cz);       // floating at the pool's south end
-        Goal goal = new Goal.XZ(cx, cz + 15);               // ignoresY → buoyant climb-out case
+        GotoContracts.Target goal = Targets.column(cx, cz + 15, 0);   // ignoresY → buoyant climb-out case
 
         Harness.pin(ctx);
         double oco = Harness.number("pathfinderWaterClimbOutCost");   // the configured default (baseline value)
@@ -279,17 +275,14 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         Harness.untimed(ctx);
         Harness.set("pathfinder.maxNodes", 1_000_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, wsurf, cz);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, wsurf, cz);
 
         // Tax OFF: the +1 exit is allowed (its maxY is recorded, not judged). Tax default: flush wins.
         Harness.set("pathfinderWaterClimbOutCost", 0);
-        var rOff = runSearch(w, start, goal);
+        var rOff = runSearch(bot, start, goal);
         int maxYOff = maxPathY(rOff);
         Harness.set("pathfinderWaterClimbOutCost", oco);        // the configured default
-        var rOn = runSearch(w, start, goal);
+        var rOn = runSearch(bot, start, goal);
         int maxYOn = maxPathY(rOn);
         TestMod.LOG.info("[wd.waterClimbOutRoute] taxOff: reached={} maxY={} | taxDefault({}): reached={} maxY={}",
                 rOff.goalReached(), maxYOff, oco, rOn.goalReached(), maxYOn);
@@ -553,7 +546,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         // SUBMERGED search seed: one cell INTO the deep water at surface-1 (floating, submerged).
         BlockPos seed = new BlockPos(cx + 1, surface - 1, cz);
         // Y-AWARE Near goal on the dry east bank.
-        Goal goal = new Goal.Near(new BlockPos(cx + spanX + 4, surface - 1, cz), 1);
+        GotoContracts.Target goal = Targets.near(new BlockPos(cx + spanX + 4, surface - 1, cz), 1);
 
         Harness.pin(ctx);
         Harness.set("allowBreak", false);          // pure swim/walk — the route choice must be the gate, not a dig
@@ -568,21 +561,19 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             // The bug lives in the legacy model, where every water cell is a node; run 0 reproduces it
             // there. Under the surface-node model (run 1) a submerged crossing cannot be planned at all.
             Harness.set("pathfinderSurfaceWaterNodes", (leg == 1));
-            ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
-            ServerPlayer fp = av.fakePlayer();
-            final ServerPlayer fpc = fp;
-            ctx.cleanup(() -> fpc.discard());
+            SceneBot probe = SceneBot.spawn(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
+            ServerPlayer fp = probe.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
-            LevelWorldView w = new LevelWorldView(level, fp);
-            PathFinder.Search s = new PathFinder(w).newSearch(seed, goal);
-            s.advance(Long.MAX_VALUE / 2);
-            PathFinder.Result r = s.result();
+            SinglePlan r = runSearch(probe, seed, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path())
-                if (p.getY() < surface && w.isWater(p) && w.isWater(p.above())) subNodes[leg]++;
+            List<BlockPosition> path = r.cells();
+            List<BlockPosition> above = path.stream().map(p -> new BlockPosition(p.x(), p.y() + 1, p.z())).toList();
+            List<BotDebugContracts.Cell> at = NavWalk.cells(probe, path), over = NavWalk.cells(probe, above);
+            for (int i = 0; i < path.size(); i++)
+                if (path.get(i).y() < surface && at.get(i).water() && over.get(i).water()) subNodes[leg]++;
             TestMod.LOG.info("[wd.deepWaterSubmergedCross] legA flagOn={} reached={} pathLen={} submergedNodes={}",
-                    leg == 1, r.goalReached(), r.path().size(), subNodes[leg]);
+                    leg == 1, r.goalReached(), r.pathLen(), subNodes[leg]);
         }
         // OFF must reproduce the bug: the committed plan threads the crossing SUBMERGED (many nodes).
         if (subNodes[0] < 10)
@@ -602,24 +593,23 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         Harness.set("pathfinderFloatingSurfaceCross", true);
         Harness.set("pathfinderSurfaceWaterNodes", true);
         Harness.set("navigatorDebug", true);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(goal);
-        Locomotor.Status st = Locomotor.Status.MOVING;
+        bot.goTo(goal);
         int submergedTicks = 0;
         double maxX = fp.getX();
-        for (int t = 0; t < 1200 && st == Locomotor.Status.MOVING; t++) {
-            st = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 1200 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxX = Math.max(maxX, fp.getX());
             BlockPos foot = BlockPos.containing(fp.getX(), fp.getY() + 0.1, fp.getZ());
-            if (fp.isInWater() && foot.getY() < surface - 1 && w.isWater(foot.above())) submergedTicks++;
+            if (fp.isInWater() && foot.getY() < surface - 1 && NavWalk.cell(bot, foot.above()).water()) submergedTicks++;
         }
+        String st = NavWalk.step(bot);
+        bot.cancel();
         boolean ashore = !fp.isInWater() && fp.getX() >= cx + spanX + 1 - 0.5;
         TestMod.LOG.info("[wd.deepWaterSubmergedCross] legB ashore={} step={} pos=({},{},{}) maxX={} submergedTicks={}",
                 ashore, st, String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
@@ -687,33 +677,32 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         }
 
         BlockPos start = new BlockPos(cx - 3, surface, cz);
-        Goal goal = new Goal.Near(new BlockPos(cx + spanX + 3, surface, cz), 1);
+        GotoContracts.Target goal = Targets.near(new BlockPos(cx + spanX + 3, surface, cz), 1);
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);   // deterministic: each search completes in one go
         Harness.set("pathfinder.maxNodes", 1_000_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
 
         // #1 silent-no-op guards.
         BlockPos bodyMid = new BlockPos(cx + (treeX0 + treeX1) / 2, surface + 1, cz);   // a vine cell
         BlockPos capMid  = new BlockPos(cx + (treeX0 + treeX1) / 2, surface + 2, cz);    // a leaf cell
-        if (!w.isClimbable(bodyMid))
+        BotDebugContracts.Cell body = NavWalk.cell(bot, bodyMid);
+        if (!body.climbable())
             ctx.fail("vineOverWaterCross: center head-level cell is NOT climbable (vine) at "
                     + bodyMid + " — the vine did not survive setBlockAndUpdate; the repro is vacuous.");
-        if (w.isLeaves(bodyMid))
+        if (body.leaves())
             ctx.fail("vineOverWaterCross: center head-level cell reads as LEAVES at " + bodyMid
                     + " — leafCellTax would already catch it and the new tax would be redundant; expected a VINE.");
-        if (w.isBreakableObstruction(bodyMid))
+        if (body.breakableObstruction())
             ctx.fail("vineOverWaterCross: center head-level vine reads as a breakable obstruction at "
                     + bodyMid + " — padCellTax would already catch it; a vine must have no collision shape.");
-        if (!w.isLeaves(capMid))
+        if (!NavWalk.cell(bot, capMid).leaves())
             ctx.fail("vineOverWaterCross: leaf canopy missing at " + capMid + ".");
 
         // A/B: OFF threads the center lane (bug), ON detours around it (fix).
@@ -721,16 +710,16 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             Harness.set("pathfinderVineOverWaterTax", (leg == 1));
-            PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
-            s.advance(Long.MAX_VALUE / 2);
-            PathFinder.Result r = s.result();
+            SinglePlan r = runSearch(bot, start, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path()) {
-                int rx = p.getX() - cx, rz = p.getZ() - cz;
-                if (rz == 0 && rx >= treeX0 && rx <= treeX1 && w.isWater(p)) laneNodes[leg]++;
+            List<BlockPosition> path = r.cells();
+            List<BotDebugContracts.Cell> cells = pathCells(bot, r);
+            for (int i = 0; i < path.size(); i++) {
+                int rx = path.get(i).x() - cx, rz = path.get(i).z() - cz;
+                if (rz == 0 && rx >= treeX0 && rx <= treeX1 && cells.get(i).water()) laneNodes[leg]++;
             }
             TestMod.LOG.info("[wd.vineOverWaterCross] flagOn={} reached={} pathLen={} centerLaneNodes={}",
-                    leg == 1, r.goalReached(), r.path().size(), laneNodes[leg]);
+                    leg == 1, r.goalReached(), r.pathLen(), laneNodes[leg]);
         }
         if (laneNodes[0] < 3)
             ctx.fail("vineOverWaterCross: with the tax OFF the plan did NOT thread the "
@@ -792,30 +781,28 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 1, cz), Blocks.LILY_PAD.defaultBlockState());
 
         BlockPos start = new BlockPos(cx - 3, surface, cz);
-        Goal goal = new Goal.Near(new BlockPos(cx + spanX + 3, surface, cz), 1);
+        GotoContracts.Target goal = Targets.near(new BlockPos(cx + spanX + 3, surface, cz), 1);
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);   // deterministic: each search completes in one go
         Harness.set("pathfinder.maxNodes", 1_000_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
 
         // #1 silent-no-op guards.
         BlockPos padBody = new BlockPos(cx + padDx[1], surface + 1, cz);   // a lily-pad cell
         BlockPos padFoot = new BlockPos(cx + padDx[1], surface, cz);       // the water cell under it
-        if (!w.isWater(padFoot))
+        if (!NavWalk.cell(bot, padFoot).water())
             ctx.fail("padOverWaterCross: foot under the pad is NOT water at " + padFoot
                     + " — the pad did not land on a water surface cell; the repro is vacuous.");
-        if (!w.isBreakableObstruction(padBody))
+        if (!NavWalk.cell(bot, padBody).breakableObstruction())
             ctx.fail("padOverWaterCross: pad head-level cell is NOT a breakable obstruction at "
                     + padBody + " — the lily pad did not survive setBlockAndUpdate; the repro is vacuous.");
-        if (goal.ignoresY())
+        if (ignoresY(goal))
             ctx.fail("padOverWaterCross: the goal reads as ignoresY (XZ) — padCellTax "
                     + "would already fire and the new goal-neutral tax would be redundant; expected a Y-aware goal.");
 
@@ -824,17 +811,17 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             Harness.set("pathfinderPadOverWaterTax", (leg == 1));
-            PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
-            s.advance(Long.MAX_VALUE / 2);
-            PathFinder.Result r = s.result();
+            SinglePlan r = runSearch(bot, start, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path()) {
-                if (p.getZ() != cz || !w.isWater(p)) continue;
-                int rx = p.getX() - cx;
+            List<BlockPosition> path = r.cells();
+            List<BotDebugContracts.Cell> cells = pathCells(bot, r);
+            for (int i = 0; i < path.size(); i++) {
+                if (path.get(i).z() != cz || !cells.get(i).water()) continue;
+                int rx = path.get(i).x() - cx;
                 for (int pd : padDx) if (rx == pd) { padNodes[leg]++; break; }
             }
             TestMod.LOG.info("[wd.padOverWaterCross] flagOn={} reached={} pathLen={} padLaneNodes={}",
-                    leg == 1, r.goalReached(), r.path().size(), padNodes[leg]);
+                    leg == 1, r.goalReached(), r.pathLen(), padNodes[leg]);
         }
         if (padNodes[0] < 1)
             ctx.fail("padOverWaterCross: with the tax OFF the plan did NOT thread any "
@@ -902,32 +889,30 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx + loneDx, surface + 1, cz), Blocks.LILY_PAD.defaultBlockState());
 
         BlockPos start = new BlockPos(cx - 3, surface, cz);
-        Goal goal = new Goal.Near(new BlockPos(cx + spanX + 3, surface, cz), 1);
+        GotoContracts.Target goal = Targets.near(new BlockPos(cx + spanX + 3, surface, cz), 1);
 
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);   // deterministic: each search completes in one go
         Harness.set("pathfinder.maxNodes", 1_000_000);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
-        LevelWorldView w = new LevelWorldView(level, fp);
 
         // #1 silent-no-op guards.
         BlockPos wallBody = new BlockPos(cx + wallDx, surface + 1, cz);   // the wall's centre lily-pad cell
         BlockPos wallFoot = new BlockPos(cx + wallDx, surface, cz);       // the water cell under it
         BlockPos wallSibN = new BlockPos(cx + wallDx, surface + 1, cz + 1);
-        if (!w.isWater(wallFoot))
+        if (!NavWalk.cell(bot, wallFoot).water())
             ctx.fail("padClusterCross: foot under the wall is NOT water at " + wallFoot
                     + " — the repro is vacuous.");
-        if (!w.isBreakableObstruction(wallBody) || !w.isBreakableObstruction(wallSibN))
+        if (!NavWalk.cell(bot, wallBody).breakableObstruction() || !NavWalk.cell(bot, wallSibN).breakableObstruction())
             ctx.fail("padClusterCross: wall pad cells are NOT breakable obstructions ("
                     + wallBody + " / " + wallSibN + ") — the lily-pad wall did not survive setBlockAndUpdate; "
                     + "the repro is vacuous.");
-        if (goal.ignoresY())
+        if (ignoresY(goal))
             ctx.fail("padClusterCross: the goal reads as ignoresY (XZ) — padCellTax would "
                     + "already fire; expected a Y-aware goal.");
 
@@ -937,17 +922,17 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             Harness.set("pathfinderPadClusterTax", (leg == 1));
-            PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
-            s.advance(Long.MAX_VALUE / 2);
-            PathFinder.Result r = s.result();
+            SinglePlan r = runSearch(bot, start, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path()) {
-                if (p.getX() - cx != wallDx || !w.isWater(p)) continue;
-                int rz = p.getZ() - cz;
+            List<BlockPosition> path = r.cells();
+            List<BotDebugContracts.Cell> cells = pathCells(bot, r);
+            for (int i = 0; i < path.size(); i++) {
+                if (path.get(i).x() - cx != wallDx || !cells.get(i).water()) continue;
+                int rz = path.get(i).z() - cz;
                 if (rz >= -wallHalfZ && rz <= wallHalfZ) wallNodes[leg]++;
             }
             TestMod.LOG.info("[wd.padClusterCross] region=wall clusterOn={} reached={} pathLen={} wallPadNodes={}",
-                    leg == 1, r.goalReached(), r.path().size(), wallNodes[leg]);
+                    leg == 1, r.goalReached(), r.pathLen(), wallNodes[leg]);
         }
         if (wallNodes[0] < 1)
             ctx.fail("padClusterCross: with the cluster tax OFF (flat single-pad tax only) "
@@ -964,10 +949,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         // ---- REGION 2: the LONE sparse pad (no single-pad regression).
         Harness.set("pathfinderPadClusterTax", true);
-        PathFinder.Result rLone = new PathFinder(w).findPath(start, goal);
+        SinglePlan rLone = runSearch(bot, start, goal);
         int loneNodes = 0;
-        for (BlockPos p : rLone.path())
-            if (p.getX() - cx == loneDx && p.getZ() == cz && w.isWater(p)) loneNodes++;
+        List<BlockPosition> lonePath = rLone.cells();
+        List<BotDebugContracts.Cell> loneCells = pathCells(bot, rLone);
+        for (int i = 0; i < lonePath.size(); i++)
+            if (lonePath.get(i).x() - cx == loneDx && lonePath.get(i).z() == cz && loneCells.get(i).water()) loneNodes++;
         TestMod.LOG.info("[wd.padClusterCross] region=lone clusterOn=true reached={} lonePadNodes={}",
                 rLone.goalReached(), loneNodes);
         if (loneNodes != 0)
@@ -979,10 +966,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         final int fullDx = 4;
         for (int dz = -halfZ; dz <= halfZ; dz++)
             level.setBlockAndUpdate(new BlockPos(cx + fullDx, surface + 1, cz + dz), Blocks.LILY_PAD.defaultBlockState());
-        PathFinder.Result rFull = new PathFinder(w).findPath(start, goal);
+        SinglePlan rFull = runSearch(bot, start, goal);
         int fullCross = 0;
-        for (BlockPos p : rFull.path())
-            if (p.getX() - cx == fullDx && w.isWater(p)) fullCross++;
+        List<BlockPosition> fullPath = rFull.cells();
+        List<BotDebugContracts.Cell> fullCells = pathCells(bot, rFull);
+        for (int i = 0; i < fullPath.size(); i++)
+            if (fullPath.get(i).x() - cx == fullDx && fullCells.get(i).water()) fullCross++;
         TestMod.LOG.info("[wd.padClusterCross] region=fullwall clusterOn=true reached={} crossNodes={}",
                 rFull.goalReached(), fullCross);
         if (!rFull.goalReached())
@@ -995,166 +984,30 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "the through-the-wall thread; re-check the geometry.");
     }
 
-    /** Ported from {@code AgentGameTestWaterCross#deepWaterFloatBeelineArena}: deep-water-float bee-line
-     *  anchor-gate exemption ({@code navigatorDeepWaterFloatBeeline}). Exercises the fix's DECISION POINT via
-     *  {@link Navigator#adoptForTest}: (1) OFF — the far open-water continuation is REJECTED (the live dead-stop
-     *  root); (2) ON — the SAME continuation is ACCEPTED and drives EAST; (2b) ON + SUNK foot accepts past the
-     *  |Δy| jump gate; (3a) ON is INERT for a WALLED line, (3b) ON is INERT from a DRY foot. Unit-level. */
-    private static void deepWaterFloatBeeline(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY(), depth = 8;   // legacy floorY 200 = origin.y
-        final int surface = floorY + depth;        // deep-water surface
-        final int spanX = 56;                      // E-W open-water crossing length (the far node is ~48 b out)
-
-        // Clear a generous air box.
-        for (int dx = -6; dx <= spanX + 16; dx++)
-            for (int dz = -5; dz <= 5; dz++)
-                for (int y = floorY - 1; y <= surface + 8; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        // DEEP basin floor (floorY) + N/S walls + a west cap to hold the water.
-        for (int dx = -5; dx <= spanX + 16; dx++)
-            for (int dz = -4; dz <= 4; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = -4; dx <= spanX + 1; dx++)
-            for (int y = floorY + 1; y <= surface + 2; y++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
-            }
-        for (int dz = -3; dz <= 3; dz++)
-            for (int y = floorY + 1; y <= surface + 2; y++)
-                level.setBlockAndUpdate(new BlockPos(cx - 4, y, cz + dz), Blocks.STONE.defaultBlockState());
-        // Deep open water filling the basin up to `surface` — a wide-open clear-LOS channel.
-        for (int dx = -3; dx <= spanX; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                for (int y = floorY + 1; y <= surface; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-
-        // The deep-water-float dead-stop geometry: foot at the start, a continuation [farNode, beyond, goal]
-        // whose first node is ~48 b east over clear open water.
-        final int waterFootY = surface;                       // a surface water cell (floating foot rides here)
-        BlockPos foot    = new BlockPos(cx, waterFootY, cz);
-        BlockPos farNode = new BlockPos(cx + 48, waterFootY, cz);          // continuation path[0] — ~48 b east
-        BlockPos beyond  = new BlockPos(cx + 52, waterFootY, cz);
-        BlockPos goalN   = new BlockPos(cx + spanX, waterFootY, cz);
-
-        // Deliberately NOT anchored at the foot — path[0] is ~48 b east. That is the input the
-        // segment anchor-gate exists to judge, not a malformed plan: three of the five arms below
-        // expect a REJECT, and the reason they expect one is precisely this gap. Built through the
-        // named factory so the next reader (or scanner) sees the intent in the source instead of
-        // inferring it from a shape that a genuinely broken plan shares.
-        ScenePlan seg = ScenePlan.misanchoredSegment(
-                List.of(farNode, beyond, goalN),
-                List.of(new Move.Edge(farNode, 50, List.of(), List.of(), "walk"),
-                        new Move.Edge(beyond,  10, List.of(), List.of(), "walk"),
-                        new Move.Edge(goalN,   30, List.of(), List.of(), "walk")));
-        List<BlockPos> cont = seg.nodes();
-        List<Move.Edge> contEdges = seg.edges();
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", false);
-
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, waterFootY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-
-        // Vacuity guards: the geometry must carry the dead-stop shape.
-        if (!w.isWater(foot) || !w.isWater(foot.below()))
-            ctx.fail("deepWaterFloatBeeline: foot " + foot + " is not buoyant deep water "
-                    + "(water at it AND below) — the float pin is vacuous.");
-        if (!w.isWater(farNode))
-            ctx.fail("deepWaterFloatBeeline: far node " + farNode + " is not a water cell "
-                    + "— the open-water bee-line target is vacuous.");
-        double d2 = farNode.distSqr(foot);
-        if (d2 < 64)
-            ctx.fail("deepWaterFloatBeeline: far node only d2=" + d2 + " from the foot — not a "
-                    + "long open-water crossing (need ≥ the 64 reject gate). Lengthen spanX.");
-
-        // (1) OFF: the far open-water continuation must be REJECTED (the live dead-stop root).
-        Harness.set("navigatorDeepWaterFloatBeeline", false);
-        Navigator wOff = new Navigator();
-        boolean acceptOff = wOff.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
-        if (acceptOff)
-            ctx.fail("deepWaterFloatBeeline: with the fix OFF the anchor-gate ACCEPTED the far "
-                    + "open-water continuation (d2=" + (int) d2 + ") — the mis-anchored reject (the live dead-stop root) did "
-                    + "not reproduce. Baseline broken.");
-
-        // (2) ON: the SAME continuation must be ACCEPTED and the step driven toward the far node.
-        Harness.set("navigatorDeepWaterFloatBeeline", true);
-        Navigator wOn = new Navigator();
-        boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
-                acceptOn, wOn.pathStep(), wOn.inspect().pathNode());
-        if (!acceptOn)
-            ctx.fail("deepWaterFloatBeeline: with navigatorDeepWaterFloatBeeline ON the anchor-gate "
-                    + "STILL rejected the clear-LOS open-water continuation — the bee-line exemption did not fire.");
-        BlockPos drive = wOn.inspect().pathNode();
-        if (drive == null || drive.getX() <= foot.getX())
-            ctx.fail("deepWaterFloatBeeline: after accepting, the step does not drive EAST toward "
-                    + "the far node (step node=" + drive + ", foot=" + foot + ") — the accepted segment must carry the bot "
-                    + "toward the far open-water node.");
-
-        // (2b) ON + SUNK foot: the live foot bobs UNDER the surface node (|Δy| up to 4), exceeding the jump bar.
-        BlockPos sunkFoot = new BlockPos(cx, waterFootY - 4, cz);
-        if (!w.isWater(sunkFoot) || Math.abs(farNode.getY() - sunkFoot.getY()) <= w.maxJumpUpBlocks() + 2)
-            ctx.fail("deepWaterFloatBeeline: the sunk-foot probe " + sunkFoot + " is not 4-below "
-                    + "submerged water past the jump gate — vacuous (|Δy|=" + Math.abs(farNode.getY() - sunkFoot.getY()) + ").");
-        Navigator wSunk = new Navigator();
-        boolean acceptSunk = wSunk.adoptForTest(w, cont, contEdges, sunkFoot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+SUNK accept={} (expect true: swim-up bee-line past the |Δy| jump gate)", acceptSunk);
-        if (!acceptSunk)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a SUNK foot (4 below the surface node, "
-                    + "the live deep-bob) was REJECTED — the exemption must bypass the |Δy| jump gate for an open-water swim-up "
-                    + "(else the reject storm survives the y58 bob ticks).");
-
-        // (3a) ON-INERT: a WALLED continuation (stone across the LOS line) must STILL be rejected.
-        BlockPos wallAt = new BlockPos(cx + 20, waterFootY, cz);          // a stone block mid-line
-        BlockPos wallHi = new BlockPos(cx + 20, waterFootY + 1, cz);
-        level.setBlockAndUpdate(wallAt, Blocks.STONE.defaultBlockState());
-        level.setBlockAndUpdate(wallHi, Blocks.STONE.defaultBlockState());
-        Navigator wWall = new Navigator();
-        boolean acceptWall = wWall.adoptForTest(w, cont, contEdges, foot);
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+WALL accept={} (expect false: LOS blocked by stone)", acceptWall);
-        level.setBlockAndUpdate(wallAt, Blocks.WATER.defaultBlockState());   // restore the channel
-        level.setBlockAndUpdate(wallHi, Blocks.AIR.defaultBlockState());
-        if (acceptWall)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a WALLED continuation (stone across "
-                    + "the LOS) was ACCEPTED — the exemption must reject a non-open-water line (else it bee-lines through a wall).");
-
-        // (3b) ON-INERT: a DRY foot (not floating), far from every continuation node, must STILL reject.
-        BlockPos dryFoot = new BlockPos(cx + spanX + 12, surface + 1, cz);
-        for (int dz = -1; dz <= 1; dz++)
-            for (int dx = -1; dx <= 1; dx++) {
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface, cz + dz), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 1, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 2, cz + dz), Blocks.AIR.defaultBlockState());
-            }
-        Navigator wDry = new Navigator();
-        boolean acceptDry = wDry.adoptForTest(w, cont, contEdges, dryFoot);   // far continuation, dry foot
-        TestMod.LOG.info("[wd.deepWaterFloatBeeline] ON+DRYFOOT accept={} (expect false: exemption needs a floating foot)", acceptDry);
-        if (acceptDry)
-            ctx.fail("deepWaterFloatBeeline: with the fix ON a continuation from a DRY foot was "
-                    + "ACCEPTED — the open-water bee-line exemption must be gated on a FLOATING foot.");
-    }
-
     // ---- inlined helpers (faithful copies of the legacy AgentGameTestSupport helpers) ----
 
-    /** Inlined from {@code AgentGameTestSupport#runSearch}: run one A* to completion (caller sets the
-     *  budget knobs) and return its result. */
-    private static PathFinder.Result runSearch(LevelWorldView w, BlockPos start, Goal goal) {
-        PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
-        s.advance(Long.MAX_VALUE / 2);
-        return s.result();
+    /** One A* from {@code start} to {@code goal} over {@code bot}'s view, run to completion with the
+     *  settings' budget (the caller sets the budget knobs): {@code mc.debug.plan}, which runs the same
+     *  bare search the legacy {@code AgentGameTestSupport#runSearch} did. */
+    private static SinglePlan runSearch(SceneBot bot, BlockPos start, GotoContracts.Target goal) {
+        return bot.plan(PlanParams.of(bot.ref(), goal).from(Targets.pos(start)));
     }
 
     /** Inlined from {@code AgentGameTestSupport#maxPathY}: highest Y of any cell on the planned path
      *  (−1 for an empty path). */
-    private static int maxPathY(PathFinder.Result r) {
+    private static int maxPathY(SinglePlan r) {
         int max = Integer.MIN_VALUE;
-        for (BlockPos p : r.path()) max = Math.max(max, p.getY());
-        return r.path().isEmpty() ? -1 : max;
+        for (int y : r.yProfile()) max = Math.max(max, y);
+        return r.yProfile().isEmpty() ? -1 : max;
+    }
+
+    /** Whether {@code goal} leaves Y free, as the legacy {@code Goal.XZ} did: the column target. */
+    private static boolean ignoresY(GotoContracts.Target goal) {
+        return goal instanceof GotoContracts.Column;
+    }
+
+    /** The planned path's cells as {@code bot}'s view classifies them, in path order. */
+    private static List<BotDebugContracts.Cell> pathCells(SceneBot bot, SinglePlan r) {
+        return NavWalk.cells(bot, r.cells());
     }
 }
