@@ -126,6 +126,11 @@ public final class Routes {
         return leash(new RouteContracts.PointAnchor(Targets.pos(cell)), radius, hard, weight);
     }
 
+    /** Stay within {@code radius} of the nearest {@code entity} (a player name, type id or entity id), followed as it moves. */
+    public Routes leashEntity(String entity, double radius, boolean hard, double weight) {
+        return leash(new RouteContracts.EntityAnchor(entity), radius, hard, weight);
+    }
+
     private Routes leash(RouteContracts.LeashAnchor anchor, double radius, boolean hard, double weight) {
         Route b = r();
         return with(new Route(b.via(), b.mode(), b.breakPolicy(), b.place(), b.parkour(), b.risk(), b.yRange(), b.hug(),
