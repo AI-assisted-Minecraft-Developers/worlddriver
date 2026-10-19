@@ -41,12 +41,9 @@ import net.minecraft.world.phys.Vec3;
  * (was NeoForge {@code FakePlayer}) and the player is obtained through the
  * {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
  *
- * <p><b>Who calls this.</b> The testmod's scenes take a bare avatar from {@code SceneBody.avatar},
- * or one wrapped in a {@link PlayerBot} from {@code SceneBody.mint}/{@code managed}/
- * {@code bare}; three call sites instead construct one directly over a player they already hold —
- * {@code JourneyRig}'s adopted real player, the same wrapper rebuilt in
- * {@code WorldDriverActuatorSplitScenes}, and the joined column of {@code wd.bodyParityCensus}. In
- * production the caller is {@code /worlddriver server} ({@link BotCommand}). The class
+ * <p><b>Who calls this.</b> {@link #createUnique}, through {@link PlayerBot#createIsolated}: every bot
+ * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and {@code /worlddriver
+ * server} ({@link BotCommand}). The class
  * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
  * used to subclass it was deleted with the fake players.
  *
@@ -125,48 +122,22 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         fp.initInventoryMenu();
     }
 
-    /**
-     * Build a bot player at {@code pos} in {@code level}, ready to drive.
-     *
-     * <p>⚠️ SHARED PLAYER: {@link JoinedPlayers#shared} is a per-LEVEL SINGLETON — every
-     * caller of THIS factory in a level shares one player. Production never rides it
-     * ({@code /worlddriver server} → {@link #createUnique}, one player per agent, guarded by the required
-     * {@code wd.serverAgentDistinctBodies} scene).
-     *
-     * <p><b>Nothing else rides it either: this factory has no caller left in the tree.</b> Its one
-     * caller is {@code PlayerBot.create}, which itself has none. The GameTest arenas that
-     * used to share a player — the reason this javadoc gave for keeping it — were retired in
-     * P4-final, and the scenes that replaced them create per-scene players through
-     * {@code SceneBody.avatar}/{@code bare}, i.e. {@link #createUnique}. Both halves of the dead
-     * pair are still here only because deleting them changes bytecode; the NeoForge twins are
-     * already gone. What the sharing cost while it lasted, kept as the reason not to reintroduce
-     * it: a concurrent arena could steal/teleport this player, so a solo-RED arena could ride a
-     * neighbour's shove to a full-suite false green (proven twice: descentOvershootResync,
-     * descentDrift).
-     */
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    public static ServerPlayerBody create(ServerLevel level, double x, double y, double z) {
-        return init(JoinedPlayers.BOTS.shared(level), x, y, z);
-    }
-
-    /** Like {@link #create} but with a player of its OWN — a fresh unique GameProfile, so this
-     *  avatar can never be steered/teleported through another driver's shared singleton
-     *  (gap #48). <b>This is the live factory:</b> {@code /worlddriver server} agents use it (two agents =
-     *  two players), and so do the testmod's scenes — most of them through
-     *  {@code SceneBody.avatar} / {@code SceneBody.bare}, which are also where the refusal to create
-     *  a headless player on a topology that has a real client to drive lives.
-     *  ({@code wd.bodyParityCensus} reaches past them on purpose, to hold the loader's player and
-     *  the joined player side by side; {@code JourneyRig} calls {@code createIsolated} itself.)
+    /** A bot player at {@code (x, y, z)} in {@code level}, ready to drive, with a player of its OWN — a fresh
+     *  unique GameProfile, so this avatar can never be steered/teleported through another driver's player
+     *  (gap #48). Every server-side player bot comes from here: {@code mc.bot.roster}'s, which is how the
+     *  testmod's scenes get theirs, and {@code /worlddriver server}'s (two agents = two players).
      *
-     *  <p>This javadoc used to say the GameTest arenas stayed on the shared {@link #create} because
-     *  per-arena players made the suite's other cross-arena couplings (shared world regions,
-     *  server-thread load) surface as drifting failures (measured 2026-07-12: 3 isolated runs →
-     *  failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,descentdrift,horizon,
-     *  rpcsmoke}, 139s vs 41s). That determinism problem was handed to the test-framework rework
-     *  and the arenas are gone; the reading is kept because it is what per-player isolation costs, not
-     *  because anything still shares.
+     *  <p>There was a factory that shared one player per level. It went because a concurrent scene could
+     *  steal/teleport the shared player, so a solo-RED scene could ride a neighbour's shove to a full-suite
+     *  false green (proven twice: descentOvershootResync, descentDrift).
+     *
+     *  <p>What per-player isolation costs, measured 2026-07-12 on the retired GameTest arenas: the suite's
+     *  other cross-arena couplings (shared world regions, server-thread load) surfaced as drifting failures
+     *  (3 isolated runs → failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,
+     *  descentdrift,horizon,rpcsmoke}, 139s vs 41s).
      *
      *  <p>NOTE: the seam caches players per profile per level, and each call here mints a new
      *  profile, so each call joins one more player that stays until it is discarded. Fine for the

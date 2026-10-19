@@ -86,14 +86,9 @@ public final class JoinedPlayers {
      * nothing here needs a loader API, which is also what lets another mod create a driven player
      * the same way on either loader. Until 2026-09-14 each loader installed a fake-player factory in
      * its place (NeoForge's {@code FakePlayerFactory}, and a Fabric copy of it); this was a separate
-     * {@code ServerAvatarBodies} holder until the layering rework. A scene that needs players of its
-     * own constructs another {@code JoinedPlayers}.
+     * {@code ServerAvatarBodies} holder until the layering rework.
      */
     public static final JoinedPlayers BOTS = new JoinedPlayers();
-
-    /** The name the per-level shared player joins under — one per level, the same per-level sharing
-     *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
-    private static final String SHARED_NAME = "worlddriver";
 
     /** Whether {@code connection} is a bot's, which has no client and throws every packet away. */
     public static boolean isSilent(Connection connection) {
@@ -101,11 +96,6 @@ public final class JoinedPlayers {
     }
 
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
-
-    /** The per-level shared player: every caller in a level gets the same player. */
-    public ServerPlayer shared(ServerLevel level) {
-        return body(level, profileFor(SHARED_NAME));
-    }
 
     /** A player of its own for {@code profile}, per level. */
     public ServerPlayer unique(ServerLevel level, GameProfile profile) {
@@ -176,14 +166,6 @@ public final class JoinedPlayers {
                 level.dimension().location(), body.blockPosition(),
                 level.getServer().getPlayerList().getPlayerCount());
         return body;
-    }
-
-    /** A stable offline-style profile, so a bot rejoining the same world is the same player. */
-    private static GameProfile profileFor(String name) {
-        return new GameProfile(
-                java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name)
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                name);
     }
 
     /**

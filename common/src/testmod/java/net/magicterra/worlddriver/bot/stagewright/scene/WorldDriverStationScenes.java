@@ -98,7 +98,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // ==================================================================================
     // Helpers carried from AgentGameTestServer when the GameTest path was retired. The
     // wave-2/3 "each provider self-contains its helpers" precedent kept them private here;
-    // whatever more than one provider needed has since moved to SceneArena / SceneBody,
+    // whatever more than one provider needed has since moved to SceneArena / SceneBot,
     // because that precedent is what gave buildFloor six authors and clearBox three.
     // ==================================================================================
 

@@ -35,10 +35,9 @@ import net.magicterra.worlddriver.game.body.ServerPlayerBody;
  * {@link #fakePlayer()} to NeoForge types, was deleted with the fake players, so nothing in this
  * repo overrides them.
  *
- * <p>Who holds a driver of THIS type: the testmod's scenes, via
- * {@code SceneBody.mint}/{@code managed}/{@code bare} — and {@code JourneyRig}, which wraps an
- * adopted real player when the topology supplies one and mints otherwise; {@code /worlddriver
- * server} ({@link BotCommand}); plus {@link BotTicker}, which keeps the
+ * <p>Who holds a driver of THIS type: {@link Roster}, for every bot {@code mc.bot.roster} spawns —
+ * which is how the testmod's scenes get theirs; {@code /worlddriver server} ({@link BotCommand});
+ * plus {@link BotTicker}, which keeps the
  * registered drivers and {@link #tick()}s them from the common server-tick hook.
  */
 public class PlayerBot extends ServerBot {
@@ -56,13 +55,8 @@ public class PlayerBot extends ServerBot {
         this.avatar = avatar;
     }
 
-    /** Put the level's shared player at {@code (x,y,z)} and wrap it in a driver. */
-    public static PlayerBot create(ServerLevel level, double x, double y, double z) {
-        return new PlayerBot(ServerPlayerBody.create(level, x, y, z));
-    }
-
-    /** {@link #create} with an isolated player ({@link ServerPlayerBody#createUnique}) —
-     *  the production entry point: every {@code /worlddriver server} agent gets its own player. */
+    /** A driver over a player of its own at {@code (x,y,z)} ({@link ServerPlayerBody#createUnique}): every
+     *  {@code mc.bot.roster} bot and every {@code /worlddriver server} agent gets its own player. */
     public static PlayerBot createIsolated(ServerLevel level, double x, double y, double z) {
         return new PlayerBot(ServerPlayerBody.createUnique(level, x, y, z));
     }

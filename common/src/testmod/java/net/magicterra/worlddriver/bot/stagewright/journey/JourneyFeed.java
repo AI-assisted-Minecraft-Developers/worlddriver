@@ -252,7 +252,7 @@ final class JourneyFeed {
      * bite. ⚠️ Corroboration is not proof — nothing here has yet watched that packet arrive. What
      * exists is one half of the comparison: {@code wd.serverAvatarTickFidelity} (A) holds the use
      * on cooked beef for forty ticks and requires the meal to finish, and it is GREEN — on a
-     * {@code SceneBody.mint} SERVER avatar, which has no client to release anything. The missing
+     * server-side bot, which has no client to release anything. The missing
      * half is the same measurement on a client-driven bot.
      *
      * <p><b>A fallback, not the route.</b> {@link #startBite} holds the client's own use key
