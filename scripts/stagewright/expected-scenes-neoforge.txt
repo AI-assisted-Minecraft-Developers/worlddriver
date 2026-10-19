@@ -43,7 +43,6 @@ wd.leashHard
 wd.forbidWater
 wd.forbidDig
 wd.shorelineHug
-wd.shorelineSmoother
 wd.escapeFarthestNoRockDrill
 wd.budgetAwayTunnelChurn
 # WaterBank family — leaving water onto a bank. Two members are optional sensors rather than
