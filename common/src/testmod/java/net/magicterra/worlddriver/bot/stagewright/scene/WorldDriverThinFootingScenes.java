@@ -938,7 +938,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
-        bot.goTo(Targets.block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
+        // One column aside from the line the rig walks: the bot never stands in the goal, so the walk is
+        // still underway at the lip, where its guards run. A goal on the line ends the walk a step short
+        // of the lip, and an ended walk runs no guards.
+        bot.goTo(Targets.block(ctx.rel(1, SHELF + 1, SHELF_CELLS - 1)));
         double minY = fp.getY(), farZ = fp.getZ();
         boolean inLava = false;
         int pinned = 0, t = 0;
