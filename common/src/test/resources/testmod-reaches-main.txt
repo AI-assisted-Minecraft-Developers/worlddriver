@@ -1,18 +1,1 @@
 # What testmod code still uses past api/ and protocol/; ArchitectureTest lets this list only shrink.
-bot/stagewright/SceneBody -> bot/BotHooks
-bot/stagewright/SceneBody -> bot/BotTicker
-bot/stagewright/SceneBody -> bot/PlayerBot
-bot/stagewright/SceneBody -> game/body/JoinedPlayers
-bot/stagewright/SceneBody -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Locomotor
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/planning/MultiTrace
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/planning/PathTrace
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/planning/PathTraceHolder
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/rules/Move
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchive
-bot/stagewright/scene/WorldDriverCoreScenes -> debug/PathArchiveRecorder
-bot/stagewright/scene/WorldDriverCoreScenes -> game/body/ServerPlayerBody

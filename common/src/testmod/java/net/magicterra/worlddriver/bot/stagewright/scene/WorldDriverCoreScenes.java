@@ -12,7 +12,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.worlddriver.bot.stagewright.Calls;
@@ -39,20 +45,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.BotLevelHolder;
-import net.magicterra.worlddriver.debug.PathArchive;
-import net.magicterra.worlddriver.debug.PathArchiveRecorder;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.MultiTrace;
-import net.magicterra.worlddriver.bot.planning.PathTrace;
-import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ReplayParams;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.testcontent.TestArena;
 import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
@@ -95,12 +89,11 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByN
  *       server starts the RPC server unconditionally on a random port, so the suite's three
  *       transports, reached through {@code WorldDriver.scripts()}, have a live endpoint.)</li>
  *   <li>{@code pathArchiveCapture} / {@code replayRoundTrip} waited (up to 2 s of {@code Thread.sleep})
- *       for the daemon plan/replay-run file write; the scene keeps the (fast, synchronous) navigator
- *       loops in the scene method and moves ONLY the file-write waits into {@code await} continuations —
+ *       for the daemon plan/replay-run file write; the scenes keep the walks synchronous (a parked bot
+ *       ticked until idle) and move ONLY the file-write waits into {@code await} continuations —
  *       {@code replayRoundTrip} chains a second {@code await} inside the first's {@code then()} for
- *       its two sequential file writes. These two still drive a bare {@code Navigator} and install
- *       their own archive recorder: the api has no recorder on a dedicated server and no replay for a
- *       server bot.</li>
+ *       its two sequential file writes. The archives are read off disk as the files they are, which is
+ *       what an archive's reader gets.</li>
  * </ul>
  *
  * <p><b>Origin slots.</b> Every scene takes an AUTO slot at the default radius: every arena's footprint
@@ -1085,196 +1078,147 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     // ==================================================================================
 
     /** Ported from {@code AgentGameTest#pathArchiveCaptureArena}: end-to-end capture round-trip for
-     *  {@link PathArchiveRecorder} — drives a real 8-block Navigator goto on flat stone, then asserts a
-     *  JSON archive was written to disk with ≥1 segment, ≥1 trajectory tick, and a non-null dimension.
-     *  The (synchronous) navigator loop stays in the scene method; the daemon file-write wait becomes an await. */
+     *  the path archive — drives a real 8-block goto on flat stone with {@code pathArchive} on, then
+     *  asserts a JSON archive was written to disk with ≥1 segment, ≥1 trajectory tick, and a dimension.
+     *  The walk is synchronous; the daemon file-write wait becomes an await. */
     private static void pathArchiveCapture(SceneContext ctx) {
-        ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
+        archiveArena(ctx, cx, floorY, cz);
 
-        for (int dx = -2; dx <= 20; dx++)
-            for (int dz = -3; dz <= 3; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-                for (int dy = 1; dy <= 5; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-            }
-
-        PathArchiveRecorder archive = new PathArchiveRecorder();
-        PathTrace previousSink = PathTraceHolder.SINK;
-        PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
-        ctx.cleanup(() -> PathTraceHolder.SINK = previousSink);
-
-        Harness.pin(ctx);
-        Harness.set("pathArchive", true);
-        Harness.set("allowBreak", false);
-        Harness.set("allowPlace", false);
-        Harness.untimed(ctx);
-
+        Set<String> before = archives(PLAN_ARCHIVE);
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        BotLevelHolder.current = level;
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, cx + 0.5, floorY + 1, cz + 0.5);
+        bot.goTo(Targets.block(goal));
+        int ticks = bot.tickUntilIdle(1000);
+        ctx.record("walk", "end=" + bot.gotoSlot().endReason().orElse("-") + " ticks=" + ticks
+                + " pos=" + bot.player().blockPosition().toShortString());
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
-        TestMod.LOG.info("[wd.pathArchiveCapture] terminal step={} pos=({},{},{})",
-                s, fp.getX(), fp.getY(), fp.getZ());
-
-        // Daemon write dispatched to a background thread; poll from the tick path (was Thread.sleep up to 2 s).
-        ctx.await(() -> archive.lastWrittenPath() != null).within(200).then(() -> {
-            String writtenPath = archive.lastWrittenPath();
-            if (writtenPath == null) { ctx.fail("pathArchiveCapture: no replay file was written"); return; }
-            Path replayPath = Path.of(writtenPath);
-            if (!Files.exists(replayPath)) { ctx.fail("pathArchiveCapture: replay file does not exist on disk: " + writtenPath); return; }
-            String json;
-            try { json = Files.readString(replayPath); }
-            catch (Exception e) { ctx.fail("pathArchiveCapture: failed to read replay file: " + e); return; }
-            PathArchive a = PathArchive.fromJson(json);
-            if (a.segments().size() < 1) ctx.fail("pathArchiveCapture: expected >= 1 segment, got " + a.segments().size());
-            if (a.trajectory().size() < 1) ctx.fail("pathArchiveCapture: expected >= 1 trajectory tick, got " + a.trajectory().size());
-            if (a.header().dimension() == null || a.header().dimension().isEmpty())
+        awaitArchive(ctx, PLAN_ARCHIVE, before, (file, a) -> {
+            if (size(a, "segments") < 1) ctx.fail("pathArchiveCapture: expected >= 1 segment, got " + size(a, "segments"));
+            if (size(a, "trajectory") < 1) ctx.fail("pathArchiveCapture: expected >= 1 trajectory tick, got " + size(a, "trajectory"));
+            JsonElement dim = a.has("header") ? a.getAsJsonObject("header").get("dimension") : null;
+            if (dim == null || dim.isJsonNull() || dim.getAsString().isEmpty())
                 ctx.fail("pathArchiveCapture: header.dimension is null or empty");
         });
     }
 
-    /** Ported from {@code AgentGameTest#replayRoundTripArena}: end-to-end PROOF of record → replay —
-     *  record a goto archive, rebuild the concatenated plan+edges, replay via a fresh
-     *  {@code Navigator.beginReplay} + armed capture, and assert the bot reaches the same goal (±2 XZ)
-     *  with bounded per-tick deviation. The two synchronous navigator loops stay in-body; the two
-     *  sequential daemon file-write waits become chained await continuations. */
-    private static void replayRoundTrip(SceneContext ctx) {
+    /** The flat stone floor both archive scenes walk, with headroom. */
+    private static void archiveArena(SceneContext ctx, int cx, int floorY, int cz) {
         ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-
         for (int dx = -2; dx <= 20; dx++)
             for (int dz = -3; dz <= 3; dz++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
                 for (int dy = 1; dy <= 5; dy++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
             }
-
-        PathArchiveRecorder archive = new PathArchiveRecorder();
-        PathTrace previousSink = PathTraceHolder.SINK;
-        PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
-        ctx.cleanup(() -> PathTraceHolder.SINK = previousSink);
-
         Harness.pin(ctx);
-        Harness.set("pathArchive", true);     // gates sampleTick for BOTH record + replay capture
+        Harness.set("pathArchive", true);     // gates the capture of both the record and the replay run
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
         Harness.untimed(ctx);
+    }
 
-        final BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
-        BotLevelHolder.current = level;
+    /** Where the recorder writes, relative to the server's working directory as it resolves it. */
+    private static final Path REPLAYS = Path.of("config", "worlddriver", "replays");
+    private static final String PLAN_ARCHIVE = "replay-", REPLAY_RUN = "replay-run-";
 
-        // ---- Phase 1: RECORD a real goto from A to B. ----
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
-        TestMod.LOG.info("[wd.replayRoundTrip] record terminal step={} arrival={}", s, fp.blockPosition());
+    /** The archive files under {@link #REPLAYS} of one kind, as they stand now. */
+    private static Set<String> archives(String kind) {
+        if (!Files.isDirectory(REPLAYS)) return Set.of();
+        try (Stream<Path> files = Files.list(REPLAYS)) {
+            return files.map(p -> p.getFileName().toString())
+                    .filter(n -> n.endsWith(".json") && n.startsWith(kind)
+                            && (kind.equals(REPLAY_RUN) || !n.startsWith(REPLAY_RUN)))
+                    .collect(Collectors.toSet());
+        } catch (java.io.IOException e) {
+            return Set.of();
+        }
+    }
 
-        // ---- await plan archive write, then rebuild + replay + await replay-run write. ----
-        ctx.await(() -> archive.lastWrittenPath() != null).within(200).then(() -> {
-            String planPath = archive.lastWrittenPath();
-            if (planPath == null) { ctx.fail("replayRoundTrip: no plan archive written"); return; }
-            String planJson;
-            try { planJson = Files.readString(Path.of(planPath)); }
-            catch (Exception e) { ctx.fail("replayRoundTrip: failed to read plan archive: " + e); return; }
-            PathArchive planArchive = PathArchive.fromJson(planJson);
-            if (planArchive.segments().size() < 1) { ctx.fail("replayRoundTrip: plan archive has no segments"); return; }
-
-            // ---- Phase 2: REBUILD the concatenated plan + edges (mirrors ReplayTool). ----
-            List<BlockPos> plan = new ArrayList<>();
-            List<Move.Edge> edges = new ArrayList<>();
-            for (PathArchive.Segment seg : planArchive.segments()) {
-                List<int[]> segPath = seg.path();
-                if (segPath.isEmpty()) continue;
-                List<Move.Edge> segEdges = new ArrayList<>(segPath.size());
-                segEdges.add(null);   // re-insert the leading start-node sentinel
-                for (PathArchive.EdgeRec er : seg.edges()) {
-                    List<BlockPos> toBreak = new ArrayList<>();
-                    for (int[] c : er.breakCells()) toBreak.add(new BlockPos(c[0], c[1], c[2]));
-                    List<BlockPos> toPlace = new ArrayList<>();
-                    for (int[] c : er.placeCells()) toPlace.add(new BlockPos(c[0], c[1], c[2]));
-                    segEdges.add(new Move.Edge(null, er.cost(), toBreak, toPlace, er.move()));
-                }
-                while (segEdges.size() < segPath.size()) segEdges.add(null);
-
-                int from = 0;
-                if (!plan.isEmpty()) {
-                    int[] first = segPath.get(0);
-                    BlockPos last = plan.get(plan.size() - 1);
-                    if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) from = 1;
-                }
-                for (int i = from; i < segPath.size(); i++) {
-                    int[] n = segPath.get(i);
-                    plan.add(new BlockPos(n[0], n[1], n[2]));
-                    edges.add(i < segEdges.size() ? segEdges.get(i) : null);
+    /**
+     * Continues with the archive of {@code kind} written since {@code before} was listed, once it reads as whole
+     * JSON: the recorder writes it on a thread of its own after the run ends.
+     */
+    private static void awaitArchive(SceneContext ctx, String kind, Set<String> before, BiConsumer<String, JsonObject> then) {
+        String[] file = {null};
+        JsonObject[] json = {null};
+        ctx.await(() -> {
+            for (String n : archives(kind)) {
+                if (before.contains(n)) continue;
+                try {
+                    json[0] = JsonParser.parseString(Files.readString(REPLAYS.resolve(n))).getAsJsonObject();
+                    file[0] = n;
+                    return true;
+                } catch (Exception partial) {
+                    return false;
                 }
             }
-            if (plan.size() < 2) { ctx.fail("replayRoundTrip: concatenated plan too short: " + plan.size()); return; }
+            return false;
+        }).within(200).then(() -> {
+            ctx.record(kind + "file", file[0]);
+            then.accept(file[0], json[0]);
+        });
+    }
 
-            BlockPos startFoot = plan.get(0);
-            BlockPos lastNode = plan.get(plan.size() - 1);
+    /** The length of {@code key}'s array in {@code o}, 0 when it is absent. */
+    private static int size(JsonObject o, String key) {
+        return o.has(key) && o.get(key).isJsonArray() ? o.getAsJsonArray(key).size() : 0;
+    }
 
-            // ---- Phase 3: REPLAY via a fresh Navigator.beginReplay + armed capture. ----
-            // Create the replay player FIRST, then arm: the armed session is identity-pinned
-            // to the replay avatar so concurrent navigators (the T1 client bot — see PathArchiveRecorder
-            // replayEntityId) can't leak foreign samples into the deviation gate.
-            ServerPlayerBody rav = SceneBody.avatar(ctx,
-                    level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
-            ServerPlayer rfp = rav.fakePlayer();
-            ctx.cleanup(() -> rfp.discard());
-            LevelWorldView rw = new LevelWorldView(level, rfp);
-            archive.armReplay(plan, Path.of(planPath).getFileName().toString(), rfp.getId());
+    /** Ported from {@code AgentGameTest#replayRoundTripArena}: end-to-end PROOF of record → replay —
+     *  record a goto archive, replay its stored plan on a fresh bot through {@code mc.debug.replay}, and
+     *  assert the bot reaches the same goal (±2 XZ) with bounded per-tick deviation. The two walks are
+     *  synchronous; the two sequential daemon file-write waits become chained await continuations. */
+    private static void replayRoundTrip(SceneContext ctx) {
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
+        archiveArena(ctx, cx, floorY, cz);
+        final BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
 
-            Navigator replay = new Navigator();
-            replay.replay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
-            Locomotor.Status rs = Locomotor.Status.MOVING;
-            int maxTicks = 1500;
-            int rt = 0;
-            for (; rt < maxTicks && rs == Locomotor.Status.MOVING; rt++) { rs = replay.tick(rav, rw); rav.step(); }
-            BlockPos replayArrival = rfp.blockPosition();
-            TestMod.LOG.info("[wd.replayRoundTrip] replay terminal step={} ticks={} arrival={}",
-                    rs, rt, replayArrival);
-            if (rt >= maxTicks) { ctx.fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks"); return; }
+        // ---- Phase 1: RECORD a real goto from A to B. ----
+        Set<String> plansBefore = archives(PLAN_ARCHIVE);
+        SceneBot recorder = SceneBot.spawn(ctx, cx + 0.5, floorY + 1, cz + 0.5);
+        recorder.goTo(Targets.block(goal));
+        int ticks = recorder.tickUntilIdle(1000);
+        ctx.record("record", "end=" + recorder.gotoSlot().endReason().orElse("-") + " ticks=" + ticks
+                + " arrival=" + recorder.player().blockPosition().toShortString());
 
-            int dgx = Math.abs(replayArrival.getX() - goal.getX());
-            int dgz = Math.abs(replayArrival.getZ() - goal.getZ());
-            if (!(dgx <= 2 && dgz <= 2))
-                { ctx.fail("replayRoundTrip: replay arrival " + replayArrival + " not within +/-2 XZ of goal " + goal
-                        + " (dx=" + dgx + ", dz=" + dgz + ")"); return; }
+        awaitArchive(ctx, PLAN_ARCHIVE, plansBefore, (planFile, plan) -> {
+            if (size(plan, "segments") < 1) { ctx.fail("replayRoundTrip: plan archive has no segments"); return; }
 
-            // ---- await replay-run write, then assert bounded deviation. ----
-            ctx.await(() -> archive.lastReplayRunPath() != null).within(200).then(() -> {
-                String runPath = archive.lastReplayRunPath();
-                if (runPath == null) { ctx.fail("replayRoundTrip: no replay-run file written"); return; }
-                if (!Files.exists(Path.of(runPath))) { ctx.fail("replayRoundTrip: replay-run file missing on disk: " + runPath); return; }
-                String runJson;
-                try { runJson = Files.readString(Path.of(runPath)); }
-                catch (Exception e) { ctx.fail("replayRoundTrip: failed to read replay-run file: " + e); return; }
-                PathArchive run = PathArchive.fromJson(runJson);
-                if (!"replay".equals(run.kind())) { ctx.fail("replayRoundTrip: expected kind=replay, got " + run.kind()); return; }
-                if (run.trajectory().isEmpty()) { ctx.fail("replayRoundTrip: replay-run trajectory is empty"); return; }
-                double maxDev = 0.0;
-                for (PathArchive.Tick tk : run.trajectory()) {
-                    double d = tk.deviation();
-                    if (!Double.isNaN(d) && d > maxDev) maxDev = d;
-                }
-                TestMod.LOG.info("[wd.replayRoundTrip] trajectory ticks={} maxDeviation={}",
-                        run.trajectory().size(), maxDev);
-                if (maxDev > 4.0) ctx.fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
+            // ---- Phase 2: REPLAY the stored plan on a fresh bot, which the replay places at the start. ----
+            // The capture is pinned to the replaying bot, so the recorder bot standing at the goal cannot
+            // leak samples into the deviation gate.
+            Set<String> runsBefore = archives(REPLAY_RUN);
+            SceneBot replayer = SceneBot.spawn(ctx, cx + 0.5, floorY + 1, cz + 0.5);
+            ask(ctx, "replay", DebugApi.of(WorldDriver.registry()).replay(ReplayParams.plan(replayer.ref(), planFile)), r -> {
+                int maxTicks = 1500;
+                int rt = replayer.tickUntilIdle(maxTicks);
+                BlockPos replayArrival = replayer.player().blockPosition();
+                ctx.record("replay.walk", "end=" + replayer.gotoSlot().endReason().orElse("-") + " ticks=" + rt
+                        + " arrival=" + replayArrival.toShortString());
+                if (rt >= maxTicks) { ctx.fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks"); return; }
+
+                int dgx = Math.abs(replayArrival.getX() - goal.getX());
+                int dgz = Math.abs(replayArrival.getZ() - goal.getZ());
+                if (!(dgx <= 2 && dgz <= 2))
+                    { ctx.fail("replayRoundTrip: replay arrival " + replayArrival + " not within +/-2 XZ of goal " + goal
+                            + " (dx=" + dgx + ", dz=" + dgz + ")"); return; }
+
+                // ---- await replay-run write, then assert bounded deviation. ----
+                awaitArchive(ctx, REPLAY_RUN, runsBefore, (runFile, run) -> {
+                    String kind = run.has("kind") ? run.get("kind").getAsString() : null;
+                    if (!"replay".equals(kind)) { ctx.fail("replayRoundTrip: expected kind=replay, got " + kind); return; }
+                    if (size(run, "trajectory") == 0) { ctx.fail("replayRoundTrip: replay-run trajectory is empty"); return; }
+                    double maxDev = 0.0;
+                    for (JsonElement tk : run.getAsJsonArray("trajectory")) {
+                        JsonElement d = tk.getAsJsonObject().get("deviation");
+                        if (d != null && !d.isJsonNull()) maxDev = Math.max(maxDev, d.getAsDouble());
+                    }
+                    ctx.record("replay.deviation", "ticks=" + size(run, "trajectory") + " max=" + maxDev);
+                    if (maxDev > 4.0) ctx.fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
+                });
             });
         });
     }
