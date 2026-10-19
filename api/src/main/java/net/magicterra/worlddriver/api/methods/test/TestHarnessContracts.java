@@ -229,7 +229,8 @@ public final class TestHarnessContracts {
     // ------------------------------------------------------------------ input
 
     /**
-     * The keys a bot holds, each kept until the next press changes it; an omitted one stays as it is.
+     * The keys a bot holds, each kept until the next press changes it; an omitted one stays as it is. Except
+     * {@code jump} out of water: like the navigator's, it is a press for one step, which a step clears.
      * {@code forward} and {@code left} are the movement impulses, -1 to 1. {@code attack} holds the dig on the cell
      * the bot looks at; {@code use} holds the item in hand. {@code aimAt} turns the bot to a block's centre at once;
      * {@code toolFor} puts the best tool for that block in hand. {@code hit} strikes an entity once through the
