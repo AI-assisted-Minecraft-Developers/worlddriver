@@ -960,6 +960,9 @@ public final class JourneyRampScenes implements SceneProvider {
                     + entry.toShortString() + " but in " + fp.blockPosition().toShortString());
         // The walk is mc.bot.goTo on this parked bot, ticked one bot tick at a time: the production
         // navigator behind the verb, where this arm used to construct a bare Navigator and tick it.
+        // With the shipped arrival rule, which the pinned baseline turns off: without it the last node
+        // is spent a cell short, and the goto ends there with goalReached=false.
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
         Calls.now(JourneyTasks.goTo(Targets.block(landing)).start().apply(driver.ref()));
         BlockPos best = fp.blockPosition();
         for (int t = 0; t < WALK_TICKS && !fp.blockPosition().equals(landing); t++) {
