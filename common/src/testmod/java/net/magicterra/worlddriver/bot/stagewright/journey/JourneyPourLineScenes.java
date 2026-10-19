@@ -12,10 +12,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -356,8 +353,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         Harness.set("allowBreak", false);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         ctx.cleanup(JourneyRamp::reset);
         ctx.cleanup(JourneySight::forgetMould);
         // No staircase at all, and said so rather than assumed: JourneyRamp.fillable consults
@@ -371,25 +367,24 @@ public final class JourneyPourLineScenes implements SceneProvider {
     }
 
     /** A bot standing in {@code foot}, settled, holding a pickaxe and a bucket's worth of nothing. */
-    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
-        PlayerBot driver = SceneBody.managed(ctx, foot);
-        ServerPlayer fp = driver.fakePlayer();
+    private static SceneBot body(SceneContext ctx, BlockPos foot) {
+        SceneBot driver = JourneyRig.arenaBot(ctx, foot);
+        ServerPlayer fp = driver.player();
         // A pickaxe because the take-back arm mines with it and `destroyBlock` hands the held item to
         // `dropResources` — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
         // Three physics steps with no input, so the bot is flush before any eye is read.
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
         return driver;
     }
 
     /** The shot, fired the way the pour fires it, described the way {@code cast*.picks} describes it. */
     private record Shot(BlockPos stopped, BlockPos landing, String where) {}
 
-    private static Shot fire(SceneContext ctx, PlayerBot driver, BlockPos aim) {
-        ServerPlayer fp = driver.fakePlayer();
-        BlockHitResult hit = JourneyPour.fire(driver.avatar(), fp, aim);
+    private static Shot fire(SceneContext ctx, SceneBot driver, BlockPos aim) {
+        ServerPlayer fp = driver.player();
+        BlockHitResult hit = JourneyPour.fire(c -> JourneyHands.aim(driver, c), fp, aim);
         BlockPos landing = JourneyPour.landedIn(hit);
         String where = String.format(Locale.ROOT, "bot at %s, eyes %.2f/%.2f/%.2f, aiming at %s → %s",
                 fp.blockPosition().toShortString(), fp.getEyePosition().x, fp.getEyePosition().y,
@@ -403,7 +398,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
     /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the portal-entry
      *  arenas so there is one of it rather than one per file. */
-    private static boolean swing(PlayerBot driver, BlockPos cell) {
+    private static boolean swing(SceneBot driver, BlockPos cell) {
         return JourneyHands.swing(driver, cell);
     }
 
@@ -473,7 +468,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
                         + " ray passes through it and this arm measures 'nothing to aim at' instead of"
                         + " 'blocked' — " + level.getBlockState(backing).getBlock()).isTrue();
 
-        PlayerBot control = body(ctx, stand);
+        SceneBot control = body(ctx, stand);
         Shot clear = fire(ctx, control, backing);
         ctx.record("control.shot", clear.where());
         ctx.record("control.after", (target.equals(clear.landing()) ? 0 : 1) + " fault(s): lands in "
@@ -483,7 +478,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: with nothing on the line this shot should land in "
                     + target.toShortString() + ", but got " + clear.where()
                     + " — every row after this would be measuring an alcove that cannot be poured into");
-        control.fakePlayer().discard();
+        control.remove();
 
         // ---- subject: the flight the scoop left standing ----
         stage(ctx, true, CAST_SO_FAR);
@@ -492,8 +487,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 + " clearPourLine exemption would never apply to it")
                 .isTrue();
 
-        PlayerBot subject = body(ctx, stand);
-        ServerPlayer fp = subject.fakePlayer();
+        SceneBot subject = body(ctx, stand);
+        ServerPlayer fp = subject.player();
         Shot shot = fire(ctx, subject, backing);
         ctx.record("subject.shot", shot.where());
         ctx.check(shot.stopped()).as("A the ray stops on the top step the scoop built, "
@@ -577,24 +572,24 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
         // ---- control: a bot standing on the step may not be handed its own floor ----
         stage(ctx, true, CAST_SO_FAR);
-        PlayerBot control = body(ctx, onTop);
+        SceneBot control = body(ctx, onTop);
         List<BlockPos> refused = JourneySight.blockersOnTheLine(level, corridor(ctx), target, AWAY,
-                JourneyPortalRung.POUR_LINE, control.fakePlayer());
-        ctx.record("control.body", control.fakePlayer().blockPosition().toShortString()
+                JourneyPortalRung.POUR_LINE, control.player());
+        ctx.record("control.body", control.player().blockPosition().toShortString()
                 + " (standing on the step " + borrowed.toShortString() + ", restsOn="
-                + JourneySight.restsOn(control.fakePlayer(), borrowed) + ")");
+                + JourneySight.restsOn(control.player(), borrowed) + ")");
         ctx.record("control.after", (refused.contains(borrowed) ? 1 : 0) + " fault(s): can take back "
                 + refused);
         if (refused.contains(borrowed))
             ctx.fail("THE RIG, not the subject: the bot is standing on " + borrowed.toShortString()
                     + ", yet the rule offers it for take-back — that would mine the bot's own floor,"
                     + " which is exactly what the exemption exists to prevent: " + refused);
-        control.fakePlayer().discard();
+        control.remove();
 
         // ---- subject ----
         stage(ctx, true, CAST_SO_FAR);
-        PlayerBot subject = body(ctx, stand);
-        ServerPlayer fp = subject.fakePlayer();
+        SceneBot subject = body(ctx, stand);
+        ServerPlayer fp = subject.player();
 
         BlockPos before = nearestVerified(ctx, fp);
         int standBefore = grade(ctx, fp, stand);
@@ -616,7 +611,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         JourneyRamp.forget(borrowed);
         ctx.record("subject.dig", borrowed.toShortString() + " → "
                 + level.getBlockState(borrowed).getBlock() + " (canBreak="
-                + subject.avatar().canBreak(borrowed) + ")");
+                + subject.reach(borrowed).canBreak() + ")");
         ctx.check(opened).as("B the cell was actually broken open; otherwise the ray below measures a"
                 + " wall that is not there: "
                 + borrowed.toShortString() + "=" + level.getBlockState(borrowed).getBlock()).isTrue();
@@ -880,8 +875,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
         // Parked outside the mould: pourGrade reads the eye HEIGHT and uses the bot only as the
         // clip's shape context, so where it stands cannot move a line — but it must not be inside a
         // cell this arm is about to describe.
-        PlayerBot driver = body(ctx, ctx.rel(0, BASE, -2));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, ctx.rel(0, BASE, -2));
+        ServerPlayer fp = driver.player();
 
         BlockPos died = ring(ctx, last);
         BlockPos neighbour = ring(ctx, last - 1);
@@ -993,8 +988,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
         level.setBlockAndUpdate(JourneyForge.wetCellFor(base(ctx), AWAY,
                 JourneyForge.RING[last][0], JourneyForge.RING[last][1]),
                 Blocks.AIR.defaultBlockState());
-        PlayerBot driver = body(ctx, stand(ctx));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, stand(ctx));
+        ServerPlayer fp = driver.player();
 
         Set<BlockPos> corridor = corridor(ctx);
         List<BlockPos> candidates = JourneyPour.standCandidates(cell, AWAY);
@@ -1152,8 +1147,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 + " the same state by distance (5.21>4.50); this setup reaches it by solidity, so it"
                 + " measures the candidate list itself rather than the way it runs out");
 
-        PlayerBot driver = body(ctx, stand(ctx));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = body(ctx, stand(ctx));
+        ServerPlayer fp = driver.player();
 
         Map<String, Integer> why = new LinkedHashMap<>();
         JourneyPour.PourSpot spot = JourneyPour.standToPour(level, fp, target, AWAY, why);
@@ -1187,7 +1182,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         // So: of the stands the production predicate accepts for the side neighbour, does at least
         // one actually put the fluid in the target when the shot is fired? That is what the rung
         // needs and the widening is what makes any of them exist.
-        driver.fakePlayer().discard();
+        driver.remove();
         List<BlockPos> verified = new ArrayList<>();
         for (BlockPos foot : JourneyPour.standCandidates(target, AWAY))
             if (JourneyPour.gradeFoot(level, fp, foot, side, target, new LinkedHashMap<>())
@@ -1203,11 +1198,11 @@ public final class JourneyPourLineScenes implements SceneProvider {
         int tried = 0;
         for (BlockPos foot : verified) {
             if (tried++ >= SHOTS_TRIED) break;
-            PlayerBot shooter = body(ctx, foot);
+            SceneBot shooter = body(ctx, foot);
             Shot s = fire(ctx, shooter, side);
             if (tried == 1) firstShot = s.where();
             if (target.equals(s.landing())) lands.add(foot.immutable());
-            shooter.fakePlayer().discard();
+            shooter.remove();
         }
         ctx.record("shots", "tried " + Math.min(verified.size(), SHOTS_TRIED) + "/" + verified.size()
                 + " cells (cap " + SHOTS_TRIED + "), " + lands.size() + " landed in "

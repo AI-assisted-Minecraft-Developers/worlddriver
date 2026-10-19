@@ -7,11 +7,7 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -257,7 +253,7 @@ public final class JourneyPortalRung {
                 + "; this walk, its midpoint walk, and every later staircase flight and every walk to"
                 + " the loading point all carry this cost surcharge");
         WorldDriverJourneyScenes.walkToColumn(rig, "lava", bank.getX(), bank.getZ(), 0, 24_000,
-                tax.bias(), () -> {
+                tax.route(), () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
             rig.evidence("forge.surfaceY", surfaceY + " (feet at y=" + at.getY() + ")");
@@ -592,7 +588,7 @@ public final class JourneyPortalRung {
                 "%s=%s: bot at %s, %.1f blocks away, canBreak=%s, solid neighbours %d/6, holding %s;"
                         + " neighbours%s",
                 c.toShortString(), level.getBlockState(c).getBlock(), at.toShortString(),
-                Math.sqrt(at.distSqr(c)), rig.body().avatar().canBreak(c), solid,
+                Math.sqrt(at.distSqr(c)), rig.canBreak(c), solid,
                 BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
     }
 
@@ -884,7 +880,7 @@ public final class JourneyPortalRung {
                                  + " trying again"));
         standBehind(rig, tag, cell, away, () ->
             digWithoutTunnelling(rig, cell, tries == REOPEN_TRIES ? 1_200 : 400,
-                () -> rig.settle(new HoldStill(10), 30, () -> {
+                () -> rig.hold(10, 30, () -> {
                     // Read the cell BETWEEN the swing and the settle, so "it opened and something
                     // dropped into it" and "it never opened" stop being the same reading.
                     boolean open = wasOpen || level.getBlockState(cell).isAir();
@@ -999,7 +995,7 @@ public final class JourneyPortalRung {
         // The server avatar on purpose: it is the one breakItWhereItStands itself asks, so this
         // gate and the swing it green-lights cannot disagree. Costless when it refuses — the bot
         // falls through to exactly the stand-finding it would have done anyway.
-        if (rig.body().avatar().canBreak(cell)) {
+        if (rig.canBreak(cell)) {
             rig.evidence(tag + ".swingFromHere", cell.toShortString() + " is reachable in place: bot at "
                     + here.toShortString() + ", cell-centre distance "
                     + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
@@ -1086,8 +1082,7 @@ public final class JourneyPortalRung {
     private static void walkToStand(JourneyRig rig, String tag, BlockPos cell, BlockPos spot,
                                     Runnable then) {
         if (rig.player().blockPosition().equals(spot)) { then.run(); return; }
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 300, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.block(spot), JourneyTasks.NO_BREAK), 300, () -> {
             BlockPos now = rig.player().blockPosition();
             if (withinDigReach(now, cell)) { then.run(); return; }
             // THE CONTINUOUS POSITION, not only the cell. The run of 2026-08-13 reported
@@ -1337,7 +1332,7 @@ public final class JourneyPortalRung {
                 "%s is still %s: bot at %s (%s), %.1fm away, canBreak=%s, intended alcove stand"
                         + " %s=%s, holding %s; neighbours%s",
                 cell.toShortString(), level.getBlockState(cell).getBlock(), at.toShortString(), where,
-                eyes, rig.body().avatar().canBreak(cell),
+                eyes, rig.canBreak(cell),
                 behind.toShortString(), level.getBlockState(behind).getBlock(),
                 BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
     }
@@ -1410,7 +1405,7 @@ public final class JourneyPortalRung {
                     watchFrame(rig, "cast" + i + ".reopen digging again before the pour "
                             + cell.toShortString(), () ->
                     placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
-                    "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
+                    "cast" + i, () -> rig.hold(3, 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
                 // THE MOMENT THIS CELL BECAME OBSIDIAN, which is what makes every later check able
                 // to say it stopped being obsidian. Recorded here rather than counted at the end
@@ -1692,8 +1687,7 @@ public final class JourneyPortalRung {
         // `-1,58,20`, the feet and head cells of its next step, under `goal=Block[3,60,20]` — this
         // walk. It never arrived (it stopped at -2, 61, 20, five short), so the digging bought
         // nothing and the rung then died unable to climb the stairs.
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(goal), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 1_200, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.block(goal), JourneyTasks.NO_BREAK), 1_200, () -> {
             JourneyHands.holdForUse(rig, held, tag);
             // RE-ASK FROM WHERE THE BOT ACTUALLY ENDED UP, as the fill does; it is the same bug on
             // the other side of the trip: the stand
@@ -1718,7 +1712,7 @@ public final class JourneyPortalRung {
             // unlike the underground forge it is standing in grass, and grass is REPLACEABLE: the
             // pour would not miss, it would succeed into the grass cell and be read as "no obsidian
             // here". Same swing the obsidian rung uses, and for the same reason mine cannot do it.
-            clearPlantOnLine(ctx, rig, planned, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
+            clearPlantOnLine(ctx, rig, planned, tag, () -> rig.hold(2, 10, () -> {
                 // SETTLE FIRST, THEN AIM, THEN PREDICT AND USE — all from one eye. The order was the
                 // other way round here long after `JourneyFill.scoop` was fixed for exactly this, and
                 // the pour is where it still cost cells. `aimAtBlock` stores an ANGLE computed from
@@ -1760,10 +1754,11 @@ public final class JourneyPortalRung {
                 // server's eye cannot be the one predicted from: it is client-authoritative too, so
                 // the snapshot read here is stale by the time the use packet is handled.
                 //
-                // On a dedicated server `rig.avatar()` IS `rig.body().avatar()` (JourneyRig#avatar), so
-                // this argument is the same fake player the old line passed and the gate is unchanged
-                // there — the six-topology gate is what proves that, not this comment.
-                var hit = JourneyHands.aimedAt(rig.avatar().asPlayer(),
+                // ⚠️ On self this now rays the SERVER's copy: the client's own player — the one the use
+                // is predicted on, and what this line rayed before — is not readable from a scene. aimBoth
+                // turns the server's copy the same way, so the angle agrees; the eye is the server's,
+                // a packet behind. On a roster bot the two were always one player.
+                var hit = JourneyHands.aimedAt(rig.player(),
                         JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
@@ -1929,7 +1924,7 @@ public final class JourneyPortalRung {
                 // `Harness.flag("allowPlace")`, which is off from here down, so a repair launched from here
                 // could not place. Naming the failure beats running a fix that cannot work.
                 JourneyHands.aimBoth(rig, at);
-                var atUseHit = JourneyHands.aimedAt(rig.avatar().asPlayer(), JourneyFill.BUCKET_REACH, false);
+                var atUseHit = JourneyHands.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);   // server's copy on self, as above
                 BlockPos atUseLands = atUseHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? atUseHit.getBlockPos().relative(atUseHit.getDirection()) : null;
                 rig.evidence(tag + ".atUseGate." + tries,
@@ -1959,7 +1954,7 @@ public final class JourneyPortalRung {
                     return;
                 }
                 JourneyHands.handTrace(rig, tag, -1);
-                rig.evidence(tag + ".result", String.valueOf(rig.equipment().useItemInHand()));
+                JourneyHands.useInAir(rig, tag + ".result");
                 // THE HAND ON CONSECUTIVE SERVER TICKS. `.result` is the CLIENT's prediction and
                 // `.spent` is the SERVER after the wait; between them sits the tick that decides this
                 // cell — the one where the server processes the use packet and reads its OWN
@@ -1974,7 +1969,7 @@ public final class JourneyPortalRung {
                 // The longer wait is also strictly safer for the round trip `.spent` claims to have
                 // waited out, and that row's own wording moves with the constant.
                 int[] traced = {0};
-                rig.settle(new HoldStill(POUR_SETTLE), 20, () -> {
+                rig.hold(POUR_SETTLE, 20, () -> {
                     if (traced[0] < JourneyHands.TRACE_TICKS) JourneyHands.handTrace(rig, tag, traced[0]++);
                 }, () -> {
                     // The pour is over; everything downstream — the lift, the walk home — pillars.
@@ -2168,15 +2163,14 @@ public final class JourneyPortalRung {
         // See JourneyHands.swingOffPlant. This site used to aim `rig.avatar()` and break
         // `rig.body().avatar()`, which is the shape that destroys nothing — the server's break reads
         // its own `aimTarget` field and the client aim never writes it.
-        JourneyHands.swingOffPlant(rig, plant);
-        rig.settle(new HoldStill(3), 12, () -> {
+        JourneyHands.swingOffPlant(rig, plant, () -> rig.hold(3, 12, () -> {
             // AFTER the settle, so this row can contradict the one above. It used to be written
             // before the swing, named `clearedPlant`, and reported the plant that was about to be
             // cleared — a row no failed clearing could ever falsify.
             rig.evidence(tag + ".plantAfter", String.valueOf(level.getBlockState(plant).getBlock()));
-            rig.avatar().aimAtBlock(want);
+            JourneyHands.aimBoth(rig, want);
             then.run();
-        });
+        }));
     }
 
     private static int countObsidian(ServerLevel level, BlockPos base, Direction away) {
@@ -2273,7 +2267,7 @@ public final class JourneyPortalRung {
                 : (held ? "" : "no cobblestone in hand, cannot dam; ") + "alcove cells behind the doorway: "
                   + dammed);
 
-        rig.settle(new HoldStill(20), DOORWAY_DRAIN_TICKS, () -> {
+        rig.hold(20, DOORWAY_DRAIN_TICKS, () -> {
             List<BlockPos> slag = new ArrayList<>();
             StringBuilder what = new StringBuilder();
             for (BlockPos c : interior) {
@@ -2336,7 +2330,7 @@ public final class JourneyPortalRung {
     private static void strike(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                BlockPos hearth, BlockPos doorway) {
         ServerLevel level = ctx.level();
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
+        rig.settle(JourneyTasks.goNear(hearth, 3), 1_500, () -> {
             JourneyHands.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
             // Aim adjacent to the strike, not two ticks before it — see
             // JourneyHands#aimThenAct. This was the last aim-then-settle-then-use pair
@@ -2345,8 +2339,8 @@ public final class JourneyPortalRung {
             // worked there and would have failed here for a reason belonging to the player's
             // rotation, not the strike.
             JourneyHands.aimThenAct(rig, hearth, () -> {
-                rig.blocks().useBlock(hearth, Direction.UP);
-                rig.settle(new HoldStill(5), 20, () -> {
+                JourneyHands.useOn(rig, hearth, Direction.UP, "light.result");
+                rig.hold(5, 20, () -> {
                     // PRINT THE VALUE, NOT THE PREDICATE — and print it HERE, not upstream.
                     // `portal.cells` is a count, and a count of zero names nothing. Rehearsal #7 read
                     // frame.obsidian=10/10, portal.slag reporting all six doorway cells as air,

@@ -5,11 +5,8 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -118,8 +115,7 @@ final class JourneyStairwell {
         // opens onto a column that falls to lava within LIP_DEPTH, and the flight is cut walking
         // AWAY from the pool with rock on both sides, so no step of it is in the set. Narrowing the
         // tax to i==0 would buy nothing and would go wrong the first time a fill breaks the wall.
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), tax.bias(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 600, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.block(want), tax.onto(Routes.plain().noBreak()).build()), 600, () -> {
             BlockPos got = rig.player().blockPosition();
             double off = Math.sqrt(got.distSqr(want));
             // BOTH CELLS, not just the one the bot is standing in. `cast5.returnStopped` reported the
@@ -401,7 +397,7 @@ final class JourneyStairwell {
             // Not `onGround`: that same row read `onGround=true` beside a solid-under-feet fraction of
             // 0.0000, because it describes the previous `move()` and not what is under the bot now.
             if (got.equals(ends.above()) || afoot) {
-                rig.settle(new HoldStill(LAND_TICKS), LAND_TICKS * 2, () -> {
+                rig.hold(LAND_TICKS, LAND_TICKS * 2, () -> {
                     BlockPos after = rig.player().blockPosition();
                     // WHETHER THE WAIT CHANGED THE ANSWER, always. A step that was already walked
                     // and one where the bot is genuinely balanced on the lip above must not leave
@@ -468,9 +464,8 @@ final class JourneyStairwell {
 
     /** One step of the flight, walked rather than pathed around: no breaking, because the cells are
      *  the rung's own staircase and a walk that mines its way down destroys the way back up. */
-    private static IntentProcess lastStep(BlockPos to) {
-        return new IntentProcess(new Intent(new Goal.Block(to), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak())));
+    private static JourneyTasks.Task lastStep(BlockPos to) {
+        return JourneyTasks.goTo(Targets.block(to), JourneyTasks.NO_BREAK);
     }
 
     /** How long the last step-down gets. One ordinary +(-1) step inside a flight the bot has just
@@ -556,9 +551,8 @@ final class JourneyStairwell {
                 + " (rehearsal only: the last segment's 1.5-block arrival tolerance counts stopping on"
                 + " the step above as arrived, so this walks that step to the end; no block and no"
                 + " fluid is changed)");
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), FLOOR_LEG_TICKS,
-                () -> rig.settle(new HoldStill(10), 30, () -> {
+        rig.settle(JourneyTasks.goTo(Targets.block(stairBottom), JourneyTasks.NO_BREAK), FLOOR_LEG_TICKS,
+                () -> rig.hold(10, 30, () -> {
             // SAY SO WHEN THE WALK DID NOT LAND IT. A lever that silently fails reads like one that
             // worked: rows that only report what the lever did never say that the bot's row did not
             // change. And this particular miss is worth more than the lever — it is the reading
@@ -737,7 +731,7 @@ final class JourneyStairwell {
                     + ") - otherwise the next step would land in the same column, or re-cut the step above");
         for (int s = 1; s <= stride; s++) JourneyStairs.cut(at.relative(stairDir, s).below(s));
         cutStairCells(rig, cut, 0, () ->
-                rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
+                rig.settle(JourneyTasks.goToBlock(foot), 300, () -> {
             BlockPos now = rig.player().blockPosition();
             if (now.getY() >= at.getY()) {
                 // The cells are open and the bot has not stepped into them yet. That is a settle,
@@ -748,7 +742,7 @@ final class JourneyStairwell {
                 // drifted one cell sideways into the new step's head room cut a course out of THAT.
                 rig.evidence("stair." + step + ".waited", now.toShortString() + " has not stepped down yet");
                 noteStairWedge(rig, now, foot);
-                rig.settle(new HoldStill(20), 40,
+                rig.hold(20, 40,
                         () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
                 return;
             }
@@ -810,7 +804,7 @@ final class JourneyStairwell {
                 foot.toShortString(), level.getBlockState(foot).getBlock(),
                 foot.above().toShortString(), level.getBlockState(foot.above()).getBlock(),
                 foot.above(2).toShortString(), level.getBlockState(foot.above(2)).getBlock(),
-                rig.body().avatar().canBreak(foot),
+                rig.canBreak(foot),
                 Harness.flag("allowBreak"), Harness.flag("allowPlace")));
     }
 
@@ -917,7 +911,7 @@ final class JourneyStairwell {
         // straight into the hole the fill had just made, and the lava flowed back in on top of the
         // bot. Sixty ticks is longer than lava takes to spread one cell, so by the time the route
         // is planned the pit reads as what it is.
-        rig.settle(new HoldStill(60), 80, () -> walkHome(ctx, rig, floorY, tag, tries, then));
+        rig.hold(60, 80, () -> walkHome(ctx, rig, floorY, tag, tries, then));
     }
 
     private static void walkHome(SceneContext ctx, JourneyRig rig, int floorY, String tag,
@@ -969,7 +963,7 @@ final class JourneyStairwell {
                     // the one place in the casting phase that turns it back on.
                     Harness.set("allowPlace", true);
                     JourneyShaft.climbOut(rig, stairTop.getY(), tag + ".returnStuck" + tries, () ->
-                        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
+                        rig.settle(JourneyTasks.goToBlock(stairTop), 2_000, () -> {
                             rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
                                     + " (stairwell mouth " + stairTop.toShortString() + ")");
                             returnToTheForge(ctx, rig, floorY, tag, tries - 1, then);

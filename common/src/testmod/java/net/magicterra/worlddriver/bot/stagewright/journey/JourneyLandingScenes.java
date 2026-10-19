@@ -6,9 +6,7 @@ import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -106,12 +104,11 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int dy = 1; dy <= TOWER; dy++) ctx.setBlock(0, GROUND + dy, 0, Blocks.COBBLESTONE);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + TOWER + 1, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND + TOWER + 1, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         BlockPos foot = fp.blockPosition();
         int ground = JourneyTerrain.daylightAt(level, home);
@@ -161,13 +158,12 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int dy = 0; dy > -PIT; dy--) ctx.setBlock(0, GROUND + dy, 0, Blocks.AIR);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - PIT + 1, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND - PIT + 1, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         BlockPos foot = fp.blockPosition();
         int ground = JourneyTerrain.daylightAt(level, home);
@@ -216,8 +212,8 @@ public final class JourneyLandingScenes implements SceneProvider {
                 for (int dy = 0; dy > -POOL_DEPTH; dy--)
                     ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
 
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.LAVA_BUCKET));
         // AND BLOCKS, because the real bot has them. The first staging carried only the bucket and
         // the bot could not get out of the pool at all: `end=path-consumed` one cell from the bank,
@@ -227,8 +223,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // Staging it empty-handed was testing a bot the ladder never has.
         fp.getInventory().items.set(1, new ItemStack(Items.COBBLESTONE, 32));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         BlockPos foot = fp.blockPosition();
         ctx.record("staged.foot", foot.toShortString() + ", foot cell="
@@ -310,12 +305,11 @@ public final class JourneyLandingScenes implements SceneProvider {
         // failure was made of, and a reader who greps for it should land here.
         ctx.setBlock(-1, GROUND + 1, -1, Blocks.OBSIDIAN);
 
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND + 1, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
         BlockPos foot = fp.blockPosition();
@@ -351,8 +345,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         JourneyHands.aimThenAct(rig, visible, () -> {
             JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
             JourneyHands.handsAtUse(rig, "waterFill");
-            rig.evidence("waterFill.result", String.valueOf(rig.equipment().useItemInHand()));
-            rig.settle(new HoldStill(3), 12, () -> {
+            JourneyHands.useInAir(rig, "waterFill.result");
+            rig.hold(3, 12, () -> {
                 int after = fp.getInventory().countItem(Items.WATER_BUCKET);
                 ctx.record("subject.waterBucket", before + " → " + after);
                 ctx.record("subject.result", String.valueOf(rig.evidenceOf("waterFill.result")));
@@ -399,12 +393,11 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos open = ctx.rel(2, GROUND, 0);
         ctx.setBlock(2, GROUND, 0, Blocks.WATER);
 
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND + 1, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
@@ -556,12 +549,11 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.setBlock(FAR_POND_DX, GROUND, 0, Blocks.WATER);
         }
 
-        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ctx.rel(0, GROUND, 0));
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
         BlockPos seated = fp.blockPosition();
@@ -875,9 +867,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         // That is the branch's entry condition exactly; what the effect changes is how long it lasts,
         // and the ladder held it open by a different route — a bot at exact position
         // (1.454,58.000,20.500) whose support had just gone, fall distance zero, one tick from the flip.
-        PlayerBot driver = SceneBody.managed(ctx, ends.above());
-        ServerPlayer fp = driver.fakePlayer();
-        ServerPlayerBody av = driver.avatar();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ends.above());
+        ServerPlayer fp = driver.player();
         fp.addEffect(new net.minecraft.world.effect.MobEffectInstance(
                 net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
         // +1.15, so the head stays under the stairwell's three-high cut (top at +2.95). This was +1.4,
@@ -889,7 +880,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // the head clear; +1.15 still reads about +0.8 when the walk calls back, well past
         // SETTLED_SLACK.
         fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.15, ends.getZ() + 0.5);
-        av.step();
+        driver.step();
         ctx.check(fp.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING))
                 .as("control C: slow falling must really be applied - without it the bot crosses the cell"
                         + " boundary in four ticks, is already in the final waypoint when the check runs, and"
@@ -968,11 +959,10 @@ public final class JourneyLandingScenes implements SceneProvider {
 
         // ON THE LIP: a fifth of a cell into the terminal's column, one row up. The number is the
         // ladder's, not a guess — see the javadoc.
-        PlayerBot driver = SceneBody.managed(ctx, ends.above());
-        ServerPlayer fp = driver.fakePlayer();
-        ServerPlayerBody av = driver.avatar();
+        SceneBot driver = JourneyRig.arenaBot(ctx, ends.above());
+        ServerPlayer fp = driver.player();
         fp.moveTo(ends.getX() + 0.20, ends.getY() + 1, ends.getZ() + 0.5);
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         BlockPos posed = fp.blockPosition();
         ctx.record("staged.pose", String.format(java.util.Locale.ROOT, "%s exact %.2f/%.2f/%.2f, onGround=%s",
@@ -989,13 +979,13 @@ public final class JourneyLandingScenes implements SceneProvider {
         // A counter is the honest instrument here: `navigatorDebug` is behind a flag no gate turns on,
         // so its step-trace rows prove nothing about a run that did not set it, while a counter delta is a
         // state change that happened or did not.
-        long holdsBefore = net.magicterra.worlddriver.bot.control.NavigatorTelemetry.of(fp).descentHolds;
+        long holdsBefore = driver.navigator().counter("descentHolds");
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         JourneyStairwell.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
-            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.NavigatorTelemetry.of(fp).descentHolds
+            ctx.record("subject.descentHolds", (driver.navigator().counter("descentHolds")
                     - holdsBefore) + " (times the last-node hold branch fired; 0 = the guard is inert for this"
                     + " failure family, non-zero = it fired and the bot still did not descend; these are two"
                     + " entirely different paths)");

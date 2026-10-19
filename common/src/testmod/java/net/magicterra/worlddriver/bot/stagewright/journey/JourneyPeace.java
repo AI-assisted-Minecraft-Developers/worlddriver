@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
@@ -113,7 +112,7 @@ final class JourneyPeace {
         // The beat. `pinDistant` applies the ticket; the chunks it pulls in — and the entity
         // sections inside them — arrive on later ticks, and a witch that has not arrived cannot be
         // found by a scan that runs now.
-        rig.settle(new HoldStill(40), 100, () -> {
+        rig.hold(40, 100, () -> {
             // EVERY loaded overworld monster, not a box around the hut, and the reason is that a
             // witch WALKS. `setPersistenceRequired` stops her despawning; it does not pin her to the
             // hut, and the bot that died on 2026-08-22 died at -51,62,67 — wherever she had got to

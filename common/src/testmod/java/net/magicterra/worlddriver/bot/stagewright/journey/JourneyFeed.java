@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -213,15 +212,14 @@ final class JourneyFeed {
     private static void startBite(JourneyRig rig, String tag, int n, String chosen, Runnable then) {
         ServerPlayer fp = rig.player();
         int foodBefore = fp.getFoodData().getFoodLevel();
-        var av = rig.equipment();
-        av.commandUseItem(false);
-        av.commandUseItem(true);
+        rig.holdUseKey(false);
+        rig.holdUseKey(true);
         Bite trace = new Bite();
         rig.await(() -> {
             if (fp.isUsingItem()) trace.sample(fp);
             return fp.getFoodData().getFoodLevel() > foodBefore;
         }, BITE_TICKS, () -> {
-            av.commandUseItem(false);
+            rig.holdUseKey(false);
             int after = fp.getFoodData().getFoodLevel();
             rig.evidence(tag + ".feed.bite" + n, chosen + ": food " + foodBefore + "→" + after);
             rig.evidence(tag + ".feed.bite" + n + ".trace", trace.line(fp, rig));
@@ -297,7 +295,7 @@ final class JourneyFeed {
      * the eating step converges, and releasing twice costs nothing (that test calls releases unrestricted).
      */
     private static void afterEating(JourneyRig rig, String tag, int bites, Runnable then) {
-        rig.equipment().commandUseItem(false);
+        rig.holdUseKey(false);
         ServerPlayer fp = rig.player();
         float hp = fp.getHealth();
         int food = fp.getFoodData().getFoodLevel();

@@ -5,11 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -320,7 +316,7 @@ public final class JourneyFill {
                   + ",2); rejection counts " + why
                 : (lava && fillStation != null ? "stand at fixed fill station " : "stand at ")
                   + spot.stand().toShortString() + " aiming at " + spot.source().toShortString());
-        Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
+        var where = spot == null ? Targets.near(src, 2) : Targets.block(spot.stand());
         // THE WATER RECOVER MAY NOT DIG ITS WAY THERE. Its source sits inside the frame the rung is
         // building, so the only thing between a floor-level bot and it is the frame — and a navigator
         // with `allowBreak` on treats that as terrain. Measured, single-bucket rehearsal 2026-08-17:
@@ -346,9 +342,8 @@ public final class JourneyFill {
         // twelve-block radius to miss the crater the walk actually skirts.
         JourneyTerrain.RimTax rim = lava ? JourneyTerrain.avoidTheRim(ctx.level(), src) : null;
         if (rim != null) rig.evidence(tag + ".rimTax", rim.story());
-        Intent walk = rim != null ? new Intent(where, rim.bias())
-                : new Intent(where, List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
-        rig.settle(new IntentProcess(walk), 1_500, () -> {
+        var walk = rim != null ? rim.route() : JourneyTasks.NO_BREAK;
+        rig.settle(JourneyTasks.goTo(where, walk), 1_500, () -> {
             // Re-ask from where the bot ACTUALLY ended up. The plan above is what makes a good spot
             // likely; this is what makes the aim correct, because a walk that stopped a cell short
             // has a different set of sources in view and only the clip from here knows which.
@@ -530,7 +525,7 @@ public final class JourneyFill {
         // Spending MORE of them is not the safer version of this; it is a different bug. See
         // HoldStill for the run where a ten-tick wait dropped the bot four blocks.
         var eyeBeforeSettling = rig.player().getEyePosition();
-        rig.settle(new HoldStill(2), 10, () -> {
+        rig.hold(2, 10, () -> {
             // BOTH players (client and server), because the very next line is a PREDICTION GATE
             // on the server one. `aimedAt(rig.player(), …)` rays the ServerPlayer; `rig.avatar()`
             // on this topology is the client. Aim only the client and this gate reads a player
@@ -650,8 +645,7 @@ public final class JourneyFill {
         }
         rig.evidence(tag + ".stepOut." + aims, here.toShortString() + " → " + spot.stand().toShortString()
                 + " (the ray reaches " + aim.toShortString() + " from there without breaking the frame)");
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot.stand()), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 300,
+        rig.settle(JourneyTasks.goTo(Targets.block(spot.stand()), JourneyTasks.NO_BREAK), 300,
                 () -> scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then));
     }
 
@@ -707,7 +701,7 @@ public final class JourneyFill {
         // taken is what keeps the next reader from doing arithmetic on a moment nobody sampled.
         var aimAtUse = level.getFluidState(aim);
         var blockAtUse = level.getBlockState(aim).getBlock();
-        rig.evidence(tag + ".result", String.valueOf(rig.equipment().useItemInHand()));
+        JourneyHands.useInAir(rig, tag + ".result");
         // WAIT FOR THE ROUND TRIP BEFORE JUDGING — the mirror of aiming, not a contradiction of it.
         // The aim must be adjacent to the act on the player that ACTS; the OUTCOME is produced by
         // that client player and has to travel back before `rig.carrying` (the ServerPlayer's
@@ -718,7 +712,7 @@ public final class JourneyFill {
         // Rung 12's own fill (scoopWater, further down this file) died exactly this way on 2026-08-22
         // with `result=SUCCESS, water_bucket=0, cellAfter=water`: three rows that cannot describe
         // one moment. This site is the same shape and had the same hole.
-        rig.settle(new HoldStill(3), 12, () -> {
+        rig.hold(3, 12, () -> {
             int after = rig.carrying(id);
             if (after > before) { then.run(); return; }
             // Only trustworthy since `scoop` started aiming BOTH players. This rays rig.player(),
@@ -830,7 +824,7 @@ public final class JourneyFill {
         // the eye live, so nothing here needs a tick between the aim and the use, and the aim must
         // not be separated from it — `aimAtBlock` stores an angle computed from wherever the eye
         // was. See `scoop` for the half-block measurement that says so.
-        rig.settle(new HoldStill(2), 10, () -> {
+        rig.hold(2, 10, () -> {
             BlockPos more = visibleSourceNear(rig, true, FILL_RESEARCH);
             if (more == null) {
                 noteLoad(rig, tag, carried, "standing at " + rig.player().blockPosition().toShortString()
@@ -839,7 +833,7 @@ public final class JourneyFill {
                 then.run();
                 return;
             }
-            rig.avatar().aimAtBlock(more);
+            JourneyHands.aimBoth(rig, more);
             // The one call in this file that must NOT stop the rung when the hand is wrong — this
             // whole method is a bonus, and its own contract two branches down already says
             // "go down with what is already filled; do not fail". Going home one bucket light costs a
@@ -852,7 +846,7 @@ public final class JourneyFill {
                 return;
             }
             int before = rig.carrying("minecraft:lava_bucket");
-            var result = rig.equipment().useItemInHand();
+            var result = JourneyHands.useInAirNow(rig);
             int after = rig.carrying("minecraft:lava_bucket");
             if (after <= before) {
                 noteLoad(rig, tag, carried, "bucket " + (carried + 1) + " did not fill: aimed at "
@@ -1285,10 +1279,10 @@ public final class JourneyFill {
         // makes this settle end on its first tick instead of becoming a second walk. Keyed off
         // `reseats` rather than a new parameter: below the initial budget means a re-seat was spent,
         // and that is exactly the re-entry this must not undo.
-        Goal approach = reseats < SCOOP_RESEATS
-                ? new Goal.Block(rig.player().blockPosition())
-                : new Goal.Near(water, 2);
-        rig.settle(new IntentProcess(new Intent(approach)), 2_000, () -> {
+        var approach = reseats < SCOOP_RESEATS
+                ? Targets.block(rig.player().blockPosition())
+                : Targets.near(water, 2);
+        rig.settle(JourneyTasks.goTo(approach), 2_000, () -> {
             // The approach walk that had no reading. Everything below aims and uses a bucket, and a
             // bot that stopped thirty blocks short produces exactly the same rows as one that
             // arrived and missed — so a failed fill here has read as "water fill failed" whatever
@@ -1350,7 +1344,7 @@ public final class JourneyFill {
                     rig.evidence("waterFill.reseat", here.toShortString() + " → " + seat.toShortString()
                             + " (no water source is visible from this seat; moving to a stand that sees "
                             + pool.toShortString() + " and asking again); rejection counts " + why);
-                    rig.settle(new IntentProcess(new Intent(new Goal.Block(seat))), 2_000,
+                    rig.settle(JourneyTasks.goToBlock(seat), 2_000,
                             () -> scoopWater(ctx, rig, water, reseats - 1, then));
                     return;
                 }
@@ -1435,8 +1429,8 @@ public final class JourneyFill {
                 // on a line nobody was writing down. `handsAtUse` prints BOTH players and BOTH fluid
                 // modes, and the empty bucket's mode is the one that answers here.
                 JourneyHands.handsAtUse(rig, "waterFill");
-                rig.evidence("waterFill.result", String.valueOf(rig.equipment().useItemInHand()));
-                rig.settle(new HoldStill(3), 12, () -> {
+                JourneyHands.useInAir(rig, "waterFill.result");
+                rig.hold(3, 12, () -> {
                     int after = rig.carrying("minecraft:water_bucket");
                     rig.evidence("water_bucket", after);
                     rig.evidence("waterFill.cellAfter",

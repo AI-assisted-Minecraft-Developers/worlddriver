@@ -2,9 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
@@ -242,7 +239,7 @@ final class JourneyStation {
                         && lvl.getBlockState(side.below()).blocksMotion()) {
                     rig.evidence("station.dugNiche", side.toShortString() + " "
                             + lvl.getBlockState(side).getBlock());
-                    rig.mineBlock(side, 600, () -> rig.settle(new HoldStill(5), 20, then));
+                    rig.mineBlock(side, 600, () -> rig.hold(5, 20, then));
                     return;
                 }
             }
@@ -277,7 +274,7 @@ final class JourneyStation {
         rig.evidence("station.steppingOff." + step, foot.toShortString() + " → " + spot.toShortString()
                 + " " + standStory(rig, lvl, foot));
         rig.attempting("leave a spot with no room to place a station, walk to " + spot.toShortString());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot))), 900, () -> {
+        rig.settle(JourneyTasks.goToBlock(spot), 900, () -> {
             // Where the walk actually ended, which the row above does not say. Three attempts printed
             // `67,63,60 → 67,61,60` byte-identically on 2026-08-26 and nothing said whether the bot
             // walked to a second bad cell or never moved at all, and those want opposite next steps

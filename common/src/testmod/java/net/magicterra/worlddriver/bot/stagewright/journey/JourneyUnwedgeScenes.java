@@ -8,11 +8,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -233,8 +229,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         Harness.set("allowPlace", true);
         Harness.set("allowBreak", false);
         Harness.set("navigatorDebug", false);
-        BotTicker.clear();
-        ctx.cleanup(BotTicker::clear);
+        Harness.clearBots(ctx);
         // The flight is a static of the ladder's own code. A gate scene that left one behind would
         // hand a ladder run in the same process a staircase it never dug.
         ctx.cleanup(JourneyStairs::forget);
@@ -244,16 +239,15 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     }
 
     /** A bot standing in {@code foot}, stocked and settled, with the cleanup that removes it. */
-    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
-        PlayerBot driver = SceneBody.managed(ctx, foot);
-        ServerPlayer fp = driver.fakePlayer();
+    private static SceneBot body(SceneContext ctx, BlockPos foot) {
+        SceneBot driver = JourneyRig.arenaBot(ctx, foot);
+        ServerPlayer fp = driver.player();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, STOCK));
         fp.getInventory().selected = 0;
-        ServerPlayerBody av = driver.avatar();
         // Three physics steps with no input, so the bot is flush before anything is measured —
         // TowerProcess's READY phase refuses to jump on a bot that reports onGround()==false, and a
         // player that has never moved reports exactly that.
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
         return driver;
     }
 
@@ -263,21 +257,19 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         int climbed() { return endY - startY; }
     }
 
-    private static Run tower(SceneContext ctx, String arm, PlayerBot driver, int courses) {
-        ServerPlayer fp = driver.fakePlayer();
+    private static Run tower(SceneContext ctx, String arm, SceneBot driver, int courses) {
+        ServerPlayer fp = driver.player();
         BlockPos start = fp.blockPosition();
         int before = carrying(fp);
-        driver.runProcess(new TowerProcess(start.getY() + courses, BLOCK_ID));
-        int t = 0;
-        for (; t < DRIVE_BUDGET && !driver.finished(); t++) driver.tick();
+        driver.tower(start.getY() + courses, BLOCK_ID, false);
+        int t = driver.tickUntilIdle(DRIVE_BUDGET);
         BlockPos end = fp.blockPosition();
-        // Server BotState, and CORRECT here — do not "fix" this to JourneyRig.slot. This arm drives
-        // its own isolated driver with driver.runProcess + driver.tick(), so the server's BotState is
-        // the one the process writes, whatever topology the suite is on. There is no rig and no helm
-        // to route to. Same for JourneyLeg.navigatorEnd, which the A/B scenes share.
+        // This arm's own parked bot, ticked here until its tower ends; its builder slot is the one the
+        // order wrote. There is no rig and no helm to route to. Same for JourneyLeg.navigatorEnd, which
+        // the A/B scenes share.
         Run r = new Run(start.getY(), end.getY(), end.getX() - start.getX(),
                 end.getZ() - start.getZ(), before - carrying(fp), t,
-                driver.botState().builder.lastError);
+                driver.status().slots().builder().lastError().orElse(null));
         ctx.record(arm + ".tower", String.format(Locale.ROOT,
                 "TowerProcess(+%d) from %s -> %s | climbed %d | drift %d,%d | spent %d | %d ticks"
                         + " | lastError=%s",
@@ -713,15 +705,14 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ctx.setBlock(WET_SOURCE_X, BASE + WET_FEET, 0, Blocks.WATER);
 
         BlockPos foot = ctx.rel(WET_STAND_X, BASE + WET_FEET, 0);
-        PlayerBot driver = SceneBody.managed(ctx, foot);
-        ServerPlayer fp = driver.fakePlayer();
+        SceneBot driver = JourneyRig.arenaBot(ctx, foot);
+        ServerPlayer fp = driver.player();
         // NO PLACEABLE BLOCK, on purpose — see the class note above. `pillarBlock` falls back to
         // cobblestone with a count of zero, `.hand` records that it could not be held, and execution
         // falls through to the tower exactly as it does in the field.
-        ServerPlayerBody av = driver.avatar();
         // The bot flush on the floor. TowerProcess's READY phase refuses a bot reporting
         // onGround()==false, and so does the climb's own afloat branch.
-        for (int i = 0; i < 3; i++) av.step();
+        driver.step(3);
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         // KEPT ON PURPOSE, and it is the reading that got this arm wrong the first time: `av.step()`
@@ -733,7 +724,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         // its name.
         ctx.record("staged.beforeFlow", "just placed (the world has not ticked fluids yet): inWater="
                 + fp.isInWater() + ", foot cell " + ctx.level().getFluidState(foot).getType());
-        rig.settle(new HoldStill(WET_SPREAD), WET_SPREAD * 2, () -> {
+        rig.hold(WET_SPREAD, WET_SPREAD * 2, () -> {
             ctx.record("staged.body", String.format(Locale.ROOT, "%s exact %.2f/%.2f/%.2f, onGround=%s,"
                             + " inWater=%s; water source %s", fp.blockPosition().toShortString(), fp.getX(),
                     fp.getY(), fp.getZ(), fp.onGround(), fp.isInWater(), src.toShortString()));
