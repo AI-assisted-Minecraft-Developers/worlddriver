@@ -218,8 +218,13 @@ public final class SceneBot {
     }
 
     public Responses.ActionSnapshot<GatherContracts.Smelted> smelt(String item, int count) {
+        return smelt(item, count, null);
+    }
+
+    /** Smelt {@code count} of {@code item}, burning {@code fuel}; null picks the fuel itself. */
+    public Responses.ActionSnapshot<GatherContracts.Smelted> smelt(String item, int count, String fuel) {
         return Calls.started("smelt " + item, Calls.now(tasks().smelt(new GatherContracts.SmeltParams(ref, item, count,
-                Optional.empty(), 0))));
+                Optional.ofNullable(fuel), 0))));
     }
 
     /** Pillar up to feet height {@code targetY} with {@code block}, fetched from the backpack too when {@code fromBag}. */

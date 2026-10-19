@@ -234,8 +234,6 @@ bot/stagewright/scene/WorldDriverBridgeScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverBridgeScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverBridgeScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverBridgeScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverBuildScenes -> config/BotConfig
-bot/stagewright/scene/WorldDriverBuildScenes -> game/observe/BuildBlocks
 bot/stagewright/scene/WorldDriverClientAirScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverClientDigScenes -> bot/control/NavigatorTelemetry
@@ -296,11 +294,6 @@ bot/stagewright/scene/WorldDriverDrownRiseScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/BotRegistry
 bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverMarkerScenes -> bot/control/Locomotor
-bot/stagewright/scene/WorldDriverMarkerScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverMarkerScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverMarkerScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverMarkerScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/PlayerBot
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/behavior/CombatProcess
@@ -429,14 +422,7 @@ bot/stagewright/scene/WorldDriverSchedulerScenes -> bot/world/WorldView
 bot/stagewright/scene/WorldDriverSchedulerScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverSchedulerScenes -> game/body/Body
 bot/stagewright/scene/WorldDriverSchedulerScenes -> game/observe/NearestFirstScan
-bot/stagewright/scene/WorldDriverStationScenes -> application/PlayerSnapshots
-bot/stagewright/scene/WorldDriverStationScenes -> application/RecipeService
-bot/stagewright/scene/WorldDriverStationScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverStationScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverStationScenes -> bot/behavior/CraftProcess
-bot/stagewright/scene/WorldDriverStationScenes -> bot/behavior/SmeltProcess
-bot/stagewright/scene/WorldDriverStationScenes -> config/BotConfig
-bot/stagewright/scene/WorldDriverStationScenes -> game/observe/RecipeResolver
 bot/stagewright/scene/WorldDriverSurvivalScenes -> application/PlayerSnapshots
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/BotTicker
 bot/stagewright/scene/WorldDriverSurvivalScenes -> bot/PlayerBot
