@@ -433,10 +433,7 @@ bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/rules/Move
 bot/stagewright/scene/WorldDriverTerrainScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverTerrainScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/NavigatorGeometry
-bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/control/NavigatorInspector
 bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverThinFootingScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverThinFootingScenes -> game/body/ServerPlayerBody

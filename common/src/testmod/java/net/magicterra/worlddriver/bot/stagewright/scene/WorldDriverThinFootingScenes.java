@@ -3,15 +3,19 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
+// The shore and rim drives tick the navigator for its guards, then re-impose the heading and the
+// impulse before the body steps. The api has no tick that stops short of the body step, so those
+// two drives stay on the internals until StageWright grows one.
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -20,9 +24,11 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
 
 /**
  * <b>A player barely on a ledge over the void, holding blocks, with no legal move.</b>
@@ -167,24 +173,23 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // Nudge outward until the sole reads under the guard's own threshold rather than computing
         // an offset: the guard's predicate is the authority on what "barely on" means, and a rig
         // that assumes a number can stage a player the guard never looks at.
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        double sole = NavigatorGeometry.soleOnSolid(w, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
+        final double footingMin = bot.body().footing().footingMin();
+        double sole = bot.body().footing().soleOnSolid();
         double nudge = 0.5;
-        for (int i = 0; i < 40 && sole >= NavigatorInspector.footingMin(); i++) {
+        for (int i = 0; i < 40 && sole >= footingMin; i++) {
             nudge += 0.02;
             fp.setPos(cx + nudge, standY, cz + 0.5);
-            sole = NavigatorGeometry.soleOnSolid(w, fp);
+            sole = bot.body().footing().soleOnSolid();
         }
         ctx.record("rig", "1-wide obsidian ledge x=" + cx + " z=" + (cz - 3) + ".." + cz
                 + " y=" + deckY + " | landing (one up, one across)=" + landing.getX() + ","
                 + landing.getY() + "," + landing.getZ() + " | " + VOID_DEPTH
                 + " clear cells under it, catch floor y=" + (deckY - VOID_DEPTH));
         ctx.record("staged", String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)",
-                nudge, sole, NavigatorInspector.footingMin()));
-        if (sole >= NavigatorInspector.footingMin()) {
+                nudge, sole, footingMin));
+        if (sole >= footingMin) {
             ctx.fail("THE RIG, not the subject: could not stage a stand under the footing threshold"
                     + " (sole=" + sole + ")");
             return;
@@ -194,10 +199,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // explanations for a fall — "the rig handed over a stand vanilla was never going to hold"
         // and "the subject walked off a stand it was given" — produce the same reading, and the
         // first one is a rig fault masquerading as a finding.
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         ctx.record("settle", String.format(Locale.ROOT,
                 "%d ticks with no driver: y=%.3f sole=%.4f", SETTLE_TICKS, fp.getY(),
-                NavigatorGeometry.soleOnSolid(w, fp)));
+                bot.body().footing().soleOnSolid()));
         if (fp.getY() < standY - 0.5) {
             ctx.fail("THE RIG, not the subject: vanilla itself dropped the staged stand in "
                     + SETTLE_TICKS + " idle ticks (y=" + fp.getY() + "), so this arena is not the"
@@ -208,40 +213,45 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // Every clause of the guard's own fire predicate, asked here in the same order it asks them.
         // The guard's log line is unconditional, so zero lines proves it never got past one of these
         // — and "never entered" is a different defect from "entered and declined".
-        BlockPos footCell = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
+        // The reading asks lethalDropAdjacent at the bot's block position; the guard's own cell,
+        // containing(x, y + 0.05, z), is the same cell whenever the bot stands on the deck surface.
+        BotDebugContracts.Footing footing = bot.body().footing();
+        BlockPos footCell = new BlockPos(footing.foot().x(), footing.foot().y(), footing.foot().z());
         ctx.record("guardClauses", "lethalEdgeBrake=" + Harness.flag("lethalEdgeBrake")
                 + " inWater=" + fp.isInWater()
                 + " sole=" + String.format(Locale.ROOT, "%.4f", sole)
                 + " foot=" + footCell.getX() + "," + footCell.getY() + "," + footCell.getZ()
                 + " (" + level.getBlockState(footCell) + ")"
                 + " below=" + level.getBlockState(footCell.below())
-                + " lethalDropAdjacent=" + NavigatorGeometry.lethalDropAdjacent(w, fp, footCell));
+                + " lethalDropAdjacent=" + footing.lethalDropAdjacent());
 
         fp.getInventory().clearContent();
         fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
         ctx.record("stock", "64 cobblestone in slot " + slot + " ("
-                + (slot <= 8 ? "hotbar" : "backpack") + "), holdPlaceable=" + av.holdPlaceable());
+                + (slot <= 8 ? "hotbar" : "backpack") + "), holdPlaceable=" + carryPlaceableUp(fp));
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(landing.above()));
+        GotoContracts.Target goal = Targets.block(landing.above());
+        bot.goTo(goal);
         double minY = fp.getY();
         int t = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        boolean walking = true;
         int fireable = 0;                 // ticks on which the guard's whole predicate held
         StringBuilder soles = new StringBuilder();
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            double sn = NavigatorGeometry.soleOnSolid(w, fp);
-            BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
+        for (; t < 400 && walking; t++) {
+            BotDebugContracts.Footing fn = bot.body().footing();
+            double sn = fn.soleOnSolid();
             if (Harness.flag("lethalEdgeBrake") && !fp.isInWater() && sn > 0.0
-                    && sn < NavigatorInspector.footingMin() && NavigatorGeometry.lethalDropAdjacent(w, fp, fc))
+                    && sn < footingMin && fn.lethalDropAdjacent())
                 fireable++;
             if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
-            s = navigator.tick(av, w);
-            av.step();
+            bot.tick();
+            walking = bot.busy();
             minY = Math.min(minY, fp.getY());
             if (fp.getY() < deckY - 3) break;        // shed: nothing after this is about footing
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         boolean underfootSolid = !level.getBlockState(new BlockPos(
                 (int) Math.floor(fp.getX()), deckY, (int) Math.floor(fp.getZ()))).isAir();
@@ -267,6 +277,37 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.expect(arrived).as("it must actually reach the cell one up and one across — with only"
                 + " the first clause, standing perfectly still scores full marks, and that is"
                 + " exactly today's behaviour").isTrue();
+    }
+
+    /**
+     * What the stock row's {@code holdPlaceable=} has always done to the inventory, done here in vanilla
+     * terms: the row used to call the body's {@code holdPlaceable()}, which is not a reading — it swaps
+     * the first full-block stack up from slots 9..35 into the first empty hotbar slot (else the held one)
+     * and selects it. So the backpack arm has always started its walk with the stack already in the
+     * hotbar; kept as it was, because the arm's recorded results were measured that way.
+     */
+    private static boolean carryPlaceableUp(ServerPlayer fp) {
+        var inv = fp.getInventory();
+        if (isSupport(inv.getSelected())) return true;
+        for (int slot = 0; slot < 9; slot++)
+            if (isSupport(inv.items.get(slot))) { inv.selected = slot; return true; }
+        for (int slot = 9; slot < inv.items.size(); slot++) {
+            if (!isSupport(inv.items.get(slot))) continue;
+            int to = inv.selected;
+            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { to = h; break; }
+            ItemStack bag = inv.items.get(slot);
+            inv.items.set(slot, inv.items.get(to));
+            inv.items.set(to, bag);
+            inv.selected = to;
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isSupport(ItemStack stk) {
+        return !stk.isEmpty() && stk.getItem() instanceof BlockItem bi
+                && !(bi.getBlock() instanceof FallingBlock)
+                && bi.getBlock().defaultBlockState().blocksMotion();
     }
 
     /**
@@ -344,15 +385,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         Harness.set("allowBreak", false);   // there is nothing to dig through; bridging is the only answer
         Harness.set("navigatorDebug", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
 
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         if (fp.getY() < standY - 0.5) {
             ctx.fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS
                     + " idle ticks (y=" + fp.getY() + ")");
@@ -361,21 +400,22 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         int hotbar = 0;
         for (int s = 0; s < 9; s++) hotbar += fp.getInventory().items.get(s).getCount();
-        final int planner = w.placeableBlockCount();
+        final int planner = bot.body().hands().placeableBlocks();
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
+        bot.goTo(Targets.block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (; t < 500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
             if (fp.getY() < deckY - 3) break;
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         boolean crossed = farZ >= cz + farStart;
 
@@ -486,15 +526,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         Harness.set("allowBreak", false);
         Harness.set("navigatorDebug", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 1.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 1.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
 
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         if (fp.getY() < standY - 0.5) {
             ctx.fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS
                     + " idle ticks (y=" + fp.getY() + ")");
@@ -503,20 +541,20 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         // A goal well past the deck's end, so the walk has every reason to keep going and the only
         // thing that can stop it at the head is the guard.
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(
-                new BlockPos(cx + lateral, standY, cz + deckCells + 6)));
+        bot.goTo(Targets.block(new BlockPos(cx + lateral, standY, cz + deckCells + 6)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
             if (fp.getY() < deckY - 3) break;
         }
+        String s = NavWalk.step(bot);
+        bot.cancel();
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         double walked = farZ - (cz + 1.5);
 
@@ -579,9 +617,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         Harness.pin(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, deckY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, deckY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().setItem(0, new ItemStack(Items.BOW, 1));
         fp.getInventory().setItem(9, new ItemStack(Items.ARROW, 64));
@@ -593,17 +630,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         int maxDraw = 0;
         // Hold the use for three full draws' worth of ticks. If the counter resets on a cycle, the
         // per-tick line shows the cycle; if it climbs and holds, the release is the suspect instead.
-        av.commandUseItem(true);
+        bot.press(bot.keys().use(true));
         for (int t = 0; t < 60; t++) {
-            av.step();
+            bot.step();
             int d = fp.isUsingItem() ? fp.getTicksUsingItem() : -1;
             maxDraw = Math.max(maxDraw, d);
             if (t < 24) draw.append(' ').append(d);
         }
-        av.commandUseItem(false);                 // up-edge = release
+        bot.press(bot.keys().use(false));         // up-edge = release
         final int drewTo = maxDraw;
         final String drawLine = draw.toString();
-        // Real SERVER ticks, not av.step(). step() ticks the avatar; a freshly spawned arrow sits in
+        // Real SERVER ticks, not bot.step(). step() ticks the body; a freshly spawned arrow sits in
         // the level's pending-entity queue until the LEVEL ticks, so counting inside a synchronous
         // loop asks the entity index about something it has not been told about yet — and reports a
         // working bow as a silent one. Same shape as an arena whose entities were inert because PREP
