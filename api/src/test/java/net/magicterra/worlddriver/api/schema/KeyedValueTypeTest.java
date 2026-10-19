@@ -47,6 +47,16 @@ class KeyedValueTypeTest {
     }
 
     @Test
+    void aJavaCallerMayHandAnIntegerToALongOrDoubleKey() {
+        KeyedValueType wide = ApiTypes.keyedValues("Wide",
+                Map.of("seed", ApiTypes.int64(0, Long.MAX_VALUE), "scale", ApiTypes.number()), Map.of());
+        List<Entry> checked = wide.validate(List.of(new Entry("seed", 7), new Entry("scale", 2)));
+        assertEquals(List.of(new Entry("seed", 7L), new Entry("scale", 2.0)), checked);
+        assertEquals(ApiIssue.Code.TYPE_MISMATCH, assertThrows(ApiException.class,
+                () -> wide.validate(List.of(new Entry("seed", "7")))).error().issues().get(0).code());
+    }
+
+    @Test
     void aMinimumRefusesTheEmptyObject() {
         assertEquals(ApiIssue.Code.OUT_OF_RANGE, issues(KNOBS.atLeast(1), "{}").get(0).code());
         assertEquals(ApiIssue.Code.TYPE_MISMATCH, issues(KNOBS, "[]").get(0).code());

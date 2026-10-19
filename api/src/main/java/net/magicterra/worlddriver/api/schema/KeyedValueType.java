@@ -86,9 +86,23 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
             ApiType type = types.get(entry.key());
             // An unknown key is written as it came, so read() reports it at its own path: a request
             // error for validate(), a contract violation for encode().
-            out.put(entry.key(), type == null ? entry.value() : type.write(entry.value()));
+            out.put(entry.key(), type == null ? entry.value() : wireForm(type, entry.value()));
         }
         return out;
+    }
+
+    /**
+     * {@code value} in wire form when it is the Java type {@code type} holds; anything else as it came, so
+     * read() judges it as it would a request's. An entry's value is an Object, so a Java caller can hand an
+     * Integer to a long setting, and the generic write would cast it before any check ran.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object wireForm(ApiType type, Object value) {
+        try {
+            return type.write(value);
+        } catch (ClassCastException otherType) {
+            return value;
+        }
     }
 
     /** {@code key}'s default in wire form, or null when it has none. */
