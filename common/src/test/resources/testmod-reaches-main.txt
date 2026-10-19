@@ -262,15 +262,6 @@ bot/stagewright/scene/WorldDriverMarkerScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverMarkerScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverMarkerScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverMarkerScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/BotTicker
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/PlayerBot
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/behavior/CombatProcess
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/control/Locomotor
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/control/Navigator
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/control/NavigatorTelemetry
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/rules/Goal
-bot/stagewright/scene/WorldDriverMobFightScenes -> bot/world/LevelWorldView
-bot/stagewright/scene/WorldDriverMobFightScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverParkourVoidScenes -> bot/planning/PathFinder
