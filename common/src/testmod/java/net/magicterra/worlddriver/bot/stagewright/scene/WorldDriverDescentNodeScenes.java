@@ -2,19 +2,18 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorReading;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.PlanCursor;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -82,8 +81,8 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  *
  * <h2>The arm that must go red</h2>
  *
- * Both arms stage the identical box and drive the identical navigator; {@link ControlConfig#navigatorDescentNodeHold}
- * is the only difference. The control (hold OFF = the ladder's build) must reproduce the burn, and
+ * Both arms stage the identical box and drive the identical goto; the {@code navigatorDescentNodeHold}
+ * setting is the only difference. The control (hold OFF = the ladder's build) must reproduce the burn, and
  * the rig <b>hard-fails</b> if it does not: an arena whose control walks out has not earned the right
  * to report that the subject did. {@code wd.serverStillWalksDownAStaircase} is the other half — the
  * same switch over an ordinary staircase, where both arms must AGREE, because a hold that fired at
@@ -91,9 +90,13 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  *
  * <h2>Driven by the navigator, not by the fixture</h2>
  *
- * Nothing here re-imposes a heading or an impulse after {@code navigator.tick} — unlike the rim arms,
+ * Nothing here re-imposes a heading or an impulse between bot ticks — unlike the rim arms,
  * whose subject is a guard and whose bot must therefore be pushed at it. The subject here IS the
  * step pointer, so a fixture that drove the bot would be answering its own question.
+ *
+ * <p>Each arm is an {@code mc.bot.goto} ticked one whole bot tick at a time, and is asked again
+ * whenever it ends (see {@link #askAgain}): a whole tick includes the reflexes, which the bare
+ * navigator these arms first drove did not.
  *
  * <h2>Arena footprint</h2>
  *
@@ -310,41 +313,39 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
         BlockPos foot = ctx.rel(0, BOX_Y0 + PERCH_LAYER, 0);
         double x0 = foot.getX() + PERCH_DX, z0 = foot.getZ() + PERCH_DZ;
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, x0, foot.getY(), z0);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, x0, foot.getY(), z0);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         // The crossing arrives carrying blocks and bridges with them; a bot with an empty inventory
         // would be refused moves this one had.
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().setItem(1, new ItemStack(Items.COBBLESTONE, 64));
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         double settledY = fp.getY();
         if (settledY < foot.getY() - 0.5)
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
-        double sole = NavigatorGeometry.soleOnSolid(w, fp);
+        double sole = bot.body().footing().soleOnSolid();
         if (sole <= 0.0 || sole >= 0.36)
             ctx.fail("THE RIG, not the subject: sole on solid " + String.format(Locale.ROOT, "%.4f", sole)
                     + " is not the real ladder's stance of standing on a single corner (requires 0 < sole < 0.36)");
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.XZ(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R));
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        long holds0 = tel.descentHolds;
+        GotoContracts.Target goal = Targets.column(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R);
+        long holds0 = bot.navigator().counter("descentHolds");
         double minY = fp.getY();
         int noPlan = 0, run = 0, longest = 0, t = 0;
         boolean lava = false;
         for (; t < DRIVE_TICKS; t++) {
-            navigator.tick(av, w);
-            if (navigator.inspect().pathNode() == null) { noPlan++; longest = Math.max(longest, ++run); } else run = 0;
-            av.step();
+            askAgain(bot, goal);
+            bot.tick();
+            if (planNode(bot.navigator()).isEmpty()) { noPlan++; longest = Math.max(longest, ++run); } else run = 0;
             minY = Math.min(minY, fp.getY());
             if (fp.isInLava()) { lava = true; break; }
         }
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-        long holds = tel.descentHolds - holds0;
+        long holds = bot.navigator().counter("descentHolds") - holds0;
+        double soleEnd = bot.body().footing().soleOnSolid();
+        bot.cancel();
         // DESCENDED, not "the foot cell changed": the perch is one cell wide, the block holding the
         // bot up is the cell west of it, and a bot that slides 0.30 blocks onto that block has
         // changed foot cell without going anywhere. Judging that would hand the control arm full
@@ -356,10 +357,25 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                 + " moved %.2f blocks, without a plan %d/%d ticks (longest continuous %d), sole on solid=%.4f,"
                 + " step advances held %d times%s",
                 hold, t, fp.getX(), fp.getY(), fp.getZ(), fp.blockPosition().toShortString(), minY,
-                foot.getY(), moved, noPlan, t, longest, NavigatorGeometry.soleOnSolid(w, fp), holds,
+                foot.getY(), moved, noPlan, t, longest, soleEnd, holds,
                 lava ? ", submerged in lava" : (descended ? ", stepped down" : ", did not step down"));
         ctx.record(arm + ".drive", ended);
         return new Leg(t, noPlan, longest, minY, moved, lava, descended, holds, ended);
+    }
+
+    /**
+     * Start the walk, and start it again whenever the last one ended. The ladder's hop kept asking
+     * the same question for its whole budget, and so did the bare navigator these arms used to tick,
+     * which re-planned on every tick after its walk ended; a goto ends at its first terminal status
+     * and leaves the bot idle, which would turn "it kept failing to step down" into "it stopped".
+     */
+    private static void askAgain(SceneBot bot, GotoContracts.Target goal) {
+        if (!bot.busy()) bot.goTo(goal);
+    }
+
+    /** The node the walk is heading for, absent while it holds no plan. */
+    private static Optional<BlockPosition> planNode(NavigatorReading nav) {
+        return nav.plan().flatMap(PlanCursor::node);
     }
 
     private static void clearBox(SceneContext ctx) {
@@ -439,7 +455,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static final int STAIR_TICKS = 200;
 
     /**
-     * An ordinary staircase, walked twice, with {@link ControlConfig#navigatorDescentNodeHold} as the only
+     * An ordinary staircase, walked twice, with the {@code navigatorDescentNodeHold} setting as the only
      * difference — and the two arms must AGREE.
      *
      * <p>This is the arm the fix had to earn separately. Holding the step pointer on a node below the
@@ -503,28 +519,24 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         Harness.set("navigatorDescentNodeHold", hold);
 
         BlockPos top = ctx.rel(0, STAIR_TOP + 1, 0);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level,
-                top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
 
-        Navigator navigator = new Navigator();
         BlockPos bottom = ctx.rel(STAIR_STEPS, STAIR_TOP - STAIR_STEPS + 1, 0);
-        navigator.start(new Goal.Block(bottom));
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        long holds0 = tel.descentHolds;
+        GotoContracts.Target goal = Targets.block(bottom);
+        long holds0 = bot.navigator().counter("descentHolds");
         int t = 0, noPlan = 0;
         for (; t < STAIR_TICKS; t++) {
-            navigator.tick(av, w);
-            if (navigator.inspect().pathNode() == null) noPlan++;
-            av.step();
+            askAgain(bot, goal);
+            bot.tick();
+            if (planNode(bot.navigator()).isEmpty()) noPlan++;
             if (fp.blockPosition().getX() >= bottom.getX() && fp.getY() <= bottom.getY() + 0.5) break;
         }
         int dropped = Math.max(0, top.getY() - (int) Math.floor(fp.getY()));
-        long holds = tel.descentHolds - holds0;
+        long holds = bot.navigator().counter("descentHolds") - holds0;
+        bot.cancel();
         String ended = String.format(Locale.ROOT,
                 "navigatorDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f), descended %d/%d steps,"
                 + " without a plan %d ticks, step advances held %d times",
@@ -696,7 +708,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *       the block holding it up changed foot cell without going anywhere;</li>
      *   <li><b>the control must not</b>, and the rig hard-fails if it does. An arena whose pre-fix
      *       build walks in has not earned the right to report that the fixed one did;</li>
-     *   <li><b>the hold must be what did it</b> — {@code NavigatorTelemetry.descentHolds} moved in the subject and
+     *   <li><b>the hold must be what did it</b> — the {@code descentHolds} counter of {@code mc.debug.navigator} moved in the subject and
      *       not in the control, so "A got in" cannot be credited to something else that changed.</li>
      * </ol>
      *
@@ -819,7 +831,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     /**
      * Stand the bot on the ladder's perch and let the navigator have the one-step plan.
      *
-     * <p>Nothing here re-imposes a heading or an impulse after {@code navigator.tick} — the subject IS
+     * <p>Nothing here re-imposes a heading or an impulse between bot ticks — the subject IS
      * the step pointer, so a fixture that drove the bot would be answering its own question.
      */
     private static Door doorDrive(SceneContext ctx, Doorway dw, String arm, boolean hold) {
@@ -829,20 +841,18 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         BlockPos perch = doorPerch(ctx, dw);
         BlockPos step = doorstep(ctx, dw);
         double x0 = perch.getX() + dw.dx(), z0 = perch.getZ() + dw.dz();
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, x0, perch.getY(), z0);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(fp::discard);
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, x0, perch.getY(), z0);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         // Rung 13 walks at the doorway with blocks in its inventory: a bot carrying nothing is refused
         // moves this one had, and the difference would be the arena's, not the navigator's.
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
-        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        bot.step(SETTLE_TICKS);
         double settledY = fp.getY();
         if (settledY < perch.getY() - 0.5)
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
-        double sole = NavigatorGeometry.soleOnSolid(w, fp);
+        double sole = bot.body().footing().soleOnSolid();
         // The reading the ladder printed for this stance; the 0.01 window is for a loader's floating
         // point tail, not for a different stance.
         if (Math.abs(sole - dw.sole()) > 0.01)
@@ -850,28 +860,33 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                     + ", but the real ladder printed " + dw.sole() + " on that tick; the stance is wrong,"
                     + " so this arena is not measuring that cell");
 
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(step));
-        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
-        long holds0 = tel.descentHolds;
+        GotoContracts.Target goal = Targets.block(step);
+        long holds0 = bot.navigator().counter("descentHolds");
         double minY = fp.getY();
         int t = 0, noPlan = 0;
         boolean onDoorstep = false;
+        String end = "none";
         // THE PLAN, tick by tick, for the first few ticks. This scene's whole claim is about what the
         // navigator does with a plan on the tick it gets one, and none of that is visible from outside:
         // the arena scenes in this file emit no [navigator] lines into the run's log at all (the perch
         // arm walks 8 blocks with a plan on 250 of 260 ticks and logs nothing), so "the plan was two
         // nodes and both were spent at once" has to be recorded here or it is not recorded.
+        // A whole bot tick now ends in the body step, so the cell printed is the one AFTER that tick's
+        // move, where the bare navigator's row printed the cell before it.
         StringBuilder trace = new StringBuilder();
         for (; t < DOOR_TICKS; t++) {
-            navigator.tick(av, w);
-            if (navigator.inspect().pathNode() == null) noPlan++;
+            askAgain(bot, goal);
+            bot.tick();
+            NavigatorReading nav = bot.navigator();
+            Optional<BlockPosition> node = planNode(nav);
+            if (node.isEmpty()) noPlan++;
             if (t < TRACE_TICKS)
                 trace.append(t == 0 ? "" : " ").append(t).append(':').append(cell(fp.blockPosition()))
-                     .append(" step").append(navigator.pathStep()).append('/').append(navigator.pathLen())
-                     .append(" node").append(navigator.inspect().pathNode() == null ? "none" : cell(navigator.inspect().pathNode()))
-                     .append(" held").append(tel.descentHolds - holds0);
-            av.step();
+                     .append(" step").append(nav.plan().map(PlanCursor::step).orElse(0)).append('/')
+                     .append(nav.plan().map(PlanCursor::len).orElse(0))
+                     .append(" node").append(node.map(n -> n.x() + "," + n.y() + "," + n.z()).orElse("none"))
+                     .append(" held").append(nav.counter("descentHolds") - holds0);
+            if (!bot.busy()) end = bot.gotoSlot().endReason().orElse("none");
             minY = Math.min(minY, fp.getY());
             if (fp.blockPosition().equals(step)) { onDoorstep = true; t++; break; }
             // As a second safeguard: the portal two cells east is LIT, and a bot that reached it would be
@@ -879,13 +894,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) { t++; break; }
         }
         ctx.record(arm + ".trace", trace.toString());
-        NavigatorTelemetry.PathStats st = tel.lastStats;
-        ctx.record(arm + ".lastSearch", st == null ? "no search in this drive left any statistics"
-                : "expanded=" + st.expanded() + " ms=" + st.ms() + " goalReached=" + st.goalReached()
-                        + " pathLength=" + st.pathLen());
+        NavigatorReading last = bot.navigator();
+        ctx.record(arm + ".lastSearch", last.lastSearch().map(st -> "expanded=" + st.expanded() + " ms=" + st.ms()
+                + " goalReached=" + st.goalReached() + " pathLength=" + st.pathLen())
+                .orElse("no search in this drive left any statistics"));
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-        long holds = tel.descentHolds - holds0;
-        String end = navigator.result().endReason();
+        long holds = last.counter("descentHolds") - holds0;
+        bot.cancel();
         String ended = String.format(Locale.ROOT,
                 "navigatorDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"
                 + " moved %.2f blocks, without a plan %d/%d ticks, end=%s, step advances held %d times%s",

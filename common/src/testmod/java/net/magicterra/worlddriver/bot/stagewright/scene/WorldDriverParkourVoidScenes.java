@@ -3,17 +3,17 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorReading;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.PlanCursor;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanEdge;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanParams;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.rules.SearchProfile;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -72,7 +72,7 @@ import net.minecraft.world.level.block.Blocks;
  *       parkour and always bridge instead" is a full-marks answer</b>, and the bot would pay 170
  *       cost and dozens of ticks for a gap a sprint-jump crosses for 32.</li>
  *   <li>{@code wd.parkourVoidRunwayGate} — planner-only, seconds, no execution budget. It pins the
- *       run-up threshold ITSELF as a criterion, which is the thing {@link Move#hasRunway} claims to
+ *       run-up threshold ITSELF as a criterion, which is the thing {@code Move.hasRunway} claims to
  *       model and does not: that predicate asks one question — "is the cell under the launch foot
  *       solid?" — and answers a one-cell pillar and a twelve-cell runway identically.</li>
  * </ul>
@@ -274,8 +274,8 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * are identical; {@code padLen} and {@code spawnDx} are the only inputs, so a difference between
      * the two scenes can only be the run-up.
      *
-     * <p>Machinery copied from {@code wd.parkourAscend} on purpose — {@code createUnique} +
-     * {@link LevelWorldView} + a synchronous {@code navigator.tick / av.step} loop — so the two are
+     * <p>Machinery copied from {@code wd.parkourAscend} on purpose — a roster bot, a goto and a
+     * synchronous {@code bot.tick()} loop reading the navigator every tick — so the two are
      * comparable readings of the same executor and flat-versus-rising is the only variable.
      *
      * @param assertLeap when true, also assert HOW the bot crossed (no blocks spent, and fast
@@ -299,32 +299,31 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + spawnDx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + spawnDx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);           // cannot move survivableFall — see class javadoc
         fp.getInventory().clearContent();
         for (int i = 0; i < 4; i++) fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
         final int cobbleBefore = carrying(fp, Items.COBBLESTONE);
 
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
+        boolean walking = true;
+        NavigatorReading nav = bot.navigator();
         double minY = fp.getY(), prevX = fp.getX(), prevH = 0.0;
         double takeoffX = Double.NaN, takeoffHBefore = Double.NaN, takeoffHAfter = Double.NaN;
         int takeoffTick = -1, tLip = -1, tDeck = -1, tFell = -1, t = 0;
         String gapMove = null, firstPlan = null;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        for (; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            nav = bot.navigator();
             double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
             minY = Math.min(minY, fp.getY());
-            if (firstPlan == null && navigator.pathLen() > 0) firstPlan = navigator.inspect().planTally();
+            if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0) firstPlan = NavWalk.trace(nav, "planTally");
             if (tLip < 0 && Mth.floor(fp.getX()) <= cx) tLip = t;
-            if (gapMove == null && fp.getX() < cx) gapMove = String.valueOf(navigator.inspect().pathMove());
+            if (gapMove == null && fp.getX() < cx) gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
             if (takeoffTick < 0 && fp.getY() > standY + 0.05) {
                 takeoffTick = t; takeoffX = prevX; takeoffHBefore = prevH; takeoffHAfter = h;
             }
@@ -339,6 +338,8 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
         int spent = cobbleBefore - carrying(fp, Items.COBBLESTONE);
         boolean crossed = fp.getX() < cx - GAP - 0.5 && Math.abs(fp.getY() - standY) <= 0.4;
+        String s = NavWalk.step(bot);
+        BotDebugContracts.Hands hands = bot.body().hands();
 
         // EVERY row below is recorded on PASS as well as on FAIL: the harness only prints the
         // evidence map into the log when a scene fails, and "the green run placed no blocks" is
@@ -355,15 +356,15 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure "
                 + "air decay, i.e. no impulse at all)", takeoffHBefore, takeoffHAfter));
         ctx.record("takeoff.tick", takeoffTick);
-        ctx.record("takeoff.navigator", navigator.inspect().parkourTakeoff());
+        ctx.record("takeoff.navigator", nav.plan().flatMap(PlanCursor::parkourTakeoff).orElse("none"));
         ctx.record("gap.move", gapMove == null ? "never got past the lip" : gapMove);
         ctx.record("gap.solidCells", gapSolidCells(level, cx, cz, padY, halfW));
         ctx.record("plan.first", firstPlan == null ? "none - the run never held a path" : firstPlan);
-        ctx.record("plan.last", navigator.inspect().planTally());
-        ctx.record("place.tally", av.placeTally());
+        ctx.record("plan.last", NavWalk.trace(nav, "planTally"));
+        ctx.record("place.tally", hands.placeTally());
         ctx.record("place.spent", spent + " cobblestone (started with " + cobbleBefore + ")");
-        ctx.record("canPlace", w.canPlace());
-        ctx.record("placeableBlockCount", w.placeableBlockCount());
+        ctx.record("canPlace", hands.canPlace());
+        ctx.record("placeableBlockCount", hands.placeableBlocks());
         ctx.record("minY", minY);
         ctx.record("ticks", String.format(Locale.ROOT,
                 "ran %d | reached lip cell t=%s | stood on deck t=%s | left the pad t=%s", t,
@@ -391,7 +392,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
         // The anti-overfit half. Only the long arm asserts HOW it got across.
         ctx.check(spent).as("C must have LEAPT, not bridged: cobblestone spent this run"
-                + " (place.tally=" + av.placeTally() + ")").isEqualTo(0);
+                + " (place.tally=" + hands.placeTally() + ")").isEqualTo(0);
         ctx.check(tDeck >= 0 && tLip >= 0 && tDeck - tLip <= LEAP_TICKS)
                 .as("D must have leapt FAST: from reaching the lip cell t="
                         + (tLip < 0 ? "never" : String.valueOf(tLip)) + " to standing on the deck t="
@@ -410,7 +411,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      *
      * A leap over two cells of void is priced at {@code Parkour3}'s cost 32 — <b>the sprint-jump
      * maximum</b>. The only precondition the move enforces about the run-up is
-     * {@link Move#hasRunway}, whose entire body is
+     * {@code Move.hasRunway}, whose entire body is
      *
      * <pre>{@code
      * return w.isSolid(from.offset(0, -1, 0));
@@ -428,7 +429,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * 6-cell one has not modelled a run-up, it has deleted the move.
      *
      * <p>Rig note, following {@code wd.parkourGate}: <b>the inventory is cleared</b>, so
-     * {@code LevelWorldView.canPlace()} is false and no bridge can appear in either plan. Without
+     * the bot's view answers {@code canPlace} false and no bridge can appear in either plan. Without
      * that, the short half could go green by routing a bridge and would then be asserting nothing
      * about run-up at all.
      */
@@ -447,23 +448,22 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         buildPadGapDeck(level, cx, cz + shortDz, padY, 1, 0);
         buildPadGapDeck(level, cx, cz + longDz, padY, 6, 0);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + shortDz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        fp.getInventory().clearContent();          // CRITICAL: no placeable block -> no bridge bypass
-        LevelWorldView w = new LevelWorldView(level, fp);
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + shortDz + 0.5);
+        bot.player().getInventory().clearContent();   // CRITICAL: no placeable block -> no bridge bypass
 
-        PathFinder.Result shortPlan = new PathFinder(w, SearchProfile.NONE).findPath(
-                new BlockPos(cx, standY, cz + shortDz),
-                new Goal.Block(new BlockPos(cx - GAP - 6, standY, cz + shortDz)));
-        PathFinder.Result longPlan = new PathFinder(w, SearchProfile.NONE).findPath(
-                new BlockPos(cx + 5, standY, cz + longDz),
-                new Goal.Block(new BlockPos(cx - GAP - 6, standY, cz + longDz)));
+        SinglePlan shortPlan = bot.plan(PlanParams.of(bot.ref(),
+                        Targets.block(new BlockPos(cx - GAP - 6, standY, cz + shortDz)))
+                .from(Targets.pos(new BlockPos(cx, standY, cz + shortDz))));
+        SinglePlan longPlan = bot.plan(PlanParams.of(bot.ref(),
+                        Targets.block(new BlockPos(cx - GAP - 6, standY, cz + longDz)))
+                .from(Targets.pos(new BlockPos(cx + 5, standY, cz + longDz))));
 
         boolean shortLeaps = crossesGapByParkour(shortPlan, cx);
         boolean longLeaps = crossesGapByParkour(longPlan, cx);
-        boolean shortRunway = Move.hasRunway(w, new BlockPos(cx, standY, cz + shortDz));
-        boolean longRunway = Move.hasRunway(w, new BlockPos(cx, standY, cz + longDz));
+        // Move.hasRunway's whole body: is the cell under the launch foot solid, in the planner's view.
+        boolean shortRunway = NavWalk.cell(bot, new BlockPos(cx, standY - 1, cz + shortDz)).solid();
+        boolean longRunway = NavWalk.cell(bot, new BlockPos(cx, standY - 1, cz + longDz)).solid();
+        BotDebugContracts.Hands hands = bot.body().hands();
 
         ctx.record("rig", "gap x=" + (cx - 1) + ".." + (cx - GAP) + " (" + (VOID_DEPTH - 1)
                 + " clear cells below) | short arm z=" + (cz + shortDz) + " pad 1 cell | long arm z="
@@ -476,8 +476,8 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         // one-cell pillar and a six-cell runway, which is the finding, not an aside.
         ctx.record("hasRunway.shortLip", shortRunway);
         ctx.record("hasRunway.longLip", longRunway);
-        ctx.record("canPlace", w.canPlace());
-        ctx.record("placeableBlockCount", w.placeableBlockCount());
+        ctx.record("canPlace", hands.canPlace());
+        ctx.record("placeableBlockCount", hands.placeableBlocks());
         TestMod.LOG.info("[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} "
                 + "long.reached={} long.parkour={} hasRunway(short)={} hasRunway(long)={}",
                 shortPlan.goalReached(), shortLeaps, longPlan.goalReached(), longLeaps,
@@ -494,27 +494,25 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
     /** True when the plan gets from the pad side to the deck side in ONE parkour edge — i.e. it
      *  leaps the void rather than walking around it (there is nowhere to walk) or bridging it. */
-    private static boolean crossesGapByParkour(PathFinder.Result res, int lipX) {
-        List<BlockPos> path = res.path();
-        List<Move.Edge> edges = res.edges();
-        for (int i = 1; i < path.size() && i < edges.size(); i++) {
-            Move.Edge e = edges.get(i);
-            if (e == null || e.move == null || !e.move.startsWith("parkour")) continue;
-            if (path.get(i - 1).getX() >= lipX && path.get(i).getX() <= lipX - GAP - 1) return true;
+    private static boolean crossesGapByParkour(SinglePlan plan, int lipX) {
+        List<PlanEdge> edges = plan.edges();
+        for (int i = 1; i < edges.size(); i++) {
+            String move = edges.get(i).move().orElse(null);
+            if (move == null || !move.startsWith("parkour")) continue;
+            if (edges.get(i - 1).to().x() >= lipX && edges.get(i).to().x() <= lipX - GAP - 1) return true;
         }
         return false;
     }
 
     /** Node count, goal-reached, cost and the move histogram — the same shape
-     *  {@code NavigatorInspector#planTally} prints, for a result that never reaches a Navigator. */
-    private static String planShape(PathFinder.Result res) {
+     *  the navigator's {@code planTally} trace prints, for a plan that never reaches a navigator. */
+    private static String planShape(SinglePlan plan) {
         java.util.Map<String, Integer> byMove = new java.util.TreeMap<>();
-        for (Move.Edge e : res.edges())
-            if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
-        return "goalReached=" + res.goalReached() + " nodes=" + res.path().size()
-                + " cost=" + String.format(Locale.ROOT, "%.1f", res.finalCost())
+        for (PlanEdge e : plan.edges()) e.move().ifPresent(m -> byMove.merge(m, 1, Integer::sum));
+        List<BlockPosition> path = plan.cells();
+        return "goalReached=" + plan.goalReached() + " nodes=" + path.size()
+                + " cost=" + String.format(Locale.ROOT, "%.1f", (double) plan.search().finalCost())
                 + " moves " + (byMove.isEmpty() ? "{}" : byMove.toString())
-                + (res.path().isEmpty() ? ""
-                        : " last=" + res.path().get(res.path().size() - 1).toShortString());
+                + (path.isEmpty() ? "" : " last=" + Targets.cell(path.get(path.size() - 1)).toShortString());
     }
 }

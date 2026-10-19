@@ -1,21 +1,18 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
+import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorReading;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.PlanCursor;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -35,7 +32,7 @@ import net.minecraft.world.level.block.Blocks;
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded
  * exemptions in docs/dev/coverage-exemptions.md):
  * <ul>
- *   <li><b>Fall damage:</b> FakePlayer avatars are damage-immune by contract, so the
+ *   <li><b>Fall damage:</b> the bots' server-side players are damage-immune by contract, so the
  *       "damaging drop" scene asserts ROUTING+traversal (the planner accepts a
  *       maxDryFall-cap drop), not HP loss — live damage is ~1 HP at drop 4.</li>
  *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on
@@ -132,19 +129,19 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         }
     }
 
-    private static ServerPlayerBody spawn(SceneContext ctx, int x, int standY, int z) {
-        ServerLevel level = ctx.level();
+    private static SceneBot spawn(SceneContext ctx, int x, int standY, int z) {
         BlockPos p = ctx.rel(x, standY, z);
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per run
-        fp.getInventory().clearContent();
-        return av;
+        SceneBot bot = SceneBot.spawn(ctx, ctx.level(), p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+        bot.player().getInventory().clearContent();
+        return bot;
     }
 
-    private record Run(Locomotor.Status step, int ticks, double minY, double maxX,
-                       Navigator navigator, ServerPlayer fp, String breach, String journey,
+    /** {@code end}: the navigator as the walk left it, for its probes in a failure message. */
+    private record Run(String step, int ticks, double minY, double maxX,
+                       NavigatorReading end, ServerPlayer fp, String breach, String journey,
                        String pinWindow, String invEvents, boolean walkedBestEffort) {}
+
+    private static String progress(Run r) { return NavWalk.trace(r.end(), "progressProbe"); }
 
     private static int bagCount(ServerPlayer fp) {
         int n = 0;
@@ -158,12 +155,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  the first tick the player dips below it, the navigator's state is snapshotted so a
      *  fall failure reports WHERE and in WHAT state the player left the deck (the final
      *  probe is post-fall and has misled triage before). */
-    private static Run drive(SceneContext ctx, ServerPlayerBody av, int n, BlockPos goal, int guardStandY) {
-        ServerPlayer fp = av.fakePlayer();
-        LevelWorldView w = new LevelWorldView(ctx.level(), fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
+    private static Run drive(SceneContext ctx, SceneBot bot, int n, BlockPos goal, int guardStandY) {
+        ServerPlayer fp = bot.player();
+        bot.goTo(Targets.block(goal));
+        boolean walking = true;
+        NavigatorReading nav = bot.navigator();
         double minY = fp.getY();
         double maxX = fp.getX() - ctx.origin().getX();
         double guardAbs = ctx.origin().getY() + guardStandY - 0.5;
@@ -194,30 +190,32 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         int invCount = bagCount(fp);
         boolean walkedBestEffort = false;
         int t = 0;
-        for (; t < n && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
-            if (!walkedBestEffort) walkedBestEffort = navigator.inspect().progressProbe().contains(" bestEffort");
+        for (; t < n && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            nav = bot.navigator();
+            Optional<PlanCursor> cur = nav.plan();
+            String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
+            if (!walkedBestEffort) walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
             minY = Math.min(minY, fp.getY());
             maxX = Math.max(maxX, fp.getX() - ctx.origin().getX());
             var vel = fp.getDeltaMovement();
-            String probe = navigator.inspect().tickProbe();
+            String probe = NavWalk.trace(nav, "tickProbe");
             String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
             if (!pid.equals(lastPid) || t < 12) {
                 lastPid = pid;
                 if (journey.size() < 52)
                     journey.add("t" + t + "@" + String.format("(%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getZ() - ctx.origin().getZ())
-                            + (journey.size() < 16 ? " " + navigator.inspect().planProbe() : " " + probe));
+                            + (journey.size() < 16 ? " " + NavWalk.trace(nav, "planProbe") : " " + probe));
             }
             trail.addLast(String.format("t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
                     t, fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                     fp.getZ() - ctx.origin().getZ(), vel.x, vel.y, vel.z,
                     fp.getYRot(), fp.onGround(), fp.isShiftKeyDown(), fp.isSprinting(),
-                    fp.horizontalCollision,
-                    navigator.inspect().jumpTag() == null ? "-" : navigator.inspect().jumpTag())
-                    + " as=" + (navigator.inspect().aimTag() == null ? "-" : navigator.inspect().aimTag())
-                    + " dr=[" + (navigator.inspect().driveTag() == null ? "EARLY-RETURN" : navigator.inspect().driveTag()) + "]"
+                    fp.horizontalCollision, jumpTag)
+                    + " as=" + cur.flatMap(PlanCursor::aimTag).orElse("-")
+                    + " dr=[" + cur.flatMap(PlanCursor::driveTag).orElse("EARLY-RETURN") + "]"
                     + " " + probe);
             if (trail.size() > 16) trail.removeFirst();
             int ic = bagCount(fp);
@@ -226,7 +224,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     invEvents.add("t" + t + "Δ" + (ic - invCount) + "@" + String.format("(%.1f,%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                             fp.getZ() - ctx.origin().getZ())
-                            + " jt=" + (navigator.inspect().jumpTag() == null ? "-" : navigator.inspect().jumpTag()) + " " + probe);
+                            + " jt=" + jumpTag + " " + probe);
                 invCount = ic;
             }
             if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) staticTicks++;
@@ -236,12 +234,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             if (breach == null && fp.getY() < guardAbs) {
                 breach = "breach@t=" + t + " pos=(" + String.format("%.1f,%.1f,%.1f",
                         fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
-                        fp.getZ() - ctx.origin().getZ()) + ")rel " + navigator.inspect().progressProbe()
-                        + " ;; " + navigator.inspect().planProbe()
+                        fp.getZ() - ctx.origin().getZ()) + ")rel " + NavWalk.trace(nav, "progressProbe")
+                        + " ;; " + NavWalk.trace(nav, "planProbe")
                         + " ;; shed-window: " + String.join(" ;; ", trail);
             }
         }
-        return new Run(s, t, minY, maxX, navigator, fp, breach, String.join(" ;; ", journey),
+        return new Run(NavWalk.step(bot), t, minY, maxX, nav, fp, breach, String.join(" ;; ", journey),
                 pinWindow == null ? "-" : pinWindow,
                 invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents), walkedBestEffort);
     }
@@ -258,14 +256,14 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         double floorAbs = ctx.origin().getY() + lowestStandY - 0.5;
         if (r.minY() < floorAbs)
             ctx.fail(scene + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
-                    + ") — fell off the bridge | " + r.breach() + " | final " + r.navigator().inspect().progressProbe());
+                    + ") — fell off the bridge | " + r.breach() + " | final " + progress(r));
     }
 
     private static void assertArrived(SceneContext ctx, String scene, Run r, BlockPos goal) {
         if (!atGoal(ctx, r, goal))
             ctx.fail(scene + ": did not arrive: step=" + r.step() + " ticks=" + r.ticks()
-                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + r.navigator().inspect().progressProbe()
-                    + " | " + r.navigator().inspect().planProbe() + " ;; pin-window: " + r.pinWindow()
+                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + progress(r)
+                    + " | " + NavWalk.trace(r.end(), "planProbe") + " ;; pin-window: " + r.pinWindow()
                     + " ;; journey: " + r.journey());
     }
 
@@ -279,11 +277,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         if (r.maxX() < barrierX - 4)
             ctx.fail(scene + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
-                    + "@t" + r.ticks() + " | " + r.navigator().inspect().progressProbe()
+                    + "@t" + r.ticks() + " | " + progress(r)
                     + " ;; journey: " + r.journey());
         if (r.maxX() > barrierX + 1.0)
             ctx.fail(scene + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1)
-                    + ") | " + r.navigator().inspect().progressProbe());
+                    + ") | " + progress(r));
     }
 
     /** Standard course frame: start pad (centre x=-2), 1-wide deck x=0..len, end pad
@@ -544,12 +542,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         pad(ctx, 22, DECK + 2, 0);
         catchFloor(ctx, -6, 26, DECK - CATCH_DROP, -8, 8);
         BlockPos goal = ctx.rel(22, DECK + 3, 0);
-        ServerPlayerBody av = spawn(ctx, -2, DECK + 3, 0);
-        av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
-        Run r = drive(ctx, av, 2200, goal, DECK + 3);
+        SceneBot bot = spawn(ctx, -2, DECK + 3, 0);
+        bot.player().getInventory().add(new ItemStack(Items.DIRT, 16));
+        Run r = drive(ctx, bot, 2200, goal, DECK + 3);
         assertNeverFell(ctx, "bridgeDescendPlaceLip", r, DECK + 3);
         assertArrived(ctx, "bridgeDescendPlaceLip", r, goal);
-        int left = av.fakePlayer().getInventory().countItem(Items.DIRT);
+        int left = bot.player().getInventory().countItem(Items.DIRT);
         if (left >= 16)
             ctx.fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + left
                     + "/16) — the shaft crossing should need a placed bridge support ;; "
@@ -563,7 +561,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     }
 
     /** Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge.
-     *  Live this costs ~1 HP; the FakePlayer is damage-immune by contract, so the
+     *  Live this costs ~1 HP; the bot's player is damage-immune by contract, so the
      *  scene asserts routing+traversal (see class doc). */
     private static void bridgeStairDownGapDamage(SceneContext ctx) {
         stairGapScene(ctx, "bridgeStairDownGapDamage", 4, true);
@@ -599,7 +597,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 ctx.fail(name + ": crossed a lethal gap with no fall-break available");
             if (r.maxX() < 8)
                 ctx.fail(name + ": never approached the lip (maxX=" + r.maxX()
-                        + ") | " + r.navigator().inspect().progressProbe());
+                        + ") | " + progress(r));
         }
     }
 
@@ -610,12 +608,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         liveStack(ctx);
         Harness.set("allowPlace", true);
         BlockPos goal = footholdRig(ctx);
-        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
-        av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
-        Run r = drive(ctx, av, 2200, goal, DECK + 1);
+        SceneBot bot = spawn(ctx, -2, DECK + 1, 0);
+        bot.player().getInventory().add(new ItemStack(Items.DIRT, 16));
+        Run r = drive(ctx, bot, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeFootholdPlace", r, DECK + 1);
         assertArrived(ctx, "bridgeFootholdPlace", r, goal);
-        int left = av.fakePlayer().getInventory().countItem(Items.DIRT);
+        int left = bot.player().getInventory().countItem(Items.DIRT);
         if (left >= 16)
             ctx.fail("bridgeFootholdPlace: arrived but no block was consumed (dirt=" + left
                     + "/16) — the +2 face should be unclimbable without a foothold ;; inv-events: "
@@ -667,12 +665,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         strip(ctx, 11, 12, DECK + 1, 5);
         for (int x = 13; x <= 16; x++)
             for (int z = 0; z <= 5; z++) ctx.setBlock(x, DECK + 2, z, Blocks.STONE);
-        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
-        av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
-        Run r = drive(ctx, av, 2200, goal, DECK + 1);
+        SceneBot bot = spawn(ctx, -2, DECK + 1, 0);
+        bot.player().getInventory().add(new ItemStack(Items.DIRT, 16));
+        Run r = drive(ctx, bot, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeStepTwoBypassNoPlace", r, DECK + 1);
         assertArrived(ctx, "bridgeStepTwoBypassNoPlace", r, goal);
-        int left = av.fakePlayer().getInventory().countItem(Items.DIRT);
+        int left = bot.player().getInventory().countItem(Items.DIRT);
         if (left != 16)
             ctx.fail("bridgeStepTwoBypassNoPlace: the stair bypass exists but blocks were spent (dirt="
                     + left + "/16) — placement should lose to the walk detour on cost ;; inv-events: "
@@ -690,12 +688,18 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         for (String leg : new String[] {"bareHand", "pickaxe"}) {
             ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
             ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
-            ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
-            if (leg.equals("pickaxe")) av.fakePlayer().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
-            Run r = drive(ctx, av, 2200, goal, DECK + 1);
+            // Each leg's bot leaves before the next spawns; the cleanup only catches a leg that threw.
+            BlockPos p = ctx.rel(-2, DECK + 1, 0);
+            SceneBot bot = SceneBot.spawnBare(ctx, ctx.level(), p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+            boolean[] removed = { false };
+            ctx.cleanup(() -> { if (!removed[0]) bot.remove(); });
+            bot.player().getInventory().clearContent();
+            if (leg.equals("pickaxe")) bot.player().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+            Run r = drive(ctx, bot, 2200, goal, DECK + 1);
             assertNeverFell(ctx, "bridgeBreakThrough[" + leg + "]", r, DECK + 1);
             assertArrived(ctx, "bridgeBreakThrough[" + leg + "]", r, goal);
-            av.fakePlayer().discard();
+            bot.remove();
+            removed[0] = true;
         }
     }
 
@@ -710,9 +714,9 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         stripZ(ctx, 2, 1, 6, DECK);
         strip(ctx, 2, 22, DECK, 6);
         stripZ(ctx, 22, 1, 6, DECK);
-        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
-        av.fakePlayer().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
-        Run r = drive(ctx, av, 2200, goal, DECK + 1);
+        SceneBot bot = spawn(ctx, -2, DECK + 1, 0);
+        bot.player().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        Run r = drive(ctx, bot, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeDigShortcut", r, DECK + 1);
         assertArrived(ctx, "bridgeDigShortcut", r, goal);
         if (ctx.level().getBlockState(ctx.rel(12, DECK + 1, 0)).is(Blocks.STONE)

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.debug;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -47,6 +48,7 @@ import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -110,11 +112,8 @@ final class BotReadings {
             put(traces, "planTally", in.planTally());
             put(traces, "rawPlanTally", in.rawPlanTally());
             put(traces, "channels", in.channels());
-            // How the last walk ended, cleared by the next goal: a reader that wants a terminal it may
-            // not see again has to read it on the tick it happened.
-            WalkResult r = nav.result();
-            if (r.status() != Locomotor.Status.MOVING)
-                traces.put("result", r.status() + (r.reason() == null ? "" : ": " + r.reason()));
+            put(traces, "walkResult", walkResult(nav.result()));
+            put(traces, "planCellAudit", in.planCellAudit(e.level()));
             String takeoff = in.parkourTakeoff();
             plan = Optional.of(new PlanCursor(Optional.ofNullable(in.pathNode()).map(BotReadings::pos),
                     Optional.ofNullable(in.pathMove()), nav.pathStep(), nav.pathLen(),
@@ -142,6 +141,8 @@ final class BotReadings {
         }
         counters.put("expectAlarmsFired", (long) ExpectAlarms.FIRED.get());
         counters.put("movementContextAllocs", MovementContext.ALLOC_COUNT);
+        // The game time vanilla's jump gate last let a press through; -1 for a body that is not a joined player.
+        counters.put("lastJumpTick", e instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1L);
         put(traces, "lastTickTrace", tel.lastTickTrace);
         put(traces, "lastSupportedTrace", tel.lastSupportedTrace);
         put(traces, "lastGuardRepath", tel.lastGuardRepath);
@@ -260,6 +261,16 @@ final class BotReadings {
 
     private static void put(Map<String, String> traces, String name, String value) {
         if (value != null) traces.put(name, value);
+    }
+
+    /** How the navigator's last walk ended, or null while none has since its last start. */
+    private static String walkResult(WalkResult r) {
+        // Absent while a walk is under way; the next goal clears it, so a reader that wants a terminal it
+        // may not see again has to read it on the tick it happened.
+        if (r == null || r == WalkResult.NONE || r.status() == Locomotor.Status.MOVING) return null;
+        return "status=" + r.status() + " endReason=" + r.endReason() + " goalReached=" + r.goalReached()
+                + " finalDist=" + String.format(Locale.ROOT, "%.3f", r.finalDist())
+                + " goalSnapped=" + r.goalSnapped() + " reason=" + r.reason();
     }
 
     private static List<BlockPos> cells(List<BlockPosition> ps) {

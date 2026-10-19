@@ -1,0 +1,54 @@
+package net.magicterra.worlddriver.bot.stagewright.scene;
+
+import java.util.List;
+import java.util.Optional;
+
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
+import net.minecraft.core.BlockPos;
+
+/**
+ * A walk a scene ticks itself ({@code mc.bot.goto}, then {@code bot.tick()} per tick), read back the way the
+ * navigator scenes report it: {@code MOVING} while it runs, else how the goto slot says it ended.
+ */
+final class NavWalk {
+    private NavWalk() {}
+
+    /** {@code MOVING} while the bot is on its walk; else {@code REACHED/GAVE_UP(<endReason>)} or {@code FAILED(...)}. */
+    static String step(SceneBot bot) {
+        ControlContracts.BotStatus s = bot.status();
+        if (s.busy()) return "MOVING";
+        ControlContracts.Slot g = s.slots().goTo();
+        String end = g.endReason().orElse("?");
+        if (g.lastError().isPresent()) return "FAILED(" + end + ": " + g.lastError().get() + ")";
+        return (g.goalReached().orElse(false) ? "REACHED(" : "ENDED(") + end + ")";
+    }
+
+    /** The walk stopped on its own without failing: it arrived, or gave up short of the goal. */
+    static boolean ended(SceneBot bot) {
+        ControlContracts.BotStatus s = bot.status();
+        return !s.busy() && s.slots().goTo().lastError().isEmpty();
+    }
+
+    /** The navigator trace {@code name}, or {@code ""} when the navigator holds none. */
+    static String trace(BotDebugContracts.NavigatorReading r, String name) {
+        return r.traces().getOrDefault(name, "");
+    }
+
+    /** {@code cell} as {@code bot}'s planner view classifies it ({@code mc.debug.cells}). */
+    static BotDebugContracts.Cell cell(SceneBot bot, BlockPos cell) {
+        return cells(bot, List.of(Targets.pos(cell))).get(0);
+    }
+
+    /** {@code cells} as {@code bot}'s planner view classifies them, in order, in one {@code mc.debug.cells}. */
+    static List<BotDebugContracts.Cell> cells(SceneBot bot, List<BlockPosition> cells) {
+        if (cells.isEmpty()) return List.of();
+        return Calls.now(DebugApi.of(Calls.api()).cells(new BotDebugContracts.CellsParams(Optional.of(bot.ref()),
+                cells, Optional.empty()))).cells();
+    }
+}

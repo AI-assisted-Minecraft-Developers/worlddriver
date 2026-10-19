@@ -11,12 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   starts now would, from the client's own view on the client thread; `side: 'server'` asks the same
   of the owner's server-side player instead, so the two can be compared. Each cell also reports
   `breakCost`, absent when the cell cannot be broken.
-- **`mc.debug.navigator` says how the last walk ended.** Trace `result` is the navigator's ending
-  (`FAILED: <reason>`, `REACHED`, `GAVE_UP: <how far short>`) until the next goal clears it; absent
-  while a walk is still under way.
 - **`mc.observe.threats` reads a driven mob's scan too.** `bot` may name a mob bot (`mob:<name>` or an
   adopted `entity:<uuid>`), not only a server player bot; the answer is that mob's own scan, which
   counts a mob only when it targets this one.
+- **`mc.debug.navigator` says when the bot last jumped.** New counter `lastJumpTick`: the game time
+  vanilla's jump gate last let a press through, or -1 for a body that has never jumped or is not a
+  joined player. It tells a jump that hit a ceiling from one that never fired.
+- **`mc.debug.navigator` says how the last walk ended and what stands on the plan's cells.** Two new
+  traces: `walkResult` (status, end reason, whether the goal was reached, distance left, whether the
+  goal was moved to a standable cell, and why it fell short) once a walk has ended, until the next
+  goal clears it, and `planCellAudit`, the blocks at each plan node's feet, head and floor as the world has them now.
+  They also answer for a task that walks without being a goto, such as `mc.bot.mine`.
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

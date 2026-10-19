@@ -10,7 +10,6 @@
 # the run's registered set would otherwise pass unnoticed, having tested nothing; the run compares
 # the two sets and fails when they disagree.
 wd.ascendMovementNoop
-wd.ascendDeadZoneWatchdog
 wd.diagonalAscentSpeed
 wd.selfShaftDigUp
 wd.descentYaw

@@ -689,7 +689,7 @@ public final class WorldDriverMobFightScenes {
 
     /** How the navigator's last walk ended, or null while it is still walking; the next re-goal clears it. */
     private static String verdict(SceneBot bot) {
-        return bot.navigator().traces().get("result");
+        return bot.navigator().traces().get("walkResult");
     }
 
     private static boolean noRoute(String verdict) {

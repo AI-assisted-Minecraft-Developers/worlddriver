@@ -5,15 +5,15 @@ import java.util.Locale;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.rules.moves.PillarUp;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -32,38 +32,16 @@ import net.minecraft.world.level.block.Blocks;
  * verbatim to testkit {@code wd.*} scenes and their legacy twins retired in the same
  * commit.
  *
- * <p><b>Porting is by the canonical pattern established in {@link WorldDriverScenes}</b>
- * (study its class javadoc for the full rationale — this class applies the same
- * substitutions and does not re-explain them):
- * <ul>
- *   <li>{@code helper.getLevel()} → {@link SceneContext#level()};</li>
- *   <li>absolute {@code cx/cz} → {@link SceneContext#origin()} X/Z (arena math
- *       byte-identical, just relocated to the harness grid cell);</li>
- *   <li>absolute Y constants → {@code origin.y + (legacy_Y − 200)}. Because every grid
- *       origin sits at {@code GRID_Y = 200}, the mapped ABSOLUTE Y equals the legacy
- *       absolute Y — the vertical geometry is literally unchanged, only X/Z relocate
- *       (physics is y-invariant in this range regardless);</li>
- *   <li>{@code try/finally} per-key config save/restore → {@link BotConfig#pinnedBaseline()}
- *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
- *       avatar discard) then the SAME keys the legacy body flipped;</li>
- *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
- *       the throwaway-world GameTest methods never had to);</li>
- *   <li>{@code AgentGameTestSupport.grantWaterEffects} →
- *       {@link SimProbes#grantWaterEffects} (the common single source);</li>
- *   <li>{@code AgentGameTestSupport.buildFloor} → the inlined {@link #buildFloor} helper
- *       below (origin-relative; promoted-into-class rather than imported across the
- *       neoforge testmod source-set boundary — only the 3 Terrain scenes that need it
- *       use it, so no cross-wave promotion);</li>
- *   <li>{@code throw new GameTestAssertException(msg)} → {@link SceneContext#fail(String)}
- *       (prefixed with the scene's short name for multi-scene log attribution);</li>
- *   <li>{@code helper.succeed()} → normal return;</li>
- *   <li>the {@code gtOnlySkips(...)} probe first line → deleted (the testkit gate
- *       reconciles itself).</li>
- * </ul>
- * The in-body synchronous navigator loops are carried over unchanged (they run on the
- * scene's first RUN tick, same as the legacy GameTest shell), so the old/new-shell A/B
- * compares like with like.
+ * <p>Same pattern as {@link WorldDriverScenes}: a roster bot ({@link SceneBot}) walks
+ * {@code mc.bot.goto} and the scene ticks it with full bot ticks on its first RUN tick,
+ * reading the player every tick; settings go through {@link Harness} after
+ * {@code Harness.pin}. Arena X/Z derive from {@link SceneContext#origin()}; absolute Y
+ * constants map to {@code origin.y + (legacy_Y − 200)}, which is the legacy absolute Y
+ * since every grid origin sits at {@code GRID_Y = 200}.
+ *
+ * <p>{@code wd.stepUpCrestOrbit} alone still runs a bare navigator over a hand-built body:
+ * it injects a scripted plan and re-poses the body around every tick, which no public
+ * method does.
  *
  * <p><b>Origin slots.</b> All 13 take AUTO slots at the default radius, with ONE
  * exception each way:
@@ -118,11 +96,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 Scene.of("wd.bareHandDigCadence", 200, WorldDriverTerrainScenes::bareHandDigCadence));
     }
 
-    /** Ported from {@code AgentGameTestTerrain#summitArena}: the REAL {@link Navigator} pillars
-     *  a {@link ServerPlayerBody} up through an oak-leaf canopy (cardinal-neighbour leaf at
-     *  each rung ceiling). Break+place ON; the {@code navigatorPillarReachGoalNoSnap} flag keeps
-     *  the elevated air goal pillar-reachable. Asserts the canopy {@code toBreak} fix
-     *  ({@link PillarUp#eval}) AND that the avatar reaches the elevated goal. */
+    /** Ported from {@code AgentGameTestTerrain#summitArena}: a bot's goto pillars up through an
+     *  oak-leaf canopy (cardinal-neighbour leaf at each rung ceiling). Break+place ON; the
+     *  {@code navigatorPillarReachGoalNoSnap} flag keeps the elevated air goal pillar-reachable.
+     *  Asserts the bot reaches the elevated goal. The canopy {@code toBreak} fix itself (the rung
+     *  lists the ceiling-neighbour leaf) is checked by {@code PillarUpTest} over a grid. */
     private static void summit(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -141,26 +119,15 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("allowPlace", true);
         Harness.set("navigatorPillarReachGoalNoSnap", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.06, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
-        LevelWorldView w = new LevelWorldView(level, fp);
 
-        // Deterministic canopy-fix proof: PillarUp.eval at the rung whose ceiling (from+2) is
-        // the leaf row must list the -x cardinal-neighbour leaf in toBreak (AABB head-sweep fix).
-        Move.Edge pe = new PillarUp().eval(w, new BlockPos(cx, standY + 1, cz));   // from=222 → ceiling=224
-        BlockPos neighbourLeaf = new BlockPos(cx - 1, standY + 3, cz);             // (cx-1, 224)
-        if (pe == null || !pe.toBreak.contains(neighbourLeaf))
-            ctx.fail("summit: canopy fix: PillarUp.eval did not add the ceiling-neighbour leaf "
-                    + neighbourLeaf + " to toBreak (got " + (pe == null ? "null" : pe.toBreak) + ")");
-
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        bot.goTo(Targets.block(goal));
+        bot.tickUntilIdle(400);
+        String s = NavWalk.step(bot);
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
@@ -168,10 +135,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         TestMod.LOG.info("[wd.summit] step={} y={} reached={} leafCleared={}",
                 s, fp.getY(), reached, leafCleared);
         if (!reached)
-            ctx.fail("summit: real Navigator failed to pillar to goal: y=" + fp.getY() + " step=" + s);
+            ctx.fail("summit: the goto failed to pillar to goal: y=" + fp.getY() + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestTerrain#sheerWallArena}: the REAL {@link Navigator} climbs a
+    /** Ported from {@code AgentGameTestTerrain#sheerWallArena}: a bot's goto climbs a
      *  +5 SHEER (vertical, stepless) wall onto a plateau behind it. Break OFF (no tunnelling),
      *  place ON (pillar/scaffold is the only way up). Asserts the avatar reaches the plateau. */
     private static void sheerWall(SceneContext ctx) {
@@ -198,31 +165,30 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("allowPlace", true);
         Harness.set("navigatorDebug", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
-        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 600 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
         }
+        String s = NavWalk.step(bot);
         boolean onPlateau = fp.getZ() > wallZ + 0.5 && fp.getY() >= topY + 1 - 0.4;
         TestMod.LOG.info("[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
         if (!onPlateau)
-            ctx.fail("sheerWall: Navigator failed to climb the +" + wallH + " sheer wall: pos=("
+            ctx.fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestTerrain#bridgeGapArena}: the REAL {@link Navigator} bridges a
+    /** Ported from {@code AgentGameTestTerrain#bridgeGapArena}: a bot's goto bridges a
      *  3-cell void gap (full x-width, so the only crossing is a +z bridge). Break OFF = no
      *  dig-around, place ON. Asserts the avatar reaches the far platform. */
     private static void bridgeGap(SceneContext ctx) {
@@ -248,23 +214,20 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("allowPlace", true);
         Harness.set("navigatorDebug", true);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        bot.goTo(Targets.block(goal));
+        bot.tickUntilIdle(600);
+        String s = NavWalk.step(bot);
         boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
         TestMod.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), crossed);
         if (!crossed)
-            ctx.fail("bridgeGap: Navigator failed to bridge the 3-cell gap: pos=("
+            ctx.fail("bridgeGap: the goto failed to bridge the 3-cell gap: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
     }
 
@@ -293,20 +256,19 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
-        for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 300 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             minY = Math.min(minY, fp.getY());
         }
+        String s = NavWalk.step(bot);
         boolean fellInPit = minY <= pitY + 3;
         boolean onLanding = fp.getX() > cx + 1.5 && fp.getY() >= launchY + 2 - 0.4;
         TestMod.LOG.info("[wd.parkourAscend] step={} pos=({},{},{}) minY={} fellInPit={} onLanding={}",
@@ -348,25 +310,24 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double px = fp.getX(), pz = fp.getZ();
         int noProgress = 0, maxNoProgress = 0;
-        for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 700 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             double dx = fp.getX() - px, dz = fp.getZ() - pz;
             if (dx * dx + dz * dz < 0.0025) noProgress++;   // <0.05 b/tick horizontally
             else noProgress = 0;
             maxNoProgress = Math.max(maxNoProgress, noProgress);
             px = fp.getX(); pz = fp.getZ();
         }
+        String s = NavWalk.step(bot);
         boolean atGoal = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 12 + 0.5)) < 2.0
                 && Math.abs(fp.getY() - (plainY + 1)) < 1.5;
@@ -498,20 +459,19 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             minY = Math.min(minY, fp.getY());
         }
+        String s = NavWalk.step(bot);
         boolean fellInPit = minY <= pitFloorY + 2;
         boolean atBottom = Math.abs(fp.getZ() - (cz + steps + 0.5)) < 1.5
                 && Math.abs(fp.getY() - (topY - steps + 1)) < 1.5;
@@ -531,8 +491,8 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
     // (gap #49) whose real gate is the live A/B. The legacy twin (and its empty class
     // AgentGameTestTerrain) were DELETED in this same wave.
 
-    /** Ported from {@code AgentGameTestTerrain#ascentSpeedArena}: SMOOTHNESS gate measuring the real
-     *  {@link Navigator}'s average horizontal speed UP a gentle staircase vs across flat ground (6 steps,
+    /** Ported from {@code AgentGameTestTerrain#ascentSpeedArena}: SMOOTHNESS gate measuring a bot's
+     *  goto's average horizontal speed UP a gentle staircase vs across flat ground (6 steps,
      *  2 blocks deep each, +1 y per step, flat run-up + flat top). Break/place OFF. Logs ascent/flat
      *  b/s + sprint%/hCol% and asserts the bot tops out and keeps a minimum ascent speed floor. */
     private static void ascentSpeed(SceneContext ctx) {
@@ -562,20 +522,18 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
         int flatTicks = 0, ascTicks = 0;
         double flatStartX = Double.NaN, flatEndX = 0, ascStartX = Double.NaN, ascEndXObs = 0;
         int flatSprint = 0, ascSprint = 0, flatHcol = 0, ascHcol = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             double x = fp.getX();
             boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
             if (x < cx) {
@@ -593,6 +551,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         int flatSprintPct = flatTicks > 0 ? 100 * flatSprint / flatTicks : 0;
         int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
         int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
+        String s = NavWalk.step(bot);
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
         TestMod.LOG.info(
                 "[wd.ascentSpeed] step={} pos=({},{},{}) reachedTop={} flatBps={} ascBps={} flatSprint%={} ascSprint%={} ascHcol%={} flatTicks={} ascTicks={}",
@@ -632,21 +591,19 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, H, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, H, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
         double prevX = fp.getX(), prevZ = fp.getZ();
         int backSteps = 0, moved = 0;
         double worstBack = 0, landX = 0;
         boolean pastLip = false;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
             if (!pastLip && fp.getX() > cx + RUN && fp.getY() < H - 1.5) {
                 pastLip = true;
@@ -658,6 +615,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             }
             prevX = fp.getX(); prevZ = fp.getZ();
         }
+        String s = NavWalk.step(bot);
         double dGoal = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
         boolean reached = dGoal < 2.5;
         double overshoot = landX - (cx + RUN);
@@ -673,9 +631,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             ctx.fail("ledgeOvershoot: backward-hop regressed to " + worstBack + " blocks/tick (baseline ~-0.12)");
     }
 
-    /** Ported from {@code AgentGameTestTerrain#wallCollisionProbe}: does the sim avatar collide with a
-     *  2-tall vertical wall? Drives the avatar straight (+z) into a 2-tall wall via
-     *  {@code commandForward} (NOT the Navigator) and asserts it does NOT pass through. Break OFF. */
+    /** Ported from {@code AgentGameTestTerrain#wallCollisionProbe}: does a bot's body collide with a
+     *  2-tall vertical wall? Drives the body straight (+z) into a 2-tall wall by holding the forward
+     *  and sprint keys over body-only steps (NOT the navigator) and asserts it does NOT pass through.
+     *  Break OFF. */
     private static void wallCollisionProbe(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -690,18 +649,18 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.pin(ctx);
         Harness.set("allowBreak", false);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, H, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, H, cz + 0.5);
+        ServerPlayer fp = bot.player();
         boolean wallSolid = !level.getBlockState(new BlockPos(cx, H, cz + 2)).isAir();
         double maxZ = fp.getZ();
+        // Forward and sprint held for the whole run; a key stays down until the next press changes it.
+        bot.press(bot.keys().move(0, 1).sprint(true));
         for (int t = 0; t < 80; t++) {
             fp.setYRot(0f);                          // face +z, straight at the wall
-            fp.setSprinting(true);
-            av.commandForward(1f);
-            av.step();
+            bot.step();
             if (fp.getZ() > maxZ) maxZ = fp.getZ();
         }
+        bot.release();
         TestMod.LOG.info("[wd.wallCollisionProbe] wallSolid={} startZ={} finalZ={} maxZ={} (wall front at z={})",
                 wallSolid, cz + 0.5, String.format(Locale.ROOT, "%.2f", fp.getZ()),
                 String.format(Locale.ROOT, "%.2f", maxZ), cz + 2);
@@ -732,21 +691,20 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         int crossTick = -1;
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
+        boolean walking = true;
+        for (int t = 0; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
         }
+        String s = NavWalk.step(bot);
         boolean crossed = fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4;
         TestMod.LOG.info("[wd.bridgeDescend] step={} pos=({},{},{}) crossed={} crossTick={}",
                 s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
@@ -780,20 +738,18 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, base + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();   // BARE HANDS — 150t/stone is the whole point
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
+        bot.goTo(Targets.block(new BlockPos(cx + 2, base + 1, cz)));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         boolean prevHeld = false;
         int heldTicks = 0, dropsWhileSolid = 0;
-        for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w); av.step();
-            boolean held = av.breakHeld();
+        boolean walking = true;
+        for (int t = 0; t < 1500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            boolean held = bot.body().hands().breakHeld();
             boolean wallSolid = level.getBlockState(wallFeet).isSolid() || level.getBlockState(wallHead).isSolid();
             if (prevHeld && !held && wallSolid) {
                 dropsWhileSolid++;
@@ -803,6 +759,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             heldTicks = held ? (prevHeld ? heldTicks + 1 : 1) : 0;
             prevHeld = held;
         }
+        String s = NavWalk.step(bot);
         boolean wallOpen = !level.getBlockState(wallFeet).isSolid() && !level.getBlockState(wallHead).isSolid();
         boolean arrived = fp.getX() > cx + 1.5;
         TestMod.LOG.info("[wd.bareHandDigCadence] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",

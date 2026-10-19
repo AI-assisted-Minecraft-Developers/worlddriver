@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -11,13 +11,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Common-side sim probe helpers for the dogfood scenes (P1.6 Task 2). The bots came
- * over from the neoforge legacy GameTest files ({@code AgentGameTestServer.probeSwing}
- * / {@code probeHurt}, {@code AgentGameTestSupport.grantWaterEffects}), which no longer
- * exist — the GameTest path was retired in P4-final and these are now the only copies.
- * The type narrowing at the move was the neoforge {@code FakePlayer} to vanilla
- * {@link ServerPlayer} (a FakePlayer IS a ServerPlayer) and the driver parameter to the
- * common {@link PlayerBot}.
+ * Common-side probe helpers for the scenes: a swing, a hit and the protective effects a
+ * movement scene's player wears, all on a vanilla {@link ServerPlayer}.
  *
  * <p>Every probe here holds the environment constant so it measures only what it names.
  * {@link #grantWaterEffects} does that for the avatar — drowning, burning and starving
@@ -31,16 +26,14 @@ public final class SimProbes {
 
     private SimProbes() {}
 
-    /** One full-strength swing at a fresh NoAI zombie; returns the health it lost.
-     *  <p>Moved from {@code AgentGameTestServer#probeSwing} (P1.6 Task 2);
-     *  {@code FakePlayer fp} → {@link ServerPlayer fp}, driver param → common
-     *  {@link PlayerBot}.
-     *  <p>No longer verbatim: the target is made fire-proof and its i-frames are cleared at
-     *  the instant of the swing. Both lines exist to keep the environment OUT of the
-     *  measurement — see the comments at each. The legacy body could omit them only because
-     *  its arena could not tick an entity, so its zombie could never burn. */
-    public static float probeSwing(ServerLevel level, PlayerBot driver, ServerPlayer fp,
-                                    ItemStack weapon, int cx, int floorY, int cz) {
+    /** One full-strength swing of {@code bot}'s player at a fresh NoAI zombie; returns the health it lost.
+     *  <p>The target is made fire-proof and its i-frames are cleared at the instant of the swing. Both
+     *  lines exist to keep the environment OUT of the measurement — see the comments at each.
+     *  <p>The swing is vanilla's own {@code Player#attack}, the call the bot's body makes once its
+     *  footing rule lets a swing through; that rule refuses only targets that explode when hit, which a
+     *  zombie never does. */
+    public static float probeSwing(ServerLevel level, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
         fp.getInventory().selected = 0;
@@ -64,22 +57,22 @@ public final class SimProbes {
         z.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
         level.addFreshEntity(z);
         for (int i = 0; i < 3; i++) level.tick(() -> true);
-        // Full recharge: step() is the only thing that advances the FakePlayer's ticker.
+        // Full recharge: the body step is the only thing that advances the player's ticker.
         fp.resetAttackStrengthTicker();
-        for (int i = 0; i < 30; i++) driver.avatar().step();
+        bot.step(30);
         // Belt to the effect's braces: whatever hurt the target, i-frame residue must not be able
         // to refuse the swing. Zeroing this forces vanilla's else-branch, which overwrites lastHurt
         // instead of comparing against it. Nothing ticks between here and attackEntity, so neither
         // the fire nor the i-frames can come back.
         if (z.invulnerableTime > 0 || !z.isAlive())
-            net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
+            TestMod.LOG.warn(
                     "[probeSwing] target compromised before the swing: weapon={} hp={} fire={} invT={} alive={}",
                     weapon.isEmpty() ? "bare" : weapon.getItem(), z.getHealth(),
                     z.getRemainingFireTicks(), z.invulnerableTime, z.isAlive());
         z.setRemainingFireTicks(0);
         z.invulnerableTime = 0;
         float before = z.getHealth();
-        driver.avatar().attackEntity(z);
+        fp.attack(z);
         float lost = before - z.getHealth();
         z.discard();
         return lost;

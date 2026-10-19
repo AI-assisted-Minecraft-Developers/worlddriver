@@ -6,32 +6,15 @@ import java.util.Locale;
 import java.util.Map;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.RulesConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.bot.control.AscendMovement;
-import net.magicterra.worlddriver.bot.control.MovementContext;
-import net.magicterra.worlddriver.bot.control.MovementStatus;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.behavior.EntityFind;
-import net.magicterra.worlddriver.bot.behavior.EntityLeash;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
-import net.magicterra.worlddriver.bot.PlayerBot;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -57,28 +40,17 @@ import net.minecraft.world.phys.AABB;
  * tick, same as the legacy GameTest shell) so the old/new-shell A/B compares
  * like with like.
  *
- * <p>Porting map (per scene, legacy {@code AgentGameTestTerrain} lines):
- * <ul>
- *   <li>{@code helper.getLevel()} → {@link SceneContext#level()};</li>
- *   <li>absolute {@code cx/cz/baseY} → derived from {@link SceneContext#origin()}
- *       so the arena math is byte-identical, just relocated to the harness grid
- *       cell (each origin sits on a chunk boundary far from spawn; every arena
- *       footprint fits inside its forced chunk neighborhood — noop dx −10..+24,
- *       diagonal dx/dz −8..+16, watchdog ±2, self-shaft dig-up ±3, gearScope ±6,
- *       all within the 3×3 window's −16..+31; descentYaw dx −6..+26 / dz −3..+26
- *       rides the wider radius-2 window −32..+47);</li>
- *   <li>per-key config save/restore → {@link BotConfig#pinnedBaseline()} +
- *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
- *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
- *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-profile player) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
- *       self-shaft-dig-up body never discarded its avatar at all — the port closes
- *       that leak, matching every other migrated scene);</li>
- *   <li>{@code throw new GameTestAssertException(msg)} → {@link SceneContext#fail(String)};</li>
- *   <li>{@code helper.succeed()} → normal return;</li>
- *   <li>the {@code gtOnlySkips} probe first line → deleted (the testkit gate reconciles
- *       itself).</li>
- * </ul>
+ * <p>Every scene drives a roster player bot ({@link SceneBot}) through the public verbs and reads
+ * its insides through {@code mc.debug}: settings through {@link Harness} after {@code Harness.pin},
+ * a walk as {@code mc.bot.goto} ticked by the scene with full bot ticks (perceive, reflexes, task,
+ * body), so the reflexes run as they do in play. Arena coordinates derive from
+ * {@link SceneContext#origin()}; every footprint fits its forced chunk neighbourhood (noop
+ * dx −10..+24, diagonal dx/dz −8..+16, self-shaft dig-up ±3, gearScope ±6, all within the 3×3
+ * window's −16..+31; descentYaw dx −6..+26 / dz −3..+26 rides the wider radius-2 window −32..+47).
+ *
+ * <p>The golden values quoted below were measured on a bare navigator over a hand-built body; the
+ * bot's full tick is a different run, so they are history to re-measure against, not constants the
+ * ceilings were derived from.
  *
  * <p><b>Fabric dogfood golden baseline — dual-loader ×3 determinism matrix (2026-07-17, P1.6 Task 4).</b>
  * fabric's first-ever dogfood run (Task 3) was 8/8 wd.* GREEN; Task 4 re-qualified it with a
@@ -133,34 +105,9 @@ import net.minecraft.world.phys.AABB;
  * metric, and widening it can no longer mask the burst disease because the settle barrier +
  * its INFO log line are the structural guard for that.
  *
- * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
- * {@code wd.gearScope}; the remaining {@code PlayerBot} scenes follow it):
- * a legacy body that drives a {@link PlayerBot} (not a raw
- * {@link ServerPlayerBody}) ports with two extra substitutions on top of the map
- * above:
- * <ul>
- *   <li>{@code PlayerBot.create(level, x, y, z)} →
- *       {@link PlayerBot#createIsolated} — the sanctioned #48 deviation
- *       (same {@code create}→{@code createUnique} precedent as the raw-avatar scenes:
- *       an isolated FakePlayer per driver, so a shared singleton can no longer make the
- *       suite a lottery). {@code create} would reintroduce the shared player; NEVER use
- *       it in a scene.</li>
- *   <li>legacy {@code BotTicker.clear()} teardown →
- *       {@code ctx.cleanup(() -> { BotTicker.unregister(driver); fp.discard(); })}
- *       — <b>targeted</b>, not {@code clear()}. The FakePlayer for discard comes from
- *       {@code driver.fakePlayer()} (its own accessor, delegating to
- *       {@code avatar.fakePlayer()}). {@code clear()} would nuke EVERY registered
- *       driver, i.e. sibling agents from other parallel scenes; the dogfood harness
- *       runs one scene at a time so {@code clear()} would happen to work, but targeted
- *       unregister is the pattern that survives future parallelism. {@code unregister}
- *       of a never-registered driver (these probe scenes never {@code register}) is a
- *       harmless no-op, so the line is uniform across driver scenes regardless.
- *       Legacy's defensive <b>entry-time</b> {@code clear()} is likewise dropped (not
- *       just the teardown one): serial harness execution + every scene's teardown
- *       unregister guarantee a clean registry at scene entry, and the failure
- *       direction of a hypothetical leak is a loud false-RED (inflated
- *       {@code activeCount()}), never a silent false-GREEN.</li>
- * </ul>
+ * <p><b>One bot per scene, removed by the scene.</b> Each scene spawns its own roster bot (a fresh
+ * player every time, so no shared singleton can make the suite a lottery) and the spawn registers its
+ * removal; nothing clears the whole roster, which would take sibling scenes' bots with it.
  *
  * <p><b>Failure-message prefix convention</b> (P1.5a review carry-over): a ported
  * {@code ctx.fail(...)} message is prefixed with the scene's short name (e.g.
@@ -205,7 +152,6 @@ public final class WorldDriverScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.ascendDeadZoneWatchdog", 200, WorldDriverScenes::ascendDeadZoneWatchdog),
                 Scene.of("wd.ascendMovementNoop", 200, WorldDriverScenes::ascendMovementNoop),
                 Scene.of("wd.diagonalAscentSpeed", 200, WorldDriverScenes::diagonalAscentSpeed),
                 Scene.of("wd.descentYaw", 200, WorldDriverScenes::descentYaw)
@@ -323,24 +269,22 @@ public final class WorldDriverScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, topSurf, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 2 * stepCount + 10, topSurf + 1, cz);
 
-        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME keys legacy set.
         Harness.pin(ctx);
         Harness.set("allowBreak", false); Harness.set("allowPlace", false);
         Harness.set("navigatorAscendMovement", false);             // OFF arm → machine must be inert
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
-        long allocBefore = MovementContext.ALLOC_COUNT;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
+        // The ascent machine's context allocations, a driver-wide count: nothing else walks in this scene.
+        long allocBefore = bot.navigator().counter("movementContextAllocs");
+        bot.goTo(Targets.block(goal));
+        bot.tickUntilIdle(500);
+        String s = NavWalk.step(bot);
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
-        long allocated = MovementContext.ALLOC_COUNT - allocBefore;
+        long allocated = bot.navigator().counter("movementContextAllocs") - allocBefore;
         TestMod.LOG.info("[wd.ascendMovementNoop] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTop, allocated);
         if (allocated != 0)
@@ -349,82 +293,6 @@ public final class WorldDriverScenes implements SceneProvider {
         if (!reachedTop)
             ctx.fail("ascendMovementNoop: did not reach the flat top: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#ascendDeadZoneWatchdogArena} (:1032-1097). */
-    private static void ascendDeadZoneWatchdog(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), baseY = ctx.origin().getY();
-        // Baseline pin for cross-scene isolation (legacy rode the GameTestServer baseline);
-        // pin FIRST → closes LAST, after the avatar discard.
-        Harness.pin(ctx);
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
-        LevelWorldView w = new LevelWorldView(level, fp);
-        final int giveUp = AscendMovement.DEADZONE_GIVEUP;
-        // The task#82 pose: stand-cell node +1 above the foot, ~1.5 b off horizontally (cur2≈2.25,
-        // inside the (0.45,4.0) dead-zone), no hCol — the machine sees zero progress every tick.
-        BlockPos node = new BlockPos(cx + 2, baseY + 2, cz);
-        Move.Edge edge = new Move.Edge(node, 10, List.of(), List.of(), "stepUp");
-        AscendMovement m = new AscendMovement();
-
-        // 1) Fresh edge → PREP.
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.PREP)
-            ctx.fail("watchdog: fresh episode did not return PREP");
-        // 2) Pinned pose: exactly giveUp RUNNING ticks, then UNREACHABLE.
-        for (int t = 1; t <= giveUp; t++) {
-            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
-            if (st != MovementStatus.RUNNING)
-                ctx.fail("watchdog: expected RUNNING at no-progress tick " + t + "/" + giveUp + " but got " + st);
-        }
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
-            ctx.fail("watchdog: no UNREACHABLE after " + (giveUp + 1) + " no-progress ticks — the task#82 dead-zone would churn forever");
-        // 3) The terminal clears the episode: next delegated tick is a fresh PREP (a replanned
-        //    edge on the same node gets a fresh clock).
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.PREP)
-            ctx.fail("watchdog: episode not cleared after UNREACHABLE");
-        // 4) Active-dig exemption: digging ticks never accrue dead-zone time...
-        for (int t = 0; t < giveUp + 30; t++) {
-            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, true));
-            if (st != MovementStatus.RUNNING)
-                ctx.fail("watchdog: digging tick " + t + " returned " + st + " — an active BREAK must be exempt (#66: bare-hand stone is 150t+/block)");
-        }
-        // ...and the clock restarts from zero when the dig ends (full budget again).
-        for (int t = 1; t <= giveUp; t++) {
-            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
-            if (st != MovementStatus.RUNNING)
-                ctx.fail("watchdog: post-dig tick " + t + " returned " + st + " — dig must reset the dead-zone clock in full");
-        }
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
-            ctx.fail("watchdog: no UNREACHABLE one tick past the post-dig budget");
-        // 5) Monotonic dy high-water: a genuine rise resets the clock; RE-reaching the same apex
-        //    (the jump-land-slideback bob) does NOT.
-        m.updateState(ascendCtx(fp, w, av, edge, node, false));            // fresh PREP
-        double y0 = fp.getY();
-        for (int t = 0; t < giveUp - 10; t++) m.updateState(ascendCtx(fp, w, av, edge, node, false));
-        fp.setPos(fp.getX(), y0 + 0.6, fp.getZ());                          // rise → new high-water → reset
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.RUNNING)
-            ctx.fail("watchdog: rise tick not RUNNING");
-        fp.setPos(fp.getX(), y0, fp.getZ());                                // slide back down
-        for (int t = 1; t <= giveUp; t++) {                                 // bob back to the SAME apex mid-window: no reset
-            if (t == 20) fp.setPos(fp.getX(), y0 + 0.6, fp.getZ());
-            if (t == 21) fp.setPos(fp.getX(), y0, fp.getZ());
-            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
-            if (st != MovementStatus.RUNNING)
-                ctx.fail("watchdog: expected RUNNING at post-rise tick " + t + " but got " + st);
-        }
-        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
-            ctx.fail("watchdog: same-apex bob reset the clock — the high-water is not monotonic (crestOrbit lesson)");
-    }
-
-    /** Direct copy of {@code AgentGameTestTerrain#ascendCtx} (:1099-1102). */
-    private static MovementContext ascendCtx(ServerPlayer fp, LevelWorldView w, ServerPlayerBody av,
-                                             Move.Edge edge, BlockPos node, boolean digging) {
-        return new MovementContext(fp, w, av, edge, fp.blockPosition(), node, 1, 1, null, null, digging);
     }
 
     /** Ported from {@code AgentGameTestTerrain#diagonalAscentSpeedArena} (:1112-1187). */
@@ -447,28 +315,25 @@ public final class WorldDriverScenes implements SceneProvider {
         final int topSurf = baseY + 1 + span;       // NE corner surface
         BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
 
-        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME keys legacy set.
         Harness.pin(ctx);
         Harness.set("allowBreak", false);
         Harness.set("allowPlace", false);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
         // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
         double startX = Double.NaN, startZ = 0, endX = 0, endZ = 0;
         int ascTicks = 0, ascSprint = 0, ascHcol = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 900 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 900 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             if (fp.getX() >= cx) {
                 if (Double.isNaN(startX)) { startX = fp.getX(); startZ = fp.getZ(); }
                 endX = fp.getX(); endZ = fp.getZ();
@@ -481,6 +346,7 @@ public final class WorldDriverScenes implements SceneProvider {
         double ascBps = ascTicks > 0 ? dist / (ascTicks * 0.05) : 0;
         int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
         int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
+        String s = NavWalk.step(bot);
         boolean reachedTop = fp.getY() >= topSurf + 1 - 0.6
                 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
         TestMod.LOG.info(
@@ -589,7 +455,7 @@ public final class WorldDriverScenes implements SceneProvider {
         final int goalSurf = topY - 2 * span;       // NE corner surface (surf = topY-(dx+dz))
         BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
 
-        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME keys legacy set.
         // The yaw metric is config-sensitive — pinnedBaseline() snapshots EVERY mutable key so no
         // leaked flag from a neighbour scene can shift the trajectory (the legacy "flaky P0.9"
         // signature was exactly such leaks landing on byte-identical-but-different baselines).
@@ -597,13 +463,10 @@ public final class WorldDriverScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         SimProbes.grantWaterEffects(fp);
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.Block(goal));
+        bot.goTo(Targets.block(goal));
 
         double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
         int onSlope = 0, reversals = 0;
@@ -616,10 +479,10 @@ public final class WorldDriverScenes implements SceneProvider {
         double prevX = fp.getX(), prevZ = fp.getZ();
         int backSteps = 0;
         double worstBack = 0;
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 700 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
             if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) {   // moved, on the slope
                 double proj = ddx * gdx + ddz * gdz;
@@ -646,6 +509,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // Lower y bound matters: before the run-out plateau existed, a bot that fell off the strip
         // into the void still counted "reached" whenever its x/z had crossed the corner thresholds
         // mid-air (terminal y=-60 runs read as PASS).
+        String s = NavWalk.step(bot);
         boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
                 && fp.getY() <= goalSurf + 2 && fp.getY() >= goalSurf - 1;
         double thrashPerTick = onSlope > 0 ? sumAbsDyaw / onSlope : 0;
@@ -680,7 +544,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>task#86 FIXED (strict gate) — 2026-07-19.</b> This scene was a required
      * <i>golden-failure signature gate</i> while the gap #53 defect was open: under
-     * true isolation (a {@link ServerPlayerBody#createUnique} player) the walk
+     * true isolation (a player of its own) the walk
      * deterministically fell {@code worstBackslide=20.252203415101263} back down the
      * shaft it dug (byte-identical across slots and both loaders, fabric×3 + neoforge×3
      * — see git history / task-1-report for the signature-gate rationale). <b>Root
@@ -690,7 +554,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * pillar top has no run-up, so the executor launches into the void and free-falls
      * ~20 blocks straight down its own hollow column — a fall {@code strideFloorGuard}
      * structurally cannot arrest (an airborne player has no adjacent face to place a
-     * floor against). <b>Fix:</b> {@link RulesConfig#pathfinderParkourAscendNeedRunway}
+     * floor against). <b>Fix:</b> the setting {@code pathfinderParkourAscendNeedRunway}
      * flipped default ON — {@code ParkourAscend.valid} now requires the cell BEHIND the
      * launch to be {@code canStandAt} (a real run-up), so A* rejects the runway-less
      * leap and substitutes a straight-up pillar that tops out clean. Dogfood A/B
@@ -719,32 +583,30 @@ public final class WorldDriverScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, baseY + 1, cz), Blocks.AIR.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, baseY + 2, cz), Blocks.AIR.defaultBlockState());
 
-        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME keys legacy set.
         Harness.pin(ctx);
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", true);
         Harness.set("navigatorDebug", true);
         Harness.untimed(ctx);
 
-        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
-        ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> fp.discard());
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
         fp.getInventory().selected = 0;
-        LevelWorldView w = new LevelWorldView(level, fp);
-        Navigator navigator = new Navigator();
-        navigator.start(new Goal.YLevel(targetY));
+        bot.goTo(Targets.level(targetY));
 
-        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         double worstBackslide = 0;
-        for (int t = 0; t < 4000 && s == Locomotor.Status.MOVING; t++) {
-            s = navigator.tick(av, w);
-            av.step();
+        boolean walking = true;
+        for (int t = 0; t < 4000 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
             maxY = Math.max(maxY, fp.getY());
             worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
         }
+        String s = NavWalk.step(bot);
         TestMod.LOG.info("[wd.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
         // task#86 FIXED (2026-07-19, commit 49f25ed — pathfinderParkourAscendNeedRunway default ON):
@@ -770,8 +632,7 @@ public final class WorldDriverScenes implements SceneProvider {
     /**
      * Ported from {@code AgentGameTestServer#serverAvatarGearScopeProbeArena} (:2259-2339)
      * — the gap #46 gear-scope probe: measures how much of a server avatar's held/worn
-     * gear is actually inert. Drives a {@link PlayerBot} (this scene establishes
-     * the driver-class porting pattern — see the class javadoc): a bare fist vs an iron
+     * gear is actually inert. Drives a roster bot's body: a bare fist vs an iron
      * sword against a fresh NoAI zombie ({@link SimProbes#probeSwing}), then a fixed
      * 10-point hit bare vs full diamond armor
      * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist,
@@ -799,8 +660,8 @@ public final class WorldDriverScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y(200)+20
 
-        // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
-        // SAME single key the legacy body flipped (navigatorDebug).
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME single key the
+        // legacy body flipped (navigatorDebug).
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
 
@@ -814,15 +675,12 @@ public final class WorldDriverScenes implements SceneProvider {
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
-        PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT BotTicker.clear() — see class javadoc).
-        ctx.cleanup(() -> { BotTicker.unregister(driver); fp.discard(); });
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
 
         // --- (1) DAMAGE DEALT: bare hand vs iron sword, both at FULL attack strength. ---
-        float bare = SimProbes.probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
-        float sword = SimProbes.probeSwing(level, driver, fp, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
+        float bare = SimProbes.probeSwing(level, bot, ItemStack.EMPTY, cx, floorY, cz);
+        float sword = SimProbes.probeSwing(level, bot, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
 
         // --- (2) DAMAGE ABSORBED: bare vs full diamond armor, same 10-point generic hit. ---
         float tookBare = SimProbes.probeHurt(fp, false);
@@ -832,7 +690,7 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().clearContent();
         fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
         fp.getInventory().selected = 0;
-        driver.avatar().step();   // the gear must land through the NORMAL tick, not a special API
+        bot.step();   // the gear must land through the NORMAL tick, not a special API
         double atk = fp.getAttributeValue(Attributes.ATTACK_DAMAGE);
         double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
         double arm = fp.getAttributeValue(Attributes.ARMOR);
@@ -852,7 +710,7 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().armor.set(2, new ItemStack(Items.DIAMOND_CHESTPLATE));
         fp.getInventory().armor.set(1, new ItemStack(Items.DIAMOND_LEGGINGS));
         fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
-        driver.avatar().step();
+        bot.step();
         double armWorn = fp.getAttributeValue(Attributes.ARMOR);
         TestMod.LOG.warn("[wd.gearScope] WEARING full diamond: ARMOR attr={} getArmorValue={} "
                         + "(vanilla full diamond = 20) | invulnerable={} isInvulnerableTo(generic)={} creative={}",
@@ -886,40 +744,15 @@ public final class WorldDriverScenes implements SceneProvider {
      * Ported from {@code AgentGameTestServer#serverMineBuriedOreArena} (:3238-3316)
      * — the gap #60 buried-ore reachability gate: an IRON_ORE fully encased in
      * harvestable stone has NO standable adjacent cell, so the geometric stand test
-     * alone rejects it and {@link MineProcess} aborts "no reachable target" — even
+     * alone rejects it and {@code mc.bot.mine} aborts "no reachable target" — even
      * though the bot holds a pickaxe and the Navigator's break-route A* digs tunnels for
      * every other verb. Reachability through diggable cover is A*'s job, not a
-     * pre-filter's. This is the SECOND driver-class scene (dogfood wave 2b); it
-     * follows the driver porting pattern established by {@code wd.gearScope} (see the
-     * class javadoc: {@link PlayerBot#createIsolated} not {@code create},
-     * targeted {@code unregister}+{@code discard} cleanup not {@code clear()},
-     * {@code "buriedOre: "}-prefixed failures, constant-faithful assertions). Rig: a
-     * DIRT clearing strip, a 5×3×3 STONE cube 3 blocks east of the bot, one IRON_ORE
-     * at the cube's centre (stone on all 6 faces), a stone pickaxe. Asserts the ore
-     * gets mined AND the {@link MineProcess} finishes+unregisters cleanly — the two
-     * legacy assertions verbatim (minus the prefix).
+     * pre-filter's. Rig: a DIRT clearing strip, a 5×3×3 STONE cube 3 blocks east of the
+     * bot, one IRON_ORE at the cube's centre (stone on all 6 faces), a stone pickaxe.
+     * Asserts the ore gets mined AND the mine task ends with no bot left busy.
      *
-     * <p><b>DIFFERENCE from {@code wd.gearScope} — this scene REALLY registers and
-     * drives the manager loop.</b> gearScope only pokes probe helpers on an
-     * unregistered driver, so its cleanup {@code BotTicker.unregister} is a
-     * harmless no-op. This scene genuinely
-     * {@code BotTicker.register(driver)}s and pumps
-     * {@code BotTicker.tickAll()} in a bounded in-body loop until the process
-     * unregisters itself — so here the cleanup {@code unregister} is the REAL
-     * teardown (and a backstop for the early-abort path where the process never
-     * self-unregisters). The synchronous loop runs on the scene's first RUN tick —
-     * sanctioned, identical to the legacy GameTest shell's synchronous body — so the
-     * old/new-shell A/B compares like with like.
-     *
-     * <p><b>tickAll assumption.</b> {@code BotTicker.tickAll()} ticks EVERY
-     * registered driver, not just this scene's. The port relies on the dogfood
-     * harness running ONE scene at a time (no other agents registered concurrently),
-     * so {@code tickAll} effectively drives only {@code driver} here — the same
-     * assumption the legacy body made (it {@code clear()}ed the manager on entry).
-     * Were the harness ever to run driver scenes in parallel, this loop would also
-     * pump sibling drivers and the {@code activeCount() > 0} exit condition would need
-     * revisiting; the targeted {@code unregister} teardown (not {@code clear()}) is
-     * already the pattern that survives that transition.
+     * <p>The task runs synchronously on the scene's first tick: the scene ticks this bot
+     * alone until it is idle, so no other scene's bot moves in the loop.
      *
      * <p><b>WHAT THIS SCENE ACTUALLY COVERS — corrected 2026-08-18, and it is not what the name
      * and the failure text say.</b> It has two halves and only the first is the pre-filter's:
@@ -977,56 +810,50 @@ public final class WorldDriverScenes implements SceneProvider {
         BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
         level.setBlockAndUpdate(ore, Blocks.IRON_ORE.defaultBlockState());
 
-        // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
-        // SAME keys the legacy body flipped.
+        // pin FIRST → closes LAST (after the bot's removal); then the SAME keys the legacy body flipped.
         Harness.pin(ctx);
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", false);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
-        PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT BotTicker.clear() — see class javadoc). Unlike
-        // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
-        // Also carries the legacy finally-block rig clear (DIRT strip + STONE cube +
-        // any break-route tunnel the bot carved) — grid isolation makes leftover blocks
-        // harmless, but the clear is retained for symmetry with the legacy body per the
-        // porting plan (see footprint-audit javadoc above).
+        // The rig clear (DIRT strip + STONE cube + any break-route tunnel the bot carved) is
+        // registered before the bot, so it runs after the bot is gone; grid isolation makes leftover
+        // blocks harmless, and the clear is kept for symmetry with the rest of the arena's scenes.
         ctx.cleanup(() -> {
-            BotTicker.unregister(driver);
-            fp.discard();
             for (int dx = -1; dx <= 9; dx++)
                 for (int dy = 0; dy <= 4; dy++)
                     for (int dz = -2; dz <= 2; dz++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
+        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = bot.player();
 
         // Stone pickaxe harvests iron_ore AND digs the stone cover.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        MineProcess mine = new MineProcess(List.of("minecraft:iron_ore"), 1, 16);
-        driver.runProcess(mine);
-        BotTicker.register(driver);
-
-        for (int t = 0; t < 800 && BotTicker.activeCount() > 0; t++)
-            BotTicker.tickAll();
+        bot.mine(List.of("minecraft:iron_ore"), 1, 16);
+        bot.tickUntilIdle(800);
 
         boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
-        String err = driver.botState().mine.lastError;
-        // The two post-mortems, computed BEFORE ctx.cleanup runs (it fills the whole envelope with
+        boolean finished = !bot.busy();
+        int active = Harness.busy();
+        String err = bot.status().slots().mine().lastError().orElse(null);
+        // The post-mortems, computed BEFORE ctx.cleanup runs (it fills the whole envelope with
         // AIR, so a staircase audit taken afterwards would read "all empty" every single time).
-        String approach = mine.approachProbe();
+        // The mine task's navigator: how its last walk ended, its progress and the plan's edges.
+        var nav = bot.navigator();
+        String approach = "walk=" + NavWalk.trace(nav, "walkResult") + " | " + NavWalk.trace(nav, "progressProbe")
+                + " | " + NavWalk.trace(nav, "planProbe");
         String stairs = buriedOreStairAudit(level, cx, cz, floorY);
         // The audit that reads the cells the PLANNER chose, not the cells this scene's author
         // expected it to choose: {@code stairs} above is seven hand-derived cells all at z=cz, and
         // the node the bot could not reach sat at z=cz−1, so that fragment was blind to the one
         // column under investigation. Both are kept — the fixed window is the arena's shape, this
         // one is the plan's.
-        String planCells = mine.approachPlanAudit(level);
+        String planCells = NavWalk.trace(nav, "planCellAudit");
         TestMod.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {} {}",
-                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), oreMined,
+                fp.getX(), fp.getY(), fp.getZ(), finished, active, oreMined,
                 err, stairs, planCells, approach);
         if (!oreMined)
             // TWO failures wear this outcome and they want opposite fixes — see the class-level
@@ -1036,9 +863,10 @@ public final class WorldDriverScenes implements SceneProvider {
             //
             // The navigator's own terminal readings ride along because the log stream drops lines under
             // end-of-suite load and a verdict that names no mechanism costs a whole extra run:
-            // endReason/goalReached/finalDist say whether the walk FAILED or "arrived" somewhere
-            // that was not the stand, goalSnapped says whether the cell it drove at was even the one
-            // MineProcess asked for, and planProbe names the edges of the staircase it committed to.
+            // the walk result's endReason/goalReached/finalDist say whether the walk FAILED or
+            // "arrived" somewhere that was not the stand, goalSnapped says whether the cell it drove at
+            // was even the one the mine task asked for, and planProbe names the edges of the staircase
+            // it committed to.
             ctx.fail("buriedOre: buried ore not mined. Separate the two causes by the "
                     + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
                     + "proper (the stand pre-filter refused to hand the navigator a dig goal); ONE OR "
@@ -1046,9 +874,9 @@ public final class WorldDriverScenes implements SceneProvider {
                     + "staircase it digs — check for '[avatar] dug out its own footing' in the same"
                     + " window. lastError=" + err
                     + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
-        if (!driver.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
-                    + driver.finished() + " active=" + BotTicker.activeCount()
+        if (!finished || active != 0)
+            ctx.fail("buriedOre: the buried-ore mine task did not end: finished="
+                    + finished + " busyBots=" + active
                     + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
     }
 
@@ -1094,46 +922,34 @@ public final class WorldDriverScenes implements SceneProvider {
 
     /**
      * Ported from {@code AgentGameTestServer#entityLeashRepathArena} (:931-1041) —
-     * the A3a dynamic {@link EntityLeash} anchor gate: the SERVER runs a real
-     * {@link IntentProcess} whose leash centres on an {@code entity:'armor_stand'}
-     * anchor, proving the whole re-solve chain (find → dirty → rebuild profile →
-     * replan), not just the static leash math. This is the THIRD driver-class
-     * scene (dogfood wave 2b) and the last driver-family arena; it follows the driver
-     * porting pattern established by {@code wd.gearScope} and {@code wd.buriedOre}
-     * (see the class javadoc: {@link PlayerBot#createIsolated} not
-     * {@code create}, targeted {@code unregister}+{@code discard} cleanup not
-     * {@code clear()}, {@code "entityLeash: "}-prefixed failures, constant-faithful
-     * assertions). Like {@code wd.buriedOre} it REALLY
-     * {@code BotTicker.register(driver)}s and pumps
-     * {@code BotTicker.tickAll()} in bounded loops until the process
-     * unregisters itself, so its cleanup {@code unregister} is the REAL teardown (and
-     * a backstop for the early-abort path). Unlike the other driver scenes it does NOT
-     * run everything on the first RUN tick — the two phases are split into
-     * {@code ctx.await(...)} steps (the sanctioned manual-tick fallback, see below), so
-     * each phase's synchronous {@code tickAll} loop runs on its own scene tick.
+     * the dynamic entity-anchor leash gate: the SERVER runs a real {@code mc.bot.goto}
+     * whose route leash centres on an {@code entity:'armor_stand'} anchor, proving the
+     * whole re-solve chain (find → dirty → rebuild profile → replan), not just the
+     * static leash math. Unlike the other bot scenes it does NOT run everything on the
+     * first RUN tick — the two phases are split into {@code ctx.await(...)} steps (the
+     * sanctioned manual-tick fallback, see below), so each phase's synchronous tick
+     * loop runs on its own scene tick.
      *
      * <p><b>The two-phase gate (legacy javadoc, verbatim intent).</b> Phase 1: an
      * armor stand spawns AT the bot's start; the goal is 24 blocks away but the HARD
      * leash (radius 8) prunes every route node farther than 8 blocks from the
      * (stationary) stand, so the pathfinder's best-effort fallback can only reach the
-     * radius edge and the {@link net.magicterra.worlddriver.bot.control.Navigator} holds at
-     * the edge (never declares ARRIVED on a best-effort partial path) — so the process
-     * stays registered/un-finished for the whole 200-tick window. Phase 2: the stand
-     * teleports 4 blocks PAST the goal; within the leash's 20-tick re-solve rate limit
-     * {@link IntentProcess} notices the anchor moved &gt; 2 blocks, rebuilds the
-     * {@link net.magicterra.worlddriver.bot.rules.SearchProfile} centred on the NEW
-     * anchor and force-repaths — now the true goal is inside the radius, so the bot
-     * ARRIVES for real within 600 more ticks. Both assertions (phase1 held + not
-     * finished, phase2 reached + finished+unregistered) are the legacy originals,
-     * byte-for-byte after the {@code "entityLeash: "} prefix.
+     * radius edge and the navigator holds at the edge (never declares ARRIVED on a
+     * best-effort partial path) — so the goto stays busy for the whole 200-tick window.
+     * Phase 2: the stand teleports 4 blocks PAST the goal; within the leash's 20-tick
+     * re-solve rate limit the goto notices the anchor moved &gt; 2 blocks, rebuilds the
+     * search profile centred on the NEW anchor and force-repaths — now the true goal is
+     * inside the radius, so the bot ARRIVES for real within 600 more ticks. Both
+     * assertions (phase1 held + still busy, phase2 reached + no bot busy) are the legacy
+     * originals after the {@code "entityLeash: "} prefix.
      *
      * <p><b>Manual-tick decision — DIRECT PORT TRIED, then SANCTIONED FALLBACK
      * (the {@code level.tick(() -> true)} blocks REPLACED by {@code ctx.await} steps).</b>
      * The legacy body force-indexes a freshly-added armor stand into the entity-section
      * lookup with two {@code for (i&lt;3) level.tick(() -&gt; true)} blocks (a fresh
-     * entity is not scannable by {@code EntityFind.nearest} — the leash's entity scan —
-     * until the level processes it; and {@code BotTicker.tickAll()} drives the
-     * bot but NOT the level). The direct port (keeping those manual ticks, on the theory
+     * entity is not visible to the leash's entity scan — {@code Level.getEntities} around
+     * the player — until the level processes it; and ticking the bot drives the bot but
+     * NOT the level). The direct port (keeping those manual ticks, on the theory
      * that {@code ServerTickEvent.Post} runs OUTSIDE the level's own tick loop so the
      * re-entrant call is re-entrancy-safe) was TRIED FIRST and <b>MISBEHAVED IN
      * PRACTICE</b>: on the PERSISTENT dogfood world (not GameTest's throwaway world) a
@@ -1151,26 +967,20 @@ public final class WorldDriverScenes implements SceneProvider {
      * by the D1 adjudication — see the variance paragraph above / task#88) and the
      * two phases are split into await steps. The natural dogfood server
      * tick (the level IS ticked every frame by {@code MinecraftServer.tickServer}) does
-     * the entity indexing the legacy forced — {@code await-1} waits until
-     * {@code EntityFind.nearest} (the leash's own scan) can see the fresh stand;
+     * the entity indexing the legacy forced — {@code await-1} waits until the same
+     * scan the leash makes (every entity within 96 of the player) can see the fresh stand;
      * {@code await-2} waits until a section query finds the teleported stand at its NEW
      * anchor — no re-entrant ticking anywhere.
      *
-     * <p><b>Fallback sub-deviation — driver registration is BRACKETED around each await.</b>
-     * The driver's own {@code WorldDriverEvents} server-tick handler
-     * calls {@code BotTicker.tickAll()} EVERY server tick (before the testkit
-     * harness advances the scene). In the other driver scenes the driver is registered
-     * and fully driven+unregistered inside ONE synchronous scene tick, so the platform
-     * loop never sees it mid-flight. Here the scene spans multiple ticks (the await
-     * waits), so a driver left registered across an await would be driven UNCONTROLLED by
-     * the platform loop — corrupting the phase-1 "leash held" experiment (bot driven
-     * with no anchor before the stand is indexed). The fix: the driver is
-     * {@code register}ed only at the START of each phase's synchronous {@code tickAll}
-     * loop and {@code unregister}ed at its END (before yielding to the next await), so
-     * the controlled phase loops remain the SOLE driver of the bot — exactly the
-     * invariant the legacy GameTest body had for free (nothing else drove its manager).
-     * This deviation is behaviour-preserving for the leash gate; it is recorded here and
-     * in the task-5 porting map.
+     * <p><b>The bot is PARKED across each await.</b> The server ticks every bot on the
+     * tick list each server tick (before the harness advances the scene), and starting
+     * the goto puts the bot on that list. Here the scene spans multiple ticks (the await
+     * waits), so a bot left on the list across an await would be driven UNCONTROLLED by
+     * the server — corrupting the phase-1 "leash held" experiment (bot driven with no
+     * anchor before the stand is indexed). So the bot is parked right after the goto
+     * starts, unparked only for each phase's synchronous tick loop and parked again at
+     * its end, and the scene's loops remain the SOLE driver of the bot. Unparked is also
+     * what lets {@code busy()} read true: a parked bot is never busy.
      *
      * <p><b>Legacy-twin divergence — adjudicated (A), environment (task#87).</b> The
      * legacy {@code entityLeashRepathArena} twin is a MASTER-INHERITED solo-RED (ledger
@@ -1186,7 +996,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>Anchor semantics.</b> Legacy anchors on
      * {@code helper.absolutePos(BlockPos.ZERO)} — this test's own (entity-ticking)
-     * chunk column — because {@code EntityFind.nearest} needs the armor stand to
+     * chunk column — because the leash's entity scan needs the armor stand to
      * actually appear in {@code Level.getEntities}. The port anchors on
      * {@link SceneContext#origin()} instead: grid origins are ALWAYS chunk-aligned and
      * their forced chunk neighborhood is entity-ticking, so it is the equivalent
@@ -1237,42 +1047,44 @@ public final class WorldDriverScenes implements SceneProvider {
         level.addFreshEntity(stand);
         // NO manual level.tick() here — the DIRECT PORT of the legacy for(i<3) level.tick()
         // livelocks ChunkMap.processUnloads on the persistent dogfood world (see javadoc).
-        // The fresh stand is indexed by the NATURAL dogfood server tick; await-1 (below)
-        // waits until EntityFind — the leash's own scan — can actually see it.
+        // The fresh stand is indexed by the NATURAL dogfood server tick; await-1 (in
+        // leashPhases) waits until the leash's own scan can actually see it.
 
-        // pin FIRST → closes LAST (after the driver unregister + avatar + stand discard);
-        // then the SAME keys the legacy body flipped.
+        // pin FIRST → closes LAST (after the bot's removal + stand discard); then the SAME keys
+        // the legacy body flipped.
         Harness.pin(ctx);
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
+        leashPhases(ctx, "entityLeash", level, stand, goal, cx, cz, floorY, leashRadius);
+    }
+
+    /**
+     * The two phases {@code wd.entityLeash} and {@code wd.entityLeashLowY} share (see the former's javadoc):
+     * a bot on the lane start walks a hard-leashed goto, parked between its own tick loops; phase 1 with the
+     * stand at the start (the leash holds the bot), phase 2 with the stand moved past the goal (the bot
+     * arrives), each once the stand is visible where the phase needs it. {@code tag} prefixes every line.
+     */
+    private static void leashPhases(SceneContext ctx, String tag, ServerLevel level, ArmorStand stand, BlockPos goal,
+                                    int cx, int cz, int floorY, double leashRadius) {
+        final SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        final ServerPlayer fp = bot.player();
+        // Also the legacy finally's stand.discard() (the legacy finally has NO rig block-clear, so
+        // there is none to translate); grid isolation makes any leftover carved block harmless.
+        ctx.cleanup(stand::discard);
         // Near(1), not Block: guiding semantics are "reach the destination AREA" — exact-cell
         // parking is a navigator trait, not this arena's gate (run-e evidence: reached=true
         // ±1.5 but the exact cell never latched → finished=false forever).
-        Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
-        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
-        final PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        final ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT BotTicker.clear() — see class javadoc). This scene
-        // registers, so unregister is the REAL teardown. Also carries the legacy finally's
-        // stand.discard() (the legacy finally has NO rig block-clear, so there is none to
-        // translate); grid isolation makes any leftover carved block harmless regardless.
-        ctx.cleanup(() -> {
-            BotTicker.unregister(driver);
-            fp.discard();
-            stand.discard();
-        });
-        driver.runProcess(new IntentProcess(intent));
-        // NOTE: NOT registered with BotTicker yet — registration is bracketed
-        // around each phase's drive loop so the platform's own ServerTickEvent.Post
-        // tickAll() cannot drive the bot during the await waits (see javadoc).
+        bot.goTo(Targets.near(goal, 1), Routes.plain().leashEntity("minecraft:armor_stand", leashRadius, true, 0).build());
+        // Parked at once: starting the goto put the bot on the server's tick list, and the server
+        // must not drive it during the await waits (see entityLeash's javadoc).
+        bot.park();
 
         // The phase-2 anchor: 4 blocks PAST the goal (NoGravity, floats past the lane end).
         final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
 
         // AWAIT-1 — fallback for the legacy first for(i<3) level.tick(): wait until the fresh
-        // stand is queryable by the leash's own EntityFind scan, then drive phase 1. On the
+        // stand is queryable by the leash's own scan, then drive phase 1. On the
         // dogfood world the fresh entity takes ~18 natural server ticks to be promoted into
         // the entity-section lookup (measured), so the budget is generous (within 180, still
         // under the scene's overall budget); the wait tick-count varies but the outcome does
@@ -1292,14 +1104,17 @@ public final class WorldDriverScenes implements SceneProvider {
         // adjudication: 180 stays as a pure liveness/hang guard — this await is a gate, not a
         // metric; the settle barrier + its INFO line are the structural guard for the burst disease,
         // so widening here can no longer mask it.
-        ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
+        // The leash's scan: every entity within 96 of the player, the nearest of the type winning.
+        ctx.await(() -> !level.getEntities(fp, fp.getBoundingBox().inflate(96.0), e -> e instanceof ArmorStand).isEmpty())
                 .within(180)
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
-                    // Register ONLY for this synchronous loop, then unregister before the next await.
-                    BotTicker.register(driver);
-                    for (int t = 0; t < 200 && BotTicker.activeCount() > 0; t++)
-                        BotTicker.tickAll();
+                    // On the tick list ONLY for this synchronous loop, parked again before the next await.
+                    bot.unpark();
+                    for (int t = 0; t < 200 && bot.busy(); t++)
+                        bot.tick();
+                    boolean finished1 = !bot.busy();
+                    int active1 = Harness.busy();
 
                     double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
                     double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
@@ -1308,15 +1123,15 @@ public final class WorldDriverScenes implements SceneProvider {
                     // await1Ticks (task#88 A/B telemetry, log-only — no results-JSONL byte touched):
                     // ctx.ticks() here == the ticks AWAIT-1 waited for the fresh stand to be indexed.
                     TestMod.LOG.info(
-                            "[wd.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
-                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(),
+                            "[wd.{}] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
+                            tag, fp.getX(), fp.getY(), fp.getZ(), finished1, active1,
                             standDist1, arrivedTrueGoal1, ctx.ticks());
-                    if (driver.finished() || arrivedTrueGoal1)
-                        ctx.fail("entityLeash: phase1: process reached the true goal before the anchor moved — "
+                    if (finished1 || arrivedTrueGoal1)
+                        ctx.fail(tag + ": phase1: the goto reached the true goal before the anchor moved — "
                                 + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
-                                + ") finished=" + driver.finished());
+                                + ") finished=" + finished1);
                     if (standDist1 > leashRadius + 3.0)
-                        ctx.fail("entityLeash: phase1: bot strayed beyond the leash radius+slack: standDist="
+                        ctx.fail(tag + ": phase1: bot strayed beyond the leash radius+slack: standDist="
                                 + standDist1 + " radius=" + leashRadius);
 
                     // Phase 2 setup: teleport the anchor 4 PAST the goal — the sphere still covers
@@ -1324,9 +1139,9 @@ public final class WorldDriverScenes implements SceneProvider {
                     // stand was rammed by the carrot-drive overshoot, and its collision shoved the
                     // bot onto the rails). NoGravity, so floating past the lane end is fine.
                     stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
-                    // Unregister so the platform tickAll() cannot drive the bot during the re-index
-                    // wait; phase 2 re-registers.
-                    BotTicker.unregister(driver);
+                    // Parked so the server cannot drive the bot during the re-index wait; phase 2
+                    // unparks it.
+                    bot.park();
 
                     // AWAIT-2 — fallback for the legacy second for(i<3) level.tick(): wait until a
                     // section query finds the teleported stand at its NEW anchor (the re-index the
@@ -1335,27 +1150,29 @@ public final class WorldDriverScenes implements SceneProvider {
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
                             .within(180)  // liveness bound, moves with AWAIT-1 (see adjudication comment there)
                             .then(() -> {
-                                BotTicker.register(driver);
-                                for (int t = 0; t < 600 && BotTicker.activeCount() > 0; t++) {
-                                    BotTicker.tickAll();
+                                bot.unpark();
+                                for (int t = 0; t < 600 && bot.busy(); t++) {
+                                    bot.tick();
                                     if (t % 150 == 0) {
-                                        TestMod.LOG.info("[wd.entityLeash] p2 t={} pos=({},{},{}) standPos={}",
-                                                t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
+                                        TestMod.LOG.info("[wd.{}] p2 t={} pos=({},{},{}) standPos={}",
+                                                tag, t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
                                     }
                                 }
+                                boolean finished2 = !bot.busy();
+                                int active2 = Harness.busy();
 
                                 boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                                         && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
                                 // sceneTicks (task#88 A/B telemetry, log-only): total ctx.ticks() at
                                 // phase2 == AWAIT-1 + AWAIT-2 waits; AWAIT-2 = sceneTicks - await1Ticks.
                                 TestMod.LOG.info(
-                                        "[wd.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
-                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), reached, ctx.ticks());
-                                if (!driver.finished() || BotTicker.activeCount() != 0)
-                                    ctx.fail("entityLeash: phase2: leash re-solve process did not finish+unregister after "
-                                            + "the anchor moved: finished=" + driver.finished() + " active=" + BotTicker.activeCount());
+                                        "[wd.{}] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
+                                        tag, fp.getX(), fp.getY(), fp.getZ(), finished2, active2, reached, ctx.ticks());
+                                if (!finished2 || active2 != 0)
+                                    ctx.fail(tag + ": phase2: the leash re-solve goto did not end after "
+                                            + "the anchor moved: finished=" + finished2 + " busyBots=" + active2);
                                 if (!reached)
-                                    ctx.fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
+                                    ctx.fail(tag + ": phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
                                             + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
                             });
                 });
@@ -1405,7 +1222,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>World-pollution containment + capture-and-restore.</b> The ENTIRE moat box (which
      * supersets the lane fill footprint) is SNAPSHOT before clearing and restored in cleanup
-     * (registered FIRST so it drains LAST — after the driver unregister + avatar + stand discard),
+     * (registered FIRST so it drains LAST — after the bot's removal and the stand discard),
      * leaving the persistent dogfood world byte-restored. The XZ footprint stays inside this
      * scene's own origin-slot column region (chunk-aligned, so the default 3×3 forced/entity-
      * ticking neighbourhood covers the full-height column — the stand at {@code y=−59} is
@@ -1424,11 +1241,10 @@ public final class WorldDriverScenes implements SceneProvider {
      * window's {@code +31} edge, so {@code withChunkRadius(2)} keeps every moat block and the
      * teleported stand ({@code dz +28}) in forced/entity-ticking chunks.
      *
-     * <p><b>Everything else is {@link #entityLeash} verbatim</b> — the bracketed
-     * register/tickAll/unregister phase loops, the two {@code ctx.await(entity-visible)}
-     * liveness waits at {@code within(180)} (a gate, not a metric — copied, NOT tightened),
-     * the {@code createIsolated} driver + targeted teardown, and the phase-1-held /
-     * phase-2-ARRIVE assertions (failure prefix {@code "entityLeashLowY: "}).
+     * <p><b>Everything else is {@link #entityLeash}'s own code</b> ({@link #leashPhases}) — the
+     * parked/unparked phase loops, the two {@code ctx.await(entity-visible)} liveness waits at
+     * {@code within(180)} (a gate, not a metric — NOT tightened), the bot and its removal, and the
+     * phase-1-held / phase-2-ARRIVE assertions (failure prefix {@code "entityLeashLowY: "}).
      */
     private static void entityLeashLowY(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -1455,8 +1271,8 @@ public final class WorldDriverScenes implements SceneProvider {
 
         // Capture-and-restore: snapshot the ENTIRE moat box (which SUPERSETS the lane footprint)
         // BEFORE clearing it, so cleanup byte-restores every original block (terrain, not stone)
-        // in the persistent dogfood world. Registered FIRST → drains LAST (after unregister +
-        // discard). Also LOGS the pre-clear world-floor originals — including the WEST off-lane
+        // in the persistent dogfood world. Registered FIRST → drains LAST (after the bot's
+        // removal). Also LOGS the pre-clear world-floor originals — including the WEST off-lane
         // footing cell that the moat removes — as the confound evidence + buildability record.
         Map<BlockPos, BlockState> saved = new HashMap<>();
         for (int x = cx + moatDxMin; x <= cx + moatDxMax; x++)
@@ -1511,70 +1327,6 @@ public final class WorldDriverScenes implements SceneProvider {
         Harness.set("navigatorDebug", false);
         Harness.untimed(ctx);
 
-        EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
-        Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
-        final PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        final ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> {
-            BotTicker.unregister(driver);
-            fp.discard();
-            stand.discard();
-        });
-        driver.runProcess(new IntentProcess(intent));
-
-        final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
-
-        ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
-                .within(180)  // liveness gate copied from wd.entityLeash — NOT tightened (task#88)
-                .then(() -> {
-                    BotTicker.register(driver);
-                    for (int t = 0; t < 200 && BotTicker.activeCount() > 0; t++)
-                        BotTicker.tickAll();
-
-                    double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
-                    double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
-                    boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                            && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-                    TestMod.LOG.info(
-                            "[wd.entityLeashLowY] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
-                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(),
-                            standDist1, arrivedTrueGoal1, ctx.ticks());
-                    if (driver.finished() || arrivedTrueGoal1)
-                        ctx.fail("entityLeashLowY: phase1: process reached the true goal before the anchor moved — "
-                                + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
-                                + ") finished=" + driver.finished());
-                    if (standDist1 > leashRadius + 3.0)
-                        ctx.fail("entityLeashLowY: phase1: bot strayed beyond the leash radius+slack: standDist="
-                                + standDist1 + " radius=" + leashRadius);
-
-                    stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
-                    BotTicker.unregister(driver);
-
-                    ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
-                                    new AABB(p2anchor).inflate(2.0)).isEmpty())
-                            .within(180)  // liveness bound, moves with AWAIT-1 (copied, not tightened)
-                            .then(() -> {
-                                BotTicker.register(driver);
-                                for (int t = 0; t < 600 && BotTicker.activeCount() > 0; t++) {
-                                    BotTicker.tickAll();
-                                    if (t % 150 == 0) {
-                                        TestMod.LOG.info("[wd.entityLeashLowY] p2 t={} pos=({},{},{}) standPos={}",
-                                                t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
-                                    }
-                                }
-
-                                boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                                        && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-                                TestMod.LOG.info(
-                                        "[wd.entityLeashLowY] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
-                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), BotTicker.activeCount(), reached, ctx.ticks());
-                                if (!driver.finished() || BotTicker.activeCount() != 0)
-                                    ctx.fail("entityLeashLowY: phase2: leash re-solve process did not finish+unregister after "
-                                            + "the anchor moved: finished=" + driver.finished() + " active=" + BotTicker.activeCount());
-                                if (!reached)
-                                    ctx.fail("entityLeashLowY: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
-                                            + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
-                            });
-                });
+        leashPhases(ctx, "entityLeashLowY", level, stand, goal, cx, cz, floorY, leashRadius);
     }
 }
