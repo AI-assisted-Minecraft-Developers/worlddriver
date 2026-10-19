@@ -1,31 +1,29 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
+import net.magicterra.stagewright.contract.SceneFailure;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.behavior.Readiness;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorSettings;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.BridgeProcess;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
-import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
-import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.stagewright.LivingBody;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.testcontent.DrivenPiglin;
+import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -39,11 +37,14 @@ import net.minecraft.world.level.block.state.BlockState;
  * The NPC bot on five terrains: down a staircase, over a one-block gap, across open water, out of
  * the water onto a bank, and up a ladder. A sixth scene orders it the work that needs hands.
  *
+ * <p>The NPC is a driven piglin the roster adopts ({@code mc.bot.roster adopt}), so it walks as an
+ * order by name walks any mob: a {@code mc.bot.goto} on its own bot, ticked by the server.
+ *
  * <p><b>Two arms on one terrain.</b> The driven piglin walks the course first. Where a headless
- * server-side player may be created (the dedicated server), a {@code ServerPlayerBody} then walks the
- * same course with the same navigator, so a red on the NPC arm arrives with the player's reading beside
- * it: both failing is the rig, only the NPC failing is a difference between the two driven entities.
- * On a server a client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
+ * server-side player may be created (the dedicated server), a server bot then walks the same course
+ * with the same order, so a red on the NPC arm arrives with the player's reading beside it: both
+ * failing is the rig, only the NPC failing is a difference between the two driven entities. On a
+ * server a client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
  *
  * <p>Break and place are off under the pinned baseline. The NPC has no hands, so a course that
  * needed either would measure the refusal rather than the movement.
@@ -54,17 +55,19 @@ public final class WorldDriverNpcScenes implements SceneProvider {
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
     private static final BlockState WATER = Blocks.WATER.defaultBlockState();
 
-    /** Steps with no input before the navigator starts: after a spawn the first move finds no floor. */
+    /** Ticks with no order before the walk starts: after a spawn the first move finds no floor. */
     private static final int SETTLE_STEPS = 5;
 
     @Override
     public List<Scene> scenes() {
+        // The NPC arm is ticked by the server, one walk tick per server tick, so a scene lasts as long as
+        // its NPC walk may, plus the settle.
         return List.of(
-                Scene.of("wd.npcWalksDownAStaircase", 200, WorldDriverNpcScenes::walksDownAStaircase),
-                Scene.of("wd.npcJumpsAOneBlockGap", 200, WorldDriverNpcScenes::jumpsAOneBlockGap),
-                Scene.of("wd.npcSwimsAcrossOpenWater", 200, WorldDriverNpcScenes::swimsAcrossOpenWater),
-                Scene.of("wd.npcClimbsOutOfWater", 200, WorldDriverNpcScenes::climbsOutOfWater),
-                Scene.of("wd.npcClimbsALadder", 200, WorldDriverNpcScenes::climbsALadder),
+                Scene.of("wd.npcWalksDownAStaircase", 500, WorldDriverNpcScenes::walksDownAStaircase),
+                Scene.of("wd.npcJumpsAOneBlockGap", 400, WorldDriverNpcScenes::jumpsAOneBlockGap),
+                Scene.of("wd.npcSwimsAcrossOpenWater", 500, WorldDriverNpcScenes::swimsAcrossOpenWater),
+                Scene.of("wd.npcClimbsOutOfWater", 500, WorldDriverNpcScenes::climbsOutOfWater),
+                Scene.of("wd.npcClimbsALadder", 500, WorldDriverNpcScenes::climbsALadder),
                 Scene.of("wd.npcRefusesWorkThatNeedsHands", 40, WorldDriverNpcScenes::refusesWorkThatNeedsHands));
     }
 
@@ -143,9 +146,9 @@ public final class WorldDriverNpcScenes implements SceneProvider {
     }
 
     /**
-     * Work an entity without hands cannot do, ordered of the NPC: each order has to end on its first
-     * tick with {@code no_hands}, before it has changed a block. Break and place are switched on, so
-     * the refusal comes from the NPC and not from the config.
+     * Work an entity without hands cannot do, ordered of the NPC by name: each order has to be refused
+     * as {@code unsupported_capability} before anything starts and before it has changed a block. Break
+     * and place are switched on, so the refusal comes from the NPC and not from the config.
      */
     private static void refusesWorkThatNeedsHands(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -155,88 +158,133 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", true);
         fill(level, lo, o.offset(3, -1, 3), STONE);
-        LivingBody npc = SceneBody.npc(ctx, o);
-        LevelWorldView view = LevelWorldView.forBody(level, npc.entity());
-        List<BotProcess> orders = List.of(
-                new BridgeProcess(Direction.EAST, 3, "minecraft:cobblestone"),
-                new TowerProcess(o.getY() + 3, "minecraft:cobblestone"),
-                new MineProcess(List.of("minecraft:stone"), 1, 4),
-                new CraftProcess("minecraft:stick", 1),
-                new SmeltProcess("minecraft:raw_iron", 1, "minecraft:coal"),
-                new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:zombie"));
-        for (BotProcess order : orders) {
-            BotState st = new BotState();
-            order.attach(st);
-            boolean done = order.tick(npc, view, st);
-            BotState.ProcessSlot slot = switch (order.kind()) {
-                case "mine" -> st.mine;
-                case "craft" -> st.craft;
-                case "smelt" -> st.smelt;
-                case "combat" -> st.combat;
-                default -> st.builder;
-            };
-            String error = slot.lastError;
-            String name = order.getClass().getSimpleName();
-            // Recorded, not judged: the combat slot's flag belongs to CombatChain, which rewrites it
-            // from engaged() every tick, so the process leaves it as attach set it.
-            ctx.record(name, "done=" + done + " lastError=" + error + " active=" + slot.active);
-            ctx.check(done && Readiness.Reason.NO_HANDS.equals(error))
-                    .as(name + " on an entity without hands ends with no_hands on its first tick: done=" + done + " lastError=" + error)
+        Npc npc = adoptNpc(ctx, o, "npc_hands");
+        String ref = npc.ref();
+        var tasks = SceneBot.tasks();
+        Map<String, Responses.ActionResponse<?>> orders = new LinkedHashMap<>();
+        orders.put("construct bridge", Calls.now(tasks.construct(new BuildContracts.ConstructParams(ref,
+                new BuildContracts.Bridge(BuildContracts.BridgeDirection.EAST, 3, Optional.of("minecraft:cobblestone")), 0))));
+        orders.put("construct tower", Calls.now(tasks.construct(new BuildContracts.ConstructParams(ref,
+                new BuildContracts.Tower(Optional.empty(), Optional.of(o.getY() + 3), Optional.of("minecraft:cobblestone"), false), 0))));
+        orders.put("mine", Calls.now(tasks.mine(new GatherContracts.MineParams(ref, List.of("minecraft:stone"),
+                Optional.empty(), 1, 4, 0))));
+        orders.put("craft", Calls.now(tasks.craft(new GatherContracts.CraftParams(ref, "minecraft:stick", 1, 0))));
+        orders.put("smelt", Calls.now(tasks.smelt(new GatherContracts.SmeltParams(ref, "minecraft:raw_iron", 1,
+                Optional.of("minecraft:coal"), 0))));
+        orders.put("combat", Calls.now(tasks.combat(new CombatContracts.Params(ref, CombatContracts.Mode.KILL,
+                Optional.of(new CombatContracts.FoeType("minecraft:zombie")), false, 0))));
+        for (Map.Entry<String, Responses.ActionResponse<?>> order : orders.entrySet()) {
+            Responses.ActionResponse<?> r = order.getValue();
+            boolean refused = r instanceof Responses.Refused<?> no && no.reason() == Responses.RefusalReason.UNSUPPORTED_CAPABILITY;
+            ctx.record(order.getKey(), String.valueOf(r));
+            ctx.check(refused)
+                    .as(order.getKey() + " on an entity without hands is refused as unsupported_capability before it starts: " + r)
                     .isTrue();
         }
+        boolean busy = status(ref).busy();
+        ctx.check(!busy).as("the NPC is on no task after the refusals: busy=" + busy).isTrue();
         long changed = BlockPos.betweenClosedStream(lo, hi)
                 .filter(p -> !level.getBlockState(p).is(p.getY() < o.getY() ? Blocks.STONE : Blocks.AIR))
                 .count();
         ctx.check(changed == 0).as("no block is changed before the request is refused: " + changed + " blocks changed").isTrue();
     }
 
+    /** A driven piglin the roster adopted: {@code ref} is {@code mob:<name>}. */
+    record Npc(DrivenPiglin mob, String ref) {}
+
+    /**
+     * A driven piglin standing in the centre of {@code foot}, adopted by the roster as {@code mob:<name>};
+     * given up and discarded when the scene resolves. Legal on every topology: a mob is not a headless
+     * player. Invulnerable like the bot players, so a scene measures the walks, not whether a fall or a
+     * pool kills the NPC.
+     */
+    static Npc adoptNpc(SceneContext ctx, BlockPos foot, String name) {
+        ServerLevel level = ctx.level();
+        DrivenPiglin mob = NpcContent.DRIVEN_PIGLIN.get().create(level);
+        if (mob == null) throw new SceneFailure("worlddriver:driven_piglin created no entity");
+        mob.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0f, 0f);
+        mob.setInvulnerable(true);
+        level.addFreshEntity(mob);
+        ctx.cleanup(mob::discard);
+        Responses.ImmediateResponse r = Calls.now(ControlApi.of(Calls.api()).roster(
+                new ControlContracts.Adopt(mob.getId(), Optional.of(name))));
+        if (!(r instanceof Responses.Rostered rostered)) throw new SceneFailure("mc.bot.roster adopt " + name + " answered " + r);
+        String ref = rostered.bot();
+        ctx.cleanup(() -> Calls.now(ControlApi.of(Calls.api()).roster(new ControlContracts.Remove(ref))));
+        return new Npc(mob, ref);
+    }
+
+    /** The bot {@code ref}'s own status, read on the server thread. */
+    private static ControlContracts.BotStatus status(String ref) {
+        Responses.ImmediateResponse r = Calls.now(ControlApi.of(Calls.api()).status(new ControlContracts.StatusParams(Optional.of(ref))));
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) throw new SceneFailure("mc.bot.status " + ref + " answered " + r);
+        return s.status().get();
+    }
+
     private record Leg(int ticks, boolean arrived, String ended) {}
 
-    /** Both arms on the course just staged; the NPC's arrival is the scene's verdict. */
+    /**
+     * Both arms on the course just staged; the NPC's arrival is the scene's verdict. The NPC walks on
+     * the server's ticks (a mob moves in its own entity tick); the player arm then walks within one
+     * scene tick, the bot ticked by hand.
+     */
     private static void compare(SceneContext ctx, String what, BlockPos start, BlockPos goal, int maxTicks,
                                 Predicate<LivingEntity> arrived) {
         ServerLevel level = ctx.level();
-        LivingBody npc = SceneBody.npc(ctx, start);
-        Leg n = drive(npc, npc::step, LevelWorldView.forBody(level, npc.entity()), goal, maxTicks, arrived);
-        ctx.record("npc.drive", n.ended());
-        npc.entity().discard();
+        Npc npc = adoptNpc(ctx, start, "npc");
+        DrivenPiglin e = npc.mob();
+        int[] settle = {0};
+        ctx.await(() -> ++settle[0] >= SETTLE_STEPS).within(SETTLE_STEPS + 20).then(() -> {
+            Calls.started("goto " + goal.toShortString(), Calls.now(SceneBot.tasks().goTo(new GotoContracts.Params(npc.ref(),
+                    Optional.of(Targets.block(goal)), false, Optional.empty(), Optional.empty(), false, Optional.empty(), 0))));
+            int[] t = {0};
+            double[] minY = {e.getY()};
+            boolean[] at = {false};
+            ctx.await(() -> {
+                t[0]++;
+                minY[0] = Math.min(minY[0], e.getY());
+                at[0] = arrived.test(e);
+                return at[0] || t[0] >= maxTicks;
+            }).within(maxTicks + 20).then(() -> {
+                Leg n = new Leg(t[0], at[0], ended(t[0], e, minY[0], status(npc.ref()), at[0]));
+                ctx.record("npc.drive", n.ended());
+                Calls.now(ControlApi.of(Calls.api()).roster(new ControlContracts.Remove(npc.ref())));
+                e.discard();
 
-        Leg p = null;
-        if (ctx.server() != null && ctx.server().isDedicatedServer()) {
-            ServerPlayerBody av = SceneBody.avatar(ctx, level, start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
-            ServerPlayer fp = av.fakePlayer();
-            ctx.cleanup(fp::discard);
-            fp.getInventory().clearContent();
-            p = drive(av, av::step, new LevelWorldView(level, fp), goal, maxTicks, arrived);
-            ctx.record("player.drive", p.ended());
-            fp.discard();
-        }
-        if (p != null && !p.arrived())
-            ctx.fail("THE RIG, not the NPC: the server-side player also failed to " + what
-                    + " on the same terrain: " + p.ended());
-        ctx.check(n.arrived()).as("the NPC entity manages to " + what + ": " + n.ended()).isTrue();
-        ctx.passNote("NPC " + n.ticks() + " ticks" + (p == null ? "" : ", server-side player " + p.ticks() + " ticks"));
+                Leg p = null;
+                if (ctx.server() != null && ctx.server().isDedicatedServer()) {
+                    SceneBot bot = SceneBot.spawn(ctx, level, start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
+                    ServerPlayer fp = bot.player();
+                    fp.getInventory().clearContent();
+                    bot.step(SETTLE_STEPS);
+                    bot.goTo(Targets.block(goal));
+                    double lowest = fp.getY();
+                    boolean there = false;
+                    int i = 0;
+                    while (i < maxTicks && !there) {
+                        bot.tick();
+                        i++;
+                        lowest = Math.min(lowest, fp.getY());
+                        there = arrived.test(fp);
+                    }
+                    p = new Leg(i, there, ended(i, fp, lowest, bot.status(), there));
+                    ctx.record("player.drive", p.ended());
+                    bot.cancel();
+                }
+                if (p != null && !p.arrived())
+                    ctx.fail("THE RIG, not the NPC: the server-side player also failed to " + what
+                            + " on the same terrain: " + p.ended());
+                ctx.check(n.arrived()).as("the NPC entity manages to " + what + ": " + n.ended()).isTrue();
+                ctx.passNote("NPC " + n.ticks() + " ticks" + (p == null ? "" : ", server-side player " + p.ticks() + " ticks"));
+            });
+        });
     }
 
-    private static Leg drive(Body body, Runnable step, LevelWorldView view, BlockPos goal, int maxTicks,
-                             Predicate<LivingEntity> arrived) {
-        LivingEntity e = body.entity();
-        for (int i = 0; i < SETTLE_STEPS; i++) step.run();
-        Navigator navigator = new Navigator(NavigatorSettings.named("scene"));
-        navigator.start(new Goal.Block(goal));
-        Locomotor.Status s = Locomotor.Status.MOVING;
-        double minY = e.getY();
-        boolean at = false;
-        int t = 0;
-        while (t < maxTicks && !at) {
-            s = navigator.tick(body, view);
-            step.run();
-            t++;
-            minY = Math.min(minY, e.getY());
-            at = arrived.test(e);
-        }
-        return new Leg(t, at, String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, navigator=%s, arrived=%b",
-                t, e.getX(), e.getY(), e.getZ(), minY, s, at));
+    private static String ended(int ticks, LivingEntity e, double minY, ControlContracts.BotStatus status, boolean at) {
+        ControlContracts.Slot go = status.slots().goTo();
+        return String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, busy=%b, goto=%s, arrived=%b",
+                ticks, e.getX(), e.getY(), e.getZ(), minY, status.busy(),
+                go.endReason().orElse(go.active() ? "running" : "-"), at);
     }
 
     /** Pin the baseline with break and place off, and clear the footprint now and when the scene resolves. */
