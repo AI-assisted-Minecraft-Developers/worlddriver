@@ -30,7 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ArchitectureTest {
 
-    private static final Path SOURCE = Path.of("src/main/java/net/magicterra/worlddriver");
+    /** The driver's sources: the api module's and this one's. The module boundary already keeps the api from
+     *  using the rest; the layers inside each are what this reads them for. */
+    private static final List<Path> SOURCE_ROOTS = List.of(
+            Path.of("../api/src/main/java/net/magicterra/worlddriver"), Path.of("src/main/java/net/magicterra/worlddriver"));
     private static final Path TESTMOD = Path.of("src/testmod/java/net/magicterra/worlddriver");
     private static final List<Path> LOADER_SOURCES = List.of(
             Path.of("../fabric/src/main/java"), Path.of("../neoforge/src/main/java"));
@@ -182,7 +185,7 @@ class ArchitectureTest {
     @Test
     void theScanSeesTheTree() {
         // A source root that resolved to nothing would make every test above pass vacuously.
-        assertTrue(SOURCES.size() > 400, "only " + SOURCES.size() + " sources under " + SOURCE.toAbsolutePath());
+        assertTrue(SOURCES.size() > 400, "only " + SOURCES.size() + " sources under " + SOURCE_ROOTS);
         assertTrue(SOURCES.containsKey("bot/control/Navigator") && SOURCES.containsKey("api/registry/ApiRegistry"),
                 "the scan did not find the classes it keys its rules on");
     }
@@ -238,9 +241,11 @@ class ArchitectureTest {
 
     private static Map<String, String> readSources() {
         Map<String, String> out = new LinkedHashMap<>();
-        for (Path p : javaFiles(SOURCE)) {
-            String name = SOURCE.relativize(p).toString().replace('\\', '/').replaceAll("\\.java$", "");
-            out.put(name, PACKAGE_LINE.matcher(code(p)).replaceAll(""));
+        for (Path root : SOURCE_ROOTS) {
+            for (Path p : javaFiles(root)) {
+                String name = root.relativize(p).toString().replace('\\', '/').replaceAll("\\.java$", "");
+                out.put(name, PACKAGE_LINE.matcher(code(p)).replaceAll(""));
+            }
         }
         return out;
     }

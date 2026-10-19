@@ -47,8 +47,8 @@ sourceSets {
 }
 
 dependencies {
-    // Generates each @Spec interface's binding (docs/dev/java-api.md); javac-only, never on a runtime path.
-    annotationProcessor project(':api-processor')
+    // The api module, by the common-to-common idiom; the loader modules bundle it beside :common.
+    implementation project(path: ':api', configuration: 'namedElements')
 
     // StageWright's scene SPI (Scene/SceneContext/SceneProvider) for the wd.* scenes.
     //
@@ -69,11 +69,6 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-// The generated bindings are public API too: ship their source with the rest.
-tasks.named('sourcesJar') {
-    from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory })
 }
 
 tasks.named('test') {
@@ -148,13 +143,16 @@ dependencies {
 }
 
 def generatedApiDir = layout.buildDirectory.dir('generated/worlddriver-api')
+evaluationDependsOn(':api')
 
 def generateApiArtifacts = tasks.register('generateApiArtifacts', JavaExec) {
     group = 'build'
     description = 'Generates the API d.ts, script wrappers, schemas and reference from the method descriptions.'
-    classpath = files(sourceSets.main.output.classesDirs) + configurations.codegenRuntime
+    def apiClasses = project(':api').sourceSets.main.output.classesDirs
+    classpath = files(sourceSets.main.output.classesDirs) + apiClasses + configurations.codegenRuntime
     mainClass = 'net.magicterra.worlddriver.application.gen.ApiArtifacts'
     inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(apiClasses).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedApiDir)
     dependsOn tasks.named('compileJava')
     argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
@@ -207,68 +205,6 @@ def checkSkillManual = tasks.register('checkSkillManual') {
     }
 }
 tasks.named('check') { dependsOn checkSkillManual }
-
-// worlddriver-api: the api and protocol classes plus the generated artifacts, for another mod to compile
-// against. See docs/dev/api-artifacts.md.
-def apiPackages = ['net/magicterra/worlddriver/api/**', 'net/magicterra/worlddriver/protocol/**']
-def apiJar = tasks.register('apiJar', Jar) {
-    group = 'build'
-    description = 'Packs the api and protocol classes and the generated API artifacts into worlddriver-api.'
-    archiveBaseName = 'worlddriver-api'
-    from(sourceSets.main.output.classesDirs) { include apiPackages }
-    from(generatedApiDir) { exclude 'driver-api.js', 'skill-methods.md'; into 'worlddriver-api' }
-    from(rootProject.files('COPYING', 'COPYING.LESSER')) { into 'META-INF' }
-    dependsOn tasks.named('compileJava'), generateApiArtifacts
-}
-def apiSourcesJar = tasks.register('apiSourcesJar', Jar) {
-    group = 'build'
-    archiveBaseName = 'worlddriver-api'
-    archiveClassifier = 'sources'
-    from(sourceSets.main.allJava) { include apiPackages }
-    from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory }) { include apiPackages }
-    from(rootProject.files('COPYING', 'COPYING.LESSER')) { into 'META-INF' }
-}
-def verifyApiJar = tasks.register('verifyApiJar') {
-    group = 'verification'
-    description = 'Fails when a class in worlddriver-api refers to a driver class outside it.'
-    def jar = apiJar.flatMap { it.archiveFile }
-    inputs.file(jar)
-    doLast {
-        def bad = new TreeSet<String>()
-        new java.util.zip.ZipFile(jar.get().asFile).withCloseable { zip ->
-            zip.entries().findAll { it.name.endsWith('.class') }.each { e ->
-                def text = new String(zip.getInputStream(e).bytes, 'ISO-8859-1')
-                (text =~ /net\/magicterra\/worlddriver\/([A-Za-z_$]+)/).each { m ->
-                    if (!(m[1] in ['api', 'protocol'])) bad << "${e.name} -> ${m[0]}"
-                }
-            }
-        }
-        if (bad) throw new GradleException('worlddriver-api refers outside itself:\n  ' + bad.join('\n  '))
-    }
-}
-tasks.named('check') { dependsOn verifyApiJar }
-tasks.named('assemble') { dependsOn apiJar, apiSourcesJar }
-
-publishing {
-    publications {
-        worlddriverApi(MavenPublication) {
-            artifactId = 'worlddriver-api'
-            artifact apiJar
-            artifact apiSourcesJar
-            pom {
-                name = "${rootProject.mod_name} API"
-                description = 'The method contracts, schema, registry and game hooks of WorldDriver, in named mappings.'
-                url = rootProject.mod_source_url
-                licenses {
-                    license {
-                        name = rootProject.mod_license
-                        url = rootProject.mod_license_url
-                    }
-                }
-            }
-        }
-    }
-}
 
 tasks.named('processResources') {
     dependsOn generateApiArtifacts

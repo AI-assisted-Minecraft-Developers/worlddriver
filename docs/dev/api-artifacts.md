@@ -11,12 +11,12 @@ code.
 
 | File | What it is | Where it ends up |
 |---|---|---|
-| `worlddriver.d.ts` | The types, the `WorldDriver.Methods` table and the `Driver` namespaces | `worlddriver-api/` in the jar |
-| `driver-function.d.ts` | StageWright's `driver(method, params)` over the same table | `worlddriver-api/` in the jar |
+| `worlddriver.d.ts` | The types, the `WorldDriver.Methods` table and the `Driver` namespaces | `worlddriver-api/` in the mod jar, and the api's `artifacts` zip |
+| `driver-function.d.ts` | StageWright's `driver(method, params)` over the same table | the same |
 | `driver-api.js` | One named wrapper per method, `Driver.bot.clearArea(params)` | `data/worlddriver/scripts/generated/`, loaded right after `prelude.js` |
-| `methods.json` | Each method's input and output schema and its execution profile | `worlddriver-api/` in the jar |
-| `events.json` | Each built-in event type's payload schema, severity and trust, from `EventCatalog` | `worlddriver-api/` in the jar |
-| `api-reference.md` | The same two, for a person | `worlddriver-api/` in the jar |
+| `methods.json` | Each method's input and output schema and its execution profile | `worlddriver-api/` in the mod jar, and the api's `artifacts` zip |
+| `events.json` | Each built-in event type's payload schema, severity and trust, from `EventCatalog` | the same |
+| `api-reference.md` | The same two, for a person | the same |
 | `skill-methods.md` | The agent skill's method manual: every method, every setting key with its range and default, every event type, each type declared once | committed as `.agents/skills/worlddriver-rpc/references/methods.md` |
 
 `processResources` depends on the task, so a normal build always ships current files. The
@@ -32,24 +32,29 @@ hand beside it in `references/tips.md`.
 ## The API jar
 
 Another mod that calls the driver, registers a driver for a mob, or adds a body task compiles
-against `net.magicterra:worlddriver-api`, not against the whole mod. `./gradlew :common:apiJar` packs
-it: the classes under `api/` and `protocol/` (the generated bindings included) and the files above
-that land in `worlddriver-api/`, with a sources jar beside it. Both are published with `:common`
-under the mod's version.
+against `net.magicterra:worlddriver-api`, not against the whole mod. It is the `:api` module: the
+classes under `api/` and `protocol/`, the generated bindings included. `:common` depends on it and
+the loader jars bundle it, so the module boundary is what keeps the api from using the rest of the
+driver. It is published like the other modules, under the mod's version, in two mappings:
 
-The classes are in named mappings, as in a development environment. `api/game` names Minecraft
-types, so a consumer still needs Minecraft (and DataFixerUpper, Gson) on its compile classpath, which
-a mod build has anyway; the POM declares no dependencies. At run time the classes come from the mod
-itself, so a consumer depends on the jar for compiling only.
+| Artifact | Minecraft names | For |
+|---|---|---|
+| `worlddriver-api` | intermediary | Fabric with Loom: `modCompileOnly`, which remaps it to whatever the mod uses, Mojang or Yarn |
+| `worlddriver-api:dev` | Mojang | NeoForge (ModDevGradle, NeoGradle), which has no intermediary, and any other plain `compileOnly` against Mojang names |
+| `worlddriver-api:sources` | — | an IDE |
+| `worlddriver-api:artifacts@zip` | — | the generated files above, for a client that is not Java |
 
-`check` runs `verifyApiJar`, which reads every class in the jar and fails if one refers to a driver
-class outside `api/` and `protocol/`. `ArchitectureTest` holds the same rule over the sources;
-this one checks what is actually packed.
+Only `api/game` names Minecraft types, so the two jars differ only there; a consumer still needs
+Minecraft (and DataFixerUpper, Gson) on its compile classpath, which a mod build has anyway, and the
+POM declares no dependencies. At run time the classes come from the installed WorldDriver mod, so a
+consumer depends on the api for compiling only and must not bundle it.
 
 ## Why it runs without Minecraft
 
-The generator's classpath is the compiled classes plus DataFixerUpper and its four libraries, and
-nothing else. It loads `CoreMethods`, which lists only the descriptions. A description that reached
+The generator's classpath is the compiled classes of `:api` and `:common` plus DataFixerUpper and its
+four libraries, and nothing else. It lives in `:common` because the settings' defaults it prints are
+fields there, which is also why its output is a zip beside the api jars rather than inside them:
+`:common` compiles against those jars. It loads `CoreMethods`, which lists only the descriptions. A description that reached
 into the game (named a client class, needed a registry) fails the build here, which is the check that
 keeps the contract layer separate from the game. The settings' defaults are read from the config
 classes, which name no game class either.

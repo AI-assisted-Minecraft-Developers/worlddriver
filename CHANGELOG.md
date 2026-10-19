@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **The api is a module of its own, published in both mappings.** `worlddriver-api` is now the `:api`
+  module, which `:common` depends on and the loader jars bundle. Like the other modules it is published
+  as an intermediary jar (Fabric with Loom, `modCompileOnly`) and a `:dev` jar in Mojang names (NeoForge,
+  plain compiles), with sources; the generated d.ts, schemas and reference moved out of the jar into an
+  `artifacts` zip beside it. A build that compiled against `worlddriver-common:dev` also needs
+  `worlddriver-api:dev`.
 - **`mc.debug.replay` replays on a server-side bot, and a dedicated server records path archives.**
   `bot` names who replays (default `self`); a server bot is put at the recorded start without a
   teleport packet and runs on the server thread. The path chart and archive recorders are now

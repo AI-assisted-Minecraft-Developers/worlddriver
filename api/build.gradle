@@ -1,0 +1,48 @@
+// worlddriver-api: the method contracts, schema, runtime and game hooks another mod compiles against.
+// Published like every mod module: the plain jar in intermediary names (Fabric's loom remaps it), `:dev` in
+// Mojang names (NeoForge, plain compiles). See docs/dev/api-artifacts.md.
+architectury {
+    common rootProject.enabled_platforms.split(',')
+}
+
+dependencies {
+    // Generates each @Spec interface's binding (docs/dev/java-api.md); javac-only, never on a runtime path.
+    annotationProcessor project(':api-processor')
+
+    // The same JUnit as :common's tests; these are the ones that need nothing but the api.
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging { events "failed" }
+}
+
+// The generated bindings are public API too: ship their source with the rest.
+tasks.named('sourcesJar') {
+    from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory })
+}
+
+// The d.ts, script wrappers, schemas and reference, as the `artifacts` zip beside the jars. Not in the jars:
+// :common generates them (the setting defaults they print are its fields) and compiles against this jar.
+def apiArtifactsZip = tasks.register('apiArtifactsZip', Zip) {
+    group = 'build'
+    description = 'Packs the generated API artifacts for publication beside the jars.'
+    archiveBaseName = base.archivesName
+    archiveClassifier = 'artifacts'
+    dependsOn ':common:generateApiArtifacts'
+    from(project(':common').layout.buildDirectory.dir('generated/worlddriver-api')) {
+        exclude 'driver-api.js', 'skill-methods.md'
+    }
+    from(rootProject.files('COPYING', 'COPYING.LESSER'))
+}
+tasks.named('assemble') { dependsOn apiArtifactsZip }
+
+afterEvaluate {
+    publishing.publications.named('mavenJava') {
+        artifact(apiArtifactsZip) { classifier = 'artifacts' }
+        pom.description = 'The method contracts, schema, registry and game hooks of WorldDriver.'
+    }
+}

@@ -9,7 +9,8 @@ Run from the repo root (exit 1 on violation):
 Every check except `repos` reads BUILT artifacts, so assemble them first, with the same
 BUILD_NUMBER (or none) this script then runs with, since that is in their names:
 
-    ./gradlew :common:assemble :fabric:assemble :neoforge:assemble \\
+    ./gradlew :api:assemble :common:assemble :fabric:assemble :neoforge:assemble \\
+        :api:generatePomFileForMavenJavaPublication \\
         :common:generatePomFileForMavenJavaPublication \\
         :fabric:generatePomFileForMavenJavaPublication \\
         :neoforge:generatePomFileForMavenJavaPublication
@@ -34,8 +35,8 @@ metadata
         versions (Architectury from its pin up to the next major, the Fabric loader from
         its pin, Minecraft from `minecraft_version_range` in each loader's syntax). A value
         hardcoded in one loader's file drifts from the other's on the next edit.
-sources Each loader's `-sources` jar holds every source file of :common's, because the
-        loader's binary jar bundles :common. A sources jar that covers only the loader's
+sources Each loader's `-sources` jar holds every source file of :api's and :common's, because
+        the loader's binary jar bundles both. A sources jar that covers only the loader's
         entry points does not match the binary it is published beside.
 """
 import json
@@ -47,7 +48,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODULES = ("common", "fabric", "neoforge")
+MODULES = ("api", "common", "fabric", "neoforge")
 LICENCE_FILES = ("COPYING", "COPYING.LESSER")
 
 
@@ -219,23 +220,25 @@ def check_metadata():
 
 
 def check_sources():
-    common = dict(published_jars("common"))["sources"]
-    if not os.path.isfile(common):
-        return [f"{os.path.relpath(common, ROOT)}: not built (see this script's docstring)"]
-    with zipfile.ZipFile(common) as z:
-        wanted = {n for n in z.namelist() if n.endswith(".java")}
     problems = []
-    for module in ("fabric", "neoforge"):
-        path = dict(published_jars(module))["sources"]
-        rel = os.path.relpath(path, ROOT)
-        if not os.path.isfile(path):
-            problems.append(f"{rel}: not built (see this script's docstring)")
+    for bundled in ("api", "common"):
+        sources = dict(published_jars(bundled))["sources"]
+        if not os.path.isfile(sources):
+            problems.append(f"{os.path.relpath(sources, ROOT)}: not built (see this script's docstring)")
             continue
-        with zipfile.ZipFile(path) as z:
-            missing = sorted(wanted - set(z.namelist()))
-        if missing:
-            problems.append(f"{rel}: lacks {len(missing)} of :common's {len(wanted)} source files,"
-                            f" e.g. {missing[0]}")
+        with zipfile.ZipFile(sources) as z:
+            wanted = {n for n in z.namelist() if n.endswith(".java")}
+        for module in ("fabric", "neoforge"):
+            path = dict(published_jars(module))["sources"]
+            rel = os.path.relpath(path, ROOT)
+            if not os.path.isfile(path):
+                problems.append(f"{rel}: not built (see this script's docstring)")
+                continue
+            with zipfile.ZipFile(path) as z:
+                missing = sorted(wanted - set(z.namelist()))
+            if missing:
+                problems.append(f"{rel}: lacks {len(missing)} of :{bundled}'s {len(wanted)} source files,"
+                                f" e.g. {missing[0]}")
     return problems
 
 

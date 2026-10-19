@@ -208,7 +208,7 @@ you missed with `mc.observe.eventsSince` from your last `seq`.
 `.agents/skills/worlddriver-rpc/` in this repository ships a working Python client
 (`rpc.py`, with one-shot, batch and event-tail modes) and a per-method parameter reference.
 That reference and the method contracts under
-`common/src/main/java/net/magicterra/worlddriver/api/methods/` are the authority on the method
+`api/src/main/java/net/magicterra/worlddriver/api/methods/` are the authority on the method
 surface; a build also writes each method's schemas to `methods.json` (`docs/dev/api-artifacts.md`).
 
 ## MCP over HTTP

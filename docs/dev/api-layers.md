@@ -1,8 +1,8 @@
 # The `api` layers
 
-`common/.../worlddriver/api/` is the method surface every transport calls into, and the part of
-this repository other builds link against: the generated TypeScript, StageWright's published jar,
-and every client on the wire. This page says how it is layered, why, and what a change to each
+`api/` and `protocol/`, the `:api` module, are the method surface every transport calls into, and the
+part of this repository other builds link against: the generated TypeScript, StageWright's published
+jar, and every client on the wire. This page says how it is layered, why, and what a change to each
 layer obliges you to do. [Architecture](architecture.md) covers how a call travels through it.
 
 ## The layers
@@ -59,9 +59,10 @@ implementation.
 
 ## How the rules are held
 
-`ArchitectureTest` (in `:common`'s unit tests) checks every rule above against the sources: Minecraft
-only in the game layer, each `api/` layer using only what the table allows, no transport using the
-game layer.
+The module boundary holds the first rule: `:api` cannot see the rest of the driver, so no api layer can
+use it. `ArchitectureTest` (in `:common`'s unit tests) checks the rest against the sources of both
+modules: Minecraft only in the game layer, each `api/` layer using only what the table allows, no
+transport using the game layer.
 
 It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`,
 `protocol/` and StageWright, with no exceptions. A scene that needs something the api does not offer

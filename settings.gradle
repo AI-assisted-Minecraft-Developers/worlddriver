@@ -27,6 +27,7 @@ pluginManagement {
 // repository. mod id / archives_name ('worlddriver') live in gradle.properties.
 rootProject.name = 'worlddriver'
 
+include 'api'
 include 'common'
 include 'fabric'
 include 'neoforge'

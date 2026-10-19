@@ -75,6 +75,7 @@ BACKSLASH = chr(92)
 NL = chr(10)
 
 DEFAULT_ROOTS = [
+    "api/src/main/java",
     "common/src/main/java",
     "common/src/testmod/java",
     "common/src/test",

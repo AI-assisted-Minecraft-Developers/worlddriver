@@ -104,7 +104,7 @@ registry, and with it every check above.
 
 ## What the compiler checks
 
-`:api-processor` runs while `:common` compiles. For each interface with `@Spec` methods it refuses
+`:api-processor` runs while `:api` compiles. For each interface with `@Spec` methods it refuses
 the build when:
 
 - an abstract method has no `@Spec`;
@@ -113,14 +113,14 @@ the build when:
 - one spec is bound twice in the same interface.
 
 It then writes `<Interface>Binding` and `<Family>StubApi` into
-`common/build/generated/sources/annotationProcessor/`. The binding holds `calls(registry)`,
+`api/build/generated/sources/annotationProcessor/`. The binding holds `calls(registry)`,
 `methods(impl)` and `specs()`; the last is the interface's spec list with no implementation, which is
 what the artifact generator publishes for a batch it cannot construct (the path-debug methods). Neither file is committed: it is rebuilt on every compile and ships in the sources jar.
 
 Left for run time is only what run time knows: whether the parameter values are valid, which
 thread is calling, and who currently answers the method.
 
-The processor and its dependencies (JavaPoet, AutoService) are on `:common`'s annotation processor
+The processor and its dependencies (JavaPoet, AutoService) are on `:api`'s annotation processor
 path only. They are not in any jar the build ships and not in any published POM.
 
 ## Driving a mob of your own

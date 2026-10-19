@@ -50,6 +50,7 @@ METHOD_LIMIT = 200
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_ROOTS = [
+    "api/src",
     "common/src",
     "fabric/src",
     "neoforge/src",
