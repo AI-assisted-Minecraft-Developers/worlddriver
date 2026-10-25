@@ -1,7 +1,7 @@
 // Checked by `./gradlew :common:checkApiTypes` against the generated declarations: every call below
 // must type-check, and every line under @ts-expect-error must be rejected.
-/// <reference path="../../build/generated/worlddriver-api/worlddriver.d.ts" />
-/// <reference path="../../build/generated/worlddriver-api/driver-function.d.ts" />
+/// <reference path="../../../api/build/generated/worlddriver-api/worlddriver.d.ts" />
+/// <reference path="../../../api/build/generated/worlddriver-api/driver-function.d.ts" />
 
 const reply = Driver.bot.clearArea({
     bot: 'player:builder',
