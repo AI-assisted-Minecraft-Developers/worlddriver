@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -410,14 +411,35 @@ public final class RpcServer implements Closeable {
                 return;
             }
             CallContext context = CallContext.withBudget(budgetOf(req), gone, waits);
-            api.dispatch(method, params, context).whenComplete((result, failure) -> {
-                if (failure == null) {
-                    write(ch, JsonRpcFrames.result(id, result));
-                } else {
-                    ApiError e = ApiRegistry.asApi(failure).error();
-                    write(ch, JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e)));
+            CompletionStage<JsonElement> call;
+            try {
+                call = api.dispatch(method, params, context);
+            } catch (Throwable t) {
+                writeInternal(ch, id, t);
+                return;
+            }
+            call.whenComplete((result, failure) -> {
+                // A throw in here is swallowed by the stage, and the caller would wait out its own
+                // timeout for a frame that never comes — seen when a republished jar under a live
+                // client made every class this path had not loaded yet unloadable.
+                try {
+                    if (failure == null) {
+                        write(ch, JsonRpcFrames.result(id, result));
+                    } else {
+                        ApiError e = ApiRegistry.asApi(failure).error();
+                        write(ch, JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e)));
+                    }
+                } catch (Throwable t) {
+                    writeInternal(ch, id, t);
                 }
             });
+        }
+
+        /** The last-resort answer when building the real one failed; nothing more can be done if this fails too. */
+        private static void writeInternal(Channel ch, JsonElement id, Throwable t) {
+            try {
+                write(ch, JsonRpcFrames.error(id, JsonRpcFrames.INTERNAL_ERROR, "internal: " + t, null));
+            } catch (Throwable ignored) { /* the frame classes themselves are unusable */ }
         }
 
         /**

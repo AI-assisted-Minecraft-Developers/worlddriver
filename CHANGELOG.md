@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-25
+
+- **The RPC and MCP servers answer even when building the answer fails.** A throw while encoding the
+  reply was swallowed by the call's stage and nothing was written, so the caller waited out its own
+  timeout; now it gets an `internal` error. This was how a jar republished under a running client
+  showed: the first call failed with a class that would not load, the next ones never answered.
+
 ## 2026-10-20
 
 - **Contracts are annotated records.** A method's parameters and result are plain Java records whose

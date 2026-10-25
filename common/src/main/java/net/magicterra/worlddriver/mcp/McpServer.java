@@ -324,6 +324,12 @@ public final class McpServer implements Closeable {
                         call.whenComplete((r, t) -> {
                             try { sendToolOutcome(ex, id, spec, call); }
                             catch (IOException gone) { ex.close(); }
+                            catch (Throwable bad) {
+                                // The stage would swallow this and leave the exchange open until the
+                                // caller's own timeout; answer as the synchronous path below does.
+                                try { sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + bad)); }
+                                catch (Throwable unusable) { ex.close(); }
+                            }
                         });
                     }
                 }
