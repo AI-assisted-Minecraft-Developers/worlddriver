@@ -3328,7 +3328,7 @@ interface NodeQuery { foot: BlockPosition; prev?: BlockPosition; next?: BlockPos
 interface CellsParams {
     /** Omitted: the overworld as the server level reads it. */
     bot?: BotRef;
-    /** With bot self: client (omitted), the view self plans with; server, the view of the server a client here hosts, over the same player. */
+    /** With bot self: client (omitted), the view self plans with; server, the view of the server a client here hosts, over the same player. server with bot player:<name>, a player on this server: the server's view over that player. */
     side?: CellSide;
     cells?: BlockPosition[];
     node?: NodeQuery;

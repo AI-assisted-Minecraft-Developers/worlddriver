@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mc.observe.eventsSince` used to refuse with "not attached to a server" on any JVM without a server, so
   a client joined over the network could not read `player.hurt` or `route.blocked`, which it emits itself.
   They now need a server or the client half; only a JVM with neither still refuses.
+- **`mc.debug.cells` reads a dedicated server's view of a joined player.** `side: server` with
+  `bot: player:<name>` classifies the cells as this server sees that player; before, `side` was accepted
+  for `self` only, which on a dedicated server names no one. `side: client` is still self's alone.
 
 ## 2026-10-20
 

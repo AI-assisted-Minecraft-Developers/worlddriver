@@ -184,14 +184,17 @@ public final class BotDebugContracts {
     // ------------------------------------------------------------------ mc.debug.cells
 
     /**
-     * {@code node}: also answer the pose and fall facts of standing at that cell. {@code side}, with {@code bot}
-     * self only: whose view of self's player classifies the cells.
+     * {@code node}: also answer the pose and fall facts of standing at that cell. {@code side}: whose view
+     * classifies the cells — {@code client} for self only, {@code server} for self on a world a client here hosts,
+     * or for a player on this server named by {@code bot}, which is how a dedicated server reads its view of a
+     * joined client's player.
      */
     @Named("CellsParams")
     public record CellsParams(
             @Doc("Omitted: the overworld as the server level reads it.") Optional<@BotRef String> bot,
             @Doc("With bot self: client (omitted), the view self plans with; server, the view of the server a client "
-                    + "here hosts, over the same player.")
+                    + "here hosts, over the same player. server with bot player:<name>, a player on this server: the "
+                    + "server's view over that player.")
             Optional<Side> side,
             @Default("[]") @Length(max = 4096) List<BlockPosition> cells,
             Optional<NodeQuery> node) implements SelfChecked {
@@ -201,8 +204,10 @@ public final class BotDebugContracts {
         }
 
         @Override public void check(DecodeContext at) {
-            if (side.isPresent() && !bot.map("self"::equals).orElse(false)) {
-                at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "a side is self's, and bot does not name self");
+            if (side.isPresent() && bot.isEmpty()) {
+                at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "a side is a player's view, and bot names no one");
+            } else if (side.orElse(null) == Side.CLIENT && !bot.map("self"::equals).orElse(false)) {
+                at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "the client side is self's, and bot does not name self");
             }
         }
     }
