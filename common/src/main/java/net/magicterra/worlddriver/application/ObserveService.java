@@ -85,8 +85,20 @@ public final class ObserveService implements ObserveApi {
     }
 
     public long cursor() {
-        api.level(); // require server: pre-fix this returned 0 even with no world, which is misleading
+        requireEventSource();
         return api.eventSeq.get();
+    }
+
+    /**
+     * Something whose events fill the ring: an attached server, or the client half. Without either the ring
+     * is empty for good and a cursor of 0 would read as "nothing has happened yet". A client joined to a
+     * remote server has no server here and emits its own events (player.hurt, route.blocked) into this ring,
+     * so it must be able to read them back.
+     */
+    private void requireEventSource() {
+        if (api.server() == null && ClientHooks.impl() == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server, and no client half is registered");
+        }
     }
 
     public List<DriverEvent> eventsSince(long cursor) {
@@ -100,7 +112,7 @@ public final class ObserveService implements ObserveApi {
      * should bump cursor to the last returned event's seq and re-call.
      */
     public List<DriverEvent> eventsSince(long cursor, Set<String> types, int limit) {
-        api.level(); // require server: same reason as cursor() above
+        requireEventSource();
         synchronized (api.eventsLock) {
             List<DriverEvent> out = new ArrayList<>();
             for (DriverEvent e : api.events) {
