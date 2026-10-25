@@ -120,7 +120,15 @@ jobs:
 
       # The whole log goes to a file and the verdict is read from it: the judgments that can redden
       # a run print above the VERDICT line, and a run that dies early has its cause in the middle.
-      - name: Dedicated-server scene gate (NeoForge)
+      # The gate starts a real client beside the server, and a client needs a display; the runner has
+      # none, so a virtual one is provided here, as the build leaves the display to its environment.
+      - name: Display for the client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1 libopenal1
+
+      - name: Scene gate, dedicated server with client (NeoForge)
         env:
           COMPANION_SHA: ${{ steps.companion.outputs.sha }}
           CANDIDATE_VERSION: ${{ steps.pair.outputs.stagewright_version }}
@@ -134,7 +142,8 @@ jobs:
             fi
             candidate_args+=("-Pstagewright_version=$CANDIDATE_VERSION")
           fi
-          ./gradlew stagewrightDedicatedServerNeoforge "${candidate_args[@]}" > gate.log 2>&1
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            ./gradlew stagewrightDedicatedServerWithClientNeoforge "${candidate_args[@]}" > gate.log 2>&1
           status=$?
           grep -E '^\[stagewright' gate.log | grep -vE '^\[stagewright[^]]*\] (pass|skip): '
           exit $status
@@ -145,9 +154,12 @@ jobs:
           name: gate-neoforge-${{ github.run_number }}
           path: |
             gate.log
-            neoforge/run-dogfood/stagewright/
-            neoforge/run-dogfood/logs/
-            neoforge/run-dogfood/crash-reports/
+            neoforge/run-stagewright-with-client/stagewright/
+            neoforge/run-stagewright-with-client/logs/
+            neoforge/run-stagewright-with-client/crash-reports/
+            neoforge/run-stagewright-joining-client/stagewright/
+            neoforge/run-stagewright-joining-client/logs/
+            neoforge/run-stagewright-joining-client/crash-reports/
           if-no-files-found: ignore
 
   publish:
