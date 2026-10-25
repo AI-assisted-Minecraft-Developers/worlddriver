@@ -145,23 +145,32 @@ public final class ClientInput {
     public static Moved mouseMove(MoveParams p) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
-            Screen s = mc.screen;
             double scale = mc.getWindow().getGuiScale();
-            double wx = p.x() * scale;
-            double wy = p.y() * scale;
-            // 1) Move the real GLFW cursor — drives any "cursor visible"
-            //    indicator and is what live users would experience.
-            org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
-            // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback, so
-            //    MouseHandler.xpos/ypos stay stale and tooltips render at the *previous*
-            //    hover spot. The access widener in :common opens those fields, so this is a
-            //    plain field write that tiny-remapper rewrites like any other reference.
             var mh = mc.mouseHandler;
-            mh.xpos = wx;
-            mh.ypos = wy;
-            if (s != null) s.mouseMoved(p.x(), p.y());
-            return new Moved(wx, wy, scale);
+            if (p.x().isPresent()) parkCursor(mc, p.x().get(), p.y().orElseThrow());
+            // The handler GLFW's scroll callback calls, so the wheel lands where a human's would:
+            // the screen under xpos/ypos, else the hotbar or a spectator's speed, after the
+            // player's own sensitivity and discrete-scroll options.
+            if (p.scroll() != 0 || p.scrollX() != 0) mh.onScroll(mc.getWindow().getWindow(), p.scrollX(), p.scroll());
+            return new Moved(mh.xpos, mh.ypos, scale);
         });
+    }
+
+    /** Put the cursor at GUI {@code x}/{@code y} as a moved mouse would, hover included. Client thread. */
+    private static void parkCursor(Minecraft mc, double x, double y) {
+        double scale = mc.getWindow().getGuiScale();
+        double wx = x * scale;
+        double wy = y * scale;
+        // 1) Move the real GLFW cursor — drives any "cursor visible"
+        //    indicator and is what live users would experience.
+        org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
+        // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback, so
+        //    MouseHandler.xpos/ypos stay stale and tooltips render at the *previous*
+        //    hover spot. The access widener in :common opens those fields, so this is a
+        //    plain field write that tiny-remapper rewrites like any other reference.
+        mc.mouseHandler.xpos = wx;
+        mc.mouseHandler.ypos = wy;
+        if (mc.screen != null) mc.screen.mouseMoved(x, y);
     }
 
     public static ClientReply setHotbarSlot(HotbarParams p) {

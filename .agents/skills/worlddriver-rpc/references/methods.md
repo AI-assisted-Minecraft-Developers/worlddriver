@@ -338,7 +338,7 @@ Drive a key mapping BY NAME. Use it rather than input.key when the binding carri
 
 ### `mc.client.input.mouseMove`
 
-Move the cursor to GUI coordinates without clicking, hover effects included: park it before a screenshot so no tooltip covers the screen.
+Move the cursor to GUI coordinates without clicking, hover effects included: park it before a screenshot so no tooltip covers the screen. With scroll, then turn the mouse wheel there.
 
 - Params: `MouseMoveParams`; reply: `MouseMoved`
 - Effects: client_input
@@ -3179,7 +3179,15 @@ type KeybindResponse =
         contextId: string;
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
-interface MouseMoveParams { x: number; y: number; }
+interface MouseMoveParams {
+    /** GUI coordinates. Without them the cursor stays put: in the world a moved cursor turns the camera. */
+    x?: number;
+    y?: number;
+    /** Wheel notches, positive away from the user. On a screen it scrolls what is under the cursor; in the world it steps the hotbar, or a spectator's speed. */
+    scroll?: number;
+    /** Horizontal wheel notches, positive to the right. */
+    scrollX?: number;
+}
 interface MouseMoved {
     wx: number;
     wy: number;

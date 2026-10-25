@@ -129,6 +129,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
                 Scene.of("wd.clientKeybindOpensABinding", 300, WorldDriverCoreScenes::clientKeybindOpensABinding),
                 Scene.of("wd.clientClickByRef", 400, WorldDriverCoreScenes::clientClickByRef),
+                Scene.of("wd.clientScrollStepsTheHotbar", 300, WorldDriverCoreScenes::clientScrollStepsTheHotbar),
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
@@ -324,8 +325,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  result-encoding checks (the settings scripts that stopped self-skipping already ran here in full);
      *  273 until 49_events gained its string-cursor and pollable-target checks; 276 until the typed
      *  client verbs added refusal and context checks to 10, 15 and 29; 279 until 66_body_routes gained
-     *  its check that the old {@code body} key is an unknown field. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 280;
+     *  its check that the old {@code body} key is an unknown field; 280 until 67_mouse_scroll (3 checks,
+     *  both topologies) was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 283;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
@@ -341,8 +343,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  read the same on every topology, and 11_script_eval gained its error, nested-run, request and
      *  result-encoding checks; 219 until 49_events gained its string-cursor and pollable-target checks;
      *  222 until the typed client verbs' refusals stopped self-skipping in 13, 14, 15 and 29; 228 until
-     *  66_body_routes gained its old-body-key check, which needs no client. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 229;
+     *  66_body_routes gained its old-body-key check, which needs no client; 229 until 67_mouse_scroll's
+     *  three request checks, which need none either. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 232;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
@@ -1552,6 +1555,37 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                         p -> "survival".equals(p.get("gameMode")), 100, p ->
                                 askByName(ctx, "keybind.reply", "mc.client.input.keybind", Map.of("name", "key.inventory"),
                                         m -> keybindOpensTheInventory(ctx, m))));
+    }
+
+    /**
+     * {@code mc.client.input.mouseMove} with only {@code scroll}: one notch toward the user, with no
+     * screen open, goes where vanilla's wheel goes — the hotbar steps one slot right — and the cursor,
+     * not named, stays where it was. Survival, because a spectator's wheel changes flying speed instead.
+     */
+    private static void clientScrollStepsTheHotbar(SceneContext ctx) {
+        ServerPlayer player = ctx.playerHere();
+        GameType was = player.gameMode.getGameModeForPlayer();
+        ctx.cleanup(() -> player.setGameMode(was));
+        player.setGameMode(GameType.SURVIVAL);
+        ctx.cleanup(() -> SceneCalls.send("mc.client.input.setHotbarSlot", Map.of("slot", 0)));
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                askByName(ctx, "slot3","mc.client.input.setHotbarSlot", Map.of("slot", 3), slot ->
+                        SceneCalls.askUntilByName(ctx, "ready", "mc.client.player", Map.of(),
+                                p -> "survival".equals(p.get("gameMode")) && selectedSlot(p) == 3, 100, p ->
+                                        askByName(ctx, "scroll", "mc.client.input.mouseMove", Map.of("scroll", -1.0), moved -> {
+                                            ctx.record("moved", String.valueOf(moved));
+                                            SceneCalls.askUntilByName(ctx, "after", "mc.client.player", Map.of(),
+                                                    q -> selectedSlot(q) != 3, 40, q ->
+                                                            ctx.expect(selectedSlot(q))
+                                                                    .as("the selected hotbar slot after one notch toward the user from slot 3")
+                                                                    .isEqualTo(4));
+                                        }))));
+    }
+
+    /** {@code inventory.selectedSlot} of a {@code mc.client.player} reply, -1 when it has none. */
+    private static int selectedSlot(Map<?, ?> clientPlayer) {
+        return clientPlayer.get("inventory") instanceof Map<?, ?> inv && inv.get("selectedSlot") instanceof Number n
+                ? n.intValue() : -1;
     }
 
     private static void keybindOpensTheInventory(SceneContext ctx, Map<?, ?> m) {

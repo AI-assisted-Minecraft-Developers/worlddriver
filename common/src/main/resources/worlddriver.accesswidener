@@ -23,6 +23,8 @@ accessWidener	v2	named
 
 accessible	field	net/minecraft/client/MouseHandler	xpos	D
 accessible	field	net/minecraft/client/MouseHandler	ypos	D
+# mouseMove's scroll calls the handler GLFW's scroll callback calls; vanilla has no public route to it.
+accessible	method	net/minecraft/client/MouseHandler	onScroll	(JDD)V
 
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyDelay	I

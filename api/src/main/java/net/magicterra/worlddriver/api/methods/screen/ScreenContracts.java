@@ -191,9 +191,24 @@ public final class ScreenContracts {
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     @Named("MouseMoveParams")
-    public record MoveParams(double x, double y) {}
+    public record MoveParams(
+            @Doc("GUI coordinates. Without them the cursor stays put: in the world a moved cursor turns the camera.")
+            Optional<Double> x,
+            Optional<Double> y,
+            @Doc("Wheel notches, positive away from the user. On a screen it scrolls what is under the cursor; in "
+                    + "the world it steps the hotbar, or a spectator's speed.")
+            @Default("0.0") double scroll,
+            @Doc("Horizontal wheel notches, positive to the right.") @Default("0.0") double scrollX) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (x.isPresent() != y.isPresent()) {
+                at.field(x.isEmpty() ? "x" : "y").fail(ApiIssue.Code.INVALID_VALUE, "give both x and y, or neither");
+            } else if (x.isEmpty() && scroll == 0 && scrollX == 0) {
+                at.field("x").fail(ApiIssue.Code.INVALID_VALUE, "give x and y, a scroll, or both");
+            }
+        }
+    }
 
-    /** {@code wx}/{@code wy}: the window pixel the cursor went to, GUI coordinates times {@code scale}. */
+    /** {@code wx}/{@code wy}: the window pixel the cursor is at, GUI coordinates times {@code scale}. */
     @Named("MouseMoved")
     public record Moved(double wx, double wy, @Doc("The GUI scale.") double scale) {}
 
@@ -201,7 +216,7 @@ public final class ScreenContracts {
                     ApiTypes.record(MoveParams.class),
                     ApiTypes.record(Moved.class),
                     "Move the cursor to GUI coordinates without clicking, hover effects included: park it before a "
-                            + "screenshot so no tooltip covers the screen.")
+                            + "screenshot so no tooltip covers the screen. With scroll, then turn the mouse wheel there.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.slotClick

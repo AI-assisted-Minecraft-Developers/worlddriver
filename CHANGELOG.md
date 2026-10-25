@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply was swallowed by the call's stage and nothing was written, so the caller waited out its own
   timeout; now it gets an `internal` error. This was how a jar republished under a running client
   showed: the first call failed with a class that would not load, the next ones never answered.
+- **`mc.client.input.mouseMove` turns the mouse wheel.** `scroll` and `scrollX` are wheel notches,
+  delivered through the handler GLFW's own scroll callback calls, so they scroll the screen under the
+  cursor or, with none open, step the hotbar, after the player's sensitivity options. `x` and `y` are
+  now optional: a scroll without them leaves the cursor where it is, since in the world a moved cursor
+  turns the camera. An extension of `mouseMove` rather than a new method, to keep the tool list short.
 - **A client joined to a remote server can read its own events.** `mc.observe.cursor` and
   `mc.observe.eventsSince` used to refuse with "not attached to a server" on any JVM without a server, so
   a client joined over the network could not read `player.hurt` or `route.blocked`, which it emits itself.
