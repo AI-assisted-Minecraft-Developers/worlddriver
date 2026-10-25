@@ -283,24 +283,31 @@ def handle_request(msg):
         return
 
     if method == "tools/call":
-        params = msg.get("params") or {}
-        name = params.get("name")
-        args = params.get("arguments") or {}
-        if not STATE["connected"]:
-            result = tool_error("worlddriver mod is offline — tool unavailable until it reconnects")
-        else:
-            try:
-                result = mod_post(STATE["port"], "tools/call",
-                                  {"name": name, "arguments": args}, timeout=120)
-            except (OSError, RuntimeError, ValueError) as e:
-                result = tool_error(f"call to mod failed: {e}")
-        send({"jsonrpc": "2.0", "id": mid, "result": result})
+        # A thread per call: run on the stdin loop, one slow call (a wait for something another
+        # call is about to cause, say) held every later request until its 120 s ran out.
+        threading.Thread(target=call_tool, args=(mid, msg.get("params") or {}),
+                         name=f"tool-{mid}", daemon=True).start()
         return
 
     # Unknown method: error for requests, ignore notifications.
     if mid is not None:
         send({"jsonrpc": "2.0", "id": mid,
               "error": {"code": -32601, "message": f"method not found: {method}"}})
+
+
+def call_tool(mid, params):
+    """Forward one tools/call to the mod and answer it; runs on its own thread."""
+    name = params.get("name")
+    args = params.get("arguments") or {}
+    if not STATE["connected"]:
+        result = tool_error("worlddriver mod is offline — tool unavailable until it reconnects")
+    else:
+        try:
+            result = mod_post(STATE["port"], "tools/call",
+                              {"name": name, "arguments": args}, timeout=120)
+        except Exception as e:  # anything: the caller must get an answer, not a silent drop
+            result = tool_error(f"call to mod failed: {e}")
+    send({"jsonrpc": "2.0", "id": mid, "result": result})
 
 
 def serve_stdio():

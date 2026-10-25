@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-25
 
+- **One slow MCP call no longer holds every later one in `agent_channel_bridge.py`.** The bridge
+  forwarded `tools/call` on its stdin loop, so a call that waited — a foreground `mc.wait.condition`
+  for an enemy's death, say — held the attack sent after it, and with it every other request, until
+  the wait's own timeout. A wait for something a later call causes could never succeed that way. Each
+  call now runs on its own thread. The mod's transports were already concurrent.
 - **The RPC and MCP servers answer even when building the answer fails.** A throw while encoding the
   reply was swallowed by the call's stage and nothing was written, so the caller waited out its own
   timeout; now it gets an `internal` error. This was how a jar republished under a running client
