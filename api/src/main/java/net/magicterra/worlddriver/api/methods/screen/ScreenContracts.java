@@ -158,6 +158,17 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ input.click / mouseMove
 
+    /** Where a click or typed text goes while a screen is open. */
+    @Named("InputRoute")
+    public enum InputRoute implements WireName {
+        /** Straight to the screen's own handler, which answers whether a widget took it. */
+        SCREEN,
+        /** Through vanilla's mouse or keyboard handler as a real device event, so mods that listen for input
+         *  events (JEI's overlay, for one) see it too; nothing answers whether it was taken. */
+        RAW;
+        @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
+    }
+
     @Named("ClickParams")
     public record ClickParams(
             @Doc("A node's ref from screen.tree: clicks the centre of its box as it is now.")
@@ -165,6 +176,9 @@ public final class ScreenContracts {
             @Doc("Without ref: GUI coordinates, as screen.tree gives them.") Optional<Double> x,
             Optional<Double> y,
             @Doc("0 left, 1 right, 2 middle.") @Default("0") @Range(min = 0, max = 2) int button,
+            @Doc("screen: the screen's own handler, which answers handled. raw: a real mouse event, which mods "
+                    + "listening for input events (JEI, Jade) also see; no handled.")
+            @Default("screen") InputRoute route,
             @Doc("Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: "
                     + "a screen the server opens in reply, and slots the server fills later.")
             @Default("false")
@@ -271,7 +285,12 @@ public final class ScreenContracts {
     // ------------------------------------------------------------------ input.typeText / replaceText
 
     @Named("TypeTextParams")
-    public record TypeParams(@Length(max = 4096) String text, Optional<@ContextId String> contextId) {}
+    public record TypeParams(
+            @Length(max = 4096) String text,
+            @Doc("screen: the screen's own handler. raw: real character events, which mods listening for input events "
+                    + "also see — a search box in JEI's overlay, for one.")
+            @Default("screen") InputRoute route,
+            Optional<@ContextId String> contextId) {}
 
     public static final MethodSpec<TypeParams, ClientReply> TYPE_TEXT = MethodSpec.of("mc.client.input.typeText",
                     ApiTypes.record(TypeParams.class),
@@ -341,7 +360,10 @@ public final class ScreenContracts {
         /** The key bindings, even under an open screen. */
         KEYBIND,
         /** The open screen only. */
-        SCREEN;
+        SCREEN,
+        /** Vanilla's keyboard handler as a real key event, whatever is open: it reaches the screen and the
+         *  bindings as vanilla decides, and mods listening for input events (JEI's U and R) see it too. */
+        RAW;
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
@@ -356,7 +378,7 @@ public final class ScreenContracts {
 
     @Named("KeyVia")
     public enum KeyVia implements WireName {
-        SCREEN, KEYBIND;
+        SCREEN, KEYBIND, RAW;
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
@@ -381,7 +403,9 @@ public final class ScreenContracts {
                     "Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, "
                             + "routed again from whatever the press left open. route auto sends it where vanilla "
                             + "would: the open screen, else the key bindings (E inventory, ESCAPE pause, T chat); "
-                            + "keybind reaches the bindings under an open screen; screen only the screen. For walking "
+                            + "keybind reaches the bindings under an open screen; screen only the screen; raw is a real "
+                            + "key event through vanilla's keyboard handler, which mods listening for input events see "
+                            + "too, and answers no handled. For walking "
                             + "use mc.bot.*. Refused as no_screen (route screen with none open) or no_player (no "
                             + "screen and no player to take it). An unknown key name is invalid_params.")
             .effects(MethodSpec.Effect.CLIENT_INPUT)

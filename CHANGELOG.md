@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply was swallowed by the call's stage and nothing was written, so the caller waited out its own
   timeout; now it gets an `internal` error. This was how a jar republished under a running client
   showed: the first call failed with a class that would not load, the next ones never answered.
+- **`route: "raw"` on `mc.client.input.click`, `typeText` and `key`.** The default routes hand input
+  straight to the open screen, which skips the loaders' input and screen events, so an overlay that
+  listens on those instead of being one of the screen's widgets — JEI's search box, its U and R keys —
+  never heard a click, a character or a key, while `click` still answered `handled: true`. `raw` goes
+  through vanilla's own mouse and keyboard handlers as a device event would. Nothing answers whether a
+  raw input was taken, so `Clicked.handled` is now optional and absent on that route. The defaults are
+  unchanged.
 - **`mc.client.input.mouseMove` turns the mouse wheel.** `scroll` and `scrollX` are wheel notches,
   delivered through the handler GLFW's own scroll callback calls, so they scroll the screen under the
   cursor or, with none open, step the hotbar, after the player's sensitivity options. `x` and `y` are

@@ -73,7 +73,8 @@ public final class ClientContracts {
     /** {@code handled}: a widget took the click; false means empty space. */
     @Variant("done")
     public record Clicked(
-            @Doc("A widget took it; false is empty space.") boolean handled,
+            @Doc("A widget took it; false is empty space. Absent with route raw, which nothing answers.")
+            Optional<Boolean> handled,
             @Doc("With returnTree: the screen's tree differs from just before the input.")
             Optional<Boolean> treeChanged,
             @Doc("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the "

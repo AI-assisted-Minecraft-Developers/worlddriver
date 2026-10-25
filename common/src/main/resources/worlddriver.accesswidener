@@ -25,6 +25,10 @@ accessible	field	net/minecraft/client/MouseHandler	xpos	D
 accessible	field	net/minecraft/client/MouseHandler	ypos	D
 # mouseMove's scroll calls the handler GLFW's scroll callback calls; vanilla has no public route to it.
 accessible	method	net/minecraft/client/MouseHandler	onScroll	(JDD)V
+# route raw on click and typeText: the handlers GLFW's button and char callbacks call, where the
+# loaders fire the input events overlays such as JEI's listen on.
+accessible	method	net/minecraft/client/MouseHandler	onPress	(JIII)V
+accessible	method	net/minecraft/client/KeyboardHandler	charTyped	(JII)V
 
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyDelay	I

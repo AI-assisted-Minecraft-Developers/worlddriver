@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -130,6 +131,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.clientKeybindOpensABinding", 300, WorldDriverCoreScenes::clientKeybindOpensABinding),
                 Scene.of("wd.clientClickByRef", 400, WorldDriverCoreScenes::clientClickByRef),
                 Scene.of("wd.clientScrollStepsTheHotbar", 300, WorldDriverCoreScenes::clientScrollStepsTheHotbar),
+                Scene.of("wd.clientRawInputThroughVanillaHandlers", 400, WorldDriverCoreScenes::clientRawInputThroughVanillaHandlers),
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
@@ -1580,6 +1582,62 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                                                                     .as("the selected hotbar slot after one notch toward the user from slot 3")
                                                                     .isEqualTo(4));
                                         }))));
+    }
+
+    /**
+     * {@code route: "raw"} on key, click and typeText, which go through vanilla's own keyboard and mouse
+     * handlers instead of straight to the screen. Each step is one a direct call cannot show it took:
+     * E with no screen opens the inventory, a click on the recipe-book toggle moves it, T opens chat,
+     * typed characters land in its box, and ESCAPE closes it. JEI's overlay, the reason for the route,
+     * is not in this pack; what it needs is that these events go through those handlers at all.
+     */
+    private static void clientRawInputThroughVanillaHandlers(SceneContext ctx) {
+        ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
+        ServerPlayer player = ctx.playerHere();
+        GameType was = player.gameMode.getGameModeForPlayer();
+        ctx.cleanup(() -> player.setGameMode(was));
+        player.setGameMode(GameType.SURVIVAL);
+        Predicate<Map<?, ?>> noScreen = i -> Boolean.FALSE.equals(i.get("hasScreen"));
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                SceneCalls.askUntilByName(ctx, "clientMode", "mc.client.player", Map.of(),
+                        p -> "survival".equals(p.get("gameMode")), 100, p ->
+                                askByName(ctx, "e", "mc.client.input.key", Map.of("key", "E", "route", "raw"), e -> {
+                                    ctx.expect(e.get("via")).as("where key E with route raw went").isEqualTo("raw");
+                                    SceneCalls.askUntilByName(ctx, "inventory", "mc.client.screen.tree", Map.of(),
+                                            t -> "InventoryScreen".equals(t.get("type")), 40,
+                                            tree -> rawClickTheBookButton(ctx, tree, noScreen));
+                                })));
+    }
+
+    private static void rawClickTheBookButton(SceneContext ctx, Map<?, ?> tree, Predicate<Map<?, ?>> noScreen) {
+        Map<?, ?> button = nodeOfType(tree, "ImageButton");
+        if (button == null) {
+            ctx.fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            return;
+        }
+        Object ref = button.get("ref");
+        askByName(ctx, "click", "mc.client.input.click", Map.of("ref", ref, "route", "raw", "returnTree", true), clicked -> {
+            ctx.expect(clicked.containsKey("handled")).as("handled with route raw, which nothing answers").isEqualTo(false);
+            Map<?, ?> moved = nodeWithRef(clicked.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
+            ctx.expect(moved == null ? boxX(button) : boxX(moved)).as("the toggle's x after a raw click opened the book")
+                    .isNotEqualTo(boxX(button));
+            askByName(ctx, "close2", "mc.client.screen.close", Map.of(), c ->
+                    SceneCalls.askUntilByName(ctx, "closed", "mc.client.screen.info", Map.of(), noScreen, 40, i ->
+                            askByName(ctx, "t", "mc.client.input.key", Map.of("key", "T", "route", "raw"), t ->
+                                    SceneCalls.askUntilByName(ctx, "chat", "mc.client.screen.info", Map.of(),
+                                            s -> "ChatScreen".equals(s.get("type")), 40, s ->
+                                                    rawTypeIntoChat(ctx, noScreen)))));
+        });
+    }
+
+    private static void rawTypeIntoChat(SceneContext ctx, Predicate<Map<?, ?>> noScreen) {
+        askByName(ctx, "type", "mc.client.input.typeText", Map.of("text", "hi", "route", "raw"), typed ->
+                askByName(ctx, "read", "mc.client.input.replaceText", Map.of("text", ""), read -> {
+                    ctx.expect(read.get("previous")).as("the chat box after typing hi with route raw").isEqualTo("hi");
+                    askByName(ctx, "esc", "mc.client.input.key", Map.of("key", "ESCAPE", "route", "raw"), esc ->
+                            SceneCalls.askUntilByName(ctx, "gone", "mc.client.screen.info", Map.of(), noScreen, 40, i ->
+                                    ctx.expect(i.get("hasScreen")).as("a screen after ESCAPE with route raw").isEqualTo(false)));
+                }));
     }
 
     /** {@code inventory.selectedSlot} of a {@code mc.client.player} reply, -1 when it has none. */

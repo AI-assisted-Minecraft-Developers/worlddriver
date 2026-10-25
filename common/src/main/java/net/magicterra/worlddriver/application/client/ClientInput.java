@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.Clicked;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.CloseParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Closed;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.HotbarParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.InputRoute;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.HotbarSelected;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyParams;
@@ -97,14 +98,27 @@ public final class ClientInput {
                 y = p.y().orElseThrow();
             }
             ScreenTree before = ScreenIntrospection.before(p.returnTree());
-            // Fire mouseMoved first so HoverButton/Tooltip widgets register the
-            // cursor over the target before the click lands — otherwise widgets
-            // that toggle on hover (e.g. AbstractSelectionList row highlight)
-            // miss the state transition and the click looks like it landed on a
-            // non-active widget.
-            s.mouseMoved(x, y);
-            boolean handled = s.mouseClicked(x, y, p.button());
-            s.mouseReleased(x, y, p.button());
+            Optional<Boolean> handled;
+            if (p.route() == InputRoute.RAW) {
+                // MouseHandler.onPress is what GLFW's button callback calls: it fires the loaders'
+                // input and screen events, which overlays such as JEI's listen on instead of being a
+                // widget of the screen, and then hands the click to the screen at xpos/ypos.
+                Minecraft mc = Minecraft.getInstance();
+                long window = mc.getWindow().getWindow();
+                parkCursor(mc, x, y);
+                mc.mouseHandler.onPress(window, p.button(), org.lwjgl.glfw.GLFW.GLFW_PRESS, 0);
+                mc.mouseHandler.onPress(window, p.button(), org.lwjgl.glfw.GLFW.GLFW_RELEASE, 0);
+                handled = Optional.empty();
+            } else {
+                // Fire mouseMoved first so HoverButton/Tooltip widgets register the
+                // cursor over the target before the click lands — otherwise widgets
+                // that toggle on hover (e.g. AbstractSelectionList row highlight)
+                // miss the state transition and the click looks like it landed on a
+                // non-active widget.
+                s.mouseMoved(x, y);
+                handled = Optional.of(s.mouseClicked(x, y, p.button()));
+                s.mouseReleased(x, y, p.button());
+            }
             ScreenIntrospection.After after = ScreenIntrospection.after(before);
             return new Clicked(handled, after.changed(), after.tree(), ScreenContext.current());
         });
@@ -194,16 +208,21 @@ public final class ClientInput {
         String t = p.text();
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
-            Screen s = Minecraft.getInstance().screen;
+            Minecraft mc = Minecraft.getInstance();
+            Screen s = mc.screen;
             if (s == null) return noScreen();
             int typed = 0;
             for (int i = 0; i < t.length(); ) {
                 int cp = t.codePointAt(i);
                 i += Character.charCount(cp);
+                if (p.route() == InputRoute.RAW) {
+                    // What GLFW's char callback calls: the loaders' character events first, so an
+                    // overlay's focused search box (JEI's) gets the character, then the screen.
+                    mc.keyboardHandler.charTyped(mc.getWindow().getWindow(), cp, 0);
                 // Screen.charTyped takes a 16-bit char; non-BMP codepoints are
                 // delivered as a surrogate pair, which matches GLFW's behaviour
                 // for IME-composed characters.
-                if (Character.isBmpCodePoint(cp)) {
+                } else if (Character.isBmpCodePoint(cp)) {
                     s.charTyped((char) cp, 0);
                 } else {
                     s.charTyped(Character.highSurrogate(cp), 0);
@@ -468,13 +487,22 @@ public final class ClientInput {
      * opened by worlddriver.accesswidener. Forcing {@code keybind} while a screen IS open cannot
      * use it — vanilla would hand the raw event to that screen — so it sets the mapping directly,
      * which is the same thing minus the screen's veto.
+     *
+     * <p>{@code raw} always uses {@code KeyboardHandler.keyPress}, screen or not: the loaders' input
+     * and screen key events fire there, which is the only place an overlay that is not a widget of
+     * the screen (JEI's) hears a key, and vanilla decides between the screen and the bindings.
      */
     private static Half deliver(int code, int scan, KeyRoute route, boolean down, int mods) {
         Minecraft mc = Minecraft.getInstance();
         Screen s = mc.screen;
+        if (route == KeyRoute.RAW) {
+            int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
+            mc.keyboardHandler.keyPress(mc.getWindow().getWindow(), code, scan, glfwAction, mods);
+            return new Half(KeyVia.RAW, true, null);
+        }
         boolean toScreen = switch (route) {
             case SCREEN -> true;
-            case KEYBIND -> false;
+            case KEYBIND, RAW -> false;
             case AUTO -> s != null;
         };
         if (toScreen) {

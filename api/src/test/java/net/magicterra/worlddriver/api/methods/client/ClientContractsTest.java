@@ -96,9 +96,11 @@ class ClientContractsTest {
     @Test
     void writesAnswerDoneOrRefused() {
         assertEquals("{\"outcome\":\"done\",\"handled\":true,\"contextId\":\"x-1\"}",
-                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, Optional.empty(), Optional.empty(), "x-1")));
+                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(Optional.of(true), Optional.empty(), Optional.empty(), "x-1")));
         assertEquals("{\"outcome\":\"done\",\"handled\":true,\"treeChanged\":false,\"contextId\":\"x-1\"}",
-                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, Optional.of(false), Optional.empty(), "x-1")));
+                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(Optional.of(true), Optional.of(false), Optional.empty(), "x-1")));
+        assertEquals("{\"outcome\":\"done\",\"contextId\":\"x-1\"}",
+                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(Optional.empty(), Optional.empty(), Optional.empty(), "x-1")));
         assertEquals("{\"outcome\":\"refused\",\"reason\":\"no_screen\",\"message\":\"no screen is open\"}",
                 encode(ScreenContracts.CLICK, new Refused(ClientRefusal.NO_SCREEN, "no screen is open")));
     }

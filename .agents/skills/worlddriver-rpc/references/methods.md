@@ -324,7 +324,7 @@ Click the open screen: hover, press, release, all on one frame. Name the target 
 
 ### `mc.client.input.key`
 
-Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, routed again from whatever the press left open. route auto sends it where vanilla would: the open screen, else the key bindings (E inventory, ESCAPE pause, T chat); keybind reaches the bindings under an open screen; screen only the screen. For walking use mc.bot.*. Refused as no_screen (route screen with none open) or no_player (no screen and no player to take it). An unknown key name is invalid_params.
+Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, routed again from whatever the press left open. route auto sends it where vanilla would: the open screen, else the key bindings (E inventory, ESCAPE pause, T chat); keybind reaches the bindings under an open screen; screen only the screen; raw is a real key event through vanilla's keyboard handler, which mods listening for input events see too, and answers no handled. For walking use mc.bot.*. Refused as no_screen (route screen with none open) or no_player (no screen and no player to take it). An unknown key name is invalid_params.
 
 - Params: `KeyParams`; reply: `KeyResponse`
 - Effects: client_input; may wait
@@ -3026,6 +3026,7 @@ type ChatSendResponse =
         later?: LaterChat;
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
+type InputRoute = 'screen' | 'raw';
 interface ClickParams {
     /** A node's ref from screen.tree: clicks the centre of its box as it is now. */
     ref?: number;
@@ -3034,6 +3035,8 @@ interface ClickParams {
     y?: number;
     /** 0 left, 1 right, 2 middle. */
     button?: number;
+    /** screen: the screen's own handler, which answers handled. raw: a real mouse event, which mods listening for input events (JEI, Jade) also see; no handled. */
+    route?: InputRoute;
     /** Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: a screen the server opens in reply, and slots the server fills later. */
     returnTree?: boolean;
     contextId?: string;
@@ -3086,8 +3089,8 @@ interface ScreenTree {
 }
 type ClickResponse =
     | { outcome: 'done';
-        /** A widget took it; false is empty space. */
-        handled: boolean;
+        /** A widget took it; false is empty space. Absent with route raw, which nothing answers. */
+        handled?: boolean;
         /** With returnTree: the screen's tree differs from just before the input. */
         treeChanged?: boolean;
         /** With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen. */
@@ -3097,7 +3100,7 @@ type ClickResponse =
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
 type KeyAction = 'press' | 'release' | 'click';
-type KeyRoute = 'auto' | 'keybind' | 'screen';
+type KeyRoute = 'auto' | 'keybind' | 'screen' | 'raw';
 type KeyModifier = 'shift' | 'ctrl' | 'alt' | 'super' | 'capsLock' | 'numLock';
 interface KeyParams {
     /** ENTER, ESCAPE, TAB, BACKSPACE, DELETE, SPACE, LEFT, RIGHT, UP, DOWN, HOME, END, PAGEUP, PAGEDOWN, F1-F25, A-Z, 0-9, or a modifier key (LEFT_SHIFT, ALT, …). Any case. */
@@ -3110,7 +3113,7 @@ interface KeyParams {
     returnTree?: boolean;
     contextId?: string;
 }
-type KeyVia = 'screen' | 'keybind';
+type KeyVia = 'screen' | 'keybind' | 'raw';
 type KeyResponse =
     | { outcome: 'done';
         key: string;
@@ -3271,7 +3274,12 @@ type SlotClickResponse =
         contextId: string;
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
-interface TypeTextParams { text: string; contextId?: string; }
+interface TypeTextParams {
+    text: string;
+    /** screen: the screen's own handler. raw: real character events, which mods listening for input events also see — a search box in JEI's overlay, for one. */
+    route?: InputRoute;
+    contextId?: string;
+}
 type TypeTextResponse =
     | { outcome: 'done';
         typed: number;

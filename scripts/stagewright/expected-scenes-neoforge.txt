@@ -84,6 +84,7 @@ wd.clientResetReleasesKeys
 wd.clientKeybindOpensABinding
 wd.clientClickByRef
 wd.clientScrollStepsTheHotbar
+wd.clientRawInputThroughVanillaHandlers
 wd.hurtCarriesItsSource
 wd.clientPlayerInWorld
 # CombatSense family — threat sensing. A single tick with mob AI disabled, so time-independent.
