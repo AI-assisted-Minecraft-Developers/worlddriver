@@ -20,7 +20,7 @@ import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
 
@@ -66,7 +66,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
     private static void goTo(SceneContext ctx, String tag, BlockPos p, Map<String, Object> extra, Consumer<Map<?, ?>> then) {
         Map<String, Object> params = new java.util.LinkedHashMap<>(extra);
         params.put("target", Map.of("kind", "position", "pos", pos(p)));
-        askByName(ctx, tag, "mc.bot.goto", params, then);
+        askByName(ctx, self(), tag, "mc.bot.goto", params, then);
     }
 
     /** The action an accepted reply carries; empty when the call was refused. */
@@ -80,7 +80,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
 
     /** The action as {@code mc.wait.result} reads it now. */
     private static Map<?, ?> read(String actionId) {
-        Object r = SceneJson.route(WorldDriver.registry(), "mc.wait.result", Map.of("kind", "action", "actionId", actionId));
+        Object r = SceneJson.route(self(), "mc.wait.result", Map.of("kind", "action", "actionId", actionId));
         return r instanceof Map<?, ?> m && m.get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
 
@@ -126,14 +126,14 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.record("preview.result", String.valueOf(preview));
                 ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
                         .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
-                askByName(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
+                askByName(ctx, self(), "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
                 final int[] arrived = { -1 };
                 ClientHelm.TickWatcher watch = t -> {
                     if (arrived[0] < 0 && helm.flatDistance(goal) <= 1.0) arrived[0] = t;
                 };
                 awaitEnd(ctx, actionId(walked), 400, watch, trip ->
                 // The searches of the goto just ended: its navigator is the last one self was asked to run.
-                ask(ctx, "adopt.navigator", DebugApi.of(api()).navigator(NavigatorParams.of(ClientHelm.SELF)), nav -> {
+                ask(ctx, "adopt.navigator", DebugApi.of(self()).navigator(NavigatorParams.of(ClientHelm.SELF)), nav -> {
                     long searches = nav.counter("searches");
                     Map<?, ?> adoption = result(trip).get("plan") instanceof Map<?, ?> a ? a : Map.of();
                     ctx.record("adopt.end", trip + ", " + helm.where() + ", arrived at tick " + arrived[0] + ", full searches: " + searches);
@@ -158,7 +158,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                                 java.util.Set.of(), 90f, 0f);
                         helm.sync(20, () -> {
                             ctx.record("offset.afterSync", helm.where());
-                            askByName(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId), declined -> {
+                            askByName(ctx, self(), "adopt2.reply", "mc.bot.goto", Map.of("planId", backId), declined -> {
                             ctx.check(!action(declined).isEmpty())
                                     .as("G: when it declines, the goto still starts its own search: " + declined).isTrue();
                             awaitEnd(ctx, actionId(declined), 400, t -> { }, trip2 -> {
@@ -222,7 +222,9 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos goal = ctx.rel(10, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(30, () -> {
-            String cursor = (String) ((Map<?, ?>) SceneJson.route(WorldDriver.registry(), "mc.observe.cursor", Map.of())).get("cursor");
+            // The event is the client navigator's, so it is in the client's ring; on a dedicated server each read
+            // is a loopback round trip waited for on this thread.
+            String cursor = (String) ((Map<?, ?>) SceneJson.route(self(), "mc.observe.cursor", Map.of())).get("cursor");
             Map<String, Object> box = Map.of("shape", "box",
                     "min", pos(goal.offset(-3, -1, -5)),
                     "max", pos(goal.offset(4, 3, 5)),
@@ -231,7 +233,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
             ctx.check(!action(reply).isEmpty()).as("A: the goto starts: " + reply).isTrue();
             final List<Map<?, ?>> got = new ArrayList<>();
             ctx.await(() -> {
-                Object evs = SceneJson.route(WorldDriver.registry(), "mc.observe.eventsSince",
+                Object evs = SceneJson.route(self(), "mc.observe.eventsSince",
                         Map.of("cursor", cursor, "types", List.of("route.blocked")));
                 if (evs instanceof Map<?, ?> page && page.get("events") instanceof List<?> l)
                     for (Object o : l) if (o instanceof Map<?, ?> e && !got.contains(e)) got.add(e);

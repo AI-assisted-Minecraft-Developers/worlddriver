@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -190,13 +191,15 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", integrated ? "integratedServer" : "dedicatedServer");
-        if (!integrated) {
-            ctx.skip("DrownEscapeChain's execution layer requires a real LocalPlayer in the same JVM: "
-                    + "the first line of tick() is if (mc == null) return. On a dedicated server this coverage is not weak, it is zero.");
+        // DrownEscapeChain's execution layer needs a real LocalPlayer (the first line of tick() is if (mc == null)
+        // return): this JVM's on an integrated server, the joined client's on a dedicated one.
+        if (!integrated && !ClientRegistry.remote()) {
+            ctx.skip("DrownEscapeChain runs on a real LocalPlayer, and this dedicated server names no joined client"
+                    + " whose driver it can reach (" + ClientRegistry.PORT_FILE + ")");
         }
         List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
+            ctx.skip("no real player on the server: the client has not entered the world yet, or has disconnected");
         }
         ServerPlayer body = humans.get(0);
         ServerLevel level = ctx.level();
@@ -266,7 +269,8 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.record("setup.cellInTheWay", gap.toShortString() + " = " + level.getBlockState(gap).getBlock()
                 + " (blocks the only step toward the bait column)");
 
-        Harness.pin(ctx);
+        // The client's brain reads the settings of the JVM it runs in.
+        Harness.pinSelf(ctx);
         Harness.set("autoDrownEscape", true);
         Harness.set("autoFloatWhenDrowning", true);
         Harness.set("navigatorDebug", true);
@@ -379,14 +383,14 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             // Idle, but ticked by the server: its reflexes run, no task does.
             bot.unpark();
         } else {
-            if (!integrated) {
-                // The client arms need the client's own brain in this JVM; a dedicated server has none,
-                // and the server arms cover the same reflex there.
-                ctx.skip("the client arms drive the client's own player, which a dedicated server does not have");
+            // The client arms run the client's own brain: this JVM's, or the joined client's.
+            if (!integrated && !ClientRegistry.remote()) {
+                ctx.skip("the client arms drive the client's own player, and this dedicated server names no joined"
+                        + " client whose driver it can reach (" + ClientRegistry.PORT_FILE + ")");
             }
             List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
             if (humans.isEmpty()) {
-                ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
+                ctx.skip("no real player on the server: the client has not entered the world yet, or has disconnected");
             }
             body = humans.get(0);
         }
@@ -433,7 +437,9 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.record("column.blocker", pinNeighbour ? straddled.toShortString() + "=stone (no scan ever reads this column)" : "none");
 
         // ---- config, restored by the pin ----------------------------------------------
-        Harness.pin(ctx);
+        // A client arm's brain reads the settings of the JVM it runs in, so those are pinned too.
+        if (serverBody) Harness.pin(ctx);
+        else Harness.pinSelf(ctx);
         Harness.set("autoDrownEscape", armed);
         Harness.set("autoFloatWhenDrowning", armed);
         Harness.set("navigatorDebug", true);            // the arm's per-tick row is gated on it

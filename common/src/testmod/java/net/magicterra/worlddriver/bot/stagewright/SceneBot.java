@@ -197,6 +197,9 @@ public final class SceneBot {
     /** The task verbs, for one this class has no shortcut for. */
     public static BotTaskStubApi tasks() { return BotTaskApi.of(Calls.api()); }
 
+    /** The bot verbs through the registry that serves {@code bot}: the joined client's for self ({@link Calls#api(String)}). */
+    public static BotTaskStubApi tasks(String bot) { return BotTaskApi.of(Calls.api(bot)); }
+
     /** Walk to {@code target}, plainly. */
     public Responses.ActionSnapshot<GotoContracts.Result> goTo(GotoContracts.Target target) {
         return goTo(target, Optional.empty());

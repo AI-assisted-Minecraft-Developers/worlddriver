@@ -75,11 +75,11 @@ public final class Legs {
 
     /** Stops {@code bot}'s task without waiting for the answer. */
     public static void cancel(String bot) {
-        ControlApi.of(Calls.api()).cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(bot), Optional.empty()));
+        ControlApi.of(Calls.api(bot)).cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(bot), Optional.empty()));
     }
 
     private static CompletableFuture<Responses.ImmediateResponse> askStatus(String bot) {
-        return ControlApi.of(Calls.api()).status(new ControlContracts.StatusParams(Optional.of(bot))).toCompletableFuture();
+        return ControlApi.of(Calls.api(bot)).status(new ControlContracts.StatusParams(Optional.of(bot))).toCompletableFuture();
     }
 
     /** Whether a landed status says the bot is idle; keeps it in {@code last}. A failed or pending one is not idle. */

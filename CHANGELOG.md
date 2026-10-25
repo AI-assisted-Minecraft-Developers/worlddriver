@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.debug.cells` reads a dedicated server's view of a joined player.** `side: server` with
   `bot: player:<name>` classifies the cells as this server sees that player; before, `side` was accepted
   for `self` only, which on a dedicated server names no one. `side: client` is still self's alone.
+- **The `wd.client*` scenes run on the dedicated server with a client.** They drive the joined client
+  through its own driver over RPC instead of needing it in the server's JVM, so they no longer skip
+  there. The server run names the client's port file with `-Dworlddriver.test.clientRpcPortFile`.
 
 ## 2026-10-20
 

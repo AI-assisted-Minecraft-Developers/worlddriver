@@ -17,6 +17,7 @@ import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
 
 /**
  * Driver calls from a scene body, which runs on the server thread. self's verbs run on the client
@@ -34,6 +35,9 @@ final class SceneCalls {
     private static final int REPLY_TICKS = 40;
 
     static ApiRegistry api() { return WorldDriver.registry(); }
+
+    /** The registry that drives the client's real player: this JVM's, or the joined client's over RPC. */
+    static ApiRegistry self() { return ClientRegistry.self(); }
 
     /** Continues with {@code call}'s reply; a call that fails fails the scene. */
     static <R> void ask(SceneContext ctx, String tag, CompletionStage<R> call, Consumer<R> then) {
@@ -102,7 +106,26 @@ final class SceneCalls {
      * {@code then} as {@code {error: <the exception>}}.
      */
     static void askByName(SceneContext ctx, String tag, String method, Map<String, Object> params, Consumer<Map<?, ?>> then) {
-        CompletableFuture<Object> reply = send(method, params);
+        askByName(ctx, registryFor(method), tag, method, params, then);
+    }
+
+    /**
+     * Where a by-name call goes: a client verb to the registry that drives the client ({@link #self()}), every
+     * other method to this JVM's. A client verb means nothing where there is no client, so on a dedicated server
+     * the only client it can mean is the joined one; on an integrated server both are this JVM's.
+     */
+    private static ApiRegistry registryFor(String method) {
+        return method.startsWith("mc.client.") || CLIENT_TEST_VERBS.contains(method) ? self() : api();
+    }
+
+    /** The {@code mc.test.*} verbs that act on the client: its input, and the reset that releases it. */
+    private static final java.util.Set<String> CLIENT_TEST_VERBS = java.util.Set.of(
+            "mc.test.reset", "mc.test.input.heldKeys");
+
+    /** {@link #askByName} through {@code registry}, such as {@link #self()}. */
+    static void askByName(SceneContext ctx, ApiRegistry registry, String tag, String method, Map<String, Object> params,
+                          Consumer<Map<?, ?>> then) {
+        CompletableFuture<Object> reply = send(registry, method, params);
         ctx.await(reply::isDone).within(REPLY_TICKS).then(() -> {
             Map<?, ?> r = settled(reply);
             ctx.record(tag, String.valueOf(r));
@@ -132,7 +155,11 @@ final class SceneCalls {
 
     /** Sends {@code method} by name without waiting for it. */
     static CompletableFuture<Object> send(String method, Map<String, Object> params) {
-        return api().dispatch(method, SceneJson.params(params), CallContext.standalone()).toCompletableFuture()
+        return send(registryFor(method), method, params);
+    }
+
+    private static CompletableFuture<Object> send(ApiRegistry registry, String method, Map<String, Object> params) {
+        return registry.dispatch(method, SceneJson.params(params), CallContext.standalone()).toCompletableFuture()
                 .thenApply(SceneJson::plain);
     }
 

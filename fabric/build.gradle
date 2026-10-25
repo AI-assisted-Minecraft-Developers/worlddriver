@@ -293,6 +293,8 @@ loom {
             property 'stagewright.awaitPlayer', 'true'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
+            // Where the joined client's driver says its port: the wd.client* scenes drive that player.
+            property 'worlddriver.test.clientRpcPortFile', file('run-stagewright-joining-client/worlddriver-rpc.port').absolutePath
             runDir 'run-stagewright-with-client'
             vmArg '-Xmx2g'
             source sourceSets.testmod

@@ -25,7 +25,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
@@ -51,13 +51,13 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
 
     /** Self's goto to the cell {@code p}. */
     private static void walkTo(SceneContext ctx, String tag, BlockPos p, java.util.function.Consumer<ActionResponse<GotoContracts.Result>> then) {
-        ask(ctx, tag, BotTaskApi.of(api()).goTo(GotoContracts.Params.to(Positions.position(p))), then);
+        ask(ctx, tag, BotTaskApi.of(self()).goTo(GotoContracts.Params.to(Positions.position(p))), then);
     }
 
     /** Stops the action a goto started, by its id. */
     private static void cancel(SceneContext ctx, String tag, ActionResponse<?> started) {
         if (started instanceof Accepted<?> a) {
-            ask(ctx, tag, ControlApi.of(api()).cancel(CancelParams.action(a.action().actionId())), r -> { });
+            ask(ctx, tag, ControlApi.of(self()).cancel(CancelParams.action(a.action().actionId())), r -> { });
         }
     }
 
@@ -94,7 +94,7 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                 ctx.check(dead instanceof Refused<?> r && r.reason() == RefusalReason.BOT_UNAVAILABLE && r.message().contains("dead"))
                         .as("B: after death, goto is refused as bot_unavailable, saying the player is dead: " + dead).isTrue();
                 ctx.check(!(dead instanceof Accepted)).as("C: the refused request did not start: " + dead).isTrue();
-                ask(ctx, "dead.status", ControlApi.of(api()).status(StatusParams.self()), status -> {
+                ask(ctx, "dead.status", ControlApi.of(self()).status(StatusParams.self()), status -> {
                     ctx.check(status instanceof Status s && s.status().isPresent())
                             .as("D: read-only methods are unaffected by the player's death: " + status).isTrue();
                     // The client's own Respawn button, sent from here: the packet handler runs on this thread.

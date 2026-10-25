@@ -7,6 +7,8 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.api.methods.bot.BotTaskApi;
+import net.magicterra.worlddriver.api.methods.bot.BotTaskStubApi;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
@@ -27,13 +29,14 @@ import net.minecraft.world.level.GameType;
  * with vanilla client physics and every reflex chain armed, which is the thing the headless scenes
  * cannot reach.
  *
- * <p>Everything here runs on the SERVER thread of an integrated server. self's calls hop to the client
- * thread and answer later, so a walk is started and waited out through {@link Legs}; readings come back
- * through the world (the {@link ServerPlayer} the client keeps sending movement packets for) and through
- * {@code mc.bot.status}, asked again each time the last answer has landed. Nothing here waits on the
- * client thread.
+ * <p>Everything here runs on the server thread. On an integrated server the client is this JVM; on a dedicated
+ * one it is the joined client, and self's calls go to its driver over RPC ({@link ClientRegistry}), with the
+ * settings pinned on both sides. Either way self's calls answer later, so a walk is started and waited out
+ * through {@link Legs}; readings come back through the world (the {@link ServerPlayer} the client keeps sending
+ * movement packets for) and through {@code mc.bot.status}, asked again each time the last answer has landed.
+ * Nothing here waits on the client thread.
  *
- * <p>On any other topology the scene {@linkplain SceneContext#skip skips} and says so.
+ * <p>A dedicated server that names no joined client's driver {@linkplain SceneContext#skip skips} the scene.
  */
 public final class ClientHelm {
 
@@ -49,22 +52,21 @@ public final class ClientHelm {
      * Put the real player at {@code foot} (feet in the centre of that cell), in survival with an
      * empty inventory, with the settings pinned to the test baseline for the scene's duration.
      *
-     * <p>Skips unless this JVM is a client hosting its own world with the driver's client half
-     * constructed and a person in the player list — the same three facts the ladder reads.
-     * The player is teleported back where they were when the scene resolves.
+     * <p>Skips unless there is a client to drive — this JVM hosting its own world, or a dedicated server naming its
+     * joined client's driver — and a person in the player list. The player is teleported back where they were
+     * when the scene resolves.
      */
     public static ClientHelm adopt(SceneContext ctx, BlockPos foot, float yaw) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("helm.topology", integrated ? "integratedServer" : "dedicatedServer");
-        if (!integrated) {
-            ctx.skip("This scene drives the client's real player (bot self) and runs only on the "
-                    + "integrated topology; on a dedicated server its coverage is zero, not merely weak.");
+        if (!integrated && !ClientRegistry.remote()) {
+            ctx.skip("This scene drives the client's real player (bot self): on a dedicated server that needs a "
+                    + "joined client whose driver it can reach (" + ClientRegistry.PORT_FILE + "), and this run names none.");
         }
         List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
-                    + "or has disconnected");
+            ctx.skip("The server has no real player: the client has not joined the world yet, or has disconnected");
         }
         ServerPlayer body = humans.get(0);
         // A dead player is still in the player list until it respawns, and setHealth below does not
@@ -80,7 +82,7 @@ public final class ClientHelm {
         if (server.isPaused()) {
             ctx.fail("the game is paused (the pause menu is open, or the window lost focus) — close it, or run the client with -Dworlddriver.pauseOnLostFocus=false");
         }
-        Harness.pin(ctx);
+        Harness.pinSelf(ctx);
 
         ServerLevel from = body.serverLevel();
         final double hx = body.getX(), hy = body.getY(), hz = body.getZ();
@@ -111,6 +113,9 @@ public final class ClientHelm {
     /** {@link #SELF}. */
     public String ref() { return SELF; }
 
+    /** The bot verbs, through the registry that serves self: this JVM's, or the joined client's. */
+    public static BotTaskStubApi tasks() { return BotTaskApi.of(ClientRegistry.self()); }
+
     /**
      * Start {@code order} on the real player and continue when it lets go of the task or {@code ticks} run out,
      * whichever is first. One evidence row per walk: where the player stopped, how far from {@code goal} (when
@@ -134,7 +139,7 @@ public final class ClientHelm {
      */
     public void goTo(String tag, GotoContracts.Target target, BlockPos goalFoot, int ticks, Legs.Watcher watcher,
                      Consumer<Legs.End> then) {
-        leg(tag, SceneBot.tasks().goTo(new GotoContracts.Params(SELF, Optional.of(target), false, Optional.empty(),
+        leg(tag, tasks().goTo(new GotoContracts.Params(SELF, Optional.of(target), false, Optional.empty(),
                 Optional.empty(), false, Optional.empty(), 0)), goalFoot, ticks, watcher, end -> {
             ctx.record(tag + ".slot", end.slot(ControlContracts.Slots::goTo).map(ClientHelm::slotEnding)
                     .orElse("unavailable/no status landed"));

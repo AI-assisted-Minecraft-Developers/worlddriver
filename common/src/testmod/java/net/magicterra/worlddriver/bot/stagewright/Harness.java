@@ -72,7 +72,12 @@ public final class Harness {
     /** Write settings by key, checked together. */
     public static void set(Map<String, ?> values) {
         now(api().settings(TestHarnessContracts.Write.of(values)));
+        // The navigator under test runs where self does; written there only under a pin, which puts them back.
+        if (selfPinned) Calls.waitFor(TestHarnessApi.of(ClientRegistry.self()).settings(TestHarnessContracts.Write.of(values)));
     }
+
+    /** Whether the scene running now holds a pin on the joined client's settings ({@link #pinSelf}). */
+    private static volatile boolean selfPinned;
 
     /** What the setting {@code key} holds. */
     public static Object get(String key) {
@@ -175,7 +180,25 @@ public final class Harness {
      * scene's server thread must not wait for it.
      */
     public static CompletableFuture<TestHarnessContracts.Pressed> pressLater(TestHarnessContracts.Press press) {
-        return api().press(press).toCompletableFuture();
+        return TestHarnessApi.of(ClientRegistry.self()).press(press).toCompletableFuture();
+    }
+
+    /**
+     * {@link #pin(SceneContext)} on the joined client's driver too, when self is a client in another JVM: its
+     * navigator reads the settings of the JVM it runs in. Waits for the client's answer on this thread, which on
+     * loopback is a few milliseconds; the cleanup's unpin is not waited for.
+     */
+    public static void pinSelf(SceneContext ctx) {
+        pin(ctx);
+        if (!ClientRegistry.remote()) return;
+        TestHarnessStubApi client = TestHarnessApi.of(ClientRegistry.self());
+        int id = ((TestHarnessContracts.Pinned) Calls.waitFor(client.settings(
+                new TestHarnessContracts.Pin(Baseline.TEST, false)))).pin();
+        selfPinned = true;
+        ctx.cleanup(() -> {
+            selfPinned = false;
+            client.settings(new TestHarnessContracts.Unpin(id));
+        });
     }
 
     /** The press that starts from nothing changed, for {@code bot}. */

@@ -15,6 +15,12 @@ checked against the current tree. Read the code before acting on one.
 
 ## Engine and mod code
 
+### Hand-built scenes no longer run on the real player in the suite
+
+`FixtureRunner.bodyForTopology` picks `self` only on an integrated server, and there is no
+integrated-server gate any more, so every `human.*` scene runs on a headless bot. Run them on the
+joined client's player (`self`, which `ClientHelm` now reaches over RPC) as well.
+
 ### GUI driving still goes by pixel coordinates
 
 `mc.client.screen.tree` → `mc.client.input.click {x,y}` → `screen.info` is three round trips per

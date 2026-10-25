@@ -24,6 +24,7 @@ import com.google.gson.JsonParser;
 
 import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.worlddriver.bot.stagewright.Calls;
+import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
@@ -1411,8 +1412,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * something the next scene could trip over.
      */
     private static void clientResetClearsEntry(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.test.reset is client-only — only an integrated server has its handler here");
+        // Client verbs by name go to the client (SceneCalls.registryFor): the joined one on a dedicated server.
         ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
         // Start from a known no-screen state, then dirty both: a chat line and the inventory keybind.
@@ -1470,9 +1470,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * report can never be seen stuck.
      */
     private static void clientResetReleasesKeys(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.test.input.heldKeys is client-only — only an integrated server has its"
-                    + " handler here");
         // Not mc.test.reset — see clientResetClearsEntry. The key this scene holds down is released
         // by pressing it again through the same input verb that pressed it.
         ctx.cleanup(() -> SceneCalls.send("mc.client.input.key", Map.of("key", "W", "action", "release")));
@@ -1532,8 +1529,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * the run whose owner is the test.
      */
     private static void clientKeybindOpensABinding(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.client.input.keybind is client-only — only an integrated server has a client here");
         ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
         // Survival, said out loud. WHICH screen the inventory binding opens is a function of the
@@ -1602,8 +1597,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * reopened, which builds a new button, and the old ref must be refused rather than land on it.
      */
     private static void clientClickByRef(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.client.input.click is client-only — only an integrated server has a client here");
         ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
         // Survival for the same reason as wd.clientKeybindOpensABinding: the mode picks the screen.
         ServerPlayer player = ctx.playerHere();
@@ -1717,10 +1710,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * than passing quietly on a topology where it proved nothing.
      */
     private static void hurtCarriesItsSource(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("player.hurt is emitted client-side, so a dedicated server's observe ring never"
-                    + " carries it — the packet-boundary half still needs a client push subscription");
-        ApiRegistry api = WorldDriver.registry();
+        // player.hurt is emitted client-side, so it is read from the client's ring: on a dedicated server the
+        // joined client's, over its RPC port, which is the packet boundary this event exists to cross.
+        ApiRegistry api = ClientRegistry.self();
         String name = ctx.player().getGameProfile().getName();
 
         // Healed on both sides: before, so two points cannot kill a player an earlier scene left
@@ -1779,9 +1771,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * in-world to any caller that does not look.
      */
     private static void clientPlayerInWorld(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        ask(ctx, "clientPlayer", ClientApi.of(WorldDriver.registry()).player(new NoParams()), cp -> {
+        // On a dedicated server the client is the joined player's own JVM, asked over its RPC port.
+        ask(ctx, "clientPlayer", ClientApi.of(ClientRegistry.self()).player(new NoParams()), cp -> {
             ctx.expect(cp.present()).as("mc.client.player reports a LocalPlayer in a world")
                     .isEqualTo(true);
             ctx.expect(cp.pos().isPresent()).as("mc.client.player's pos is there, not a hole in a well-shaped payload")

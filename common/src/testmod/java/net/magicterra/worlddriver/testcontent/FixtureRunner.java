@@ -375,7 +375,7 @@ public final class FixtureRunner {
                 // packets land: the reading this runner judged by until it waited for them.
                 LivingEntity seen = helm.entity();
                 String endedAt = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", seen.getX(), seen.getY(), seen.getZ());
-                helm.caughtUp(() -> read(DebugApi.of(Calls.api()).navigator(BotDebugContracts.NavigatorParams.of(helm.ref())),
+                helm.caughtUp(() -> read(DebugApi.of(Calls.api(helm.ref())).navigator(BotDebugContracts.NavigatorParams.of(helm.ref())),
                         nav -> judgeLeg(i, leg, verb, goal, end, endedAt, nav)));
             });
         }
@@ -459,7 +459,7 @@ public final class FixtureRunner {
                     RouteContracts.Route r = RouteContracts.ROUTE.decode(SceneJson.params(route));
                     if (r.fly()) throw new SceneFailure("task " + i + ": route.mode fly is the elytra verb here");
                     r = Routes.of(r).via(legVia.toArray(BlockPos[]::new)).build();
-                    yield SceneBot.tasks().goTo(new GotoContracts.Params(ref,
+                    yield SceneBot.tasks(ref).goTo(new GotoContracts.Params(ref,
                             Optional.of(target(FixtureIO.at(origin, leg.goal()), leg.goalKind())), false, Optional.of(r),
                             Optional.empty(), false, Optional.empty(), 0));
                 }
@@ -467,12 +467,12 @@ public final class FixtureRunner {
                     List<String> ids = p.getStringList("block");
                     if (ids.isEmpty()) ids = p.getStringList("blocks");
                     if (ids.isEmpty()) throw new SceneFailure("task " + i + ": mine needs params.block");
-                    yield SceneBot.tasks().mine(new GatherContracts.MineParams(ref, ids, Optional.empty(),
+                    yield SceneBot.tasks(ref).mine(new GatherContracts.MineParams(ref, ids, Optional.empty(),
                             Math.max(1, p.getInt("count", 1)), p.getIntClamped("radius", 16, 1, 64), 0));
                 }
                 case "escape" -> {
                     if (!(p.get("targetY") instanceof Number n)) throw new SceneFailure("task " + i + ": escape needs params.targetY (origin-relative)");
-                    yield SceneBot.tasks().escape(new BuildContracts.EscapeParams(ref, Optional.of(origin.getY() + n.intValue()), 0));
+                    yield SceneBot.tasks(ref).escape(new BuildContracts.EscapeParams(ref, Optional.of(origin.getY() + n.intValue()), 0));
                 }
                 case "elytra" -> {
                     // The file's params are the verb's own, with pos origin-relative.
@@ -485,7 +485,7 @@ public final class FixtureRunner {
                     for (String k : List.of("yaw", "pitch", "reactive", "fireworks", "fireworkEveryTicks", "ticks", "stopXZDist")) {
                         if (p.get(k) != null) m.put(k, p.get(k));
                     }
-                    yield SceneBot.tasks().elytraFly(MoveContracts.ELYTRA_PARAMS.decode(SceneJson.params(m)));
+                    yield SceneBot.tasks(ref).elytraFly(MoveContracts.ELYTRA_PARAMS.decode(SceneJson.params(m)));
                 }
                 default -> throw new SceneFailure("task " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
             };

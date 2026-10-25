@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 import net.magicterra.stagewright.scene.Scene;
@@ -21,6 +21,7 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.stagewright.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.Targets;
@@ -381,7 +382,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             ctx.record("slot.targetSlot", targetSlot + " (derived from the client reading before the action, "
                     + "so it is guaranteed to differ from it; with a hard-coded constant, this criterion would "
                     + "pass with zero contribution whenever the client already happened to be on that slot)");
-            ask(ctx, "slot.action", ScreenApi.of(api()).setHotbarSlot(
+            ask(ctx, "slot.action", ScreenApi.of(self()).setHotbarSlot(
                             new ScreenContracts.HotbarParams(targetSlot, Optional.empty())),
                     selected -> parkThenAim(ctx, real, clientSlotBefore, targetSlot));
         });
@@ -599,7 +600,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * the scene. The reply comes from the client thread, which the scene's server thread may not wait for.
      */
     private static void readClient(SceneContext ctx, String tag, Consumer<ClientReading> then) {
-        ask(ctx, tag, ClientApi.of(api()).player(new NoParams()).thenApply(ClientReading::of), then);
+        ask(ctx, tag, ClientApi.of(self()).player(new NoParams()).thenApply(ClientReading::of), then);
     }
 
     /** Turns the client's own player to face {@code cell}'s centre, on the client thread. */
@@ -616,19 +617,20 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * answers an integrated server with its singleplayer owner only, which a bot can never be.
      */
     private static ServerPlayer clientsPlayer(SceneContext ctx) {
+        // Both copies are needed: the server's is here, the LocalPlayer is read through mc.client.player — this
+        // JVM's on an integrated server, the joined client's over its RPC port on a dedicated one.
         MinecraftServer server = ctx.server();
-        if (server == null || server.isDedicatedServer()) {
-            ctx.skip("This scene is meaningful only on an integrated server: it needs both a server-side "
-                    + "player entity and a real LocalPlayer in the same JVM");
+        if (server == null || (server.isDedicatedServer() && !ClientRegistry.remote())) {
+            ctx.skip("This scene needs a server-side player entity and a real LocalPlayer it can read: an integrated"
+                    + " server, or a dedicated one that names its joined client's driver (" + ClientRegistry.PORT_FILE + ")");
         }
         List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
-                    + "or has disconnected");
+            ctx.skip("The server has no real player: the client has not joined the world yet, or has disconnected");
         }
         ServerPlayer real = humans.get(0);
         ctx.record("body", real.getGameProfile().getName() + " (" + real.getClass().getSimpleName()
-                + ", the singleplayer owner)");
+                + (server.isDedicatedServer() ? ", the joined client's player)" : ", the singleplayer owner)"));
         return real;
     }
 

@@ -34,7 +34,7 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BedPart;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
@@ -71,7 +71,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 if (inFlight != null && !inFlight.isCompletedExceptionally() && inFlight.join() instanceof Status s) {
                     s.status().ifPresent(b -> last = b);
                 }
-                inFlight = ControlApi.of(api()).status(StatusParams.self()).toCompletableFuture();
+                inFlight = ControlApi.of(self()).status(StatusParams.self()).toCompletableFuture();
             }
             return last;
         }
@@ -181,7 +181,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         // Time packets reach the client once a second; wait for the night to be the client's too.
         // A user task that holds still for the whole window: a follow of something that is not here clears the
         // keys and idles until cancelled.
-        helm.sync(40, () -> ask(ctx, "standStill", SceneBot.tasks().follow(new MoveContracts.FollowParams(ClientHelm.SELF,
+        helm.sync(40, () -> ask(ctx, "standStill", ClientHelm.tasks().follow(new MoveContracts.FollowParams(ClientHelm.SELF,
                 new MoveContracts.QuarryType("minecraft:ender_dragon"), 3, 0, 0, Optional.empty(), 0)), started -> {
             Calls.started("the standing-still follow", started);
             final int window = 300;
@@ -233,7 +233,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "stone slab at y=" + GROUND + ", bed at " + foot.toShortString() + " (facing east), start " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        helm.sync(20, () -> ask(ctx, "sleep", SceneBot.tasks().sleep(new MoveContracts.SleepParams(ClientHelm.SELF,
+        helm.sync(20, () -> ask(ctx, "sleep", ClientHelm.tasks().sleep(new MoveContracts.SleepParams(ClientHelm.SELF,
                 Optional.empty(), 16, 0)), started -> {
             Calls.started("the sleep", started);
             final int[] waited = { 0 };
@@ -249,7 +249,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
                         gap, walking[0]));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
-                var control = ControlApi.of(api());
+                var control = ControlApi.of(self());
                 ask(ctx, "cancel", control.cancel(CancelParams.process(ProcessName.SLEEP)), stopped -> helm.sync(5, () ->
                         ask(ctx, "afterCancel.status", control.status(StatusParams.self()), reply -> {
                     Optional<BotStatus> status = reply instanceof Status s ? s.status() : Optional.empty();

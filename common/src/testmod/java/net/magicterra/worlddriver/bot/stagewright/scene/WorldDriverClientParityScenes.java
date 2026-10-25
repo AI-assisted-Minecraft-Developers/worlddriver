@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +25,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -170,8 +172,9 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         ctx.record("test setup", palette.size() + " terrain types, grid of " + COLUMNS + " columns, foot cell y=" + (GROUND + 1) + ", spacing " + SPACING + "; bot starts at " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, 0f);
-        // The same hand on both players: the client's LocalPlayer and its ServerPlayer share one
-        // inventory on an integrated server, so a break price that differs is a rule that differs.
+        // The same hand on both players: the server's copy is written here and the client's follows it (by
+        // sharing it on an integrated server, by the inventory sync on a dedicated one), so a break price that
+        // differs is a rule that differs.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
         Harness.set("allowBreak", true);
         Harness.set("allowPlace", true);
@@ -179,10 +182,13 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         // Let the client receive the palette before either view is asked.
         helm.sync(40, () -> {
             // The server side answers inline on this thread; the client's hops and answers a tick or more later.
+            // On a dedicated server self is the joined client, so the server's half names its player instead.
+            String serverSide = ClientRegistry.remote()
+                    ? "player:" + helm.player().getGameProfile().getName() : ClientHelm.SELF;
             CellsReading server = Calls.now(DebugApi.of(api()).cells(
-                    new CellsParams(Optional.of(ClientHelm.SELF), Optional.of(Side.SERVER), cells, Optional.empty())));
+                    new CellsParams(Optional.of(serverSide), Optional.of(Side.SERVER), cells, Optional.empty())));
             // Not SceneCalls.ask: its record line would carry every cell of the reply.
-            CompletableFuture<CellsReading> client = DebugApi.of(api()).cells(
+            CompletableFuture<CellsReading> client = DebugApi.of(self()).cells(
                     new CellsParams(Optional.of(ClientHelm.SELF), Optional.empty(), cells, Optional.empty())).toCompletableFuture();
             ctx.await(client::isDone).within(40).then(() -> compare(ctx, palette, Calls.now(client), server));
         });

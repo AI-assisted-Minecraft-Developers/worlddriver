@@ -23,7 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
@@ -74,14 +74,19 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         Harness.set("autoBackfill", true);
         Harness.set("autoBackfillBlock", "minecraft:cobblestone");
+        // The closest approach over the whole walk, not the position when the end is noticed: the walk's
+        // end reaches the scene a few ticks late from the joined client, and by then autoBackfill has
+        // already walked the player back toward its first hole.
+        double[] closest = { Double.MAX_VALUE };
+        ClientHelm.TickWatcher watch = t -> closest[0] = Math.min(closest[0], helm.flatDistance(goal));
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
-            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, null, end -> {
-                double flat = helm.flatDistance(goal);
-                helm.sync(IDLE_TICKS, () -> ask(ctx, "afterIdle.status", ControlApi.of(api()).status(StatusParams.self()), reply -> {
+            helm.goTo("leg", Targets.block(goal), goal, LEG_TICKS, watch, end -> {
+                double flat = closest[0];
+                helm.sync(IDLE_TICKS, () -> ask(ctx, "afterIdle.status", ControlApi.of(self()).status(StatusParams.self()), reply -> {
                     Slot builder = reply instanceof Status s && s.status().isPresent() ? s.status().get().slots().builder() : null;
                     ctx.record("afterIdle", helm.where() + "; builder=" + builder);
-                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: at the end of the goto the bot reached the far side of the room: horizontal distance %.2f", flat)).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: during the goto the bot reached the far side of the room: closest horizontal distance %.2f", flat)).isTrue();
                     ctx.check(ctx.level().getBlockState(mouthFoot).is(Blocks.COBBLESTONE)
                             && ctx.level().getBlockState(mouthHead).is(Blocks.COBBLESTONE))
                             .as("B: both cells of the tunnel mouth the bot dug are filled back in: feet " + ctx.level().getBlockState(mouthFoot).getBlock()
@@ -195,7 +200,7 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         void poll() {
             if (inFlight != null && !inFlight.isDone()) return;
             if (inFlight != null && !inFlight.isCompletedExceptionally()) take(inFlight.join());
-            inFlight = DebugApi.of(api()).navigator(NavigatorParams.of(ClientHelm.SELF)).toCompletableFuture();
+            inFlight = DebugApi.of(self()).navigator(NavigatorParams.of(ClientHelm.SELF)).toCompletableFuture();
         }
 
         private void take(NavigatorReading r) {

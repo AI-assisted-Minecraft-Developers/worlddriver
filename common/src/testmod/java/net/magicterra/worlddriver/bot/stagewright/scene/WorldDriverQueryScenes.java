@@ -47,10 +47,9 @@ public final class WorldDriverQueryScenes implements SceneProvider {
      * fallback to refuse the scan rather than answer "nothing here".
      */
     private static void clientBlocksNameUnloadedChunks(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
         if (WorldDriver.registry() == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
-        var client = ClientApi.of(SceneCalls.api());
+        // The client's own ClientLevel: this JVM's on an integrated server, the joined client's on a dedicated one.
+        var client = ClientApi.of(SceneCalls.self());
 
         // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
         SceneCalls.ask(ctx, "nearScan", client.blocks(BlocksParams.aroundPlayer(1)), near ->

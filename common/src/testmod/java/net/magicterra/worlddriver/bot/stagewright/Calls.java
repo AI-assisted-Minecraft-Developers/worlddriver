@@ -25,6 +25,11 @@ public final class Calls {
         return registry;
     }
 
+    /** The registry that serves {@code bot}: self's is the client's ({@link ClientRegistry#self}), every other bot's is this JVM's. */
+    public static ApiRegistry api(String bot) {
+        return ClientHelm.SELF.equals(bot) ? ClientRegistry.self() : api();
+    }
+
     /** The answer of a call that answers within itself; its failure, rethrown as the scene's. */
     public static <R> R now(CompletionStage<R> stage) {
         CompletableFuture<R> f = stage.toCompletableFuture();
@@ -33,6 +38,18 @@ public final class Calls {
             return ApiRegistry.await(f, 0);
         } catch (ApiException e) {
             throw new SceneFailure("the call failed: " + e.error());
+        }
+    }
+
+    /**
+     * The answer of a call to the joined client, waited for on this thread: a few milliseconds on loopback. Only
+     * for staging, such as pinning the client's settings; a scene waits for a walk with {@code SceneCalls.ask}.
+     */
+    public static <R> R waitFor(CompletionStage<R> stage) {
+        try {
+            return ApiRegistry.await(stage, 5_000);
+        } catch (ApiException e) {
+            throw new SceneFailure("the client's driver did not answer: " + e.error());
         }
     }
 
