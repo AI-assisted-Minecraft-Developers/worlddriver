@@ -17,7 +17,7 @@ links to; read that page before arguing with the rule.
   consumed only as published Maven artifacts, a CI build from the Nexus pinned by
   `stagewright_version` in `gradle.properties`; neither shipped jar contains a
   StageWright class. `CONTRIBUTING.md` ("First build") covers building against a local one.
-- **Three test layers**: JVM tests (`./gradlew :common:test`), scenes run by the six
+- **Three test layers**: JVM tests (`./gradlew :common:test`), scenes run by the four
   StageWright gate tasks, and out-of-process suites. Prefer the JVM layer wherever the subject
   allows it. See `docs/dev/testing.md`.
 - **`net.magicterra.worlddriver.test` is script API, not test machinery.** `ScriptTest` ships
@@ -67,15 +67,11 @@ Do not compile under a live run or a gate run: development runs load classes laz
 ```bash
 ./gradlew build                                   # both loaders + JVM tests
 
-# The six gate tasks (lowercase f in Neoforge). Always run these, never the bare run task
+# The two gate tasks (lowercase f in Neoforge). Always run these, never the bare run task
 # under them; redirect the output, never pipe it through tail.
-./gradlew stagewrightDedicatedServerFabric          > run.log 2>&1
-./gradlew stagewrightDedicatedServerNeoforge
-./gradlew stagewrightIntegratedServerFabric
-./gradlew stagewrightIntegratedServerNeoforge
-./gradlew stagewrightDedicatedServerWithClientFabric
+./gradlew stagewrightDedicatedServerWithClientFabric   > run.log 2>&1
 ./gradlew stagewrightDedicatedServerWithClientNeoforge
-./gradlew stagewrightCoverage                       # after all six: every scene ran somewhere
+./gradlew stagewrightCoverage                       # after both: every scene ran somewhere
 
 ./gradlew :fabric:runClient                         # interactive client
 uv run scripts/react_smoke.py                       # smoke driving over the client RPC; start a client first

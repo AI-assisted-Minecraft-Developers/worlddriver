@@ -118,8 +118,8 @@ it; if you must add one, make the degradation loud and say so in the entry.
 
 ## No client type handed to a wider parameter from a class a dedicated server loads
 
-The check is running both `stagewrightDedicatedServerFabric` and
-`stagewrightDedicatedServerNeoforge`: the two loaders use different mechanisms — Fabric's class
+The check is running both `stagewrightDedicatedServerWithClientFabric` and
+`stagewrightDedicatedServerWithClientNeoforge`: the two loaders use different mechanisms — Fabric's class
 loader checks the environment type, NeoForge's runtime cleaner checks the dist — so one loader
 passing proves nothing about the other. The failure is at class-load time, so the scene dies at
 zero ticks with a message naming the class that failed to load and never the call site that

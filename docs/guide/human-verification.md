@@ -14,17 +14,16 @@ reasoning behind the design is in
 ## Start a game you can build in
 
 ```bash
-./gradlew stagewrightDedicatedServerFabricHold    # a headless server, held open; join it with your own client
-./gradlew stagewrightIntegratedServerFabricHold   # your client hosting the world; the bot drives your own player
+./gradlew stagewrightDedicatedServerWithClientFabricHold   # a headless server and a joining client, held open
 ```
 
 A `Hold` task runs the same topology as the check of the same name but does not stop when
 the scenes finish, so you can join and work in the world it left standing.
 
-On the dedicated hold the bot is a headless player you watch from beside it, selected as
-`server`. On the integrated hold the bot drives the player you are, selected as `self`;
-watch in first person or from the third-person camera. Asking for the other bot on either
-topology is an error, and the message says why.
+The bot is either a headless player you watch from beside it, selected as `server` (the
+default), or the player you are in the joining client's window, selected as `self`: the server
+then sends the tasks to that client's own driver, and you watch in first person or from the
+third-person camera.
 
 ## Markers
 
@@ -239,8 +238,8 @@ Three things belong in one commit, or the run fails on whichever is missing:
 The name must start with `human.`. Run `python scripts/check_scene_arena.py` to confirm the
 file's `chunkRadius` covers its box.
 
-The suite places the terrain at the harness origin, picks the bot from the topology —
-headless on a dedicated server, the real player on an integrated one — runs the tasks, and
+The suite places the terrain at the harness origin, puts a headless bot on it (or the NPC the
+file names), runs the tasks, and
 judges the markers and the `expect` bounds. Your latest human verdict, when the run
 directory has one, is written into the results line for the record; it never changes the
 outcome. For the topologies themselves, and how to run and read the automated suite, see
@@ -258,7 +257,7 @@ results for the morning:
 
 ```bash
 uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py \
-  --port "$(cat fabric/run-dogfood/worlddriver-rpc.port)" \
+  --port "$(cat fabric/run-stagewright-with-client/worlddriver-rpc.port)" \
   worlddriver.scene.run '{"name":"human.flatStep","pos":{"x":100000,"y":200,"z":100000},"awaitMs":45000}'
 ```
 
@@ -276,7 +275,7 @@ them by name through the `bot` parameter. Spawn one, find it, send it somewhere,
 ```
 
 ```bash
-RPC="uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
+RPC="uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-stagewright-with-client/worlddriver-rpc.port)"
 $RPC mc.bot.status '{}'                                      # bots: [{id:"player:alex", kind, entityId, pos, busy}]
 $RPC mc.bot.goto '{"bot":"player:alex","target":{"kind":"position","pos":{"x":100010,"y":200,"z":100000}},"awaitMs":30000}'
 $RPC mc.bot.status '{"bot":"player:alex"}'                   # status: its busy flag and slots

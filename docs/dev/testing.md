@@ -22,33 +22,28 @@ relative `src/main/java` resolve; do not add a `workingDir` to the task.
 
 ## The gate tasks
 
-`build.gradle` declares six topologies in its `stagewright { topologies { … } }` block,
+`build.gradle` declares two topologies in its `stagewright { topologies { … } }` block,
 and the StageWright Gradle plugin registers one task per declaration. Take the names from
 that block, not from prose — it is the only place they are defined:
 
 ```bash
-./gradlew stagewrightDedicatedServerFabric
-./gradlew stagewrightDedicatedServerNeoforge
-./gradlew stagewrightIntegratedServerFabric
-./gradlew stagewrightIntegratedServerNeoforge
 ./gradlew stagewrightDedicatedServerWithClientFabric
 ./gradlew stagewrightDedicatedServerWithClientNeoforge
 ```
 
-Three shapes on two loaders. Each shape exercises something the others cannot:
+One shape on two loaders: two game JVMs from one command, a dedicated server and a client that
+joins it over the network. It starts a client, so it needs a display: a desktop, or
+`xvfb-run ./gradlew …` on a headless host. The client half writes its own results file, named by
+`companionResultsFile` in the topology declaration, and the gate judges that file too — without
+it, a client that never joined would still read as a pass.
 
-- **Dedicated server.** One headless server JVM, no client at all. The fastest of the
-  three and the one to run first. Scenes needing a client player skip here, and a skip is
-  recorded as a pass.
-- **Integrated server.** One client JVM that opens its own single-player world, so the
-  server logic runs inside a client process. This is where client-side physics, the real
-  render thread and the client's own player are in play.
-- **Dedicated server with client.** Two game JVMs from one command: a dedicated server and
-  a client that joins it over the network. This is the shape a user actually runs, and it
-  is the only one that puts a process boundary between the driver and the player it drives. The client
-  half writes its own results file, named by `companionResultsFile` in the topology
-  declaration, and the gate judges that file too — without it, a client that never joined
-  would still read as a pass.
+The scenes run on the server. The ones about the client's own player — client physics, its
+input, its reflexes, its events (`wd.client*` and a few others) — drive that client through its
+own driver over RPC: the server run names the client's `worlddriver-rpc.port` with
+`-Dworlddriver.test.clientRpcPortFile`, and the testmod's `ClientRegistry` sends `self`'s calls
+there. Two topologies used to sit beside this one and were removed: a dedicated server alone,
+because every scene it ran also ran here, and an integrated server, once its client scenes could
+reach a joined client instead.
 
 Each task exits zero when every required scene passed. A non-zero exit carries a label:
 a failing required scene, a framework canary that landed on the wrong outcome, or a run in
@@ -59,15 +54,13 @@ something to invoke directly) and a `…Hold` task, described further down.
 
 ### Always go through the gate task
 
-Each topology has its own run directory, declared beside it in `build.gradle`:
-`run-dogfood` for the dedicated server, `run-stagewright-integrated` for the integrated
-server, and `run-stagewright-with-client` plus `run-stagewright-joining-client` for the
-two halves of the third shape. Those names are what the build uses; the results file, the
+Each topology has its own run directories, declared beside it in `build.gradle`:
+`run-stagewright-with-client` and `run-stagewright-joining-client` for its two halves. Those names are what the build uses; the results file, the
 endpoint descriptor and the game logs are all inside them.
 
 The gate depends on its provision task, which deletes the run directory's world before the
-game opens it. Invoking the underlying run task directly — `:fabric:runDogfoodServer` and
-its siblings — skips that step and reuses whatever the previous run left behind.
+game opens it. Invoking the underlying run task directly — `:fabric:runStagewrightDedicatedServerWithClient`
+and its siblings — skips that step and reuses whatever the previous run left behind.
 
 The resulting failures look exactly like real bot defects and are not. Blocks a previous
 run bridged are still standing, so a scene asserting that a gap must require a placement
@@ -80,7 +73,7 @@ which reads as flakiness. It is residue.
 Pipe a run to a file, not to `tail` or `head`:
 
 ```bash
-./gradlew stagewrightDedicatedServerNeoforge > run.log 2>&1
+./gradlew stagewrightDedicatedServerWithClientNeoforge > run.log 2>&1
 ```
 
 The verdict is at the end, so tailing looks sufficient — right up until a run dies before
@@ -108,8 +101,8 @@ verdict rather than re-reading the failure rows.
   reads what the topologies left behind and asks whether every registered scene executed
   in at least one of them. No single topology's verdict can answer that: a scene needing a
   player skips on a dedicated server, a skip records as a pass, and a suite whose player
-  scenes skip everywhere is green over subjects it has never once run. The task needs all
-  six topologies to have been run first, and deliberately does not depend on them — a
+  scenes skip everywhere is green over subjects it has never once run. The task needs both
+  loaders' runs to have finished first, and deliberately does not depend on them — a
   negative topology aborts the build, and that is exactly when the cross-run report has
   the most to say.
 
@@ -215,7 +208,7 @@ These require permission level 2. Only one run holds the suite at a time: a seco
 result list and reseeding its arena.
 
 `-PagentRunValidation=true` passes `-Dworlddriver.runValidation=true` to the runs that carry
-the testmod (`:neoforge:runDogfoodServer`, `:fabric:runLabClient`); the suite then runs once the
+the testmod outside the scene topologies (`:fabric:runLabClient`); the suite then runs once the
 server has started and the JVM exits non-zero if any check failed. `runClient` and `runServer`
 do not carry the testmod and ignore the flag.
 
@@ -235,13 +228,13 @@ attached to it. A hold has no results file and never appears in a gate's depende
 Two terminals. In the first:
 
 ```bash
-./gradlew stagewrightDedicatedServerFabricHold
+./gradlew stagewrightDedicatedServerWithClientFabricHold
 ```
 
 In the second, pointing `TESTKIT_ENDPOINT` at the descriptor that hold wrote:
 
 ```bash
-TESTKIT_ENDPOINT=$PWD/fabric/run-dogfood/stagewright/stagewright-endpoint.json \
+TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-with-client/stagewright/stagewright-endpoint.json \
   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
 ```
 
@@ -249,9 +242,9 @@ Which hold is running decides which half of the suite executes. The tests are ga
 `TESTKIT_ENDPOINT` being set, and each half additionally checks which face it is attached
 to, skipping with a reason when it is the wrong one. **With `TESTKIT_ENDPOINT` unset, both
 halves skip** — so a green `:stagewright-junit:test` run without that variable is not
-coverage of anything. The client half attaches to an integrated-server hold
-(`stagewrightIntegratedServerFabricHold`), whose descriptor is in that topology's own run
-directory.
+coverage of anything. The client half attaches to the same hold's companion, which publishes a
+descriptor of its own beside its results file, at
+`fabric/run-stagewright-joining-client/stagewright/stagewright-endpoint.json`; the hold prints the path.
 
 ## The source budget
 

@@ -21,6 +21,20 @@ checked against the current tree. Read the code before acting on one.
 integrated-server gate any more, so every `human.*` scene runs on a headless bot. Run them on the
 joined client's player (`self`, which `ClientHelm` now reaches over RPC) as well.
 
+### `wd.serverEarnsAnEnderPearl` is required and depends on loot rolls
+
+It reddened two of four NeoForge with-client gates on 2026-10-25 with "the kills yield ender
+pearls (0)" after only two of six kills; the reruns were green. Make the pearl deterministic (enough
+kills, or a looting weapon) or stop requiring a random drop.
+
+### The MCP server's HTTP dispatcher outlives the server
+
+A finished dedicated server's JVM does not end by itself. One of the threads holding it is
+`HTTP-Dispatcher`, started in `McpServer.<init>`; StageWright's agent has to end the JVM thirty
+seconds later. Stop the HTTP server when the driver detaches, or run its executor on daemon threads.
+(The two pools of two dozen workers beside it are architectury's tiny-remapper in the dev
+environment, not the driver's.)
+
 ### GUI driving still goes by pixel coordinates
 
 `mc.client.screen.tree` → `mc.client.input.click {x,y}` → `screen.info` is three round trips per

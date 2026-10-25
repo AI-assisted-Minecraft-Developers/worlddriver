@@ -48,14 +48,11 @@ scene costs a full game boot and can only observe what the game exposes. Several
 tests are properties of the source rather than of a run — they read the compiled bytecode and
 fail with a file and a line instead of a scene verdict.
 
-**Scenes** live in `common/src/testmod` and run under the StageWright tasks. There are six,
-one per combination of process topology and loader:
+**Scenes** live in `common/src/testmod` and run under the StageWright tasks. There are two, one
+per loader, each a dedicated server with a real client joined to it; the scenes about the client's
+own player drive that client through its driver's RPC:
 
 ```bash
-./gradlew stagewrightDedicatedServerFabric
-./gradlew stagewrightDedicatedServerNeoforge
-./gradlew stagewrightIntegratedServerFabric
-./gradlew stagewrightIntegratedServerNeoforge
 ./gradlew stagewrightDedicatedServerWithClientFabric
 ./gradlew stagewrightDedicatedServerWithClientNeoforge
 ```
@@ -71,7 +68,7 @@ Redirect the output to a file rather than piping it through `tail`. The verdict 
 end, which makes tailing look sufficient right up until a run dies before producing one and
 the error was in the part you discarded.
 
-`./gradlew stagewrightCoverage` reconciles all six runs against each other and needs them all
+`./gradlew stagewrightCoverage` reconciles the two runs against each other and needs them all
 to have been run first. It exists because a scene that skips on every topology records a pass
 over a subject nothing ever tested.
 
@@ -140,8 +137,6 @@ Nothing should ever be written to the repository root.
 | What produced it | Where it lands |
 |---|---|
 | `runClient` / `runServer` | `<loader>/run/` |
-| The dedicated-server scene task | `<loader>/run-dogfood/` |
-| The integrated-server scene task | `<loader>/run-stagewright-integrated/` |
 | The dedicated-server-with-client scene task | `<loader>/run-stagewright-with-client/`, and `<loader>/run-stagewright-joining-client/` for its client half |
 | The instrument-contract server | `<loader>/run-contract/` |
 | The playthrough ladder | `fabric/run-journey`, `run-journey-integrated`, `run-journey-with-client`, `run-journey-joining-client` |

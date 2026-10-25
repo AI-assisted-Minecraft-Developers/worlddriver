@@ -99,21 +99,21 @@ WorldDriver's shipped jars contain no StageWright class; only its test sources a
 use it.
 
 For every pull request and every push to `master`, CI builds the project, runs the unit tests and
-runs the scene suite on a NeoForge dedicated server, and a push to `master` that passes is published
+runs the scene suite on a NeoForge dedicated server with a client joined to it, and a push to `master` that passes is published
 to the same Nexus as `0.1.0-build.<build number>+1.21.1`. A `master` run still waiting for an
 earlier one when a newer push arrives is cancelled, and its push is not published under a number of
 its own.
 
-One command runs the scene suite against a headless dedicated server:
+One command runs the scene suite against a dedicated server with a real client joined to it
+(the client needs a display; on a headless host run it under `xvfb-run`):
 
 ```bash
-./gradlew stagewrightDedicatedServerNeoforge
+./gradlew stagewrightDedicatedServerWithClientNeoforge
 ```
 
 The task provisions a clean run directory, launches the game, runs the scenes and the
-JavaScript validation suite, and exits zero only if every required scene passed. There are six
-such tasks, one per combination of process topology and loader, described in
-[`docs/dev/testing.md`](docs/dev/testing.md).
+JavaScript validation suite, and exits zero only if every required scene passed. There are two
+such tasks, one per loader, described in [`docs/dev/testing.md`](docs/dev/testing.md).
 
 ### 2. Run a client and connect an MCP client
 
@@ -246,13 +246,12 @@ The architecture in full, including the seams and the threading rules, is in
 The mod is usable and under active development; the version number is pre-1.0 and the method
 surface still moves.
 
-The scene suite covers three process topologies on both loaders: a headless dedicated server,
-a client hosting its own integrated server, and a dedicated server with a real client joined
-to it over a socket. The third of those is the shape a production install has, and it is the
-only one in which an assertion can be made about the process boundary, which is why its
-client half writes its own results file that the task also judges. A separate reconciliation
-task compares all six runs against each other, because a scene that skips everywhere records
-a pass over a subject nothing tested.
+The scene suite runs on both loaders in one process topology: a dedicated server with a real
+client joined to it over a socket. That is the shape a production install has, and it is the only
+one in which an assertion can be made about the process boundary, which is why its client half
+writes its own results file that the task also judges. A separate reconciliation task compares
+the two runs against each other, because a scene that skips everywhere records a pass over a
+subject nothing tested.
 
 The number of scenes is in the per-loader manifests under `scripts/stagewright/`, which are
 also what a run is judged against — a scene that registers without being listed there fails

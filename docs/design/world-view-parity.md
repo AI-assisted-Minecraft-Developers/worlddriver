@@ -92,7 +92,7 @@ alternative was three implementations drifting apart silently for months.
 ## How it is verified
 
 ```
-./gradlew stagewrightIntegratedServerFabric -Pstagewright.scenes='wd.clientWorldViewParity'
+./gradlew stagewrightDedicatedServerWithClientFabric -Pstagewright.scenes='wd.clientWorldViewParity'
 ```
 
 The scene lays out fifty terrain types on a real client and asks eleven questions about the

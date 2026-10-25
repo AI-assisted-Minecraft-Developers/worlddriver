@@ -50,7 +50,7 @@ which under Xwayland usually means `XAUTHORITY` is missing or stale. It does not
 display itself; that is the environment's job.
 
 So: in a desktop session, nothing is required. On a headless Linux host, give the build a
-display, for example `xvfb-run -a ./gradlew stagewrightIntegratedServerFabric`, or run it in
+display, for example `xvfb-run -a ./gradlew stagewrightDedicatedServerWithClientFabric`, or run it in
 a CI image that starts `Xvfb` and exports `DISPLAY`.
 
 ## The window that never appears
@@ -110,6 +110,6 @@ scene topologies copy the Loom JVM arguments onto the processes they start, so o
 invocation covers interactive runs and gates alike:
 
 ```bash
-./gradlew stagewrightIntegratedServerFabric \
+./gradlew stagewrightDedicatedServerWithClientFabric \
     -PworlddriverVmArgs=-Dorg.lwjgl.glfw.libname=/path/to/libglfw.so
 ```
