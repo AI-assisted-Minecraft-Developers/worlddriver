@@ -3,7 +3,6 @@ build/
 */build/
 run/
 run-stagewright/
-run-dogfood/
 run-contract/
 # Every ladder topology, not just the headless one. The three play the SAME world in three
 # directories on purpose (a playthrough leaves its trees felled and its shafts dug, so two of them

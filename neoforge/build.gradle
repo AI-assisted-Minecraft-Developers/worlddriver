@@ -45,7 +45,7 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
-    // DEV-ONLY: put the StageWright mod on the dev run classpath so dogfoodServer /
+    // DEV-ONLY: put the StageWright mod on the dev run classpath so
     // every headless run boots with both mods, the way a production install would
     // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
     // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
@@ -98,7 +98,7 @@ dependencies {
 // set now carries NO test java of its own — it survives purely as the delivery vehicle
 // that folds :common's testmod OUTPUT+resources into worlddriver's dev-run module (via
 // the loom mods{} block below) and onto the `source sourceSets.testmod` runs
-// (runDogfoodServer and the self-driving topologies) so ServiceLoader discovers the wd.*
+// (the self-driving topologies) so ServiceLoader discovers the wd.*
 // scenes. Deleting it would silently drop all scene delivery — keep it.
 // Classpath wiring mirrors the stagewright gradle-plugin's
 // testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
@@ -236,23 +236,6 @@ loom {
             runDir 'run-contract'
             vmArg '-Xmx1g'
         }
-        // P1c: dogfood run — boots a professional dedicated server with BOTH
-        // worlddriver and the stagewright harness loaded, autorun gate ON. This
-        // is what proves the harness generalizes beyond its
-        // own bare-bones stagewright-neoforge module to a real, feature-loaded mod.
-        dogfoodServer {
-            server()
-            property 'stagewright.autorun', 'true'
-            runDir 'run-dogfood'
-            vmArg '-Xmx2g'
-            // P4a Task 2: the wd.* dogfood scenes + SceneProvider service moved to
-            // :common's testmod, routed onto neoforge testmod's runtimeClasspath
-            // above. `source sourceSets.testmod` puts that output+resources on this
-            // run so ServiceLoader discovers WorldDriverScenes and the 9 scenes run.
-            // (contractServer is deliberately NOT given this — the instrument
-            // contract is scene-independent by design.)
-            source sourceSets.testmod
-        }
         // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
         // run-t2), deleted along with the scripts that drove them from outside. The only
         // process remains: the last two went on 2026-08-05.
@@ -260,30 +243,6 @@ loom {
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.
 
-        // Integrated-server topology: a client that opens its own singleplayer world, whose
-        // integrated server arms the same harness the dedicated one does.
-        stagewrightIntegratedServer {
-            client()
-            property 'stagewright.autorun', 'true'
-            // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
-            // 2026-08-20 rule on which player type a scene runs on puts JoinedBody on the DEDICATED
-            // server only, so `SceneBot` refuses to create one here and every scene that needs a
-            // headless server-side player is a
-            // recorded skip until its family is converted to the client helm.
-            // The old doctrine "a topology must vary the RUN, never the subject" still applies to
-            // every OTHER pair of topologies, and it is why the skips have to be reconciled against
-            // the dedicated gate rather than counted as coverage.
-            // The suite arms at SERVER_STARTED, which here is before the local player is placed;
-            // without this a run could start with no client at all and still look like a client run.
-            property 'stagewright.awaitPlayer', 'true'
-            property 'stagewright.client.world', 'StageWrightClient'
-            property 'stagewright.client.exitWhenDone', 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-stagewright-integrated'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
         // Production topology, server half: holds the suite back until a real client has joined.
         stagewrightDedicatedServerWithClient {
             server()
@@ -314,9 +273,8 @@ loom {
     }
     runConfigs.configureEach {
         // contractServer manages its own -Xmx (1g), so exclude it from the guard's default
-        // heap/runValidation pinning below. The three self-driving topologies do the same.
+        // heap/runValidation pinning below. The two halves of the self-driving topology do the same.
         if (it.name == 'contractServer'
-                || it.name.startsWith('stagewrightIntegrated')
                 || it.name.startsWith('stagewrightDedicated')
                 || it.name.startsWith('stagewrightJoining')) return
         // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
@@ -327,24 +285,3 @@ loom {
     }
 }
 
-// The scene scripts a modpack author would ship, delivered into the dogfood run the way a pack
-// delivers them: config/stagewright/scenes. The gate task provisions these itself, so this is for
-// the BARE `:neoforge:runDogfoodServer`; that path drives runDogfoodServer directly rather than one
-// of the stagewright plugin's topology tasks, so the plugin's own sceneScripts provisioning never
-// runs for this gate — without this the run reads whatever copy was last left in the directory. It
-// read a two-day-old one, and the expect-file gate caught it only because a scene had been added.
-// Sync rather than Copy: a scene deleted upstream must not keep running here.
-def installDogfoodScenes = tasks.register('installDogfoodScenes', Sync) {
-    from rootProject.file('stagewright-scenes')
-    include '*.js'
-    into layout.projectDirectory.dir('run-dogfood/config/stagewright/scenes')
-}
-// Capability descriptors travel with the scenes and split by extension, exactly as the plugin's
-// provisioning does — a pack author authors both in one folder, and the bare run must not be the
-// one path where half of that folder goes missing.
-def installDogfoodCapabilities = tasks.register('installDogfoodCapabilities', Sync) {
-    from rootProject.file('stagewright-scenes')
-    include '*.json'
-    into layout.projectDirectory.dir('run-dogfood/config/stagewright/capabilities')
-}
-tasks.named('runDogfoodServer') { dependsOn installDogfoodScenes, installDogfoodCapabilities }

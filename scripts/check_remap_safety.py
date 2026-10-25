@@ -5,7 +5,7 @@ owner class that Loom REMAPPED in the shipped jar.
 WHY THIS EXISTS
 ---------------
 The build declares `mappings loom.officialMojangMappings()` (build.gradle:63), so
-dev runs -- `runClient`, `runDogfoodServer`, every testkit gate -- see Mojang names.
+dev runs -- `runClient`, every testkit gate -- see Mojang names.
 `remapJar` (fabric/build.gradle:111) then rewrites the SHIPPED fabric jar into the
 `intermediary` namespace. tiny-remapper rewrites type/field/method *references*; it
 does NOT rewrite string CONSTANTS. So this, which works in every gate we run:

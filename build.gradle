@@ -5,7 +5,7 @@ plugins {
     id 'com.github.node-gradle.node' version '7.1.0' apply false
     // First dogfood consumer of the stagewright gradle plugin (resolved from mavenLocal, wired in
     // settings.gradle). Registers one `stagewright<Topology>` task per entry in the block below,
-    // each provisioning a clean run directory, running the loader subproject's own dogfood run task
+    // each provisioning a clean run directory, running the loader subproject's own run task
     // and judging its results. Applying it is negligible at configuration time (lazy registration).
     id 'net.magicterra.stagewright'
 }
@@ -29,48 +29,14 @@ ext.architectury_version_range =
 // pair that actually needs running together (both loaders, proving byte-identity) could not be
 // asked for in one invocation.
 //
-//   ./gradlew stagewrightDedicatedServerFabric stagewrightDedicatedServerNeoforge     # both loaders, one command
+//   ./gradlew stagewrightDedicatedServerWithClientFabric stagewrightDedicatedServerWithClientNeoforge   # both loaders, one command
 //
 // `client` marks a topology whose run task is a client, so it is refused up front without a display.
 // The display is the environment's: a desktop, or `xvfb-run ./gradlew …` on a headless host.
 stagewright {
     topologies {
-        dedicatedServerFabric {
-            runTask = ':fabric:runDogfoodServer'
-            gameDirectory = file('fabric/run-dogfood')
-            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            // 322 scenes, several of which walk a bot across real terrain. The default 20 exists to
-            // cut short a game that never armed; this suite legitimately runs longer than that.
-            timeoutMinutes = 45
-            // Scenes written in JavaScript, installed into this run's config/stagewright/scenes.
-            // One directory for all six topologies: a JS scene is not loader-specific and not
-            // topology-specific, and the manifests are shared per loader, so a file that ran on
-            // only some of them would reconcile as MISSING-EXPECTED on the rest.
-            sceneScripts = file('stagewright-scenes')
-        }
-        dedicatedServerNeoforge {
-            runTask = ':neoforge:runDogfoodServer'
-            gameDirectory = file('neoforge/run-dogfood')
-            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
-            timeoutMinutes = 45
-            sceneScripts = file('stagewright-scenes')
-        }
-        integratedServerFabric {
-            runTask = ':fabric:runStagewrightIntegratedServer'
-            gameDirectory = file('fabric/run-stagewright-integrated')
-            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            client = true
-            timeoutMinutes = 45
-            sceneScripts = file('stagewright-scenes')
-        }
-        integratedServerNeoforge {
-            runTask = ':neoforge:runStagewrightIntegratedServer'
-            gameDirectory = file('neoforge/run-stagewright-integrated')
-            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
-            client = true
-            timeoutMinutes = 45
-            sceneScripts = file('stagewright-scenes')
-        }
+        // The wd.client* scenes drive the joined client over its own RPC (ClientRegistry in the testmod), so
+        // no scene needs the client in the server's JVM and there is no integrated-server topology.
         dedicatedServerWithClientFabric {
             runTask = ':fabric:runStagewrightDedicatedServerWithClient'
             companionRunTask = ':fabric:runStagewrightJoiningClient'
@@ -79,7 +45,9 @@ stagewright {
             // verdict would be written and never read.
             companionResultsFile = file('fabric/run-stagewright-joining-client/stagewright/stagewright-client-results.jsonl')
             expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
+            // Several hundred scenes, many walking a bot across real terrain; the default 20 is for a game that never armed.
             timeoutMinutes = 45
+            // JavaScript scenes, one directory for every topology: the manifests are shared per loader.
             sceneScripts = file('stagewright-scenes')
         }
         dedicatedServerWithClientNeoforge {

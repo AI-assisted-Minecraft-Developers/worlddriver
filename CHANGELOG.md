@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The `wd.client*` scenes run on the dedicated server with a client.** They drive the joined client
   through its own driver over RPC instead of needing it in the server's JVM, so they no longer skip
   there. The server run names the client's port file with `-Dworlddriver.test.clientRpcPortFile`.
+- **One scene topology per loader.** The dedicated-server topology ran nothing the with-client one
+  does not, and the integrated-server one existed for client scenes that now reach a joined client, so
+  both are gone; `stagewrightDedicatedServerWithClient<Loader>` is the gate, and CI runs it under
+  `xvfb-run`.
 
 ## 2026-10-20
 
