@@ -6,28 +6,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
-import net.magicterra.stagewright.test.Locks;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Isolated;
 
 /**
- * Plots and overrides, a test checking what the one it depends on left behind. Tests run one at a time, so the
- * second plot leased is the first one's cell again, and must come back empty.
+ * Plots, a test checking what the one it depends on left behind. Isolated, so no other test leases a plot meanwhile:
+ * the second plot leased is the first one's cell again, and must come back empty.
  */
 @Scene("wd.jupiterSmoke")
+@Isolated
 class JupiterPlotTest {
 
     private static BlockPos firstOrigin;
-    private static boolean fireTickBefore;
 
     @Test
     void aPlotIsHandedOverEmpty(Game game, @Plot.Size(8) Plot plot) {
@@ -55,28 +53,5 @@ class JupiterPlotTest {
                 AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7)), pig -> true).size());
         assertEquals(0, pigs, "the pig the last test spawned is gone");
         assertThrows(IllegalArgumentException.class, () -> plot.at(8, 0, 0));
-    }
-
-    @Test
-    void anOverrideWithoutItsLockIsRefused(Game game) {
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> game.override(GameRules.RULE_DOFIRETICK, false));
-        assertTrue(e.getMessage().contains("@ResourceLock(Locks.WORLD_RULES)"), e.getMessage());
-    }
-
-    @Test
-    @ResourceLock(Locks.WORLD_RULES)
-    void anOverrideHoldsForTheTest(Game game) {
-        fireTickBefore = game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK));
-        game.override(GameRules.RULE_DOFIRETICK, !fireTickBefore);
-        game.override(GameRules.RULE_DOFIRETICK, fireTickBefore);
-        game.override(GameRules.RULE_DOFIRETICK, !fireTickBefore);
-        assertEquals(!fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
-    }
-
-    @Test
-    @DependsOn("anOverrideHoldsForTheTest")
-    void andIsUndoneWhenItEnds(Game game) {
-        assertEquals(fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
     }
 }

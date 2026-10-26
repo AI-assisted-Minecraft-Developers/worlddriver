@@ -5,12 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Locks;
 import net.magicterra.stagewright.test.Scene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceAccessMode;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /** The world wd.jupiterDeclaredWorld.yaml declares, setting by setting, as the game ended up with it. */
 @Scene("wd.jupiterDeclaredWorld")
@@ -33,6 +36,9 @@ class JupiterSceneWorldTest {
     }
 
     @Test
+    @ResourceLock(value = Locks.WORLD_CLOCK, mode = ResourceAccessMode.READ)
+    @ResourceLock(value = Locks.WEATHER, mode = ResourceAccessMode.READ)
+    @ResourceLock(value = Locks.WORLD_RULES, mode = ResourceAccessMode.READ)
     void theLoadedWorldHasTheDeclaredRulesClockAndWeather(Game game) {
         boolean keepInventory = game.onServer(s -> s.getGameRules().getBoolean(GameRules.RULE_KEEPINVENTORY));
         assertTrue(keepInventory);
