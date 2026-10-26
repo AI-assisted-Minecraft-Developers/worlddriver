@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ticks`, `meanMs`, `medianMs`, `maxMs`): the work time of each server tick that ran meanwhile, timed as
   vanilla times them, without the wait for the next tick. It is absent when the game has no server of its
   own or no tick ran, so a performance test can sample a stretch of play without a new method.
+- **WorldDriver ships its own relocated Rhino.** The KubeJS Rhino fork used to be nested as a mod, so the
+  loader deduplicated it against KubeJS's copy and every mod shared one engine; in a modpack KubeJS's
+  changes reached WorldDriver's scripts: replaced methods, a ten-million-instruction limit and Java
+  arrays without `length`. The copy is now shaded under `net.magicterra.worlddriver.shadow.rhino`, with
+  none of Rhino's mod metadata. Other mods can no longer borrow WorldDriver's Rhino in production, which
+  is how StageWright's JS scenes found one: they need KubeJS or their own copy until StageWright's script
+  engine is rewritten.
 
 ## 2026-10-25
 

@@ -20,6 +20,20 @@ configurations {
         canBeResolved = true
         canBeConsumed = false
     }
+    rhinoSource {
+        canBeResolved = true
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+// Rhino's classes only: its neoforge.mods.toml must not reach the shipped jar.
+tasks.register('rhinoClasses', Jar) {
+    archiveBaseName = 'rhino-classes'
+    destinationDirectory = layout.buildDirectory.dir('rhino')
+    from({ configurations.rhinoSource.collect { zipTree(it) } }) {
+        include 'dev/latvian/mods/rhino/**'
+    }
 }
 
 repositories {
@@ -70,14 +84,11 @@ dependencies {
     // forward server lifecycle into it. StageWright is its own mod — its neoforge module ships a
     // neoforge.mods.toml — and it depends on worlddriver, not the other way round.
 
-    // Rhino (KubeJS fork) — a full mod jar (ships neoforge.mods.toml), so we
-    // nest it via Jar-in-Jar instead of shadowing its classes. FML discovers the
-    // nested mod and DEDUPES it by version against any other mod that JiJ's the
-    // same Rhino (e.g. KubeJS) — only the highest version loads, shared by all.
-    // `implementation` keeps it on the dev/compile classpath (its mod metadata
-    // makes FML pick it up in dev runs); `include` performs the JiJ nesting.
+    // Rhino (KubeJS fork): `implementation` is the dev/compile classpath; the shipped jar gets a
+    // relocated, metadata-free copy of its classes (rhinoClasses, below), never a nested mod.
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
-    include "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    rhinoSource "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    shadowBundle files(rhinoClasses)
 
     // netty-codec-http for WebSocket support. NeoForge's ModuleClassLoader will
     // NOT see plain `implementation` jars at runtime (FML only discovers mods,
@@ -154,10 +165,9 @@ processResources {
 }
 
 shadowJar {
-    // Shadow now only merges the multi-platform `common` sources into the
-    // platform jar (Architectury requires this). External libraries (Rhino,
-    // netty-codec-http) are nested via Jar-in-Jar (`include`) instead
-    // of being shadowed/relocated, so there is no `relocate` rule here anymore.
+    // Rhino is shaded and relocated so KubeJS's copy cannot change WorldDriver's scripts;
+    // netty-codec-http stays nested (Jar-in-Jar).
+    relocate 'dev.latvian.mods.rhino', 'net.magicterra.worlddriver.shadow.rhino'
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
 }

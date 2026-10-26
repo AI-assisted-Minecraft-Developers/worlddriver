@@ -260,8 +260,8 @@ configure(modProjects) {
                     }
                 }
 
-                // Everything a consumer needs at runtime (Rhino, netty-codec-http)
-                // is nested in the jar via Jar-in-Jar, so the published
+                // Everything a consumer needs at runtime is in the jar: Rhino shaded and relocated,
+                // netty-codec-http nested via Jar-in-Jar. The published
                 // POM must not re-declare them: a consumer that naively resolves
                 // the POM would put a SECOND copy of Rhino on its classpath
                 // (docs/archive/feedback/2026-06-04-first-external-consumer-winefoxs.md).
