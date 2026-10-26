@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Requires;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.action.ActionBlockingApi;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.FillParams;
@@ -38,6 +39,13 @@ class JupiterSmokeTest {
         game.ticks(5);
         int after = game.onServer(server -> server.getTickCount());
         assertTrue(after - before >= 5, "ticks advanced by " + (after - before));
+    }
+
+    @Test
+    @Requires(value = Requires.Capability.CLIENT, mods = "worlddriver")
+    void theClientThisSceneJoinsIsOnTheServer(Game game) {
+        int players = game.onServer(server -> server.getPlayerCount());
+        assertTrue(players >= 1, players + " players on the server");
     }
 
     @Test
