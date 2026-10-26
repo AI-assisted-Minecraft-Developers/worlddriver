@@ -562,7 +562,7 @@ Probe the driver: call it first to confirm it answers. version is pinned; loaded
 
 ### `mc.system.waitTicks`
 
-Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To wait for something to happen rather than for time to pass, use mc.wait.*.
+Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To wait for something to happen rather than for time to pass, use mc.wait.*. The reply times the server ticks that ran meanwhile (work per tick, not counting the wait for the next).
 
 - Params: `WaitTicksParams`; reply: `Waited`
 - Effects: wait; may wait
@@ -3984,7 +3984,20 @@ interface WaitTicksParams {
     /** Nominal ticks of 50 ms each. */
     ticks: number;
 }
-interface Waited { waited: number; interrupted?: true; }
+interface TickTimes {
+    /** Server ticks that ran; fewer than asked means the server fell behind. */
+    ticks: number;
+    /** Mean milliseconds of work per tick. */
+    meanMs: number;
+    medianMs: number;
+    maxMs: number;
+}
+interface Waited {
+    waited: number;
+    interrupted?: true;
+    /** Present when this JVM runs the server and at least one tick ran during the wait. */
+    server?: TickTimes;
+}
 interface WaitConditionParams {
     /** A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused. */
     invoke: string;

@@ -50,6 +50,15 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
+    void aWaitEncodesWithAndWithoutTheServerTickTimes() {
+        assertEquals("{\"waited\":4}", String.valueOf(SystemContracts.WAITED.encode(
+                new SystemContracts.Waited(4, Optional.empty(), Optional.empty()))));
+        assertEquals("{\"waited\":4,\"interrupted\":true,\"server\":{\"ticks\":3,\"meanMs\":1.5,\"medianMs\":1.0,"
+                + "\"maxMs\":2.5}}", String.valueOf(SystemContracts.WAITED.encode(new SystemContracts.Waited(4,
+                Optional.of(true), Optional.of(new SystemContracts.TickTimes(3, 1.5, 1.0, 2.5))))));
+    }
+
+    @Test
     void aQueryTakesOnlyItsOwnVariantsFilters() {
         assertEquals("/filter/is_hostile",
                 issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"is_hostile\":true}}").path());

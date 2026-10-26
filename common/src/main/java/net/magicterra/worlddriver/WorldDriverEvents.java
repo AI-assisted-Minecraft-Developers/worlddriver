@@ -11,6 +11,7 @@ import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
+import net.magicterra.worlddriver.application.TickClock;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotCommand;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -56,10 +57,14 @@ public final class WorldDriverEvents {
                 BotConfig.applyGameTestBaseline();
             }
         });
-        LifecycleEvent.SERVER_STOPPING.register(server -> WorldDriverCommon.onServerStopping());
-        // fireTick, then drive the server-side agents. StageWright ticks its own harness from its
-        // own registration — it is a mod, not a library the driver has to pump.
+        LifecycleEvent.SERVER_STOPPING.register(server -> {
+            TickClock.server().reset();
+            WorldDriverCommon.onServerStopping();
+        });
+        // Copy the tick's work time, fireTick, then drive the server-side agents. StageWright ticks its own
+        // harness from its own registration — it is a mod, not a library the driver has to pump.
         TickEvent.SERVER_POST.register(server -> {
+            TickClock.server().record(server);
             ScriptEvents.fireTick();
             BotTicker.tickAll();
         });

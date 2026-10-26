@@ -61,7 +61,18 @@ public final class SystemContracts {
 
     /** {@code interrupted}: the call was cancelled or ran out of budget first, so fewer ticks passed. */
     @Named("Waited")
-    public record Waited(@Range(min = 0, max = 200) int waited, Optional<@OnlyTrue Boolean> interrupted) {}
+    public record Waited(@Range(min = 0, max = 200) int waited, Optional<@OnlyTrue Boolean> interrupted,
+            @Doc("Present when this JVM runs the server and at least one tick ran during the wait.")
+            Optional<TickTimes> server) {}
+
+    /** The server ticks that ran while the call waited, timed as vanilla times them: the work of a tick, not the
+     *  wait for the next one. */
+    @Named("TickTimes")
+    public record TickTimes(
+            @Doc("Server ticks that ran; fewer than asked means the server fell behind.") @Range(min = 0) int ticks,
+            @Doc("Mean milliseconds of work per tick.") double meanMs,
+            double medianMs,
+            double maxMs) {}
 
     public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class);
 
@@ -70,7 +81,8 @@ public final class SystemContracts {
     public static final MethodSpec<WaitTicksParams, Waited> WAIT_TICKS = MethodSpec.of("mc.system.waitTicks",
                     WAIT_TICKS_PARAMS, WAITED,
                     "Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To "
-                            + "wait for something to happen rather than for time to pass, use mc.wait.*.")
+                            + "wait for something to happen rather than for time to pass, use mc.wait.*. The reply times "
+                            + "the server ticks that ran meanwhile (work per tick, not counting the wait for the next).")
             .effects(MethodSpec.Effect.WAIT)
             .execution(MethodSpec.ExecutionClass.WAIT)
             .mayWait();

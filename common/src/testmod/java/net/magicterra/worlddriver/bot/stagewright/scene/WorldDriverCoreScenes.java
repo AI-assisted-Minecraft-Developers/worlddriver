@@ -329,8 +329,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  client verbs added refusal and context checks to 10, 15 and 29; 279 until 66_body_routes gained
      *  its check that the old {@code body} key is an unknown field; 280 until 67_mouse_scroll (3 checks,
      *  both topologies) was added; 283 until 33_world_snapshot gained its entity and dimension checks; 285 until 68_bot_menu (2 checks,
-     *  both topologies) was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 287;
+     *  both topologies) was added; 287 until 69_tick_times (1 check, both topologies) was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 288;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
@@ -348,8 +348,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  222 until the typed client verbs' refusals stopped self-skipping in 13, 14, 15 and 29; 228 until
      *  66_body_routes gained its old-body-key check, which needs no client; 229 until 67_mouse_scroll's
      *  three request checks, which need none either; 232 until 33_world_snapshot gained its entity and dimension
-     *  checks; 234 until 68_bot_menu (2 checks, server-side) was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 236;
+     *  checks; 234 until 68_bot_menu (2 checks, server-side) was added; 236 until 69_tick_times (1 check,
+     *  server-side) was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 237;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other

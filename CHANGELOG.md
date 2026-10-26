@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the cursor stack) and clicked on the server as the client's click packet would, so a test can drive a
   bot's chest without a client. `bot` excludes `pos`, and for a click `returnTree` and `contextId`. A
   `slotClick` done reply's `contextId` is now absent when `bot` was given, since there is no screen.
+- **`mc.system.waitTicks` says how the server's ticks went while it waited.** The reply gains `server`
+  (`ticks`, `meanMs`, `medianMs`, `maxMs`): the work time of each server tick that ran meanwhile, timed as
+  vanilla times them, without the wait for the next tick. It is absent when the game has no server of its
+  own or no tick ran, so a performance test can sample a stretch of play without a new method.
 
 ## 2026-10-25
 

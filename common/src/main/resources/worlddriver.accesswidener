@@ -50,3 +50,5 @@ accessible	field	net/minecraft/world/entity/Mob	targetSelector	Lnet/minecraft/wo
 # A driven mob whose own control is a smooth swimmer's moves at that control's speed factors.
 accessible	field	net/minecraft/world/entity/ai/control/SmoothSwimmingMoveControl	inWaterSpeedModifier	F
 accessible	field	net/minecraft/world/entity/ai/control/SmoothSwimmingMoveControl	outsideWaterSpeedModifier	F
+# The server's own record of each tick's work time, copied after every tick (application/TickClock).
+accessible	field	net/minecraft/server/MinecraftServer	tickTimesNanos	[J

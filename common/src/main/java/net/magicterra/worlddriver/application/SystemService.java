@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.config.BuildStamp;
 import net.magicterra.worlddriver.api.call.ApiTimers;
@@ -19,6 +20,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.magicterra.worlddriver.api.methods.system.SystemApiBinding;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts;
+import net.magicterra.worlddriver.api.methods.system.SystemContracts.TickTimes;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.Version;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.Waited;
 
@@ -63,16 +65,20 @@ public final class SystemService implements SystemApi {
      * cancelled or whose budget runs out first answers with the ticks that did pass, marked interrupted.
      */
     private CompletionStage<Waited> waitTicks(int ticks, CallContext ctx) {
-        if (ticks == 0) return CompletableFuture.completedFuture(new Waited(0, Optional.empty()));
+        if (ticks == 0) return CompletableFuture.completedFuture(new Waited(0, Optional.empty(), Optional.empty()));
         ctx.requireBlockingAllowed("mc.system.waitTicks");
         WaitPermits.Lease lease = ctx.waits().tryAcquire();
         if (lease == null) throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
         long t0 = System.nanoTime();
         long fullMs = ticks * 50L;
+        // Only a JVM that runs the server has tick times to report.
+        TickClock clock = TickClock.server();
+        long fromTick = api.server() != null ? clock.tickCount() : -1;
         CompletableFuture<Waited> out = new CompletableFuture<>();
+        Supplier<Optional<TickTimes>> times = () -> fromTick < 0 ? Optional.empty() : clock.since(fromTick);
         Runnable cut = () -> out.complete(new Waited((int) Math.min(ticks, (System.nanoTime() - t0) / 50_000_000L),
-                Optional.of(true)));
-        ScheduledFuture<?> full = ApiTimers.schedule(() -> out.complete(new Waited(ticks, Optional.empty())), fullMs);
+                Optional.of(true), times.get()));
+        ScheduledFuture<?> full = ApiTimers.schedule(() -> out.complete(new Waited(ticks, Optional.empty(), times.get())), fullMs);
         ScheduledFuture<?> deadline = ctx.remainingMillis() < fullMs ? ApiTimers.schedule(cut, ctx.remainingMillis()) : null;
         AutoCloseable gone = ctx.requestCancelled().onCancel(cut);
         return out.whenComplete((r, t) -> {
