@@ -23,6 +23,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.application.ItemSnap;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -72,7 +73,12 @@ final class ScreenService implements ScreenApi {
 
     @Override
     public CompletionStage<ClientReply> slotClick(ScreenContracts.SlotClickParams p, CallContext ctx) {
-        return onClient(ctx, c -> () -> c.slotClick(p));
+        if (p.bot().isEmpty()) return onClient(ctx, c -> () -> c.slotClick(p));
+        MinecraftServer server = app.server();
+        if (server == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "clicking a player's menu needs a server, and none is attached");
+        }
+        return app.serverHop().submit(() -> PlayerMenus.click(server, p), ctx);
     }
 
     @Override
@@ -110,6 +116,14 @@ final class ScreenService implements ScreenApi {
 
     @Override
     public CompletionStage<ContainerView> container(ScreenContracts.ContainerParams p, CallContext ctx) {
+        if (p.bot().isPresent()) {
+            MinecraftServer server = app.server();
+            if (server == null) {
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "reading a player's menu needs a server, and none is attached");
+            }
+            String bot = p.bot().get();
+            return app.serverHop().submit(() -> PlayerMenus.read(server, bot), ctx);
+        }
         if (p.pos().isEmpty()) return ClientService.<ContainerView>onClient(ctx, c -> c::menu);
         BlockPosition at = p.pos().get();
         ServerThreadHop hop = app.serverHop();

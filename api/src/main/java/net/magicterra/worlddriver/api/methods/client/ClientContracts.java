@@ -92,7 +92,8 @@ public final class ClientContracts {
             @Doc("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the "
                     + "screen.")
             Optional<ScreenContracts.ScreenTree> tree,
-            @Doc("The screen context after this call.") @ContextId String contextId) implements ClientReply {}
+            @Doc("The screen context after this call; absent with bot, which has no screen.")
+            Optional<@ContextId String> contextId) implements ClientReply {}
 
     @Variant("done")
     public record HotbarSelected(

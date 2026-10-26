@@ -52,6 +52,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.magicterra.worlddriver.game.ui.ClientThread;
 import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.application.PlayerMenus;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
@@ -125,15 +126,7 @@ public final class ClientInput {
     }
 
     public static ClientReply slotClick(SlotClickParams p) {
-        ClickType clickType = switch (p.type()) {
-            case PICKUP -> ClickType.PICKUP;
-            case QUICK_MOVE -> ClickType.QUICK_MOVE;
-            case SWAP -> ClickType.SWAP;
-            case CLONE -> ClickType.CLONE;
-            case THROW -> ClickType.THROW;
-            case PICKUP_ALL -> ClickType.PICKUP_ALL;
-            case QUICK_CRAFT -> ClickType.QUICK_CRAFT;
-        };
+        ClickType clickType = PlayerMenus.clickType(p.type());
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
@@ -152,7 +145,8 @@ public final class ClientInput {
             // ServerboundContainerClickPacket and the menu state stays in sync.
             mc.gameMode.handleInventoryMouseClick(menu.containerId, p.slot(), p.button(), clickType, mc.player);
             ScreenIntrospection.After after = ScreenIntrospection.after(before);
-            return new SlotClicked(p.slot(), p.button(), p.type(), after.changed(), after.tree(), ScreenContext.current());
+            return new SlotClicked(p.slot(), p.button(), p.type(), after.changed(), after.tree(),
+                    Optional.of(ScreenContext.current()));
         });
     }
 

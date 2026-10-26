@@ -100,7 +100,8 @@ public final class ValidationSuite {
             "64_schema_validation.js",
             "65_schema_union.js",
             "66_body_routes.js",
-            "67_mouse_scroll.js"
+            "67_mouse_scroll.js",
+            "68_bot_menu.js"
     );
 
     private static final AtomicBoolean RUNNING = new AtomicBoolean();

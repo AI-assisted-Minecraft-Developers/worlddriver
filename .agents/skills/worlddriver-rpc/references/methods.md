@@ -366,7 +366,7 @@ Read or set a GUI slider: render distance, FOV, volume. Without fraction it read
 
 ### `mc.client.input.slotClick`
 
-Click a slot of the open container menu with an explicit click type, sent to the server as a real container click: pickup (button 0 takes or places the stack, 1 half or one), quickMove (shift-click), throw (button 0 drops one, 1 the stack), swap (with hotbar slot button), clone (creative middle-click), pickupAll (double-click), quickCraft (drag). Refused as no_container, no_player, or no_target for a slot past the menu's end.
+Click a slot of the open container menu with an explicit click type, sent to the server as a real container click: pickup (button 0 takes or places the stack, 1 half or one), quickMove (shift-click), throw (button 0 drops one, 1 the stack), swap (with hotbar slot button), clone (creative middle-click), pickupAll (double-click), quickCraft (drag). Refused as no_container, no_player, or no_target for a slot past the menu's end. With bot, a server player's open menu is clicked on the server instead.
 
 - Params: `SlotClickParams`; reply: `SlotClickResponse`
 - Effects: client_input, inventory_write
@@ -463,7 +463,7 @@ The nearest ender dragon or wither in range, with its phase and health, and the 
 
 ### `mc.observe.container`
 
-Read a container's slots. With pos, the block entity there, read on the server (source block). Without, whatever container menu is open on this client: the inventory, a crafting table, a chest the server opened (source menu), with the contextId a slotClick can be held to. Without pos and without a client it is capability_unavailable.
+Read a container's slots. With pos, the block entity there, read on the server (source block). Without, whatever container menu is open on this client: the inventory, a crafting table, a chest the server opened (source menu), with the contextId a slotClick can be held to. Without pos and without a client it is capability_unavailable. With bot, the menu open on that server player (source player).
 
 - Params: `ContainerParams` (may be omitted); reply: `ContainerView`
 - Effects: snapshot_read
@@ -3259,6 +3259,8 @@ interface SlotClickParams {
     type?: ClickKind;
     /** Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: a screen the server opens in reply, and slots the server fills later. */
     returnTree?: boolean;
+    /** A bot or a joined player on this server, as player:<name>: click its open menu on the server, as the client's click packet would. Not with returnTree or contextId. */
+    bot?: BotRef;
     contextId?: string;
 }
 type SlotClickResponse =
@@ -3270,8 +3272,8 @@ type SlotClickResponse =
         treeChanged?: boolean;
         /** With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen. */
         tree?: ScreenTree;
-        /** The screen context after this call. */
-        contextId: string;
+        /** The screen context after this call; absent with bot, which has no screen. */
+        contextId?: string;
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
 interface TypeTextParams {
@@ -3576,6 +3578,8 @@ interface BossReading {
 interface ContainerParams {
     /** A chest, barrel, hopper, furnace… Omitted: the menu open on this client. */
     pos?: BlockPosition;
+    /** A bot or a joined player on this server, as player:<name>: the menu open on it, read on the server (source player). Not with pos. */
+    bot?: BotRef;
 }
 interface ContainerSlot {
     /** Vanilla's slot index; furnace 0 input, 1 fuel, 2 output. */
@@ -3602,6 +3606,18 @@ type ContainerView =
         present: boolean;
         screen?: string;
         slots?: ContainerSlot[];
+    }
+    | { source: 'player';
+        bot: BotRef;
+        /** The open menu's type; absent for the player's own inventory, which is open when nothing else is. */
+        menuType?: string;
+        /** Vanilla's container id; 0 is the player's own inventory. */
+        containerId: number;
+        /** Changes on every slot change; a click sent with an older one is resynced by vanilla. */
+        stateId: number;
+        slots: ContainerSlot[];
+        /** The stack on the cursor; absent when empty. */
+        carried?: ContainerSlot;
     };
 interface CursorParams {}
 interface Cursor {

@@ -119,6 +119,52 @@ class ClientContractsTest {
     }
 
     @Test
+    void aServerPlayersMenuIsNamedByBotAndNeverWithPos() {
+        assertEquals(Optional.of("player:menubot"),
+                decode(ScreenContracts.CONTAINER.input(), "{\"bot\":\"player:menubot\"}").bot());
+        ApiIssue both = issue(ScreenContracts.CONTAINER.input(),
+                "{\"pos\":{\"x\":1,\"y\":2,\"z\":3},\"bot\":\"player:menubot\"}");
+        assertEquals("/bot", both.path());
+        assertEquals(ApiIssue.Code.INVALID_VALUE, both.code());
+        ApiIssue mob = issue(ScreenContracts.CONTAINER.input(), "{\"bot\":\"mob:cow\"}");
+        assertEquals("/bot", mob.path());
+        assertEquals(ApiIssue.Code.INVALID_VALUE, mob.code());
+
+        ScreenContracts.SlotClickParams click = decode(ScreenContracts.SLOT_CLICK.input(),
+                "{\"slot\":0,\"bot\":\"player:menubot\"}");
+        assertEquals(Optional.of("player:menubot"), click.bot());
+        assertEquals("/bot", issue(ScreenContracts.SLOT_CLICK.input(), "{\"slot\":0,\"bot\":\"mob:cow\"}").path());
+        assertEquals("/returnTree", issue(ScreenContracts.SLOT_CLICK.input(),
+                "{\"slot\":0,\"bot\":\"player:menubot\",\"returnTree\":true}").path());
+        assertEquals("/contextId", issue(ScreenContracts.SLOT_CLICK.input(),
+                "{\"slot\":0,\"bot\":\"player:menubot\",\"contextId\":\"x-1\"}").path());
+    }
+
+    @Test
+    void aPlayerMenuEncodesWithAndWithoutItsTypeAndCursor() {
+        ScreenContracts.SlotRow diamond = new ScreenContracts.SlotRow(0, Optional.of("minecraft:diamond"), Optional.of(5), Wear.NONE);
+        String chest = encode(ScreenContracts.CONTAINER, new ScreenContracts.PlayerMenu("player:b",
+                Optional.of("minecraft:generic_9x3"), 2, 7, List.of(diamond, ScreenContracts.SlotRow.empty(1)),
+                Optional.of(new ScreenContracts.SlotRow(0, Optional.of("minecraft:dirt"), Optional.of(1), Wear.NONE))));
+        assertEquals("{\"source\":\"player\",\"bot\":\"player:b\",\"menuType\":\"minecraft:generic_9x3\","
+                + "\"containerId\":2,\"stateId\":7,\"slots\":[{\"index\":0,\"id\":\"minecraft:diamond\",\"count\":5},"
+                + "{\"index\":1}],\"carried\":{\"index\":0,\"id\":\"minecraft:dirt\",\"count\":1}}", chest);
+        String own = encode(ScreenContracts.CONTAINER, new ScreenContracts.PlayerMenu("player:b",
+                Optional.empty(), 0, 0, List.of(), Optional.empty()));
+        assertEquals("{\"source\":\"player\",\"bot\":\"player:b\",\"containerId\":0,\"stateId\":0,\"slots\":[]}", own);
+    }
+
+    @Test
+    void aServerSideSlotClickAnswersWithoutAScreenContext() {
+        assertEquals("{\"outcome\":\"done\",\"slot\":0,\"button\":0,\"type\":\"quickMove\"}",
+                encode(ScreenContracts.SLOT_CLICK, new ClientContracts.SlotClicked(0, 0, ClickKind.QUICK_MOVE,
+                        Optional.empty(), Optional.empty(), Optional.empty())));
+        assertEquals("{\"outcome\":\"done\",\"slot\":0,\"button\":0,\"type\":\"pickup\",\"contextId\":\"x-1\"}",
+                encode(ScreenContracts.SLOT_CLICK, new ClientContracts.SlotClicked(0, 0, ClickKind.PICKUP,
+                        Optional.empty(), Optional.empty(), Optional.of("x-1"))));
+    }
+
+    @Test
     void aClientBlockScanKeepsTheShapeTheQueryFallbackReads() {
         JsonObject m = ClientContracts.BLOCK_SCAN.encode(new ClientContracts.BlockScan(
                 List.of(new ClientContracts.BlockRow(new BlockPosition(0, 64, 0), "minecraft:oak_stairs",

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mc.bot.roster` is registered under that ref, but its profile name is `agent-body-<N>`, so looking the
   name up in the player list found no one: `mc.debug.cells side: server` refused every such bot. The
   roster is asked first now, then the player list.
+- **`mc.observe.container` and `mc.client.input.slotClick` take `bot: "player:<name>"`.** With it the menu
+  open on a player of this server is read (a new `player` source: menu type, container id, state id, slots
+  and the cursor stack) and clicked on the server as the client's click packet would, so a test can drive a
+  bot's chest without a client. `bot` excludes `pos`, and for a click `returnTree` and `contextId`. A
+  `slotClick` done reply's `contextId` is now absent when `bot` was given, since there is no screen.
 
 ## 2026-10-25
 

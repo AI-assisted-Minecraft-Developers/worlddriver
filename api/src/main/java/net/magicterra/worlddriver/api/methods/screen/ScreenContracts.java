@@ -22,6 +22,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
@@ -256,7 +257,24 @@ public final class ScreenContracts {
                     + "a screen the server opens in reply, and slots the server fills later.")
             @Default("false")
             boolean returnTree,
-            Optional<@ContextId String> contextId) {}
+            @Doc("A bot or a joined player on this server, as player:<name>: click its open menu on the server, as the client's click "
+                    + "packet would. Not with returnTree or contextId.")
+            Optional<@BotRef String> bot,
+            Optional<@ContextId String> contextId) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (bot.isEmpty()) return;
+            if (!bot.get().startsWith(PLAYER_PREFIX)) {
+                at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, PLAYER_ONLY);
+            } else if (returnTree) {
+                at.field("returnTree").fail(ApiIssue.Code.INVALID_VALUE, "returnTree reads this client's screen, not a server player's menu");
+            } else if (contextId.isPresent()) {
+                at.field("contextId").fail(ApiIssue.Code.INVALID_VALUE, "a server player's menu has no screen context");
+            }
+        }
+    }
+
+    private static final String PLAYER_PREFIX = "player:";
+    private static final String PLAYER_ONLY = "bot names a player on this server as player:<name>";
 
     public static final MethodSpec<SlotClickParams, ClientReply> SLOT_CLICK = MethodSpec.of("mc.client.input.slotClick",
                     ApiTypes.record(SlotClickParams.class),
@@ -265,7 +283,8 @@ public final class ScreenContracts {
                             + "real container click: pickup (button 0 takes or places the stack, 1 half or one), "
                             + "quickMove (shift-click), throw (button 0 drops one, 1 the stack), swap (with hotbar slot "
                             + "button), clone (creative middle-click), pickupAll (double-click), quickCraft (drag). "
-                            + "Refused as no_container, no_player, or no_target for a slot past the menu's end.")
+                            + "Refused as no_container, no_player, or no_target for a slot past the menu's end. "
+                            + "With bot, a server player's open menu is clicked on the server instead.")
             .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.INVENTORY_WRITE);
 
     // ------------------------------------------------------------------ input.setHotbarSlot
@@ -447,7 +466,19 @@ public final class ScreenContracts {
     @Named("ContainerParams")
     public record ContainerParams(
             @Doc("A chest, barrel, hopper, furnace… Omitted: the menu open on this client.")
-            Optional<BlockPosition> pos) {}
+            Optional<BlockPosition> pos,
+            @Doc("A bot or a joined player on this server, as player:<name>: the menu open on it, read on the server "
+                    + "(source player). Not with pos.")
+            Optional<@BotRef String> bot) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (bot.isEmpty()) return;
+            if (pos.isPresent()) {
+                at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "give pos or bot, not both");
+            } else if (!bot.get().startsWith(PLAYER_PREFIX)) {
+                at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, PLAYER_ONLY);
+            }
+        }
+    }
 
     /** An empty slot carries its index alone. */
     @Named("ContainerSlot")
@@ -468,7 +499,7 @@ public final class ScreenContracts {
     }
 
     @Tag("source") @Named("ContainerView")
-    public sealed interface ContainerView permits BlockContainer, MenuContainer {}
+    public sealed interface ContainerView permits BlockContainer, MenuContainer, PlayerMenu {}
 
     /** {@code present}: a block entity is there; {@code slots}: when it holds items. */
     @Variant("block")
@@ -486,6 +517,17 @@ public final class ScreenContracts {
             Optional<String> screen,
             Optional<@Length(max = 4096) List<SlotRow>> slots) implements ContainerView {}
 
+    /** The menu open on a server player; {@code carried} is a slot row whose index is 0. */
+    @Variant("player")
+    public record PlayerMenu(
+            @BotRef String bot,
+            @Doc("The open menu's type; absent for the player's own inventory, which is open when nothing else is.")
+            Optional<@ResourceId String> menuType,
+            @Doc("Vanilla's container id; 0 is the player's own inventory.") @Range(min = 0) int containerId,
+            @Doc("Changes on every slot change; a click sent with an older one is resynced by vanilla.") @Range(min = 0) int stateId,
+            @Length(max = 4096) List<SlotRow> slots,
+            @Doc("The stack on the cursor; absent when empty.") Optional<SlotRow> carried) implements ContainerView {}
+
     public static final UnionType<ContainerView> CONTAINER_VIEW = ApiTypes.union(ContainerView.class);
 
     public static final MethodSpec<ContainerParams, ContainerView> CONTAINER = MethodSpec.of("mc.observe.container",
@@ -494,6 +536,7 @@ public final class ScreenContracts {
                     "Read a container's slots. With pos, the block entity there, read on the server (source block). "
                             + "Without, whatever container menu is open on this client: the inventory, a crafting "
                             + "table, a chest the server opened (source menu), with the contextId a slotClick can be "
-                            + "held to. Without pos and without a client it is capability_unavailable.")
+                            + "held to. Without pos and without a client it is capability_unavailable. "
+                            + "With bot, the menu open on that server player (source player).")
             .asPollable();
 }
