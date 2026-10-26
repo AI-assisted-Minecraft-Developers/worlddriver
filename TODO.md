@@ -27,6 +27,14 @@ It reddened two of four NeoForge with-client gates on 2026-10-25 with "the kills
 pearls (0)" after only two of six kills; the reruns were green. Make the pearl deterministic (enough
 kills, or a looting weapon) or stop requiring a random drop.
 
+### Two required scenes fail now and then on a full Fabric with-client gate
+
+On 2026-10-26 one full gate reddened on `wd.serverBlazeFightStopsWhenTheBodyFallsOut` (one search pump
+took 3392 ms after the fall; the check wants none near the watchdog) and `wd.clientRoutePreviewDoesNotInterrupt`
+(the two-cell preview had already succeeded when the scene checked it was running); both passed when rerun
+alone. Make the first measure something load cannot inflate, and give the second a preview long enough to
+still be running when it looks.
+
 ### The MCP server's HTTP dispatcher outlives the server
 
 A finished dedicated server's JVM does not end by itself. One of the threads holding it is
