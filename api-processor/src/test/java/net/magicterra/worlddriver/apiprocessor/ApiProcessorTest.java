@@ -39,6 +39,7 @@ class ApiProcessorTest {
             "net.magicterra.worlddriver.api.call.CallContext", """
                     package net.magicterra.worlddriver.api.call;
                     public final class CallContext {
+                        public static final long SERVER_CAP_MS = 600_000L;
                         public static CallContext standalone() { return new CallContext(); }
                     }
                     """,
@@ -60,6 +61,9 @@ class ApiProcessorTest {
             "net.magicterra.worlddriver.api.registry.ApiRegistry", """
                     package net.magicterra.worlddriver.api.registry;
                     public final class ApiRegistry {
+                        public static <T> T await(java.util.concurrent.CompletionStage<T> stage, long budgetMs) {
+                            return null;
+                        }
                         public <P, R> java.util.concurrent.CompletionStage<R> invoke(
                                 net.magicterra.worlddriver.api.schema.MethodSpec<P, R> spec, P p,
                                 net.magicterra.worlddriver.api.call.CallContext c) {
@@ -135,7 +139,28 @@ class ApiProcessorTest {
     }
 
     @Test
-    void theCallerTypeAddsAContextFreeOverloadOfEachMethod() throws Exception {
+    void theBlockingTypeAnswersEachStageResultWithoutAContext() throws Exception {
+        assertEquals(List.of(), compile(calls("""
+                @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
+                @Spec(value = Specs.class, spec = "OTHER") CompletionStage<Out> other(In in, CallContext ctx);
+                static Out blocked(DemoBlockingApi api, In in) { return api.run(in); }
+                """)));
+        String blocking = Files.readString(out.resolve("generated/demo/DemoBlockingApi.java"));
+        assertTrue(blocking.contains("public interface DemoBlockingApi"), blocking);
+        assertTrue(blocking.contains("static DemoBlockingApi of(ApiRegistry registry)"), blocking);
+        assertTrue(blocking.contains("Specs.Out run(Specs.In in);") || blocking.contains("Out run(In in);"), blocking);
+        assertTrue(blocking.contains("Specs.Out other(Specs.In in);") || blocking.contains("Out other(In in);"), blocking);
+        assertTrue(blocking.contains("ApiRegistry.await(stub.run(in), CallContext.SERVER_CAP_MS)"), blocking);
+    }
+
+    @Test
+    void anInterfaceNotNamedApiGetsBlockingAppended() {
+        assertEquals("DemoBlockingApi", BindingWriter.blockingName(com.palantir.javapoet.ClassName.get("demo", "DemoApi")));
+        assertEquals("DemoBlocking", BindingWriter.blockingName(com.palantir.javapoet.ClassName.get("demo", "Demo")));
+    }
+
+    @Test
+    void theCallerTypeAddsAContextFreeOverloadOfEachMethod()throws Exception {
         assertEquals(List.of(), compile(calls("""
                 @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 static CompletionStage<Out> callers(DemoStubApi api, In in) { return api.run(in); }

@@ -21,10 +21,12 @@ import com.palantir.javapoet.TypeSpec;
 import com.palantir.javapoet.WildcardTypeName;
 
 /**
- * Writes two files for a checked interface. {@code <Interface>Binding} holds {@code calls(…)}, a caller
+ * Writes three files for a checked interface. {@code <Interface>Binding} holds {@code calls(…)}, a caller
  * that sends each method through the registry, {@code methods(impl)}, an implementation's registry
  * entries, and {@code specs()}, the same specs without an implementation. The caller's type is {@code <Family>StubApi}, the interface plus a default overload of each
  * method that leaves out the {@code CallContext}; an implementation still implements the interface alone.
+ * The third, {@code <Family>BlockingApi}, answers each method's result by waiting for the stage on the
+ * calling thread.
  */
 final class BindingWriter {
     private BindingWriter() {}
@@ -39,6 +41,12 @@ final class BindingWriter {
     static String stubName(ClassName type) {
         String base = String.join("_", type.simpleNames());
         return base.endsWith("Api") ? base.substring(0, base.length() - 3) + "StubApi" : base + "Stub";
+    }
+
+    /** {@code QueryApi} → {@code QueryBlockingApi}; an interface not named {@code …Api} gets {@code Blocking} appended. */
+    static String blockingName(ClassName type) {
+        String base = String.join("_", type.simpleNames());
+        return base.endsWith("Api") ? base.substring(0, base.length() - 3) + "BlockingApi" : base + "Blocking";
     }
 
     static void write(ProcessingEnvironment env, TypeElement iface, List<ApiProcessor.Bound> bound) {
@@ -95,6 +103,44 @@ final class BindingWriter {
         list.unindent().add(");\n");
         specList.unindent().add(");\n");
 
+        ClassName blockingType = ClassName.get(type.packageName(), blockingName(type));
+        TypeSpec.Builder blocking = TypeSpec.interfaceBuilder(blockingType)
+                .addOriginatingElement(iface)
+                .addAnnotation(AnnotationSpec.builder(GENERATED)
+                        .addMember("value", "$S", ApiProcessor.class.getName()).build())
+                .addJavadoc("Generated from {@link $T}: each method called through {@code registry} and waited for on this thread.\n",
+                        type);
+        if (open) blocking.addModifiers(Modifier.PUBLIC);
+        TypeSpec.Builder waiting = TypeSpec.anonymousClassBuilder("").addSuperinterface(blockingType);
+        for (ApiProcessor.Bound b : bound) {
+            String params = b.method().getParameters().get(0).getSimpleName().toString();
+            String method = b.method().getSimpleName().toString();
+            TypeName result = TypeName.get(((DeclaredType) b.method().getReturnType()).getTypeArguments().get(0));
+            TypeName param = TypeName.get(b.method().getParameters().get(0).asType());
+            blocking.addMethod(MethodSpec.methodBuilder(method)
+                    .addJavadoc("{@link $T#$N} waited for at most {@link $T#SERVER_CAP_MS}; throws its {@code ApiException}.\n",
+                            type, method, CALL_CONTEXT)
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(result)
+                    .addParameter(param, params)
+                    .build());
+            waiting.addMethod(MethodSpec.methodBuilder(method)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(result)
+                    .addParameter(param, params)
+                    .addStatement("return $T.await(stub.$N($N), $T.SERVER_CAP_MS)", REGISTRY, method, params, CALL_CONTEXT)
+                    .build());
+        }
+        blocking.addMethod(MethodSpec.methodBuilder("of")
+                .addJavadoc("A caller that goes through {@code registry}, checked as a request is; each call blocks this thread.\n")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(blockingType)
+                .addParameter(REGISTRY, "registry")
+                .addStatement("$T stub = $T.calls(registry)", stubType, ClassName.get(type.packageName(), name))
+                .addStatement("return $L", waiting.build())
+                .build());
+
         TypeSpec.Builder binding = TypeSpec.classBuilder(name)
                 .addModifiers(Modifier.FINAL)
                 .addOriginatingElement(iface)
@@ -127,6 +173,7 @@ final class BindingWriter {
 
         writeFile(env, iface, type.packageName(), stub.build());
         writeFile(env, iface, type.packageName(), binding.build());
+        writeFile(env, iface, type.packageName(), blocking.build());
     }
 
     private static void writeFile(ProcessingEnvironment env, TypeElement iface, String pkg, TypeSpec spec) {

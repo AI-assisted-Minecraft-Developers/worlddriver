@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   none of Rhino's mod metadata. Other mods can no longer borrow WorldDriver's Rhino in production, which
   is how StageWright's JS scenes found one: they need KubeJS or their own copy until StageWright's script
   engine is rewritten.
+- **Every API family has a generated blocking caller.** Next to `XxxStubApi`, the annotation processor writes
+  `XxxBlockingApi.of(registry)`: each method takes its parameters alone and answers the stage's result,
+  waiting on the calling thread for at most `CallContext.SERVER_CAP_MS` and throwing the call's `ApiException`.
 
 ## 2026-10-25
 
