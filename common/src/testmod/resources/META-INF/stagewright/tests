@@ -1,2 +1,3 @@
 net.magicterra.worlddriver.bot.stagewright.jupiter.JupiterSmokeTest
 net.magicterra.worlddriver.bot.stagewright.jupiter.JupiterPlotTest
+# The gate's own world is not a scene's, so tests that check a scene's world run only under the test engine.

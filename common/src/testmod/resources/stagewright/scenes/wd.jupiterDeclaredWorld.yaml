@@ -1,0 +1,12 @@
+topology: dedicatedServerWithClient
+# Every world setting a scene can declare, each checked by JupiterSceneWorldTest.
+world:
+  preset: minecraft:flat
+  seed: 5471
+  structures: false
+  difficulty: hard
+  gamerules: { keepInventory: true, randomTickSpeed: 0 }
+  datapacks:
+    enable: [trade_rebalance]
+  time: { at: noon, frozen: true }
+  weather: { clear: false, frozen: true }
