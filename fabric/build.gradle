@@ -73,12 +73,6 @@ dependencies {
         modLocalRuntime("net.magicterra:mc_stagewright-fabric:${rootProject.stagewright_version}") {
             changing = true
         }
-        // StageWright nests the JUnit Platform its in-game runner uses; loom drops nested jars when it
-        // remaps a dependency, so the dev run gets them here.
-        localRuntime platform('org.junit:junit-bom:5.11.3')
-        localRuntime 'org.junit.platform:junit-platform-launcher'
-        localRuntime 'org.junit.platform:junit-platform-reporting'
-        localRuntime 'org.junit.jupiter:junit-jupiter-engine'
     }
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
