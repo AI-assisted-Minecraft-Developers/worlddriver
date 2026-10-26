@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-player entities in the box: a restore removes every one there and re-adds the kept ones with their
   own UUIDs, answering `entitiesRemoved` and `entitiesRestored`. A snapshot may hold 64³ cells; every
   other method that takes a box keeps 32768.
+- **`player:<name>` names a roster bot on the server, not only a joined player.** A bot spawned with
+  `mc.bot.roster` is registered under that ref, but its profile name is `agent-body-<N>`, so looking the
+  name up in the player list found no one: `mc.debug.cells side: server` refused every such bot. The
+  roster is asked first now, then the player list.
 
 ## 2026-10-25
 

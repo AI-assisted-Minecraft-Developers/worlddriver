@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.behavior.Readiness;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 
@@ -82,6 +83,17 @@ public final class BotRegistry {
         register(bot);
         BotTicker.register(bot);
         return bot;
+    }
+
+    /**
+     * The player {@code ref} (a {@code player:<name>}) names on {@code server}: a roster bot registered under
+     * that full ref, whose profile name is not {@code <name>}, else a joined player of that profile name. Null
+     * when neither. Server thread only.
+     */
+    public static ServerPlayer serverPlayer(MinecraftServer server, String ref) {
+        if (get(ref) instanceof ServerBot bot && bot.entity() instanceof ServerPlayer p) return p;
+        String prefix = "player:";
+        return ref.startsWith(prefix) ? server.getPlayerList().getPlayerByName(ref.substring(prefix.length())) : null;
     }
 
     /** Why {@link #resolve} answered null for {@code id}, for the caller's refusal. */

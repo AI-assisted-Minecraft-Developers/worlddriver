@@ -213,8 +213,7 @@ final class BotReadings {
             // side server, naming a player: this server's view over that player — a dedicated server's half of a
             // joined client, whose own half is asked for self in the client's JVM.
             String ref = p.bot().get();
-            ServerPlayer player = ref.startsWith("player:")
-                    ? server.getPlayerList().getPlayerByName(ref.substring("player:".length())) : null;
+            ServerPlayer player = BotRegistry.serverPlayer(server, ref);
             if (player == null) {
                 throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE,
                         "side server names a player on this server as player:<name>, and " + ref + " is none");
