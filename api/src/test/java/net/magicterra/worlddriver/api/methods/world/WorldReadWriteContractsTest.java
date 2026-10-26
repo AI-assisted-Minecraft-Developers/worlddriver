@@ -66,7 +66,6 @@ class WorldReadWriteContractsTest {
     @Test
     void aBoxPastTheCellBudgetIsRefusedAtItsFarCorner() {
         String far = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":32,\"y\":31,\"z\":31}";
-        assertEquals("/to", issue(WorldContracts.SNAPSHOT_PARAMS, far + "}").path());
         assertEquals("/to", issue(ActionContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}").path());
         decode(ActionContracts.FILL_PARAMS,
                 "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":31,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}");
@@ -74,6 +73,31 @@ class WorldReadWriteContractsTest {
         String min = "-2147483648", max = "2147483647";
         assertEquals("/to", issue(WorldContracts.SNAPSHOT_PARAMS, "{\"from\":{\"x\":" + min + ",\"y\":" + min + ",\"z\":" + min
                 + "},\"to\":{\"x\":" + max + ",\"y\":" + max + ",\"z\":" + max + "}}").path());
+    }
+
+    @Test
+    void aSnapshotMayHoldAWholeTestPlotButNothingElseMayExceedThe32Cube() {
+        String from = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":";
+        WorldContracts.SnapshotParams plot = decode(WorldContracts.SNAPSHOT_PARAMS,
+                from + "{\"x\":63,\"y\":63,\"z\":63}}");
+        assertEquals(Optional.empty(), plot.dimension());
+        assertFalse(plot.entities());
+        assertTrue(plot.blockEntities());
+        ApiIssue over = issue(WorldContracts.SNAPSHOT_PARAMS, from + "{\"x\":63,\"y\":63,\"z\":64}}");
+        assertEquals("/to", over.path());
+        assertEquals(ApiIssue.Code.OUT_OF_RANGE, over.code());
+        // 32769 cells: past mc.action.fill's budget, though a snapshot would take it.
+        assertEquals("/to", issue(ActionContracts.FILL_PARAMS,
+                from + "{\"x\":32,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}").path());
+    }
+
+    @Test
+    void aSnapshotNamesItsDimensionAndAsksForEntitiesOnlyWhenTold() {
+        WorldContracts.SnapshotParams p = decode(WorldContracts.SNAPSHOT_PARAMS,
+                "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":1,\"y\":1,\"z\":1},"
+                        + "\"dimension\":\"minecraft:the_nether\",\"entities\":true}");
+        assertEquals(Optional.of("minecraft:the_nether"), p.dimension());
+        assertTrue(p.entities());
     }
 
     @Test

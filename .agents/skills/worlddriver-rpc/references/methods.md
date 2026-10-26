@@ -608,14 +608,14 @@ One cell as the server has it: the block id, its blockstate properties, block an
 
 ### `mc.world.restore`
 
-Put a box mc.world.snapshot kept back exactly, block-entity contents included, and emit world.restore.
+Put a box mc.world.snapshot kept back exactly, block-entity contents included, in the dimension it was taken in; a snapshot with entities swaps the box's non-player entities for the kept ones. Emits world.restore.
 
 - Params: `RestoreParams`; reply: `Restored`
 - Effects: world_write
 
 ### `mc.world.snapshot`
 
-Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put back: deterministic setup and teardown. At most 32768 cells; 64 snapshots are kept until the world closes, and a new id past that is refused.
+Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put back: deterministic setup and teardown. In any dimension, and with entities the non-player ones too. At most 262144 cells (64³); 64 snapshots are kept until the world closes, and a new id past that is refused.
 
 - Params: `SnapshotParams`; reply: `Snapshotted`
 - Effects: config_write, snapshot_read
@@ -4059,6 +4059,8 @@ interface Restored {
     /** Cells written. */
     restored: number;
     blockEntities: number;
+    entitiesRemoved: number;
+    entitiesRestored: number;
     events?: DriverEvent[];
 }
 interface SnapshotParams {
@@ -4066,12 +4068,25 @@ interface SnapshotParams {
     from: BlockPosition;
     /** The opposite corner, inclusive. */
     to: BlockPosition;
+    /** Omitted: minecraft:overworld. */
+    dimension?: string;
     /** Its name; an id in use is overwritten. Omitted: a new one. */
     id?: string;
     /** Keep block-entity NBT, so a chest's contents come back too. */
     blockEntities?: boolean;
+    /** Also keep the non-player entities inside the box; a restore then removes every non-player entity in the box and puts these back with their own UUIDs. */
+    entities?: boolean;
 }
-interface Snapshotted { id: string; from: BlockPosition; to: BlockPosition; blocks: number; nonAir: number; blockEntities: number; }
+interface Snapshotted {
+    id: string;
+    from: BlockPosition;
+    to: BlockPosition;
+    blocks: number;
+    nonAir: number;
+    blockEntities: number;
+    /** Non-player entities kept; 0 unless entities was asked for. */
+    entities: number;
+}
 interface BlockFillEvent { block: string; from: BlockPosition; to: BlockPosition; }
 interface ChatMessageEvent { player: string; text: string; }
 interface WorldRestoreEvent {

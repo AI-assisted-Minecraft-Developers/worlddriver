@@ -29,20 +29,28 @@ public final class WorldContracts {
     /** The cells one call may read or write, 32³; mc.query's block radius is held to it too. */
     public static final int MAX_VOLUME = 32_768;
 
+    /** The cells one snapshot may keep, 64³: a test plot is restored whole, not in 32³ pieces. */
+    public static final int MAX_SNAPSHOT_VOLUME = 262_144;
+
     /** How many retained snapshots the store holds; a new id past this is refused, never evicts silently. */
     public static final int MAX_SNAPSHOTS = 64;
 
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
-    private static long volume(BlockPosition a, BlockPosition b) {
+    private static long volume(BlockPosition a, BlockPosition b, int limit) {
         long dx = Math.abs((long) a.x() - b.x()) + 1, dy = Math.abs((long) a.y() - b.y()) + 1, dz = Math.abs((long) a.z() - b.z()) + 1;
-        if (dx > MAX_VOLUME || dy > MAX_VOLUME || dz > MAX_VOLUME) return Long.MAX_VALUE;
+        if (dx > limit || dy > limit || dz > limit) return Long.MAX_VALUE;
         return dx * dy * dz;
     }
 
     /** Refuses at {@code to} a box over {@link #MAX_VOLUME} cells. */
     public static void withinVolume(BlockPosition from, BlockPosition to, DecodeContext at) {
-        long v = volume(from, to);
-        if (v > MAX_VOLUME) at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box holds " + v + " cells, over " + MAX_VOLUME);
+        withinVolume(from, to, at, MAX_VOLUME);
+    }
+
+    /** Refuses at {@code to} a box over {@code limit} cells. */
+    public static void withinVolume(BlockPosition from, BlockPosition to, DecodeContext at, int limit) {
+        long v = volume(from, to, limit);
+        if (v > limit) at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box holds " + v + " cells, over " + limit);
     }
 
     // ------------------------------------------------------------------ block
@@ -80,13 +88,16 @@ public final class WorldContracts {
     public record SnapshotParams(
             @Doc("A corner, inclusive.") BlockPosition from,
             @Doc("The opposite corner, inclusive.") BlockPosition to,
+            @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension,
             @Doc("Its name; an id in use is overwritten. Omitted: a new one.")
             Optional<@Length(min = 1, max = 128) String> id,
-            @Doc("Keep block-entity NBT, so a chest's contents come back too.") @Default("true") boolean blockEntities)
+            @Doc("Keep block-entity NBT, so a chest's contents come back too.") @Default("true") boolean blockEntities,
+            @Doc("Also keep the non-player entities inside the box; a restore then removes every non-player entity in the box "
+                    + "and puts these back with their own UUIDs.") @Default("false") boolean entities)
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            withinVolume(from, to, at);
+            withinVolume(from, to, at, MAX_SNAPSHOT_VOLUME);
         }
     }
 
@@ -98,7 +109,8 @@ public final class WorldContracts {
             BlockPosition to,
             @Range(min = 0) int blocks,
             @Range(min = 0) int nonAir,
-            @Range(min = 0) int blockEntities) {}
+            @Range(min = 0) int blockEntities,
+            @Doc("Non-player entities kept; 0 unless entities was asked for.") @Range(min = 0) int entities) {}
 
     public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class);
 
@@ -108,7 +120,8 @@ public final class WorldContracts {
     public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of("mc.world.snapshot", SNAPSHOT_PARAMS,
                     SNAPSHOTTED,
                     "Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put "
-                            + "back: deterministic setup and teardown. At most 32768 cells; " + MAX_SNAPSHOTS
+                            + "back: deterministic setup and teardown. In any dimension, and with entities the non-player ones "
+                            + "too. At most 262144 cells (64³); " + MAX_SNAPSHOTS
                             + " snapshots are kept until the world closes, and a new id past that is refused.")
             .effects(MethodSpec.Effect.SNAPSHOT_READ, MethodSpec.Effect.CONFIG_WRITE)
             .execution(MethodSpec.ExecutionClass.BULK);
@@ -128,6 +141,8 @@ public final class WorldContracts {
             @Length(min = 1, max = 128) String id,
             @Doc("Cells written.") @Range(min = 0) int restored,
             @Range(min = 0) int blockEntities,
+            @Range(min = 0) int entitiesRemoved,
+            @Range(min = 0) int entitiesRestored,
             Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
     public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class);
@@ -135,7 +150,8 @@ public final class WorldContracts {
     public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class);
 
     public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of("mc.world.restore", RESTORE_PARAMS, RESTORED,
-                    "Put a box mc.world.snapshot kept back exactly, block-entity contents included, and emit world.restore.")
+                    "Put a box mc.world.snapshot kept back exactly, block-entity contents included, in the dimension it was taken in; a snapshot with entities swaps the box's non-player "
+                            + "entities for the kept ones. Emits world.restore.")
             .effects(MethodSpec.Effect.WORLD_WRITE)
             .execution(MethodSpec.ExecutionClass.BULK);
 }

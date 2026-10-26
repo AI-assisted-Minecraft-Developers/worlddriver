@@ -92,3 +92,76 @@ ScriptTest.run("33_world_snapshot: metadata identical across in-JVM, RPC, MCP", 
     t.assertEqual(key(viaTcp), key(direct), "RPC metadata must match in-JVM");
     t.assertEqual(key(viaMcp), key(direct), "MCP metadata must match in-JVM");
 });
+
+ScriptTest.run("33_world_snapshot: entities come back and newcomers go", function(t) {
+    var o = Driver.system.testOrigin();
+    var y = o.y + 8; // empty air above the arena
+    var at = o.x + " " + y + " " + o.z;
+    var from = { x: o.x - 2, y: y - 2, z: o.z - 2 };
+    var to   = { x: o.x + 2, y: y + 2, z: o.z + 2 };
+    function inBox() {
+        return Driver.query({ q: "entities", center: { x: o.x, y: y, z: o.z }, filter: { in_radius: 3 },
+            select: ["type", "uuid"] }).entities.filter(function (r) { return r.type !== "minecraft:player"; });
+    }
+    function clear() { Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=wd33snap]" }); }
+
+    clear();
+    Driver.invoke("mc.action.runCommand", { cmd: "summon minecraft:pig " + at + " {NoAI:1b,Tags:[\"wd33snap\"]}" });
+    tick(1);
+    var pig = inBox().filter(function (r) { return r.type === "minecraft:pig"; });
+    t.assertEqual(pig.length, 1, "one pig is in the box before the snapshot");
+    var uuid = pig[0].uuid;
+
+    var snap = Driver.invoke("mc.world.snapshot", { id: "ents", from: from, to: to, entities: true });
+    t.assertEqual(snap.entities, 1, "the pig was kept");
+
+    clear();
+    Driver.invoke("mc.action.runCommand", { cmd: "summon minecraft:cow " + at + " {NoAI:1b,Tags:[\"wd33snap\"]}" });
+    tick(1);
+    t.assertEqual(inBox().filter(function (r) { return r.type === "minecraft:cow"; }).length, 1, "the newcomer cow is there");
+
+    var res = Driver.invoke("mc.world.restore", { id: "ents", discard: true });
+    t.assertTrue(res.entitiesRemoved >= 1, "the cow was removed, got " + res.entitiesRemoved);
+    t.assertEqual(res.entitiesRestored, 1, "the pig was put back");
+    tick(1);
+
+    var after = inBox();
+    var pigs = after.filter(function (r) { return r.type === "minecraft:pig"; });
+    t.assertEqual(pigs.length, 1, "the pig is back");
+    t.assertEqual(pigs[0].uuid, uuid, "with its own uuid");
+    t.assertEqual(after.filter(function (r) { return r.type === "minecraft:cow"; }).length, 0, "no cow is left in the box");
+    clear();
+});
+
+ScriptTest.run("33_world_snapshot: a snapshot in the nether restores there", function(t) {
+    var o = Driver.system.testOrigin();
+    var x = o.x, y = 100, z = o.z;
+    var c = x + " " + y + " " + z;
+    var pos = { x: x, y: y, z: z };
+    var nether = "minecraft:the_nether";
+    function inNether(cmd) { return Driver.invoke("mc.action.runCommand", { cmd: "execute in " + nether + " run " + cmd }); }
+
+    inNether("forceload add " + x + " " + z);
+    try {
+        tick(10);
+        inNether("setblock " + c + " minecraft:gold_block");
+        tick(1);
+        var snap = Driver.invoke("mc.world.snapshot", { id: "nether", from: pos, to: pos, dimension: nether });
+        t.assertEqual(snap.blocks, 1, "one cell kept");
+        t.assertEqual(snap.nonAir, 1, "the gold block was read in the nether");
+
+        inNether("setblock " + c + " minecraft:diamond_block");
+        tick(1);
+        Driver.invoke("mc.world.restore", { id: "nether", discard: true });
+        tick(1);
+        var r = Driver.invoke("mc.action.runCommand", { cmd: "execute in " + nether + " if block " + c + " minecraft:gold_block" });
+        t.assertEqual(r.success, true, "the nether cell is gold again");
+    } finally {
+        inNether("setblock " + c + " minecraft:air");
+        inNether("forceload remove " + x + " " + z);
+    }
+
+    var threw = false;
+    try { Driver.invoke("mc.world.snapshot", { from: pos, to: pos, dimension: "minecraft:no_such_place" }); } catch (e) { threw = true; }
+    t.assertTrue(threw, "an unknown dimension must be refused");
+});

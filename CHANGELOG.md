@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-26
+
+- **`mc.world.snapshot` and `mc.world.restore` can now put a whole test plot back.** A snapshot takes a
+  `dimension` (default the overworld) and restores into it, and with `entities: true` it also keeps the
+  non-player entities in the box: a restore removes every one there and re-adds the kept ones with their
+  own UUIDs, answering `entitiesRemoved` and `entitiesRestored`. A snapshot may hold 64³ cells; every
+  other method that takes a box keeps 32768.
+
 ## 2026-10-25
 
 - **One slow MCP call no longer holds every later one in `agent_channel_bridge.py`.** The bridge

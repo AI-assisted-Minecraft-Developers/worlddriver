@@ -23,6 +23,9 @@ import net.magicterra.worlddriver.api.methods.world.WorldContracts.Snapshotted;
 import net.magicterra.worlddriver.game.edit.BlockEdits;
 import net.magicterra.worlddriver.game.edit.RegionSnapshot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -47,6 +50,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class WorldService implements WorldApi {
     /** Same per-call cell budget as {@code mc.action.fill} (= 32^3). */
     static final int MAX_VOLUME = WorldContracts.MAX_VOLUME;
+
+    private static final String OVERWORLD = "minecraft:overworld";
 
     private final DriverApplication api;
     private final Map<String, RegionSnapshot> store = new LinkedHashMap<>();
@@ -115,13 +120,22 @@ public final class WorldService implements WorldApi {
             }
         }
 
-        ServerLevel level = api.level();
+        ServerLevel level = levelOf(p.dimension().orElse(OVERWORLD));
         return api.requireServerHop().submit(() -> {
-            RegionSnapshot snap = RegionSnapshot.capture(level, new BlockPos(minX, minY, minZ), sx, sy, sz, p.blockEntities());
+            RegionSnapshot snap = RegionSnapshot.capture(level, new BlockPos(minX, minY, minZ), sx, sy, sz, p.blockEntities(),
+                    p.entities());
             synchronized (store) { store.put(snapId, snap); }
             return new Snapshotted(snapId, new BlockPosition(minX, minY, minZ), new BlockPosition(maxX, maxY, maxZ),
-                    snap.cells(), snap.nonAir(), snap.blockEntities());
+                    snap.cells(), snap.nonAir(), snap.blockEntities(), snap.entities());
         }, ctx);
+    }
+
+    /** The level a dimension id names; an id the server has no level for is refused. */
+    private ServerLevel levelOf(String dimension) {
+        ResourceLocation id = ResourceLocation.parse(dimension);
+        ServerLevel level = api.level().getServer().getLevel(ResourceKey.create(Registries.DIMENSION, id));
+        if (level == null) throw ApiException.invalidParam("/dimension", ApiIssue.Code.INVALID_VALUE, "no dimension " + id);
+        return level;
     }
 
     /**
@@ -135,14 +149,16 @@ public final class WorldService implements WorldApi {
         synchronized (store) { snap = store.get(id); }
         if (snap == null) throw ApiException.invalidParam("/id", ApiIssue.Code.INVALID_VALUE, "unknown snapshot id: " + id);
 
-        ServerLevel level = api.level();
+        ServerLevel level = levelOf(snap.dimension().location().toString());
         long cursor = api.eventCursor();
         return api.requireServerHop().submit(() -> {
             snap.restore(level);
+            RegionSnapshot.EntityOutcome entities = snap.restoreEntities(level);
             api.emit(EventCatalog.WORLD_RESTORE, new BlockPos(snap.minX, snap.minY, snap.minZ),
                     new EventCatalog.WorldRestore(id, snap.cells()));
             if (p.discard()) synchronized (store) { store.remove(id); }
-            return new Restored(id, snap.cells(), snap.blockEntities(), api.eventsAfter(cursor, p.returnEvents()));
+            return new Restored(id, snap.cells(), snap.blockEntities(), entities.removed(), entities.restored(),
+                    api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
     }
 }
