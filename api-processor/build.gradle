@@ -1,7 +1,9 @@
 // Generates each @Spec interface's caller and registry entries while :api compiles; see
 // docs/dev/java-api.md. On :api's annotationProcessor path only, so nothing here reaches a jar or a POM.
+// Also published to mavenLocal alone, for StageWright's own @Spec interfaces while both are in development.
 plugins {
     id 'java'
+    id 'maven-publish'
 }
 
 repositories {
@@ -30,4 +32,14 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     testLogging { events "failed" }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'worlddriver-api-processor'
+            from components.java
+        }
+    }
+    repositories { mavenLocal() }
 }
