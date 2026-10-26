@@ -62,6 +62,20 @@ stagewright {
             sceneScripts = file('stagewright-scenes')
         }
     }
+    // The JUnit tests in the testmod, run in the game per scene: stagewrightTestFabric, stagewrightTestNeoforge.
+    tests {
+        // Closures: :common is evaluated after this file, so its source sets exist only when the files are read.
+        fabric {
+            classes.from({ project(':common').sourceSets.testmod.output })
+            classpath.from({ project(':common').sourceSets.testmod.compileClasspath })
+            topologies.put('dedicatedServerWithClient', 'dedicatedServerWithClientFabric')
+        }
+        neoforge {
+            classes.from({ project(':common').sourceSets.testmod.output })
+            classpath.from({ project(':common').sourceSets.testmod.compileClasspath })
+            topologies.put('dedicatedServerWithClient', 'dedicatedServerWithClientNeoforge')
+        }
+    }
 }
 
 // ---- Republished StageWright must actually reach the run. ----
@@ -156,6 +170,17 @@ allprojects {
     configurations.all {
         resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
     }
+}
+
+// The root runs the stagewrightTest* tasks, which resolve StageWright's test engine and the libraries it uses.
+repositories {
+    mavenLocal()
+    maven {
+        name = 'gardelNexus'
+        url = 'https://nexus.gardel.top/repository/maven-releases'
+        content { includeGroup 'net.magicterra' }
+    }
+    mavenCentral()
 }
 
 // The mod modules; :api-processor is a plain javac plugin and takes none of this.
