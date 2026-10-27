@@ -63,17 +63,17 @@ stagewright {
         }
     }
     // The JUnit tests in the testmod, run in the game per scene: stagewrightTestFabric, stagewrightTestNeoforge.
+    // The plugin declares their runs in each loader's loom, under <loader>/run-stagewright/<suite>/.
     tests {
         // Closures: :common is evaluated after this file, so its source sets exist only when the files are read.
-        fabric {
-            classes.from({ project(':common').sourceSets.testmod.output })
-            classpath.from({ project(':common').sourceSets.testmod.compileClasspath })
-            topologies.put('dedicatedServerWithClient', 'dedicatedServerWithClientFabric')
-        }
-        neoforge {
-            classes.from({ project(':common').sourceSets.testmod.output })
-            classpath.from({ project(':common').sourceSets.testmod.compileClasspath })
-            topologies.put('dedicatedServerWithClient', 'dedicatedServerWithClientNeoforge')
+        ['fabric', 'neoforge'].each { loader ->
+            create(loader) {
+                classes.from({ project(':common').sourceSets.testmod.output })
+                classpath.from({ project(':common').sourceSets.testmod.compileClasspath })
+                loaderProject = ":${loader}"
+                jvmArgs.add('-Xmx2g')
+                systemProperties.putAll(['worlddriver.rpcPort': '0', 'worlddriver.mcpPort': '0'])
+            }
         }
     }
 }
