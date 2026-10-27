@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.config.BotConfigFile;
 import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
+import net.magicterra.worlddriver.script.HostedScripts;
 import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
 import net.magicterra.worlddriver.script.RpcBridge;
@@ -73,6 +74,7 @@ public final class WorldDriverCommon {
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
                 WorldDriver.up(app.registry(), app);
                 WorldDriver.scriptsReady(WorldDriverCommon::runScriptChecks);
+                WorldDriver.scriptingReady(new HostedScripts(app.registry()));
                 PathDebugBootstrap.publish(app.registry(), app::serverHop, app::server);
             }
         } catch (Exception e) {

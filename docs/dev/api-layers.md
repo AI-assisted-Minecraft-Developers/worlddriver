@@ -27,8 +27,9 @@ never the game layer, and so receive events already in their wire form; the wire
 through `registry/EventFeed`, which the game layer's `DriverHost` extends without naming a game
 type in it; they call through the `ApiRegistry` they are handed, and the game side holds the driver
 by `DriverHost`. Other code in the game, another mod's or the test scenes', finds both through
-`api/game/WorldDriver` (`registry()`, `host()`, the two ports, and `whenReady` for code that loads
-before the driver is up). `application/` may use every layer and `bot/`. The bot's planning and
+`api/game/WorldDriver` (`registry()`, `host()`, the two ports, `scripting()`, and `whenReady` for
+code that loads before the driver is up). `registry/Scripting`, JavaScript bound to the registry,
+names no game type, so the script transport implements it. `application/` may use every layer and `bot/`. The bot's planning and
 movement core uses none of `api/`.
 
 ## Why it is cut this way

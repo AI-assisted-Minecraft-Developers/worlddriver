@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Scripting;
 
 /**
  * Where code in the same game finds the driver: the registry every method is called through, the host the
@@ -20,6 +21,7 @@ public final class WorldDriver {
     private static volatile int rpcPort = -1;
     private static volatile int mcpPort = -1;
     private static volatile ScriptChecks scripts;
+    private static volatile Scripting scripting;
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
 
     /** Every method the driver answers; null until the driver is up. */
@@ -36,6 +38,9 @@ public final class WorldDriver {
 
     /** Runs a directory of scripts against the RPC and MCP servers and answers their checks; null until the driver is up. */
     public static ScriptChecks scripts() { return scripts; }
+
+    /** Evaluates JavaScript bound to this game's methods; null until the driver is up. */
+    public static Scripting scripting() { return scripting; }
 
     /** Run {@code then} with the registry once the driver is up: now if it is, else on the thread that brings it up. */
     public static void whenReady(Consumer<ApiRegistry> then) {
@@ -70,4 +75,7 @@ public final class WorldDriver {
 
     /** The mod's bootstrap: scripts can be run through {@code runner}. */
     public static void scriptsReady(ScriptChecks runner) { scripts = runner; }
+
+    /** The mod's bootstrap: JavaScript can be evaluated through {@code engine}. */
+    public static void scriptingReady(Scripting engine) { scripting = engine; }
 }
