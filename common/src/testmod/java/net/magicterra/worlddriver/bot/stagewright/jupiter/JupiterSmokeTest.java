@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+import java.util.Map;
+
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Perf;
 import net.magicterra.stagewright.test.Requires;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.action.ActionBlockingApi;
@@ -46,6 +50,19 @@ class JupiterSmokeTest {
     void theClientThisSceneJoinsIsOnTheServer(Game game) {
         int players = game.onServer(server -> server.getPlayerCount());
         assertTrue(players >= 1, players + " players on the server");
+    }
+
+    @Test
+    void perfMeasuresEachPhaseAfterItsSetup(Game game) {
+        int[] ran = {0};
+        Map<String, Perf.Window> r = game.perf(Perf.phases().warmup(5).sample(20).repeat(1)
+                .phase("baseline", () -> {})
+                .phase("after", () -> ran[0]++));
+        assertEquals(1, ran[0]);
+        assertEquals(List.of("baseline", "after"), List.copyOf(r.keySet()));
+        assertEquals(20, r.get("after").ticks());
+        // A dedicated server has no client to count frames of; the integrated server does.
+        assertTrue(r.get("after").cpu() > 0, "cpu " + r.get("after").cpu());
     }
 
     @Test

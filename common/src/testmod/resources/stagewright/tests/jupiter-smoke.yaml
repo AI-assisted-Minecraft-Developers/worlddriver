@@ -71,7 +71,7 @@ tests:
                   params: { from: "${plot.origin}", to: "${plot.origin}", type: "minecraft:stone" }
         expect:
           baseline: { ticks: { equals: 40 }, tps: { gt: 0, atMost: 20 } }
-          filled: { msptP99: { gt: 0 }, tpsDrop: { lt: 1 }, heapGrowthMib: { gt: -100000 } }
+          filled: { msptP99: { gt: 0 }, tpsDrop: { lt: 1 }, heapGrowthMib: { gt: -100000 }, cpu: { gt: 0 } }
 
   - name: a java step reads what a fill left behind
     plot: { size: 8 }

@@ -44,7 +44,10 @@ test('the client sees the player the server has', { scene: SCENE, requires: 'cli
     t.expect(t.client().call('mc.client.player', {}).name).equals(t.player().name);
 });
 
-test('an override holds for the test', { scene: SCENE, requires: 'client' }, (t) => {
+// Script tests run concurrently, so an override names the lock that keeps the others off what it changes.
+test('an override holds for the test', {
+    scene: SCENE, requires: 'client', locks: ['worldClock', 'worldRules'],
+}, (t) => {
     t.overrideTime(1234);
     t.expect(dayTime(t)).equals(1234);
     t.override('randomTickSpeed', 0);
@@ -52,7 +55,7 @@ test('an override holds for the test', { scene: SCENE, requires: 'client' }, (t)
 
 // The scene declares no time, so its clock stands where a quiet world's does: 18000, frozen.
 test('and is undone when it ends', {
-    scene: SCENE, requires: 'client', dependsOn: ['an override holds for the test'],
+    scene: SCENE, requires: 'client', dependsOn: ['an override holds for the test'], locks: ['worldClock'],
 }, (t) => {
     t.expect(dayTime(t)).equals(18000);
 });
