@@ -295,9 +295,18 @@ configure(modProjects) {
                 // POM must not re-declare them: a consumer that naively resolves
                 // the POM would put a SECOND copy of Rhino on its classpath
                 // (docs/archive/feedback/2026-06-04-first-external-consumer-winefoxs.md).
+                // Architectury is the exception: it is a mod the jar does not carry, and a consumer needs it beside.
+                def module = project
                 pom.withXml {
                     def deps = asNode().dependencies
                     if (!deps.isEmpty()) asNode().remove(deps.first())
+                    if (module.name in ['fabric', 'neoforge']) {
+                        def dependency = asNode().appendNode('dependencies').appendNode('dependency')
+                        dependency.appendNode('groupId', 'dev.architectury')
+                        dependency.appendNode('artifactId', "architectury-${module.name}")
+                        dependency.appendNode('version', rootProject.architectury_api_version)
+                        dependency.appendNode('scope', 'runtime')
+                    }
                 }
             }
         }
