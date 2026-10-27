@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-27
+
+- **Builds are published as `0.1.0-alpha.<n>+1.21.1`, and a local build is `0.1.0-snapshot+1.21.1`.** The
+  `build.<n>` and `build.local` forms were ordered three different ways by Gradle, Fabric and NeoForge;
+  NeoForge put every `build.<n>` above the release, so StageWright's range refused WorldDriver `0.1.0`
+  itself. StageWright pins and ranges follow: `stagewright_version` names an `alpha` build.
+
 ## 2026-10-26
 
 - **`mc.world.snapshot` and `mc.world.restore` can now put a whole test plot back.** A snapshot takes a

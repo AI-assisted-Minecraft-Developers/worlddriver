@@ -82,6 +82,6 @@ pair. So:
   tasks against that StageWright version (`-Pstagewright_version=…`). Without the flag the build
   loads the version in `gradle.properties`, which is older.
 - Each StageWright build declares the WorldDriver range from the build it was compiled against up
-  to the next minor (`[0.1.0-build.N, 0.2.0-0)`). A change that breaks what a published StageWright
+  to the next minor (`[0.1.0-alpha.N, 0.2.0-alpha.0)`). A change that breaks what a published StageWright
   links against is therefore a breaking release, and raises WorldDriver's minor version, so that
   the loader refuses the stale pair instead of the game failing at start.

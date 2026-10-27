@@ -100,7 +100,7 @@ use it.
 
 For every pull request and every push to `master`, CI builds the project, runs the unit tests and
 runs the scene suite on a NeoForge dedicated server with a client joined to it, and a push to `master` that passes is published
-to the same Nexus as `0.1.0-build.<build number>+1.21.1`. A `master` run still waiting for an
+to the same Nexus as `0.1.0-alpha.<build number>+1.21.1`. A `master` run still waiting for an
 earlier one when a newer push arrives is cancelled, and its push is not published under a number of
 its own.
 

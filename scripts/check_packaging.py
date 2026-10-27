@@ -68,7 +68,8 @@ def published_jars(module):
     """The jar files the module's publication ships, as (label, path)."""
     props = gradle_properties()
     # The root build.gradle's rule: the same BUILD_NUMBER that built the jars names them.
-    version = (f"{props['mod_base_version']}-build.{os.environ.get('BUILD_NUMBER', 'local')}"
+    number = os.environ.get('BUILD_NUMBER')
+    version = (f"{props['mod_base_version']}-{f'alpha.{number}' if number else 'snapshot'}"
                f"+{props['minecraft_version']}")
     base = f"{props['archives_name']}-{module}-{version}"
     build = os.path.join(ROOT, module, "build")

@@ -21,7 +21,7 @@ a change, and get it merged. The architectural constraints a change has to respe
 StageWright comes from the Nexus, at the exact version set as `stagewright_version` in
 `gradle.properties`, so a fresh clone builds without StageWright's source. To try a change to
 StageWright here, publish it to `mavenLocal` from `../stagewright` — its version is
-`0.1.0-build.local+1.21.1` — and pass `-Pstagewright_version=0.1.0-build.local+1.21.1`.
+`0.1.0-snapshot+1.21.1` — and pass `-Pstagewright_version=0.1.0-snapshot+1.21.1`.
 `mavenLocal` is searched first. Moving to a newer StageWright version is a commit to that line.
 
 StageWright depends on one exact WorldDriver version the same way. When neither side has published

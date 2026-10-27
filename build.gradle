@@ -157,16 +157,18 @@ if (!publishedAt.isEmpty()) {
     }
 }
 
-// <base>-build.<n>+<minecraft>. CI sets BUILD_NUMBER to its run number; without it the build is
-// `local`, which is never published to the Nexus.
+// <base>-alpha.<n>+<minecraft>. CI sets BUILD_NUMBER to its run number; without it the build is
+// <base>-snapshot+<minecraft>, which is never published to the Nexus. Gradle, Fabric and NeoForge
+// order these forms alike, which `build` and uppercase `SNAPSHOT` are not (StageWright's
+// docs/reference/publishing.md, Versions).
 def buildNumber = providers.environmentVariable('BUILD_NUMBER').orNull
-// Refused rather than spliced in: `build.<n>` has to be a SemVer numeric identifier, digits with no
+// Refused rather than spliced in: `alpha.<n>` has to be a SemVer numeric identifier, digits with no
 // leading zero, for the version to be valid SemVer and order by run number.
 if (buildNumber != null && !(buildNumber ==~ /0|[1-9][0-9]*/)) {
     throw new GradleException("BUILD_NUMBER is '${buildNumber}', but it must be a whole number"
             + " without leading zeros; unset it for a local build")
 }
-ext.worlddriverVersion = "${mod_base_version}-build.${buildNumber ?: 'local'}+${minecraft_version}".toString()
+ext.worlddriverVersion = "${mod_base_version}-${buildNumber != null ? "alpha.${buildNumber}" : 'snapshot'}+${minecraft_version}".toString()
 
 allprojects {
     group = rootProject.maven_group
@@ -357,7 +359,7 @@ configure(modProjects) {
     tasks.withType(PublishToMavenRepository)
             .matching { it.name.endsWith('ToGardelNexusRepository') }.configureEach {
         doFirst {
-            if (!(published ==~ /.*-build\.[0-9]+\+.*/)) {
+            if (!(published ==~ /.*-alpha\.[0-9]+\+.*/)) {
                 throw new GradleException("${published} is not published to the Nexus: only a build"
                         + " numbered by BUILD_NUMBER goes there."
                         + " Use publishToMavenLocal for a local build.")
