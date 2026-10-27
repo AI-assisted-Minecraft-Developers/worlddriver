@@ -89,16 +89,25 @@ public final class HostedScripts implements Scripting {
     }
 
     /**
+     * The Java exception the engine wrapped in {@code t}, or null. Statements, not one conditional expression: the
+     * Eclipse compiler inside loom's source remapper takes exponential time over pattern variables chained with
+     * {@code &&} inside a {@code ?:}, and the published sources jar never finished.
+     */
+    private static Throwable wrapped(Throwable t) {
+        if (t instanceof WrappedException w) return w.getWrappedException();
+        if (!(t instanceof JavaScriptException js)) return null;
+        if (!(js.getValue() instanceof NativeJavaObject o)) return null;
+        return o.unwrap() instanceof Throwable inner ? inner : null;
+    }
+
+    /**
      * What the Java code that started the script should see: a Java exception as itself, however many times the
      * engine wrapped it on the way out (including a script that caught and rethrew it), else the script's error.
      */
     private static RuntimeException unwrap(RuntimeException e) {
         Throwable current = e;
         for (int hops = 0; current != null && hops < 8; hops++) {
-            Throwable inner = current instanceof WrappedException w ? w.getWrappedException()
-                    : current instanceof JavaScriptException js && js.getValue() instanceof NativeJavaObject o
-                            && o.unwrap() instanceof Throwable t ? t
-                    : null;
+            Throwable inner = wrapped(current);
             if (inner == null) break;
             current = inner;
         }
