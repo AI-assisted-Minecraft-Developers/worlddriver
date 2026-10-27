@@ -59,25 +59,8 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
-    // DEV-ONLY: put the StageWright mod on the dev run classpath so
-    // every headless run boots with both mods, the way a production install would
-    // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
-    // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
-    // A `mod*` configuration, so loom DOES remap this one: the published jar is
-    // intermediary and the dev runtime needs named. That is the opposite of the `:dev`
-    // classifier :common's testmod compile uses, and both are right for their side.
-    // `changing = true` because this arrives from mavenLocal, where the version string stays put
-    // while the contents move under it. Without it, loom's remap cache is keyed on coordinates and
-    // happily serves the jar it remapped days ago: a republished harness looks applied, the build
-    // succeeds, and the run behaves like the old code. That failure mode cost a 45-minute gate run
-    // to find — the suite completed, the fix that was supposed to end the JVM was simply not in the
-    // jar that ran. See the matching resolutionStrategy in the root build.
-    // -PworlddriverBootstrap skips it: a clean box publishes :common before StageWright exists.
-    if (!providers.gradleProperty('worlddriverBootstrap').isPresent()) {
-        modLocalRuntime("net.magicterra:mc_stagewright-neoforge:${rootProject.stagewright_version}") {
-            changing = true
-        }
-    }
+    // The StageWright mod reaches the runs that start from the testmod source set through the StageWright
+    // plugin's own remap configuration, the root's `stagewright { tests { } }` declaring this project a loader.
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
     // put the whole test harness inside the shipped worlddriver jar and forced the driver to
