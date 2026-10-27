@@ -60,8 +60,15 @@ test('and is undone when it ends', {
     t.expect(dayTime(t)).equals(18000);
 });
 
-// The Java tests of the game have all ended before any script test starts.
+// Script tests run beside the Java tests, so either kind waits for the other it depends on.
 const SMOKE = 'net.magicterra.worlddriver.bot.stagewright.jupiter.JupiterSmokeTest';
+
+// JupiterSmokeTest#runsAfterTheScriptTestItDependsOn depends on this, and finds the mark.
+test('a Java test depends on this', { scene: SCENE }, (t) => {
+    t.wait(20);
+    t.step('wd.mark', 'a Java test depends on this');
+});
+
 test('runs after the Java test it depends on passed', { scene: SCENE, dependsOn: [SMOKE + '#ticksPassOnTheServer'] },
     (t) => {
         t.wait(1);

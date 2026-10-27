@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Perf;
 import net.magicterra.stagewright.test.Requires;
@@ -43,6 +44,12 @@ class JupiterSmokeTest {
         game.ticks(5);
         int after = game.onServer(server -> server.getTickCount());
         assertTrue(after - before >= 5, "ticks advanced by " + (after - before));
+    }
+
+    @Test
+    @DependsOn(scripts = "stagewright/tests/jupiter-handles.js#a Java test depends on this")
+    void runsAfterTheScriptTestItDependsOn() {
+        assertTrue(YamlJavaSteps.marked("a Java test depends on this"), "the script test had not taken its step");
     }
 
     @Test
