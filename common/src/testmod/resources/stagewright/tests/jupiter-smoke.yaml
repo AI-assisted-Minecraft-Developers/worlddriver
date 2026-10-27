@@ -29,6 +29,20 @@ tests:
       - wd.blockType: "${block.pos}"
         expect: { equals: "minecraft:gold_block" }
 
+  - name: a barrel keeps its items across its chunk unloading and reloading
+    plot: { size: 8 }
+    given:
+      - place: { at: [2, 1, 2], block: "minecraft:barrel", as: barrel }
+      - insert: { into: barrel, items: { "minecraft:diamond": 7, "minecraft:cobblestone": 70 } }
+    when:
+      - chunk.unload: barrel
+      - chunk.reload: { at: barrel, within: 400 }
+    then:
+      - container: { of: barrel, equals: { "minecraft:diamond": 7, "minecraft:cobblestone": 70 } }
+      - call: mc.world.block
+        params: { pos: "${barrel}" }
+        expect: { type: { equals: "minecraft:barrel" } }
+
   - name: a condition is waited for and then held
     steps:
       - waitUntil:

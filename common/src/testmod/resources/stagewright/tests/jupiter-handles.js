@@ -15,6 +15,13 @@ test('a plot is leased empty and keeps what the test places', { scene: SCENE }, 
     t.expect(t.call('mc.world.block', { pos: at }).type).equals('minecraft:stone');
 });
 
+test('built-in steps place a chest and fill it', { scene: SCENE }, (t) => {
+    t.plot({ size: 8 });
+    t.step('place', { at: [1, 1, 1], block: 'minecraft:chest', as: 'chest' });
+    t.step('insert', { into: 'chest', items: { 'minecraft:iron_ingot': 3 } });
+    t.expect(t.step('container', 'chest')).equals({ 'minecraft:iron_ingot': 3 });
+});
+
 test('a bot joins for the test and holds what it is given', { scene: SCENE }, (t) => {
     const bot = t.bot();
     t.expect(bot.ref).contains('player:');
