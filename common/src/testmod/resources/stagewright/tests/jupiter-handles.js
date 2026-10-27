@@ -57,6 +57,20 @@ test('and is undone when it ends', {
     t.expect(dayTime(t)).equals(18000);
 });
 
+// The Java tests of the game have all ended before any script test starts.
+const SMOKE = 'net.magicterra.worlddriver.bot.stagewright.jupiter.JupiterSmokeTest';
+test('runs after the Java test it depends on passed', { scene: SCENE, dependsOn: [SMOKE + '#ticksPassOnTheServer'] },
+    (t) => {
+        t.wait(1);
+    });
+
+// Aborted, never run: reported as skipped with "is not in this run", which is what this test is here to show.
+test('is aborted when the Java test it depends on is not in the run', {
+    scene: SCENE, dependsOn: [SMOKE + '#noSuchTest'],
+}, (t) => {
+    t.expect('ran').equals('aborted before running');
+});
+
 test('a known issue is reported as one', {
     scene: SCENE, knownIssue: 'fails on purpose, so the run shows knownIssue turning a failure into an abort',
 }, (t) => {
