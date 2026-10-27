@@ -82,6 +82,8 @@ tests:
       - java: { class: net.magicterra.worlddriver.bot.stagewright.jupiter.YamlJavaSteps, method: blockAt }
         params: { pos: "${plot.origin}" }
         expect: { type: { equals: "minecraft:gold_block" }, y: { equals: "${plot.origin.y}" } }
+      - wd.blockAt: { pos: "${plot.origin}" }
+        expect: { type: { equals: "minecraft:gold_block" } }
 
   - name: a condition is waited for and then held
     steps:
