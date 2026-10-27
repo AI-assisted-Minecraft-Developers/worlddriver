@@ -43,6 +43,18 @@ tests:
         params: { pos: "${barrel}" }
         expect: { type: { equals: "minecraft:barrel" } }
 
+  - name: a known issue is taken out of the reply before it is checked
+    plot: { size: 8 }
+    given:
+      - place: { at: [2, 1, 2], block: "minecraft:stone", as: middle }
+      - place: { at: [3, 1, 2], block: "minecraft:glass" }
+    then:
+      - call: mc.query
+        params: { q: blocks, center: "${middle}", filter: { in_radius: 2 }, select: [type] }
+        knownIssues:
+          - { type: "minecraft:glass", reason: "stands in for a block a pack is known to get wrong" }
+        expect: { blocks: { equals: [ { type: "minecraft:stone" } ] } }
+
   - name: a condition is waited for and then held
     steps:
       - waitUntil:
