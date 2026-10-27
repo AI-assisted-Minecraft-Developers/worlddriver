@@ -73,6 +73,16 @@ tests:
           baseline: { ticks: { equals: 40 }, tps: { gt: 0, atMost: 20 } }
           filled: { msptP99: { gt: 0 }, tpsDrop: { lt: 1 }, heapGrowthMib: { gt: -100000 } }
 
+  - name: a java step reads what a fill left behind
+    plot: { size: 8 }
+    given:
+      - call: mc.action.fill
+        params: { from: "${plot.origin}", to: "${plot.origin}", type: "minecraft:gold_block" }
+    then:
+      - java: { class: net.magicterra.worlddriver.bot.stagewright.jupiter.YamlJavaSteps, method: blockAt }
+        params: { pos: "${plot.origin}" }
+        expect: { type: { equals: "minecraft:gold_block" }, y: { equals: "${plot.origin.y}" } }
+
   - name: a condition is waited for and then held
     steps:
       - waitUntil:
