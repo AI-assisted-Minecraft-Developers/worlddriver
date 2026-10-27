@@ -22,6 +22,17 @@ test('built-in steps place a chest and fill it', { scene: SCENE }, (t) => {
     t.expect(t.step('container', 'chest')).equals({ 'minecraft:iron_ingot': 3 });
 });
 
+test('perf runs each phase before measuring it', { scene: SCENE }, (t) => {
+    let ran = 0;
+    const result = t.perf({
+        warmup: 5, sample: 20, repeat: 1,
+        phases: [{ name: 'baseline' }, { name: 'after', run: () => { ran++; } }],
+    });
+    t.expect(ran).equals(1);
+    t.expect(result.after.ticks).equals(20);
+    t.expect(result.after).contains({ ticks: 20 });
+});
+
 test('a bot joins for the test and holds what it is given', { scene: SCENE }, (t) => {
     const bot = t.bot();
     t.expect(bot.ref).contains('player:');

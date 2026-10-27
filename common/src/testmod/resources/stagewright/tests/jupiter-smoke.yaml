@@ -55,6 +55,24 @@ tests:
           - { type: "minecraft:glass", reason: "stands in for a block a pack is known to get wrong" }
         expect: { blocks: { equals: [ { type: "minecraft:stone" } ] } }
 
+  # Short windows, and only what holds on any machine: the step's shape, not a threshold.
+  - name: perf measures a baseline and a phase after it
+    plot: { size: 8 }
+    steps:
+      - perf:
+          warmup: 10
+          sample: 40
+          repeat: 2
+          phases:
+            - name: baseline
+            - name: filled
+              steps:
+                - call: mc.action.fill
+                  params: { from: "${plot.origin}", to: "${plot.origin}", type: "minecraft:stone" }
+        expect:
+          baseline: { ticks: { equals: 40 }, tps: { gt: 0, atMost: 20 } }
+          filled: { msptP99: { gt: 0 }, tpsDrop: { lt: 1 }, heapGrowthMib: { gt: -100000 } }
+
   - name: a condition is waited for and then held
     steps:
       - waitUntil:
