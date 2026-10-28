@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.lineCell;
 
 /** Pure static geometry / math helpers carved out of {@link Navigator}. Every method is a
  *  side-effect-free function of its arguments (and the world view) — no Navigator instance
@@ -530,11 +531,7 @@ public final class NavigatorGeometry {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         if (steps == 0) return true;
         for (int s = 1; s <= steps; s++) {
-            double t = (double) s / steps;
-            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
-            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
-            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
-            BlockPos c = new BlockPos(x, y, z);
+            BlockPos c = lineCell(a, b, s, steps);
             // foot cell + head cell must each be water OR (passable air, not a wall); a solid block in the
             // corridor (a bank / pillar) fails it. Hazards are never an open-water swim.
             if (w.isHazard(c) || w.isHazard(c.above())) return false;

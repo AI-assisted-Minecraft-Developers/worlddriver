@@ -115,14 +115,14 @@ public final class CraftProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
-        if (lvl == null) { fail(s, null, "no player"); s.craft.lastError = error; s.craft.reset(); return true; }
+        if (lvl == null) { fail(null, "no player"); s.craft.lastError = error; s.craft.reset(); return true; }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
         menus = a.menus().orElse(null);
         // Not a player: no inventory to craft from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
         if (equipment == null || blocks == null || menus == null || p == null) {
-            fail(s, p, Readiness.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
+            fail(p, Readiness.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
         }
 
         switch (st) {
@@ -214,9 +214,9 @@ public final class CraftProcess implements BotProcess {
     private void plan(Body a, Player p, Level lvl, BotState s) {
         RecipeManager rm = menus.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
-        if (rm == null) { fail(s, p, "no recipe manager"); return; }
+        if (rm == null) { fail(p, "no recipe manager"); return; }
         if (!BuiltInRegistries.ITEM.containsKey(net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
-            fail(s, p, "unknown item: " + target);
+            fail(p, "unknown item: " + target);
             return;
         }
         Map<String, Integer> have = ItemCounts.bag(p);
@@ -238,7 +238,7 @@ public final class CraftProcess implements BotProcess {
                 first = false;
             }
             LOG.info("[craft] plan {}×{} incomplete missing={}", count, target, plan.missing());
-            fail(s, p, sb.toString());
+            fail(p, sb.toString());
             return;
         }
         if (plan.jobs().isEmpty()) {     // already have enough — nothing to craft
@@ -277,7 +277,7 @@ public final class CraftProcess implements BotProcess {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
             // missing SPOT needs one dug cell — a single message for both sends the
             // agent hunting wood while sealed in a 1×1 bunker.
-            fail(s, p, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
+            fail(p, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
                     ? "crafting table needed (one is in the inventory, but there is no free cell beside the bot to place it; clear one first)"
                     : "crafting table needed (none in the inventory)");
             return;
@@ -293,7 +293,7 @@ public final class CraftProcess implements BotProcess {
 
     private void awaitTableOpen(Player p, BotState s) {
         if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
-        if (++waited > STEP_TIMEOUT) fail(s, p, "timed out opening the crafting table");
+        if (++waited > STEP_TIMEOUT) fail(p, "timed out opening the crafting table");
     }
 
     // === craft loop ==========================================================
@@ -321,7 +321,7 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(s, p, "failed to place the recipe (missing ingredients or inventory not synced): " + path(jobs.get(jobIdx).result()));
+        if (++waited > STEP_TIMEOUT) fail(p, "failed to place the recipe (missing ingredients or inventory not synced): " + path(jobs.get(jobIdx).result()));
     }
 
     private void awaitTake(Player p, BotState s) {
@@ -387,7 +387,7 @@ public final class CraftProcess implements BotProcess {
     /** Every failure exits through here — single source for both the terminal
      *  transition and the fail-path telemetry line (gap #67-⑥: CraftProcess used to
      *  import LOG and never call it). {@code p} may be null (the "no player" guard). */
-    private void fail(BotState s, Player p, String msg) {
+    private void fail(Player p, String msg) {
         this.error = msg;
         LOG.info("[craft] fail state={} jobIdx={} msg={} grid={}", st, jobIdx, msg, gridSummary(p));
         this.st = St.FAIL;

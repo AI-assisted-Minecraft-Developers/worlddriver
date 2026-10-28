@@ -10,13 +10,12 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.phys.AABB;
 
 import java.util.Locale;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotUtil.isFalling;
 import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
 
 /**
@@ -83,12 +82,6 @@ public final class BunkerProcess implements BotProcess {
     public BunkerProcess(int depth) {
         this.depth = Math.max(1, Math.min(5, depth));
         this.effectiveDepth = this.depth;
-    }
-
-    /** A block that falls if unsupported (sand/red_sand/gravel/…) — unsafe as a
-     *  niche roof, since carving the head leaves air beneath it and it drops in. */
-    private static boolean isFalling(Level lvl, BlockPos pos) {
-        return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
 
     /** The niche must be carved INTO a solid mass, not through a thin wall: its far

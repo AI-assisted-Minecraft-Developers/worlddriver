@@ -209,11 +209,8 @@ public final class PathSmoothing {
         if (steps == 0) return true;
         int px = a.getX(), pz = a.getZ();        // previous sampled cell (corner check)
         for (int s = 1; s <= steps; s++) {
-            double t = (double) s / steps;
-            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
-            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
-            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
-            BlockPos c = new BlockPos(x, y, z);
+            BlockPos c = lineCell(a, b, s, steps);
+            int x = c.getX(), y = c.getY(), z = c.getZ();
             if (!w.isPassable(c) || w.isHazard(c)) return false;
             if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
             if (!w.isSolid(c.offset(0, -1, 0)) && !w.isWater(c) && !w.isClimbable(c)) return false;
@@ -314,11 +311,7 @@ public final class PathSmoothing {
         double sum = 0;
         BlockPos prev = a;
         for (int s = 1; s <= steps; s++) {
-            double t = (double) s / steps;
-            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
-            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
-            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
-            BlockPos c = new BlockPos(x, y, z);
+            BlockPos c = lineCell(a, b, s, steps);
             Move.Edge probe = new Move.Edge(c, 0, List.of(), List.of(), "walk");
             for (CostModifier m : bias) sum += m.extraCost(prev, c, probe, null, w);
             prev = c;
@@ -344,13 +337,18 @@ public final class PathSmoothing {
         if (steps == 0) return 0;
         double sum = 0;
         for (int s = 1; s <= steps; s++) {
-            double t = (double) s / steps;
-            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
-            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
-            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
-            sum += w.dangerCost(new BlockPos(x, y, z));
+            BlockPos c = lineCell(a, b, s, steps);
+            sum += w.dangerCost(c);
         }
         return sum;
+    }
+
+    /** The {@code s}-th of {@code steps} cells on the straight line {@code a}→{@code b}, each coordinate rounded. */
+    public static BlockPos lineCell(BlockPos a, BlockPos b, int s, int steps) {
+        double t = (double) s / steps;
+        return new BlockPos((int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
+                (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
+                (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
     }
 
     /** How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the bot

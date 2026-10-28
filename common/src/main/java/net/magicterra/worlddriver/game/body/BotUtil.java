@@ -11,6 +11,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
 
@@ -322,6 +323,11 @@ public final class BotUtil {
             if (!open.test(f.below())) return d;   // solid floor → best
         }
         return firstClear;
+    }
+
+    /** A block that falls when unsupported: sand, gravel and the like. */
+    public static boolean isFalling(Level lvl, BlockPos pos) {
+        return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
 
     /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */

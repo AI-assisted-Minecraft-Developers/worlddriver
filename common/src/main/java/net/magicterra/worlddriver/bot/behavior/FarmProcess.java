@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -30,7 +31,6 @@ public final class FarmProcess implements BotProcess, Navigating {
     private Equipment equipment;
     private BlockInteraction blocks;
 
-    private static final int BREAK_TIMEOUT_TICKS = 60;
     private static final int PLACE_TIMEOUT_TICKS = 40;
 
     private final BlockPos minP, maxP;     // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
@@ -147,7 +147,7 @@ public final class FarmProcess implements BotProcess, Navigating {
                         currentTarget = null;
                         phase = Phase.SEARCH;
                     }
-                } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
+                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
                     skipped++;
                     blacklist.add(currentTarget);
                     blocks.breakHold(false);

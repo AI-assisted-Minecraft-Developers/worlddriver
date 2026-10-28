@@ -125,14 +125,14 @@ public final class SmeltProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
-        if (lvl == null) { fail(s, "no player"); s.smelt.lastError = error; s.smelt.reset(); return true; }
+        if (lvl == null) { fail("no player"); s.smelt.lastError = error; s.smelt.reset(); return true; }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
         menus = a.menus().orElse(null);
         // Not a player: no inventory to smelt from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
         if (equipment == null || blocks == null || menus == null || p == null) {
-            fail(s, Readiness.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
+            fail(Readiness.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
         }
 
         switch (st) {
@@ -183,7 +183,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private void init(Body a, Player p, Level lvl, BotState s) {
-        if (!RegistryIds.registered(BuiltInRegistries.ITEM, input)) { fail(s, "unknown item: " + input); return; }
+        if (!RegistryIds.registered(BuiltInRegistries.ITEM, input)) { fail("unknown item: " + input); return; }
         int have = countInInventory(p, input);
         if (have <= 0) {
             // Wait for the client inventory to catch up before declaring it missing.
@@ -204,7 +204,7 @@ public final class SmeltProcess implements BotProcess {
                 st = St.OPEN_WAIT;
                 return;
             }
-            fail(s, "missing " + count + " x " + path(input)); return;
+            fail("missing " + count + " x " + path(input)); return;
         }
         targetOut = Math.min(count, have);
 
@@ -217,7 +217,7 @@ public final class SmeltProcess implements BotProcess {
             // A single "no placeable furnace in the inventory" message would misreport a bot
             // standing on a one-wide pillar while holding the furnace, so the two causes get
             // separate messages.
-            fail(s, p.getInventory().countItem(Items.FURNACE) > 0
+            fail(p.getInventory().countItem(Items.FURNACE) > 0
                     ? "needs a furnace (one is in the inventory, but there is no free cell beside the feet to place it; clear one first)"
                     : "needs a furnace (none in the inventory)");
             return;
@@ -234,7 +234,7 @@ public final class SmeltProcess implements BotProcess {
 
     private void awaitOpen(Player p, BotState s) {
         if (p.containerMenu instanceof AbstractFurnaceMenu) { waited = 0; st = St.LOAD; return; }
-        if (++waited > OPEN_TIMEOUT) fail(s, "timed out opening the furnace");
+        if (++waited > OPEN_TIMEOUT) fail("timed out opening the furnace");
     }
 
     private void load(Body a, Player p, BotState s) {
@@ -256,12 +256,12 @@ public final class SmeltProcess implements BotProcess {
         }
         // Shift-click the ingredient from the inventory → routes to the input slot.
         int inSlot = findInvMenuSlot(menu, st2 -> itemId(st2.getItem()).equals(input));
-        if (inSlot < 0) { fail(s, "no " + path(input) + " in the inventory"); return; }
+        if (inSlot < 0) { fail("no " + path(input) + " in the inventory"); return; }
         menus.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
         int burn = loadFuel(a, menu);
         if (burn < 0) {
-            fail(s, fuelId != null ? "fuel " + path(fuelId) + " is not in the inventory"
+            fail(fuelId != null ? "fuel " + path(fuelId) + " is not in the inventory"
                     : "no usable fuel in the inventory (workstation blocks are not burned as fuel)");
             return;
         }
@@ -304,14 +304,14 @@ public final class SmeltProcess implements BotProcess {
 
     private void smeltWait(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
-        if (!(menu instanceof AbstractFurnaceMenu fm)) { fail(s, "the furnace screen closed unexpectedly"); return; }
+        if (!(menu instanceof AbstractFurnaceMenu fm)) { fail("the furnace screen closed unexpectedly"); return; }
         // Is the furnace still THERE? Nothing in this repo reclaims one mid-smelt, so a hit here
         // is news rather than bookkeeping — and it is the only reading that separates "the smelt
         // never finished" from "the thing that was going to finish it got mined out from under
         // it" (candidate ⑤). Costs one block read per tick, against a menu whose slots still
         // report the contents of a block entity that no longer exists.
         if (furnacePos != null && !p.level().getBlockState(furnacePos).is(Blocks.FURNACE)) {
-            fail(s, "the furnace disappeared while smelting @" + furnacePos.toShortString()
+            fail("the furnace disappeared while smelting @" + furnacePos.toShortString()
                     + " (now " + p.level().getBlockState(furnacePos).getBlock() + ")");
             return;
         }
@@ -327,11 +327,11 @@ public final class SmeltProcess implements BotProcess {
         if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
             if (pickFuelMenuSlot(menu, fuelId) < 0) {
                 if (!out.isEmpty()) { shortCause = " (fuel ran out)"; st = St.COLLECT; }
-                else fail(s, "fuel ran out and the inventory has no fuel to reload");
+                else fail("fuel ran out and the inventory has no fuel to reload");
                 return;
             }
             if (++fuelTries > 8) {
-                fail(s, "fuel cannot be loaded into the furnace (the fuel slot is still empty after "
+                fail("fuel cannot be loaded into the furnace (the fuel slot is still empty after "
                         + fuelTries + " attempts)");
                 return;
             }
@@ -359,7 +359,7 @@ public final class SmeltProcess implements BotProcess {
             if (now != coldAtGameTime) { coldAtGameTime = now; coldTicks++; }
         }
         if (loadedButCold && coldTicks > LIGHT_GRACE) {
-            fail(s, "the furnace is loaded but does not light (" + coldTicks + "t: " + slotSummary(menu)
+            fail("the furnace is loaded but does not light (" + coldTicks + "t: " + slotSummary(menu)
                     + "): the block entity is not ticking, the input has no smelting recipe, or the output slot is occupied");
             return;
         }
@@ -371,7 +371,7 @@ public final class SmeltProcess implements BotProcess {
         // used to burn the entire batch budget before reporting a fuel problem. The bag reading is
         // the half that says which: still holding the ore = the click was refused.
         if (!adopt && in.isEmpty() && out.isEmpty() && !fuel.isEmpty() && waited > INTAKE_GRACE) {
-            fail(s, "the input never went into the furnace (after " + waited + "t: " + slotSummary(menu)
+            fail("the input never went into the furnace (after " + waited + "t: " + slotSummary(menu)
                     + "; the inventory still holds " + countInInventory(p, input) + " x " + path(input) + ")");
             return;
         }
@@ -380,7 +380,7 @@ public final class SmeltProcess implements BotProcess {
         // Adopt-only: the normal path's QUICK_MOVE round-trip can leave the
         // slots briefly empty right after LOAD and must not trip this.
         if (adopt && in.isEmpty() && out.isEmpty() && !fm.isLit()) {
-            fail(s, "missing " + count + " x " + path(input) + " (the furnace is empty too)");
+            fail("missing " + count + " x " + path(input) + " (the furnace is empty too)");
             return;
         }
         if (++waited > smeltWaitBudget) {
@@ -390,7 +390,7 @@ public final class SmeltProcess implements BotProcess {
             // cookingProgress/cookingTotalTime straight off the block entity — a flat 0.00 next to
             // lit=true means the block entity is not being ticked), and what the fuel that WAS
             // loaded was worth.
-            else fail(s, "smelt timed out after " + waited + "t: " + slotSummary(menu)
+            else fail("smelt timed out after " + waited + "t: " + slotSummary(menu)
                     + " lit=" + fm.isLit()
                     + " cook=" + String.format(java.util.Locale.ROOT, "%.2f", fm.getBurnProgress())
                     + " fuelLoaded=" + fuelChosen + "/" + fuelBurnLoaded + "t"
@@ -534,5 +534,5 @@ public final class SmeltProcess implements BotProcess {
 
     // Every failure that concerns the furnace says "furnace": wd.serverSmeltStationOpens reads
     // that word in smelt.lastError as "the furnace never opened or took its load".
-    private void fail(BotState s, String msg) { this.error = msg; this.st = St.FAIL; }
+    private void fail(String msg) { this.error = msg; this.st = St.FAIL; }
 }

@@ -12,9 +12,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.FallingBlock;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotUtil.isFalling;
 import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
 
 /**
@@ -278,10 +278,6 @@ public final class DescendProcess implements BotProcess {
             return done(a, st, "own-floor dig timeout at " + below.toShortString());
         }
         return false;
-    }
-
-    private static boolean isFalling(Level lvl, BlockPos pos) {
-        return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
 
     /** Yaw facing the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
