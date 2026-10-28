@@ -48,13 +48,12 @@ that awards advancements, and fired the loader's login event on the way in. A bo
 driver does not step stands still — `JoinedBody.tick()` only records that the level's
 entity loop came, and `JoinedBody.pump` does the work.
 
-**A connected player is never wrapped in a `ServerPlayerBody`.** On the integrated server the
-journey ladder drives the person's own player as `self`, through the client player, and every
-server-side write to it goes through what the client sends. The wrapper used to be built around
-such a player (the "adopted bot"); it was the only arrangement whose connection reached a live
-client, so every assumption of the form "this bot's connection discards whatever is sent
-through it" was false on it, and `wd.actuatorSplitOnAnAdoptedBody` still measures what its
-writes did. `ServerPlayerBody.step()` still refuses to pump such a player with an
+**A connected player is never wrapped in a `ServerPlayerBody`.** On an integrated server the
+person's own player is driven as `self`, through the client player, and every server-side write
+to it goes through what the client sends. The wrapper used to be built around such a player
+(the "adopted bot"); it was the only arrangement whose connection reached a live client, so
+every assumption of the form "this bot's connection discards whatever is sent through it" was
+false on it. `ServerPlayerBody.step()` still refuses to pump such a player with an
 `IllegalStateException`: its own connection already ticks it, and pumping would tick it twice.
 
 **How a bot is addressed.** Every `mc.bot.*` verb takes an optional `bot` parameter.
@@ -78,35 +77,25 @@ counts as placeable.
 
 There are no fake players left. NeoForge's `FakePlayer`, a Fabric copy of it, and the
 system property that chose between them and joined players were deleted together once every
-gate and every ladder topology already ran on joined players. The name of this document is
+test run already ran on joined players. The name of this document is
 older than that decision; it survives because the question it answers did not change, only
 the bot it asks about. A comment or a scene that still speaks of a factory bot or a fake
 player is describing what was replaced.
 
-## Which bot a scene runs on
+## Which bot a test runs on
 
-The rule divides by *topology*, not by what a scene is testing, and it is enforced in one
-place: `SceneBot` in the test sources, which every scene goes through to obtain a bot.
+The in-game tests divide by scene file, not by what a test is about
+([testing.md](testing.md) lists the scene files):
 
-- **Dedicated server.** Headless joined players. There is no client, so there is nothing
-  else to drive.
-- **Integrated server with the client half of the driver in the same process.** The
-  client's own player, or the scene skips and records where its coverage lives. Minting a
-  headless player beside a person's player is neither, and `SceneBot` refuses it.
-- **Dedicated server with a separate client process.** Headless joined players again. The
-  client is in the other process and a running process object cannot cross a socket.
-- **Mob bots are legal on every topology.** The rule is about headless *player* bots on
-  a server a client hosts; a client in that world simply sees a mob.
+- **`wd.scenes`, a dedicated server with no client.** Headless joined players, spawned
+  through the kit's `SceneBot`, and mob bots. There is no client, so there is nothing else
+  to drive.
+- **`wd.clientScenes`, a dedicated server with a real client joined to it.** The client's own
+  player, driven as `self` through the kit's `ClientRig`. The client is in another process,
+  and the navigator that drives it is the client's.
 
-The predicate behind the refusal asks only about the shape of the JVM — is this a client
-hosting its own world, and is the client half of the driver in this process — and never
-whether a person has actually arrived. Both halves of that question are settled before the
-first scene runs, so the set of skips is the same on every run. Asking "is a human in the
-player list right now" would make it depend on how fast the machine booted.
-
-A skip is not coverage. The reconciliation that has to hold after any change here is that
-every scene skipped for this reason on the integrated gate is executed on a dedicated one.
-See [testing.md](testing.md) for how that is checked.
+A test about the client player and a test about the server-side player are therefore two
+tests, and passing one says nothing about the other.
 
 ## What produces parity where it exists
 
@@ -151,7 +140,7 @@ connection, for a channel the client did not negotiate, and a bot negotiates non
 that syncs every player at login made the bot's join throw. A mixin on
 `ServerCommonPacketListenerImpl.send` drops a bot's custom payloads first, on both loaders.
 The bot stays a vanilla client: it claims no mod channels, so a mod that asks before sending
-sends it nothing (`wd.serverBotJoinsPastModdedPayload`).
+sends it nothing (`AvatarTest.serverBotJoinsPastModdedPayload`).
 
 ## The boundary table
 
@@ -159,12 +148,13 @@ In the tables, *a driven bot* means the server-side player: the joined player, o
 adopted one where a row says so. The client player is named explicitly wherever it behaves
 differently, and the mob has a group of its own at the end.
 
-A status established from a scene result was established under the scene baseline, which is
+A status established from an in-game test was established under the test baseline, which is
 not the configuration a live client runs. `WorldConfig.allowBreak` and `WorldConfig.allowPlace`
 are both on by default, so a `goto` on a live client will mine and bridge its way through;
-`BotConfig.applyGameTestBaseline()` pins both off, along with several movement settings, for
-the duration of a scene run, and a live client never calls it. A scene that wants one of
-them sets it back explicitly. So a row whose evidence is a scene says what the bot does
+the test baseline (`BotConfig.applyGameTestBaseline()`, put in place by the kit's
+`Settings.pin`) turns both off, along with several movement settings, for the length of a test,
+and a live client never calls it. A test that wants one of them sets it back explicitly. So a
+row whose evidence is a test says what the bot does
 when the pathfinder may not change the world, and the same bot under default settings has
 more ways to get where it is going.
 
@@ -178,13 +168,10 @@ Status values:
 | `Open` | A known divergence with no decision behind it. |
 
 Most of these rows were first derived by reading code, and reading is not how a row gets
-confirmed. `wd.bodyParityCensus` is the instrument that confirms them: one scene, no
-assertions at all, which drives a bot through each quantity the table makes a claim about
-and records what the bot actually reports. It cannot go red, deliberately — an assertion
-would have to come from the same reading that produced the prediction, which is a test that
-is green forever and measures nothing. It records the run's premises first, because each of
-them can invalidate every row under it, and it writes a value it could not take as
-`unavailable` with a reason rather than as zero.
+confirmed. The scene that confirmed them, which drove a bot through each quantity the table
+makes a claim about and recorded what it reported, was deleted with the old scene path and
+has no replacement yet. Until one exists, a row is as good as the reading or the test it
+cites.
 
 ### Movement and collision
 
@@ -312,8 +299,8 @@ this group follows from it.
 | Experience pickup | the pickup delay decrements every tick | it does too | `Parity` |
 | Death and respawn | death, a respawn screen, a respawn packet | nothing: a bot that cannot die needs no respawn, and there is no verb for one | `Accepted` |
 
-The invulnerability is what scenes and the ladder are built on, and its cost is that no
-scene may assert survival. The honest form of such an assertion says the fight was won, not
+The invulnerability is what the in-game tests are built on, and its cost is that no test may
+assert survival. The honest form of such an assertion says the fight was won, not
 that the bot lived, and scenes that need the other reading use a vanilla player as the
 victim instead. A survival-fidelity run would want the invulnerability gone — and would
 need the whole package at once, because a bot that can be hurt but has no respawn is
@@ -357,8 +344,8 @@ Two measurements are worth keeping about departure, because both were expensive:
 
 The chunk-map move is the other one. Before it was part of every step, the bot kept the
 chunk section it joined in, which is what feeds chunk tickets, entity tracking and the
-players-nearby check in front of natural spawning. Measured on the ladder's Nether segments
-before the move was added: 107 monsters within 128 blocks beside the portal, 2 at a fortress
+players-nearby check in front of natural spawning. Measured in the Nether before the move was
+added: 107 monsters within 128 blocks beside the portal, 2 at a fortress
 360 blocks away, and none at all over 7200 ticks in a warped forest.
 
 ### Bots that are not players
@@ -380,7 +367,7 @@ The climb-out gap is the only reading in that set that differs. Across staircase
 gap, open-water swim and ladder, the two bots land within a tick or two of each other; on
 the flush water bank the mob takes twelve ticks longer, and the difference is not in the
 swim — over open water the same impulse differs by one tick — but in the few ticks of
-leaving the water. Both loaders' dedicated gates report the same figures. What this can make
+leaving the water. Both loaders' dedicated-server runs reported the same figures. What this can make
 lie is any assertion that budgets a mob's tick count from a player's; the scenes that
 measure it assert arrival only.
 
@@ -392,7 +379,7 @@ never leave their staging area.
 
 `MobBody` cannot swap a mob's controls the way the test piglin does, so `MobMixin` writes the input
 into the mob's own AI step, after its move control, and that costs more than the piglin's rows above.
-The `wd.mob*` scenes assert arrival only, for the reasons below.
+The walks in `MobTest` assert arrival only, for the reasons below.
 
 | Behaviour | A player | A vanilla mob | Status |
 |---|---|---|---|
@@ -414,8 +401,7 @@ The `wd.mob*` scenes assert arrival only, for the reasons below.
 
 ## Related documents
 
-- [testing.md](testing.md) — the gates, the topologies, and how coverage is reconciled
-  across them.
+- [testing.md](testing.md) — the in-game test suites and the scene files they run in.
 - [movement-tick-phases.md](movement-tick-phases.md) — what the navigator does with a bot once
   it has one.
 - [bot-layering.md](bot-layering.md) — where the bot seam sits among the other layers.
