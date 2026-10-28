@@ -59,8 +59,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Fluids;
@@ -71,8 +69,8 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByN
 
 /**
  * Dogfooded worlddriver scenes — the Core family: the validation suite, the body's jump and travel
- * physics, node facts and build-block classification, the path archive's record and replay, and the
- * client-face checks.
+ * physics, node facts, the path archive's record and replay, and the client-face checks. Build-block
+ * classification is {@code BuildBlocksTest}'s, a unit test.
  *
  * <p>Absolute Y is {@code origin.y + (legacy_Y − 200)}, so the arenas keep the geometry they were written
  * with and only X/Z relocate. The physics arenas pose a parked {@link SceneBot} and drive it by held keys
@@ -119,7 +117,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.jumpWaitsForOnGround", 200, WorldDriverCoreScenes::jumpWaitsForOnGround),
                 Scene.of("wd.climbableGroundJump", 200, WorldDriverCoreScenes::climbableGroundJump),
                 Scene.of("wd.buoyantJumpStaysABob", 200, WorldDriverCoreScenes::buoyantJumpStaysABob),
-                Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
                 Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
@@ -1030,55 +1027,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (jumped < 0.3)
             ctx.fail("jumpWaitsForOnGround: the press after the refused one did not jump: rise=" + jumped
                     + " onGroundAfterRefusal=" + groundAfterRefusal + " (a ground jump is +0.42)");
-    }
-
-    /** The build-block predicate as {@code mc.debug.cells} reads it, and the bot's placeable-block count
-     *  ({@code mc.debug.body} hands) that delegates to it: bamboo and sand rejected by default; the
-     *  {@code buildBlockWhitelist} setting overrides both. */
-    private static void buildBlockWhitelist(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-
-        List<String> savedWl = Harness.list("buildBlockWhitelist");
-        ctx.cleanup(() -> Harness.set("buildBlockWhitelist", java.util.List.copyOf(savedWl)));
-
-        // Default heuristic: full cube → usable; bamboo (thin column) / sand (FallingBlock) → NOT usable.
-        // The blocks stand in a row twenty above the origin; nothing else in this scene is built there.
-        net.minecraft.world.level.block.Block[] matrix = {Blocks.DIRT, Blocks.COBBLESTONE, Blocks.BAMBOO, Blocks.SAND};
-        var read = WorldDriverBuildScenes.classify(ctx, matrix);
-        if (!read.get(Blocks.DIRT).buildBlock())
-            ctx.fail("buildBlockWhitelist: dirt must be a usable build block");
-        if (!read.get(Blocks.COBBLESTONE).buildBlock())
-            ctx.fail("buildBlockWhitelist: cobblestone must be a usable build block");
-        if (read.get(Blocks.BAMBOO).buildBlock())
-            ctx.fail("buildBlockWhitelist: bamboo must NOT be a usable build block (thin, no footing)");
-        if (read.get(Blocks.SAND).buildBlock())
-            ctx.fail("buildBlockWhitelist: sand must NOT be usable (FallingBlock drops over gaps)");
-
-        // The bot's count delegates to the predicate: dirt+bamboo inventory → only dirt counts. The bot is
-        // parked well above the row and never stepped, so it needs no floor.
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 10, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.DIRT, 10));
-        fp.getInventory().add(new ItemStack(Items.BAMBOO, 20));
-        int count = bot.body().hands().placeableBlocks();
-        if (count != 10)
-            ctx.fail("buildBlockWhitelist: placeableBlockCount should ignore bamboo, expected 10 got " + count);
-
-        // Whitelist override: pin to bamboo only → dirt now rejected, bamboo allowed by explicit id.
-        Harness.set("buildBlockWhitelist", java.util.List.copyOf(Set.of("minecraft:bamboo")));
-        read = WorldDriverBuildScenes.classify(ctx, matrix);
-        if (!read.get(Blocks.BAMBOO).buildBlock())
-            ctx.fail("buildBlockWhitelist: whitelisted bamboo must be usable when explicitly listed");
-        if (read.get(Blocks.DIRT).buildBlock())
-            ctx.fail("buildBlockWhitelist: dirt must be rejected when whitelist excludes it");
-        count = bot.body().hands().placeableBlocks();
-        if (count != 20)
-            ctx.fail("buildBlockWhitelist: whitelist=[bamboo] → count should be the 20 bamboo, got " + count);
-
-        TestMod.LOG.info("[wd.buildBlockWhitelist] default + whitelist-override matrix all pass");
     }
 
     // ==================================================================================
