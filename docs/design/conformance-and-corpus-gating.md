@@ -34,7 +34,7 @@ archive contains and how a replay works.
 
 ### Scenes are cut from real routes, never invented
 
-A hand-built arena encodes the author's assumption about the geometry, and that assumption is
+Hand-built test terrain encodes the author's assumption about the geometry, and that assumption is
 usually the same assumption the planner is making — which is how this project repeatedly got a green
 suite over a broken game. Staging is therefore cut from an envelope a real journey actually passed
 through.
