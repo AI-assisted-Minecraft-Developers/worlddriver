@@ -312,8 +312,8 @@ public final class DrownEscapeChain implements Chain {
                     Mth.floor(p.getZ()));
             if (!cellOpen(w, below)) body.commandJump(false);
         }
-        // UNCONDITIONAL, not gated on navigatorDebug: gates do not run with navigatorDebug on. On
-        // stagewrightIntegratedServerNeoforge both armed arms of the drown scenes reported a net rise
+        // UNCONDITIONAL, not gated on navigatorDebug: the test suites do not run with navigatorDebug on. On
+        // the NeoForge integrated server both armed arms of the drown tests reported a net rise
         // of 0.000 while the same code passed on Fabric (2.291 / 2.320); `[drownEscape] PREEMPT`
         // printed twice, so the chain armed and took control of the bot, but a debug-gated vertical
         // arm row would have printed nothing about what happened next. A reading available only under
