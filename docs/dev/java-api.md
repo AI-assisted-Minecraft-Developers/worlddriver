@@ -151,8 +151,8 @@ then handed to it whole: each tick the bot asks `drive(target, within)` and the 
 `MOVING`, `ARRIVED` or `FAILED`. The trip reports `travel: mover`. A goto to a target with no single
 cell (a Y level, a direction) still uses the bot's own route.
 
-`StandInDrivers` in the testmod registers one of each for its stand-in mobs; the scenes
-`wd.mobWithRegisteredDriverWalks` and `wd.mobWithRegisteredMoverTravels` drive them.
+`StandInDrivers` in the testmod registers one of each for its stand-in mobs; the tests
+`MobTest.mobWithRegisteredDriverWalks` and `MobTest.mobWithRegisteredMoverTravels` drive them.
 
 ## Adding a body task
 
@@ -194,5 +194,5 @@ The factory runs on the bot's game thread when the call arrives. To start nothin
 cancelled or replaced. `mc.bot.status` reports the running task by its method name, and
 `mc.bot.cancel` stops it by its `actionId` or with `process: all`.
 
-`StandInTasks` in the testmod registers `testmod.tally`; the scene `wd.mobRunsARegisteredTask`
+`StandInTasks` in the testmod registers `testmod.tally`; the test `MobTest.mobRunsARegisteredTask`
 runs it on a mob.

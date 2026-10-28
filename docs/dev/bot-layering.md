@@ -314,9 +314,7 @@ them.
 
 ## Before pushing a change here
 
-Behaviour in this subsystem is judged by scenes, not unit tests. [`testing.md`](testing.md)
-explains how to run them and how to add one. Two rules bite hardest here: a new scene must
-be registered and listed in the manifest in the same change, and the `[navigator]` and
-`[expect]` log formats are a contract that several development tools parse by regular
-expression — a regular expression that stops matching does not raise, it returns nothing,
-which reads as "no problem found".
+Most behaviour in this subsystem is judged by in-game tests; planner-only behaviour has JVM
+tests. [`testing.md`](testing.md) explains how to run them and how to add one. The
+`[navigator]` and `[expect]` log lines are for a person reading the log, and no tool parses
+them: a test that needs the bot's state reads it through the API.

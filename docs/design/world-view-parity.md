@@ -10,11 +10,11 @@ that interface read a real level:
 | View | Used by | Player |
 |---|---|---|
 | `bot/world/ClientWorldView` | the client bot's `BotBrain` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
-| `bot/world/LevelWorldView` | `PlayerBot`, the `wd.*` scenes, the journey harness | a server-side player |
+| `bot/world/LevelWorldView` | `PlayerBot` and the in-game tests' headless bots | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `NavigatorGeometry`'s read-only probes | none |
 
 Each of them used to answer those questions with its own method body, and the three implementations
-disagreed. Running the parity scene `wd.clientWorldViewParity`, which stands in one world
+disagreed. Running the parity test `ClientParityTest.clientWorldViewParity`, which stands in one world
 and puts the same question to two views side by side, produced 67 disagreements out of
 1650 questions over 50 terrain types, in three families:
 
@@ -32,7 +32,7 @@ asked only whether the block stops motion, which accepts fences, walls and stair
 floor decoration; the server treated both as walls.
 
 The consequence was not that scenes failed. It was worse: they passed, against a different
-set of rules. A route proven by a `wd.*` scene was not necessarily a route a client would
+set of rules. A route proven by a headless scene was not necessarily a route a client would
 have planned.
 
 ## What was decided
@@ -86,23 +86,23 @@ all thirty-six — is deliberate. Each planner counts what its own executor can 
 ## What this rules out
 
 A rule cannot be changed for one view alone. Adding a fourth view, or changing what counts as
-floor, means changing `CellRules` and re-running the parity scene, which is the point: the
+floor, means changing `CellRules` and re-running the parity test, which is the point: the
 alternative was three implementations drifting apart silently for months.
 
 ## How it is verified
 
 ```
-./gradlew stagewrightDedicatedServerWithClientFabric -Pstagewright.scenes='wd.clientWorldViewParity'
+./gradlew stagewrightTestFabric --tests '*ClientParityTest'
 ```
 
-The scene lays out fifty terrain types on a real client and asks eleven questions about the
+The test lays out fifty terrain types on a real client and asks eleven questions about the
 cell below, at, and above each one, recording only the rows where two views disagree. The
-criterion is zero rows. On a dedicated server it skips, because there is no client view to
-compare against. Run it before and after touching `CellRules` or adding a view.
+criterion is zero rows. It runs in `wd.clientScenes`, because without a client there is no
+client view to compare against. Run it before and after touching `CellRules` or adding a view.
 
 One trap in the staging: the palette has to be laid out in a grid beside the player, not in a
 line running away from it. The client only holds the chunks near the player, and cells in
-chunks it has not received read as air on its side — which the scene faithfully records as a
+chunks it has not received read as air on its side — which the test faithfully records as a
 long list of disagreements that do not exist.
 
 ## Where to look

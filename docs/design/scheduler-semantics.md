@@ -67,7 +67,7 @@ tick and changes nothing, so it would otherwise restart the dig on every tick of
 above the user task.
 
 A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
-standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.
+standalone, as the matrix tests build them, has no scheduler and its bail is only its own reset.
 
 ### A process's status slot is the one its attach switched on
 
@@ -139,5 +139,6 @@ with a setting, not cancelled, because they have no episode to cancel.
 - `bot/behavior/reflex/` — the ambient behaviours and their channel gating.
 - `bot/control/Navigator.java` — the exit classification and the terminal report.
 
-The scenes are in `WorldDriverSchedulerScenes`; the two that matter most are the terminal-report matrix
-and the retreat-gate matrix, both of which run headless.
+The gate and chain-state matrices are JVM tests: `RetreatGateMatrixTest`, `ChainGateMatrixTest`,
+`DuskSecureLifecycleTest` and `CancelRoutingTest` under `bot/arbitration/`, and `WalkVerdictArrivalTest` (the
+terminal labels) under `bot/control/`. The one in-game test is `SchedulerTest.duskSecureHeldProcessLifecycle`.
