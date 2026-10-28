@@ -9,7 +9,7 @@ description: >-
   mc.script.eval / mc.skill call, scripting a multi-step live setup
   (give→tp→fill→setting→goto), sending a raw method+params to the websocket,
   reaching a hidden method the MCP tool list doesn't show (the
-  StageWright harness verbs mc.test.run / mc.test.reset / mc.test.input.*,
+  StageWright harness verbs mc.test.settings / mc.test.reset / mc.test.input.*,
   present only when that runtime is loaded), or when an mcp__worlddriver__* tool won't
   apply a newly-added param/setting (the MCP tool schemas are frozen at session
   start, so new keys must be set over RPC). Don't hand-roll a websocket client or
@@ -37,7 +37,7 @@ way:
   would reject an unknown key **loudly, all-or-nothing**, if one reached it. RPC forwards
   params verbatim — bypassing the stale schema — so it just works. This is the #1
   reason this skill exists.
-- **Multi-step setup as one block.** Stage an arena (`give`→`tp`→`fill`→`setting`
+- **Multi-step setup as one block.** Stage a test area (`give`→`tp`→`fill`→`setting`
   →`goto`) in a single shell invocation instead of N separate tool calls.
 - **Headless client driving.** Title→world, input, screenshots — the surface
   `into_world.py` uses, outside the MCP tool set.
@@ -89,9 +89,8 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 The core methods (the `worlddriver/core` batch in the API registry, present wherever the
 mod runs) plus the `mc.debug.*` methods, every one a typed contract listed as an MCP tool.
 Hidden methods — callable by name on every transport but absent from MCP `tools/list` — are
-three of the `mc.debug.*` readings (`navigator`, `body`, `cells`) and those of the testmod
-(`worlddriver.*`) and the StageWright runtime (`mc.test.*`), which exist only while those are
-loaded. No total is
+three of the `mc.debug.*` readings (`navigator`, `body`, `cells`) and those of the StageWright
+runtime (`mc.test.*`), which exist only while it is loaded. No total is
 given here because it depends on what is loaded. Two references sit next to this file:
 **`references/methods.md`**, generated from the contracts at build time (every method's
 description, params and reply, every setting key with its range and default, every event

@@ -82,7 +82,7 @@ can still observe and cancel.
 ## Availability
 
 - Which methods exist depends on what is loaded: the core set and `mc.debug.*` always;
-  `worlddriver.*` only with the testmod; `mc.test.*` only with the StageWright runtime.
+  `mc.test.*` only with the StageWright runtime.
 - `mc.debug.plan`, `navigator`, `body` and `cells` read a named server bot anywhere; `plan` and
   `navigator` also read `self`, which needs a client. `pathChart` and `replay` read the client's
   world and need a client.
@@ -285,28 +285,11 @@ Key families:
 
 ## Test-only methods (hidden from MCP `tools/list`)
 
-### `worlddriver.*`: hand-built scenes (testmod)
-
-Present only in runs that load the testmod (the StageWright tasks, the lab client), never in the
-published jar. Typed and strict like the core methods; callable on every transport. Files live under
-`config/worlddriver/scenes/` of the run directory. Fixture positions are origin-relative; `pos` and
-`around` on the wire are absolute `{x,y,z}`. A bad or unknown scene name is `invalid_params` at `/name`.
-The same verbs exist in game as `/worlddriver scene save|place|run ...`; the walkthrough for people is
-`docs/guide/human-verification.md`.
-
-| method | params | notes |
-|---|---|---|
-| `worlddriver.mark` | `role` (origin, corner, start, goal, via, pass, forbid, stand, watch), `pos`, `label?`, `args?: {yaw?, box?: [6 ints]}` | place a marker block. `label`: goal `block` / `near:<r>` / `y:<y>`; via and pass a number; watch `same` or a block id; on an anchor, the scene name. `args.yaw` sets the bot's facing on `start`. In game: `/worlddriver mark <role> [label]` at the crosshair |
-| `worlddriver.scene.save` | `name`, `verb?` (goto, mine, escape, elytra; default goto), `budget?` (ticks per walk, default 1200), `around?`, `author?` | terrain between the two corner markers to `<name>.nbt`, the fixture to `<name>.json`; markers stay |
-| `worlddriver.scene.list` | none | every fixture with its latest human verdict; a file that does not load is `{file, error}` |
-| `worlddriver.scene.place` | `name`, `pos?`, `around?` | put terrain and markers back for editing; the scene's anchor marker in this world wins over both |
-| `worlddriver.scene.run` | `name` (a saved scene, or `here` for the markers already in the world), `body?` (server, self, npc, `npc:<name>`), `watch?`, `pos?`, `around?`, `verb?`, `budget?`, `awaitMs?` (refused from a game thread) | one run at a time. A saved scene with no anchor in this world needs `pos`. With `awaitMs`: `status` (pass, fail, skip, error, running), `reason`, `auto` checks, `observed` (ticks, repaths, hops, digs) and the report `lines`. Each run appends to `<name>.verdicts.jsonl`; a player on the server gets the report and judgement buttons in chat |
-| `worlddriver.scene.verdict` | `name`, `verdict` (pass, fail, flaky), `note?` | record a human judgement of the latest run, copying its numbers |
-| `worlddriver.scene.accept` | `name` | the latest run judged `pass`, each number plus 20 % rounded up, becomes the fixture's `expect`. Not for `here` |
-
 ### `mc.test.*`: StageWright harness
 
 Published by the StageWright runtime (owner `stagewright`), so present only when that runtime is
-loaded: `mc.test.run`, `mc.test.reset`, `mc.test.input.*`. Like `worlddriver.*`, they are hidden from
-MCP `tools/list` but callable by name on every transport. `mc.test.reset` cancels running actions with
-reason `test_reset`.
+loaded, never with the published jar alone. They serve StageWright's in-game tests: `mc.test.settings`
+(lock, write and restore the bot settings), `mc.test.bots`, `mc.test.reset`, `mc.test.input.*`, and
+read-only queries over the game's recipes, loot, advancements, structures and chunks. They are hidden
+from MCP `tools/list` but callable by name on every transport. `mc.test.reset` cancels running actions
+with reason `test_reset`.
