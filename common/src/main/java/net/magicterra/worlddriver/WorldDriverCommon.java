@@ -246,10 +246,10 @@ public final class WorldDriverCommon {
     }
 
     /**
-     * Called when STOPPING. Both RPC and MCP servers intentionally survive
-     * across world transitions so client-only routes (mc.client.*) and the
-     * script evaluator keep working at the main menu — only the
-     * MinecraftServer reference is detached. World-dependent routes will
+     * Called when STOPPING. Both RPC and MCP servers stay up: on a dedicated
+     * server until {@link #onServerStopped}, otherwise for the client's lifetime,
+     * so client-only routes (mc.client.*) and the script evaluator keep working
+     * at the main menu — only the MinecraftServer reference is detached. World-dependent routes will
      * throw "DriverApplication not attached to a server" until a new world loads,
      * which McpServer converts to a tool isError.
      */
@@ -264,6 +264,23 @@ public final class WorldDriverCommon {
             api.detachServer();
             LOG.info("[{}] driver detached from server (RPC + MCP still up)", MOD_ID);
         }
+    }
+
+    /**
+     * Called when STOPPED. A dedicated server's JVM has nothing left to serve, and the HTTP server's
+     * non-daemon dispatcher thread would otherwise hold it open; a client keeps both for the title screen.
+     */
+    public static void onServerStopped(MinecraftServer server) {
+        if (!server.isDedicatedServer()) return;
+        if (mcpServer != null) {
+            try { mcpServer.close(); } catch (RuntimeException e) { LOG.warn("[{}] closing the MCP server failed", MOD_ID, e); }
+            mcpServer = null;
+        }
+        if (rpcServer != null) {
+            try { rpcServer.close(); } catch (RuntimeException e) { LOG.warn("[{}] closing the RPC server failed", MOD_ID, e); }
+            rpcServer = null;
+        }
+        LOG.info("[{}] dedicated server stopped; RPC and MCP closed", MOD_ID);
     }
 
     /**

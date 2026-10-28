@@ -46,6 +46,7 @@ public final class WorldDriverEvents {
             TickClock.server().reset();
             WorldDriverCommon.onServerStopping();
         });
+        LifecycleEvent.SERVER_STOPPED.register(WorldDriverCommon::onServerStopped);
         // Copy the tick's work time, fireTick, then drive the server-side agents. StageWright ticks its own
         // harness from its own registration — it is a mod, not a library the driver has to pump.
         TickEvent.SERVER_POST.register(server -> {
