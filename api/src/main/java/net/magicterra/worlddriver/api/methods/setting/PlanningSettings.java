@@ -80,14 +80,14 @@ public record PlanningSettings(
         @Doc("PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a "
                 + "long water route cost ∝ length so A* prefers an available LAND route even from a submerged start "
                 + "(fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; "
-                + "Goal.Block GameTest water arenas unaffected. 0=off.")
+                + "Goal.Block goals unaffected. 0=off.")
         @Default("35.0") @Range(min = 0, max = Double.MAX_VALUE) double pathfinderWaterCellCost,
         @Doc("PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals "
                 + "only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step "
                 + "onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST "
                 + "exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out "
                 + "(fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, "
-                + "or hops side to side). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off.")
+                + "or hops side to side). Tall exits NOT forbidden; Goal.Block goals unaffected. 0=off.")
         @Default("40.0") @Range(min = 0, max = Double.MAX_VALUE) double pathfinderWaterClimbOutCost,
         @Doc("G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a "
                 + "LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the "

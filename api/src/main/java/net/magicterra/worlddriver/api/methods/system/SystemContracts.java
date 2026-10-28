@@ -51,7 +51,7 @@ public final class SystemContracts {
     // Pollable: a constant.
     public static final MethodSpec<NoParams, BlockPosition> TEST_ORIGIN = MethodSpec.of("mc.system.testOrigin", NO_PARAMS,
                     CommonTypes.BLOCK_POSITION,
-                    "The test arena's origin cell. mc.query and mc.observe.scene search around it when given no center.")
+                    "The origin cell of the area the validation scripts are written against. mc.query and mc.observe.scene search around it when given no center.")
             .asPollable();
 
     // ------------------------------------------------------------------ waitTicks

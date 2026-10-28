@@ -119,7 +119,7 @@ public final class PlanningConfig {
      *  start it routes UP to the y84 land and stays dry). A genuinely shorter / sole
      *  water crossing is still taken (cost beats the land detour or there is none);
      *  Y-aware pos/block goals (a seabed dive) are exempt exactly like descendTax, and
-     *  Goal.Block GameTest water arenas are unaffected. Default 35. Set 0 to disable. */
+     *  Goal.Block goals are unaffected. Default 35. Set 0 to disable. */
     public static volatile double pathfinderWaterCellCost = PlanningSettings.DEFAULTS.pathfinderWaterCellCost();
 
     /** Per-cell g-cost charged for a move whose destination stands ON a leaf canopy (floor =
@@ -278,7 +278,7 @@ public final class PlanningConfig {
      *  still climbs out — the Navigator handles it), it just stops A* choosing one when a
      *  gentler exit lies a few cells along the shore. Same TRIPLE-GATE as the other water
      *  taxes: Y-agnostic XZ goals only (a Y-aware pos/block dive-and-surface guides its own
-     *  exit and pays nothing → Goal.Block GameTest water arenas are unaffected), and only
+     *  exit and pays nothing → Goal.Block goals are unaffected), and only
      *  when {@code from} is water. Default 40 ≈ one water cell per block of rise. Set 0 to
      *  disable. */
     public static volatile double pathfinderWaterClimbOutCost = PlanningSettings.DEFAULTS.pathfinderWaterClimbOutCost();
