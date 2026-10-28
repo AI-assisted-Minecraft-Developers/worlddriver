@@ -361,6 +361,14 @@ loader's own callbacks behind a thin port in `:common`, keeping `block.break` be
 `entity.death` at the decision. Fabric API has no block-place event, so that one needs a mixin. The
 testmod's registries and `EnvExecutor` can keep the API as a dev-only dependency until they move too.
 
+### The build still goes through Architectury's plugin and transformer
+
+Move to the MultiLoader layout: Fabric Loom for `fabric/`, ModDevGradle for `neoforge/`, MDG's
+NeoForm-only mode for `common/`, each loader compiling common's sources instead of the
+`namedElements` / `transformProduction*` / `shadowBundle` wiring. Nothing uses `@ExpectPlatform`.
+`dev.architectury.loom` is pinned at `1.11-SNAPSHOT` meanwhile; upstream is at 1.17. Do the API item
+above first, so no source references `dev.architectury.*` when the build changes.
+
 ---
 
 ## Bot equivalence
