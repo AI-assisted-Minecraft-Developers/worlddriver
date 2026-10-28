@@ -1,0 +1,2 @@
+# The validation scripts on a client hosting its own server, where the client-face scripts take their real branch.
+topology: integratedServer

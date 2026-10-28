@@ -34,7 +34,7 @@ sourceSets {
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
     }
     test {
-        // testmod's output too, for the unit tests of testmod code (ValidationSuiteTest). Still main's COMPILE
+        // testmod's output too, for unit tests of testmod code. Still main's COMPILE
         // classpath, for the reason above.
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output
         runtimeClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output

@@ -1,0 +1,3 @@
+# The validation scripts (stagewright/tests/validation) on a dedicated server: every client-face script registers its
+# placeholder here, and the client verbs are refused.
+topology: dedicatedServer

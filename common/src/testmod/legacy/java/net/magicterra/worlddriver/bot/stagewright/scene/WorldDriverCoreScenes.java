@@ -32,7 +32,6 @@ import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
-import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -50,8 +49,6 @@ import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ReplayParams;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
-import net.magicterra.worlddriver.testcontent.TestArena;
-import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -80,15 +77,8 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByN
  * {@code common/src/test}.
  *
  * <p><b>Faithful async-poll translation (P1c rule — no {@code Thread.sleep} in a scene body).</b>
- * Three tests polled a background daemon in the legacy body:
+ * Two tests polled a background daemon in the legacy body:
  * <ul>
- *   <li>{@code agentRpcSmoke} kicked {@code ValidationSuite.run()} onto a worker thread and polled the
- *       result via {@code helper.startSequence().thenWaitUntil}. The scene reproduces this EXACTLY
- *       with {@link SceneContext#await} — the harness ticks the server between {@code advance()}
- *       calls, so {@code server.execute()} drains each tick and the RPC/MCP round-trips inside the
- *       validation suite complete just as they did under the GameTest tick loop. (The dogfood
- *       server starts the RPC server unconditionally on a random port, so the suite's three
- *       transports, reached through {@code WorldDriver.scripts()}, have a live endpoint.)</li>
  *   <li>{@code pathArchiveCapture} / {@code replayRoundTrip} waited (up to 2 s of {@code Thread.sleep})
  *       for the daemon plan/replay-run file write; the scenes keep the walks synchronous (a parked bot
  *       ticked until idle) and move ONLY the file-write waits into {@code await} continuations —
@@ -107,11 +97,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                // agentRpcSmoke drives the full JS validation suite on a worker thread and polls it
-                // across ticks — a big wall-clock budget (validation sleeps ~0.5 s in 49_events and
-                // does RPC/MCP round-trips) that costs nothing when it passes (the scene ends the
-                // instant the worker sets a result).
-                Scene.of("wd.agentRpcSmoke", 12000, WorldDriverCoreScenes::agentRpcSmoke),
                 Scene.of("wd.physicsParity", 200, WorldDriverCoreScenes::physicsParity),
                 Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
                 Scene.of("wd.jumpWaitsForOnGround", 200, WorldDriverCoreScenes::jumpWaitsForOnGround),
@@ -128,228 +113,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
-
-    // ==================================================================================
-    // agentRpcSmoke — the JS RPC validation face, ported with an await-continuation poll.
-    // ==================================================================================
-
-    /**
-     * Put the player on the pad {@link TestArena#seed} just built.
-     *
-     * <p>{@code TestArena.seed} clears and floors a 5×5 at the driver's test origin, and until now
-     * nothing ever went there. The suite's client-side checks — {@code mc.bot.craft} and friends —
-     * act at the PLAYER, so on a client topology they ran wherever the auto-driven client had
-     * wandered in a generated world. Observed: one run placed its crafting table fine, the next
-     * failed with {@code placeNearby: click failed ... below=minecraft:lily_pad} because the client
-     * was standing on a pond, and a third produced a different failure set again. Those read as
-     * product bugs and are terrain.
-     *
-     * <p>{@link SceneContext#playerHere()} first, purely for the cleanup it registers: it captures
-     * where the player was and teleports them back when the scene resolves, on FAIL and TIMEOUT
-     * too. The arena it moves them to is then overridden — the pad is at the driver's origin, not
-     * this scene's grid cell, because that is the spot the suite's own scripts are written against.
-     *
-     * <p>No player, no move: {@link SceneContext#playerOrNull()} rather than {@code player()},
-     * because a dedicated server has none and {@code player()} would SKIP the whole scene — taking
-     * all 145 checks with it on the one topology where they currently pass.
-     */
-    private static void standOnTestArea(SceneContext ctx) {
-        if (ctx.playerOrNull() == null) return;
-        ServerPlayer player = ctx.playerHere();
-        // Typed, so a change to the verb's answer breaks this compile rather than silently skipping the
-        // teleport below (it did, for three gate runs, when the shape this read by hand moved).
-        BlockPosition o = ApiRegistry.await(SystemApi.of(WorldDriver.registry())
-                .testOrigin(new NoParams()), 5_000);
-        BlockPos pad = Positions.blockPos(o);
-        // Offset by one on both axes rather than landing on the origin cell: the seed puts an
-        // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
-        // no free cell at their feet — which surfaces as the "crafting table needed (no free cell
-        // at the feet to place it)" error, the very terrain-shaped failure this move exists to remove. One block diagonal keeps the
-        // player on the 5×5 stone with free cells on every side.
-        double tx = pad.getX() + 1.5;
-        double ty = pad.getY() + 1;
-        double tz = pad.getZ() + 1.5;
-        player.teleportTo(ctx.level(), tx, ty, tz, Set.of(), 0f, 0f);
-
-        // Assert the move actually took. A teleport into an occupied cell is resolved by pushing
-        // the player back out, and one that lands them off the pad is indistinguishable downstream
-        // from bad terrain — which is the exact confusion this whole move exists to end. Checked
-        // here and not at the end of the scene: later checks (40_scheduler's goto/retreat) move the
-        // player on purpose, so a finishing-position assertion would fail honest tests.
-        double drift = player.position().distanceTo(new Vec3(tx, ty, tz));
-        if (drift > 1.0) {
-            ctx.fail("could not stand the player on the seeded test pad: asked for ("
-                    + tx + ", " + ty + ", " + tz + "), ended at " + player.position()
-                    + " (" + String.format(Locale.ROOT, "%.2f", drift) + " away) — the suite's"
-                    + " client-side checks would have run on whatever is under that spot instead");
-        }
-    }
-
-    /** Ported from {@code AgentGameTest#agentRpcSmoke}: wraps the JS validation suite
-     *  ({@link ValidationSuite#run}) as a dogfood scene. Kicks validation onto a worker
-     *  thread and polls completion from the tick path via {@link SceneContext#await} — the faithful
-     *  analogue of the legacy {@code startSequence().thenWaitUntil} (which is the only surface with
-     *  proper retry semantics; a bare poll would treat the first "still running" as a hard failure).
-     *  The harness ticks the server between polls, so the suite's {@code server.execute()}-marshalled
-     *  RPC/MCP round-trips drain exactly as under the GameTest tick loop.
-     *
-     *  <p><b>Topology-portable (task#92).</b> The JS RPC validation suite runs on BOTH the
-     *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
-     *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
-     *  a STALE validation-harness prelude (missing {@code Driver.observe.player}/{@code Driver.bot.*}
-     *  sugar — now loaded from the canonical {@code prelude.js}), a couple of non-defensive script
-     *  shapes ({@code applied} compact array; the {@code mc.debug.replay} replan shape), and a stale
-     *  scheduler determinism trick (RetreatChain needs a real threat to bid — the scripts now summon
-     *  one). One check ({@code 42_combat: melee engage}) is a NAMED, cited topology-skip on the
-     *  integrated path (it needs the flat GameTest arena the dedicated dogfood provides; its offence is
-     *  covered by {@code wd.serverCombat*}) — it records a {@code SKIP(task#92)} PASS, still counted.
-     *
-     *  <p>The gate here is: the suite MUST run (no early return), TOTAL must equal the topology's
-     *  expected count (coverage-drift guard), FAIL must be 0, and every {@code SKIP(task#92)} entry must
-     *  match the {@link #RPC_SMOKE_NAMED_SKIPS} allow-list — anything else skipping is a regression.
-     *  {@link SceneContext#passNote} reports the topology, TOTAL, and skip count, so the run's shape is
-     *  visible in the results JSONL.
-     *
-     *  <p><b>Why the total is topology-dependent</b> (measured, not assumed — the old scene only asserted
-     *  FAIL==0 and never counted): the ~35 client-face scripts each register ONE "skipped (no client)"
-     *  placeholder on the DEDICATED path (no client to drive the real branch) but their FULL real branch
-     *  on the INTEGRATED path — so the dedicated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_DEDICATED}
-     *  checks and the integrated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED} (the integrated
-     *  set is a strict superset). Both run REQUIRED with FAIL==0; the count guard just pins each
-     *  topology's own number so a silently-dropped check (a stale-prelude script-load failure, an #85
-     *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
-     *  blanket skip — the suite executes in full on both. */
-    private static void agentRpcSmoke(SceneContext ctx) {
-        if (WorldDriver.registry() == null) {
-            ctx.fail("agentRpcSmoke: the API registry is not initialized — was the mod loaded?");
-            return;
-        }
-        if (!ValidationSuite.tryClaim()) {
-            ctx.fail("agentRpcSmoke: another validation run (/worlddriver test) holds the suite");
-            return;
-        }
-        try {
-            TestArena.seed(WorldDriver.registry(), ctx.level().getServer());
-            standOnTestArea(ctx);
-        } catch (RuntimeException | Error e) {
-            ValidationSuite.release();
-            throw e;
-        }
-        // The suite starts real processes on the client and most of its scripts never cancel them,
-        // so the scene used to hand the next client scene a busy scheduler: the user chain held its
-        // bid of 50 from here until the drown scenes minutes later. AutoSwim's in-process backstop
-        // stands down only when the scheduler is idle, so it surfaced the bot that
-        // wd.drownEscapeClientStaysDownDisarmed needs to keep under. Cancel everything on the way
-        // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
-        // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
-        if (!ctx.server().isDedicatedServer()) {
-            ctx.cleanup(() -> ControlApi.of(WorldDriver.registry()).cancel(CancelParams.all()));
-        }
-
-        AtomicReference<Integer> result = new AtomicReference<>();
-        AtomicReference<Throwable> crash = new AtomicReference<>();
-        Thread worker = new Thread(() -> {
-            try { result.set(ValidationSuite.run()); }
-            catch (Throwable e) { crash.set(e); }
-            finally { ValidationSuite.release(); }
-        }, "WorldDriver-DogfoodScene");
-        worker.setDaemon(true);
-        worker.start();
-
-        ctx.await(() -> crash.get() != null || result.get() != null).within(12000).then(() -> {
-            Throwable c = crash.get();
-            if (c != null) { ctx.fail("agentRpcSmoke: validation crashed: " + c.getMessage()); return; }
-            Integer v = result.get();
-            if (v == null) { ctx.fail("agentRpcSmoke: validation still running"); return; } // cond guarantees non-null
-
-            // Read the per-check results the worker just recorded (ValidationSuite.run() keeps
-            // them). Assert the full suite ran with the expected coverage, zero failures, and
-            // only NAMED task#92 topology-skips — on WHICHEVER topology this scene is running.
-            List<ScriptChecks.Check> results = ValidationSuite.lastResults();
-            List<String> failures = new ArrayList<>();
-            List<String> skips = new ArrayList<>();
-            List<String> unexpectedSkips = new ArrayList<>();
-            // CONVENTION PIN: a topology-skip is only recognized by the literal marker
-            // "SKIP(task#92)" in the check name. The TOTAL guard catches dropped checks and
-            // the allow-list catches marked skips, but a check silently converted to a
-            // passing no-op WITHOUT this marker escapes both gates — any new skip MUST
-            // carry the marker (and a task citation) or it is dishonest coverage.
-            for (ScriptChecks.Check r : results) {
-                if (!r.passed()) { failures.add(r.name()); continue; }
-                if (r.name().contains("SKIP(task#92)")) {
-                    skips.add(r.name());
-                    if (RPC_SMOKE_NAMED_SKIPS.stream().noneMatch(r.name()::contains)) unexpectedSkips.add(r.name());
-                }
-            }
-            boolean dedicated = ctx.level().getServer().isDedicatedServer();
-            int expectedTotal = dedicated ? RPC_SMOKE_EXPECTED_TOTAL_DEDICATED
-                                          : RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED;
-            if (v != 0 || !failures.isEmpty()) {
-                ctx.fail("agentRpcSmoke: " + failures.size() + " failure(s): " + failures + " (see server log)");
-                return;
-            }
-            if (results.size() != expectedTotal) {
-                ctx.fail("agentRpcSmoke: expected " + expectedTotal + " checks on the "
-                        + (dedicated ? "dedicated" : "integrated") + " topology, ran " + results.size()
-                        + " — suite coverage drifted");
-                return;
-            }
-            if (!unexpectedSkips.isEmpty()) {
-                ctx.fail("agentRpcSmoke: un-named topology skip(s) outside the task#92 allow-list: "
-                        + unexpectedSkips);
-                return;
-            }
-            ctx.passNote("agentRpcSmoke: full RPC validation suite ran on the "
-                    + (dedicated ? "dedicated" : "integrated") + " topology — " + results.size()
-                    + " checks, 0 failures"
-                    + (skips.isEmpty() ? " (no topology skips)"
-                            : ", " + skips.size() + " named task#92 topology-skip(s): " + skips));
-        });
-    }
-
-    /** task#92 — the RPC validation suite's check count on the INTEGRATED (client-hosted) topology,
-     *  where every client-face script runs its full real branch. Coverage-drift guard.
-     *  Was 259 until 34_yaml_gametest.js (5 checks, both topologies — it was pure server-side and
-     *  never self-skipped) retired with the mc.test.yaml harness; 254 until 66_body_routes.js
-     *  (3 checks, both topologies, needs no bot player) was added; 257 until the build stamp (1 check,
-     *  both topologies) and the capture's frame check (1 check, client-face) were added; 259 until
-     *  11_script_eval.js's javaClassName check (1 check, both topologies) was added; 260 until the typed
-     *  body-task and hand verbs replaced their self-skips with request checks that run everywhere; 270
-     *  until 18_waypoint merged its three rejection checks into two and 66_body_routes its two
-     *  unknown-body checks into one; 269 until 11_script_eval gained its error, nested-run, request and
-     *  result-encoding checks (the settings scripts that stopped self-skipping already ran here in full);
-     *  273 until 49_events gained its string-cursor and pollable-target checks; 276 until the typed
-     *  client verbs added refusal and context checks to 10, 15 and 29; 279 until 66_body_routes gained
-     *  its check that the old {@code body} key is an unknown field; 280 until 67_mouse_scroll (3 checks,
-     *  both topologies) was added; 283 until 33_world_snapshot gained its entity and dimension checks; 285 until 68_bot_menu (2 checks,
-     *  both topologies) was added; 287 until 69_tick_times (1 check, both topologies) was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 288;
-
-    /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
-     *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
-     *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard.
-     *  Was 147 until 34_yaml_gametest.js retired, 142 until 66_body_routes.js was added — see the
-     *  INTEGRATED note above. 145 until the build stamp was added: it needs no client, so it is the
-     *  one of that pair that lands here too. 146 until the javaClassName check was added; 147 until
-     *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks; 164
-     *  until the typed body-task verbs did the same, their request checks no longer self-skipping; 184
-     *  until the hand verbs did too; 190 until waypoint's request checks stopped self-skipping and
-     *  66_body_routes folded its two unknown-body checks into one; 192 until the settings scripts
-     *  (19, 21, 22, 24, 25, 30, 31, 32, 55) stopped self-skipping, since the settings are this game's and
-     *  read the same on every topology, and 11_script_eval gained its error, nested-run, request and
-     *  result-encoding checks; 219 until 49_events gained its string-cursor and pollable-target checks;
-     *  222 until the typed client verbs' refusals stopped self-skipping in 13, 14, 15 and 29; 228 until
-     *  66_body_routes gained its old-body-key check, which needs no client; 229 until 67_mouse_scroll's
-     *  three request checks, which need none either; 232 until 33_world_snapshot gained its entity and dimension
-     *  checks; 234 until 68_bot_menu (2 checks, server-side) was added; 236 until 69_tick_times (1 check,
-     *  server-side) was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 237;
-
-    /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
-     *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
-     *  skip fails the scene. Keep each entry paired with a citation in the skipping script. */
-    private static final List<String> RPC_SMOKE_NAMED_SKIPS = List.of(
-            "42_combat: melee engage clears a zombie pack");
 
     // ==================================================================================
     // Node facts, read through mc.debug.cells.

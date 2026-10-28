@@ -38,11 +38,9 @@ public final class TestArena {
     /**
      * Keeps the test arena's chunks loaded, entities and all, for as long as the server runs.
      *
-     * <p>Nothing else does. {@code StageWrightHarness} force-loads a window around each SCENE's
-     * arena (AGENTS.md hard rule #10), and this arena is not one — the test origin is an absolute
-     * position outside every scene's grid cell, so the harness's window never covers it. Left
-     * unpinned it stays loaded only while a player happens to be standing near 0,200,0, and
-     * {@code seed} is called from scenes that then walk the player 130,000 blocks away.
+     * <p>Nothing else does. StageWright keeps a test's plot loaded, and this arena is not one — the
+     * test origin is an absolute position outside every plot. Left unpinned it stays loaded only
+     * while a player happens to be standing near 0,200,0, and the scripts walk the player off it.
      *
      * <p>What that costs is a whole class of failure that reads as a product bug. Block writes
      * load the chunk they touch on demand, so terrain always works; {@code Level#getEntities}
@@ -76,7 +74,7 @@ public final class TestArena {
     /**
      * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201,
      * one cow at (3,201,0), one sheep at (-3,201,2). Clears surrounding air first
-     * so {@code /worlddriver test} is idempotent.
+     * so seeding before every validation script is idempotent.
      *
      * <p>Pins the arena's chunks on the way in ({@link #TEST_ARENA_TICKET}) and asserts on the way
      * out that the props it just placed are actually visible. "Deterministic" is the whole point of

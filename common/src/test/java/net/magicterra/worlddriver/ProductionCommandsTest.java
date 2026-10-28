@@ -40,9 +40,12 @@ class ProductionCommandsTest {
                 "test", Component.literal("test"), null, null);
     }
 
-    /** The validation suite wipes an arena and runs operator-level commands; the shipped jar must not offer it. */
+    /**
+     * Test tooling (the arena seeder the validation scripts run against wipes blocks and entities) is the
+     * testmod's, reached through StageWright steps; the shipped jar offers no {@code test} subcommand.
+     */
     @Test
-    void theValidationSuiteIsNotAProductionCommand() {
+    void noTestToolingIsAProductionCommand() {
         CommandDispatcher<CommandSourceStack> d = production();
         assertNotNull(d.findNode(List.of(ROOT, "port")));
         assertNull(d.findNode(List.of(ROOT, "test")));
