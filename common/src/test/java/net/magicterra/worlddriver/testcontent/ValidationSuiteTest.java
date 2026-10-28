@@ -43,7 +43,7 @@ class ValidationSuiteTest {
     @Test
     void theTestmodTreeCarriesTheSuiteForOperatorsOnly() {
         CommandDispatcher<CommandSourceStack> d = new CommandDispatcher<>();
-        SceneCommands.register(d);
+        ValidationSuite.registerCommand(d);
         CommandNode<CommandSourceStack> test = d.findNode(List.of(WorldDriverCommon.MOD_ID, "test"));
         assertNotNull(test);
         assertNotNull(test.getChild("list"));

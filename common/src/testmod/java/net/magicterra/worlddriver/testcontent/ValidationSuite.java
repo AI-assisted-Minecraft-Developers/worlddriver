@@ -8,10 +8,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import net.magicterra.worlddriver.api.game.ScriptChecks;
+import net.magicterra.worlddriver.api.game.TestContent;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.minecraft.commands.CommandSourceStack;
@@ -27,9 +30,19 @@ import org.slf4j.Logger;
  * {@code /worlddriver test}, {@code -Dworlddriver.runValidation=true} at server start, and the
  * {@code wd.agentRpcSmoke} scene. Testmod only: seeding wipes the arena around the test origin and
  * the scripts run operator-level commands, which is not something a shipped jar may offer.
+ *
+ * <p>A {@link TestContent}, so the testmod's service file installs the command and the startup run;
+ * the instance holds nothing.
  */
-public final class ValidationSuite {
-    private ValidationSuite() {}
+public final class ValidationSuite implements TestContent {
+    /** For {@link java.util.ServiceLoader}; everything else here is static. */
+    public ValidationSuite() {}
+
+    @Override
+    public void register() {
+        CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) -> registerCommand(dispatcher));
+        installStartupRun();
+    }
 
     private static final Logger LOG = TestMod.LOG;
     private static final String MOD_ID = TestMod.MOD_ID;
@@ -124,8 +137,12 @@ public final class ValidationSuite {
         RUNNING.set(false);
     }
 
-    /** {@code test [list|result]}, merged under the testmod's {@code worlddriver} root by {@link SceneCommands}. */
-    static LiteralArgumentBuilder<CommandSourceStack> command() {
+    /** {@code /worlddriver test [list|result]}; Brigadier merges the literal under the driver's own root. */
+    static void registerCommand(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(Commands.literal(MOD_ID).then(command()));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> command() {
         return Commands.literal("test").requires(s -> s.hasPermission(2))
                 .executes(ValidationSuite::cmdTest)
                 .then(Commands.literal("list").executes(ValidationSuite::cmdList))

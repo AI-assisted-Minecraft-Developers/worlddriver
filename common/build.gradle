@@ -39,8 +39,8 @@ sourceSets {
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
     }
     test {
-        // testmod's output too: the hand-built scene fixture (SceneFixture / Markers) lives there and
-        // its pure half is unit-tested here. Still main's COMPILE classpath, for the reason above.
+        // testmod's output too, for the unit tests of testmod code (ValidationSuiteTest). Still main's COMPILE
+        // classpath, for the reason above.
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output
         runtimeClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output
     }

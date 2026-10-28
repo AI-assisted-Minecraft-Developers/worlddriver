@@ -77,8 +77,7 @@ public final class NpcContent implements TestContent {
         VELOCITY_MOB.listen(type -> EntityDrivers.register(type, StandInDrivers::velocity));
         MOVER_MOB.listen(type -> EntityDrivers.register(type, StandInDrivers::mover));
         StandInTasks.register();
-        // A method reference to a separate class, as MarkerContent does, so the dedicated server
-        // never links a renderer.
+        // A method reference to a separate class, so the dedicated server never links a renderer.
         EnvExecutor.runInEnv(Env.CLIENT, () -> NpcContentClient::init);
     }
 }
