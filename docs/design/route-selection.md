@@ -3,7 +3,7 @@
 > This design has been implemented. The constraints, the cost modifiers, the search scope,
 > the preview and the route events all exist under `bot/rules/`, `bot/planning/` and `bot/`, the
 > `route` object is the only route surface on `mc.bot.goto` and `mc.bot.follow`, and the
-> scene families `wd.route*` and `wd.clientRoute*` hold the behaviour.
+> in-game tests `RouteTest` and `ClientRouteTest` hold the behaviour.
 
 ## The problem
 
@@ -234,14 +234,15 @@ refused on a bot that has none.
 
 ## How it is verified
 
-The condition-parsing and constraint layer is pure and runs headless on a dedicated server (`wd.route*`): a scene
-hands a route object to the parser, gives the resulting profile to a server-side player, and asserts on the resulting
-route. The preview, the plan identifier, the awaits and the events exist only on the client's player, so they run on a
-topology with a real client (`wd.clientRoute*`).
+The condition-parsing and constraint layer is pure and runs headless on a dedicated server (`RouteTest`, in
+`wd.scenes`): a test hands a route object to the parser, gives the resulting profile to a server-side player, and
+asserts on the resulting route. The preview, the plan identifier, the awaits and the events exist only on the client's
+player, so they run with a real client (`ClientRouteTest`, in `wd.clientScenes`).
 
-Two of those scenes are worth knowing about because of what they had to avoid asserting. The skeleton-sight scene
-also asserts that the ray budget was **not** exhausted, because exhaustion drops the sight condition and re-runs, and
-a scene that did not check this could go green for the wrong reason. The preview-adoption scene asserts that no new
+Two of those tests are worth knowing about because of what they had to avoid asserting.
+`RouteTest.routeStaysOutOfSkeletonSight` also asserts that the ray budget was **not** exhausted, because exhaustion
+drops the sight condition and re-runs, and a test that did not check this could go green for the wrong reason.
+`ClientRouteTest.clientRoutePreviewAdopted` asserts that no new
 search began after adoption rather than that the route is cell-for-cell identical, because adoption re-straightens,
 trims and fast-forwards, so cell-for-cell equality is not a property the design has.
 
