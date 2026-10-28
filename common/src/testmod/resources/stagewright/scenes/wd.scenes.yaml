@@ -1,0 +1,15 @@
+# worlddriver's headless families: one dedicated server, no client. The world the old scene gates gave every scene:
+# StageWright's run directory forced seed 5471 on the default normal world (easy, structures on), and its world pin
+# held the clock at a frozen midnight, the weather clear and frozen, and mob spawning off. Tests stage their terrain
+# in plots from y=200 up, the height the old arenas were built at in the same overworld. The bot settings the old gates
+# applied at server start (the test baseline) are not a world setting: each test pins them (kit.Settings).
+topology: dedicatedServer
+world:
+  preset: minecraft:normal
+  seed: 5471
+  structures: true
+  gamemode: survival
+  difficulty: easy
+  time: { at: midnight, frozen: true }
+  weather: { clear: true, thunder: false, frozen: true }
+  mobSpawning: false
