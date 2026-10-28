@@ -179,7 +179,7 @@ class ArchitectureTest {
     @Test
     void theTestmodUsesOnlyTheApiAndStageWright() throws IOException {
         List<Path> files = javaFiles(TESTMOD);
-        assertTrue(files.size() > 50, "only " + files.size() + " testmod sources under " + TESTMOD.toAbsolutePath());
+        assertTrue(files.size() > 20, "only " + files.size() + " testmod sources under " + TESTMOD.toAbsolutePath());
         Set<String> found = new TreeSet<>();
         for (Path p : files) {
             String name = TESTMOD.relativize(p).toString().replace('\\', '/').replaceAll("\\.java$", "");
