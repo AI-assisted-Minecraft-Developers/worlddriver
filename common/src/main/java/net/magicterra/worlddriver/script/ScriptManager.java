@@ -61,12 +61,12 @@ public final class ScriptManager {
         // mc.script.eval scope loads), read from the classpath so the validation
         // harness can never drift from the runtime prelude again. task#92: the
         // hand-inlined copy that used to live here had gone STALE — it lacked
-        // Driver.observe.player() and the entire Driver.bot.* sugar (tunnel/…) that
-        // prelude.js grew over time. On the dedicated GameTest path every
-        // client-face script self-skips (no client api), so the sugar was never
+        // Driver.observe.player() and other wrappers prelude.js had grown since
+        // (that hand-written sugar is gone; wrappers are generated now). On the dedicated
+        // path every client-face script self-skips (no client api), so they were never
         // exercised and the drift stayed hidden; the first time the suite ran on
         // an integrated (client-hosted) topology those scripts took their REAL
-        // branch, called the missing sugar, and threw "… of undefined". Loading the
+        // branch, called the missing wrappers, and threw "… of undefined". Loading the
         // real prelude fixes the whole family at the source (single source of truth).
         ScriptPrelude.install(cx, scope, ScriptCalls.standalone(api));
 

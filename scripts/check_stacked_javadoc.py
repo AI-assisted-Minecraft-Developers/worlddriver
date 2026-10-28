@@ -13,8 +13,8 @@ type `python scripts/check_stacked_javadoc.py`. Do not read a green build as a g
 here, and do not assume a later reader knows that -- an instrument nobody calls is
 not an instrument.
 
-BASELINE: this family was 51 blocks when first measured (main 22 / testmod 29), and
-is 0 now. The check exists so it stays at 0: the sites were created one at a time, by
+BASELINE: this family was 51 blocks when first measured (main 22 / testmod 29), was
+brought to 0, and has crept back. The check exists to hold it at 0: the sites were created one at a time, by
 inserting a member between a doc and the member it belonged to, and nothing warned
 about any of them. Do not take a number written in this header as the current count
 -- run the scan. A count in prose is a claim about the past.
