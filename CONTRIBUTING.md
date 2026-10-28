@@ -48,42 +48,23 @@ scene costs a full game boot and can only observe what the game exposes. Several
 tests are properties of the source rather than of a run — they read the compiled bytecode and
 fail with a file and a line instead of a scene verdict.
 
-**Scenes** live in `common/src/testmod` and run under the StageWright tasks. There are two, one
-per loader, each a dedicated server with a real client joined to it; the scenes about the client's
-own player drive that client through its driver's RPC:
+**In-game tests** are JUnit tests and YAML/JavaScript script tests in `common/src/testmod`, run
+by StageWright's test suites, one per loader:
 
 ```bash
-./gradlew stagewrightDedicatedServerWithClientFabric
-./gradlew stagewrightDedicatedServerWithClientNeoforge
+./gradlew stagewrightTestFabric
+./gradlew stagewrightTestNeoforge
 ```
 
-Each provisions a clean run directory, launches the game, runs the scenes and the JavaScript
-validation suite, judges the results against the per-loader manifest in
-`scripts/stagewright/`, and exits zero only if every required scene passed. Always run the
-task above and not the bare `:<loader>:run…` task underneath it: the task above deletes the
-previous run's world first, and reusing a dirty world produces failures that look like real
-defects but are leftovers.
-
-Redirect the output to a file rather than piping it through `tail`. The verdict is at the
-end, which makes tailing look sufficient right up until a run dies before producing one and
-the error was in the part you discarded.
-
-`./gradlew stagewrightCoverage` reconciles the two runs against each other and needs them all
-to have been run first. It exists because a scene that skips on every topology records a pass
-over a subject nothing ever tested.
-
-**Tests that assert from outside the game** attach to a held run. `stagewright<Topology><Loader>Hold`
-launches the same topology, publishes an endpoint descriptor into its run directory once the
-game is in a world, and waits. The suites live in StageWright's `:stagewright-junit` module
-and are gated on which face the hold presents, so with no endpoint configured both halves skip
-and a green result means nothing. The details are in [`docs/dev/testing.md`](docs/dev/testing.md).
+Each starts the games each test's scene file asks for and reports like any Gradle `Test` task.
+Most of the older scenes have not been ported to these yet; they wait, uncompiled, in
+`common/src/testmod/legacy/`.
 
 **Source checks** under `scripts/` are run by hand; nothing in the build invokes them, and CI runs
 `check_source_budget.py` as well.
 
 ```bash
 python3 scripts/check_source_budget.py   # no Java source file over 3000 lines, comment-only lines not counted
-python3 scripts/check_scene_arena.py     # a scene's terrain fits its force-loaded arena
 python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
 python3 scripts/check_packaging.py       # what the published jars and POMs carry; repository fences
 ```
@@ -137,10 +118,8 @@ Nothing should ever be written to the repository root.
 | What produced it | Where it lands |
 |---|---|
 | `runClient` / `runServer` | `<loader>/run/` |
-| The dedicated-server-with-client scene task | `<loader>/run-stagewright-with-client/`, and `<loader>/run-stagewright-joining-client/` for its client half |
-| The instrument-contract server | `<loader>/run-contract/` |
-| The playthrough ladder | `fabric/run-journey`, `run-journey-integrated`, `run-journey-with-client`, `run-journey-joining-client` |
-| One-rung rehearsals | `fabric/run-rehearsal`, `fabric/run-rehearsal-integrated` |
+| The in-game test suites | `<loader>/run-stagewright/<suite>/` |
+| The lab client | `fabric/run-lab/` |
 | Smoke-driver screenshots and traces | `fabric/run/smoke/` |
 | Compiler output | `<module>/build/` |
 
@@ -175,7 +154,7 @@ cite a commit hash — a history rewrite invalidates it.
 1. Branch from `master`.
 2. Make the change. Add a scene or a JVM test for new behaviour, and a validation script if
    the change adds or alters a method on the API surface.
-3. Run the checks the change needs: `./gradlew :common:test` always, the relevant gate tasks
+3. Run the checks the change needs: `./gradlew :common:test` always, the in-game test suites
    for anything the game executes, and both loaders for anything that could load differently
    on a dedicated server.
 4. Open a pull request saying what changed and why, naming the tests that demonstrate it, and

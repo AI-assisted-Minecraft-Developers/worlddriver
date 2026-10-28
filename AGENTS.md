@@ -17,9 +17,9 @@ links to; read that page before arguing with the rule.
   consumed only as published Maven artifacts, a CI build from the Nexus pinned by
   `stagewright_version` in `gradle.properties`; neither shipped jar contains a
   StageWright class. `CONTRIBUTING.md` ("First build") covers building against a local one.
-- **Three test layers**: JVM tests (`./gradlew :common:test`), scenes run by the four
-  StageWright gate tasks, and out-of-process suites. Prefer the JVM layer wherever the subject
-  allows it. See `docs/dev/testing.md`.
+- **Two test layers**: JVM tests (`./gradlew :common:test`) and in-game tests run by
+  StageWright's test suites. Prefer the JVM layer wherever the subject allows it. The old scenes
+  still to be ported sit uncompiled in `common/src/testmod/legacy/`.
 - **`net.magicterra.worlddriver.test` is script API, not test machinery.** `ScriptTest` ships
   in the production jar on purpose; every in-game script asserts through it.
 
@@ -49,37 +49,29 @@ links to; read that page before arguing with the rule.
    `neoforge/src/main/resources/META-INF/accesstransformer.cfg`.
    Check: `./gradlew :fabric:build && python3 scripts/check_remap_safety.py`.
    Why: `docs/dev/loader-glue.md`.
-10. **A scene's terrain must fit its force-loaded arena**; prefer `ctx.setBlock(dx, dy, dz, …)`.
-    Check: `python3 scripts/check_scene_arena.py`. Why: `docs/dev/testing.md`.
-11. **Never hand a client type to a wider parameter (`Player`, `Entity`) from a class a
+10. **Never hand a client type to a wider parameter (`Player`, `Entity`) from a class a
     dedicated server loads.** Check: `./gradlew :common:test` (`SchedulerClientCallSurfaceTest`)
-    and both dedicated-server gate tasks, before landing any change that alters the shape of a
+    and both in-game test suites, before landing any change that alters the shape of a
     call. Why: `docs/dev/loader-glue.md`.
-12. **A scene that writes a setting (any `config/*Config` class) must hold a pin**:
-    `var pin = BotConfig.pinnedBaseline(); ctx.cleanup(pin::close);` at the top of the body.
-    Check: `./gradlew :common:test` (`ConfigPinDisciplineTest`). Why: `docs/dev/testing.md`.
 
-Do not compile under a live run or a gate run: development runs load classes lazily from
-`build/classes`, and the bytecode checks in rules 11 and 12 recompile `:common`.
+Do not compile under a live run or a test run: development runs load classes lazily from
+`build/classes`, and the bytecode check in rule 10 recompiles `:common`.
 
 ## Common commands
 
 ```bash
 ./gradlew build                                   # both loaders + JVM tests
 
-# The two gate tasks (lowercase f in Neoforge). Always run these, never the bare run task
-# under them; redirect the output, never pipe it through tail.
-./gradlew stagewrightDedicatedServerWithClientFabric   > run.log 2>&1
-./gradlew stagewrightDedicatedServerWithClientNeoforge
-./gradlew stagewrightCoverage                       # after both: every scene ran somewhere
+# The in-game test suites (lowercase f in Neoforge); redirect the output, never pipe it through tail.
+./gradlew stagewrightTestFabric   > run.log 2>&1
+./gradlew stagewrightTestNeoforge
 
 ./gradlew :fabric:runClient                         # interactive client
 uv run scripts/react_smoke.py                       # smoke driving over the client RPC; start a client first
 ```
 
-The manifests `scripts/stagewright/expected-scenes-{fabric,neoforge}.txt` are part of the
-judge: a new scene goes into both in the same commit. Why a gate must be the entry point, how
-to read a negative verdict, and the out-of-process suites are in `docs/dev/testing.md`.
+`docs/dev/testing.md` still describes the deleted scene path in places; StageWright's own
+`docs/guide/gradle-plugin.md` describes the suites.
 
 ## When you add a method to the API surface
 
@@ -93,8 +85,7 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
    ("Registering a verb").
 3. Add a validation script under `validation/` that exercises it through all three transports.
    `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern.
-4. Re-run the relevant gate tasks, and the instrument contract over a hold if the change could
-   affect what an external observer sees.
+4. Re-run the in-game test suites.
 
 ## When you remove or merge a method
 
@@ -135,11 +126,9 @@ How to update a pull request on this repository (`gh pr edit` does not work) is 
 ## Pointers
 
 - **Architecture, the seams, the threading discipline**: `docs/dev/architecture.md`
-- **Gate tasks, scenes, manifests and the hand-run checks**: `docs/dev/testing.md`
+- **Tests and the hand-run checks**: `docs/dev/testing.md`
 - **Loader differences, access wideners, client classes on a server**: `docs/dev/loader-glue.md`
 - **The autonomous layer**: `docs/dev/bot-layering.md`
-- **The `wd.journey*` playthrough ladder** — read before touching `JourneyRig`; a new rung uses
-  `rig.avatar()`, never `rig.body().avatar()`: `docs/dev/playthrough-ladder.md`
 - **Keys, mouse and the human at the keyboard** — a new writer of those globals is a design
   decision, and `SharedKeybindQuarantineTest` guards it: `docs/dev/input-sharing.md`
 - **Debugging a live run**: `docs/dev/debugging.md`

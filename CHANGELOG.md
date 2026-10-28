@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-28
+
+- **The old StageWright scene path is gone from WorldDriver, following StageWright's deletion of it.** Of
+  the 396 scenes, the 170 that tested StageWright's own features, duplicated another test or were known
+  optional failures are deleted, along with the survival ladder (`wd.journey*`) and its arena scenes, the
+  fixture-authoring tooling (markers, `/worlddriver mark|scene|anchor`, `human.*`), the expected-scenes
+  manifests and the gate, contract, journey and rehearsal runs. The 226 worth keeping are parked uncompiled
+  in `common/src/testmod/legacy/` until they are ported. The server no longer applies the scene flag
+  baseline at start under `-Dstagewright.autorun`. CI runs `stagewrightTestNeoforge` instead of the gate.
+
 ## 2026-10-27
 
 - **Builds are published as `0.1.0-alpha.<n>+1.21.1`, and a local build is `0.1.0-snapshot+1.21.1`.** The
