@@ -19,6 +19,8 @@ import net.magicterra.worlddriver.api.methods.bot.BotTaskBlockingApi;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -48,6 +50,38 @@ class JupiterBodyTest {
     void andLeavesWhenItsTestEnds(Game game) {
         UUID left = lastBot;
         assertNull(game.onServer(s -> s.getPlayerList().getPlayer(left)), "the bot is still on the server");
+    }
+
+    private static volatile UUID keptBot;
+
+    @Test
+    void aBotIsKeptForALaterTest(Game game, @Bot.Name("courier") @Bot.Keep Bot courier) {
+        keptBot = courier.onServer(p -> p.getUUID());
+        courier.give(Items.GOLD_INGOT, 5);
+        courier.moveTo(new BlockPos(40, 70, 40));
+        courier.onServer(p -> {
+            p.setHealth(7.0F);
+            return null;
+        });
+    }
+
+    @Test
+    @DependsOn("aBotIsKeptForALaterTest")
+    void andTakenByTheTestThatDependsOnIt(Game game, @Bot.Name("courier") @Bot.Kept Bot courier) {
+        assertEquals(keptBot, courier.onServer(p -> p.getUUID()), "the same player");
+        assertEquals(5, courier.count(Items.GOLD_INGOT), "with what it had");
+        assertEquals(new BlockPos(40, 70, 40), courier.blockPos(), "where it stood");
+        float health = courier.onServer(p -> p.getHealth());
+        assertEquals(7.0F, health, "as it was");
+        boolean ticking = game.onServer(s -> BotTicker.isRegistered(BotRegistry.get(courier.ref())));
+        assertTrue(ticking, "back on the tick list");
+    }
+
+    @Test
+    @DependsOn("andTakenByTheTestThatDependsOnIt")
+    void andLeavesWithTheTestThatTookIt(Game game) {
+        UUID taken = keptBot;
+        assertNull(game.onServer(s -> s.getPlayerList().getPlayer(taken)), "the kept bot is still on the server");
     }
 
     @Test
