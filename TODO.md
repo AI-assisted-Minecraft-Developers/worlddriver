@@ -13,13 +13,26 @@ checked against the current tree. Read the code before acting on one.
 
 ---
 
+## Porting the tests to StageWright's new path
+
+### The parked scenes still have to be ported
+
+`common/src/testmod/legacy/` holds the 226 old scenes worth keeping and their helpers, uncompiled. Port
+each family to `net.magicterra.stagewright.test` (or to a JVM unit test) and delete it from there; the
+four flaky ones go under `@KnownIssue`. They were written against `BotConfig.applyGameTestBaseline()`,
+which the server applied at start and nothing applies now.
+
+### The survival ladder has to be rebuilt as new-path tests
+
+`wd.journey*` and its arena scenes were deleted with the old path. Rebuild the climb once StageWright can
+keep one body and one save across tests (StageWright's TODO tracks that gap).
+
+### The fixture-authoring tooling has to be redesigned
+
+Markers, `/worlddriver mark|scene|anchor` and the `human.*` scenes were deleted with the old path.
+Hand-built scenes need a new design that saves into, and runs as, new-path tests.
+
 ## Engine and mod code
-
-### Hand-built scenes no longer run on the real player in the suite
-
-`FixtureRunner.bodyForTopology` picks `self` only on an integrated server, and there is no
-integrated-server gate any more, so every `human.*` scene runs on a headless bot. Run them on the
-joined client's player (`self`, which `ClientHelm` now reaches over RPC) as well.
 
 ### `wd.serverEarnsAnEnderPearl` is required and depends on loot rolls
 
@@ -65,7 +78,7 @@ step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 154
 ### The navigator spends its last node a block short after a detour
 
 `wd.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and the
-bot then slides onto the goal cell. Same shape as `wd.journeyGetsAshoreBeforePouring`. Look at the
+bot then slides onto the goal cell. Same shape as the floating bot that cannot walk onto a bank, below. Look at the
 step-advance gates in `ProgressPhase` for a last node approached at an angle.
 
 ### The shore scan can aim a drowning bot at lava
@@ -256,8 +269,8 @@ bunker's state from the active chain plus sky exposure. **Unverified.**
 ### Single-shot actions on the client avatar are issued from the server thread
 
 The correct shape is to issue from the client tick chain and let the scene observe the outcome
-through the world. Only `wd.actuatorSplitThroughTheClientAvatar` can judge this seam, and the
-survival run's topology cannot reach it.
+through the world. The optional scene that judged this seam, `wd.actuatorSplitThroughTheClientAvatar`,
+was deleted with the old scene path.
 
 ### Client state is written from the server thread beyond the one path already guarded
 
@@ -266,10 +279,10 @@ one caller of it. `useItemInHand` (the bucket path) and `continueDestroy` are un
 item, setting the selected slot, container clicks, recipe placement and unchecked attacks also write
 client state from scene threads.
 
-The guarded path's shape — hand the work off and return — cannot be copied. `JourneyFill` reads the
-bucket count immediately after the call and judges on the difference, so deferring the use makes it
-always read as a failed fill; any fix has to change those call sites too, either by settling once
-before reading the stock or by moving them onto the pending-stop mechanism. The hold-item family is
+The guarded path's shape — hand the work off and return — cannot be copied blindly: a caller that
+reads the bucket count right after the call and judges on the difference would read a deferred use as
+a failed fill, so such callers have to settle once before reading the stock or move onto the
+pending-stop mechanism. The hold-item family is
 the same defect with a smaller blast radius (a bare int field rather than a map, so the worst case
 is a stale read), but its return value is load-bearing — callers assert on it — so fire-and-forget
 would turn it into a lie. Either the callers' contract changes or holding and using share one
@@ -415,11 +428,6 @@ until a spawn-time row is added. **Unverified.**
 
 ## Test harness, ledger and instrumentation
 
-### A scene failure does not reach the ledger
-
-`ctx.fail` does not flow into the ledger's failure field, so the ledger never records why a rung
-failed. **Unverified.**
-
 ### The fall self-report names the process, not the action
 
 The leaving report says which process was running, and not which movement edge the navigator was
@@ -439,22 +447,9 @@ mismatch between a block and the declaration it is attached to: a `@param` namin
 does not exist, a `@return` on a void member. It does not need natural language. The script records
 this in its own header.
 
-### Evidence keys in the climb and exit families carry no tag and overwrite each other
-
-**Unverified.**
-
 ### Mob cap, chunk loading and terrain change have no reading at all
 
 **Unverified.**
-
-### Two of the late rungs have no stock evidence rows
-
-Three recipe tables are waiting on them. **Unverified.**
-
-### The coverage line's executed count excludes scenes that ran and failed
-
-A failure counts as neither executed nor skipped. The coverage column also still needs the skip
-count beside it.
 
 ### An advancement says not earned while the bag holds the item
 
@@ -463,32 +458,9 @@ before believing either side of it. **Unverified.**
 
 ---
 
-## The survival ladder
+## Found on the survival ladder
 
-The end-to-end survival run. The three standing optional failures in the scene suite
-(`wd.vineOverWaterClimb`, `wd.serverEscapeSealedShelter`, `wd.journeyGetsAshoreBeforePouring`) are
-tracked here rather than as suite defects.
-
-### A run that did not finish reported success
-
-The client dropped out partway through the fourteenth rung, that rung wrote no results at all, and
-the build still exited zero. Two separate things: a run that did not finish must fail the build,
-and the disconnection needs a cause of its own. Nothing about the fourteenth rung can be verified
-until the first half is fixed, because the corridor has never been run end to end.
-
-### The fourteenth rung currently stops on its fifth segment
-
-The bot retreats westward, falls repeatedly and dies of accumulated fall damage with food low and
-no regeneration. The destination is reachable — one search solved it — but the cost is the problem:
-three of four full-budget searches hit the node ceiling, and the one that solved used most of the
-budget. The fix is to shorten the hops by inserting intermediate waypoints, not to move the
-waypoint that cannot be reached; one cell on that stretch is already measured as standable and has
-been arrived at. Choosing the intermediate points needs the corridor terrain map below.
-
-### The corridor terrain map has never been written
-
-`JourneyCorridorProbe.record` is wired to the paths where a segment is abandoned, and not to the path
-where the bot dies — and both corridor runs ended in death. Wire the death path too.
+Engine-side defects the deleted survival ladder found; its own strategy-code items went with it.
 
 ### The full-budget search tier has no clock
 
@@ -496,37 +468,11 @@ It runs effectively without a time bound, at several seconds per call. Two quest
 tier should have one at all, and why a thirteen-block segment over open lava takes tens of thousands of
 nodes, which says the heuristic is not converging there.
 
-### There is no eating anywhere on the fourteenth rung
-
-`JourneyFeed.eatIfLow` has exactly one call site in the whole project, on the gravel rung, and the
-raw beef is all eaten there. Two halves that are useless apart: cook the beef, placed after the iron
-smelt where a furnace is already down and the sequence has been exercised, and add one eat call in
-the corridor, between segments rather than partway through one. Before writing the cooking half, check what the
-smelt process burns and where the fuel is drawn from when its third argument is null — iron and meat
-draw on the same pool.
-
-### The corridor audit's acceptance check has nowhere to run
-
-The audit runs at the corridor start, and a failure there cuts off the evidence the check needs. It
-wants an optional scene of its own after the thirteenth rung, registered together with its rows in
-both loaders' expected-scene manifests in one commit.
-
 ### The corridor fire needs a replan trigger, not a surcharge
 
 Decided; not yet built. Pricing the cells next to fire is withdrawn and should not be picked up
 again, and so is the per-tick comparison of the bot's cell against the path node, which existed
 only to take the surcharge approach apart.
-
-### Who lights the corridor fire is unknown
-
-The reading says only that the block is in the fire tag; ghasts and fire spreading over netherrack
-are both unexcluded. The replan trigger does not depend on the answer.
-
-### The quick-start pathfinder stub could be lengthened in the corridor
-
-It is a writable setting, currently a few hundred nodes, and raising it gives the bot a longer stub
-to walk during the seconds a full search takes. Deliberately kept out of the corridor change set so
-that a run's outcome stays attributable.
 
 ### A raise reports a height where the caller needs a column
 
@@ -542,99 +488,11 @@ It correctly detects that two successive rewrites undo each other and stops, whi
 behaviour, but that fact never reaches the return value — the caller sees only a height. Same
 occasion and same reopen condition as the entry above.
 
-### A "gained N of N" reading can be true with the bot airborne and off the column
-
-It measures a height difference. It must never stand alone as a success criterion: success needs
-the ending cell to be the named column and the cell below it to be solid. The climb's closing step
-should combine the three into one verdict instead of leaving a reader to cross-check them.
-
-### Aiming happens while the bot is still falling
-
-The settle judgement uses cell numbers and the aim uses exact coordinates, so a bot most of a block
-above its cell fires a ray that clips the frame. The reading has landed — footing height and
-on-ground are printed beside each aim — and the fix has not. The draft criterion is to keep waiting
-while the bot is airborne and to stop waiting once the foot drops below the starting row, and it is
-known not to hold for one case, which needs a second branch that re-picks the stance rather than
-aiming from where it is. Waiting longer is not the fix: a bot in the air only falls further. After
-landing the aim must be recomputed, because what is stored is an angle and not a target.
-
-### The arrival walk answers a zero-block question with a five-block tolerance
-
-Both remedies it names fire, and both report success by their own criteria, while the bot is still
-off the named column — because those criteria count how many steps were laid, not where the bot
-ended.
-
-### The fill stance scan runs twice and the first pass discards its reason map
-
-The flag that makes the two passes differ applies only to lava, so for water they are equivalent and
-the first pass always answers — which means the reason map the caller reads is permanently empty,
-exactly in the failure shape where the answer is "the only stance found is the cell the bot is
-already in". Give the first pass a real map, merge whichever pass answered, and name in the evidence
-which one it was.
-
-### Two bucket-fill implementations coexist
-
-The scene-side one and `JourneyFill`, and the eleventh rung still runs the scene-side one — which
-lacks the reach margin, the re-aim, the source change and the fill station, and discards the
-hold-for-use return value, so a missing bucket is charged to "did not fill". The first step is only
-the matching guard that names "could not hold the bucket". Merging the two waits for a round in
-which evidence keys are allowed to change.
-
-### Three changes to the pour aim, in this order
-
-First, the five silent `continue`s in the aim search write nothing, so "re-asked, refused, fired
-anyway" leaves no trace. Second, the failure verdict reports geometry when the truth is that the
-bot is not standing on the stance it chose for itself, which sends the next reader to the wrong
-place. Third — the only behavioural change — record the stances the bot could not reach and exclude
-them on retry, clearing the set per pour; today the retry is byte-for-byte identical to the first
-attempt because the stance chooser cannot know the bot failed to get there. Do not widen the
-blocker scan to start at the target's own column: that column is the mould's frame.
-
 ### The daylight height expression is hand-written nine times
 
 A helper already exists for it. Check each call site's declared level type before substituting; one
 of them wants a block position rather than an integer. Compilation is the only check needed, since
 no evidence key changes.
-
-### One ascent entry point records no exit
-
-It climbs a lava corridor and writes none of the six exit rows. The other twelve entry points stay
-as they are: fill one in only when a verdict blames a climb's outcome and that segment has none of
-the exit rows, and then fill in only that one.
-
-### A pit-rim surcharge is recomputed every run for no change
-
-The cell count does not move between runs, so the full scan each time is pure cost. Snapshot the
-outbound computation and reuse it; the surcharge itself should not change, since it is what bought
-a run with no lava deaths.
-
-### A shaft's exit climb is washed off the pillar repeatedly
-
-Both descent columns were ruined by fluid; the code diagnosed and decided correctly, and what ate
-the run was the exit climb being washed off each time it placed a block. What is needed first is
-provenance for each water cell encountered — natural, left by an earlier rung, or self-poured — in
-the same form the pour side already records. Neither path should be changed before that has a
-distribution, and "tower started in flowing water" and "not enough column retries" must not be
-merged into one fix: they are two separate defects.
-
-### Water reaches the stairwell floor and the family is not yet named
-
-The upstream scan now reports no source blocks within range, so this is runoff rather than a live
-source being fed. The water-source-lifetime change — placing the water only once the lava is in hand,
-which shortens its life from a long round trip to the few dozen ticks of the pour — must not be
-started until the drain reading says which family this is.
-
-### The drain rows do not say how much was cleared or how long it took
-
-They say only that the alcove is drained, or that fluid remained after the wait. Add the cell count
-and the tick count.
-
-### A shaft column change moves to a column in the same water
-
-Requiring a dry column is not the answer: a measured sweep rejected every candidate around this
-seed's lake, because the water table is simply there. The real problem is that descending into water
-needs a technique — sealing the source, taking it, or a different digging order. Read the
-diggability helper's javadoc before reopening this.
 
 ### Two message texts are wrong
 
@@ -642,14 +500,6 @@ A stuck-step annotation attributes the refusal to one of the three booleans befo
 fourth conjunct it printed on the same line, sending the reader to look for a source that does not
 exist. A scene's top-level fallback reason contradicts what runs actually report. Change the text in
 both; do not add fields.
-
-### The cell-clearing pass is single-pass and the failures are arrivals that did not happen
-
-The pass advances monotonically and never returns to a cell it could not open. Separately, the
-arrival radius it uses is provably tighter than the interaction limit, so "arrived but out of range"
-cannot happen — which means a failure there is a walk that did not arrive. The fix direction is to
-sweep until no progress is made, not to widen the arrival radius and not to relax the no-break
-constraint on that walk.
 
 ### An enderman fight sometimes never ends
 
@@ -668,97 +518,26 @@ drowned standing in that water. Nothing can say who opened it — the navigator'
 carries its own permission to break, and is the first candidate. What is needed is a
 who-wrote-this-cell attribution row, not another round of inference.
 
-### The pit-rim band is scanned above the lava only
-
-It does not protect a bot already down in the pit. The segment-attribution reading has landed; collect
-samples before deciding whether to extend the band downward.
-
-### The stranded branch of the walk home does not settle onto ground
-
-The arrived branch does; the stranded branch records only where it stranded and moves on. The stranded
-bot is the one that most needs the reading.
-
-### The tower-reclaim row records only the count after dismantling
-
-Record the count before as well, so how much came back is measured rather than inferred from net
-loss.
-
-### Arrival is hard-coded at five blocks while callers pass a tolerance
-
-The shared walk-to-column helper feeds the caller's tolerance to the goal and then judges arrival
-against a hard-coded five-block radius. Eight of fourteen call sites pass zero, so tightening all of
-them at once turns eight walks red simultaneously and nothing is attributable. Do this in order: add
-an evidence row that fires when arrival fell between the caller's tolerance and the hard-coded
-radius, and run once to see who is relying on the slack; then give the callers that need precision
-their own path; then handle the rest one at a time. The first step changes no criterion and cannot
-change any scene's colour.
-
 ### A floating bot cannot walk onto a bank at its own level
 
-This is what keeps `wd.journeyGetsAshoreBeforePouring` failing, and that scene is the only standing
-witness to the engine-side defect. A scripted step that places a block under the bot is
-geometrically impossible here — the bank is one row above the bot and the cell below it is one row
-lower still, and placing into the bot's own cell is refused by vanilla.
-
-The engine-side half: the navigator's final node is accepted by the horizontal proximity clause with
+The scene that witnessed it, `wd.journeyGetsAshoreBeforePouring`, was deleted with the ladder. The
+navigator's final node is accepted by the horizontal proximity clause with
 zero footing under the bot, and the existing airborne-climb guard cannot be reused, because it is
 scoped to mid-path nodes and it excludes bots in water for a measured reason. A second judgement
 sits above it on the test side, so two layers each call this an arrival; a fix has to account for
-both. Reopen the scripted step only if the navigator starts delivering the bot to the bank's column
-and the scene is still failing.
-
-### A retry in the ramp changes nothing, and the instrument cannot say why
-
-Three rows are written mutually exclusively and none carries timing, so "it stepped aside, asked
-again and was still refused" and "the stop reason was rewritten, so it never asked again" both fit
-the archive equally well. Give those three rows a shared pass number or tick stamp, and print the
-stop reason as it was before the rewrite. Do not add retries on the strength of the current reading:
-if the branch was never asked a second time, more attempts change nothing.
-
-### A ramp early-return compares rows and not columns
-
-It appears in two places with the same shape, so changing one immediately runs into the other.
-Reopen when a profile names the wall cell and the raise still reports a column other than the one it
-pinned.
-
-### Nothing records who lifted the bot above the alcove
-
-A placement row carrying coordinates would answer both that and who filled the wall cell that blocks
-the descent segment. Without it the failure can be described but not attributed.
-
-### The seat for a fill is judged from the cell centre, not the eye that fires
-
-A change that asked the real eye landed and was then reverted, and the revert stands. The defect
-itself is measured: the real eye is blocked by a specific block face at a specific distance while
-the cell-centre eye has a clear line. The minimal form changes the ray's origin rather than adding
-rays, and four call sites of the same shape can share one eye helper. One nearby sampler takes
-offset parameters deliberately and is not part of this family.
-
-### The rehearsal task's switches are 115 lines of build-script flags
-
-They want to be a shared closure.
+both.
 
 ### A scanner checks the owner class and should also check descriptor parameters
 
 A scheduler class can pass a client type without calling one, and the failure only appears when a
 dedicated server constructs it.
 
-### The ladder's progress keys need units
-
-And an older path-length key should survive one more round before it is removed.
-
-### Markers in the lab world vanished between runs
-
-Twenty-five placed, all gone a few scenes later, cause unlocated. The run now logs how many markers
-it lifted and restored; compare those two rows the next time it happens.
-
 ---
 
 ## Source-size budget
 
 `scripts/check_source_budget.py` fails the build for any Java file over 3000 lines. Several files
-sit within a few lines of it — the journey rig, the configuration class, the navigator, the Nether
-rungs, the journey scenes and the End rungs, in that order. Run the script for the current numbers
+sit within a few lines of it — the configuration class and the navigator among them. Run the script for the current numbers
 rather than trusting a number written here. The remedy is splitting; stripping comments to buy
 headroom trades readability for quota and is not one.
 
@@ -805,53 +584,16 @@ reopen one without that observation.
 - **A global arbitrator for the attack key's five users.** A diagnostic table replaced it and the
   affected rung has passed consistently since. Reopen if that rung fails again with an unclear
   attribution.
-- **Widening the retry budget on the in-place lift.** All three approaches are byte-identical
-  because the gate compares heights and what fails is the column. The three split readings have
-  never produced a row. Judge on the first one that does.
-- **Re-picking a blocked pour target more times.** The predicted fourth state has never appeared in
-  any archived result. When it first does, the direction is already fixed: change the question (via
-  a midpoint, or walk to the column) rather than raising the count.
 - **Checking the target cell is empty before placing.** Refusals consume nothing and write nothing;
   the measured ratio is well under one refusal per success, clustered on individual cells. Reopen
   when a run's failure or exhausted budget is charged to repeated refusals.
 - **Reporting a mid-flight elytra exit through the error field.** That exit is the only consumer's
   sole path and the late rungs do not use elytra at all. Reopen if elytra enters the main line.
-- **The shaft support helper reading the context's level rather than the bot's.** Latent — every
-  caller is currently in the overworld. Its twin in the End rungs has a byte-identical method body and
-  reads a different level, so merging the two would break the late rungs. This family raises no
-  error of its own, so the reopen condition has to be executed by a person: the first time any of
-  the shaft's methods appears in a Nether or End rung's call graph, which is the first step of
-  starting work on those rungs.
-- **Splitting the journey rig behind a facade.** The seam is real and clean, but it costs nearly two
-  hundred call sites across a dozen files for no behavioural gain. It is now up against the size
-  budget above, which is where it will be decided.
 - **Taking material for towers and unsticking from downstream demand.** The measured net cost is
   zero. Reopen when a verdict charges a failure to material supply.
 - **Reconciling the two break-cost multipliers.** The motivation is gone: the local exemption that
   replaced it is verified with the shipped configuration. The multipliers' remaining global effect
   belongs to the two-world-views pricing item, not here.
-- **Recording a skipped scene as something other than a pass.** The judge already separates the two
-  — it prints skips distinctly, excludes them from the executed count and folds them into the
-  coverage line — and the outcome field cannot change, because failure is judged by inequality with
-  pass, so writing anything else would turn every skip into a required failure. What needs stating
-  is the protocol for reading the results file. Reopen if a coverage line ever disagrees with the
-  number of skipped records in the results file.
-- **Adding a fifth remedial step to the portal rung**, and **changing the raise-in-column or ramp
-  logic on the strength of an off-column reading**: those readings appear byte-identical in passing
-  runs, so they are necessary-but-insufficient at best.
-- **The nine placement refusals during staging.** They occur outside the scored region, consume
-  nothing, and the tower they belong to was built anyway. Reopen when at least five refusals on one
-  cell coincide with a failing outcome in the same segment; the fix direction is then to recompute
-  the clicked cell from the bot's current position rather than reusing the one chosen when the walk
-  began.
-- **Adding no-break constraints to the five remaining walks inside the mould.** Two walks were given
-  one each on three-way evidence; these five have none, and adding the constraint has a measured
-  cost — one of the five is the recovery walk that climbs out of the pit, which may have no route at
-  all if it cannot dig. Add one only when a run shows a broken stair step, a dig on the staircase's
-  supporting diagonal, and a segment whose search owner and goal match that specific walk.
-- **Extending the drain scan to the pour line.** The two scans read the same set by construction —
-  the "inside the alcove" label is membership in the corridor the drain scans. Reopen if a pour-line
-  water row is ever labelled outside the alcove while the drain reports the alcove clear.
 
 ---
 
@@ -873,18 +615,8 @@ line the code itself would write, read the production code, and measure the file
   destroying a block every tick while the window is unfocused has never been measured.
 - Place and break permissions are one concept with two enforcement paths.
 - An executor leaves its own plan and cannot get back to it — a family, not one case.
-- The seventeenth-rung march treats displacement as progress, which is the third instance of that
-  shape.
-- The alcove does not drain fully; the cause is half known and the behaviour is now a cost rather
-  than a blocker.
-- A third way of dying on the eleventh rung: over-digging by a dozen blocks.
-- Two more buckets are needed on the ninth rung; the code half has landed and the iron half has not,
-  because the amount mined is below what the bill requires.
-- The fifteenth rung cannot reach the warped forest, with the bot sitting in lava.
-- The lava lake is a cave lake with a one-block-thick ceiling; two candidate fixes, neither tried.
 - On the fourteenth and fifteenth rungs, the navigator's exit is the next step, and one expansion
   is walled in with nobody digging it out.
-- The survival run completes in peaceful mode: three options, and the choice is a user's to make.
 
 ### Two pointers rather than copies
 
