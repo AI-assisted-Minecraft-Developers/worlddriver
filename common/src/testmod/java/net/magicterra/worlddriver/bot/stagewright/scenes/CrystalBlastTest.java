@@ -1,26 +1,28 @@
-package net.magicterra.worlddriver.bot.stagewright.scene;
+package net.magicterra.worlddriver.bot.stagewright.scenes;
 
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.stagewright.scene.Scene;
-import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.testcontent.TestMod;
+import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Plot;
+import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
+import net.magicterra.worlddriver.bot.stagewright.kit.SimProbes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestReporter;
 
 /**
  * <b>Breaking an end crystal takes your own footing away — if you are standing on the cage.</b>
@@ -50,21 +52,20 @@ import net.minecraft.world.phys.AABB;
  * placed), i.e. every later crystal order was given to a bot that was no longer standing anywhere.
  * One hit cost nine rungs.
  *
- * <h2>What these two scenes are</h2>
+ * <h2>What these two tests are</h2>
  *
  * A matched pair whose <b>only</b> variable is the block under the bot's feet. Same pillar, same
  * cage, same crystal, same inventory, same tick loop; one arm stands on the cage lid and one stands
  * on the pillar-top obsidian one block from the crystal. Neither touches the product — they are
- * sensors, shipped {@code withRequired(false)} under this repo's promote-on-first-green rule and
- * required now — both went green on both loaders, the cage arm by way of a refusal.
+ * sensors, and both went green on both loaders, the cage arm by way of a refusal.
  *
  * <ul>
- *   <li>{@code wd.crystalBlastOnTheCage} — it falsifies the claim "the bot may stand on the cage
+ *   <li>{@code crystalBlastOnTheCage} — it falsifies the claim "the bot may stand on the cage
  *       while breaking the crystal". <b>The way it passes is a REFUSAL</b>, not a better stand:
  *       {@code BlastFooting} declines the swing and names the footing, so the crystal survives and
  *       the bot keeps its lid. Read the criteria and the X1/X2/X3 note below before assuming this arm
  *       proves the bot can relocate — it cannot, and nothing here has ever asked it to.</li>
- *   <li>{@code wd.crystalBlastOnThePillar} — <b>expected to pass, and it is the anti-overfit arm.</b>
+ *   <li>{@code crystalBlastOnThePillar} — <b>expected to pass, and it is the anti-overfit arm.</b>
  *       Without it, "never approach a crystal; give up from a distance" would fully satisfy the arm
  *       above. This one asserts positively that the crystal still gets broken from a blast-proof
  *       stand.</li>
@@ -80,7 +81,7 @@ import net.minecraft.world.phys.AABB;
  *       This is the real invariant and it is unchanged.</li>
  *   <li><b>Either break the crystal or refuse with a reason.</b> The crystal is broken, <i>or</i>
  *       {@code mc.bot.attackEntity} answers a refusal whose reason carries
- *       {@link #footingTag footingTag(blockId, resistance)} for the block the scene itself read
+ *       {@link #footingTag footingTag(blockId, resistance)} for the block the test itself read
  *       under the swing stand before the hit. The pair is checked as ONE token on purpose: iron bars
  *       are 6.0 and the blast is 6.0, so asking separately for the id and for "6.0" would be
  *       satisfied by the {@code power=6.0} every refusal prints. A message that merely says "not
@@ -100,7 +101,7 @@ import net.minecraft.world.phys.AABB;
  *       {@code Body.attackEntity} is one-shot and single-tick; it can swing or decline, and it must
  *       never teleport. Choosing a stand is a multi-tick job and belongs to whatever walks the bot in
  *       ({@code SwingAt} on rung 20, {@code CombatProcess} in production).</li>
- *   <li><b>X2 — the scene must hand control over BEFORE it latches the stand it judges.</b>
+ *   <li><b>X2 — the test must hand control over BEFORE it latches the stand it judges.</b>
  *       {@link #swingAndWatch} reads {@code swingStand} on the line above the driver call, so a
  *       relocation performed inside that call is invisible to the anchor and reads as a fall. A rig
  *       that wants to grade stand-choosing has to drive the X1 process tick by tick instead of
@@ -109,10 +110,9 @@ import net.minecraft.world.phys.AABB;
  *       caged spike there is exactly one — the 3x3 obsidian floor inside the cage — and it is sealed
  *       under a solid 5x5 iron lid, four blocks below a bot standing on that lid. Every blast-proof
  *       sole row in this arena is at {@code y = pillar top}, i.e. {@code standing y at the swing − 4},
- *       so clause 1's
- *       {@code −2} tolerance can never be met by relocating. That is a fact about the geometry
- *       vanilla builds, not about this file: fixing it means a different staging (or a bot that
- *       breaks in), never a looser number here.</li>
+ *       so clause 1's {@code −2} tolerance can never be met by relocating. That is a fact about the
+ *       geometry vanilla builds, not about this file: fixing it means a different staging (or a bot
+ *       that breaks in), never a looser number here.</li>
  * </ul>
  *
  * <p>{@code minYAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has
@@ -126,14 +126,13 @@ import net.minecraft.world.phys.AABB;
  *       level — and every server-side player joins now.</b> {@code Explosion.explode} collects
  *       victims with {@code level.getEntities(source, aabb)}, which reads the level's entity index.
  *       A player that never joined is absent from that index and takes no launch; a
- *       {@code JoinedBody} is present and is thrown. The ladder and the six gates all use joined
- *       players, so there is no clean footing-only reading: the first run on joined players threw
+ *       {@code JoinedBody} is present and is thrown. The first run on joined players threw
  *       the bot {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
  *
  *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND in which the player
  *       moved horizontally — that combination is knockback, and knockback is not what B grades. The
  *       exemption is narrow on purpose: dissolve the footing and {@code soleSurvived} goes false, so
- *       no amount of launch can buy a green. <b>The ballistics are real, and this scene still does
+ *       no amount of launch can buy a green. <b>The ballistics are real, and this test still does
  *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
  *       arm remains no evidence about knockback in either direction. The {@code trajectory} row says
  *       on every run which of the three outcomes this run was.</li>
@@ -158,28 +157,12 @@ import net.minecraft.world.phys.AABB;
  *   <li><b>The drop has to be lethal or the fall is not a fall.</b> {@value #VOID_DEPTH} blocks of
  *       clear air ring the pillar down to a catch floor, comfortably past
  *       {@code SurvivalMath.survivableFall} at full health (22).</li>
- *   <li><b>Every row is {@link SceneContext#record}ed on PASS as well as FAIL.</b> The harness prints
- *       the evidence map into the log only on failure, and "on the passing run the block under the
+ *   <li><b>Every row is published on PASS as well as FAIL.</b> "On the passing run the block under the
  *       feet is still obsidian after the swing" is the reading that separates these two arms.</li>
  * </ul>
  */
-public final class WorldDriverCrystalBlastScenes implements SceneProvider {
-
-    @Override
-    public List<Scene> scenes() {
-        return List.of(
-                // PROMOTE TO REQUIRED once a gate run confirms it green — the repo's
-                // promote-on-first-green rule, and the pass it is waiting for is a refusal with a
-                // reason (BlastFooting), not a change of footing. See the criteria and X1-X3 above.
-                Scene.of("wd.crystalBlastOnTheCage", 600,
-                        WorldDriverCrystalBlastScenes::crystalBlastOnTheCage),
-                // Expected GREEN. Optional only until one gate run confirms it, per the same rule;
-                // it is the arm that refuses "never go near a crystal" as a fix.
-                Scene.of("wd.crystalBlastOnThePillar", 600,
-                        WorldDriverCrystalBlastScenes::crystalBlastOnThePillar));
-    }
-
-    // ---------------------------------------------------------------- rig ----
+@Scene("wd.scenes")
+class CrystalBlastTest {
 
     /** Vanilla's radius for the two GUARDED spikes ({@code SpikeFeature}: {@code 2 + i/3} with the
      *  cage on {@code i == 1 || i == 2}). Obsidian fills {@code dx²+dz² <= r²+1}, so the top is a
@@ -198,8 +181,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      *  fall and not a hop. */
     private static final int VOID_DEPTH = 32;
 
-    /** Half-width of the box the rig empties before it builds anything, so nothing generated can be
-     *  mistaken for staging. Inside {@link SceneContext#chunkRadius()}'s ±1-chunk window. */
+    /** Half-width of the working box, the catch floor and the entity box. */
     private static final int CLEAR_HALF = 6;
 
     /** {@code LivingEntity.invulnerableTime}. Swinging faster than this does less damage, not more —
@@ -217,8 +199,11 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     /** The power vanilla's {@code EndCrystal.hurt} explodes with. */
     private static final float CRYSTAL_BLAST_POWER = 6.0F;
 
+    /** The plot's standing surface (relative y): the catch floor {@value #VOID_DEPTH} below and the cage above fit. */
+    private static final int STAND_Y = 15;
+
     /** The resistance a block needs to survive any roll of a {@code power} blast at point-blank
-     *  range, {@code 13 * power / 3 - 0.3}: the driver's own derivation, restated here so the scene
+     *  range, {@code 13 * power / 3 - 0.3}: the driver's own derivation, restated here so the test
      *  judges the world by a number it states rather than one it asks the driver for. */
     private static double blastProofResistance(float power) {
         return 13.0 * power / 3.0 - 0.3;
@@ -230,39 +215,35 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         return String.format(Locale.ROOT, "footing=%s resistance=%.1f", blockId, resistance);
     }
 
-    /** Top solid block of the pillar. Standing surface is one above; the catch floor is
-     *  {@link #VOID_DEPTH} below that. Same altitude band as {@code wd.parkourAscend}. */
-    private static int pillarTopY(SceneContext ctx) {
-        return ctx.origin().getY() + 30;
-    }
-
-    // ------------------------------------------------------------- the arms ----
-
     /**
      * <b>The reproduction.</b> The bot stands on the cage lid, one cell off centre — the offset the
      * ladder's "closest 3.3 blocks" implies for a bot at {@code y=86} over a crystal at {@code y=83}.
      *
-     * <p>Expected RED. What it forbids is not approaching the crystal but hitting it while standing
-     * on a block that the resulting blast will destroy.
+     * <p>What it forbids is not approaching the crystal but hitting it while standing on a block that
+     * the resulting blast will destroy.
      */
-    private static void crystalBlastOnTheCage(SceneContext ctx) {
-        smashFrom(ctx, "crystalBlastOnTheCage", CAGE_LID_DY + 1);
+    @Test
+    void crystalBlastOnTheCage(Game game, @Plot.Centered @Plot.Size(x = 16, y = 48, z = 16) Plot plot,
+                               TestReporter reporter) {
+        smashFrom(game, plot, reporter, CAGE_LID_DY + 1);
     }
 
     /**
      * <b>The anti-overfit arm.</b> The same pillar, the same cage, the same crystal — the bot simply
      * stands on the pillar-top obsidian inside the cage instead of on its lid.
      *
-     * <p>Expected GREEN, and its passing is the whole reason the other arm is allowed to fail: the
-     * answer to "the blast removes the footing" is a different stand, not a refusal to approach. A
-     * fix that forbids every crystal within reach makes this arm fail and is caught.
+     * <p>Its passing is the whole reason the other arm may pass by refusing: the answer to "the blast
+     * removes the footing" is a different stand, not a refusal to approach. A fix that forbids every
+     * crystal within reach makes this arm fail and is caught.
      *
      * <p>If this arm is RED, the premise "standing on obsidian is safe" is itself false, and that is a
      * finding about the world rather than about the rig — read {@code landing} and
      * {@code body.inLevelEntityIndex} before touching the staging.
      */
-    private static void crystalBlastOnThePillar(SceneContext ctx) {
-        smashFrom(ctx, "crystalBlastOnThePillar", 0);
+    @Test
+    void crystalBlastOnThePillar(Game game, @Plot.Centered @Plot.Size(x = 16, y = 48, z = 16) Plot plot,
+                                 TestReporter reporter) {
+        smashFrom(game, plot, reporter, 0);
     }
 
     /**
@@ -273,55 +254,55 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      * @param standDy 0 puts the player on the pillar-top obsidian; {@code CAGE_LID_DY + 1} puts it on
      *                the cage lid
      */
-    private static void smashFrom(SceneContext ctx, String name, int standDy) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int topY = pillarTopY(ctx), standY = topY + 1;
+    private static void smashFrom(Game game, Plot plot, TestReporter reporter, int standDy) {
+        BlockPos stand = plot.at(0, STAND_Y, 0);
+        final int cx = stand.getX(), cz = stand.getZ();
+        final int standY = stand.getY(), topY = standY - 1;
         final int standAt = standY + standDy;
 
-        clearAndCatch(level, cx, cz, standY);
-        buildSpike(level, cx, cz, topY, standY);
-
-        Harness.pin(ctx);
-
-        EndCrystal crystal = new EndCrystal(level, cx + 0.5, standY + 1, cz + 0.5);
-        crystal.setShowBottom(true);
-        level.addFreshEntity(crystal);
-        ctx.cleanup(() -> { if (crystal.isAlive()) crystal.discard(); });
-        ctx.cleanup(() -> {
-            for (ItemEntity d : level.getEntitiesOfClass(ItemEntity.class, arenaBox(cx, standY, cz)))
-                d.discard();
+        game.runOnServer(s -> {
+            ServerLevel level = s.getLevel(plot.dimension());
+            catchFloor(level, cx, cz, standY);
+            buildSpike(level, cx, cz, topY, standY);
         });
 
-        // Same promotion wait wd.serverBreaksAnEndCrystal uses: a freshly added entity is not in the
-        // level's queryable index until the arena promotes it, and a scene that assumes otherwise
-        // reports an empty world rather than a slow one.
-        ctx.await(() -> !level.getEntitiesOfClass(EndCrystal.class, arenaBox(cx, standY, cz)).isEmpty())
-                .within(200).then(() -> swingAndWatch(ctx, name, level, crystal,
-                        cx, cz, topY, standY, standAt));
+        Settings.pin(game);
+
+        EndCrystal crystal = game.onServer(s -> {
+            ServerLevel level = s.getLevel(plot.dimension());
+            EndCrystal c = new EndCrystal(level, cx + 0.5, standY + 1, cz + 0.5);
+            c.setShowBottom(true);
+            level.addFreshEntity(c);
+            return c;
+        });
+        game.afterTest(s -> { if (crystal.isAlive()) crystal.discard(); });
+
+        // The crystal entering the level's index is what attackEntity looks it up by.
+        game.await().within(200).as("the crystal is in the level's index").until(() ->
+                !crystal.level().getEntitiesOfClass(EndCrystal.class, arenaBox(cx, standY, cz)).isEmpty());
+
+        SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 1.5, standAt, cz + 0.5);
+        Map<String, String> rows = new LinkedHashMap<>();
+        boolean[] verdict = new boolean[2];
+        String[] why = new String[2];
+        game.runOnServer(s -> swingAndWatch(bot, crystal, cx, cz, topY, standY, standAt, rows, verdict, why));
+        rows.forEach(reporter::publishEntry);
+        game.check(verdict[0], why[0]);
+        game.check(verdict[1], why[1]);
     }
 
-    /** Empty the working box, then hang the catch floor under it. Everything asserted about is built
-     *  afterwards, so nothing generated can be mistaken for the rig. */
-    private static void clearAndCatch(ServerLevel level, int cx, int cz, int standY) {
+    /** The catch floor under the working box; the plot hands everything else over as air. */
+    private static void catchFloor(ServerLevel level, int cx, int cz, int standY) {
         for (int dx = -CLEAR_HALF; dx <= CLEAR_HALF; dx++)
-            for (int dz = -CLEAR_HALF; dz <= CLEAR_HALF; dz++) {
-                for (int dy = -VOID_DEPTH; dy <= 8; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, standY + dy, cz + dz),
-                            Blocks.AIR.defaultBlockState());
+            for (int dz = -CLEAR_HALF; dz <= CLEAR_HALF; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, standY - VOID_DEPTH, cz + dz),
                         Blocks.STONE.defaultBlockState());
-            }
     }
 
     /**
-     * Vanilla's guarded end spike, to the block: obsidian where {@code dx²+dz² <= r²+1} down to the
-     * catch floor, bedrock in the centre of the top course, and the iron cage above it.
-     *
-     * <p>The lid is a FULL 5x5 while the obsidian top has no corners, exactly as
-     * {@code SpikeFeature.place} builds it. That overhang is not decoration: it is the difference
-     * between falling back onto the pillar top and falling into the void for a bot standing on the
-     * wrong lid cell.
+     * Vanilla's caged spike ({@code SpikeFeature}, {@code guarded = true}): obsidian where
+     * {@code dx²+dz² <= r²+1} from the catch floor up to {@code topY}, bedrock in the centre of the top,
+     * and the iron-bar cage over {@code [-2,2]²×[0,3]} on top of it.
      */
     private static void buildSpike(ServerLevel level, int cx, int cz, int topY, int standY) {
         for (int dx = -PILLAR_RADIUS; dx <= PILLAR_RADIUS; dx++)
@@ -344,7 +325,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
 
     /**
      * Put a player on {@code standAt}, let it settle, hit the crystal on vanilla's own cadence, and
-     * watch what the blast did to the block it was standing on.
+     * watch what the blast did to the block it was standing on. Server thread: the whole loop is one
+     * server task, so no world tick falls between the body's steps.
      *
      * <p>The loop is deliberately the simplest thing that can produce the measurement: every input is
      * released on every tick, so the only forces acting on the player are gravity, collision and the
@@ -352,11 +334,10 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      * gravity-then-{@code move()} pipeline the client runs — so a player whose footing has been
      * deleted falls, and one whose footing survived does not.
      */
-    private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
-                                      EndCrystal crystal, int cx, int cz, int topY, int standY,
-                                      int standAt) {
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 1.5, standAt, cz + 0.5);
+    private static void swingAndWatch(SceneBot bot, EndCrystal crystal, int cx, int cz, int topY, int standY,
+                                      int standAt, Map<String, String> rows, boolean[] verdict, String[] why) {
         ServerPlayer fp = bot.player();
+        ServerLevel level = fp.serverLevel();
         SimProbes.grantWaterEffects(fp);   // inert here — the player is already invulnerable
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -381,7 +362,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                     if (firstSwingTick < 0) {
                         // Read the stand BEFORE the hit. Asked afterwards it would describe the
                         // world the explosion left, while claiming to describe the one it found.
-                        // The resistance is taken here for the same reason, and it is the scene's
+                        // The resistance is taken here for the same reason, and it is the test's
                         // OWN derivation — clause 2 feeds it back as a substring test, so a driver
                         // message that names some other block cannot satisfy it.
                         swingStand = fp.blockPosition();
@@ -396,10 +377,10 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                     // A refused call is NOT a swing. Counting it as one would print "10 swings"
                     // over a crystal nothing ever touched, and the swings row is the one that says
                     // whether this arm measured anything at all.
-                    String why = hit instanceof Responses.Refused<?> r ? r.message() : null;
-                    if (why != null) {
+                    String no = hit instanceof Responses.Refused<?> r ? r.message() : null;
+                    if (no != null) {
                         refused++;
-                        if (refusal == null) refusal = why;
+                        if (refusal == null) refusal = no;
                     } else {
                         swings++;
                         swungNow = true;
@@ -422,8 +403,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         boolean broke = !crystal.isAlive();
         int swingStandY = tried ? swingStand.getY() : Integer.MIN_VALUE;
         // DID THE SOLE SURVIVE? This is the mechanism clause B actually names — the blast must not
-        // remove the footing — and it is a question about the WORLD, not about where the bot ended up. Obsidian is
-        // 1200 against a power-6 blast, so a cell that is still solid was never taken.
+        // remove the footing — and it is a question about the WORLD, not about where the bot ended up.
+        // Obsidian is 1200 against a power-6 blast, so a cell that is still solid was never taken.
         boolean soleSurvived = tried
                 && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
                         >= blastProofResistance(CRYSTAL_BLAST_POWER);
@@ -437,68 +418,52 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                  || Math.abs(fp.getZ() - (swingStand.getZ() + 0.5)) > 1.5);
         // Clause B grades FOOTING. A player that lost height while its sole stood firm and its
         // trajectory carried it sideways was thrown, not dropped, and ballistics is a mechanism this
-        // scene does not stage for or measure — see the class note. Exempting it keeps the clause
+        // test does not stage for or measure — see the class note. Exempting it keeps the clause
         // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
         // goes false, and no amount of knockback can rescue it.
         boolean knockedClear = soleSurvived && launchedSideways;
         boolean heldItsGround = tried && (minYAfterSwing > swingStandY - 2 || knockedClear);
         String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
-        // Clause 2's second half. The block id and the resistance are the scene's OWN readings of
+        // Clause 2's second half. The block id and the resistance are the test's OWN readings of
         // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
         // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
-        // any refusal carries — the same coincidence that would have made the threshold itself a
-        // silent no-op. A refusal that does not quote this exact pair is not a refusal with a reason.
+        // any refusal carries. A refusal that does not quote this exact pair is not a refusal with a reason.
         String footingTag = tried ? footingTag(underAtSwing, resAtSwing) : null;
         boolean namedTheFooting = refusal != null && footingTag != null
                 && refusal.contains(footingTag);
         BlockPos endAt = fp.blockPosition();
 
-        // EVERY row below is written on PASS as well as on FAIL — the harness only prints the
-        // evidence map into the log when a scene fails, and the pillar arm's green run carries the
-        // control reading (underAfterSwing still obsidian) that makes the cage arm's failure meaningful.
-        ctx.record("rig", String.format(Locale.ROOT,
+        rows.put("rig", String.format(Locale.ROOT,
                 "solid pillar top y=%d (bedrock centre), standing surface y=%d | cage: |dx|=2 or |dz|=2 or dy=3, y=%d..%d, cage lid y=%d "
                 + "| crystal (%d.5,%d,%d.5) | bot start y=%d (standing surface +%d) | %d blocks of air around the pillar down to the catch floor y=%d",
                 topY, standY, standY, standY + CAGE_LID_DY, standY + CAGE_LID_DY,
                 cx, standY + 1, cz, standAt, standAt - standY, VOID_DEPTH, standY - VOID_DEPTH));
-        ctx.record("stand", tried
+        rows.put("stand", tried
                 ? swingStand.toShortString() + " underFeet=" + underAtSwing
                 : "never swung (the crystal was never within " + MELEE_REACH + " blocks, or the bot fell first)");
-        ctx.record("underAfterSwing", underAfterSwing == null ? "not sampled (never swung)" : underAfterSwing);
-        ctx.record("crystal", broke ? "broken" : "intact");
-        ctx.record("minYAfterSwing", tried
+        rows.put("underAfterSwing", underAfterSwing == null ? "not sampled (never swung)" : underAfterSwing);
+        rows.put("crystal", broke ? "broken" : "intact");
+        rows.put("minYAfterSwing", tried
                 ? String.format(Locale.ROOT, "%.3f (excludes the y=%d at the moment of the swing; criterion > %d)",
                         minYAfterSwing, swingStandY, swingStandY - 2)
                 : "not sampled");
-        ctx.record("swings", swings + " swings (closest "
+        rows.put("swings", swings + " swings (closest "
                 + (closest == Double.MAX_VALUE ? "not measured" : String.format(Locale.ROOT, "%.2f", closest))
                 + " blocks, reach limit " + MELEE_REACH + ")");
-        // The control reading for clause 2, written on BOTH arms: the pillar arm's "none" is what
-        // says the guard did not simply forbid every crystal, and the cage arm's text is the
-        // evidence its pass rests on. A passing cage arm with an empty refusal row would mean the
-        // clause-3 hole reopened — that combination must never be read as a pass.
-        ctx.record("refusal", refusal == null
+        rows.put("refusal", refusal == null
                 ? "none: the driver allowed the swing (resistance under the feet is sufficient; " + swings + " real swings this run)"
                 : "refused " + refused + " times / " + swings + " real swings; first reason: " + refusal);
-        ctx.record("blastProofThreshold", String.format(Locale.ROOT,
+        rows.put("blastProofThreshold", String.format(Locale.ROOT,
                 "power=%.1f ⇒ footing resistance must be ≥ %.1f (13*power/3−0.3, derived in BlastFooting); block under the feet at the swing: %s, resistance %s",
-                CRYSTAL_BLAST_POWER,
-                blastProofResistance(CRYSTAL_BLAST_POWER),
+                CRYSTAL_BLAST_POWER, blastProofResistance(CRYSTAL_BLAST_POWER),
                 tried ? underAtSwing : "-", tried ? resAtSwingText : "not sampled"));
-        ctx.record("landing", String.format(Locale.ROOT, "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
+        rows.put("landing", String.format(Locale.ROOT, "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
                 endAt.toShortString(), blockIdAt(level, endAt.below()), startY, startY - fp.getY()));
-        ctx.record("cageBarsLeft", barsLeft(level, cx, cz, standY) + "/" + cageCells()
+        rows.put("cageBarsLeft", barsLeft(level, cx, cz, standY) + "/" + cageCells()
                 + " iron bars (blast resistance 6.0, destroyed by a power-6 blast; obsidian at 1200 is not)");
-        // The reading that says what this scene CANNOT see. A bot that never joined the level is not
-        // in its entity index, so Explosion.explode never finds it and never launches it; a joined
-        // bot IS, and is launched. A passing pillar arm is not a claim about knockback.
-        ctx.record("body.inLevelEntityIndex", (level.getEntity(fp.getId()) != null)
-                + " (false = the bot cannot receive blast knockback in this run; true = it can and the trajectory is real, but this scene still grades only the footing)");
-        // WHAT THE VERDICT IGNORED, and why that is not the same as "there is no trajectory". Written
-        // on every run, including the ones where nothing was exempted, so a reader can tell "not
-        // thrown" from "thrown, but this clause does not grade it" — those are different outcomes
-        // that a bare pass would print identically.
-        ctx.record("trajectory", !tried ? "not sampled"
+        rows.put("body.inLevelEntityIndex", (level.getEntity(fp.getId()) != null)
+                + " (false = the bot cannot receive blast knockback in this run; true = it can and the trajectory is real, but this test still grades only the footing)");
+        rows.put("trajectory", !tried ? "not sampled"
                 : !launchedSideways
                     ? "the bot did not move horizontally (footing " + (soleSurvived ? "survived" : "was removed")
                         + "); no knockback to exempt in this run"
@@ -507,21 +472,16 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                             + endAt.toShortString() + ", while the block under the feet at the swing, "
                             + blockIdAt(level, swingStand.below()) + ", was sufficiently resistant and never removed. "
                             + "Classified as knockback; clause B is exempted. WARNING: the knockback is real and this "
-                            + "scene does not measure it (no test setup and no criterion for it); do not read this row "
+                            + "test does not measure it (no test setup and no criterion for it); do not read this row "
                             + "as \"the blast cannot move the bot\""
                         : "the bot moved horizontally and the footing was also removed; not exempted, clause B fails as usual");
-        ctx.record("gamerule.blockExplosionDropDecay", String.valueOf(
+        rows.put("gamerule.blockExplosionDropDecay", String.valueOf(
                 level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
-        ctx.record("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
+        rows.put("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
                 + " (recorded for reference: ExplosionInteraction.BLOCK ignores this rule; only MOB reads it)");
-        TestMod.LOG.info("[wd.{}] standAt={} swung={}@{} refused={} under={}->{} broke={} "
-                + "minY={} end={} inIndex={}", name, standAt, swings, firstSwingTick, refused,
-                underAtSwing, underAfterSwing, broke, minYAfterSwing, endAt,
-                level.getEntity(fp.getId()) != null);
 
-        // Soft checks, so both verdicts are always reported: "the crystal survived unexplained" and
-        // "the bot was dropped" are different failures and one merged line prints them the same.
-        ctx.check(broke || namedTheFooting).as("A: either break the crystal or refuse with a reason: the crystal is "
+        verdict[0] = broke || namedTheFooting;
+        why[0] = "A: either break the crystal or refuse with a reason: the crystal is "
                 + (broke ? "broken" : "intact")
                 + ", the driver " + (refusal == null ? "gave no refusal reason" : "refused " + refused + " times")
                 + (namedTheFooting ? " and named the footing (" + footingTag + ")"
@@ -530,8 +490,9 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 + ". Neither broken nor refused with a footing reading means FAIL: this clause stops a run that never "
                 + "swung from passing as 0==0 (" + swings + " real swings this run, closest "
                 + (closest == Double.MAX_VALUE ? "not measured"
-                        : String.format(Locale.ROOT, "%.2f", closest)) + " blocks)").isTrue();
-        ctx.check(heldItsGround).as("B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
+                        : String.format(Locale.ROOT, "%.2f", closest)) + " blocks)";
+        verdict[1] = heldItsGround;
+        why[1] = "B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
                 + (tried ? swingStand.toShortString() + " (under the feet: " + underAtSwing + ")" : "-")
                 + ", lowest y afterwards=" + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "not sampled")
                 + ", criterion > " + (tried ? String.valueOf(swingStandY - 2) : "no anchor")
@@ -540,17 +501,14 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                         + "not of the footing being removed)" : "")
                 + ". The anchor is the standing y at the moment the swing was decided, not where the test setup "
                 + "placed the bot. WARNING: this arm currently passes through a refusal with a reason, not through "
-                + "a change of footing; changing footing requires X1/X2/X3, see the class comment").isTrue();
+                + "a change of footing; changing footing requires X1/X2/X3, see the class comment";
     }
-
-    // ------------------------------------------------------------- readings ----
 
     private static String blockIdAt(ServerLevel level, BlockPos pos) {
         return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
     }
 
-    /** Iron bars still standing anywhere in the cage's shell — the direct reading of whether the blast destroyed the cage,
-     *  which the footing row alone cannot give (one surviving cell under the feet would hide it). */
+    /** Iron bars still standing anywhere in the cage's shell — the direct reading of whether the blast destroyed the cage. */
     private static int barsLeft(ServerLevel level, int cx, int cz, int standY) {
         int n = 0;
         for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++)
@@ -564,8 +522,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         return n;
     }
 
-    /** How many cells {@link #buildSpike} filled with bars, so {@code cageBarsLeft} is a fraction rather
-     *  than a bare count nobody can scale. */
+    /** How many cells {@link #buildSpike} filled with bars, so {@code cageBarsLeft} is a fraction rather than a count. */
     private static int cageCells() {
         int n = 0;
         for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++)
