@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped since the integrated world had no arena, now clears a pack on the seeded one. `wd.agentRpcSmoke`, `ValidationSuite`, `/worlddriver test [list|result]`,
   `-Dworlddriver.runValidation` and the api's `ScriptChecks` / `WorldDriver.scripts()` are gone;
   `09_events.js`, which tests the operator scripts' `ScriptEvents`, runs as a unit test.
+- **`scripts/check_baseline_coverage.py` is gone.** It read setting defaults as literals and scene writes as
+  `XConfig.field = value`, and neither shape exists any more: defaults come from the `*Settings` records and
+  tests write settings by key through the kit's `Settings`. So it failed on settings the tests do restore, and its
+  other two checks matched nothing. `GameTestBaselineManifestTest` still holds which settings the test baseline
+  forces away from the shipped defaults, and why.
 - **The lava escape reflex lets a bot handle lava on purpose.** It no longer walks the bot away while it holds
   an empty bucket aimed at a lava source in reach, or a lava bucket aimed at a block in reach. The flow off the
   source being scooped is itself what triggered it, so it turned the bot away mid-scoop and spoiled every cast
