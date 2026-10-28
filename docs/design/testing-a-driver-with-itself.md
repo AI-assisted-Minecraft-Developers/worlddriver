@@ -35,28 +35,24 @@ The split is a discipline over one API, not two APIs. Making it two would mean t
 and two sets of thread rules for the same operations, which is a worse failure than the one it
 prevents.
 
-### The instrument face is guarded from outside itself
+### The instrument face is checked across transports
 
-The operations a scene relies on for setup are checked by a separate suite that speaks the raw
-WebSocket protocol, out of process, and does not use the scene harness's assertion machinery at
-all.
+The operations a test relies on for setup are exercised by the validation scripts, which make each
+call in-process and again over the WebSocket RPC and MCP servers through a plain HTTP and WebSocket
+client (`TransportCalls`), and compare the answers byte for byte. That client shares no code with
+the test kit, so a defect in the kit cannot make both the tests and those checks pass.
 
-That placement is the whole value. If the instrument checks lived inside the harness, a defect in
-the harness could pass both the scenes and the checks that were supposed to validate the scenes.
-Outside it, three independent things have to break at once to produce a false pass: the driver, the
-harness, and a bare protocol client that shares no code with either.
+This is weaker than it used to be. The instrument face was once also checked by a suite that ran
+out of process and spoke the raw protocol; it was removed with StageWright's old scene path, and
+the validation scripts run inside the game they check.
 
-### The framework owns orchestration, and the results file is the verdict
+### The framework owns orchestration
 
-The driver's scenes run on an ordinary dedicated server rather than inside the game's built-in
-test-server shell, which is the decision that removed a whole family of scheduling problems and let
-both mod loaders share one entry point. The verdict comes from the machine-readable results file and
-from nothing else — not from an exit code, not from a count computed independently of the engine.
-
-Registered and executed are reconciled against a checked-in manifest, so a scene that registers and
-never runs cannot count as a pass. That reconciliation is why the manifest is part of the judge: a
-scene and its manifest entry belong in the same change, and adding one without the other turns the
-run red on purpose.
+The driver's tests run on ordinary dedicated and integrated servers rather than inside the game's
+built-in test-server shell, which is the decision that removed a whole family of scheduling problems
+and let both mod loaders share one entry point. StageWright's test engine starts the games and
+reports each test through Gradle like any JUnit test; a test that never ran is reported as such,
+not counted as a pass.
 
 ## Why the framework exists at all
 
@@ -77,16 +73,14 @@ scenes live in a separate source set that is packaged only for development runs.
 A scene may not reach for the behaviour face to arrange its own preconditions, and a reviewer should
 treat a scene that does as broken regardless of its colour.
 
-A capability the harness needs is added to the driver as an instrument operation, used by the framework,
-and guarded by the out-of-process contract suite — not added to the framework as a private back door
+A capability the test framework needs is added to the driver as an instrument operation, used by the
+framework, and checked by the validation scripts — not added to the framework as a private back door
 into the game.
 
 ## Where to look
 
-- `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/` — this repository's scenes and
-  the harness glue they use.
-- `scripts/stagewright/expected-scenes-fabric.txt` and `expected-scenes-neoforge.txt` — the manifest
-  that the reconciliation judges against.
+- `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/` — this repository's in-game
+  tests (`scenes/`) and the kit they build on (`kit/`).
 - `common/src/testmod/resources/stagewright/tests/validation/` — the cross-transport checks.
 - `docs/dev/testing.md` — how to run any of it.
-- StageWright's own documentation — the topologies, the contracts and the Gradle plugin.
+- StageWright's own documentation — the test engine, scene files and the Gradle plugin.
