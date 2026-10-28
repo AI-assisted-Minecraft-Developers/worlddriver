@@ -304,9 +304,10 @@ public final class BotConfig {
      *  against the historical default-OFF flag set; when the #47-validated combo was
      *  flipped to default-ON for live play, 14 required arenas broke because flags the
      *  tests never touch (allowBreak/allowPlace/DrowningEscape/...) changed the bot's
-     *  behavior mid-arena. Nothing calls this at server start any more: the scenes
-     *  still to be ported (common/src/testmod/legacy) reach it through
-     *  {@link #pinnedBaseline()}, and scenes that WANT a flag still set it explicitly.
+     *  behavior mid-arena. Nothing calls this at server start any more: in-game tests
+     *  pin it per test through StageWright's {@code mc.test.settings} (the testmod kit's
+     *  {@code Settings.pin}), unit tests through {@link #pinnedBaseline()}, and a test
+     *  that WANTS a flag still sets it explicitly.
      *  Live clients never call this. */
     public static void applyGameTestBaseline() {
         WorldConfig.allowBreak = false;

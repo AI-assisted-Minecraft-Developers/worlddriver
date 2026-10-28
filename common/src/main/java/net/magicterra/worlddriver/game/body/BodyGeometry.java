@@ -167,8 +167,7 @@ public final class BodyGeometry {
      */
     public static String soleRow(Predicate<BlockPos> solid, LivingEntity p) {
         StringBuilder sb = new StringBuilder("rowY=").append(soleRowY(p));
-        // JourneyCrossingScenes tests the row for "solid" to tell a bot perched on a corner from
-        // one in mid-air.
+        // "solid" per cell tells a bot perched on a corner from one in mid-air.
         eachSoleCell(p, (cell, area) -> sb.append(String.format(java.util.Locale.ROOT,
                 " [%d,%d]%s %.4f", cell.getX(), cell.getZ(), solid.test(cell) ? "solid" : "open", area)));
         return sb.toString();
