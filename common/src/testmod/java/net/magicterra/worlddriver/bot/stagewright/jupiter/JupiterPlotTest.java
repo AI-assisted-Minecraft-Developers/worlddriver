@@ -9,6 +9,7 @@ import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
@@ -30,7 +31,7 @@ class JupiterPlotTest {
     @Test
     void aPlotIsHandedOverEmpty(Game game, @Plot.Size(8) Plot plot) {
         firstOrigin = plot.origin();
-        assertEquals(8, plot.size());
+        assertEquals(new Vec3i(8, 8, 8), plot.size());
         boolean empty = game.onServer(server -> server.overworld().getBlockStates(
                 AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7))).allMatch(s -> s.isAir()));
         assertTrue(empty, "every cell of " + plot + " is air");
