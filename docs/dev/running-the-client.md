@@ -1,27 +1,27 @@
 # Running a development client
 
 Everything in this repository that opens a real game window goes through a Loom run task:
-`:fabric:runClient` and its NeoForge twin, the lab client, the integrated-server scene
-topology, the client half of the dedicated-server-with-client topology, and the
-playthrough tasks. This document collects what makes those succeed or fail on a developer
-machine, as opposed to on a headless machine that a gate runs on.
+`:fabric:runClient` and its NeoForge twin, the lab client, and the clients the in-game test
+suites start for `wd.clientScenes` and `wd.validationIntegrated`. This document collects what
+makes those succeed or fail on a developer machine, as opposed to on a headless machine.
 
-## Pin the ports for an interactive session
+## The ports of an interactive session
 
 ```bash
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
+./gradlew :fabric:runClient
 ```
 
-With the ports unpinned, the mod binds whatever is free and writes the numbers to
-`<loader>/run/agent-mcp.port` and `agent-rpc.port`. Pinning them is what lets an external
-client configuration and the scripts in `scripts/` keep working across restarts. Both
-endpoints open at client initialisation, so they answer at the title screen, before any
+The development runs fix the MCP endpoint at 39800 and the RPC endpoint at 39801
+(`-PagentMcpPort=` and `-PagentRpcPort=` change them), which is what lets an external client
+configuration and the scripts in `scripts/` keep working across restarts. Without
+`-Dworlddriver.mcpPort` and `-Dworlddriver.rpcPort` the mod binds whatever is free; either way
+it writes the numbers it got to `<loader>/run/worlddriver-mcp.port` and `worlddriver-rpc.port`.
+Both endpoints open at client initialisation, so they answer at the title screen, before any
 world is loaded.
 
-`:fabric:runLabClient` is a variant with those ports already pinned, its own run directory
-that nothing provisions away, and focus pausing disabled. It is meant for hands-on
-verification; see [`../guide/human-verification.md`](../guide/human-verification.md).
+`:fabric:runLabClient` is a variant with the test content loaded, a persistent flat world in its
+own run directory, `run-lab`, that nothing deletes, and focus pausing disabled. It is meant for
+testing by hand.
 
 ## Two settings that make a desktop behave like a test machine
 
@@ -31,27 +31,23 @@ The second one is the nastier of the two: it can drop a client to roughly one fr
 second, and therefore to about half the server's tick rate, which turns ordinary desktop
 behaviour into failures that look like defects in the bot being driven.
 
-A client that StageWright directs — any run with `stagewright.client.world` or
-`stagewright.client.connect` set, which is every client a scene topology starts — has both
-off, plus the narrator and the accessibility onboarding, set in memory as its options load;
-`options.txt` itself keeps whatever it said. The journey and rehearsal run directories are
-also seeded with an `options.txt` carrying the same four. A client StageWright does not
-direct gets neither, so set them by hand or accept the consequences.
+A client that StageWright directs — every client a test suite starts, and the lab client —
+has both off, plus the narrator and the accessibility onboarding, set in memory as its options
+load; `options.txt` itself keeps whatever it said. A client StageWright does not direct gets
+neither, so set them by hand or accept the consequences.
 `-Dworlddriver.pauseOnLostFocus=false` forces the focus behaviour from the mod's side for an
 unattended client.
 
 ## On a machine with no display server
 
-The scene topologies whose run task is a client declare `client = true`, and on Linux the
-StageWright Gradle plugin refuses to start one — and every companion client — without a
-display it can open a window on: when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, or
-when `DISPLAY` names a local X server that is not running or turns the connection away,
-which under Xwayland usually means `XAUTHORITY` is missing or stale. It does not start a
-display itself; that is the environment's job.
+The in-game test suites start real clients for the scenes that need one, and a client needs a
+display: `DISPLAY`, or `WAYLAND_DISPLAY` when `DISPLAY` is unset. Under Xwayland, a `DISPLAY`
+whose server turns the connection away usually means `XAUTHORITY` is missing or stale.
+StageWright does not start a display itself; that is the environment's job.
 
 So: in a desktop session, nothing is required. On a headless Linux host, give the build a
-display, for example `xvfb-run -a ./gradlew stagewrightDedicatedServerWithClientFabric`, or run it in
-a CI image that starts `Xvfb` and exports `DISPLAY`.
+display, for example `xvfb-run -a ./gradlew stagewrightTestFabric`, or run it in a CI image
+that starts `Xvfb` and exports `DISPLAY`, as `.github/workflows/ci.yml` does.
 
 ## The window that never appears
 
@@ -105,11 +101,11 @@ Point the JVM at a GLFW build whose wait loop is bounded. Any of these will do:
 
 Either way, the game JVM is told which library to load with
 `-Dorg.lwjgl.glfw.libname=<path to the shared object>`. The `worlddriverVmArgs` property
-at the end of `build.gradle` appends arbitrary JVM flags to every Loom run task, and the
-scene topologies copy the Loom JVM arguments onto the processes they start, so one
-invocation covers interactive runs and gates alike:
+at the end of `build.gradle` appends arbitrary JVM flags to every Loom run, and the in-game
+test suites start their games from Loom runs too, so one property covers interactive runs and
+test runs alike:
 
 ```bash
-./gradlew stagewrightDedicatedServerWithClientFabric \
+./gradlew stagewrightTestFabric \
     -PworlddriverVmArgs=-Dorg.lwjgl.glfw.libname=/path/to/libglfw.so
 ```
