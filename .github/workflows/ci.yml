@@ -1,6 +1,6 @@
 name: CI
 
-# Build, unit tests and the NeoForge dedicated-server scene gate; a master push that passes is
+# Build, unit tests and the NeoForge in-game test suite; a master push that passes is
 # published to the Nexus.
 on:
   push:
@@ -118,17 +118,16 @@ jobs:
         if: steps.companion.outputs.sha != ''
         run: .ci/stagewright/scripts/build_driver_pair.sh "$PWD"
 
-      # The whole log goes to a file and the verdict is read from it: the judgments that can redden
-      # a run print above the VERDICT line, and a run that dies early has its cause in the middle.
-      # The gate starts a real client beside the server, and a client needs a display; the runner has
-      # none, so a virtual one is provided here, as the build leaves the display to its environment.
+      # The whole log goes to a file: a run that dies early has its cause in the middle.
+      # Some tests start a real client, and a client needs a display; the runner has none, so a
+      # virtual one is provided here, as the build leaves the display to its environment.
       - name: Display for the client
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libxrandr2 libxinerama1 \
             libxcursor1 libxi6 libxxf86vm1 libopenal1
 
-      - name: Scene gate, dedicated server with client (NeoForge)
+      - name: In-game tests (NeoForge)
         env:
           COMPANION_SHA: ${{ steps.companion.outputs.sha }}
           CANDIDATE_VERSION: ${{ steps.pair.outputs.stagewright_version }}
@@ -143,9 +142,9 @@ jobs:
             candidate_args+=("-Pstagewright_version=$CANDIDATE_VERSION")
           fi
           xvfb-run -a -s "-screen 0 1280x720x24" \
-            ./gradlew stagewrightDedicatedServerWithClientNeoforge "${candidate_args[@]}" > gate.log 2>&1
+            ./gradlew stagewrightTestNeoforge "${candidate_args[@]}" > gate.log 2>&1
           status=$?
-          grep -E '^\[stagewright' gate.log | grep -vE '^\[stagewright[^]]*\] (pass|skip): '
+          tail -n 60 gate.log
           exit $status
 
       - if: always()
@@ -154,12 +153,10 @@ jobs:
           name: gate-neoforge-${{ github.run_number }}
           path: |
             gate.log
-            neoforge/run-stagewright-with-client/stagewright/
-            neoforge/run-stagewright-with-client/logs/
-            neoforge/run-stagewright-with-client/crash-reports/
-            neoforge/run-stagewright-joining-client/stagewright/
-            neoforge/run-stagewright-joining-client/logs/
-            neoforge/run-stagewright-joining-client/crash-reports/
+            build/reports/tests/stagewrightTestNeoforge/
+            build/test-results/stagewrightTestNeoforge/
+            neoforge/run-stagewright/*/*/logs/
+            neoforge/run-stagewright/*/*/crash-reports/
           if-no-files-found: ignore
 
   publish:
