@@ -137,7 +137,7 @@ public final class Settings {
      * and the second pin is a harmless nested one.
      */
     public Settings mirrorTo(Client client) {
-        TestHarnessBlockingApi api = TestHarnessBlockingApi.of(ClientTestMethods.of(game, client));
+        TestHarnessBlockingApi api = client.api(TestHarnessBlockingApi::of);
         int id = ((TestHarnessContracts.Pinned) api.settings(new TestHarnessContracts.Pin(baseline, untimed))).pin();
         mirrors.add(new Mirror(api, id));
         if (!written.isEmpty()) api.settings(TestHarnessContracts.Write.of(written));

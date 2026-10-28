@@ -212,7 +212,7 @@ public final class ClientRig {
 
     /** Hold or let go of the client player's keys, pressed on the client thread; start from {@code Press.of(SELF)}. */
     public TestHarnessContracts.Pressed press(TestHarnessContracts.Press press) {
-        return TestHarnessBlockingApi.of(ClientTestMethods.of(game, client)).press(press);
+        return client.api(TestHarnessBlockingApi::of).press(press);
     }
 
     /** Hotbar slots 0.. in order, slot 0 selected, on the server's copy (the client follows). */
