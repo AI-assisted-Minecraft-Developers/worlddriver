@@ -1,3 +1,5 @@
+> **Archived: the markers, the `/worlddriver mark|scene|anchor` commands and the `human.*` scenes this guide operates were removed with StageWright's old scene path; nothing has replaced them yet.**
+
 # Human verification: hand-built scenes
 
 This is a procedure for verifying behaviour by hand. You build a piece of terrain in the
@@ -9,7 +11,7 @@ automated suite, judged by the same check as every other scene.
 Everything on this page lives in the **test source set**. It reaches the game through the
 `stagewright*` Gradle tasks and the development runs; the published jar has none of it. The
 reasoning behind the design is in
-[Human-in-the-loop verification](../design/human-in-the-loop-verification.md).
+[Human-in-the-loop verification](human-in-the-loop-verification.md).
 
 ## Start a game you can build in
 

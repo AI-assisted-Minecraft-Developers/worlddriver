@@ -22,7 +22,6 @@ For someone who wants the game to do something. No knowledge of this repository 
 | [The three transports](guide/transports.md) | You are choosing between the JavaScript engine, the WebSocket endpoint and the MCP endpoint, or you need the wire format, the limits, or the security posture. |
 | [Connecting an MCP client](guide/mcp-clients.md) | You have a particular MCP client in front of you and want the configuration for it. |
 | [What you can make the game do](guide/capabilities.md) | You want to know what the verb surface actually covers, grouped by what you would reach for it to do. |
-| [Human verification](guide/human-verification.md) | You are verifying behaviour by hand: building terrain in a live world, marking it up, watching a run and recording the outcome. |
 | [Troubleshooting](guide/troubleshooting.md) | Something will not connect, a tool returns an error, or the bot accepts a command and does not move. |
 
 One security point belongs on this page rather than three clicks away. The embedded JavaScript
@@ -44,7 +43,7 @@ For someone adding or changing code here.
 | [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, navigator and pathfinder, and the invariants across them. |
 | [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick navigator decision is decomposed into phase classes, and what crosses a tick boundary. |
 | [Fake-player parity](dev/fake-player-parity.md) | Where a driven player matches a real player and where it does not, behaviour by behaviour, and which kind of player a given scene should run on. |
-| [Testing](dev/testing.md) | Running the checks, reading a result, adding a scene, and the failures that are not a failing scene. |
+| [Testing](dev/testing.md) | The JVM tests, the in-game test suites and the source checks: running them, and adding a test. |
 | [Coverage exemptions](dev/coverage-exemptions.md) | Branch families the scene arenas structurally cannot reach, and why each is left uncovered on purpose. |
 | [Pathfinding conformance](dev/pathfinding-conformance.md) | Telling a planner problem from a navigator problem, and wiring a flag to try a change. |
 | [The replay corpus](dev/replay-corpus.md) | Recording, replaying and analysing a traversal, and what replay can and cannot be evidence of. |
@@ -58,9 +57,9 @@ Each document states a problem, the decision taken, what that rules out, and whe
 the source. They are named for the decision rather than the date, and each says up front
 whether the design is implemented.
 
-[`design/`](design/) currently holds seventeen: the ascent dead-zone watchdog, the `Body`
+[`design/`](design/) currently holds sixteen: the ascent dead-zone watchdog, the `Body`
 abstraction, boss playbooks as scripts, conformance and corpus gating, drowning escape, entity
-interaction, human-built scenes, navigation as an intent, observing a long traversal, the
+interaction, navigation as an intent, observing a long traversal, the
 perception and decision layers, recipes from the game's own table, route selection under
 model-supplied conditions, scheduler semantics, the single schema source, testing a driver with
 itself, the water model, and world-view parity.
@@ -69,7 +68,7 @@ itself, the water model, and world-view parity.
 
 [`archive/`](archive/README.md) holds documents kept for provenance: superseded design
 proposals, a one-off audit, the record of migrating the test suite off its previous framework,
-and four reports from people outside the project who used the mod and hit problems. Those four
+the design and manual of the removed hand-built scene tooling, and four reports from people outside the project who used the mod and hit problems. Those four
 are preserved as filed and are not rewritten.
 
 **Nothing in the archive describes current behaviour.** It is there so that a decision can be
@@ -87,10 +86,9 @@ Three rules earned the hard way, all of which this documentation has broken befo
 - **Verify against the code, not against the previous sentence.** Almost every false statement
   found during this rewrite was inherited by copying, and several had survived more than one
   revision that way. Reading a document is not the same as checking it.
-- **Do not write a count that rots.** Scene, tool and test counts change weekly. Point at the
-  file that holds the answer — the manifests under `scripts/stagewright/`, the tool catalog
-  under `mcp/catalog/` — rather than printing a number. The scene count in particular has been
-  wrong three separate times.
+- **Do not write a count that rots.** Method and test counts change weekly. Point at what
+  holds the answer — a run's test report, the generated method reference — rather than
+  printing a number. The scene count in particular has been wrong three separate times.
 - **A conflict between two documents is the finding.** When two statements each read as true
   and contradict each other, go and read the thing they both describe. Picking the more
   convenient one has produced a false security claim that stood for months.

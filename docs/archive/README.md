@@ -25,6 +25,8 @@ else's words. One of them quotes a line of Chinese chat as evidence; it stays ex
 | `feedback/` | Reports from people outside the project who used the mod and hit problems, as filed. |
 | `test-framework-migration.md` | The audit trail of retiring the legacy `@GameTest` suite in favour of StageWright scenes. |
 | `test-framework-origin-spec.md` | The specification that argued for building that framework, and the incident record behind it. |
+| `human-in-the-loop-verification.md` | The design of hand-built scenes: marker blocks, fixture files and human verdicts. Removed with the old scene path. |
+| `human-verification-guide.md` | The operating manual for those hand-built scenes. |
 | `centre-snap-teleport-audit.md` | A one-off audit of the ten places where a process teleports the body to its own cell centre. |
 | `execution-model-proposal.md` | The priority-chain scheduler, as originally proposed. |
 | `perception-decision-boundary-proposal.md` | The decision-layering rule as originally written, with a misalignment list that is now stale. |

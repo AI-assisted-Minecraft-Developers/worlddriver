@@ -1,3 +1,5 @@
+> **Archived: the markers, the `/worlddriver mark|scene|anchor` commands and the `human.*` scenes this describes were removed with StageWright's old scene path; nothing has replaced them yet.**
+
 # Human-built scenes and human-chosen outcomes
 
 > This design has been implemented. The marker block, the scene file format, the verbs and

@@ -419,6 +419,5 @@ permission level 2 (an operator, or on a single-player world, one with cheats al
 | `/worlddriver mcp` | Print the MCP endpoint |
 | `/worlddriver reload` | Re-load user scripts from the scripts directory and report the count |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
-
-The test framework adds more subcommands when it is loaded — see
-[Human verification](human-verification.md) — and the published jar has none of them.
+| `/worlddriver mob <entity> <name>` | Take a mob over as the bot `mob:<name>` |
+| `/worlddriver mob release <bot>` | Give a mob bot's own AI back |
