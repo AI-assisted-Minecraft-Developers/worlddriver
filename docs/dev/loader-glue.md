@@ -70,10 +70,10 @@ phase. It uses `ServiceLoader` to find implementations of
 is folded into the WorldDriver mod itself on both loaders, so the service file is visible
 to the same class loader; a published jar contains no implementation, and the loop does
 nothing. This exists because `DeferredRegister.register()` is only effective during
-construction, which the scene provider — discovered after the server starts — cannot
+construction, which an in-game test — started only once the game is running — cannot
 satisfy.
 
-The interface sits in the root package rather than in the package its implementations live
+The interface sits in the api (`api/game`) rather than in the package its implementations live
 in, and that is NeoForge's module system's doing. In a development environment the main
 and test-mod outputs are two separate JPMS modules, and a package present in both is a
 split package that the module layer refuses outright, so the server does not start. **Every
@@ -102,7 +102,7 @@ Checked by `python3 scripts/check_remap_safety.py`, which reads the remapped jar
 needs `./gradlew :fabric:build` first. The build maps to Mojang names, but remapping rewrites the
 shipped Fabric artifact into the intermediary namespace and does not rewrite string constants,
 so a reflective lookup by field name throws at runtime in the shipped jar. NeoForge is
-unaffected, its runtime namespace already being Mojang-mapped, and no gate task ever loads a
+unaffected, its runtime namespace already being Mojang-mapped, and no test run ever loads a
 remapped jar — which is why the existing sites went unnoticed.
 
 To open a member, add it to **both** of these and call it directly:
@@ -118,11 +118,11 @@ it; if you must add one, make the degradation loud and say so in the entry.
 
 ## No client type handed to a wider parameter from a class a dedicated server loads
 
-The check is running both `stagewrightDedicatedServerWithClientFabric` and
-`stagewrightDedicatedServerWithClientNeoforge`: the two loaders use different mechanisms — Fabric's class
-loader checks the environment type, NeoForge's runtime cleaner checks the dist — so one loader
-passing proves nothing about the other. The failure is at class-load time, so the scene dies at
-zero ticks with a message naming the class that failed to load and never the call site that
+The check is `./gradlew :common:test` (`SchedulerClientCallSurfaceTest`, which reads the bytecode)
+and then both `stagewrightTestFabric` and `stagewrightTestNeoforge`: the two loaders use different
+mechanisms — Fabric's class loader checks the environment type, NeoForge's runtime cleaner checks the
+dist — so one loader passing proves nothing about the other. The failure is at class-load time, so
+the test dies at zero ticks with a message naming the class that failed to load and never the call site that
 asked for it.
 
 Holding a `LocalPlayer` in a local variable and calling its own methods is fine and always was.
