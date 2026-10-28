@@ -33,6 +33,9 @@ stagewright {
                     includeWorldDriver = false
                     jvmArgs.add('-Xmx2g')
                     systemProperties.putAll(['worlddriver.rpcPort': '0', 'worlddriver.mcpPort': '0'])
+                    // -PstagewrightServerPort lets two checkouts run their suites at once.
+                    def port = providers.gradleProperty('stagewrightServerPort')
+                    if (port.isPresent()) serverPort = port.get() as int
                 }
             }
         }
