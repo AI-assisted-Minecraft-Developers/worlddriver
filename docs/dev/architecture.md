@@ -107,8 +107,7 @@ Publishing the same batch object again is recognised as a retry and does nothing
 builds its batch once and may publish it on every `SERVER_STARTED`. The core publishes
 `worlddriver/core` from the `DriverApplication` constructor; the path-debug package publishes
 `worlddriver/debug` when it starts, so the core never compile-depends on a subsystem that can
-be stripped; StageWright publishes its `mc.test.*` batch; the testmod publishes its
-`worlddriver.*` scene verbs under `worlddriver-testmod`.
+be stripped; StageWright publishes its `mc.test.*` batch.
 
 ### Hidden methods
 
@@ -224,8 +223,8 @@ and the full posture are in [`../guide/transports.md`](../guide/transports.md).
 ## Before pushing a change here
 
 The checks that shape code in this layer, and how to run them, are in
-[`testing.md`](testing.md). Two of them bite most often: no Java file may exceed the
-source budget, and a scene registered without a matching manifest entry fails the run.
+[`testing.md`](testing.md). The one that bites most often: no Java file may exceed the
+source budget, and passing the in-game tests does not mean passing it.
 
 ## Dependency guards
 

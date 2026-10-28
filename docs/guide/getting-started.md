@@ -74,9 +74,9 @@ means the operating system picks a free one.
 | `worlddriver.mcpHost` | `127.0.0.1` | Bind address for MCP |
 | `worlddriver.rpcHost` | `127.0.0.1` | Bind address for RPC |
 
-**The Fabric development runs pin these for you.** `fabric/build.gradle` sets
+**The Fabric development runs fix these for you.** `fabric/build.gradle` sets
 `worlddriver.mcpPort` to 39800 and `worlddriver.rpcPort` to 39801 on every run
-configuration that is not one of the headless test topologies, so `:fabric:runClient` and
+configuration that is not one of the in-game test suites' runs, so `:fabric:runClient` and
 `:fabric:runServer` land on those two ports without you asking. Override with Gradle
 properties if you need two clients side by side:
 
@@ -84,9 +84,9 @@ properties if you need two clients side by side:
 ./gradlew :fabric:runClient -PagentMcpPort=39810 -PagentRpcPort=39811
 ```
 
-**The NeoForge development runs do not pin them.** `neoforge/build.gradle` sets only the
-heap cap and the validation flag, so `:neoforge:runClient` takes the `0` default and gets
-whatever ports were free. Pin them yourself when you want a stable address:
+**The NeoForge development runs do not fix them.** `neoforge/build.gradle` sets only the
+heap cap, so `:neoforge:runClient` takes the `0` default and gets whatever ports were free.
+Set them yourself when you want a stable address:
 
 ```bash
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \

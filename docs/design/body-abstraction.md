@@ -167,7 +167,7 @@ A mob is taken over by the first order that names it as `entity:<uuid>`, or by
 `/worlddriver mob release <bot>` or when the entity is gone. It is marked persistent on takeover and
 stays so, since vanilla has no way to unset that.
 
-A mob has no chunk ticket. Scenes keep it loaded by the arena's own forced-loading window; a mob
+A mob has no chunk ticket. In-game tests keep it loaded by staying inside their plot; a mob
 driven over the network is refused if its chunk is not loaded, and gives up with a named reason if the
 chunk unloads or it dies mid-journey.
 
@@ -211,7 +211,7 @@ driving, so forking three vanilla classes would only add a second set of physics
 no god-object parameter bundle: route conditions already have one object and differences between bots already
 have a capability record, and merging them would produce the sprawling configuration surface that other
 projects in this space are known for. No exception is swallowed; a missing piece of the silent-connection
-shim is a failed scene, not a caught null.
+shim is a failed test, not a caught null.
 
 ## Where to look
 

@@ -26,7 +26,7 @@ never the game layer, and so receive events already in their wire form; the wire
 (`rpc/JsonRpcFrames`, `rpc/RequestLimits`, `script/ScriptCalls`). They subscribe
 through `registry/EventFeed`, which the game layer's `DriverHost` extends without naming a game
 type in it; they call through the `ApiRegistry` they are handed, and the game side holds the driver
-by `DriverHost`. Other code in the game, another mod's or the test scenes', finds both through
+by `DriverHost`. Other code in the game, another mod's or the in-game tests', finds both through
 `api/game/WorldDriver` (`registry()`, `host()`, the two ports, `scripting()`, and `whenReady` for
 code that loads before the driver is up). `registry/Scripting`, JavaScript bound to the registry,
 names no game type, so the script transport implements it. `application/` may use every layer and `bot/`. The bot's planning and
@@ -65,8 +65,8 @@ use it. `ArchitectureTest` (in `:common`'s unit tests) checks the rest against t
 modules: Minecraft only in the game layer, each `api/` layer using only what the table allows, no
 transport using the game layer.
 
-It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`
-and StageWright, with no exceptions. A scene that needs something the api does not offer
+It also holds the testmod (the in-game tests and their test content) to what another mod could use:
+`api/` and StageWright, with no exceptions. A test that needs something the api does not offer
 gets it added to the api — a reading under the hidden `mc.debug` family, or, for a mutation only a
 test should make, a `mc.test.*` method StageWright provides.
 
@@ -78,8 +78,8 @@ so a type it uses that was renamed or removed shows up only when the game runs: 
 pair. So:
 
 - After changing a type StageWright uses, rebuild and republish both with
-  `stagewright/scripts/build_driver_pair.sh` under one `BUILD_NUMBER`, and run the six topology
-  tasks against that StageWright version (`-Pstagewright_version=…`). Without the flag the build
+  `stagewright/scripts/build_driver_pair.sh` under one `BUILD_NUMBER`, and run both in-game test
+  suites against that StageWright version (`-Pstagewright_version=…`). Without the flag the build
   loads the version in `gradle.properties`, which is older.
 - Each StageWright build declares the WorldDriver range from the build it was compiled against up
   to the next minor (`[0.1.0-alpha.N, 0.2.0-alpha.0)`). A change that breaks what a published StageWright
