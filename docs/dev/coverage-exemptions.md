@@ -2,32 +2,32 @@
 
 Companion to the branch-coverage tooling in `scripts/coverage/` (`report.py` merges JaCoCo
 execution data and digests it per class; `triage.py` sorts the uncovered lines). Every
-entry below names a family of navigator-execution branches that the scene arenas **cannot**
+entry below names a family of navigator-execution branches that the in-game tests **cannot**
 exercise, explains why that is structural rather than an omission, and says where the
 branch is exercised instead.
 
-Anything not listed here and not covered by a scene is open scene debt, not an exemption.
-An exemption must name a *mechanism* that makes the branch unreachable in the arena
-topology. "Hard to rig" is not an exemption.
+Anything not listed here and not covered by a test is open test debt, not an exemption.
+An exemption must name a *mechanism* that makes the branch unreachable in the terrain and
+the server configurations the tests run on. "Hard to stage" is not an exemption.
 
 ## Exempt branch families
 
-| Family | Where | Why the arenas cannot reach it | Covered instead by |
+| Family | Where | Why the tests cannot reach it | Covered instead by |
 |---|---|---|---|
-| The dig-hold observers, `DIG-slow` and `DIG-dropped` | `ExpectAlarms.tick` | These watch a break action *held* across ticks. A dig by a server-side player on a dedicated server completes in a single tick, so a hold of the length the alarms look for cannot exist in that topology. | Runs with a real client player, where mining is a held action. |
+| The dig-hold observers, `DIG-slow` and `DIG-dropped` | `ExpectAlarms.tick` | These watch a break action *held* across ticks. A dig by a server-side player on a dedicated server completes in a single tick, so a hold of the length the alarms look for cannot exist there. | Runs with a real client player, where mining is a held action. |
 | The `GEAR-degraded` sentinel | `ExpectAlarms.GearCheck` | The sentinel samples only the client's own player (the `isClientSide()` guard in front of it), and a dedicated server has no such player. | Client runs with `navigatorExpectAlarm` enabled. |
-| The wait and arrive branches of the loaded-chunk frontier commit | `Navigator.frontierHoldOrArrive`, `SearchPhase` | They need a search that runs out of known terrain at an unloaded-chunk boundary. A scene's arena force-loads its whole grid window, so no such boundary exists inside it. | Long-distance journeys, which cross chunk-load borders routinely. |
+| The wait and arrive branches of the loaded-chunk frontier commit | `Navigator.frontierHoldOrArrive`, `SearchPhase` | They need a search that runs out of known terrain at an unloaded-chunk boundary. A test's plot is loaded whole before the test starts, so no such boundary exists inside it. | Long-distance journeys, which cross chunk-load borders routinely. |
 | The creative-flight descent latch | `PreludePhase` | It requires a player in creative flight. Server-side players never fly — the abilities are off. | Live creative sessions and the debug tooling. |
-| The guard-off half of the replay-mode skips | Several phases | `beginReplay` runs the guarded branches, but the *unguarded* half of each pair only differs under the live replay cadence. The arena replay scene covers the guarded side. | The live `mc.debug.replay` tooling. |
-| Debug log lines inside mechanisms that did not trigger | All phases | A log line is only reachable when its enclosing mechanism fires. The debug flag itself is exercised by scenes that run with it on. Each such line is covered or exempted **with its mechanism**, never as "logging". | Follows its mechanism's row. |
+| The guard-off half of the replay-mode skips | Several phases | `beginReplay` runs the guarded branches, but the *unguarded* half of each pair only differs under the live replay cadence. `CoreTest.replayRoundTrip` covers the guarded side. | The live `mc.debug.replay` tooling. |
+| Debug log lines inside mechanisms that did not trigger | All phases | A log line is only reachable when its enclosing mechanism fires. The debug flag itself is exercised by tests that run with it on. Each such line is covered or exempted **with its mechanism**, never as "logging". | Follows its mechanism's row. |
 
 ## Not exempt: known-untestable today, candidates for a future rig
 
 The deep-water bank-dig release branches — the ones behind
 `navigatorFutileBankDigRelease`, `navigatorBankDigForwardExit` and `navigatorPillarSurfacePlace` —
-are covered on their happy paths by the water-bank scene family, but the futile and
+are covered on their happy paths by `WaterBankTest`, but the futile and
 overhang releases are not. They are listed here as debt rather than as exemptions, because
-nothing about the topology makes them structurally unreachable; they are merely very hard
+nothing about the server configuration makes them structurally unreachable; they are merely very hard
 to stage.
 
 The engage signature is "the planner routes a climb-out that the bot cannot execute", and
@@ -36,12 +36,12 @@ six rig designs were each defeated by a different real mechanism:
 1. A stone shell with breaking allowed: the escalated searches planned dig-dives through
    the pool floor, the instant digs breached the basin, and the bot fell out of the
    world. Anything structural in such a rig must be bedrock.
-2. An open pool rim: the bot climbed it and walked off the arena into the void. Fence
+2. An open pool rim: the bot climbed it and walked off the staged terrain into the void. Fence
    every rig that borders void.
 3. A bedrock overhang mutated to be unroutable: with no climb edge in any path the climb
    intent never held, so the bank-dig never engaged and the bot only churned in the water.
 4. A static routable bank two blocks up: the riser scan latches onto solid bedrock, which
-   survives instant digs, and the server-side player simply mounts it. In this topology "routable"
+   survives instant digs, and the server-side player simply mounts it. On a dedicated server "routable"
    and "mountable" coincide.
 5. A one-wide canal with an unroutable bank three blocks up: the dry futile-search cap
    failed the run on the shore, because the water exemption only applies once afloat.
@@ -49,7 +49,7 @@ six rig designs were each defeated by a different real mechanism:
    seventeen cells and never entered the water at all.
 
 The live signature is execution drift — the bot drifts under an overhang while the path
-climbs elsewhere — so a deterministic arena reproduction probably needs either a
+climbs elsewhere — so a deterministic reproduction in a test probably needs either a
 scripted-path harness that bypasses A*, or a client player with its slower mining and weaker
 swim jump. Until one of those exists, these branches are covered only by live runs and
 replay.
@@ -65,22 +65,22 @@ proven with the navigator's own progress probe embedded in the failure message.
    the bot on the wrong side indefinitely. Walls between "inside" and "the way out" must
    be thicker than that radius, or the route must not exist until a mutation opens it.
 2. **A convex corner is a dead zone.** A sharp bedrock corner between the bot and its
-   next node puts the drive into a re-centring micro-orbit that outlives a scene's tick
+   next node puts the drive into a re-centring micro-orbit that outlives a test's tick
    budget. Prefer water, which has no corners to catch on, or a straight-line release over
    a gap in a wall.
 3. **There is a floor on the search slice.** With no path in hand the search runs at the
    larger of the ordinary slice and the idle slice, so pinning only the ordinary slice
-   does not keep a search in flight — the idle slice finishes a small arena graph in one
+   does not keep a search in flight — the idle slice finishes a small test's graph in one
    tick.
 4. **The futile-search cap races slow mechanisms.** In a sealed rig the cap fails the run
-   before a long anti-churn window has a chance to fire. A scene probing slow machinery
+   before a long anti-churn window has a chance to fire. A test probing slow machinery
    has to raise `navigatorFutileSearchCap`.
 5. **Partial-width stairs shed the bot.** The drive's lateral drift slides the bot off
    the side face of a narrow stair strip. A staircase the bot must climb should span the
    full approach width, and a recovery staircase revealed by a mutation should be aligned
    with the goal so the climb is not dragged diagonally off an edge.
 6. **Rim every floor that borders void, even after consecutive clean runs.** A best-effort
-   route can wrap the exterior of the arena's bedrock mass and walk the bot off the
-   platform edge. This was observed after five consecutive clean runs of the same scene. A
+   route can wrap the exterior of the test's bedrock mass and walk the bot off the
+   platform edge. This was observed after five consecutive clean runs of the same test. A
    three-block-tall bedrock perimeter, placed outside the adoption radius of rule 1, makes
-   the scene deterministic against it.
+   the test deterministic against it.

@@ -44,7 +44,7 @@ For someone adding or changing code here.
 | [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick navigator decision is decomposed into phase classes, and what crosses a tick boundary. |
 | [Fake-player parity](dev/fake-player-parity.md) | Where a driven player matches a real player and where it does not, behaviour by behaviour, and which kind of player a given scene should run on. |
 | [Testing](dev/testing.md) | The JVM tests, the in-game test suites and the source checks: running them, and adding a test. |
-| [Coverage exemptions](dev/coverage-exemptions.md) | Branch families the scene arenas structurally cannot reach, and why each is left uncovered on purpose. |
+| [Coverage exemptions](dev/coverage-exemptions.md) | Branch families the in-game tests structurally cannot reach, and why each is left uncovered on purpose. |
 | [Pathfinding conformance](dev/pathfinding-conformance.md) | Telling a planner problem from a navigator problem, and wiring a flag to try a change. |
 | [The replay corpus](dev/replay-corpus.md) | Recording, replaying and analysing a traversal, and what replay can and cannot be evidence of. |
 | [Debugging](dev/debugging.md) | Attaching a debugger to a game this build starts, and what stopping the game costs. |
