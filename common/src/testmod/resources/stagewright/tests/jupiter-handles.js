@@ -8,7 +8,7 @@ function dayTime(t) {
 
 test('a plot is leased empty and keeps what the test places', { scene: SCENE }, (t) => {
     const plot = t.plot({ size: 8 });
-    t.expect(plot.size).equals(8);
+    t.expect(plot.size).equals({ x: 8, y: 8, z: 8 });
     const at = plot.at(1, 1, 1);
     t.expect(t.call('mc.world.block', { pos: at }).type).equals('minecraft:air');
     plot.place(1, 1, 1, 'minecraft:stone');
