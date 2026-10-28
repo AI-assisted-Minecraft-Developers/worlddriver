@@ -22,10 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The JavaScript validation scripts are StageWright script tests.** Each script under
   `stagewright/tests/validation/` is one test, run in the scenes `wd.validation` (dedicated server) and
   `wd.validationIntegrated` (integrated server); a failed check is reported by name and the checks after it
-  still run, the arena is seeded afresh before every script, and each script states its check count per
-  topology. `wd.agentRpcSmoke`, `ValidationSuite`, `/worlddriver test [list|result]`,
+  still run, and the arena is seeded afresh before every script. The per-script check counts and the named
+  skip are dropped: a script that fails to load or throws is reported anyway, and `42_combat`'s melee engage,
+  skipped since the integrated world had no arena, now clears a pack on the seeded one. `wd.agentRpcSmoke`, `ValidationSuite`, `/worlddriver test [list|result]`,
   `-Dworlddriver.runValidation` and the api's `ScriptChecks` / `WorldDriver.scripts()` are gone;
   `09_events.js`, which tests the operator scripts' `ScriptEvents`, runs as a unit test.
+- **The lava escape reflex lets a bot handle lava on purpose.** It no longer walks the bot away while it holds
+  an empty bucket aimed at a lava source in reach, or a lava bucket aimed at a block in reach. The flow off the
+  source being scooped is itself what triggered it, so it turned the bot away mid-scoop and spoiled every cast
+  of the portal test's mould. Standing in lava still triggers it.
 
 ## 2026-10-27
 
