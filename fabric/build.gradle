@@ -201,14 +201,14 @@ loom {
             vmArg '-Dfabric.addMods=run/mods'
         }
         // The lab: a client with the test content on a persistent flat world, for testing by hand.
-        // Nothing wipes `run-lab`. See docs/guide/human-verification.md.
+        // Nothing wipes `run-lab`. See docs/dev/running-the-client.md.
         labClient {
             client()
             property 'stagewright.client.world', 'Lab'
             property 'stagewright.client.exitWhenDone', 'false'
             property 'worlddriver.rpcPort', '39801'
             property 'worlddriver.mcpPort', '39800'
-            // Unfocused on a desktop; vanilla would pause it. See docs/guide/human-verification.md.
+            // Unfocused on a desktop; vanilla would pause it. See docs/dev/running-the-client.md.
             property 'worlddriver.pauseOnLostFocus', 'false'
             runDir 'run-lab'
             vmArg '-Xmx2g'

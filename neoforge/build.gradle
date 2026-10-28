@@ -97,7 +97,7 @@ dependencies {
 // runtimeClasspath too would ALSO expose it as a bare -classpath dir that FML's
 // userdev locator re-packages into a second synthetic module (generated_XXX) — and
 // two modules exporting net.magicterra.worlddriver.bot.stagewright is a hard
-// java.lang.module.ResolutionException at boot (diagnosed live: run-dogfood ModuleLayerHandler).
+// java.lang.module.ResolutionException at boot (ModuleLayerHandler).
 // Compile-only stays dev-only and never reaches any jar/publication.
 evaluationDependsOn(':common')
 sourceSets {
@@ -163,7 +163,7 @@ loom {
         accessTransformer file("src/main/resources/META-INF/accesstransformer.cfg")
     }
 
-    // P4a Task 1: attach the testmod source set to the mod FML scans, so :common's
+    // Attach the testmod source set to the mod FML scans, so :common's
     // test classes and their service entries are discovered as
     // part of worlddriver (no separate mods.toml). architectury-loom EAGERLY registers a
     // default dev-run mod named "main" (the main source set) during plugin apply, before
@@ -175,26 +175,12 @@ loom {
     mods {
         named('main') {
             sourceSet sourceSets.testmod
-            // P4a Task 2: the wd.* dogfood scenes + SimProbes + SceneProvider service moved
-            // to :common's testmod. Two facts force the exact wiring here:
-            //   1. DISCOVERY. A bare -classpath dir is auto-moduled by FML on the game/library
-            //      layer, which worlddriver does NOT read — so ServiceLoader(SceneProvider),
-            //      run on the server thread in the mod's context, can't see the service file
-            //      (verified live: run-dogfood registered NO wd.* scenes). Attaching the
-            //      cross-project source set to THIS mod entry (loom's `sourceSet(SourceSet,
-            //      Project)` overload) folds :common's testmod OUTPUT into worlddriver's
-            //      fml.modFolders group — the same module the scenes are discovered from —
-            //      exactly as the line above does for neoforge's own testmod.
-            //   2. NO SPLIT PACKAGE. The moved classes live in package
-            //      net.magicterra.worlddriver.bot.stagewright.SCENE, DISJOINT from
-            //      net.magicterra.worlddriver.bot.stagewright (TestResetVerb/TestRunVerb, which stay in
-            //      :common MAIN and are delivered as their own dev module). FML wires broad
-            //      `reads` edges between mod modules, so two modules exporting the SAME package
-            //      is a hard java.lang.module.ResolutionException at boot (diagnosed live:
-            //      worlddriver + the common-main dev module both exporting the un-suffixed
-            //      package). The `.scene` sub-package keeps each package owned by exactly one
-            //      module — see the report for why the brief's identical-package layout is
-            //      unsatisfiable under JPMS and this is the minimal deviation.
+            // :common's testmod (the in-game tests, the test content and their service files).
+            // A bare -classpath dir is auto-moduled by FML on a layer worlddriver does not read,
+            // so ServiceLoader in the mod's context would not see its service files; loom's
+            // `sourceSet(SourceSet, Project)` folds it into worlddriver's fml.modFolders group
+            // instead. Its packages must stay disjoint from :common main's, which is its own dev
+            // module: two modules exporting one package is a ResolutionException at boot.
             // Per-run scoping holds: loom emits modFolders only for source sets on a run's
             // classpath, so `server` (no `source testmod`) never receives the test content.
             sourceSet project(':common').sourceSets.testmod, project(':common')
