@@ -8,8 +8,8 @@ in any of those, and they do not belong here.
 
 When an item is finished, delete the entry in the same commit that finishes it.
 
-Entries marked **Unverified** were carried across from an earlier working log and have not been
-checked against the current tree. Read the code before acting on one.
+Entries marked **Unverified** have not been confirmed against the current tree; each ends with the
+run or measurement that would settle it. Read the code before acting on one.
 
 ---
 
@@ -17,13 +17,11 @@ checked against the current tree. Read the code before acting on one.
 
 ### The survival ladder has to be rebuilt as new-path tests
 
-`wd.journey*` and its arena scenes were deleted with the old path. Rebuild the climb once StageWright can
-keep one body and one save across tests (StageWright's TODO tracks that gap).
+Planned in `ROADMAP.md`; it waits on StageWright handing a body to a later test.
 
 ### The fixture-authoring tooling has to be redesigned
 
-Markers, `/worlddriver mark|scene|anchor` and the `human.*` scenes were deleted with the old path.
-Hand-built scenes need a new design that saves into, and runs as, new-path tests.
+Planned in `ROADMAP.md`.
 
 ### Nothing checks that a test runs each baselined setting at its shipped default
 
@@ -37,52 +35,48 @@ javac keeps only the second of two doc comments.
 
 ## Engine and mod code
 
-### `wd.serverEarnsAnEnderPearl` is required and depends on loot rolls
+### `MobFightTest.serverEarnsAnEnderPearl` depends on loot rolls
 
-It reddened two of four NeoForge with-client gates on 2026-10-25 with "the kills yield ender
-pearls (0)" after only two of six kills; the reruns were green. Make the pearl deterministic (enough
-kills, or a looting weapon) or stop requiring a random drop.
+It asserts at least one pearl from six looting-less kills and no longer carries `@KnownIssue`, so a
+bad loot roll fails it. Make the pearl deterministic (enough kills, a looting weapon) or stop
+requiring a random drop.
 
-### Two required scenes fail now and then on a full Fabric with-client gate
+### Two required tests fail now and then on a full Fabric with-client run
 
-On 2026-10-26 one full gate reddened on `wd.serverBlazeFightStopsWhenTheBodyFallsOut` (one search pump
-took 3392 ms after the fall; the check wants none near the watchdog) and `wd.clientRoutePreviewDoesNotInterrupt`
-(the two-cell preview had already succeeded when the scene checked it was running); both passed when rerun
-alone. Make the first measure something load cannot inflate, and give the second a preview long enough to
-still be running when it looks.
+`MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time
+(< 2000 ms) that load inflates. `ClientRouteTest.clientRoutePreviewDoesNotInterrupt` check C wants
+the ~28-cell flat preview still running when it is read, and the preview can finish first. Measure
+the first in something load can't inflate, and make the second's preview unable to land before the read.
 
 ### The MCP server's HTTP dispatcher outlives the server
 
-A finished dedicated server's JVM does not end by itself. One of the threads holding it is
-`HTTP-Dispatcher`, started in `McpServer.<init>`; StageWright's agent has to end the JVM thirty
-seconds later. Stop the HTTP server when the driver detaches, or run its executor on daemon threads.
-(The two pools of two dozen workers beside it are architectury's tiny-remapper in the dev
-environment, not the driver's.)
+A finished dedicated server's JVM does not end by itself; one holder is the JDK `HTTP-Dispatcher`
+thread of `McpServer`'s HttpServer. `McpServer.close()` exists but nothing calls it
+(`WorldDriverCommon` only detaches the server). The executor is already daemon; the fix is to stop
+the HTTP server at JVM or driver shutdown.
 
-### GUI driving still goes by pixel coordinates
+### Three GUI input verbs take no element ref
 
-`mc.client.screen.tree` → `mc.client.input.click {x,y}` → `screen.info` is three round trips per
-click, and a stale coordinate lands on whatever sits there now (a world-list click hit "delete").
-Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
-ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
+`screen.tree` refs and `returnTree` cover click, slotClick, key and keybind. `typeText`,
+`replaceText` and `slider` still pick their target by focus or label match and return no tree.
 
 ### Out of blocks one course under a two-high bank, the bot goes back into the water
 
-`wd.clientTwoHighBankDigOut` takes 445–1238 ticks against a 1200-tick budget. Standing on its last
-placed block under the rim, the walk follows the route back down to the swim node; replanning from
-that block did not help, because the search itself prefers swimming round to digging up from there.
+`ClientWaterTest.clientTwoHighBankDigOut` takes 445–1238 ticks; its ashore check wants ≤900 (leg
+budget 1200). Standing on its last placed block under the rim, the walk follows the route back down
+to the swim node; the search prefers swimming round to digging up from there.
 
 ### The R1 route still grazes a few trunks and steps
 
-Still touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging dark oak log over the
-step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
-1559,65,-128 and 1563,64,-123.
+Last seen touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging dark oak log over
+the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
+1559,65,-128 and 1563,64,-123. **Unverified:** a fresh R1 run with contact logging would settle it.
 
 ### The navigator spends its last node a block short after a detour
 
-`wd.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and the
-bot then slides onto the goal cell. Same shape as the floating bot that cannot walk onto a bank, below. Look at the
-step-advance gates in `ProgressPhase` for a last node approached at an angle.
+`RouteTest.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and
+the bot then slides onto the goal cell; its check C tolerates 1.5 blocks. Look at the step-advance
+gates in `bot/control/route/ProgressPhase` for a last node approached at an angle.
 
 ### The shore scan can aim a drowning bot at lava
 
@@ -90,21 +84,48 @@ step-advance gates in `ProgressPhase` for a last node approached at an angle.
 `WorldView.canStandAt` tests all three cells. Lava is passable and is not water, so a lava foot
 cell over stone satisfies every clause the scan checks. The fix is to reject a hazardous foot or
 head cell as well; the caller's null branch already holds the jump key to keep rising, so the
-degradation is benign. Needs a scene that fails without the added clause.
+degradation is benign. Needs a test that fails without the added clause.
 
-### One documented settings range is not enforced
+### The shore scan gives up in wide water
 
-`SettingsDocs` declares a range for `lowHealthCareful` and nothing rejects a value outside it.
-`fleeDangerBoost` has a rejection branch in `SettingsCommand`, and that file's own javadoc records
-that this is the only documented range on the surface with no check. Any scene added for this must
-fail while the check is absent, rather than asserting a value that cannot be out of range.
+`AutoSwim.SHORE_SCAN_R` is 10, so in water wider than that the shore direction is null and an idle
+bot drifts. Path-driven crossings are fine; this is the fallback when nothing else drives.
 
-### `PlaceNearby` and its test-side twin disagree about what counts as support
+### A bot left in water while paused or across a reload can drown
 
-The engine copy accepts any support block that is neither air nor replaceable. The test side asks
-whether the face is sturdy facing up. The engine copy therefore still clicks at a lily pad. The two
-must change together, and the change wants its own check on both loaders rather than riding along
-with a ladder run.
+`ClientBot`'s tick returns early when the brain is paused, before any reflex runs. Run the swim
+fallback once before that return and after a reload, or refuse to pause in water.
+
+### Jumping off a dripstone cone deadlocks
+
+Standing on a dripstone cone under a jump-up node, `onGround` flickers as the bot slides off the
+slope, so the jump never fires and the forward key pushes into the wall. Either price or refuse
+stances on dripstone, or treat a flickering foothold under a raised node as stuck and reject the edge.
+
+### `mc.bot.escape` cannot climb out of falling sand
+
+`EscapeProcess` needs a solid non-falling tread, so inside a sand or gravel cap it finds no
+direction and bails. `mc.bot.goto`'s break-staircase is the working fallback today.
+
+### A churn give-up reports arrival
+
+The water anti-spin in `SearchPhase` ends best-effort with `TickStep.ARRIVED` /
+`PathTrace.Outcome.SUCCESS` and reason `churn-giveup`. It should report a failure the caller can escalate on.
+
+### No chain preempts a task to get food
+
+Only the `AutoEat` reflex exists; nothing interrupts the current task when food runs low and none is
+carried. Wanted: a food chain that bids above the user task, like AltoClef's `FoodChain`.
+
+### The learned risk-cost table is off by default with no evidence either way
+
+`RiskCostTable` is wired into the pathfinder behind `riskBias` (default off, scale 15). Turning it
+on needs a live A/B with the flag off and on over the same route.
+
+### `PlaceNearby` accepts a lily pad as support
+
+`PlaceNearby.place` accepts any non-air, non-replaceable support, so it still clicks at a lily pad
+(`ValidationSteps.arena`'s javadoc records one). Tightening it needs a check on both loaders.
 
 ### `isSolid()` as a support rule is copied three times
 
@@ -116,30 +137,16 @@ needs its own check.
 
 ### `BotUtil.canStandHereStatic` has no hazard clause and `WorldView.canStandAt` does
 
-Magma blocks and lava foot cells are legal to the selector and refused by the pathfinder, so a cell
-the search will never expand is handed to the navigator as a goal. `GoalResolver`'s javadoc already
-names the helper as hazard-blind. Tightening this changes the result of `goto block:` and of two
-fill verbs. Hold until the navigator census names which cells the navigator is actually refusing, so the
-two effects do not become one attribution problem.
+`BotUtil.canStandHereStatic` (`game/body`) refuses no hazard; `WorldView.canStandAt` refuses it on
+floor, foot and head, so `goto block:` can be handed a magma or lava cell A* never expands.
+Tightening it changes `goto block:` and the fill and farm stand pickers, so it needs its own check.
 
 ### A continuation search is discarded and re-issued, and the loop does not terminate
 
-`StallDetectPhase` hand-copies half of `SegmentCommit.reset()`: it clears the active search and
-the search-from-end flag and leaves the committed end and the best-effort path, which is exactly the
-state the repath phase re-triggers on. Calling `reset()` instead is not safe — it also clears the
-pending segment, so each field has to be decided separately. Judge a fix on a distribution (the
-largest repeat count for one start-and-goal pair, and the `goto` completion rate), not on whether a
-single ladder run passes.
-
-### The futile-search governor cannot fire against a moving target
-
-`Navigator.start` clears the governor, and the first search after a reset is seeded rather than
-judged, so it never enters the consecutive count. A combat process re-issues the goal each time the
-target moves, so half of every search population is seeding and the streak never reaches its
-threshold. The criterion and the situation it guards against are mutually exclusive. Candidates, in
-order of blast radius: keep the governor when the goal has only moved and the pursuit is the same;
-count over a time window instead of a number of searches, without clearing on reset; throttle
-re-targeting in the combat process. Grep every writer of the governor field before choosing.
+On a fell-off-path stall `StallDetectPhase` calls `Route.abortSearch()`, which drops the continuation
+search but keeps `commitEnd`/`pathBestEffort`, the state `RepathPhase` re-triggers on.
+`Route.SegmentCommit.reset()` is not a drop-in (it clears `pendingSegment`). Judge a fix on the
+repeat count per start-goal pair and `goto` completion.
 
 ### The futile-search gate has two measured blind spots
 
@@ -158,39 +165,34 @@ out, so the reflex releases control with the bot still alight. Adding the fire t
 condition is not by itself the fix: the reflex's action is to walk away from lava, and a burning
 bot with no lava left near it does not benefit from walking further.
 
-### Every reflex is off on the bot that drives the survival run
+### Every reflex is off by default
 
-`autoRetreat`, `autoFight`, `autoDodge`, `autoHeal`, `autoShield` and `autoEquip` are all false by
-default. That default is deliberate and is documented beside the field: a quiet bot stays quiet so a
-scripted scenario is not overridden. The survival run is the case that wants them on. The shape is
-decided — arm them for that bot only, healing before retreat, because retreat preempts the navigator
-and healing only contends for the use key — but it is blocked on a health-loss distribution, because
-arming them is a change that touches every rung at once.
+The six reflexes default off by design. A survival driver (now Journeyman) wants them on, healing
+before retreat; arming them needs a health-loss distribution, and the in-mod ladder that produced
+one is deleted.
 
 ### `commandForward` is a strictly weaker channel than `commandMove`
 
-`AvatarInput.tick` lets the commanded move win over the raw commanded move, and the navigator issues a
-commanded move every tick, so a same-tick stop from a fallback is silently dropped and
-`BotInput.stop`'s documented contract is false whenever the navigator is active. Promoting the channel
-changes how fallbacks and processes arbitrate, on every topology.
+`AvatarInput.tick` lets `commandMove` win over `commandForward`, and the navigator commands a move
+every tick, so a same-tick `commandForward(0)` stop from a fallback is dropped. Promoting the channel
+changes how fallbacks and processes arbitrate on every topology.
 
-### Four routes reach the same `AvatarInput`
+### Two writers of the shared keybinds besides `Body`
 
-The `Body` interface, the retired `BotInput`, a copy inside `AutoSwim`, and the two surviving uses
-of the vanilla key mappings. Only `Body` can drive a server-side player. Moving the other three onto
-it is an architecture decision, not a tidying pass.
+Besides `Body`, the shared vanilla keybinds are still written by `BotInteract.releaseKeys` and
+`ClientKeybinds`. Only `Body` can drive a server-side player; whether those two move onto it is an
+architecture decision.
 
 ### A process's `attach()` does not clear the previous run's terminal fields
 
-`goalReached`, `endReason` and `finalDist` are kept deliberately by `reset()` and should be cleared
-by `attach()`; only one file under `bot/behavior/` clears `goalReached` at all. `mc.bot.status`
-therefore reports the previous run's verdict against a run that is still going. Collect this into a
-single `beginRun()`; it changes an observable surface, so it needs a check.
+`ProcessSlot.goalReached/endReason/finalDist` survive `reset()` and only `IntentProcess` and
+`BunkerProcess` clear them in `attach()`; `MineProcess` and `ReplayProcess` don't, so status shows the
+last run's verdict on a running one. Collect into one `beginRun()`, with a check.
 
-### Fourteen flags default off and no real run has ever turned one on
+### Default-off flags that no real run has ever turned on
 
 `allowParkour4` is one of them, which means the movement members behind it have never taken a step
-in real navigation. Each of them needs either a scene that exercises it or deletion. Leaving them as
+in real navigation. Each of them needs either a test that exercises it or deletion. Leaving them as
 features awaiting activation is the outcome to avoid.
 
 ### Nothing runs the replay corpus's acceptance rule
@@ -199,18 +201,18 @@ The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s
 the peak stall and arrival itself before a tool can compare a candidate against a baseline again
 (`docs/dev/replay-corpus.md`, "The regression check").
 
-### The head-cell hazard test covers three parkour moves out of nine
+### The head-cell hazard test covers three leaping moves out of nine
 
-The ascending, descending and diagonally ascending moves test `isHazard` two cells above the origin.
-The longer leaps, their diagonal variants and the placing variant test passability only, and hazard
-and passability are not exclusive — fire, berry bushes and powder snow are all passable. This
-changes the edge set the pathfinder may expand, so it needs its own check and its own attribution.
+`ParkourAscend`, `ParkourDescend` and `DiagonalAscend` test `isHazard` on the cell two above the
+origin. `Parkour2`, `Parkour2Diagonal`, `Parkour3`, `Parkour3Diagonal`, `Parkour4` and `ParkourPlace`
+only test that it is passable, and fire, berry bushes and powder snow are passable. This changes
+which edges the pathfinder can expand, so it needs its own check and its own attribution.
 
 ### Only one of three run-up rules is the strict one
 
-The two `Move.hasRunway` overloads require zero or two clear cells behind the jump; an inlined copy
-inside the ascending move requires one. The four longest leaps all use the zero-cell version. Same
-check as the hazard test above.
+`Parkour3` alone requires two clear cells behind the jump (`Move.hasRunway(w, from, dx, dz)`).
+`ParkourAscend` requires one through an inlined check; every other leap, the four longest included,
+requires zero. Same check as the hazard item above.
 
 ### The smelt wait does not verify the bot is present
 
@@ -219,38 +221,41 @@ sixty blocks away. Beyond interaction range it should record an error or fail.
 
 ### A step-up still jumps in place in water deeper than 0.4
 
-Vanilla swims and rises by bumping into the bank. Two client scenes measure the behaviour. Fixing it
-requires `WorldView` to carry fluid height.
+Vanilla swims and rises by bumping into the bank. Fixing it requires `WorldView` to carry fluid
+height. **Unverified** whether the behaviour persists: a live run of
+`ClientWaterTest.clientShallowPoolStepOut` with its log would settle it.
 
 ### The retired water model's predicates and costs are still in the tree
 
-The floating-water family and the water-cell, submerged, climb-out and descend surcharges are mostly
-unreachable once the surface-water-nodes flag is on. Run both models side by side for a while, then
-delete one; the design note is in the water-model document.
+The floating-water predicates and the water-cell, submerged, climb-out and descend taxes are mostly
+unreachable with `pathfinderSurfaceWaterNodes` on, except inside dive searches, which keep the old
+model. Run both models side by side for a while, then delete one. The design note is
+`docs/design/water-and-swimming.md`.
 
 ### A bot that climbs out of a trench walks back into it
 
 After reaching the top, the search routes around the trench end with a two-dimensional parkour move,
 lands short and falls back in, then climbs again. The parkour landing rule takes no account of the
-pillar the bot has just placed or of the trench mouth. **Unverified.**
+pillar the bot has just placed or of the trench mouth. **Unverified:** a live reproduction would settle it.
 
 ### Digging a bank block by hand while afloat costs about 370 ticks
 
-Bobbing resets the destroy progress repeatedly, so one riser is dug in many separate stretches. Same
-family as the one-high and two-high bank dig-outs. **Unverified.**
+That matches vanilla's 1/25 floating-and-submerged mining speed. It is open only if bobbing also
+resets destroy progress. **Unverified:** measure the progress across one dig in
+`ClientWaterTest.clientOneHighBankDigOut`.
 
-### A straightened edge longer than three blocks on dry land re-plans every tick
+### A straightened edge under a leash or bias re-plans every tick
 
-The stall detector measures three-dimensional distance to the far end of a straightened edge, so the
-moment a flat run is pulled into one long edge the bot counts as knocked off it and re-searches
-every tick until the last few cells. Water already limits the span; dry land still takes the full
-storm. Measuring to the edge rather than to its end removes the searches, but four scenes covering
-leashes and shore takeover depend on the current cadence and turn red. Decouple those first.
+Off-path measures to the edge only on a dry, level, action-free walk edge under an unconstrained
+profile. Under a leash or bias it still measures to the far end of the straightened edge, so the bot
+re-searches every tick until the last three cells. `WorldDriverTest.entityLeash` and the two
+`WaterBankTest.pillarLedger*` tests depend on that cadence. Decouple them before widening the edge reference.
 
-### The deep-water drift brake disables sprint on a two-block shore margin
+### The deep-water drift brake and the shore-or-swim choice
 
-It now decides half the price difference between walking the shore and swimming across.
-**Unverified.**
+The deep-water drift brake drops sprint when deep water lies within 1.5 cells along the velocity
+(2.5 on a descent). Whether that still decides shore-walk vs swim timing is unmeasured.
+**Unverified:** a timed A/B with `navigatorDeepWaterDriftBrake` off and on would settle it.
 
 ### Two tools disagree about the day-phase vocabulary and its boundaries
 
@@ -258,38 +263,23 @@ It now decides half the price difference between walking the shore and swimming 
 windows. Deliberately deferred; the reasoning is in `WorldModel.dayPhase`'s javadoc. Reopen when
 the dusk-securing chain's firing window changes.
 
-### Three line samplers share one piece of arithmetic
+### Four line samplers share one piece of arithmetic
 
-`losWalkable`, `straightLineBias` and `isOpenWaterLine` each compute the same step count and
-interpolation. Extract only the per-step cell computation, not an iterator returning a list: almost
-all sliced pathfinding sits inside a single tick's budget, and allocation is expensive by count.
+`losWalkable`, `straightLineBias`, `straightLineDanger` and `isOpenWaterLine` compute the same step
+count and interpolation, and `NavigatorInspector.planSpans` and `PreviewSearch.polylineCells` are
+near copies. Extract only the per-step cell computation, not an iterator returning a list.
+Allocation is expensive by count inside a sliced search's tick budget.
 
 ### `activeProcessDetail` is null while the dusk-securing chain owns the bunker
 
-The bot API reads only the foreground user task's status detail, so a driver has to infer the
-bunker's state from the active chain plus sky exposure. **Unverified.**
+`activeProcessDetail` reads only the foreground user task, so while `DuskSecureChain` runs its own
+`BunkerProcess` the status shows `chains.duskSecure.episode = SECURING` but never the bunker's sub-phase.
 
-### Single-shot actions on the client avatar are issued from the server thread
+### Client-avatar actions have no client-thread guard
 
-The correct shape is to issue from the client tick chain and let the scene observe the outcome
-through the world. The optional scene that judged this seam, `wd.actuatorSplitThroughTheClientAvatar`,
-was deleted with the old scene path.
-
-### Client state is written from the server thread beyond the one path already guarded
-
-The concurrent-modification crash came out of `ClientLevel.playSound`, and block placement was only
-one caller of it. `useItemInHand` (the bucket path) and `continueDestroy` are unguarded; holding an
-item, setting the selected slot, container clicks, recipe placement and unchecked attacks also write
-client state from scene threads.
-
-The guarded path's shape — hand the work off and return — cannot be copied blindly: a caller that
-reads the bucket count right after the call and judges on the difference would read a deferred use as
-a failed fill, so such callers have to settle once before reading the stock or move onto the
-pending-stop mechanism. The hold-item family is
-the same defect with a smaller blast radius (a bare int field rather than a map, so the worst case
-is a stale read), but its return value is load-bearing — callers assert on it — so fire-and-forget
-would turn it into a lie. Either the callers' contract changes or holding and using share one
-handoff.
+`ClientPlayerBody`'s `useItemInHand`, `continueDestroy`, hold, slot, container-click,
+recipe-placement and attack methods have no client-thread guard, unlike `clientUseItemOn`. No
+current caller reaches them off-thread. Add the guard, or an assertion, before anything does.
 
 ### The farm process's break timeout is a private constant
 
@@ -297,10 +287,10 @@ Sixty ticks, hard-coded, not wired to the configured break timeout.
 
 ### Descend and escape end differently on a shared state slot
 
-Escape resets the slot and logs a bail on failure; descend only clears the active flag. After a
-descend, the escape slot still reports the old goal, target and start time, and a failed descend
-logs nothing at all. The shared slot itself is documented design and is not the defect. Aligning the
-two changes what `mc.bot.state` reports, so it needs a check.
+Escape resets the slot and logs a bail (debug only) on failure; descend only clears the active flag.
+After a descend, the escape slot still reports the old goal, target and start time, and a failed
+descend logs nothing at all. The shared slot itself is documented design and is not the defect.
+Aligning the two changes what `mc.bot.state` reports, so it needs a check.
 
 ### `isFalling(Level, BlockPos)` exists three times, verbatim
 
@@ -312,70 +302,37 @@ is safe but buys three lines each.
 
 In the craft and smelt processes.
 
-### The descend process's action counter is not cleared across phases
+### Reach radii differ by call site
 
-### There are four different reach distances
+Reach radii are 4.0 (twice), 4.3 (one shared constant), 4.4 and `blockInteractionRange()+0.5`.
+`BotUtil.standingEye`'s javadoc tabulates them as deliberate. Reopen only if a live interaction gate
+uses a short radius.
 
-4.0, 4.3, 4.3 and 4.4. **Unverified.**
+### Configuration is global to the JVM
 
-### The lava reflex prints a cell with an integer cast
-
-Truncation toward zero, so at negative coordinates it prints a cell the bot is not standing in.
-Three places repository-wide. **Unverified.**
-
-### Configuration is a global singleton holding per-bot, per-tick state
-
-The fields are `public static volatile`, so scenes cannot safely run in parallel. Same file and the
-same split as the size-budget work below.
+Settings are `public static volatile` fields across eight `config/*Config` classes, global to the
+JVM, so two bots, or two tests in parallel, share every setting.
 
 ### The freeze window family is not even measured yet
 
-Fluid flags are frozen while the driver is not registered. Roughly thirty scenes and around a
-hundred read points share the symptom, and no measurement has landed. **Unverified.**
-
-### The script prelude and the typed parameter reader coerce differently
-
-The prelude's truncation accepts a fractional number, a numeric string and a wrapped value that the
-typed getters and the schema validator reject, so the script channel is more permissive than the
-other two transports. This is a behaviour change and needs a check.
-
-### A game verb lives in the script transport
-
-The prelude's tunnel function is a whole verb — it clears a corridor of a given width and height in
-a direction — and only the in-process engine can reach it: there is no router entry and no catalog
-schema, so Model Context Protocol and remote-procedure-call clients cannot call it at all. It cannot
-simply be deleted, because a validation script exercises it.
-
-Promote it to a real route, in this order: add the catalog schema, add the router entry with the
-implementation moved under `bot/`, then reduce the prelude function to a thin forward so the
-validation script needs no change, then run both loaders' checks and the script validation suite.
-Delegate direction handling to `GoalResolver.applyDirection`, which is the only one of the three
-direction vocabularies that is a superset and the only one that normalises. Keep `distance`
-mandatory — the prelude's own comment explains why defaulting it silently turns a missing distance
-into a one-cell dig. Do not fold the unification of the two backward direction words into this
-change; it is a separate piece of work and mixing them makes a failure unattributable.
+Fluid flags are frozen while the driver is not registered, and no measurement has landed.
+**Unverified:** name the flags and the registration involved, then grep the current tests for reads
+of `isInWater` and fluid heights to see who is affected.
 
 ### The script sandbox assertions guard a filter that is switched off
 
-`ScriptClassFilter` is disabled unless `-Dworlddriver.sandbox=on` is set, and nothing in the build
-sets it, so the class filter refuses no name during any check. The seven assertions in the sandbox
-validation script are green throughout, and they are named in `AGENTS.md` as the guard against the
-sandbox being widened — which they cannot be, since they would not go red when it is.
-
-Do not add assertions yet; two exact coverage totals would move. The reading needed first is what
-`java` and `java.io.File` resolve to inside the script context. If they are undefined, the seven
-assertions are vacuous — the denials are catching a type error rather than the filter — and that can
-be established without enabling the filter at all. Only if they do resolve is a run with the filter
-enabled worth taking. Two of the seven cannot distinguish anything in principle: the host has no
-such executable and a connection to a closed port always throws.
+The five denial checks in `08_sandbox.js` run with `ScriptClassFilter` off. Read the
+"08_sandbox mechanism probe" record from a validation run. If `typeof java` is undefined the checks
+are vacuous and should be rewritten or removed. Only if it resolves is a `-Dworlddriver.sandbox=on`
+run worth taking.
 
 ### Every install still needs the Architectury API mod
 
 `fabric.mod.json` and `neoforge.mods.toml` declare `architectury` as a required dependency, for the
-fourteen events `WorldDriverEvents` and `WorldDriverClientEvents` subscribe. Replace them with each
+fifteen events `WorldDriverEvents` and `WorldDriverClientEvents` subscribe. Replace them with each
 loader's own callbacks behind a thin port in `:common`, keeping `block.break` before removal and
 `entity.death` at the decision. Fabric API has no block-place event, so that one needs a mixin. The
-testmod's registries and `EnvExecutor` can keep the API as a dev-only dependency until they move too.
+testmod's registries, `EnvExecutor` and `AvatarTest`'s `PlayerEvent` can stay on it as dev-only.
 
 ### The build still goes through Architectury's plugin and transformer
 
@@ -393,54 +350,44 @@ These belong to the bot-equivalence role and are bounded by the parity document.
 
 ### The selected-slot section has three residues
 
-The client twin of stopping an item use, a one-round-trip window, and a one-tick content lag between
-the bag and the hand. The parity document's own note says not to fold the next piece of work into
-the same change. **Unverified.**
+Three residues on the server-side bot: a slot change does not stop an item in use
+(`ServerPlayerBody.carryTo`), the one-round-trip echo window the equality guard bounds, and a
+one-tick lag between a bag-to-hand swap and the client seeing it. Parity doc "Inventory and the held item".
 
 ### A furnace menu sixty blocks away is never closed
 
 A real player's tick closes containers; the joined player drifted that far with the menu still open.
-The symptom is observed and the cause is not. **Unverified.**
+`JoinedBody.pump` now runs the player tick, which should close it. **Unverified:** a test that opens a
+furnace on a joined bot, moves it away and asserts `containerMenu == inventoryMenu` would settle it.
 
 ### Aiming is still split between the two sides
 
-The twin has not landed. **Unverified.**
+The twin has not landed; the parity doc's "Look" row is `Accepted`. **Unverified:** settles once
+someone names which parity row the missing twin belongs to.
 
-### `selected` is written by four methods across five lines
+### `Inventory.selected` is written in five production places
 
-The earlier count of three places was wrong. **Unverified.**
+Three direct (`ClientInput.setHotbarSlot`, `BotInteract.selectHotbar`, `ServerPlayerBody.carryTo`) and
+two through `pickSlot` (`HeldItem.holdById`, `BotInteract.creativePick`). The `HeldItem` one runs on
+the server bot without `carryTo`'s packet.
 
 ### Digging fidelity on the server-side avatar
 
 Bare-handed obsidian breaks, silk touch does not apply, and tools take no durability.
-**Unverified.**
 
-### The joined player's tick is an empty implementation
+### Pitch and hand swing
 
-The second half of the join work is to drive it by writing inputs rather than by copying a player's
-tick. **Unverified.**
+Pitch is written directly by about twenty sites outside the look controller; the server-side
+place/use/attack actuators do not swing. Parity doc "Breaking, placing and reach".
 
-### Five smaller parity gaps
+### Crafting leaves dropped items behind
 
-Pitch has two owners, so the driver does not look down while mining; there is no hand swing and it
-needs a probe of its own; best-weapon selection is called only on the Nether rung; a workbench is
-neither reclaimed nor are dropped items picked up; and the first moments of a run read as night
-until a spawn-time row is added. **Unverified.**
+`CraftProcess` waits 15 ticks in place for a drop and never walks to it. **Unverified** whether that
+is a gap: a test that drops the crafted item out of pickup reach would settle it.
 
 ---
 
 ## Test harness, ledger and instrumentation
-
-### The fall self-report names the process, not the action
-
-The leaving report says which process was running, and not which movement edge the navigator was
-executing or which jump tag was in play. One family of falls has been guessed at across several
-rounds for want of an action to go with the location.
-
-### The heartbeat cannot attribute horizontal drift
-
-It carries no delta movement, no input flags and no fluid flow, so a long lateral drift cannot be
-assigned to residual input or to a current. **Unverified.**
 
 ### The stacked-javadoc checker cannot see the worse form of the defect
 
@@ -450,14 +397,15 @@ mismatch between a block and the declaration it is attached to: a `@param` namin
 does not exist, a `@return` on a void member. It does not need natural language. The script records
 this in its own header.
 
-### Mob cap, chunk loading and terrain change have no reading at all
+### The mob cap has no reading
 
-**Unverified.**
+No reading of the mob cap (NaturalSpawner's per-category counts) exists.
 
 ### An advancement says not earned while the bag holds the item
 
 The blaze-rod advancement. Measure whether the inventory-changed trigger fires for a joined player
-before believing either side of it. **Unverified.**
+before believing either side of it. **Unverified:** a joined bot picks up a blaze rod and the test
+reads `minecraft:nether/obtain_blaze_rod` progress.
 
 ---
 
@@ -465,11 +413,10 @@ before believing either side of it. **Unverified.**
 
 Engine-side defects the deleted survival ladder found; its own strategy-code items went with it.
 
-### The full-budget search tier has no clock
+### The full-budget search tier has a loose clock
 
-It runs effectively without a time bound, at several seconds per call. Two questions: whether that
-tier should have one at all, and why a thirteen-block segment over open lava takes tens of thousands of
-nodes, which says the heuristic is not converging there.
+A search may run up to the 8 s `CEILING_MS`. Open: whether the widest tier should have a tighter
+clock, and why a short segment over open lava expanded tens of thousands of nodes.
 
 ### The corridor fire needs a replan trigger, not a surcharge
 
@@ -477,85 +424,32 @@ Decided; not yet built. Pricing the cells next to fire is withdrawn and should n
 again, and so is the per-tick comparison of the bot's cell against the path node, which existed
 only to take the surcharge approach apart.
 
-### A raise reports a height where the caller needs a column
-
-The verdict row already says the tower landed off the named column and that the cell beneath is not
-a floor, and the caller reads only the height. The upstream cause has been fixed, so this is now the
-second line of defence rather than the first, and the situation has stopped appearing because the
-lift tower is no longer being reached. Do not delete it: the terrain that forces the tower recurs.
-Reopen the moment a run uses the lift tower again.
-
-### When the tower stops, it says so only in the evidence
-
-It correctly detects that two successive rewrites undo each other and stops, which is the right
-behaviour, but that fact never reaches the return value — the caller sees only a height. Same
-occasion and same reopen condition as the entry above.
-
-### The daylight height expression is hand-written nine times
-
-A helper already exists for it. Check each call site's declared level type before substituting; one
-of them wants a block position rather than an integer. Compilation is the only check needed, since
-no evidence key changes.
-
 ### Two message texts are wrong
 
 A stuck-step annotation attributes the refusal to one of the three booleans before it and omits the
-fourth conjunct it printed on the same line, sending the reader to look for a source that does not
-exist. A scene's top-level fallback reason contradicts what runs actually report. Change the text in
-both; do not add fields.
+fourth conjunct it printed on the same line. A scene's top-level fallback reason contradicts what
+runs actually report. **Unverified:** the exact log text or test name would settle which messages these are.
 
 ### An enderman fight sometimes never ends
 
-About one NeoForge run in four fails here. Every fight either finishes quickly or burns exactly the
-tick ceiling, with no value in between across two dozen fights, so this is a hang rather than
-slowness. Add one row per ceiling-burning fight carrying four fields: whether the target is still
-alive, how far the bot is from it, the largest jump in the target's position during the fight, and
-how many combat searches ran. Those three families — target lost, re-search storm, neither —
-partition the answer. Do not lower the pass criterion: it is already equivalent to winning three
-fights out of six, which is the floor.
+`MobFightTest.serverEarnsAnEnderPearl`: some fights burn the full 4000 ticks. Record, per such fight,
+whether the target lives, its distance, its largest position jump and the combat search count, to
+tell target-lost from re-search storms.
 
 ### There is no reading for who wrote a cell
 
-A guard refused to mine a cell because it would release the water behind it, and the bot later
-drowned standing in that water. Nothing can say who opened it — the navigator's fallback pathing
-carries its own permission to break, and is the first candidate. What is needed is a
-who-wrote-this-cell attribution row, not another round of inference.
-
-### A floating bot cannot walk onto a bank at its own level
-
-The scene that witnessed it, `wd.journeyGetsAshoreBeforePouring`, was deleted with the ladder. The
-navigator's final node is accepted by the horizontal proximity clause with
-zero footing under the bot, and the existing airborne-climb guard cannot be reused, because it is
-scoped to mid-path nodes and it excludes bots in water for a measured reason. A second judgement
-sits above it on the test side, so two layers each call this an arrival; a fix has to account for
-both.
-
-### A scanner checks the owner class and should also check descriptor parameters
-
-A scheduler class can pass a client type without calling one, and the failure only appears when a
-dedicated server constructs it.
+Nothing attributes a changed cell to the code that broke or placed it; the only own-break record is
+the client-side `ClientIntents.takeOwnBreaks`. A drowning in water a guard had refused to release
+went unexplained for want of one.
 
 ---
 
 ## Source-size budget
 
-`scripts/check_source_budget.py` fails the build for any Java file over 3000 lines. Several files
-sit within a few lines of it — the configuration class and the navigator among them. Run the script for the current numbers
-rather than trusting a number written here. The remedy is splitting; stripping comments to buy
-headroom trades readability for quota and is not one.
-
-### Splitting the configuration class has a mandatory first step
-
-Make its persistable-field enumeration walk the superclass chain before moving any field. Two
-enumerators in this codebase each document themselves as the one enumeration and each is right about
-itself: the settings registry uses `getFields()` and follows superclasses, the configuration class's
-own persistence uses `getDeclaredFields()` and does not. That difference decides how a split fails.
-A sibling-class split throws immediately, which is safe. A superclass split is silent — the moved
-fields stay in the settings snapshot and read normally, while falling out of persistence and out of
-the snapshot-all path, so a test baseline leaks into a live bot for exactly those fields and the
-symptom looks like a few rungs quietly regressing. Making the enumeration follow the superclass
-chain is provably a no-op today, because the superclass is `Object`; that makes the two steps
-separately verifiable.
+`scripts/check_source_budget.py` caps Java files at 3000 non-comment lines and methods at 200 (three
+grandfathered `*Phase.run` methods). It passes and no file is near the cap. Run it for current
+numbers. Split, do not strip comments. `scripts/check_stacked_javadoc.py` fails on exactly the eight
+blocks listed under Porting.
 
 ### Two things in this area that must not be tidied
 
@@ -565,10 +459,10 @@ the shared version and refused by them. Merging would loosen two placement paths
 measurement first.
 
 "No Java callers" does not mean dead here. The script class filter is a denylist that is off by
-default and does not deny this project's own packages, so any public member is in principle callable
-by name from a script at runtime; and the settings registry, the settings command and the
-configuration class all reflect on configuration fields by name. Every candidate from a dead-code
-sweep has to be re-checked against both of those before it is removed.
+default and does not deny this project's own packages; this Rhino fork removes the `Packages` global,
+so a script reaches the public members of any object handed to it rather than any class by name. And
+the settings registry, the settings command and the configuration class all reflect on configuration
+fields by name. Every candidate from a dead-code sweep has to be re-checked against both before it is removed.
 
 ---
 
@@ -584,48 +478,24 @@ reopen one without that observation.
   first five occurrences of the reflex all succeeded; the failure was forty ticks inside a source
   block with less than a block of movement available, which no driver changes. Reopen if a death
   reading ever charges an escape failure to steering or to driver latency.
-- **A global arbitrator for the attack key's five users.** A diagnostic table replaced it and the
-  affected rung has passed consistently since. Reopen if that rung fails again with an unclear
-  attribution.
 - **Checking the target cell is empty before placing.** Refusals consume nothing and write nothing;
   the measured ratio is well under one refusal per success, clustered on individual cells. Reopen
   when a run's failure or exhausted budget is charged to repeated refusals.
-- **Reporting a mid-flight elytra exit through the error field.** That exit is the only consumer's
-  sole path and the late rungs do not use elytra at all. Reopen if elytra enters the main line.
-- **Taking material for towers and unsticking from downstream demand.** The measured net cost is
-  zero. Reopen when a verdict charges a failure to material supply.
-- **Reconciling the two break-cost multipliers.** The motivation is gone: the local exemption that
-  replaced it is verified with the shipped configuration. The multipliers' remaining global effect
-  belongs to the two-world-views pricing item, not here.
 
 ---
 
 ## Leads not yet checked against the current tree
 
-A line-by-line sweep of the retired working log produced these. **None of them has been checked
-against the current tree**, and several have already turned out to be closed — a file recorded here
-as over the size budget was comfortably under it when measured. Before acting on one, grep for the
-line the code itself would write, read the production code, and measure the file.
+None of these has been confirmed. Before acting on one, grep for the line the code itself would
+write, read the production code, and measure the file.
 
 - Escape and descend disagree on their reset conventions.
-- There is no lava self-rescue at all, and a bot that falls in burns the remainder of the segment's
-  budget walking.
-- A parkour take-off gate: refuse the jump when less than one block of horizontal room remains. The
-  fatal and surviving samples separate cleanly with no overlap, so the predicate is already known to
-  the threshold; the change has not been made. Two void-parkour scenes must go green together.
+- A parkour take-off gate: refuse the jump when less than one block of horizontal room remains.
+  Planner side done (`Parkour3`'s run-up, `ParkourVoidTest.parkourVoidRunwayGate`); the executor side
+  is open — `DrivePhase` only records take-off samples.
 - Two of the climb guards cannot reach a cell that is fully submerged.
-- Roughly sixty-five places drive global key bindings inside a tick, and the chain that stops
-  destroying a block every tick while the window is unfocused has never been measured.
-- Place and break permissions are one concept with two enforcement paths.
 - An executor leaves its own plan and cannot get back to it — a family, not one case.
-- On the fourteenth and fifteenth rungs, the navigator's exit is the next step, and one expansion
-  is walled in with nobody digging it out.
 
-### Two pointers rather than copies
+### Documentation debt
 
-Documentation debt is tracked in the documentation map's own outstanding list, and belongs to the
-documentation role rather than here.
-
-The workspace-root working log and gap list are not in any repository and have not been touched
-since the split. Every item in them predates this project's current shape and none has been checked
-against the current tree. Treat them the same way as the leads above.
+Tracked in the documentation map's own outstanding list, and belongs to the documentation role rather than here.

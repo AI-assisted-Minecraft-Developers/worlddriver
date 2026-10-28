@@ -52,17 +52,22 @@ record of activity.
   singletons, which vanilla then serialises into the ordinary movement packets.
   Digging and item use go through `ClientIntents` and a mixin that widens vanilla's
   own keybind reads, so start, hold and release remain vanilla's code. A test refuses
-  any new write to the shared attack or use keybinds outside that mixin.
+  any new write to the shared attack or use keybinds outside that mixin. The swim and
+  clutch reflexes and combat's strafing around a crowd drive the same body command.
+- **An agent can see who is in control and what the client predicts.** `mc.bot.status`
+  reports which chain holds movement and the active process's detail, and
+  `mc.client.player` / `mc.client.blocks` read the client's own predicted state, so a
+  misbehaving client reflex can be examined without adding log lines and restarting.
+  One gap is left: a chain's own process is invisible in that detail (see `TODO.md`).
 
 ## In progress
 
-**Finish removing the bot from the shared input path.** Two channels are left. Combat
-has no strafing, because the movement command currently forces the sideways impulse to
-zero; circling a target needs a two-dimensional command. And single-shot actuations —
-hold an item, aim, right-click, place — are routed separately from the per-tick process runs,
+**Finish removing the bot from the shared input path.** Single-shot actuations — hold
+an item, aim, right-click, place — are routed separately from the per-tick process runs,
 which means a bot driven by one helm can have its aim and its held slot written by
 the other. Originating single-shot actions from the client tick chain is the coherent
-fix and is not built.
+fix and is not built. Two writers of the shared keybinds also remain besides the body:
+the key release after a bot stops and the key verb of `mc.client.input`.
 
 ## Planned, in dependency order
 
@@ -84,6 +89,19 @@ shared substrate. The order is a dependency order, not a preference.
    biome overlay. These are additive and deliberately last: each is cheap on its own
    and none of the items above is blocked by them.
 
+Three pieces of test tooling sit beside that order rather than in it:
+
+- **Rebuild the survival climb as tests.** The old one played one body through every
+  milestone on one world and was deleted with the old test path. It comes back once
+  StageWright can hand a body from one test to a later one; the world and the notes
+  between steps already carry over.
+- **Redesign how hand-built fixtures are made.** Save a region of a world as an NBT
+  structure from an in-game command, and load it in a test through `Plot`, instead of
+  the deleted markers and scene commands.
+- **Compare replays against a baseline again.** `mc.debug.replay`'s result has to carry
+  the peak stall and whether the route arrived; then a tool can compare a candidate
+  against a baseline over the recorded corpus (`docs/dev/replay-corpus.md`).
+
 ## Survival milestones
 
 The milestones are how the control architecture is judged. Nothing is granted: world
@@ -98,6 +116,29 @@ same verbs an external agent has.
 | Iron enough for two buckets and flint and steel | Find and smelt iron; the buckets are what makes the next milestone possible without mining obsidian. |
 | Cast obsidian, at least ten blocks of it | Pour water onto lava in place, repeatedly, without drowning or falling in. |
 | Build the portal frame, light it, and enter the Nether | The frame, the ignition, and surviving arrival. |
+| Blaze rods | Kill blazes beside a spawner. In the open a blaze hovers out of melee reach; in a small room, walled first and then roofed, the same fight is short. |
+| Ender pearls | Kill endermen; being hit and teleporting does not save them. |
+| Find the stronghold | Locate it and travel there. |
+| Open the End portal and enter the End | Twelve eyes into the frame; placing an eye is a use-on-block action, like flint and steel. |
+| Kill the dragon | Break the end crystals and outlast the flight and perch phases. Ordinary melee damages the dragon; winning the whole fight is not yet shown. |
+
+Each step from the portal on already works in isolation with existing verbs: casting
+obsidian, building and lighting a frame from flat ground, entering the Nether at the
+scaled position, blaze rods dropping from the bot's kills, killing endermen, opening the
+End portal and arriving on the End platform, and damaging the dragon. What is left is
+doing them in sequence in one world, which is mostly travel.
+
+What building the portal taught, and a real run has to copy:
+
+- **Carry the water.** Put the water source in the inner frame cell next to the one being
+  cast; each cast then repeats the single-block geometry with no flowing water needed,
+  and one bucket alternates between water and lava by itself.
+- **The top row needs a notch.** Lava turns to obsidian only from water above or beside
+  it, never below, so the top two blocks are cast from a notch dug one higher. A frame
+  cut into a wall costs twelve blocks, not ten.
+- **Ten casts need ten lava cells.** Filling a bucket takes the source block.
+- **Distance is the real cost.** Reaching lava means digging a shaft and climbing back
+  with a full bucket; the ability is no longer the hard part.
 
 The groundwork already verified against live worlds: underwater pathfinding and
 getting ashore, reaching logs above head height, digging and sealing a one-block
@@ -114,3 +155,9 @@ configuration that persists across a restart.
   reported as an event and the emergency bunker reflex has its own entry conditions
   (low health and several hostiles close by) rather than firing on the cornered signal
   alone.
+- **A learned cost model.** A model trained on recorded replays ranks how risky each
+  kind of move is, and its table is wired into the pathfinder behind `riskBias`, off by
+  default. It stays a cost bias under the symbolic planner and reflexes, never a
+  replacement, and the default stays off until a live comparison on the same route shows
+  it helps. Distilling a small policy for jump timing, swimming and parkour is further
+  off still: it would only ever be a hint, and nothing is blocked on it.
