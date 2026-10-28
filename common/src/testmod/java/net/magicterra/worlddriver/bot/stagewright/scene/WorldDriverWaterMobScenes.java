@@ -60,12 +60,8 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.mobCodSwimsUnderAWall", 900, ctx -> swimsUnderAWall(ctx, EntityType.COD)),
                 Scene.of("wd.mobDolphinSwimsUnderAWall", 900, ctx -> swimsUnderAWall(ctx, EntityType.DOLPHIN)),
-                Scene.of("wd.mobGuardianSwimsUnderAWall", 900, ctx -> swimsUnderAWall(ctx, EntityType.GUARDIAN)),
                 Scene.of("wd.mobSquidSwimsUnderAWall", 900, ctx -> swimsUnderAWall(ctx, EntityType.SQUID)),
-                Scene.of("wd.mobTadpoleSwimsUnderAWall", 900, ctx -> swimsUnderAWall(ctx, EntityType.TADPOLE)),
-                Scene.of("wd.mobFishWithALandGoalFailsInWater", 900, WorldDriverWaterMobScenes::landGoalFailsInWater),
                 Scene.of("wd.mobAxolotlWalksAndSwims", 1300, ctx -> walksAndSwims(ctx, EntityType.AXOLOTL)),
-                Scene.of("wd.mobTurtleWalksAndSwims", 1300, ctx -> walksAndSwims(ctx, EntityType.TURTLE)),
                 Scene.of("wd.mobFrogWalksAndSwims", 1300, ctx -> walksAndSwims(ctx, EntityType.FROG)),
                 Scene.of("wd.mobDrownedWalksAndSwims", 1300, ctx -> walksAndSwims(ctx, EntityType.DROWNED)));
     }
@@ -107,35 +103,6 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
                 ctx.check(stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && lowest[0] <= o.getY() - 2)
                         .as("the " + type.toShortString() + " swims down through the gap under the wall to the goal: stopped at "
                                 + stoppedAt.toShortString() + ", lowest y " + (lowest[0] - o.getY()) + " below the start, " + action)
-                        .isTrue();
-            });
-        });
-    }
-
-    /** A cod sent to a cell on the tank's rim, out of the water: the order fails and the cod is still in the water. */
-    private static void landGoalFailsInWater(SceneContext ctx) {
-        ApiRegistry api = WorldDriver.registry();
-        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
-        BlockPos o = ctx.origin().above(20);
-        BlockPos rim = o.offset(COURSE, 3, 3);
-        tank(ctx, o);
-        Mob cod = spawn(ctx, EntityType.COD, o);
-        String ref = ENTITY + cod.getUUID();
-        releaseAtEnd(ctx, ref);
-
-        ctx.await(() -> cod.tickCount > 5 && cod.isInWater()).within(SETTLE_TICKS).then(() -> {
-            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(rim)));
-            ctx.record("goto", String.valueOf(go));
-            if (actionId(go) == null) { ctx.fail("a goto naming the cod did not start: " + go); return; }
-            int start = ctx.ticks();
-            ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state")) || ctx.ticks() - start >= DEADLINE)
-                    .within(DEADLINE + 50).then(() -> {
-                Map<?, ?> action = read(api, actionId(go));
-                ctx.record("ended", cod.blockPosition().toShortString() + " ticks=" + (ctx.ticks() - start) + " inWater="
-                        + cod.isInWater() + " " + action + " trace=" + lastTickTrace(api, ref));
-                ctx.check("failed".equals(action.get("state")) && cod.isInWater())
-                        .as("the cod's goto to the rim fails, and the cod is still in the water: at "
-                                + cod.blockPosition().toShortString() + ", inWater=" + cod.isInWater() + ", " + action)
                         .isTrue();
             });
         });

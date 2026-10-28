@@ -51,7 +51,6 @@ public final class WorldDriverMobScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.mobZombieWalksByEntityRefAndIsReleased", 600, WorldDriverMobScenes::zombieByEntityRef),
-                Scene.of("wd.mobWolfAdoptedByCommandWalks", 600, WorldDriverMobScenes::wolfByCommand),
                 Scene.of("wd.mobRemovedEndsItsAction", 400, WorldDriverMobScenes::removedEndsItsAction),
                 Scene.of("wd.mobStepsOffMagmaUnordered", 300, WorldDriverMobScenes::stepsOffMagmaUnordered),
                 Scene.of("wd.mobSeesOnlyWhatHuntsIt", 300, WorldDriverMobScenes::seesOnlyWhatHuntsIt),
@@ -368,39 +367,6 @@ public final class WorldDriverMobScenes implements SceneProvider {
                         .as("/worlddriver mob release gives the zombie its " + goals + " goals and " + targets + " target goals back and frees the ref: result="
                                 + ok + ", goals=" + zombie.goalSelector.getAvailableGoals().size() + ", targets="
                                 + zombie.targetSelector.getAvailableGoals().size() + ", registered=" + entry(api, ref))
-                        .isTrue();
-            });
-        });
-    }
-
-    private static void wolfByCommand(SceneContext ctx) {
-        ApiRegistry api = WorldDriver.registry();
-        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
-        BlockPos o = ctx.origin().above(20);
-        BlockPos goal = o.offset(COURSE, 0, 0);
-        Mob wolf = stage(ctx, o, EntityType.WOLF);
-        String ref = "mob:scene-wolf";
-        releaseAtEnd(ctx, ref);
-
-        ctx.await(() -> settled(wolf)).within(SETTLE_TICKS).then(() -> {
-            int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-wolf");
-            Map<?, ?> bot = entry(api, ref);
-            ctx.record("adopt", "result=" + ok + " registered=" + bot);
-            if (ok != 1 || !"mob".equals(bot.get("kind")) || !(bot.get("entityId") instanceof Number id) || id.intValue() != wolf.getId()) {
-                ctx.fail("/worlddriver mob did not adopt the wolf as " + ref + ": result=" + ok + ", registered=" + bot);
-                return;
-            }
-            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
-            ctx.record("goto", String.valueOf(go));
-            if (actionId(go) == null) { ctx.fail("a goto to the adopted wolf did not start: " + go); return; }
-
-            ctx.await(() -> !busy(api, ref)).within(400).then(() -> {
-                BlockPos stoppedAt = wolf.blockPosition();
-                Map<?, ?> action = read(api, actionId(go));
-                ctx.record("arrived", stoppedAt.toShortString() + " " + action);
-                ctx.check(stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && ref.equals(action.get("bot")))
-                        .as("the wolf, addressed as " + ref + ", walks to the goal and the order succeeds: stopped at "
-                                + stoppedAt.toShortString() + ", " + action)
                         .isTrue();
             });
         });

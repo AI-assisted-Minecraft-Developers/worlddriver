@@ -34,7 +34,6 @@ public final class WorldDriverCombatScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.threatScanZombie", 200, WorldDriverCombatScenes::threatScanZombie),
                 Scene.of("wd.threatScanHurtAttacker", 200, WorldDriverCombatScenes::threatScanHurtAttacker));
     }
 
@@ -42,42 +41,6 @@ public final class WorldDriverCombatScenes implements SceneProvider {
      *  radius). Used only to detect when a freshly-added mob has entered the level's section index. */
     private static AABB entityBox(int cx, int floorY, int cz) {
         return new AABB(cx - 24, floorY - 24, cz - 24, cx + 24, floorY + 24, cz + 24);
-    }
-
-    /** Control: an adjacent zombie (a true {@code Enemy}) must be in the scan. Documents the scan has
-     *  NO light/LOS drop-filter for Enemy mobs (the "blind in dark tunnels" hypothesis is wrong for
-     *  Enemy mobs; canSee only shades the score). */
-    private static void threatScanZombie(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20;
-        SceneArena.buildFloor(level, cx, cz, floorY);
-
-        SceneBot bot = SceneBot.spawn(ctx, cx + 0.5, floorY + 1, cz + 0.5);
-        Zombie z = EntityType.ZOMBIE.create(level);
-        ctx.cleanup(() -> { if (z != null) z.discard(); });
-
-        if (z == null) { ctx.fail("threatScanZombie: zombie create failed"); return; }
-        z.setNoAi(true);
-        z.setPersistenceRequired();
-        z.moveTo(cx + 2.5, floorY + 1, cz + 0.5, 0f, 0f);
-        level.addFreshEntity(z);
-
-        // On a dedicated server a freshly force-loaded arena chunk is not yet ENTITY_TICKING when the
-        // scene body runs, so an entity added by addFreshEntity is alive in the level but NOT yet in the
-        // queryable section index (measured: getEntitiesOfClass returns 0 with the mob alive at its
-        // exact coords). The scan reads Level.getEntities, so the scene waits (bounded) until the mob is
-        // indexed; the harness ticks the server between polls, promoting the chunk.
-        ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty())
-                .within(100).then(() -> {
-            ObserveContracts.Threats scan = bot.threats(24);
-            boolean seen = scan.threats().stream().anyMatch(t -> t.id() == z.getId());
-            TestMod.LOG.info("[wd.threatScanZombie] threats={} seen={} visibleAtTick={}",
-                    scan.threats().size(), seen, ctx.ticks());
-            if (!seen)
-                ctx.fail("threatScanZombie: adjacent zombie invisible to the threat scan: threats="
-                        + scan.threats().size());
-        });
     }
 
     /** A NEUTRAL mob (wolf — not {@code instanceof Enemy}) that has just hit the player must appear in

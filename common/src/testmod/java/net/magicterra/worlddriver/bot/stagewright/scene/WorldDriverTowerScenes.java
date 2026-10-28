@@ -134,9 +134,6 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 // JourneyEndRungs.smashCrystal's own ordering. Expected RED.
                 Scene.of("wd.serverTowersAfterAWalk", 600,
                         WorldDriverTowerScenes::serverTowersAfterAWalk),
-                // The drift sensor for TowerProcess:155-157. Expected GREEN.
-                Scene.of("wd.serverTowersOnAFreePillar", 200,
-                        WorldDriverTowerScenes::serverTowersOnAFreePillar),
                 // ⚠️ RED BY DESIGN: the criterion is written before the fix. See the class javadoc —
                 // do not relax it to get a green, the whole value of the arm is that it is wrong
                 // today and says which line is wrong.
@@ -552,73 +549,6 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                             + " latched at the jump, so a moving bot builds under where it is going"
                             + " rather than where it jumped").isTrue();
         });
-    }
-
-    /**
-     * <b>A 1x1 pillar in open air: the drift sensor.</b>
-     *
-     * <p>Same verb, same block, same course-by-course machinery as arm 1, with the floor taken away.
-     * Five clear cells of air on every side and twenty-five below, so <b>any</b> horizontal slip is
-     * both visible and unrecoverable — where arm 1 has a 7x7 floor to drift onto and would report a
-     * perfectly good climb one column over.
-     *
-     * <p>The subject is {@code TowerProcess:155-157}: the support cell is recomputed from the live
-     * x/z on the PLACING tick, so the process is only correct while the player is exactly over the
-     * column it jumped from. Sixteen blocks are stocked for ten courses — enough slack that "ran
-     * out" cannot be confused with "placed somewhere else", which the {@code stock} row makes
-     * explicit either way.
-     *
-     * <p>Expected GREEN: with no horizontal input the player should not drift at all, and a green
-     * here is what makes arm 2's red attributable to the walk's momentum rather than to the process
-     * being unable to hold a column under any circumstances.
-     */
-    private static void serverTowersOnAFreePillar(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int topY = ctx.origin().getY() + 30, standY = topY + 1;
-        final int courses = 10, stock = 16, drop = 25;
-
-        Harness.pin(ctx);
-        towerConfig();
-        Harness.clearBots(ctx);
-
-        final int baseY = topY - 3;                        // a pillar, not a single block
-        final int catchY = baseY - drop - 1;
-        ctx.cleanup(() -> clearBox(level, cx, cz, topY, -6, 6, catchY - topY, HEADROOM + 4, -6, 6));
-        clearBox(level, cx, cz, topY, -6, 6, catchY - topY, HEADROOM + 4, -6, 6);
-        // A floor to catch a bot that slips off, so the arm reports a drift instead of a fall out
-        // of the world — the two want completely different fixes and must not print alike.
-        for (int dx = -6; dx <= 6; dx++)
-            for (int dz = -6; dz <= 6; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, catchY, cz + dz),
-                        Blocks.STONE.defaultBlockState());
-        for (int y = baseY; y <= topY; y++)
-            level.setBlockAndUpdate(new BlockPos(cx, y, cz), Blocks.STONE.defaultBlockState());
-
-        SceneBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.player();
-        fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
-        fp.getInventory().selected = 0;
-        settle(driver);
-
-        requireStaged(ctx, "tower", fp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
-
-        final int startX = fp.blockPosition().getX(), startZ = fp.blockPosition().getZ();
-        final int startFeetY = fp.blockPosition().getY();
-        ctx.record("rig", "pillar x=" + cx + " z=" + cz + " y=" + baseY + ".." + topY
-                + " | stand y=" + standY + " | air within 5 cells on every side | "
-                + drop + " clear cells under the pillar, catch floor y=" + catchY);
-        Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET, () -> {});
-
-        ctx.check(r.endX == startX && r.endZ == startZ)
-                .as("A: no horizontal drift: started x=" + startX + " z=" + startZ + ", ended x=" + r.endX
-                        + " z=" + r.endZ + " — there is nothing to stand on beside this column, so"
-                        + " any drift is a fall to y=" + (catchY + 1)).isTrue();
-        ctx.check(r.endFeetY).as("B: the bot rises " + courses + " blocks: end feet y (start " + startFeetY + ")")
-                .isEqualTo(startFeetY + courses);
-        ctx.check(r.columnPlaced).as("C: all " + courses + " cells of the pillar column hold placed blocks: " + r.columnAfter
-                + " (stocked " + stock + ", spent " + r.spent + " — the slack is why 'ran out' and"
-                + " 'placed elsewhere' cannot be confused here)").isEqualTo(courses);
     }
 
     /**

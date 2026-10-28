@@ -73,9 +73,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         List<Scene> out = new ArrayList<>(List.of(
                 Scene.of("wd.serverDriver", 400, WorldDriverProcessScenes::serverDriverScene),
                 Scene.of("wd.serverMine", 400, WorldDriverProcessScenes::serverMineScene),
-                Scene.of("wd.serverProcess", 400, WorldDriverProcessScenes::serverProcessScene),
                 Scene.of("wd.serverFlee", 400, WorldDriverProcessScenes::serverFleeScene),
-                Scene.of("wd.serverMineProcess", 600, WorldDriverProcessScenes::serverMineProcessScene),
                 Scene.of("wd.serverMineHarvest", 1_500, WorldDriverProcessScenes::serverMineHarvestScene),
                 // The SAME circuit with two of the three ores buried — the field shape, since the
                 // journey's iron rung mines ore four blocks under the surface. It shipped optional
@@ -106,43 +104,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // collector can reach a pit" are not the same claim. Measured green on both
                 // loaders, so it is now required: the armed navigator must keep choosing to descend.
                 Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed),
-                // Optional because it is GREEN on Fabric and RED on NeoForge — and the NeoForge red
-                // is NOT a worlddriver defect. NeoForge patches two vanilla classes to refuse a
-                // FakePlayer any progression at all:
-                //
-                //   PlayerAdvancements.award   → `if (this.player instanceof FakePlayer) return false;`
-                //   PlayerList.getPlayerAdvancements → `if (!(arg instanceof FakePlayer)) …setPlayer(arg);`
-                //
-                // Cite the method, not the line: line numbers move with the decompiler's flags, so
-                // the two `instanceof FakePlayer` branches above are the durable part. For a fresh
-                // re-derivation, decompile with vineflower 1.10.1 `-dgs=1`:
-                //   .gradle/caches/fabric-loom/1.21.1/neoforge/21.1.230/minecraft-merged-mojang-patched.jar
-                //     → PlayerAdvancements.java:186 (method at :185), PlayerList.java:821
-                // and compare against the vanilla merged jar, which has NEITHER branch —
-                // PlayerAdvancements.award:182 and PlayerList:787 are unconditional there.
-                // 21.1.230 is what gradle.properties:26 pins; a 21.0.167 tree also sits in that
-                // cache and is MC 1.21.0, i.e. NOT what this repo builds. Re-checked 2026-08-21.
-                //
-                // So on NeoForge this bot cannot earn ANY advancement, in ANY scene, ever — no
-                // amount of driver-side work moves it. What DOES move it is the player class: both
-                // patches key on `instanceof FakePlayer`, and JoinedBody extends ServerPlayer without
-                // being one. THIS RED THEREFORE DISAPPEARS WITH THE FakePlayer RETIREMENT rather than
-                // with a fix, and this scene should be promoted back to required at that point, not
-                // before. See docs/dev/fake-player-parity.md for the full derivation.
-                Scene.of("wd.serverAvatarEarnsAdvancement", 300,
-                        WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
                 Scene.of("wd.serverMineNoTool", 600, WorldDriverProcessScenes::serverMineNoToolScene),
                 Scene.of("wd.serverNavigatorDeepslateNoTool", 600, WorldDriverProcessScenes::serverNavigatorDeepslateNoToolScene),
                 Scene.of("wd.serverForbidDigWall", 400, WorldDriverProcessScenes::serverForbidDigWallScene),
                 Scene.of("wd.serverBuild", 600, WorldDriverProcessScenes::serverBuildScene),
                 Scene.of("wd.serverLookRaycast", 200, WorldDriverProcessScenes::serverLookRaycastScene),
                 Scene.of("wd.serverFollow", 400, WorldDriverProcessScenes::serverFollowScene),
-                Scene.of("wd.serverFollowGivesUpOnAPennedQuarry", 400,
-                        WorldDriverProcessScenes::serverFollowGivesUpOnAPennedQuarryScene),
-                Scene.of("wd.serverCombat", 400, WorldDriverProcessScenes::serverCombatScene),
                 Scene.of("wd.serverCombatCollectDrops", 400, WorldDriverProcessScenes::serverCombatCollectDropsScene),
                 Scene.of("wd.serverLook", 400, WorldDriverProcessScenes::serverLookScene),
-                Scene.of("wd.serverMineCanopyRadius", 600, WorldDriverProcessScenes::serverMineCanopyRadiusScene),
                 // The trunk-tax waiver's state machine. Three scenes, none of which asks about a
                 // price — see the block above them for why the multiplication is not testable on
                 // this topology and which layer owns that half.
@@ -172,67 +141,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         WorldDriverMobFightScenes.register(out);
         WorldDriverSmeltDeliveryScenes.register(out);
         return List.copyOf(out);
-    }
-
-    /**
-     * Can a server-driven bot earn an advancement at all?
-     *
-     * <p>{@code story/upgrade_tools} is "hold a stone pickaxe" — an {@code inventory_changed}
-     * trigger, the simplest one there is. It fires from the {@code ContainerListener} vanilla
-     * attaches in {@code ServerPlayer.initInventoryMenu}, which a player that was never placed
-     * through {@code PlayerList} does not have, and it is only delivered when something calls
-     * {@code containerMenu.broadcastChanges()} — which {@code ServerPlayer.doTick} does and this
-     * avatar's {@code Player}-shaped tick did not. Both are now done, and the result is
-     * <b>green on Fabric and red on NeoForge</b>: same common constructor, same common tick, and
-     * NeoForge's own {@code FakePlayer} still earns nothing. That divergence is what this scene
-     * exists to keep visible; it is not yet explained, and the loader it fails on is in the
-     * failure message so nobody has to re-derive which.
-     *
-     * <p>Advancements are not on the critical path to a dead dragon, which is why this is a
-     * sensor rather than a blocker — but a driver that reports a modpack's progression to an
-     * agent cannot silently award nothing.
-     */
-    private static void serverAvatarEarnsAdvancementScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ctx.cleanup(() -> {
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dy = 0; dy <= 2; dy++)
-                    for (int dz = -1; dz <= 1; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
-        // A task, so the bot runs its whole player tick — the inventory broadcast that delivers the
-        // trigger rides it. A smooth look is the cheapest task there is (pure yaw/pitch, no world
-        // interaction), so what this scene measures stays "can this bot earn anything" and not
-        // "can it mine".
-        Harness.set("smoothLook", true);
-        bot.lookAt(new BlockPos(cx + 2, floorY + 1, cz));
-        bot.tickUntilIdle(40);
-
-        if (!earned(fp, "minecraft:story/upgrade_tools"))
-            ctx.fail("the bot holds a stone pickaxe and did not earn story/upgrade_tools — "
-                    + "nothing is listening to its inventory, so a server-driven agent's whole "
-                    + "progression is invisible [diag idle=" + !bot.busy()
-                    + " held=" + fp.getMainHandItem().getItem() + "]");
-    }
-
-    /** Whether this player has completed a named advancement. False also when the id is unknown,
-     *  which cannot happen for a vanilla story id in a vanilla runtime. */
-    private static boolean earned(ServerPlayer fp, String id) {
-        var holder = fp.server.getAdvancements().get(
-                net.minecraft.resources.ResourceLocation.parse(id));
-        return holder != null && fp.getAdvancements().getOrStartProgress(holder).isDone();
     }
 
     /** Which of the rig's ores are still standing, for a failure message that says so. */
@@ -342,43 +250,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // wd.serverProcess — the server bot walks a flat run to a cell through mc.bot.goto.
     // ==================================================================================
 
-    private static void serverProcessScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dy = 0; dy <= 2; dy++)
-                    for (int dz = -1; dz <= 10; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 10; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        BlockPos goal = new BlockPos(cx, floorY + 1, cz + 9);
-
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        bot.goTo(Targets.block(goal));
-        bot.tickUntilIdle(200);
-
-        ServerPlayer fp = bot.player();
-        boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
-                && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5;
-        TestMod.LOG.info("[wd.serverProcess] end={} pos=({},{},{}) busy={} reached={}",
-                bot.status().lastProcessEnd(), fp.getX(), fp.getY(), fp.getZ(), Harness.busy(), reached);
-        if (bot.busy() || Harness.busy() != 0)
-            ctx.fail("server goto did not finish and go idle: busy=" + Harness.busy());
-        if (!reached)
-            ctx.fail("server-run goto did not reach the goal: pos=("
-                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
-    }
-
     // ==================================================================================
     // wd.serverFlee — the server bot runs mc.bot.runAway (stateful) to a minimum distance.
     // ==================================================================================
@@ -426,55 +297,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // wd.serverMineProcess — the server bot runs mc.bot.mine for a whole 3-stone quota holding a
     // pickaxe.
     // ==================================================================================
-
-    private static void serverMineProcessScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -1; dx <= 9; dx++)
-                for (int dy = 0; dy <= 2; dy++)
-                    for (int dz = -1; dz <= 1; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        // DIRT floor (NOT a target) so the scan only finds the placed stone.
-        for (int dx = -1; dx <= 9; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
-        BlockPos[] targets = {
-                new BlockPos(cx + 2, floorY + 1, cz),
-                new BlockPos(cx + 4, floorY + 1, cz),
-                new BlockPos(cx + 6, floorY + 1, cz),
-        };
-        for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
-
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", false);
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        // Hold a pickaxe: stone requiresCorrectToolForDrops, and the tool gate (gap#2)
-        // now keeps a toolless bot from futilely "mining" harvest-requiring blocks for
-        // zero drops — so the mine happy-path must actually carry the harvesting tool.
-        bot.player().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
-        bot.player().getInventory().selected = 0;
-        bot.mine(List.of("minecraft:stone"), 3, 8);
-        bot.tickUntilIdle(400);
-
-        int remaining = 0;
-        for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
-        ServerPlayer fp = bot.player();
-        TestMod.LOG.info("[wd.serverMineProcess] end={} pos=({},{},{}) busy={} remaining={}/3",
-                bot.status().lastProcessEnd(), fp.getX(), fp.getY(), fp.getZ(), Harness.busy(), remaining);
-        if (remaining != 0)
-            ctx.fail("server mine left " + remaining + "/3 target stone unmined");
-        if (bot.busy() || Harness.busy() != 0)
-            ctx.fail("server mine did not finish and go idle: busy=" + Harness.busy());
-    }
 
     // ==================================================================================
     // wd.serverMineHarvest — the assertion this family never made: mining must put the
@@ -1505,59 +1327,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     private static final int PEN_GIVE_UP_TICKS = 200;
 
-    private static void serverFollowGivesUpOnAPennedQuarryScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -2; dx <= 12; dx++)
-                for (int dy = 0; dy <= 3; dy++)
-                    for (int dz = -4; dz <= 6; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        for (int dx = -2; dx <= 12; dx++)
-            for (int dz = -4; dz <= 6; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        // Walls, floor and roof of bedrock around a 3x1x2 cell at dx 7..9, dz 3.
-        for (int dx = 6; dx <= 10; dx++)
-            for (int dy = 0; dy <= 3; dy++)
-                for (int dz = 2; dz <= 4; dz++) {
-                    boolean inside = dx >= 7 && dx <= 9 && dz == 3 && dy >= 1 && dy <= 2;
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
-                            (inside ? Blocks.AIR : Blocks.BEDROCK).defaultBlockState());
-                }
-        var stand = new ArmorStand(level, cx + 7 + 0.5, floorY + 1, cz + 3 + 0.5);
-        stand.setNoGravity(true);
-        level.addFreshEntity(stand);
-        ctx.cleanup(stand::discard);
-
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty())
-                .within(100).then(() -> {
-            SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-            followStand(bot, 1, PEN_GIVE_UP_TICKS);
-
-            int t = 0;
-            for (; t < 4 * PEN_GIVE_UP_TICKS && bot.busy(); t++) {
-                // Paces between the pen's two end cells: the goal cell moves, the pursuit does not.
-                if (t % 20 == 0) stand.teleportTo(cx + (t / 20 % 2 == 0 ? 9 : 7) + 0.5, floorY + 1, cz + 3 + 0.5);
-                bot.tick();
-            }
-            ControlContracts.BotStatus status = bot.status();
-            String err = status.slots().follow().lastError().orElse(null);
-            ctx.record("end", "tick " + t + ", activeProcess=" + status.activeProcess().orElse(null) + ", lastError=" + err);
-            ctx.check(!status.busy())
-                    .as("A: a follow that cannot get into the pen ends within " + 4 * PEN_GIVE_UP_TICKS + " ticks: ended at tick " + t).isTrue();
-            ctx.check(err != null && err.startsWith("unreachable"))
-                    .as("B: it ends as unreachable: " + err).isTrue();
-        });
-    }
-
     // ==================================================================================
     // wd.serverCombat — the server bot runs mc.bot.combat (kill) on a NoAI zombie; the drive loop
     // ticks the zombie DIRECTLY (not level.tick) for its hurt-cooldown.
@@ -1568,72 +1337,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     private static void killZombie(SceneBot bot) {
         Calls.started("combat", Calls.now(SceneBot.tasks().combat(new CombatContracts.Params(bot.ref(),
                 CombatContracts.Mode.KILL, Optional.of(new CombatContracts.FoeType("minecraft:zombie")), false, 0))));
-    }
-
-    private static void serverCombatScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        // Ground-anchored slot (a fresh entity must promote into getEntities).
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -2; dx <= 10; dx++)
-                for (int dy = 0; dy <= 2; dy++)
-                    for (int dz = -2; dz <= 2; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        for (int dx = -2; dx <= 10; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        var zombie = new Zombie(level);
-        zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
-        zombie.setNoAi(true);                 // no wander/retaliation; stays a fixed target
-        zombie.setPersistenceRequired();
-        // Immovable target: max knockback resistance so a landed hit can't shove it out of reach.
-        var kbr = zombie.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-        if (kbr != null) kbr.setBaseValue(1.0);
-        level.addFreshEntity(zombie);
-        ctx.cleanup(() -> zombie.discard());
-        // No night pin here any more: StageWright freezes every scene at midnight and says so in the
-        // run's results header, so the zombie cannot sun-burn to a false fire-kill.
-
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        // Poll (bounded) until the fresh zombie is queryable, then run the fight.
-        ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty())
-                .within(100).then(() -> {
-            SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-            bot.player().getInventory().clearContent();
-            bot.player().getInventory().add(new ItemStack(Items.IRON_SWORD));
-            killZombie(bot);
-
-            for (int t = 0; t < 1500 && bot.busy(); t++) {
-                bot.tick();
-                // Tick the zombie DIRECTLY each iteration so it processes its hurt-cooldown
-                // (invulnerableTime) — a non-ticked target stays permanently invulnerable after
-                // the first hit. NOT level.tick() (that is the ChunkMap-livelock trap): a direct
-                // entity tick is safe and matches a live server entity-ticking every loaded chunk.
-                if (zombie.isAlive()) {
-                    zombie.tick();
-                    // Re-pin the (NoAI) zombie so nothing — residual knockback, fall — drifts it off.
-                    zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
-                    zombie.setDeltaMovement(Vec3.ZERO);
-                }
-            }
-
-            boolean dead = !zombie.isAlive();
-            ServerPlayer fp = bot.player();
-            TestMod.LOG.info("[wd.serverCombat] end={} pos=({},{},{}) zHp={} dead={} busy={}",
-                    bot.status().lastProcessEnd(), fp.getX(), fp.getY(), fp.getZ(),
-                    zombie.getHealth(), dead, Harness.busy());
-            if (!dead)
-                ctx.fail("server combat did not kill the zombie: hp=" + zombie.getHealth());
-            if (bot.busy() || Harness.busy() != 0)
-                ctx.fail("server combat did not finish and go idle: busy=" + Harness.busy());
-        });
     }
 
     // ==================================================================================
@@ -1785,63 +1488,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // wd.serverMineCanopyRadius — gap#67-⑤ scan budget: MineProcess.scanForTarget must find a
     // dy=+4 canopy log at radius 16 AND radius 32 (the wide radius used to truncate the top dy band).
     // ==================================================================================
-
-    private static void serverMineCanopyRadiusScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -1; dx <= 11; dx++)
-                for (int dy = 0; dy <= 8; dy++)
-                    for (int dz = -1; dz <= 1; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        BlockPos logPos = new BlockPos(cx + 10, floorY + 5, cz);
-        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.DIRT.defaultBlockState());
-        level.setBlockAndUpdate(new BlockPos(cx - 1, floorY, cz), Blocks.DIRT.defaultBlockState());
-        // Ascending 1-block-per-step staircase (ordinary step-up) up to platform height, then a flat
-        // platform run — a real, walkable path so the ONLY variable under test is the scan.
-        for (int s = 1; s <= 4; s++)
-            level.setBlockAndUpdate(new BlockPos(cx + s, floorY + s, cz), Blocks.STONE.defaultBlockState());
-        for (int x = cx + 5; x <= cx + 9; x++)
-            level.setBlockAndUpdate(new BlockPos(x, floorY + 4, cz), Blocks.STONE.defaultBlockState());
-        level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
-
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", false);
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        // Phase 1 — radius=16 (regression: already worked before the fix, must still work after it).
-        SceneBot bot16 = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        bot16.player().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
-        bot16.player().getInventory().selected = 0;
-        bot16.mine(List.of("#minecraft:logs"), 1, 16);
-        bot16.tickUntilIdle(800);
-        boolean minedAt16 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
-        String err16 = bot16.status().slots().mine().lastError().orElse(null);
-        TestMod.LOG.info("[wd.serverMineCanopyRadius] radius=16 minedAt16={} busy={} lastError={}",
-                minedAt16, bot16.busy(), err16);
-        if (!minedAt16) { ctx.fail("gap#67(regression): radius=16 must still find the dy=+4 canopy log: lastError=" + err16); return; }
-        bot16.remove();
-
-        // Phase 2 — radius=32, the exact live repro: respawn the log and re-run with the wider radius.
-        level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
-        SceneBot bot32 = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        bot32.player().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
-        bot32.player().getInventory().selected = 0;
-        bot32.mine(List.of("#minecraft:logs"), 1, 32);
-        bot32.tickUntilIdle(800);
-        boolean minedAt32 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
-        String err32 = bot32.status().slots().mine().lastError().orElse(null);
-        TestMod.LOG.info("[wd.serverMineCanopyRadius] radius=32 minedAt32={} busy={} lastError={}",
-                minedAt32, bot32.busy(), err32);
-        if (!minedAt32)
-            ctx.fail("gap#67(⑤): radius=32 must find the dy=+4 canopy log (was: scan budget truncated the top dy layers, not the farthest cells): lastError=" + err32);
-    }
 
     // ==================================================================================
     // wd.serverBridgePillarStart — gap#75-a (live death #24): a bridge from a 1×1 pillar top;

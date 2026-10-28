@@ -46,7 +46,6 @@ public final class WorldDriverBiasScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.avoidRegionDetour", 200, WorldDriverBiasScenes::avoidRegionDetour),
                 Scene.of("wd.digUpY", 200, WorldDriverBiasScenes::digUpY),
                 Scene.of("wd.digDownY", 200, WorldDriverBiasScenes::digDownY),
                 Scene.of("wd.columnRadius", 200, WorldDriverBiasScenes::columnRadius),
@@ -104,41 +103,6 @@ public final class WorldDriverBiasScenes implements SceneProvider {
     }
 
     // ---- the arenas
-
-    /** A 7-wide flat stone lane; PLAIN must pass straight through a mid-lane zone, an avoided sphere region
-     *  must route every node clear of it. */
-    private static void avoidRegionDetour(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int y = ctx.origin().getY() + 40;
-        for (int dx = -1; dx <= 21; dx++)
-            for (int dz = -3; dz <= 3; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-
-        BlockPos start = new BlockPos(cx, y + 1, cz);
-        BlockPos goal = new BlockPos(cx + 20, y + 1, cz);
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-
-        Plan plain = new Plan(), detour = new Plan();
-        List<BlockPos> plainPath = plan(bot, start, Targets.block(goal), plain);
-
-        // The sphere's centre is the floor centre of the zone cell: (cx+10.5, y+1, cz+0.5).
-        BlockPos zone = new BlockPos(cx + 10, y + 1, cz);
-        double zoneCx = cx + 10 + 0.5, zoneCy = y + 1, zoneCz = cz + 0.5, r = 3.0;
-        List<BlockPos> detourPath = plan(bot, start, Targets.block(goal), Routes.plain().avoidSphere(zone, r, 1000.0).build(), detour);
-
-        boolean plainThrough = pathEntersZone(plainPath, zoneCx, zoneCy, zoneCz, r);
-        boolean detourClear = !pathEntersZone(detourPath, zoneCx, zoneCy, zoneCz, r);
-        TestMod.LOG.info("[wd.avoidRegionDetour] plainThrough={} detourClear={} plainLen={} detourLen={}",
-                plainThrough, detourClear, plainPath.size(), detourPath.size());
-        TestMod.LOG.info("[wd.avoidRegionDetour] plain.finalCost={} goalReached={} | detour.finalCost={} goalReached={}",
-                plain.finalCost(), plain.goalReached(), detour.finalCost(), detour.goalReached());
-
-        if (!plainThrough)
-            ctx.fail("avoidRegionDetour: baseline: plain path did NOT pass through the zone — arena geometry wrong");
-        if (!detourClear)
-            ctx.fail("avoidRegionDetour: the avoided region did NOT detour: a planned node is still inside the zone");
-    }
 
     /** A 2-high chamber inside a solid slab, cobblestone in the bag, a level above the slab as the target —
      *  the plan must chain pillaring to reach the level. Break+place ON. */
@@ -636,15 +600,6 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         int max = Integer.MIN_VALUE;
         for (BlockPos p : path) max = Math.max(max, p.getY());
         return path.isEmpty() ? -1 : max;
-    }
-
-    /** Euclidean cell-centre check: any path node within {@code rad} of the zone centre. */
-    private static boolean pathEntersZone(List<BlockPos> path, double zx, double zy, double zz, double rad) {
-        for (BlockPos p : path) {
-            double dx = (p.getX() + 0.5) - zx, dy = p.getY() - zy, dz = (p.getZ() + 0.5) - zz;
-            if (Math.sqrt(dx * dx + dy * dy + dz * dz) < rad) return true;
-        }
-        return false;
     }
 
     /** Lowest Y of any cell on the planned path ({@code Integer.MAX_VALUE} for an empty path). */

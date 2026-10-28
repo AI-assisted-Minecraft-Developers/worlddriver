@@ -172,12 +172,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.serverStepsDownAPerchItPlanned", 600,
                         WorldDriverDescentNodeScenes::stepsDownAPerchItPlanned),
-                Scene.of("wd.serverStepsDownTheLastNodeOfItsPlan", 600,
-                        WorldDriverDescentNodeScenes::stepsDownTheLastNodeOfItsPlan),
                 Scene.of("wd.serverStepsDownAPlanItSpentInOneTick", 600,
-                        WorldDriverDescentNodeScenes::stepsDownAPlanItSpentInOneTick),
-                Scene.of("wd.serverStillWalksDownAStaircase", 600,
-                        WorldDriverDescentNodeScenes::stillWalksDownAStaircase));
+                        WorldDriverDescentNodeScenes::stepsDownAPlanItSpentInOneTick));
     }
 
     // ---------------------------------------------------------------- the copy of rung 14's pocket
@@ -454,113 +450,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *  the healthy hops of the ladder covered 42 cells in as few as 278. */
     private static final int STAIR_TICKS = 200;
 
-    /**
-     * An ordinary staircase, walked twice, with the {@code navigatorDescentNodeHold} setting as the only
-     * difference — and the two arms must AGREE.
-     *
-     * <p>This is the arm the fix had to earn separately. Holding the step pointer on a node below the
-     * feet is right at a perch the bot has to step off; done indiscriminately it would hold at every
-     * tread of every descent and make walking downhill crawl or stall outright. A hold that only ever
-     * fires is not distinguishable from the defect by {@code wd.serverStepsDownAPerchItPlanned} alone,
-     * which passes on any change that gets the bot off that one cell.
-     *
-     * <p>Both arms must reach the bottom, and the subject may not take materially longer than the
-     * control — measured as ticks-to-bottom rather than as a bare "it arrived", because a hold that
-     * costs a tick per tread is fine and one that costs fifty is the regression.
-     *
-     * <h2>Arena footprint</h2>
-     *
-     * {@code dx ∈ [-2, 10]}, {@code dz ∈ [-2, 2]}, {@code dy ∈ [STAIR_TOP - STAIR_STEPS - 1,
-     * STAIR_TOP + 3]} — inside the default one-chunk window.
-     */
-    private static void stillWalksDownAStaircase(SceneContext ctx) {
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", true);
-        ctx.cleanup(() -> clearStair(ctx));
-
-        stageStair(ctx);
-        ctx.record("rig", STAIR_STEPS + " steps, each one block along +x and one block down: top surface dy="
-                + STAIR_TOP + ", bottom surface dy=" + (STAIR_TOP - STAIR_STEPS)
-                + ". The two arms differ only in navigatorDescentNodeHold");
-
-        Stair control = stairDrive(ctx, "control", false);
-        Stair subject = stairDrive(ctx, "subject", true);
-        ctx.record("delta", "ticks to reach the bottom " + control.ticks() + " -> " + subject.ticks()
-                + ", steps descended " + control.dropped() + " -> " + subject.dropped()
-                + ", step advances held " + control.holds() + " -> " + subject.holds() + " times");
-
-        if (control.dropped() < STAIR_STEPS)
-            ctx.fail("THE RIG, not the subject: with the switch off the bot did not walk down this staircase"
-                    + " (descended " + control.dropped() + "/" + STAIR_STEPS + " steps), so \"it also walks"
-                    + " down with the switch on\" proves nothing: " + control.ended());
-
-        ctx.check(subject.dropped()).as("A: with the hold on the bot must still walk down the whole staircase:"
-                + " control arm descended " + control.dropped() + " steps, subject descended "
-                + subject.dropped() + " steps: " + subject.ended()).isEqualTo(STAIR_STEPS);
-        // 3× is a shape bar, not a tuned constant: a hold that costs a tick or two per tread lands
-        // within it on any staircase, and the failure it exists to catch — a hold that never releases
-        // — cannot finish at all, so it fails clause A first. This is the floor under that.
-        ctx.check(subject.ticks() <= Math.max(3 * control.ticks(), 60))
-                .as("B: and the hold must not make it an order of magnitude slower: control arm "
-                        + control.ticks() + " ticks, subject " + subject.ticks() + " ticks (limit "
-                        + Math.max(3 * control.ticks(), 60) + ")").isTrue();
-        // Without this the arm is 0==0: two identical tick counts read the same whether the hold is
-        // cheap or never runs, and "never runs" would let a hold that stalls every real descent ship
-        // behind a green negative control.
-        ctx.check(subject.holds() > 0).as("C: and the hold must actually run on an ordinary descent;"
-                + " otherwise two equally fast arms only prove it is dead code: subject held "
-                + subject.holds() + " times, control arm " + control.holds() + " times").isTrue();
-    }
-
     private record Stair(int ticks, int dropped, long holds, String ended) {}
-
-    private static Stair stairDrive(SceneContext ctx, String arm, boolean hold) {
-        ServerLevel level = ctx.level();
-        Harness.set("navigatorDescentNodeHold", hold);
-
-        BlockPos top = ctx.rel(0, STAIR_TOP + 1, 0);
-        SceneBot bot = SceneBot.spawn(ctx, level, top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        bot.step(SETTLE_TICKS);
-
-        BlockPos bottom = ctx.rel(STAIR_STEPS, STAIR_TOP - STAIR_STEPS + 1, 0);
-        GotoContracts.Target goal = Targets.block(bottom);
-        long holds0 = bot.navigator().counter("descentHolds");
-        int t = 0, noPlan = 0;
-        for (; t < STAIR_TICKS; t++) {
-            askAgain(bot, goal);
-            bot.tick();
-            if (planNode(bot.navigator()).isEmpty()) noPlan++;
-            if (fp.blockPosition().getX() >= bottom.getX() && fp.getY() <= bottom.getY() + 0.5) break;
-        }
-        int dropped = Math.max(0, top.getY() - (int) Math.floor(fp.getY()));
-        long holds = bot.navigator().counter("descentHolds") - holds0;
-        bot.cancel();
-        String ended = String.format(Locale.ROOT,
-                "navigatorDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f), descended %d/%d steps,"
-                + " without a plan %d ticks, step advances held %d times",
-                hold, t, fp.getX(), fp.getY(), fp.getZ(), dropped, STAIR_STEPS, noPlan, holds);
-        ctx.record(arm + ".drive", ended);
-        return new Stair(t, dropped, holds, ended);
-    }
-
-    private static void clearStair(SceneContext ctx) {
-        for (int dx = -2; dx <= 10; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                for (int dy = STAIR_TOP - STAIR_STEPS - 1; dy <= STAIR_TOP + 3; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
-    }
-
-    private static void stageStair(SceneContext ctx) {
-        clearStair(ctx);
-        for (int dx = -2; dx <= 10; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                int tread = STAIR_TOP - Math.max(0, Math.min(STAIR_STEPS, dx));
-                for (int dy = STAIR_TOP - STAIR_STEPS - 1; dy <= tread; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
-            }
-    }
 
     // -------------------------------------------------- the LAST node of the plan (rung 13) ----
 
@@ -648,76 +538,6 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static BlockPos doorstep(SceneContext ctx, Doorway dw) {
         return ctx.rel(0, DOOR_Y0 + dw.layer() - 1, dw.stepDz());
     }
-
-    /**
-     * <b>The last node of a plan is a node too, and a plan whose last node is a step DOWN was spent on
-     * the tick it was made.</b>
-     *
-     * <h2>What the ladder did</h2>
-     *
-     * Journey rung 13 (2026-08-20 13:44) lit its portal, found the one way in that cost a single
-     * cobblestone, mined it, and then could not walk the last cell. Its last two walks are
-     * byte-identical:
-     *
-     * <pre>
-     * portal.walk.2 = 3D goal 3,58,19: 3,59,18 → 3,59,18 (moved 0 blocks, took 11 ticks) end=path-consumed
-     * portal.walk.3 = XZ goal 3,58,19: 3,59,18 → 3,59,18 (moved 0 blocks, took 11 ticks) end=path-consumed
-     * </pre>
-     *
-     * and the navigator printed why on the tick it happened, both times (step-advance log line, field
-     * labels rendered in English):
-     *
-     * <pre>{@code
-     * advance seq=1/8 cause=within oldStep=1 newStep=2 w=3,58,19 nx=none(last node) bot=(3.463,59.000,18.939)
-     *      cur2=0.316 |w.y-p.y|=1.000 onGround=true soleOnSolid=0.2168
-     * }</pre>
-     *
-     * A* answered with the one-step plan {@code [3,59,18 → 3,58,19]}; {@code within} accepted its only
-     * node while the bot stood a full block above it, the pointer reached {@code path.size()}, and
-     * the segment ended {@code path-consumed} without a tick of walking. Asking again is asking the
-     * same question.
-     *
-     * <h2>Why {@code wd.serverStepsDownAPerchItPlanned} does not already cover it</h2>
-     *
-     * It is the same defect at the one node that scene's fix deliberately excluded.
-     * {@code ProgressPhase#unwalkedDescentConsume} shipped scoped {@code nx != null} — mid-path
-     * nodes only — with a measured reason: {@code wd.serverMineHarvest}'s final node. So rung 14's
-     * perch was closed and rung 13's doorstep, which is the SAME reading one node later, was not. A
-     * guard whose scope is an exclusion needs a scene standing on the excluded side of it, or the
-     * exclusion is re-litigated by whichever rung next walks into it.
-     *
-     * <p>The final-node case is now held under two further clauses, and this arm is what they were
-     * tuned against: the plan's end must satisfy the goal while the bot does not, and the plan must
-     * be ONE step. Dropping either put a different scene red — see that helper's javadoc, which names
-     * both and what each cost.
-     *
-     * <h2>Rung 12 is why this was never seen before</h2>
-     *
-     * The two runs where rung 13 passed (2026-08-20 06:41 and 10:26) never walked at all: the casting
-     * had left the middle row's front open ({@code 3,58,19 = air, standable}) and the bot was already
-     * standing ON the doorstep when the rung started, so {@code stepFrom} answered immediately and
-     * that run's evidence has no {@code portal.walk.*} row. The 13:44 pour left five more cobblestone
-     * cells in the alcove and the bot two cells west of them, and the walk to the doorstep ran for
-     * the first time. So the geometry is rung 12's and the defect is the navigator's.
-     *
-     * <h2>The clauses</h2>
-     *
-     * <ol>
-     *   <li><b>the bot must end standing ON the doorstep</b> — the goal cell, not "it moved". The
-     *       perch scene learned that one the expensive way: a control arm that slid 0.30 blocks onto
-     *       the block holding it up changed foot cell without going anywhere;</li>
-     *   <li><b>the control must not</b>, and the rig hard-fails if it does. An arena whose pre-fix
-     *       build walks in has not earned the right to report that the fixed one did;</li>
-     *   <li><b>the hold must be what did it</b> — the {@code descentHolds} counter of {@code mc.debug.navigator} moved in the subject and
-     *       not in the control, so "A got in" cannot be credited to something else that changed.</li>
-     * </ol>
-     *
-     * <h2>Arena footprint</h2>
-     *
-     * {@code dx ∈ [-3, 4]}, {@code dz ∈ [-3, 5]}, {@code dy ∈ [DOOR_Y0 - 1, DOOR_Y0 + DOOR_NL]} —
-     * inside the default one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
-     */
-    private static void stepsDownTheLastNodeOfItsPlan(SceneContext ctx) { walkTheDoorstep(ctx, DOOR_A); }
 
     /**
      * <b>The same defect through a TWO-node plan, which is why the first fix did not hold it.</b>

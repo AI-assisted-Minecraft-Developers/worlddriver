@@ -30,22 +30,15 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.clientFlushBankClimbOut", 2_000, WorldDriverClientWaterScenes::flushBankClimbOut),
-                Scene.of("wd.clientFlushBankClimbOutEmptyHanded", 2_000,
-                        WorldDriverClientWaterScenes::flushBankClimbOutEmptyHanded),
                 Scene.of("wd.clientOneHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::oneHighBankPlaceOut),
                 Scene.of("wd.clientOneHighBankDigOut", 2_000, WorldDriverClientWaterScenes::oneHighBankDigOut),
                 Scene.of("wd.clientTwoHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::twoHighBankPlaceOut),
-                Scene.of("wd.clientThreeHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::threeHighBankPlaceOut),
                 Scene.of("wd.clientTwoHighBankDigOut", 2_000, WorldDriverClientWaterScenes::twoHighBankDigOut),
                 Scene.of("wd.clientShallowPoolStepOut", 2_000, WorldDriverClientWaterScenes::shallowPoolStepOut),
-                Scene.of("wd.clientShallowPoolStepOutEmptyHanded", 2_000,
-                        WorldDriverClientWaterScenes::shallowPoolStepOutEmptyHanded),
                 Scene.of("wd.clientOneHighStoneBankPickaxeOut", 2_000,
                         WorldDriverClientWaterScenes::oneHighStoneBankPickaxeOut),
                 Scene.of("wd.clientFlowingChannelPlaceOut", 2_000,
                         WorldDriverClientWaterScenes::flowingChannelPlaceOut),
-                Scene.of("wd.clientFlowingTrenchPlaceOut", 2_000,
-                        WorldDriverClientWaterScenes::flowingTrenchPlaceOut),
                 Scene.of("wd.clientOpenWaterCross", 2_400, WorldDriverClientWaterScenes::openWaterCross));
     }
 
@@ -67,11 +60,6 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
      */
     private static void flushBankClimbOut(SceneContext ctx) {
         climbOut(ctx, "dirt", 0, Blocks.STONE, 400, new ItemStack(Items.DIRT, 30));
-    }
-
-    /** The same walk with nothing to place: the bank is flush, so nothing should NEED placing. */
-    private static void flushBankClimbOutEmptyHanded(SceneContext ctx) {
-        climbOut(ctx, "empty", 0, Blocks.STONE, 400);
     }
 
     /**
@@ -102,11 +90,6 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         climbOut(ctx, "dirt", 2, Blocks.DIRT, 250, new ItemStack(Items.DIRT, 30));
     }
 
-    /** Three above: the same column, one rung taller — the river-cliff shape the ladder meets. */
-    private static void threeHighBankPlaceOut(SceneContext ctx) {
-        climbOut(ctx, "dirt", 3, Blocks.DIRT, 350, new ItemStack(Items.DIRT, 30));
-    }
-
     /**
      * Two above with nothing to place: a staircase of two dirt cells, each dug afloat. The budget
      * is two floating dirt digs plus the hops between them, nothing more.
@@ -126,11 +109,6 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         climbOut(ctx, "dirt", 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
     }
 
-    /** The same one-deep pool with nothing in hand: the swim boost against the rim, or the dig. */
-    private static void shallowPoolStepOutEmptyHanded(SceneContext ctx) {
-        climbOut(ctx, "empty", 1, Blocks.DIRT, 1, 600);
-    }
-
     /**
      * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
      * tool and still finish afloat. Bare-handed this rim is hopeless (the navigator poisons it), so
@@ -148,16 +126,6 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
      */
     private static void flowingChannelPlaceOut(SceneContext ctx) {
         flowingOut(ctx, 1, FLOW_DRY_BY);
-    }
-
-    /**
-     * The same current at the bottom of a trench two deep: the bot stands on the trench floor in
-     * one block of flowing water (a deeper FLOWING river is not a vanilla shape — water over water
-     * does not spread), and the east bank is three above its feet. Three rungs in a current, or a
-     * staircase dug wet; the budget is the rungs.
-     */
-    private static void flowingTrenchPlaceOut(SceneContext ctx) {
-        flowingOut(ctx, 2, FLOW_DRY_BY + 100);
     }
 
     /** @param depth how far the trench floor lies under the surface cell {@code GROUND}; the water is

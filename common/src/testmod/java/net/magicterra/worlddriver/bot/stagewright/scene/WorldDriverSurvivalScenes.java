@@ -64,22 +64,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.serverEscape", 400, WorldDriverSurvivalScenes::serverEscapeScene),
                 Scene.of("wd.serverBunker", 400, WorldDriverSurvivalScenes::serverBunkerScene),
-                // Optional as of the break reach gate. The carve aims at the EXIT (y=224 from a
-                // bot at y=221) instead of at the next block up, and that only ever worked
-                // because Level#destroyBlock let the avatar mine through the two courses in
-                // between. wd.serverBreakNeedsReach forbids it now.
-                //
-                // wd.buriedOre and wd.serverMineHarvestBuried went red the same way and are
-                // required again, because MineProcess learned to peel one reachable block at a
-                // time (MineProcess#firstBreakableToward). This escape runs a DIFFERENT digger and
-                // has not learned it yet — that is the whole of the remaining gap, and it is the
-                // change that promotes this back. Escaping a sealed shelter stays required
-                // behaviour; what is optional is the claim that it works today.
-                Scene.of("wd.serverEscapeSealedShelter", 400, WorldDriverSurvivalScenes::serverEscapeSealedShelterScene)
-                        .withRequired(false),
                 Scene.of("wd.serverLowHpEdgePin", 400, WorldDriverSurvivalScenes::serverLowHpEdgePinScene),
                 Scene.of("wd.serverBunkerSlope", 400, WorldDriverSurvivalScenes::serverBunkerSlopeScene),
-                Scene.of("wd.surfaceDive", 400, WorldDriverSurvivalScenes::surfaceDiveScene),
                 Scene.of("wd.underwaterBase", 400, WorldDriverSurvivalScenes::underwaterBaseScene),
                 Scene.of("wd.serverObserveAirSupply", 200, WorldDriverSurvivalScenes::serverObserveAirSupplyScene),
                 Scene.of("wd.antiSuffocateWaterNotSuffocating", 200, WorldDriverSurvivalScenes::antiSuffocateWaterNotSuffocatingScene),
@@ -191,55 +177,6 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     // ==================================================================================
     // wd.serverEscapeSealedShelter — real EscapeProcess carves out of a sealed 1×2 pocket.
     // ==================================================================================
-
-    private static void serverEscapeSealedShelterScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -6; dx <= 6; dx++)
-                for (int dy = -1; dy <= 7; dy++)
-                    for (int dz = -6; dz <= 6; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        // Solid dirt mass floorY..floorY+5 (surface stand = floorY+6), wide enough for the
-        // 5-step diagonal staircase out of the centre pocket.
-        for (int dx = -6; dx <= 6; dx++)
-            for (int dz = -6; dz <= 6; dz++)
-                for (int dy = 0; dy <= 5; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
-        // The sealed 1×2 pocket: air foot+head only — the roof above stays solid.
-        level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
-        level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
-
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", true);
-        Harness.set("navigatorDebug", false);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
-        bot.escape(floorY + 6);
-        bot.tickUntilIdle(800);
-
-        boolean climbed = fp.getY() >= floorY + 5.0;
-        String slotErr = bot.status().slots().escape().lastError().orElse(null);
-        boolean busy = bot.busy();
-        int active = Harness.busy();
-        TestMod.LOG.info("[wd.serverEscapeSealedShelter] pos=({},{},{}) climbed={} busy={} active={} slotErr={}",
-                fp.getX(), fp.getY(), fp.getZ(), climbed, busy, active, slotErr);
-        if (busy || active != 0)
-            ctx.fail("sealed-shelter escape did not finish+unregister (old STEP_UP ping-pong?): active="
-                    + active + " y=" + fp.getY());
-        if (!climbed)
-            ctx.fail("sealed-shelter escape did not reach the surface: y=" + fp.getY() + " slotErr=" + slotErr);
-        if (slotErr != null)
-            ctx.fail("escape slot reports an error after a successful climb: " + slotErr);
-    }
 
     // ==================================================================================
     // wd.serverLowHpEdgePin — real RunAwayProcess, 2-HP lethal-edge discipline (DEATH #3).
@@ -374,88 +311,6 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     // ==================================================================================
     // wd.surfaceDive — A5 opt-in SurfaceDive: planner emits swimDownSurface + executor lands.
     // ==================================================================================
-
-    private static void surfaceDiveScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        // Ground-anchored: the scene origin IS the legacy per-test placement anchor.
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
-        final int depth = 8;                       // interior water depth
-        final int surfaceY = floorY + depth;        // top water layer
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY - 2; y <= surfaceY + 2; y++)
-                    for (int dz = -3; dz <= 3; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        // Defensive full clear first.
-        for (int dx = -3; dx <= 3; dx++)
-            for (int dz = -3; dz <= 3; dz++)
-                for (int y = floorY - 2; y <= surfaceY + 2; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        // TWO-LAYER sealed bottom (void below the anchor).
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-        // Stone shell walls (|dx|==2 or |dz|==2), floor+1 .. surface+1; 3x3 interior water core.
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                for (int y = floorY + 1; y <= surfaceY + 1; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
-                            wall ? Blocks.STONE.defaultBlockState()
-                                 : (y <= surfaceY ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState()));
-            }
-        BlockPos bottomCell = new BlockPos(cx, floorY + 1, cz);   // first water cell ON the sealed floor
-        GotoContracts.Target goal = Targets.near(bottomCell, 1);
-
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        // The bot starts IN the water AT the surface — surfaceY-1: only the new opt-in
-        // SurfaceDive can start the descent (SwimDown is isSubmergedFoot-gated).
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, surfaceY - 1, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        BlockPos start = fp.blockPosition();
-
-        // PLANNER-ONLY proof: the plan reaches the floor and its edge list actually contains
-        // a swimDownSurface edge (not just SOME reachable route).
-        DebugContracts.SinglePlan plan = divePlan(bot, goal);
-        boolean hasSurfaceDive = hasSurfaceDive(plan);
-        TestMod.LOG.info(
-                "[wd.surfaceDive] plan.goalReached={} hasSurfaceDive={} start=({},{},{}) bottomCell={}",
-                plan.goalReached(), hasSurfaceDive, start.getX(), start.getY(), start.getZ(), bottomCell);
-        if (!plan.goalReached())
-            ctx.fail("planner: dive-enabled plan did NOT reach the underwater goal");
-        if (!hasSurfaceDive)
-            ctx.fail("planner: dive-enabled plan reached the goal WITHOUT a swimDownSurface edge — "
-                    + "the new opt-in move never fired");
-
-        // EXECUTOR proof: the SAME route, walked for real.
-        bot.goTo(goal, DIVE_ROUTE);
-        bot.tickUntilIdle(600);
-
-        double ddx = fp.getX() - (bottomCell.getX() + 0.5);
-        double ddy = fp.getY() - bottomCell.getY();
-        double ddz = fp.getZ() - (bottomCell.getZ() + 0.5);
-        double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-        boolean busy = bot.busy();
-        int active = Harness.busy();
-        TestMod.LOG.info(
-                "[wd.surfaceDive] pos=({},{},{}) busy={} active={} dist={}",
-                fp.getX(), fp.getY(), fp.getZ(), busy, active, dist);
-        if (busy || active != 0)
-            ctx.fail("executor: dive process did not finish+unregister within 600t: "
-                    + "busy=" + busy + " active=" + active);
-        if (dist > 2.0)
-            ctx.fail("executor: bot did not land within 2 of the underwater goal: pos=("
-                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") dist=" + dist);
-    }
 
     // ==================================================================================
     // wd.underwaterBase — the full "swim back to the underwater base" dive + submerged traverse

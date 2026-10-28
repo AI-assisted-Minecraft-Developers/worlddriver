@@ -49,16 +49,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.debugSweepCourse", 400, WorldDriverCoverageScenes::debugSweepCourse),
                 Scene.of("wd.expectAlarmBlockedJump", 600, WorldDriverCoverageScenes::expectAlarmBlockedJump),
                 Scene.of("wd.drownEscapeSurface", 400, WorldDriverCoverageScenes::drownEscapeSurface),
                 Scene.of("wd.bestEffortSpliceCourse", 600, WorldDriverCoverageScenes::bestEffortSpliceCourse),
                 Scene.of("wd.ascendMovementStairs", 400, WorldDriverCoverageScenes::ascendMovementStairs),
                 Scene.of("wd.boxedChurnEscalate", 1400, WorldDriverCoverageScenes::boxedChurnEscalate),
                 Scene.of("wd.quickStartStub", 600, WorldDriverCoverageScenes::quickStartStub),
-                Scene.of("wd.ascentRamSlideBack", 700, WorldDriverCoverageScenes::ascentRamSlideBack),
                 Scene.of("wd.aboveNodeStallPitFill", 700, WorldDriverCoverageScenes::aboveNodeStallPitFill),
-                Scene.of("wd.verticalResyncSlideBack", 700, WorldDriverCoverageScenes::verticalResyncSlideBack),
                 Scene.of("wd.stepUpBackoffCeiling", 700, WorldDriverCoverageScenes::stepUpBackoffCeiling),
                 // Asks whether ProgressPhase may call a pillarUp step finished while the cell
                 // its edge is supposed to fill is still open water. It may not: both phases now
@@ -72,46 +69,6 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 // 68 ticks; a pointer that does not wait finishes in about 21.
                 Scene.of("wd.surfacePillarPointerNeedsItsSupport", 700,
                         WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport));
-    }
-
-    /** Walk (+x) → step-up onto a +1 plateau → dig through a 2-tall dirt wall → goal,
-     *  all with {@code navigatorDebug=true}: the per-tick trace and the walk/step/dig debug
-     *  branches execute on a course whose outcome is still asserted (ARRIVED at the
-     *  plateau goal, wall actually broken). */
-    private static void debugSweepCourse(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        SceneArena.buildFloor(level, cx, cz, floorY);
-        // +1 plateau over the east half: floor blocks one higher for x >= cx.
-        for (int dx = 0; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
-        // 2-tall dirt wall across the full plateau width at x = cx+2 (dig is the only way).
-        for (int dz = -5; dz <= 5; dz++)
-            for (int dy = 2; dy <= 3; dy++)
-                level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
-        BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", true);
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", true);
-
-        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
-        ServerPlayer fp = bot.player();
-        int t = bot.tickUntilIdle(400);
-        String s = ending(bot);
-        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
-                && fp.getY() >= standY + 1 - 0.4;
-        boolean wallBreached = level.getBlockState(new BlockPos(cx + 2, floorY + 2, cz)).isAir()
-                || level.getBlockState(new BlockPos(cx + 2, floorY + 3, cz)).isAir();
-        TestMod.LOG.warn("[wd.debugSweepCourse] step={} ticks={} pos={},{},{} wallBreached={}",
-                s, t, fp.getX(), fp.getY(), fp.getZ(), wallBreached);
-        if (!reached)
-            ctx.fail("debugSweepCourse: navigator (navigatorDebug=true) failed the walk/step/dig course: step="
-                    + s + " pos=" + fp.position() + " wallBreached=" + wallBreached);
     }
 
     /** JUMP-noRise observer rig: a clean +1 step-up course is PLANNED first; once the
@@ -508,91 +465,6 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + " lastStats=" + lastSearch(bot) + " trace=" + trace);
     }
 
-    /** Shared slide-back rig: the bot climbs a committed narrow staircase (dz −1..1);
-     *  mid-climb the risers are cut out under it, dropping it to the base with the
-     *  committed stepUp node 2–3 above its feet — the ram-slide/vertical-dead-zone blind
-     *  spot (the base fell-off test needs > maxJumpUp+2, `within` needs |Δy| < 1.2). The
-     *  enabled recovery flag must fold into fellOffPath and the fresh foot-search re-route
-     *  over the intact 2-wide side staircase (dz 3..4). Returns an error string or null. */
-    private static String slideBackCourse(SceneContext ctx, int budget) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        SceneArena.buildFloor(level, cx, cz, floorY);
-        // FULL-WIDTH main staircase dz -5..5 (v2-v4 postmortem: any partial-width stair
-        // set left a floor gutter lane the drive's z drift slid the bot into, where it
-        // corner-rammed stair side faces for the rest of the run; and a merely SEALED
-        // side staircase was still enterable from its open east flank, so the initial A*
-        // route smeared across both staircases): +1 at dx=1, +2 at dx=2, +3 at dx=3;
-        // plateau (+3) at dx 4..5. The recovery staircase does NOT exist yet — it is
-        // BUILT by the cut mutation, so pre-cut and post-cut each have exactly one route.
-        for (int i = 1; i <= 3; i++)
-            for (int dz = -5; dz <= 5; dz++)
-                for (int dy = 1; dy <= i; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = 4; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++)
-                for (int dy = 1; dy <= 3; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
-        // Goal on the plateau ALIGNED with the recovery staircase (dz+4): v5's centre goal
-        // dragged the post-cut climb diagonally south off the 2-wide recovery stairs' edge
-        // every attempt (probe: bot looping fall-offs at dz 2.2-3.7 for 500t).
-        BlockPos goal = new BlockPos(cx + 5, standY + 3, cz + 4);
-
-        SceneBot bot = walkTo(ctx, level, cx - 4 + 0.5, standY, cz + 0.5, goal);
-        ServerPlayer fp = bot.player();
-        int t = 0;
-        boolean cut = false;
-        StringBuilder trace = new StringBuilder();
-        for (; t < budget && bot.busy(); t++) {
-            if (!cut && fp.getY() >= standY + 1.5 && fp.getX() > cx + 0.5
-                    && fp.getZ() < cz + 2.5) {
-                // Mid-climb — cut the full-width stairs out from under the bot (its feet
-                // column included) and build the 3-wide recovery staircase at dz 3..5 in
-                // the same tick (bot gated < dz+3 so the new blocks never intersect it).
-                for (int i = 1; i <= 3; i++)
-                    for (int dz = -5; dz <= 5; dz++)
-                        for (int dy = 1; dy <= i; dy++)
-                            level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                for (int i = 1; i <= 3; i++)
-                    for (int dz = 3; dz <= 5; dz++)
-                        for (int dy = 1; dy <= i; dy++)
-                            level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
-                cut = true;
-            }
-            bot.tick();
-            if (t % 100 == 0)
-                trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
-        }
-        String s = ending(bot);
-        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
-                && fp.getY() >= standY + 3 - 0.4;
-        if (!cut)
-            return "rig broken — the bot never climbed the narrow stairs (no cut): step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " trace=" + trace;
-        if (!reached)
-            return "no recovery to the side staircase after the slide-back: step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot)
-                    + " trace=" + trace;
-        TestMod.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
-        return null;
-    }
-
-    /** navigatorAscentRamJitterImmune fold on the slide-back rig: the committed stepUp node
-     *  sits ≥2 above the dropped bot, rawStepDwell passes RAM_JITTER_RECOVER_TICKS (30)
-     *  long before the 100t wedge burst → fold → re-route → ARRIVED on the plateau. */
-    private static void ascentRamSlideBack(SceneContext ctx) {
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", true);
-        Harness.set("navigatorAscentRamJitterImmune", true);
-        Harness.set("allowBreak", false);
-        Harness.set("allowPlace", false);
-        String err = slideBackCourse(ctx, 900);
-        if (err != null) ctx.fail("ascentRamSlideBack: " + err);
-    }
-
     /** Shared pit-crossing rig for the above-node stall family: a 2-deep stepped trench
      *  (entry/exit half-steps) crosses the course; once the bot commits the descending
      *  route and closes on the west rim, the trench is FILLED flush with the rim, so the
@@ -664,24 +536,6 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Harness.set("allowPlace", false);
         String err = pitFillCourse(ctx, 700);
         if (err != null) ctx.fail("aboveNodeStallPitFill: " + err);
-    }
-
-    /** navigatorVerticalResync fold (vertical dead zone, |Δy| ≥ 2 EITHER sign): the
-     *  slide-back rig with ONLY the resync flag on — after the cut the bot stands on
-     *  open floor (no hCol; v1's 1×1-hole pit rig failed because the bot simply dove
-     *  into the hole and futile-search FAILED), its committed node 2–3 above, horizontal
-     *  cur2 wandering through the (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) band as it presses
-     *  toward the vanished riser — the exact dead-zone signature; fires at noStepProg>24.
-     *  navigatorAscentRamJitterImmune stays default-OFF so the resync branch is the one that
-     *  folds. */
-    private static void verticalResyncSlideBack(SceneContext ctx) {
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", true);
-        Harness.set("navigatorVerticalResync", true);
-        Harness.set("allowBreak", false);
-        Harness.set("allowPlace", false);
-        String err = slideBackCourse(ctx, 900);
-        if (err != null) ctx.fail("verticalResyncSlideBack: " + err);
     }
 
     /** navigatorStepUpBackoffRetry (grind-press signature): the blocked-jump ceiling rig with

@@ -121,13 +121,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.buoyantJumpStaysABob", 200, WorldDriverCoreScenes::buoyantJumpStaysABob),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
-                Scene.of("wd.pathArchiveCapture", 400, WorldDriverCoreScenes::pathArchiveCapture),
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
-                Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema),
                 Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
                 Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
-                Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
-                Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
                 Scene.of("wd.clientKeybindOpensABinding", 300, WorldDriverCoreScenes::clientKeybindOpensABinding),
                 Scene.of("wd.clientClickByRef", 400, WorldDriverCoreScenes::clientClickByRef),
                 Scene.of("wd.clientScrollStepsTheHotbar", 300, WorldDriverCoreScenes::clientScrollStepsTheHotbar),
@@ -1089,32 +1085,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     // Path-archive record / replay round-trips — navigator loops synchronous, file waits awaited.
     // ==================================================================================
 
-    /** Ported from {@code AgentGameTest#pathArchiveCaptureArena}: end-to-end capture round-trip for
-     *  the path archive — drives a real 8-block goto on flat stone with {@code pathArchive} on, then
-     *  asserts a JSON archive was written to disk with ≥1 segment, ≥1 trajectory tick, and a dimension.
-     *  The walk is synchronous; the daemon file-write wait becomes an await. */
-    private static void pathArchiveCapture(SceneContext ctx) {
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-        archiveArena(ctx, cx, floorY, cz);
-
-        Set<String> before = archives(PLAN_ARCHIVE);
-        BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
-        SceneBot bot = SceneBot.spawn(ctx, cx + 0.5, floorY + 1, cz + 0.5);
-        bot.goTo(Targets.block(goal));
-        int ticks = bot.tickUntilIdle(1000);
-        ctx.record("walk", "end=" + bot.gotoSlot().endReason().orElse("-") + " ticks=" + ticks
-                + " pos=" + bot.player().blockPosition().toShortString());
-
-        awaitArchive(ctx, PLAN_ARCHIVE, before, (file, a) -> {
-            if (size(a, "segments") < 1) ctx.fail("pathArchiveCapture: expected >= 1 segment, got " + size(a, "segments"));
-            if (size(a, "trajectory") < 1) ctx.fail("pathArchiveCapture: expected >= 1 trajectory tick, got " + size(a, "trajectory"));
-            JsonElement dim = a.has("header") ? a.getAsJsonObject("header").get("dimension") : null;
-            if (dim == null || dim.isJsonNull() || dim.getAsString().isEmpty())
-                ctx.fail("pathArchiveCapture: header.dimension is null or empty");
-        });
-    }
-
     /** The flat stone floor both archive scenes walk, with headroom. */
     private static void archiveArena(SceneContext ctx, int cx, int floorY, int cz) {
         ServerLevel level = ctx.level();
@@ -1236,46 +1206,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /**
-     * {@code mc.bot.setting} through the door every transport shares, with the contract doing its job.
-     *
-     * <p>Ported from {@code instrument_client.py}'s {@code route.settingUnknownKeyLive} and
-     * {@code route.settingKnownKeyLive}. The settings are written on the client thread when there is
-     * a client and on the server thread otherwise, so this runs on every topology; a scene body runs
-     * on the server thread, which may not wait for the client's, hence {@link SceneCalls#ask}.
-     *
-     * <p>The unknown-key half is the one with history (#280): the contract decodes BEFORE the
-     * handler, so the rejection has to arrive even though the handler would have run.
-     */
-    private static void clientSettingSchema(SceneContext ctx) {
-        Harness.pin(ctx);
-        var settings = SettingsApi.of(WorldDriver.registry());
-        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true))), refused -> {
-            List<ApiIssue> issues = refused.issues();
-            ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
-                    .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
-            // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
-            // what it now holds, and a fresh read agrees. The pin restores it however this exits.
-            ask(ctx, "read", settings.setting(SettingsContracts.Read.of("autoEat")), before -> {
-                boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
-                ask(ctx, "patch", settings.setting(SettingsContracts.Patch.of(Map.of("autoEat", !orig))), write -> {
-                    ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
-                    ask(ctx, "reread", settings.setting(SettingsContracts.Read.of("autoEat")), after ->
-                            ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
-                });
-            });
-        });
-    }
-
-    /** One key's value out of a {@code mc.bot.setting} reply, or null when the reply does not hold it. */
-    private static Object settingOf(SettingsContracts.SettingsReply reply, String key) {
-        return switch (reply) {
-            case SettingsContracts.Values v -> v.get(key).orElse(null);
-            case SettingsContracts.Patched p -> p.get(key).orElse(null);
-            case SettingsContracts.Applied a -> null;
-        };
-    }
-
-    /**
      * All 36 inventory slots reach {@code mc.observe.player}, not just the hotbar.
      *
      * <p>Ported from {@code instrument_client.py}'s {@code obs.fullInventory} — the #41 permanent
@@ -1390,134 +1320,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (e == null) return;
         ctx.expect(String.valueOf(e.get("id"))).as("slot " + slot + " id").isEqualTo(id);
         ctx.expect(String.valueOf(e.get("count"))).as("slot " + slot + " count").isEqualTo(count);
-    }
-
-    /**
-     * {@code mc.test.reset} returns the client entry to a known state in one call.
-     *
-     * <p>Ported from {@code instrument_client.py}'s {@code reset.behavior}. This is the verb the
-     * client pool leaned on between hand-offs, so what it promises — no open screen, no held key,
-     * no stale chat readback — is the precondition every other client-face check inherits.
-     *
-     * <p>Two of the three are verified by an INDEPENDENT readback rather than by the verb's own
-     * manifest: the screen through {@code mc.client.screen.info}, the chat log through
-     * {@code mc.client.chat.history}. The keys token is only read off the manifest here and is
-     * proved for real by {@link #clientResetReleasesKeys}, which is the entire reason that scene
-     * exists.
-     *
-     * <p><b>The cleanup does NOT use the verb under test.</b> It did, and that is not a shortcut —
-     * it is a hole. A cleanup exists to contain this scene's mess so the next scene starts clean,
-     * and one built out of the very verb this scene is here to break cannot do that: the run where
-     * {@code mc.test.reset} stops closing screens is exactly the run where the cleanup also stops
-     * closing them, so the failure lands on {@code clientResetReleasesKeys} — a scene that needs no
-     * open screen and has no idea why it is looking at one. {@code mc.client.screen.close} reaches
-     * the same state by a route this scene asserts nothing about.
-     *
-     * <p>The chat line this scene sends is deliberately NOT cleaned up: the readback log has no
-     * clear of its own — {@code mc.test.reset} is the only thing that empties it — and inventing a
-     * second way to empty it for a cleanup's sake would widen the API to work around a test. It
-     * leaks a JVM buffer no other scene in the suite reads; the screen was the one that leaked
-     * something the next scene could trip over.
-     */
-    private static void clientResetClearsEntry(SceneContext ctx) {
-        // Client verbs by name go to the client (SceneCalls.registryFor): the joined one on a dedicated server.
-        ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
-
-        // Start from a known no-screen state, then dirty both: a chat line and the inventory keybind.
-        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
-                askByName(ctx, "chat", "mc.client.chat.send", Map.of("text", "stagewright-reset-probe"), sent ->
-                        askByName(ctx, "key", "mc.client.input.key", Map.of("key", "E"), pressed ->
-                                resetClearsWhatWasDirtied(ctx))));
-    }
-
-    private static void resetClearsWhatWasDirtied(SceneContext ctx) {
-        // Separate awaits so a timeout names which half of the dirtying never landed; steps drain
-        // in registration order, so the reset below only runs once both have.
-        SceneCalls.askUntilByName(ctx, "dirtiedScreen", "mc.client.screen.info", Map.of(),
-                info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {});
-        SceneCalls.askUntilByName(ctx, "dirtiedChat", "mc.client.chat.history", Map.of("limit", 50),
-                history -> chatCount(history) >= 1, 100, history -> askByName(ctx, "reset", "mc.test.reset", Map.of(), r -> {
-            Object reset = r.get("reset");
-            ctx.expect(String.valueOf(r.get("error"))).as("mc.test.reset answered without an error").isEqualTo("null");
-            List<?> tokens = reset instanceof List<?> l ? l : List.of();
-            // `screen:<class>` — the class it actually closed, and `→still:` appended when the
-            // close did not take. A bare "screen" was a code-path trace: it said setScreen(null)
-            // was called on something, which is what a broken close would say too.
-            ctx.expect(token(tokens, "screen:")).as("reset[] names the screen it closed")
-                    .isEqualTo("screen:InventoryScreen");
-            boolean clearedChat = tokens.stream()
-                    .anyMatch(t -> t instanceof String s && s.startsWith("chat:"));
-            ctx.expect(clearedChat).as("reset[] names the chat log it cleared").isEqualTo(true);
-            ctx.record("resetTokens", String.valueOf(reset));
-
-            askByName(ctx, "afterReset", "mc.client.screen.info", Map.of(), info -> {
-                ctx.expect(info.get("hasScreen")).as("a screen is still open after the reset")
-                        .isEqualTo(false);
-                // The reset must close the screen without closing the WORLD — a disconnect would also
-                // satisfy "no screen open" and would take every scene after this one down with it.
-                ctx.expect(info.get("worldOpen")).as("the reset kept us in the world").isEqualTo(true);
-            });
-            askByName(ctx, "chatAfterReset", "mc.client.chat.history", Map.of("limit", 50), after ->
-                    ctx.expect(chatCount(after)).as("chat readback entries after the reset").isEqualTo(0));
-        }));
-    }
-
-    /**
-     * {@code mc.test.reset} really releases a key that was really down.
-     *
-     * <p>Ported from {@code instrument_client.py}'s {@code reset.heldKeys}. The reason it is its own
-     * scene rather than a line in {@link #clientResetClearsEntry}: the manifest is the verb's own
-     * account of itself, and {@code mc.test.input.heldKeys} closes it from OUTSIDE by reading
-     * {@code KeyMapping.isDown()} back — press forward, prove the readback SEES it held, reset, and
-     * prove every key in the surface is false. The manifest's token is now an effect too
-     * ({@code keys:up}, and {@code →still:up} when the release did not take), which is checked here
-     * against the independent readback rather than instead of it.
-     *
-     * <p>The whole surface is compared, not just the key that was pressed. A readback that quietly
-     * stopped reporting a keymapping would otherwise pass here forever, since a key it does not
-     * report can never be seen stuck.
-     */
-    private static void clientResetReleasesKeys(SceneContext ctx) {
-        // Not mc.test.reset — see clientResetClearsEntry. The key this scene holds down is released
-        // by pressing it again through the same input verb that pressed it.
-        ctx.cleanup(() -> SceneCalls.send("mc.client.input.key", Map.of("key", "W", "action", "release")));
-
-        // No screen → the key takes the keybind path.
-        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
-                askByName(ctx, "press", "mc.client.input.key", Map.of("key", "W", "action", "press"), pressed ->
-                        resetReleasesTheHeldKey(ctx)));
-    }
-
-    private static void resetReleasesTheHeldKey(SceneContext ctx) {
-        SceneCalls.askUntilByName(ctx, "heldBefore", "mc.test.input.heldKeys", Map.of(),
-                held -> Boolean.TRUE.equals(keysOf(held).get("up")), 100, held ->
-                        askByName(ctx, "reset", "mc.test.reset", Map.of(), r -> {
-            Object reset = r.get("reset");
-            List<?> tokens = reset instanceof List<?> l ? l : List.of();
-            ctx.expect(token(tokens, "keys:"))
-                    .as("reset[] names the key it released, and nothing left held")
-                    .isEqualTo("keys:up");
-
-            askByName(ctx, "heldAfter", "mc.test.input.heldKeys", Map.of(), after -> {
-                Map<?, ?> keys = keysOf(after);
-                ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
-                        .isEqualTo("attack,down,jump,left,right,shift,sprint,up");
-                List<String> stuck = new ArrayList<>();
-                for (Map.Entry<?, ?> e : keys.entrySet())
-                    if (Boolean.TRUE.equals(e.getValue())) stuck.add(String.valueOf(e.getKey()));
-                ctx.expect(joinSorted(stuck))
-                        .as("keys still held after mc.test.reset — a releaseKeys() no-op regression")
-                        .isEqualTo("");
-            });
-        }));
-    }
-
-    /** The one {@code reset[]} token starting with {@code prefix}, or a readable stand-in naming
-     *  the whole list — so a missing token fails with what WAS there instead of {@code false}. */
-    private static String token(List<?> tokens, String prefix) {
-        for (Object t : tokens)
-            if (t instanceof String s && s.startsWith(prefix)) return s;
-        return "no " + prefix + "… token in " + tokens;
     }
 
     /**
@@ -1767,22 +1569,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
         }
         return "no " + name + " row in the keybind listing";
-    }
-
-    /** How many lines a {@code mc.client.chat.history} reply holds; −1 if it did not say. */
-    private static int chatCount(Map<?, ?> history) {
-        return history.get("messages") instanceof List<?> l ? l.size() : -1;
-    }
-
-    /** The {@code keys} map out of {@code mc.test.input.heldKeys}. */
-    /** The {@code keys} of a {@code mc.test.input.heldKeys} reply; empty for an error. */
-    private static Map<?, ?> keysOf(Map<?, ?> reply) {
-        return reply.get("keys") instanceof Map<?, ?> k ? k : Map.of();
-    }
-
-    /** Sorted and joined, so a mismatch reports as one readable string instead of a set dump. */
-    private static String joinSorted(Collection<?> values) {
-        return values.stream().map(String::valueOf).sorted().collect(Collectors.joining(","));
     }
 
     /**

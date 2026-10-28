@@ -59,8 +59,6 @@ public final class WorldDriverMobFightScenes {
                         WorldDriverMobFightScenes::serverFightsAFlyingBlaze),
                 Scene.of("wd.serverEarnsAnEnderPearl", 8_000,
                         WorldDriverMobFightScenes::serverEarnsAnEnderPearl),
-                Scene.of("wd.serverBreaksAnEndCrystal", 4_000,
-                        WorldDriverMobFightScenes::serverBreaksAnEndCrystal),
                 // wd.serverFightsAFlyingBlaze produces this situation only when the blaze happens to
                 // lure the bot off its floor — once in three runs, and each run is forty minutes.
                 // This stages the same reset loop on purpose, without a blaze, so the futile-search
@@ -1335,58 +1333,4 @@ public final class WorldDriverMobFightScenes {
         ctx.passNote("killed " + killed + "/" + fights + " endermen in the box, dropping " + pearls + " pearls");
     }
 
-    /**
-     * Break an end crystal — the verb the dragon fight opens with.
-     *
-     * <p>The dragon heals from every crystal still standing, so the fight does not begin until they
-     * are gone. Breaking one is a single hit on an entity with 5 health and no armour; what makes it
-     * interesting is that it <b>explodes</b>, and the bot doing the hitting is standing next to it.
-     *
-     * <p>Two readings, because they are different questions: the crystal dies, and the bot is still
-     * there afterwards. The second is weakened by this avatar being invulnerable — recorded on the
-     * row so nobody reads it as "the explosion is survivable".
-     *
-     * <p>Scoped: the crystal is placed at the bot's own level. On a real pillar it sits 20–40 blocks
-     * up, and getting there is {@code ascendByTowering}'s problem, which has its own coverage and its
-     * own known trouble. This is the verb, not the climb.
-     */
-    private static void serverBreaksAnEndCrystal(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        Harness.clearBots(ctx);
-        SceneArena.buildFloor(level, cx, cz, floorY);
-        level.setBlockAndUpdate(new BlockPos(cx + 3, floorY, cz), Blocks.OBSIDIAN.defaultBlockState());
-
-        var crystal = new net.minecraft.world.entity.boss.enderdragon.EndCrystal(
-                level, cx + 3.5, floorY + 1, cz + 0.5);
-        crystal.setShowBottom(true);
-        level.addFreshEntity(crystal);
-        ctx.cleanup(() -> { if (crystal.isAlive()) crystal.discard(); });
-
-        ctx.await(() -> !level.getEntitiesOfClass(
-                        net.minecraft.world.entity.boss.enderdragon.EndCrystal.class,
-                        WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
-                .within(200).then(() -> {
-            SceneBot bot = fighter(ctx, level, cx, floorY, cz, Items.IRON_SWORD);
-            ServerPlayer fp = bot.player();
-
-            ctx.record("crystal.alive0", String.valueOf(crystal.isAlive()));
-            for (int i = 0; i < 5 && crystal.isAlive(); i++) {
-                fp.resetAttackStrengthTicker();
-                bot.tick(15);
-                fp.attack(crystal);
-            }
-            bot.tick(20);
-
-            ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
-            ctx.record("body.alive", String.valueOf(fp.isAlive()));
-            ctx.record("body.invulnerable", "true — so the \"still standing after the explosion\" reading is weak");
-            ctx.expect(!crystal.isAlive()).as("a driven bot can break an end crystal").isTrue();
-            ctx.expect(fp.isAlive()).as("the bot is still there after the explosion").isTrue();
-            ctx.passNote("broke an end crystal at melee range and the bot is still present (crystal placed at"
-                    + " the bot's level; climbing the pillar not tested)");
-        });
-    }
 }

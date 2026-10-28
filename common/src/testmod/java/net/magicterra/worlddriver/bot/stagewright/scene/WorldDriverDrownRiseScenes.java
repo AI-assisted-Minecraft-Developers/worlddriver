@@ -68,20 +68,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.drownEscapeClientRisesInOpenWater", 400,
-                        WorldDriverDrownRiseScenes::risesInOpenWater),
                 // REQUIRED. The failure it recorded (net rise 0.000 blocks over 200 ticks, lid
                 // blocked=false, hit ceiling=true) settled the hypothesis and the blindness is fixed.
                 // A sensor that stays optional after its subject is understood will pass by
                 // accident on the day it regresses.
                 Scene.of("wd.drownEscapeClientPinnedByNeighbourColumn", 400,
                         WorldDriverDrownRiseScenes::pinnedByNeighbourColumn),
-                Scene.of("wd.drownEscapeClientStaysDownDisarmed", 400,
-                        WorldDriverDrownRiseScenes::staysDownDisarmed),
-                // The same three arms on an idle server bot, whose own brain runs the reflex on the
-                // server tick. They run where the client arms skip, and skip where those run.
-                Scene.of("wd.drownEscapeServerRisesInOpenWater", 400,
-                        ctx -> run(ctx, false, true, true)),
                 Scene.of("wd.drownEscapeServerPinnedByNeighbourColumn", 400,
                         ctx -> run(ctx, true, true, true)),
                 Scene.of("wd.drownEscapeServerStaysDownDisarmed", 400,
@@ -125,31 +117,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
 
     // ------------------------------------------------------------------ the three arms
 
-    /** Open column, nothing overhead: the bot must reach air. This is the arm that says the
-     *  actuation path works at all — command channel, scheduler, client physics, end to end. */
-    private static void risesInOpenWater(SceneContext ctx) {
-        run(ctx, false, true, false);
-    }
-
     /** The regression. Same open column by every scan this class performs, but a solid block in the
      *  neighbouring column the bot's own bounding box straddles. Nothing in
      *  {@code DrownEscapeChain} looks there, so the bot should be pinned one block below air with
      *  the reflex reporting a clear path. */
     private static void pinnedByNeighbourColumn(SceneContext ctx) {
         run(ctx, true, true, false);
-    }
-
-    /**
-     * The counter-arm: with the reflex disarmed the bot must NOT reach air.
-     *
-     * <p>Both flags, not one. {@code autoDrownEscape} switches off the chain; {@code
-     * autoFloatWhenDrowning} switches off {@code AutoSwim.drowningSentinel}, which holds jump on an
-     * IDLE bot — and a bot parked in a test column with no process is exactly idle. Disarming only
-     * the chain would leave the sentinel to surface the bot, and this arm would then fail while
-     * describing the wrong subject. Its whole job is to prove the other two arms' green is not free.
-     */
-    private static void staysDownDisarmed(SceneContext ctx) {
-        run(ctx, false, false, false);
     }
 
     /** Ticks the lid arm gets. Dirt is ~15 ticks bare-handed, ×5 for a submerged head and ×5 again

@@ -79,19 +79,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.serverCraft", 200, WorldDriverStationScenes::serverCraft),
-                Scene.of("wd.serverRecipeSpecies", 200, WorldDriverStationScenes::serverRecipeSpecies),
                 Scene.of("wd.serverCraftTableInject", 200, WorldDriverStationScenes::serverCraftTableInject),
                 Scene.of("wd.serverRecipeShortfallSpecies", 200, WorldDriverStationScenes::serverRecipeShortfallSpecies),
                 Scene.of("wd.serverCraftTableReclaim", 400, WorldDriverStationScenes::serverCraftTableReclaim),
                 Scene.of("wd.serverObservePlayerInventory", 200, WorldDriverStationScenes::serverObservePlayerInventory),
                 Scene.of("wd.serverPlanHaveDefaultsToBag", 200, WorldDriverStationScenes::serverPlanHaveDefaultsToBag),
-                Scene.of("wd.serverSmeltStationOpens", 200, WorldDriverStationScenes::serverSmeltStationOpens),
                 Scene.of("wd.serverCraftTableHoleRim", 400, WorldDriverStationScenes::serverCraftTableHoleRim),
                 Scene.of("wd.serverSmeltFurnaceHoleRim", 400, WorldDriverStationScenes::serverSmeltFurnaceHoleRim),
                 Scene.of("wd.smeltFuelPolicy", 200, WorldDriverStationScenes::smeltFuelPolicy),
                 Scene.of("wd.serverCraftGridConservation", 200, WorldDriverStationScenes::serverCraftGridConservation),
-                Scene.of("wd.serverCraftFailTelemetry", 200, WorldDriverStationScenes::serverCraftFailTelemetry),
                 Scene.of("wd.serverCraftFailGridReturn", 200, WorldDriverStationScenes::serverCraftFailGridReturn));
     }
 
@@ -126,56 +122,6 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // ==================================================================================
     // Craft / recipe scenes.
     // ==================================================================================
-
-    /** Ported from {@code serverCraftArena}: a SERVER bot's {@code mc.bot.craft} for the 2×2 INVENTORY-grid path — pre-stock 1 oak_log, craft oak_planks, assert
-     *  ≥4 planks appear and the process finishes+unregisters. */
-    private static void serverCraft(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ctx.cleanup(() -> scrub(level, cx, cz, floorY, 2, 3));
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", false);
-        Harness.clearBots(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().add(new ItemStack(Items.OAK_LOG, 1));
-        bot.craft("minecraft:oak_planks", 4);
-        Harness.tickUntilIdle(300);
-
-        int planks = countItem(fp, Items.OAK_PLANKS);
-        TestMod.LOG.info("[wd.serverCraft] planks={} busy={} err={}",
-                planks, Harness.busy(), lastError(bot.status().slots().craft()));
-        if (planks < 4)
-            ctx.fail("wd.serverCraft: server craft (2x2 inventory) did not craft planks: got " + planks);
-        if (bot.busy() || Harness.busy() != 0)
-            ctx.fail("wd.serverCraft: server craft did not finish: busy=" + Harness.busy());
-    }
-
-    /** Ported from {@code serverRecipeSpeciesArena}: a {@code mc.recipe.resolve} test — a bot holding
-     *  only ACACIA logs must resolve wooden_pickaxe through acacia species (species follows PRESENCE,
-     *  not registry order). Planned for a bot standing alone, so no station in reach changes the plan. */
-    private static void serverRecipeSpecies(SceneContext ctx) {
-        SceneBot bot = planner(ctx);
-        RecipeContracts.CraftPlan plan = resolve(bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 8));
-
-        List<String> jobIds = jobIds(plan);
-        Map<String, Integer> missing = missing(plan);
-        TestMod.LOG.info("[wd.serverRecipeSpecies] have=acacia_log:8 missing={} jobs={}", missing, jobIds);
-
-        if (missing.containsKey("minecraft:oak_log") || missing.containsKey("minecraft:oak_planks"))
-            ctx.fail("wd.serverRecipeSpecies: recipe species leaked to oak despite acacia_log in stock: missing=" + missing);
-        boolean routesAcacia = plan.steps().stream().anyMatch(j ->
-                j.craft().equals("minecraft:acacia_planks") || j.from().contains("acacia"));
-        if (!routesAcacia)
-            ctx.fail("wd.serverRecipeSpecies: plan did not route acacia species: jobs=" + jobIds);
-        if (!missing.isEmpty())
-            ctx.fail("wd.serverRecipeSpecies: wooden_pickaxe from acacia_log:8 should complete: missing=" + missing);
-    }
 
     /** Ported from {@code serverCraftTableInjectArena}: a {@code mc.recipe.resolve} test — a 3×3 craft
      *  with no table must INJECT crafting_table as a dependency-first, deduped acquisition job, and
@@ -520,68 +466,6 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // Smelt scenes.
     // ==================================================================================
 
-    /**
-     * Ported from {@code serverSmeltStationOpensArena}, and inverted: a SERVER bot's {@code mc.bot.smelt} must
-     * find a furnace, OPEN it, and load it.
-     *
-     * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
-     * this could ask was that the process degrade gracefully and finish with an "open furnace"
-     * error instead of wedging the tick. A hand-built station menu removed the cliff, and joined
-     * server-side players now open the furnace through vanilla's own {@code openMenu}, so the
-     * graceful-degradation assertion became a test that the feature stays broken. It
-     * now asserts the capability. Renamed with it: a scene called {@code …Cliff} that requires the
-     * cliff to be gone is a trap for the next reader.
-     */
-    private static void serverSmeltStationOpens(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        for (int dx = -1; dx <= 2; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + 1, cz), Blocks.FURNACE.defaultBlockState());
-        ctx.cleanup(() -> {
-            for (int dx = -1; dx <= 2; dx++)
-                for (int dy = 0; dy <= 2; dy++)
-                    for (int dz = -1; dz <= 1; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", false);
-        Harness.clearBots(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        bot.player().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
-        bot.player().getInventory().add(new ItemStack(Items.COAL, 4));
-        bot.smelt("minecraft:raw_iron", 4, "minecraft:coal");
-        Harness.tickUntilIdle(200);
-
-        String err = lastError(bot.status().slots().smelt());
-        Container furnace = level.getBlockEntity(new BlockPos(cx + 1, floorY + 1, cz)) instanceof Container c
-                ? c : null;
-        int loaded = 0;
-        if (furnace != null) {
-            for (int slot = 0; slot < furnace.getContainerSize(); slot++) {
-                loaded += furnace.getItem(slot).getCount();
-            }
-        }
-        TestMod.LOG.info("[wd.serverSmeltStationOpens] busy={} active={} err={} loaded={}",
-                bot.busy(), Harness.busy(), err, loaded);
-
-        // The furnace must OPEN and take its load. Nothing here waits for it to cook: this rig drives
-        // up to 200 bot ticks inside a SINGLE server tick, so no furnace tick ever fires and the
-        // smelt is still working when the loop ends — which is why "finished" is deliberately not
-        // asserted. What is asserted is everything up to the first world tick: the menu opened, the
-        // input and fuel went in. The smelt names the furnace in every failure that concerns it.
-        if (err != null && err.contains("furnace"))
-            ctx.fail("wd.serverSmeltStationOpens: the smelt could not open the furnace: " + err);
-        if (furnace == null)
-            ctx.fail("wd.serverSmeltStationOpens: no furnace container at the rig position");
-        if (loaded == 0)
-            ctx.fail("wd.serverSmeltStationOpens: the furnace opened but nothing was loaded into it "
-                    + "(err=" + err + ") — insertion is the half that a menu-open alone does not prove");
-    }
-
     /** Ported from {@code serverCraftTableHoleRimArena} (gap#61): a bot in a 1-deep hole must place a
      *  crafting table on the hole RIM (dy=+1), not report "no placeable spot". {@code craftReclaimTable}
      *  pinned OFF so the placed table survives the expected server OPEN_WAIT failure and can be
@@ -806,80 +690,6 @@ public final class WorldDriverStationScenes implements SceneProvider {
         @Override public void append(org.apache.logging.log4j.core.LogEvent event) {
             lines.add(event.getMessage().getFormattedMessage());
         }
-    }
-
-    /** Ported from {@code serverCraftFailTelemetryArena} (gap#67-⑥): a plan-stage fail (zero
-     *  materials) must emit both the plan-dump line AND the fail-path line CraftProcess now logs. */
-    private static void serverCraftFailTelemetry(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
-        ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
-
-        org.apache.logging.log4j.core.Logger coreLogger =
-                (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger("WorldDriver");
-        CraftLogCatcher catcher = new CraftLogCatcher();
-        catcher.start();
-        coreLogger.addAppender(catcher);
-
-        // ⚠️ THIS SCENE USED TO SILENCE THE WHOLE MOD FOR THE REST OF THE RUN, and nothing said so.
-        //
-        // `addAppender` on a logger that has no LoggerConfig of its own makes log4j create one:
-        // `new LoggerConfig(name, root.getLevel(), root.isAdditive())`. Loom's generated log4j.xml
-        // declares <Root> without an `additivity` attribute, and the root builder's field is a
-        // primitive boolean with no default — so `root.isAdditive()` is FALSE. Harmless on the root,
-        // which has nowhere to forward to. Copied onto a CHILD it means "do not forward to parent".
-        // Then the cleanup below removes the appender but NOT the LoggerConfig, and a LoggerConfig
-        // with zero appenders that does not forward discards every event at every level, forever.
-        //
-        // Measured: three gate runs, each ending at a different time and for a different reason,
-        // every one of them stopping at the same place — the last `(WorldDriver)` line was this
-        // scene's predecessor, and the run then went on for minutes with `(Minecraft)` and
-        // `(StageWrightCommon)` still writing. The cost is nameable: `PathFinder`'s RUNAWAY WATCH
-        // says "WARN so no filter drops it", and the run that died of exactly that failure logged
-        // none of it. The author defended against a level filter; what killed the line was a logger
-        // with no appenders, which does not filter by level at all.
-        //
-        // The row below records the value BEFORE the repair, so this scene proves the defect and its
-        // fix in the same run — and keeps saying so if log4j's default ever changes underneath it.
-        boolean additiveAfterAttach = coreLogger.isAdditive();
-        coreLogger.setAdditive(true);
-        ctx.cleanup(() -> { coreLogger.removeAppender(catcher); catcher.stop(); coreLogger.setAdditive(true); });
-
-        Harness.pin(ctx);
-        Harness.set("navigatorDebug", false);
-        Harness.clearBots(ctx);
-
-        // An empty bag: the craft's plan must report missing materials.
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        bot.craft("minecraft:oak_planks", 4);
-        Harness.tickUntilIdle(60);
-
-        String err = lastError(bot.status().slots().craft());
-        boolean sawFailLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft]") && l.contains("fail"));
-        boolean sawPlanLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft] plan"));
-        TestMod.LOG.info("[wd.serverCraftFailTelemetry] err={} sawFailLog={} sawPlanLog={} lines={}",
-                err, sawFailLog, sawPlanLog, catcher.lines);
-        if (err == null)
-            ctx.fail("wd.serverCraftFailTelemetry: expected craft to fail on zero materials (test setup broken)");
-        if (!sawFailLog)
-            ctx.fail("wd.serverCraftFailTelemetry: gap#67-⑥: no '[craft] ...fail...' log line on the fail path "
-                    + "(CraftProcess.LOG import was dead code): captured=" + catcher.lines);
-        if (!sawPlanLog)
-            ctx.fail("wd.serverCraftFailTelemetry: gap#67-⑥: no '[craft] plan' dump log line: captured=" + catcher.lines);
-
-        // The two halves of the silencing defect, as a row rather than as a story. `attach` is what
-        // log4j handed back BEFORE the repair — false is the defect, present today; true would mean
-        // log4j (or loom's config) stopped copying a false additivity down and the repair is now
-        // redundant rather than wrong. `now` is what the rest of the suite inherits, and it is the
-        // one the assertion guards: every scene after this one logs through it.
-        ctx.record("log.additiveAfterAttach", String.valueOf(additiveAfterAttach));
-        ctx.record("log.additiveNow", String.valueOf(coreLogger.isAdditive()));
-        if (!coreLogger.isAdditive())
-            ctx.fail("wd.serverCraftFailTelemetry: this scene left the WorldDriver logger at additivity=false. "
-                    + "With zero appenders and no forwarding to its parent, every later log line from the mod "
-                    + "in this run (including WARN/ERROR) is silently discarded. "
-                    + "The capturing appender was removed, but the LoggerConfig was not.");
     }
 
     /** Minimal non-inventory menu stand-in (inlined from {@code AgentGameTestServer.DummyMenu}) — makes

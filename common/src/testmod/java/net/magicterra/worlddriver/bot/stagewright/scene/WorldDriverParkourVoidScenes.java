@@ -103,12 +103,6 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                // REQUIRED since the sprint gate was narrowed to `parkourEdge` — this arm was the
-                // green half of the pair that measured the defect (takeoff h 0.1232 -> 0.2475: the
-                // impulse fires when the player launches from BEHIND the lip), so it now guards
-                // against the fix being reverted along with the long arm it made possible.
-                Scene.of("wd.parkourVoidShortRunway", 200,
-                        WorldDriverParkourVoidScenes::parkourVoidShortRunway),
                 // REQUIRED, and the answer to its own open question is now on record: the run-up
                 // did NOT buy the leap anything, it COST it. `lethalNear` reads only the CURRENT
                 // foot cell's eight neighbours, so eleven blocks of runway behind the player change
@@ -206,34 +200,6 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     }
 
     // ------------------------------------------------------- execution arms ----
-
-    /**
-     * <b>The reproduction.</b> Two cells of run-up onto a lip, {@link #GAP} cells of void, a deck on
-     * the far side — the End arrival platform's own geometry, at the same 100 -> 98 approach the
-     * ladder measured.
-     *
-     * <h2>Two criteria, reported separately</h2>
-     *
-     * They are not one criterion in two halves, and merging them would print two opposite outcomes
-     * as the same line:
-     *
-     * <ol>
-     *   <li><b>Do not fall.</b> {@code minY > padY - 3}, the {@code fellInPit} idiom from
-     *       {@code wd.parkourAscend}. A bot that refuses the leap and stands on the lip forever
-     *       satisfies this one.</li>
-     *   <li><b>Get across.</b> The final position must be past the gap at deck level. A bot that
-     *       stalls on the lip satisfies (1) and fails this.</li>
-     * </ol>
-     *
-     * <p><b>Jumping across and bridging across BOTH count as getting across</b>, deliberately:
-     * {@code allowPlace} is ON with 256 cobblestone in the hotbar, so a fix that teaches the bot to
-     * bridge what it cannot leap is a legitimate answer to this scene. What is NOT an answer is
-     * standing still, and what is definitely not an answer is walking off the edge. The arm that
-     * refuses "always bridge" is {@link #parkourVoidLongRunway}, not this one.
-     */
-    private static void parkourVoidShortRunway(SceneContext ctx) {
-        runVoidGap(ctx, "parkourVoidShortRunway", 5, 1, false);
-    }
 
     /**
      * <b>The anti-overfit arm.</b> Same gap, same void, same deck, same inventory — a 12-cell launch

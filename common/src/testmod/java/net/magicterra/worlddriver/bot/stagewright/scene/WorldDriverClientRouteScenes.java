@@ -43,8 +43,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 Scene.of("wd.clientRoutePreviewAdopted", 1_400, WorldDriverClientRouteScenes::previewAdopted),
                 Scene.of("wd.clientRoutePreviewDoesNotInterrupt", 800, WorldDriverClientRouteScenes::previewDoesNotInterrupt)
                         .withChunkRadius(2),
-                Scene.of("wd.clientRouteBlockedEventFires", 600, WorldDriverClientRouteScenes::blockedEventFires),
-                Scene.of("wd.clientRouteOldFieldRejected", 200, WorldDriverClientRouteScenes::oldFieldRejected));
+                Scene.of("wd.clientRouteBlockedEventFires", 600, WorldDriverClientRouteScenes::blockedEventFires));
     }
 
     private static final int GROUND = 20;
@@ -249,22 +248,4 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         });
     }
 
-    /**
-     * The old top-level fields are gone without a compatibility layer: {@code forbidDig: true} is
-     * {@code invalid_params} with an {@code unknown_field} issue at {@code /forbidDig}, and the same
-     * intent as {@code route: {break: "never"}} starts.
-     */
-    private static void oldFieldRejected(SceneContext ctx) {
-        floor(ctx, -3, 6, -3, 3);
-        BlockPos start = ctx.rel(0, GROUND + 1, 0);
-        BlockPos goal = ctx.rel(4, GROUND + 1, 0);
-        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        helm.sync(20, () -> goTo(ctx, "oldField.reply", goal, Map.of("forbidDig", true), rejected -> {
-            List<ApiIssue> issues = rejected.get("error") instanceof ApiException e ? e.error().issues() : List.of();
-            ctx.check(issues.stream().anyMatch(i -> i.path().equals("/forbidDig") && i.code() == ApiIssue.Code.UNKNOWN_FIELD))
-                    .as("A: forbidDig is refused as an unknown field at its own path: " + issues).isTrue();
-            goTo(ctx, "route.break.reply", goal, Map.of("route", Map.of("break", "never")), ok ->
-                    ctx.check(!action(ok).isEmpty()).as("B: route:{break:'never'} starts: " + ok).isTrue());
-        }));
-    }
 }

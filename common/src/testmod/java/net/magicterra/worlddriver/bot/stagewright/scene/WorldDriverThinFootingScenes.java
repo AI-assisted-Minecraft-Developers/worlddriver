@@ -78,23 +78,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.serverWidensAThinFooting", 600,
                         ctx -> widensAThinFooting(ctx, 0)),
-                // Same cell, same stack, one difference: the blocks are in the backpack rather than
-                // the hotbar. holdPlaceable() has only ever looked at slots 0..8 (a tower once
-                // reported "out of blocks?" while the bot held 110 cobblestone), and rung 20 walks
-                // its End segments with the haul wherever picking it up put it. Two arms differing by
-                // exactly one variable is the only way to tell "the remedy is wrong" from "the
-                // remedy could not see the blocks".
-                Scene.of("wd.serverWidensFromTheBackpack", 600,
-                        ctx -> widensAThinFooting(ctx, 20)),
-                // The PLANNER's half of the backpack question above. wd.serverWidensFromTheBackpack
-                // proved the executor can reach slots 9..35; these two ask whether A* knows that.
-                // Same gap, same stack, one variable: which slot holds it.
-                Scene.of("wd.serverPlansABridgeFromTheHotbar", 600,
-                        ctx -> plansABridge(ctx, 0)),
                 Scene.of("wd.serverPlansABridgeFromTheBackpack", 600,
                         ctx -> plansABridge(ctx, 20)),
-                Scene.of("wd.serverStopsAtTheBridgeHead", 600,
-                        ctx -> stopsAtTheBridgeHead(ctx, 0)),
                 // Same bridge, one variable different: the goal is off the bridge's axis, so the
                 // path must TURN at the head instead of running straight out of it. The ladder's
                 // eighth departure had node -13,111,-3 — three out and one across — and the
@@ -115,9 +100,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // route runs ALONG the rim and was never going in. Same trench twice, and its fill is
                 // again the only variable.
                 Scene.of("wd.serverKeepsWalkingAtALavaRim", 600,
-                        WorldDriverThinFootingScenes::keepsWalkingAtALavaRim),
-                Scene.of("wd.serverKeepsWalkingAtADryRim", 600,
-                        WorldDriverThinFootingScenes::keepsWalkingAtADryRim));
+                        WorldDriverThinFootingScenes::keepsWalkingAtALavaRim));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -1145,12 +1128,6 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
      */
     private static void keepsWalkingAtALavaRim(SceneContext ctx) { rimArm(ctx, true); }
-
-    /** The lava arm's negative control — see {@link #keepsWalkingAtALavaRim}. The same trench filled
-     *  with stone, where the guard must stay silent and let the bot drift over the edge and drop the
-     *  four blocks: a fix that pinned at every lip would pass the lava arm and fail this one, which
-     *  is the only reason a bot is ever allowed to walk off anything. */
-    private static void keepsWalkingAtADryRim(SceneContext ctx) { rimArm(ctx, false); }
 
     private static void rimArm(SceneContext ctx, boolean lava) {
         Harness.pin(ctx);

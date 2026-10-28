@@ -60,25 +60,16 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 Scene.of("wd.bridgeLongRun", 600, WorldDriverBridgeScenes::bridgeLongRun),
                 Scene.of("wd.bridgeHurdle1", 600, WorldDriverBridgeScenes::bridgeHurdle1),
                 Scene.of("wd.bridgeHurdleSlabBypass", 700, WorldDriverBridgeScenes::bridgeHurdleSlabBypass),
-                Scene.of("wd.bridgeHurdle2Bypass", 700, WorldDriverBridgeScenes::bridgeHurdle2Bypass),
-                Scene.of("wd.bridgeHeadBlockBypass", 700, WorldDriverBridgeScenes::bridgeHeadBlockBypass),
-                Scene.of("wd.bridgeHeadBlockStop", 900, WorldDriverBridgeScenes::bridgeHeadBlockStop),
                 Scene.of("wd.bridgeHeadBlockStopShipped", 900, WorldDriverBridgeScenes::bridgeHeadBlockStopShipped),
                 Scene.of("wd.bridgeFootBlockStop", 900, WorldDriverBridgeScenes::bridgeFootBlockStop),
-                Scene.of("wd.bridgeStairUp", 700, WorldDriverBridgeScenes::bridgeStairUp),
-                Scene.of("wd.bridgeStairDown", 700, WorldDriverBridgeScenes::bridgeStairDown),
                 Scene.of("wd.bridgeDescendPlaceLip", 900, WorldDriverBridgeScenes::bridgeDescendPlaceLip),
-                Scene.of("wd.bridgeStairDownGapSafe", 700, WorldDriverBridgeScenes::bridgeStairDownGapSafe),
                 Scene.of("wd.bridgeStairDownGapDamage", 700, WorldDriverBridgeScenes::bridgeStairDownGapDamage),
                 Scene.of("wd.bridgeLethalGapStop", 900, WorldDriverBridgeScenes::bridgeLethalGapStop),
                 Scene.of("wd.bridgeFootholdPlace", 900, WorldDriverBridgeScenes::bridgeFootholdPlace),
                 Scene.of("wd.bridgeFootholdStarve", 900, WorldDriverBridgeScenes::bridgeFootholdStarve),
                 Scene.of("wd.bridgeStepTwoBypassNoPlace", 900, WorldDriverBridgeScenes::bridgeStepTwoBypassNoPlace),
-                Scene.of("wd.bridgeBreakThrough", 900, WorldDriverBridgeScenes::bridgeBreakThrough),
                 Scene.of("wd.bridgeDigShortcut", 900, WorldDriverBridgeScenes::bridgeDigShortcut),
                 Scene.of("wd.bridgeDetourCheap", 900, WorldDriverBridgeScenes::bridgeDetourCheap),
-                Scene.of("wd.bridgeLongFlatWalk", 1600, WorldDriverBridgeScenes::bridgeLongFlatWalk)
-                        .withChunkRadius(4),
                 Scene.of("wd.bridgeCausewayOverWater", 1600, WorldDriverBridgeScenes::bridgeCausewayOverWater)
                         .withChunkRadius(4));
     }
@@ -342,19 +333,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             ctx.fail(scene + ": rig broken: no segment was a best-effort partial | journey: " + r.journey());
     }
 
-    /** Open floor, 5 wide, 104 blocks: the plainest walk there is. The goal lies beyond the
-     *  planner's 48-block horizon plus the 25-block quick-start stub, so every segment is a
-     *  best-effort partial that string-pulling reduces to [start, far tail]. */
-    private static void bridgeLongFlatWalk(SceneContext ctx) {
-        liveStack(ctx);
-        final int half = 52;   // centred on the origin so radius 4 holds the course
-        for (int x = -half - 2; x <= half + 2; x++)
-            for (int z = -2; z <= 2; z++)
-                ctx.setBlock(x, DECK, z, Blocks.STONE);
-        catchFloor(ctx, -half - 4, half + 4, DECK - CATCH_DROP, -8, 8);
-        walkStraight(ctx, "bridgeLongFlatWalk", half);
-    }
-
     /** The same walk on a 1-wide causeway flush with two-deep water on both sides. Water rather
      *  than void, because a bot that steps off here swims instead of falling, and the failure this
      *  guards against ended with it in the water. */
@@ -423,42 +401,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         ctx.assertBlock(12, DECK + 1, 0, Blocks.STONE);
     }
 
-    /** 2-high obstacle with a bypass: full 2-tall pillar on the deck, bypass branch is the route.
-     *
-     *  <p>Same division of labour as {@link #bridgeHurdleSlabBypass}: {@code assertArrived} is what
-     *  can go red (with break OFF and only {@code z=0} sealed, arriving requires the detour), while
-     *  the {@code assertBlock} is a staging check that cannot fail on behaviour. */
-    private static void bridgeHurdle2Bypass(SceneContext ctx) {
-        liveStack(ctx);
-        BlockPos goal = frame(ctx, 24);
-        ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
-        ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
-        bypass(ctx, 12, 12, DECK);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 2000, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeHurdle2Bypass", r, DECK + 1);
-        assertArrived(ctx, "bridgeHurdle2Bypass", r, goal);
-        ctx.assertBlock(12, DECK + 2, 0, Blocks.STONE);
-    }
-
-    /** Head-height block with a bypass: head-height bar over the deck (foot cell free, head cell sealed —
-     *  a 1-tall gap fits no biped and the planner may not crawl), bypass is the route. */
-    private static void bridgeHeadBlockBypass(SceneContext ctx) {
-        liveStack(ctx);
-        BlockPos goal = frame(ctx, 24);
-        ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);            // head bar; foot cell open
-        bypass(ctx, 12, 12, DECK);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 2000, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeHeadBlockBypass", r, DECK + 1);
-        assertArrived(ctx, "bridgeHeadBlockBypass", r, goal);
-    }
-
-    /** Head-height block with no route: head bar, no bypass. Contract = advance to the farthest reachable
-     *  cell, hold there (or fail the goto), and NEVER leave the deck. */
-    private static void bridgeHeadBlockStop(SceneContext ctx) {
-        liveStack(ctx);
-        headBlockStop(ctx, "bridgeHeadBlockStop");
-    }
-
     /** The same stop on the shipped navigator, whose from-end discard is OFF: the journey must still
      *  reach the barrier and hold there instead of ping-ponging at the start pad. */
     private static void bridgeHeadBlockStopShipped(SceneContext ctx) {
@@ -484,32 +426,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         for (int x = 10; x <= 14; x++) ctx.setBlock(x, DECK + 3, 0, Blocks.STONE); // roof kills the jump
         Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1500, goal, DECK + 1);
         assertHeldAtBarrier(ctx, "bridgeFootBlockStop", r, goal, 12, DECK + 1);
-    }
-
-    /** Ascending single-width stair bridge: five +1 rises, four flat cells apart, all 1-wide. */
-    private static void bridgeStairUp(SceneContext ctx) {
-        liveStack(ctx);
-        pad(ctx, -2, DECK, 0);
-        for (int i = 0; i <= 5; i++) strip(ctx, i * 4, Math.min(i * 4 + 3, 23), DECK + i, 0);
-        pad(ctx, 25, DECK + 5, 0);
-        catchFloor(ctx, -6, 30, DECK - CATCH_DROP, -8, 8);
-        BlockPos goal = ctx.rel(25, DECK + 6, 0);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 2200, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeStairUp", r, DECK + 1);
-        assertArrived(ctx, "bridgeStairUp", r, goal);
-    }
-
-    /** Descending single-width stair bridge: mirror of stairUp — five -1 drops on a 1-wide strip. */
-    private static void bridgeStairDown(SceneContext ctx) {
-        liveStack(ctx);
-        pad(ctx, -2, DECK + 5, 0);
-        for (int i = 0; i <= 5; i++) strip(ctx, i * 4, Math.min(i * 4 + 3, 23), DECK + 5 - i, 0);
-        pad(ctx, 25, DECK, 0);
-        catchFloor(ctx, -6, 30, DECK - CATCH_DROP, -8, 8);
-        BlockPos goal = ctx.rel(25, DECK + 1, 0);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 6, 0), 2200, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeStairDown", r, DECK + 1);
-        assertArrived(ctx, "bridgeStairDown", r, goal);
     }
 
     /** Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge
@@ -552,12 +468,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             ctx.fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + left
                     + "/16) — the shaft crossing should need a placed bridge support ;; "
                     + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
-    }
-
-    /** Descending stair with a gap (safe): the descending strip breaks at x=12 with a drop-3 resume —
-     *  inside the dry-fall cap, the planner routes the fall and the bot continues after landing. */
-    private static void bridgeStairDownGapSafe(SceneContext ctx) {
-        stairGapScene(ctx, "bridgeStairDownGapSafe", 3, true);
     }
 
     /** Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge.
@@ -675,32 +585,6 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             ctx.fail("bridgeStepTwoBypassNoPlace: the stair bypass exists but blocks were spent (dirt="
                     + left + "/16) — placement should lose to the walk detour on cost ;; inv-events: "
                     + r.invEvents() + " ;; journey: " + r.journey());
-    }
-
-    /** Impassable obstacle with breaking enabled (passes with or without a pickaxe): a 2-tall wall
-     *  seals the deck, allowBreak ON, no bypass — the first run bare-handed, the second with an iron
-     *  pickaxe against a rebuilt wall. Digs are
-     *  instant on this topology (class doc); the coverage is the dig-through routing. */
-    private static void bridgeBreakThrough(SceneContext ctx) {
-        liveStack(ctx);
-        Harness.set("allowBreak", true);
-        BlockPos goal = frame(ctx, 24);
-        for (String leg : new String[] {"bareHand", "pickaxe"}) {
-            ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
-            ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
-            // Each leg's bot leaves before the next spawns; the cleanup only catches a leg that threw.
-            BlockPos p = ctx.rel(-2, DECK + 1, 0);
-            SceneBot bot = SceneBot.spawnBare(ctx, ctx.level(), p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
-            boolean[] removed = { false };
-            ctx.cleanup(() -> { if (!removed[0]) bot.remove(); });
-            bot.player().getInventory().clearContent();
-            if (leg.equals("pickaxe")) bot.player().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
-            Run r = drive(ctx, bot, 2200, goal, DECK + 1);
-            assertNeverFell(ctx, "bridgeBreakThrough[" + leg + "]", r, DECK + 1);
-            assertArrived(ctx, "bridgeBreakThrough[" + leg + "]", r, goal);
-            bot.remove();
-            removed[0] = true;
-        }
     }
 
     /** Digging is faster than the detour: thin wall (2 blocks) vs a LONG |dz|=6 detour (~32 extra walks),

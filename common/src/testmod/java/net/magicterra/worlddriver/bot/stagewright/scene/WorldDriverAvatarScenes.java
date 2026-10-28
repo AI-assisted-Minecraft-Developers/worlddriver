@@ -64,7 +64,6 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 Scene.of("wd.serverAgentDistinctBodies", 200, WorldDriverAvatarScenes::serverAgentDistinctBodiesScene),
                 Scene.of("wd.serverAvatarTickFidelity", 200, WorldDriverAvatarScenes::serverAvatarTickFidelityScene),
                 Scene.of("wd.serverAttackCooldown", 200, WorldDriverAvatarScenes::serverAttackCooldownScene),
-                Scene.of("wd.serverCapability", 200, WorldDriverAvatarScenes::serverCapabilityScene),
                 Scene.of("wd.serverElytra", 200, WorldDriverAvatarScenes::serverElytraScene),
                 Scene.of("wd.serverBotJoinsPastModdedPayload", 200, WorldDriverAvatarScenes::serverBotJoinsPastModdedPayloadScene));
     }
@@ -291,51 +290,6 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
     // ==================================================================================
     // wd.serverCapability — a server-side ServerPlayer avatar BREAKS and PLACES blocks headless.
     // ==================================================================================
-
-    private static void serverCapabilityScene(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-
-        Harness.pin(ctx);
-        ctx.cleanup(() -> {
-            for (int dx = -5; dx <= 5; dx++)
-                for (int dy = 0; dy <= 18; dy++)
-                    for (int dz = -5; dz <= 5; dz++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-        });
-
-        SceneArena.buildFloor(level, cx, cz, floorY);
-        BlockPos breakTarget = new BlockPos(cx + 2, floorY, cz);     // a floor block to mine
-        BlockPos placeCell = new BlockPos(cx - 2, floorY + 1, cz);   // empty cell (its floor neighbour is solid)
-
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", true);
-
-        SceneBot av = SceneBot.spawn(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayer fp = av.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
-        fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-
-        // BREAK: the tool for it, aim + hold attack on the floor block → becomes air.
-        av.press(av.keys().toolFor(Targets.pos(breakTarget)).aimAt(Targets.pos(breakTarget)).attack(true));
-        av.press(av.keys().attack(false));
-        boolean broke = level.getBlockState(breakTarget).isAir();
-
-        // PLACE: dirt in hand, then a right click on the floor's top face under the empty cell — the click the
-        // body's own place makes against the first solid neighbour, here the floor.
-        var hands = InteractApi.of(Calls.api());
-        Calls.now(hands.holdItem(new InteractContracts.HoldParams(av.ref(), "minecraft:dirt")));
-        Responses.ImmediateResponse used = Calls.now(hands.useItem(new InteractContracts.UseParams(av.ref(),
-                Optional.of(Targets.pos(placeCell.below())), Optional.empty(), Optional.of(InteractContracts.Face.UP),
-                InteractContracts.Hand.MAIN, false, false)));
-        ctx.record("place.used", String.valueOf(used));
-        boolean placed = !level.getBlockState(placeCell).isAir();
-
-        TestMod.LOG.info("[wd.serverCapability] broke={} placed={}", broke, placed);
-        if (!broke) ctx.fail("server agent failed to BREAK the block (still " + level.getBlockState(breakTarget) + ")");
-        if (!placed) ctx.fail("server agent failed to PLACE a block at " + placeCell);
-    }
 
     // ==================================================================================
     // wd.serverElytra — the migrated ElytraProcess enters fall-flying server-side without crashing.

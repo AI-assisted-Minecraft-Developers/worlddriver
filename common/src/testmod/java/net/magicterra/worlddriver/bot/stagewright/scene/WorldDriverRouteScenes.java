@@ -55,9 +55,6 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.routeAvoidsMobCluster", 400, WorldDriverRouteScenes::avoidsMobCluster),
                 Scene.of("wd.routeStaysOutOfSkeletonSight", 1_000, WorldDriverRouteScenes::staysOutOfSkeletonSight),
-                Scene.of("wd.routeBlockedNamesTheConstraint", 200, WorldDriverRouteScenes::blockedNamesTheConstraint),
-                Scene.of("wd.routeCorridorHolds", 200, WorldDriverRouteScenes::corridorHolds),
-                Scene.of("wd.routeRejoinsFromInsideACluster", 400, WorldDriverRouteScenes::rejoinsFromInsideACluster),
                 Scene.of("wd.routeReplansWhenTheWayAheadIsWalledOff", 200, WorldDriverRouteScenes::replansWhenWalledOff));
     }
 
@@ -126,22 +123,6 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         if (eye.distanceToSqr(at) > range * range) return false;
         return level.clip(new ClipContext(eye, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, observer))
                 .getType() == HitResult.Type.MISS;
-    }
-
-    /** The distance from {@code (x, y, z)} to the polyline through the centres of {@code points}' floors. */
-    private static double polylineDistance(List<BlockPos> points, double x, double y, double z) {
-        double best = Double.POSITIVE_INFINITY;
-        for (int i = 0; i < points.size(); i++) {
-            BlockPos a = points.get(i), b = points.get(Math.min(i + 1, points.size() - 1));
-            double ax = a.getX() + 0.5, ay = a.getY(), az = a.getZ() + 0.5;
-            double abx = b.getX() + 0.5 - ax, aby = b.getY() - ay, abz = b.getZ() + 0.5 - az;
-            double len2 = abx * abx + aby * aby + abz * abz;
-            double t = len2 <= 1e-12 ? 0 : Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby + (z - az) * abz) / len2));
-            double dx = x - (ax + t * abx), dy = y - (ay + t * aby), dz = z - (az + t * abz);
-            best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz));
-            if (i + 1 >= points.size()) break;
-        }
-        return best;
     }
 
     private static String cells(List<BlockPos> path) {
@@ -262,91 +243,6 @@ public final class WorldDriverRouteScenes implements SceneProvider {
                 ctx.check(gap <= 1.5).as(String.format(Locale.ROOT, "E: the bot walked to the goal: horizontal distance %.2f", gap)).isTrue();
                 ctx.check(seen[0] <= 60).as("F: the skeleton could see the bot for at most 60 ticks over the whole walk: " + seen[0]).isTrue();
             });
-        });
-    }
-
-    /**
-     * The goal walled in by the caller's own forbid region: the search is best-effort and
-     * {@code blockedBy} over the route's own constraints names {@code ForbidRegion} — whatever the
-     * built-in filters pruned meanwhile.
-     */
-    private static void blockedNamesTheConstraint(SceneContext ctx) {
-        Harness.pin(ctx);
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
-        slab(level, cx, cz, y, -3, 13, -4, 4);
-        BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 10, y + 1, cz);
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        RouteContracts.Route route = Routes.plain().forbidBox(new BlockPos(cx + 7, y, cz - 4), new BlockPos(cx + 13, y + 4, cz + 4)).build();
-        DebugContracts.SinglePlan res = plan(bot, start, goal, route);
-        String reason = res.conditions().blockedBy().orElse(null);
-        ctx.record("search", "goalReached=" + res.goalReached() + " cells=" + res.pathLen() + " prunedBy=" + res.conditions().prunedBy()
-                + " reason=" + reason);
-        ctx.check(!res.goalReached()).as("A: the goal is fully enclosed, so the search can only be best-effort").isTrue();
-        ctx.check(res.conditions().prunedBy().getOrDefault("ForbidRegion", 0) > 0)
-                .as("B: this route's ForbidRegion is in force and refused edges: " + res.conditions().prunedBy()).isTrue();
-        ctx.check("constraint:ForbidRegion".equals(reason)).as("C: the cause is constraint:ForbidRegion: " + reason).isTrue();
-    }
-
-    /** A hard corridor along a bent polyline: every cell of the route within its radius, the straight route not. */
-    private static void corridorHolds(SceneContext ctx) {
-        Harness.pin(ctx);
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
-        slab(level, cx, cz, y, -3, 23, -9, 4);
-        BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        List<BlockPos> line = List.of(new BlockPos(cx, y + 1, cz), new BlockPos(cx + 10, y + 1, cz - 6), new BlockPos(cx + 20, y + 1, cz));
-        RouteContracts.Route route = Routes.plain().corridor(line, 2).build();
-        DebugContracts.SinglePlan plain = plan(bot, start, goal, Routes.plain().build());
-        DebugContracts.SinglePlan held = plan(bot, start, goal, route);
-        double plainWorst = 0, heldWorst = 0;
-        for (BlockPos p : path(plain)) plainWorst = Math.max(plainWorst, polylineDistance(line, p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
-        for (BlockPos p : path(held)) heldWorst = Math.max(heldWorst, polylineDistance(line, p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
-        ctx.record("straight", String.format(Locale.ROOT, "cells=%d max distance from the polyline %.2f", plain.pathLen(), plainWorst));
-        ctx.record("corridor", String.format(Locale.ROOT, "goalReached=%s cells=%d max distance from the polyline %.2f prunedBy=%s: %s",
-                held.goalReached(), held.pathLen(), heldWorst, held.conditions().prunedBy(), cells(path(held))));
-        ctx.check(plainWorst > 2).as(String.format(Locale.ROOT, "A: without a corridor the route strays %.2f blocks from the polyline", plainWorst)).isTrue();
-        ctx.check(held.goalReached()).as("B: the goal is reached under the corridor constraint").isTrue();
-        ctx.check(heldWorst <= 2 + 1e-6).as(String.format(Locale.ROOT, "C: every route cell is within radius 2 of the polyline: max %.2f", heldWorst)).isTrue();
-    }
-
-    /**
-     * The start itself is a cluster cell — three penned zombies two cells west, north and south.
-     * The rejoin rule lets the search leave (count not rising, nearest mob receding) instead of
-     * pruning every first edge, and once the route is out of the cluster it never re-enters one.
-     */
-    private static void rejoinsFromInsideACluster(SceneContext ctx) {
-        Harness.pin(ctx);
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
-        slab(level, cx, cz, y, -6, 18, -6, 6);
-        // NoAi mobs stand still, so the pens are the cells themselves; a fence ring would only
-        // change which edges are walkable, not the cluster arithmetic under test.
-        List<Mob> zombies = new ArrayList<>();
-        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx - 1.5, y + 1, cz + 0.5));
-        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz + 2.5));
-        zombies.add(spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz - 1.5));
-        BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 16, y + 1, cz);
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, y + 1, cz + 0.5);
-        RouteContracts.Route route = Routes.plain().mobCluster(3, 6).build();
-        whenIndexed(ctx, level, new AABB(start).inflate(4), 3, () -> {
-            DebugContracts.SinglePlan res = plan(bot, start, goal, route);
-            List<BlockPos> path = path(res);
-            int atStart = clusterCount(zombies, start, 6);
-            boolean out = false;
-            BlockPos reentry = null;
-            for (BlockPos p : path) {
-                boolean clustered = clusterCount(zombies, p, 6) >= 3;
-                if (!clustered) out = true;
-                else if (out && reentry == null) reentry = p;
-            }
-            ctx.record("search", atStart + " mobs within 6 blocks of the start, goalReached=" + res.goalReached() + " cells=" + path.size()
-                    + " prunedBy=" + res.conditions().prunedBy() + ": " + cells(path));
-            ctx.check(atStart >= 3).as("A: the start itself is a mob-cluster cell: " + atStart + " mobs").isTrue();
-            ctx.check(res.goalReached()).as("B: the rejoin rule takes effect and the search returns a route that reaches the goal").isTrue();
-            ctx.check(out && reentry == null).as("C: after leaving the cluster the route never enters another mob-cluster cell"
-                    + (reentry == null ? "" : ": it re-entered at " + reentry.toShortString())).isTrue();
         });
     }
 

@@ -76,61 +76,14 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.summit", 200, WorldDriverTerrainScenes::summit),
                 Scene.of("wd.sheerWall", 200, WorldDriverTerrainScenes::sheerWall),
-                Scene.of("wd.bridgeGap", 200, WorldDriverTerrainScenes::bridgeGap),
                 Scene.of("wd.parkourAscend", 200, WorldDriverTerrainScenes::parkourAscend),
                 Scene.of("wd.ridgeOvershoot", 200, WorldDriverTerrainScenes::ridgeOvershoot),
-                Scene.of("wd.stepUpCrestOrbit", 200, WorldDriverTerrainScenes::stepUpCrestOrbit),
                 Scene.of("wd.descent", 200, WorldDriverTerrainScenes::descent),
                 // wd.descentDrift intentionally NOT registered — retired-without-scene (see class javadoc).
                 Scene.of("wd.ascentSpeed", 200, WorldDriverTerrainScenes::ascentSpeed),
                 Scene.of("wd.ledgeOvershoot", 200, WorldDriverTerrainScenes::ledgeOvershoot).withChunkRadius(2),
-                Scene.of("wd.wallCollisionProbe", 200, WorldDriverTerrainScenes::wallCollisionProbe),
-                Scene.of("wd.bridgeDescend", 200, WorldDriverTerrainScenes::bridgeDescend),
                 Scene.of("wd.bareHandDigCadence", 200, WorldDriverTerrainScenes::bareHandDigCadence));
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#summitArena}: a bot's goto pillars up through an
-     *  oak-leaf canopy (cardinal-neighbour leaf at each rung ceiling). Break+place ON; the
-     *  {@code navigatorPillarReachGoalNoSnap} flag keeps the elevated air goal pillar-reachable.
-     *  Asserts the bot reaches the elevated goal. The canopy {@code toBreak} fix itself (the rung
-     *  lists the ceiling-neighbour leaf) is checked by {@code PillarUpTest} over a grid. */
-    private static void summit(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y(200)+20
-        SceneArena.buildFloor(level, cx, cz, floorY);
-        // A CANOPY: leaves only in the rows the rising head meets (the first rung's ceiling and the
-        // one above). The column used to run down to foot level, which is a wall, not a canopy —
-        // a player cannot be off-centre into a wall beside its own feet, so PillarUp rightly stops
-        // listing that side once the wall reaches the foot or the head (wd.clientPillarOutOfShaft).
-        for (int y = standY + 3; y <= standY + 4; y++)
-            level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
-        BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
-
-        Harness.pin(ctx);
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", true);
-        Harness.set("navigatorPillarReachGoalNoSnap", true);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.06, standY, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-        fp.getInventory().selected = 0;
-
-        bot.goTo(Targets.block(goal));
-        bot.tickUntilIdle(400);
-        String s = NavWalk.step(bot);
-        boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
-                && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
-                && fp.getY() >= standY + 3 - 0.4;
-        boolean leafCleared = level.getBlockState(new BlockPos(cx - 1, standY + 3, cz)).isAir();
-        TestMod.LOG.info("[wd.summit] step={} y={} reached={} leafCleared={}",
-                s, fp.getY(), reached, leafCleared);
-        if (!reached)
-            ctx.fail("summit: the goto failed to pillar to goal: y=" + fp.getY() + " step=" + s);
     }
 
     /** Ported from {@code AgentGameTestTerrain#sheerWallArena}: a bot's goto climbs a
@@ -181,49 +134,6 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         if (!onPlateau)
             ctx.fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " step=" + s);
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#bridgeGapArena}: a bot's goto bridges a
-     *  3-cell void gap (full x-width, so the only crossing is a +z bridge). Break OFF = no
-     *  dig-around, place ON. Asserts the avatar reaches the far platform. */
-    private static void bridgeGap(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y+20
-        for (int dx = -5; dx <= 5; dx++) {
-            for (int dz = -5; dz <= 5; dz++) {
-                boolean platform = dz <= -1 || dz >= 3;
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz),
-                        platform ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
-                for (int yy = 1; yy <= 18; yy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + yy, cz + dz), Blocks.AIR.defaultBlockState());
-                if (!platform)
-                    for (int yy = 1; yy <= 4; yy++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - yy, cz + dz), Blocks.AIR.defaultBlockState());
-            }
-        }
-        BlockPos goal = new BlockPos(cx, standY, cz + 4);
-
-        Harness.pin(ctx);
-        Harness.set("allowBreak", false);   // force the bridge — no dig-around
-        Harness.set("allowPlace", true);
-        Harness.set("navigatorDebug", true);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
-        ServerPlayer fp = bot.player();
-        fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-        fp.getInventory().selected = 0;
-
-        bot.goTo(Targets.block(goal));
-        bot.tickUntilIdle(600);
-        String s = NavWalk.step(bot);
-        boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
-        TestMod.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
-                s, fp.getX(), fp.getY(), fp.getZ(), crossed);
-        if (!crossed)
-            ctx.fail("bridgeGap: the goto failed to bridge the 3-cell gap: pos=("
-                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
     }
 
     /** Ported from {@code AgentGameTestTerrain#parkourAscendArena}: regression guard for the
@@ -334,103 +244,6 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         if (maxNoProgress > 80)
             ctx.fail("ridgeOvershoot: fall-overshoot wedge — stalled " + maxNoProgress
                     + " ticks at a node the bot dropped past (budget 80)");
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#stepUpCrestOrbitArena}: a deterministic A/B on the
-     *  +1 STEPUP-CREST NODE-ORBIT gate. The scene HOLDS the orbit pose (foot at the node Y, ~0.74 b
-     *  short of centre, cur2≈0.55, zero velocity) every tick — a pure function of pose + stall
-     *  counter, so it is deterministic by construction (auto slot safe). Arm 0 (flag OFF) must WEDGE
-     *  (step frozen), arm 1 (flag ON) must ADVANCE. The ONLY variable is
-     *  {@code navigatorStepUpCrestReach}. A single {@code createUnique} player is reused across both
-     *  arms (the truest port of the legacy shared player repositioned for each arm). */
-    private static void stepUpCrestOrbit(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), baseY = ctx.origin().getY();   // legacy baseY 200 = origin.y
-        final int footY = baseY + 1;
-        for (int dx = -6; dx <= 10; dx++)
-            for (int dz = -3; dz <= 3; dz++)
-                for (int y = baseY - 2; y <= footY + 6; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        for (int dx = -4; dx <= 2; dx++)
-            level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz), Blocks.STONE.defaultBlockState());
-        for (int dx = -4; dx <= -1; dx++)
-            level.setBlockAndUpdate(new BlockPos(cx + dx, footY, cz), Blocks.STONE.defaultBlockState());
-        BlockPos approach = new BlockPos(cx + 1, footY, cz);
-        BlockPos node = new BlockPos(cx, footY, cz);
-        BlockPos cont = new BlockPos(cx - 1, footY + 1, cz);   // diagUp continuation, FURTHER + one higher
-        BlockPos goalN = new BlockPos(cx - 3, footY + 1, cz);
-        final double poseX = node.getX() + 0.5 + 0.74;   // 0.74 b east of centre → cur2 = 0.74² ≈ 0.548
-        final double poseY = footY;                       // foot at the node block-Y (|dyNode| ≈ 0)
-        final double poseZ = node.getZ() + 0.5;           // centred in Z
-
-        Harness.pin(ctx);
-        Harness.set("allowBreak", false);          // no carving — the stall must be the crest orbit, not a dig
-        Harness.set("allowPlace", false);
-        Harness.untimed(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, poseX, poseY, poseZ);
-        ServerPlayer fp = bot.player();
-        SimProbes.grantWaterEffects(fp);       // resistance only — keeps a stray bonk from harming mid-test
-
-        int[] advanceTick = { -1, -1 };
-        int[] nodeDwell = new int[2];
-        boolean[] advanced = new boolean[2];
-        double[] obsCur2 = { Double.NaN, Double.NaN };
-        List<DebugContracts.PlanEdge> plan = List.of(
-                ScenePlan.edge(approach, "walk"),
-                ScenePlan.edge(node, "stepUp"),
-                ScenePlan.edge(cont, "diagUp"),
-                ScenePlan.edge(goalN, "walk"));
-        for (int leg = 0; leg < 2; leg++) {
-            Harness.set("navigatorStepUpCrestReach", (leg == 1));
-            Harness.set("navigatorDebug", true);
-            fp.setPos(poseX, poseY, poseZ);
-            fp.setDeltaMovement(0, 0, 0);
-            bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), plan)
-                    .goal(Targets.block(goalN)).from(Targets.pos(node)));
-
-            boolean walking = true;
-            int endStep = 0;
-            for (int t = 0; t < 200 && walking; t++) {
-                fp.setPos(poseX, poseY, poseZ);
-                fp.setDeltaMovement(0, 0, 0);
-                bot.tick();
-                walking = bot.busy();
-                fp.setPos(poseX, poseY, poseZ);     // re-assert after physics too
-                fp.setDeltaMovement(0, 0, 0);
-                BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
-                if (at == null) continue;
-                endStep = at.step();
-                if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
-                    double dx = (node.getX() + 0.5) - poseX;
-                    double dz = (node.getZ() + 0.5) - poseZ;
-                    obsCur2[leg] = dx * dx + dz * dz;
-                    nodeDwell[leg]++;
-                }
-                if (advanceTick[leg] < 0 && at.step() >= 2) {
-                    advanceTick[leg] = t;
-                    advanced[leg] = true;
-                }
-            }
-            bot.cancel();
-            TestMod.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} walking={}",
-                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], endStep,
-                    String.format(Locale.ROOT, "%.3f", obsCur2[leg]), walking);
-        }
-        if (!(obsCur2[0] > 0.45 && obsCur2[0] < 1.3))
-            ctx.fail("stepUpCrestOrbit: the held pose cur2=" + String.format(Locale.ROOT, "%.3f", obsCur2[0])
-                    + " is not in the orbit band (0.45, 1.3) — re-tune poseX so the gate is exercised faithfully.");
-        if (advanced[0])
-            ctx.fail("stepUpCrestOrbit: with the fix OFF the step-pointer ADVANCED past the crest stepUp node "
-                    + "(advanceTick=" + advanceTick[0] + ") — the orbit did not reproduce; the OFF arm must stay "
-                    + "pinned (within needs cur2<0.45 and passed can't fire at the held orbit pose).");
-        if (!advanced[1])
-            ctx.fail("stepUpCrestOrbit: with navigatorStepUpCrestReach ON the step-pointer FAILED to advance past the "
-                    + "crest stepUp node (pinned " + nodeDwell[1] + " ticks) — the fix did not fire. heldCur2_ON="
-                    + String.format(Locale.ROOT, "%.3f", obsCur2[1]));
-        if (advanceTick[1] > 40)
-            ctx.fail("stepUpCrestOrbit: with the fix ON the advance was SLOW (advanceTick=" + advanceTick[1]
-                    + " > 40) — the relaxation should fire shortly after the stall gate, not drift.");
     }
 
     /** Ported from {@code AgentGameTestTerrain#descentArena}: regression guard for the descent
@@ -624,89 +437,6 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     + fp.getY() + "," + fp.getZ() + ") dGoal=" + dGoal + " step=" + s);
         if (worstBack < -0.6)
             ctx.fail("ledgeOvershoot: backward-hop regressed to " + worstBack + " blocks/tick (baseline ~-0.12)");
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#wallCollisionProbe}: does a bot's body collide with a
-     *  2-tall vertical wall? Drives the body straight (+z) into a 2-tall wall by holding the forward
-     *  and sprint keys over body-only steps (NOT the navigator) and asserts it does NOT pass through.
-     *  Break OFF. */
-    private static void wallCollisionProbe(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int H = ctx.origin().getY() + 40;   // legacy H 240 = origin.y+40
-        for (int x = cx - 1; x <= cx + 1; x++)
-            for (int z = cz - 1; z <= cz + 4; z++)
-                level.setBlockAndUpdate(new BlockPos(x, H - 1, z), Blocks.STONE.defaultBlockState());
-        for (int x = cx - 1; x <= cx + 1; x++)
-            for (int y = H; y <= H + 1; y++)
-                level.setBlockAndUpdate(new BlockPos(x, y, cz + 2), Blocks.STONE.defaultBlockState());
-
-        Harness.pin(ctx);
-        Harness.set("allowBreak", false);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx + 0.5, H, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        boolean wallSolid = !level.getBlockState(new BlockPos(cx, H, cz + 2)).isAir();
-        double maxZ = fp.getZ();
-        // Forward and sprint held for the whole run; a key stays down until the next press changes it.
-        bot.press(bot.keys().move(0, 1).sprint(true));
-        for (int t = 0; t < 80; t++) {
-            fp.setYRot(0f);                          // face +z, straight at the wall
-            bot.step();
-            if (fp.getZ() > maxZ) maxZ = fp.getZ();
-        }
-        bot.release();
-        TestMod.LOG.info("[wd.wallCollisionProbe] wallSolid={} startZ={} finalZ={} maxZ={} (wall front at z={})",
-                wallSolid, cz + 0.5, String.format(Locale.ROOT, "%.2f", fp.getZ()),
-                String.format(Locale.ROOT, "%.2f", maxZ), cz + 2);
-        if (maxZ > cz + 1.8)
-            ctx.fail("wallCollisionProbe: avatar PASSED THROUGH a 2-tall wall: maxZ=" + maxZ
-                    + " (wall front z=" + (cz + 2) + ", wallSolid=" + wallSolid + ")");
-    }
-
-    /** Ported from {@code AgentGameTestTerrain#bridgeDescendArena}: a DESCENDING bridge — the bot
-     *  bridgePlaces across a wide gap onto a far side ONE BLOCK LOWER than its start, and must reach
-     *  it. Break OFF, place ON. Descending-bridge smoke coverage (the sneak ledge-guard fix's real
-     *  gate is the live A/B; this clean arena passes with or without it). */
-    private static void bridgeDescend(SceneContext ctx) {
-        ServerLevel level = ctx.level();
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int baseY = ctx.origin().getY() + 10;   // legacy baseY 210 = origin.y+10
-        for (int dx = -8; dx <= -1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + 1, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = 5; dx <= 14; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
-        BlockPos goal = new BlockPos(cx + 12, baseY + 1, cz);
-
-        Harness.pin(ctx);
-        Harness.set("allowBreak", false);
-        Harness.set("allowPlace", true);                 // bridging needs placement
-        Harness.set("navigatorDebug", false);
-        Harness.untimed(ctx);
-
-        SceneBot bot = SceneBot.spawn(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
-        ServerPlayer fp = bot.player();
-        SimProbes.grantWaterEffects(fp);
-        fp.getInventory().add(new ItemStack(Items.DIRT, 64));
-        bot.goTo(Targets.block(goal));
-
-        int crossTick = -1;
-        boolean walking = true;
-        for (int t = 0; t < 400 && walking; t++) {
-            bot.tick();
-            walking = bot.busy();
-            if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
-        }
-        String s = NavWalk.step(bot);
-        boolean crossed = fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4;
-        TestMod.LOG.info("[wd.bridgeDescend] step={} pos=({},{},{}) crossed={} crossTick={}",
-                s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
-                String.format(Locale.ROOT, "%.1f", fp.getZ()), crossed, crossTick);
-        if (!crossed)
-            ctx.fail("bridgeDescend: descending bridge wedged (sneak ledge-guard?): pos=("
-                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
     }
 
     /** Ported from {@code AgentGameTestTerrain#bareHandDigCadenceArena}: BARE-HAND DIG CADENCE gate

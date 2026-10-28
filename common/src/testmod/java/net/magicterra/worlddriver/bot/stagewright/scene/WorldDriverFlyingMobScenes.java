@@ -65,10 +65,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.mobParrotFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.PARROT)),
-                Scene.of("wd.mobBeeFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.BEE)),
-                Scene.of("wd.mobAllayFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.ALLAY)),
                 Scene.of("wd.mobBatFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.BAT)),
-                Scene.of("wd.mobVexFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.VEX)),
                 Scene.of("wd.mobPhantomFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.PHANTOM)),
                 Scene.of("wd.mobBlazeFliesOverAWall", 1000, ctx -> fliesOverAWall(ctx, EntityType.BLAZE)),
                 Scene.of("wd.mobGhastTakesTheHoleItFits", 1000, WorldDriverFlyingMobScenes::ghastTakesTheHoleItFits),

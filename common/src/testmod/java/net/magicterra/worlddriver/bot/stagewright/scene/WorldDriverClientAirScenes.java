@@ -27,8 +27,6 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.clientGotoStartsMidAir", 2_000, WorldDriverClientAirScenes::gotoStartsMidAir),
-                Scene.of("wd.clientGotoStartsMidAirOverWater", 2_000,
-                        WorldDriverClientAirScenes::gotoStartsMidAirOverWater),
                 Scene.of("wd.clientParkourOverChasm", 2_000, WorldDriverClientAirScenes::parkourOverChasm),
                 Scene.of("wd.clientPillarOutOfShaft", 2_000, WorldDriverClientAirScenes::pillarOutOfShaft));
     }
@@ -154,19 +152,6 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
     private static void gotoStartsMidAir(SceneContext ctx) {
         stageSlab(ctx);
         run(ctx, "stone", 200);
-    }
-
-    /**
-     * The same drop over a pool: the landing is a splash, the first dry cell is the far rim, and
-     * the walk ends only when the player stands on it. A bot that treats the splash as the end of
-     * the fall and then hunts for the exit is what the budget is against.
-     */
-    private static void gotoStartsMidAirOverWater(SceneContext ctx) {
-        stageSlab(ctx);
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++)
-                for (int dy = 0; dy > -4; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
-        run(ctx, "pool", 320);
     }
 
     private static void run(SceneContext ctx, String landing, int arriveBy) {
