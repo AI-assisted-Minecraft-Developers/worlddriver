@@ -54,7 +54,7 @@ parameterised call beats one that depends on where the crosshair happens to poin
 - `application/DriverApplication.java` — the three-way dispatch on the use-item route.
 - `application/BodyInteractions.java` — the same operation for a bot player that is not the client's, where the reach
   check has to be explicit because there is no server to silently drop it.
-- `mcp/catalog/BotTools.java` — the advertised schema and the documented return shape.
+- `api/.../methods/interact/InteractContracts.java` — the advertised schema and the documented return shape.
 
 This capability exists because someone outside the project needed it and said so; the report is
 `docs/archive/feedback/2026-07-10-gui-layout-regression-no-entity-interact.md`.

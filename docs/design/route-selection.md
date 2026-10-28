@@ -256,4 +256,4 @@ trims and fast-forwards, so cell-for-cell equality is not a property the design 
 - `bot/PreviewSearch.java` and `Navigator.adoptPlan` (`bot/control/route/RouteAdoption.java`) — preview and adoption.
 - `bot/behavior/RouteEvents.java` — the three events and the debounce.
 - `bot/SceneOverlays.java` — the sight and mob-density overlays.
-- `mcp/catalog/BotTools.java` — the advertised schema, and the migration note for the removed fields.
+- `api/.../methods/bot/RouteContracts.java` — the advertised schema.

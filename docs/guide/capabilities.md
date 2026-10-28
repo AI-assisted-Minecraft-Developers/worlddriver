@@ -5,7 +5,7 @@ them by what you would reach for them to do, rather than by the package they liv
 gives the notable parameters of each.
 
 **Where the authoritative list lives.** The schemas are declared in
-`common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`, one file per family, and the
+`api/src/main/java/net/magicterra/worlddriver/api/methods/`, one package per family, and the
 routing table that binds each name to an implementation is assembled by
 `common/src/main/java/net/magicterra/worlddriver/application/DriverApplication.java`. A live server answers
 `tools/list` with what it has registered, including anything an optional subsystem added, so

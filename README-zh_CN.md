@@ -35,7 +35,7 @@ external MCP client            in-game JS script              external WS client
 
 七十余个方法按职责分组。下表用于建立总体印象；逐方法的完整接口，连同参数与返回结构，见
 [`docs/guide/capabilities.md`](docs/guide/capabilities.md)，而 schema 本身由
-`common/src/main/java/net/magicterra/worlddriver/mcp/catalog/` 生成。
+`api/src/main/java/net/magicterra/worlddriver/api/methods/` 里的契约生成。
 
 | 分组 | 用途 |
 |---|---|
@@ -171,16 +171,21 @@ JavaScript 校验脚本随 testmod 提供，以 StageWright 脚本测试的形�
 
 ```
 worlddriver/
-├── common/              Architectury 共享源码：路由器、各传输层、Rhino 胶水
+├── api/                 对外契约，单独发布成一个 jar
+│   └── src/main/java/net/magicterra/worlddriver/api/
+│       ├── methods/        各方法族的参数、返回值与 schema
+│       ├── registry/       ApiRegistry，所有传输层都调用的路由器
+│       └── thread/         把工作派发到游戏线程
+├── api-processor/       生成类型化调用器的注解处理器，只在编译期使用
+├── common/              Architectury 共享源码
 │   ├── src/main/java/net/magicterra/worlddriver/
-│   │   ├── api/            方法契约，以及运行它们的路由器 ApiRegistry
-│   │   ├── application/    每个方法背后的处理器
-│   │   ├── bot/            客户端侧自主层：寻路器、navigator、各进程
-│   │   ├── mcp/            MCP HTTP 服务器与工具目录
+│   │   ├── application/    每个方法族背后的服务
+│   │   ├── bot/            自主层：寻路器、navigator、各种行为
+│   │   ├── game/           访问游戏：观察、改世界、身体、客户端界面
+│   │   ├── config/         每层一个设置类
+│   │   ├── mcp/            MCP HTTP 服务器
 │   │   ├── rpc/            Netty WebSocket 服务器与 JSON 编解码
-│   │   ├── script/         Rhino 接入、求值器、可选的类过滤器
-│   │   ├── model/          各传输层共用的 wire 类型
-│   │   └── client/         仅客户端调用的中介；实现按 loader 分别提供
+│   │   └── script/         Rhino 接入、求值器、可选的类过滤器
 │   ├── src/testmod/     StageWright 运行的游戏内测试，以及 JavaScript 校验脚本
 │   └── src/test/        不需要游戏的纯 JVM 测试
 ├── fabric/              Fabric 入口与客户端侧实现

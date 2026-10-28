@@ -38,7 +38,7 @@ external MCP client            in-game JS script              external WS client
 Something over seventy methods are grouped by concern. The table below is an orientation map;
 the method-by-method surface, with parameters and return shapes, is in
 [`docs/guide/capabilities.md`](docs/guide/capabilities.md), and the schemas themselves are
-generated from `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
+generated from the contracts in `api/src/main/java/net/magicterra/worlddriver/api/methods/`.
 
 | Group | What it is for |
 |---|---|
@@ -193,15 +193,21 @@ see [`docs/dev/testing.md`](docs/dev/testing.md).
 
 ```
 worlddriver/
-├── common/              Architectury shared sources: the router, the transports, the Rhino glue
+├── api/                 The public contract, published as its own jar
+│   └── src/main/java/net/magicterra/worlddriver/api/
+│       ├── methods/        Each method family's parameters, results and schema
+│       ├── registry/       ApiRegistry, the router every transport calls
+│       └── thread/         Getting work onto the game thread
+├── api-processor/       Annotation processor that generates the typed callers; compile time only
+├── common/              Architectury shared sources
 │   ├── src/main/java/net/magicterra/worlddriver/
-│   │   ├── api/            The method contracts and ApiRegistry, the router that runs them
-│   │   ├── application/    The handler behind each method
-│   │   ├── bot/            The client-side autonomous layer: pathfinder, navigator, processes
-│   │   ├── mcp/            The MCP HTTP server and the tool catalog
+│   │   ├── application/    The service behind each method family
+│   │   ├── bot/            The autonomous layer: pathfinder, navigator, behaviours
+│   │   ├── game/           Access to the game: observation, world edits, bodies, client screens
+│   │   ├── config/         One settings class per layer
+│   │   ├── mcp/            The MCP HTTP server
 │   │   ├── rpc/            The Netty WebSocket server and the JSON codec
-│   │   ├── script/         Rhino integration, the evaluator, the optional class filter
-│   │   └── client/         The broker for client-only calls; implementations live per loader
+│   │   └── script/         Rhino integration, the evaluator, the optional class filter
 │   ├── src/testmod/     The in-game tests StageWright runs, and the JavaScript validation scripts
 │   └── src/test/        Plain JVM tests that need no game
 ├── fabric/              Fabric entry point and client-side implementation
