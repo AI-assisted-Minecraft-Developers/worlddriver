@@ -25,6 +25,16 @@ keep one body and one save across tests (StageWright's TODO tracks that gap).
 Markers, `/worlddriver mark|scene|anchor` and the `human.*` scenes were deleted with the old path.
 Hand-built scenes need a new design that saves into, and runs as, new-path tests.
 
+### Nothing checks that a test runs each baselined setting at its shipped default
+
+`check_baseline_coverage.py` read settings in a form the code no longer has and was deleted. The remaining guard,
+`GameTestBaselineManifestTest`, covers what the baseline sets, not that some test exercises the shipped value.
+
+### Eight stacked doc comments on master
+
+`scripts/check_stacked_javadoc.py` fails on eight places in `bot/control/`, `BotTaskService` and `BotUtil` where
+javac keeps only the second of two doc comments.
+
 ## Engine and mod code
 
 ### `wd.serverEarnsAnEnderPearl` is required and depends on loot rolls
