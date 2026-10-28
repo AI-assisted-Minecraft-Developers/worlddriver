@@ -206,10 +206,6 @@ loom {
     runConfigs.configureEach {
         // The StageWright suites' runs (stagewright<Suite>…) set their own heap.
         if (it.name.startsWith('stagewright')) return
-        // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
-        if (it.getSource(project) == sourceSets.testmod) {
-            property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        }
         // Cap heap so a stuck server can't trigger system OOM.
         vmArg '-Xmx2g'
     }

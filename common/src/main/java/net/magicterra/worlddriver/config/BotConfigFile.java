@@ -36,11 +36,10 @@ public final class BotConfigFile {
         return Path.of("config", "worlddriver_bot.properties");
     }
 
-    /** Persistence is opt-in so headless validation / GameTest never read or write
-     *  the file (their setting tests must run on pristine defaults). */
+    /** Persistence is opt-in so test runs never read or write the file (their setting
+     *  tests must run on pristine defaults). */
     private static boolean persistEnabled() {
-        return Boolean.getBoolean("worlddriver.persistConfig")
-                && !Boolean.getBoolean("worlddriver.runValidation");
+        return Boolean.getBoolean("worlddriver.persistConfig");
     }
 
     /** Suffix of the SHADOW-DEFAULT companion line written next to every persisted

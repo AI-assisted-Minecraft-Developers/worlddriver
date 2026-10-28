@@ -20,7 +20,6 @@ public final class WorldDriver {
     private static volatile DriverHost host;
     private static volatile int rpcPort = -1;
     private static volatile int mcpPort = -1;
-    private static volatile ScriptChecks scripts;
     private static volatile Scripting scripting;
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
 
@@ -35,9 +34,6 @@ public final class WorldDriver {
 
     /** The MCP HTTP server's port, -1 until it listens. */
     public static int mcpPort() { return mcpPort; }
-
-    /** Runs a directory of scripts against the RPC and MCP servers and answers their checks; null until the driver is up. */
-    public static ScriptChecks scripts() { return scripts; }
 
     /** Evaluates JavaScript bound to this game's methods; null until the driver is up. */
     public static Scripting scripting() { return scripting; }
@@ -72,9 +68,6 @@ public final class WorldDriver {
 
     /** The mod's bootstrap: the MCP server listens on {@code port}. */
     public static void mcpListening(int port) { mcpPort = port; }
-
-    /** The mod's bootstrap: scripts can be run through {@code runner}. */
-    public static void scriptsReady(ScriptChecks runner) { scripts = runner; }
 
     /** The mod's bootstrap: JavaScript can be evaluated through {@code engine}. */
     public static void scriptingReady(Scripting engine) { scripting = engine; }

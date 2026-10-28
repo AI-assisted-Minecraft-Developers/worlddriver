@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver;
 
-import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.TestContent;
 import net.magicterra.worlddriver.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.application.DriverApplication;
@@ -18,7 +17,6 @@ import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
 import net.magicterra.worlddriver.script.RpcBridge;
 import net.magicterra.worlddriver.script.ScriptEngine;
-import net.magicterra.worlddriver.test.ScriptTest;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -30,9 +28,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 import java.util.ServiceLoader;
 
 /**
@@ -73,7 +68,6 @@ public final class WorldDriverCommon {
                 // before a socket listens. StageWright publishes mc.test.* as its own batch at
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
                 WorldDriver.up(app.registry(), app);
-                WorldDriver.scriptsReady(WorldDriverCommon::runScriptChecks);
                 WorldDriver.scriptingReady(new HostedScripts(app.registry()));
                 PathDebugBootstrap.publish(app.registry(), app::serverHop, app::server);
             }
@@ -352,26 +346,5 @@ public final class WorldDriverCommon {
             LOG.error("[{}] failed to load user scripts", MOD_ID, e);
             return -1;
         }
-    }
-
-    /**
-     * {@link ScriptChecks#run}: {@code dir}'s scripts through a fresh engine bound to the live RPC and MCP
-     * servers, and the checks their {@code Test} helper recorded. {@link ScriptTest} keeps one list for the JVM,
-     * so two runs at once would interleave their checks; the caller runs one at a time.
-     */
-    private static List<ScriptChecks.Check> runScriptChecks(Path dir) throws IOException {
-        int rpcPort = WorldDriver.rpcPort();
-        if (api == null || rpcPort <= 0) throw new IOException("the RPC server is not listening");
-        int mcpPort = WorldDriver.mcpPort();
-        ScriptTest.clear();
-        RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
-        McpBridge mcpBridge = mcpPort > 0 ? new McpBridge("127.0.0.1", mcpPort) : null;
-        int n = new ScriptManager(api.registry(), dir, bridge, mcpBridge).loadAll();
-        LOG.info("[{}] loaded {} script(s) from {}", MOD_ID, n, dir);
-        List<ScriptChecks.Check> out = new ArrayList<>();
-        for (ScriptTest.Result r : ScriptTest.snapshot()) {
-            out.add(new ScriptChecks.Check(r.name, r.passed, r.ms, Optional.ofNullable(r.error).map(Throwable::getMessage)));
-        }
-        return out;
     }
 }
