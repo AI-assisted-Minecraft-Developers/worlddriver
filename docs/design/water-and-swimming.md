@@ -163,14 +163,14 @@ tax instead of treating it as a lethal cell in the hazard field — contact dama
 `waterDangerPenalty` is 3, down from 12. **That number is the design constraint**: a cruising
 bot covers about 0.19 blocks per tick against 0.22 for walking, whose per-cell cost is 10, and
 the remainder pays for the dip at the start of each cruise. The end-to-end effect on a
-fifty-two-block lake on a real client (`wd.clientOpenWaterCross`) was 550 ticks treading against
+fifty-two-block lake on a real client (`ClientWaterTest.clientOpenWaterCross`) was 550 ticks treading against
 348 ticks cruising; the intermediate states were all worse than treading, which is why every
 piece above is required rather than optional.
 
 ## An aiming defect the model exposed
 
-`wd.clientGotoStartsMidAirOverWater` went from 77 ticks to 478 on the first run under the new
-model. The bot reached the cell beside its goal at tick 75; the remaining 390 ticks were the
+A client walk ordered while the player was still in the air over water went from 77 ticks to
+478 on the first run under the new model. The bot reached the cell beside its goal at tick 75; the remaining 390 ticks were the
 bot orbiting on dry land, yaw winding from 52 degrees to 2453 with the heading error pinned
 around 90. This was a pre-existing lag in the aim smoothing that happens when `stepUp` walks
 the bot straight out of the water without going through the climb-out takeover, so
@@ -184,15 +184,15 @@ bot's own yaw has turned 180 degrees in one direction**, the smoothing factor sw
 Both halves of that condition are load-bearing. The 170-degree ceiling leaves room for the
 plus-or-minus-180 flip that every replan produces normally; snapping at the antipode was tried
 and reverted. The same-direction turn total was absent from the first version, and without it
-the dogleg detour in `wd.bridgeStepTwoBypassNoPlace` — where the centre of mass lies east while
+the dogleg detour in `BridgeTest.bridgeStepTwoBypassNoPlace` — where the centre of mass lies east while
 the route runs north, holding the error at a constant 90 degrees — was read as an orbit, the
 smoothed aim was pulled towards the centre of mass, and the bot walked off the platform to
 block its own shortcut. That is precisely the trap the smoothing exists to prevent. A detouring
 bot turns once at the corner and then goes straight; only an orbiting bot turns the same way
 every tick. The accumulator is cleared only by a reversal or by the bot stopping; an error
 briefly under 45 degrees merely fails to count, because the raw bearing sweeps through as the
-bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
-`wd.clientFlowingTrenchPlaceOut`, winding 1200 degrees of yaw, never triggered.
+bot passes its goal. An earlier version cleared on that, and a 929-tick orbit climbing out of
+a flowing trench on a real client, winding 1200 degrees of yaw, never triggered.
 
 ## Where to look
 
@@ -205,9 +205,9 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
 - `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
   `config/ControlConfig.java` — `navigatorSurfaceSprintSwim`, `navigatorOrbitBreaksAimLag`.
 
-The scenes that hold this behaviour are the `wd.client*` water family; `wd.clientOpenWaterCross`
-is the cruise, and the bank climb-out scenes are the exit edge. They run only on a topology with
-a real client, because the behaviour is client-side.
+The tests that hold this behaviour are in `ClientWaterTest`; `clientOpenWaterCross` is the
+cruise, and the bank climb-out tests are the exit edge. They run in `wd.clientScenes`, with a
+real client, because the behaviour is client-side.
 
 The server flag echo described above was found by attaching a debugger to a running client and
 logging every change to the sprint flag. That is a delicate thing to do to a bot that is in
