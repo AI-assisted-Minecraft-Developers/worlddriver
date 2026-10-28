@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.stagewright.test.Game;
-import net.magicterra.stagewright.test.KnownIssue;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
@@ -820,8 +819,6 @@ class MobFightTest {
      * that no single pump got anywhere near the 60 s the watchdog kills at.
      */
     @Test
-    @KnownIssue("flaky: the staged push races the blaze fight, which the navigator's R1 flags often win before the"
-            + " push; the fix is to stage the fall without a blaze (triage of the parked scenes, NOT-or-FIX)")
     void serverBlazeFightStopsWhenTheBodyFallsOut(Game game, @Plot.Centered @Plot.Size(x = 16, y = 232, z = 16) Plot plot,
                                                   TestReporter reporter) {
         BlockPos o = plot.at(0, plot.max().getY() - 20, 0);
@@ -889,8 +886,6 @@ class MobFightTest {
      * reddens; the speed question moves to {@code fights.slow}, recorded and not gated.
      */
     @Test
-    @KnownIssue("flaky: loot and teleport RNG — kills and pearls vary run to run on unchanged code; the player-kill"
-            + " loot claim is covered by serverEarnsABlazeRod (triage of the parked scenes, NOT-or-FIX)")
     void serverEarnsAnEnderPearl(Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot,
                                  TestReporter reporter) {
         BlockPos o = plot.origin();
