@@ -353,6 +353,14 @@ be established without enabling the filter at all. Only if they do resolve is a 
 enabled worth taking. Two of the seven cannot distinguish anything in principle: the host has no
 such executable and a connection to a closed port always throws.
 
+### Every install still needs the Architectury API mod
+
+`fabric.mod.json` and `neoforge.mods.toml` declare `architectury` as a required dependency, for the
+fourteen events `WorldDriverEvents` and `WorldDriverClientEvents` subscribe. Replace them with each
+loader's own callbacks behind a thin port in `:common`, keeping `block.break` before removal and
+`entity.death` at the decision. Fabric API has no block-place event, so that one needs a mixin. The
+testmod's registries and `EnvExecutor` can keep the API as a dev-only dependency until they move too.
+
 ---
 
 ## Bot equivalence
