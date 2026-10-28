@@ -74,7 +74,7 @@ common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/
     kit/        the shared test kit those classes build on
     jupiter/    tests of StageWright's own features as WorldDriver uses them
 common/src/testmod/resources/stagewright/
-    scenes/     the scene files: which topology and which world a test runs in
+    scenes/     the scene files: which servers and clients, and which world, a test runs in
     tests/      script tests, including the validation scripts
 ```
 
@@ -154,10 +154,10 @@ On the dedicated server a script about the client registers a placeholder and th
 integrated server it takes its real branch.
 
 `kit.js` beside them runs each script's checks; its header says how. A check that throws fails alone and is reported
-by name when the test ends, and the checks after it still run. Before a script's checks the arena at the test origin
+by name when the test ends, and the checks after it still run. Before a script's checks the area at the test origin
 is cleared afresh (`testcontent/TestArena`) and the player, if any, stood on it, so no script depends on another's
-leftovers or on the order they run in. The Java half is `testcontent/ValidationSteps` (the arena, the topology, the
-RPC and MCP calls) and `testcontent/TransportCalls` (a client of both servers from outside).
+leftovers or on the order they run in. The Java half is `testcontent/ValidationSteps` (that area, which kind of
+server the script runs on, the RPC and MCP calls) and `testcontent/TransportCalls` (a client of both servers from outside).
 
 The scripts ship with the testmod, not with the published jar: they summon mobs and run commands at operator level,
 which a server should not get by installing the mod.
