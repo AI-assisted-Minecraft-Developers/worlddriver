@@ -1,7 +1,4 @@
-package net.magicterra.worlddriver.bot.stagewright.scene;
-
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.self;
+package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,23 +6,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
+import net.magicterra.stagewright.test.Client;
+import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Player;
+import net.magicterra.stagewright.test.Plot;
+import net.magicterra.stagewright.test.Requires;
+import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.Cell;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.CellsParams;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.CellsReading;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.Side;
-import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.debug.DebugBlockingApi;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.bot.stagewright.Calls;
-import net.magicterra.worlddriver.bot.stagewright.Harness;
-import net.magicterra.stagewright.scene.Scene;
-import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.bot.stagewright.ClientRegistry;
+import net.magicterra.worlddriver.bot.stagewright.kit.ClientRig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -37,32 +33,34 @@ import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SlabType;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
- * The two planners' views of one world, cell by cell. The shipped client plans through its client
- * view; the {@code wd.*} suite and the server ladder plan through a server-level view. Both are read
- * through {@code mc.debug.cells} for self, once as the client sees it and once with
- * {@code side: server}, each from a freshly begun search. Wherever the two disagree on a cell, a route the suite validated is not
- * a route the client will emit, and the scene "ran" on a different set of rules than the product.
- * This scene asks both views the same questions over a palette of the terrains the split is
- * known to bite on and records every disagreement as a row; the check is that there are none.
+ * The two planners' views of one world, cell by cell. The shipped client plans through its client view; the headless
+ * tests and the server ladder plan through a server-level view. Both are read through {@code mc.debug.cells}, once as
+ * the client sees it ({@code self} on the client's registry) and once as the server sees the same player
+ * ({@code player:<name>} with {@code side: server} on the server's), each from a freshly begun search. Wherever the two
+ * disagree on a cell, a route the suite validated is not a route the client will emit, and the suite "ran" on a
+ * different set of rules than the product. This asks both views the same questions over a palette of the terrains
+ * the split is known to bite on and reports every disagreement as a row; the check is that there are none.
  */
-public final class WorldDriverClientParityScenes implements SceneProvider {
+@Scene("wd.clientScenes")
+@Requires(Requires.Capability.CLIENT)
+@ResourceLock(ClientWalk.PLAYER)
+class ClientParityTest {
 
-    @Override
-    public List<Scene> scenes() {
-        return List.of(Scene.of("wd.clientWorldViewParity", 1_000, WorldDriverClientParityScenes::worldViewParity));
-    }
-
-    private static final int GROUND = 20;
+    private static final int GROUND = 0;
     private static final int SPACING = 2;
     private static final int COLUMNS = 8;
 
-    /** Foot cell of palette entry i. A grid hugging the player, not a row marching away from it:
-     *  the client only holds the chunks around its player, and a cell it never received reads as
-     *  air on its side, which would show up here as a disagreement about nothing. */
-    private static BlockPos footOf(SceneContext ctx, int i) {
-        return ctx.rel((i % COLUMNS) * SPACING - (COLUMNS - 1), GROUND + 1, (i / COLUMNS) * SPACING + 2);
+    /**
+     * Relative foot cell of palette entry i. A grid hugging the player, not a row marching away from it: the client
+     * only holds the chunks around its player, and a cell it never received reads as air on its side, which would show
+     * up here as a disagreement about nothing.
+     */
+    private static BlockPos footOf(Plot plot, int i) {
+        return plot.at((i % COLUMNS) * SPACING - (COLUMNS - 1), GROUND + 1, (i / COLUMNS) * SPACING + 2);
     }
 
     /** One palette entry: the state in the foot cell, plus what the cell under it should be
@@ -148,78 +146,64 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
                         .map(v -> String.format(Locale.ROOT, "%.1f", v)).orElse("Infinity")));
     }
 
-    private static void worldViewParity(SceneContext ctx) {
-        ServerLevel level = ctx.level();
+    @Test
+    void clientWorldViewParity(Game game, Client client, Player player,
+                               @Plot.Centered @Plot.Size(x = 32, y = 16, z = 48) Plot plot) {
         List<Entry> palette = palette();
         // A stone slab under the whole grid, air above it, one entry every SPACING cells.
         int gridRows = (palette.size() + COLUMNS - 1) / COLUMNS;
-        for (int dx = -COLUMNS - 1; dx <= COLUMNS + 1; dx++)
-            for (int dz = -2; dz <= gridRows * SPACING + 2; dz++) {
-                ctx.setBlock(dx, GROUND - 1, dz, Blocks.STONE);
-                ctx.setBlock(dx, GROUND, dz, Blocks.STONE);
-                for (int dy = 1; dy <= 3; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
-            }
+        plot.fill(-COLUMNS - 1, GROUND - 1, -2, COLUMNS + 1, GROUND, gridRows * SPACING + 2, Blocks.STONE);
         List<BlockPosition> cells = new ArrayList<>();
-        for (int i = 0; i < palette.size(); i++) {
-            Entry en = palette.get(i);
-            BlockPos foot = footOf(ctx, i);
-            level.setBlockAndUpdate(foot.below(), en.under());
-            if (en.behind() != null) level.setBlockAndUpdate(foot.north(), en.behind());
-            level.setBlockAndUpdate(foot, en.foot());
-            for (BlockPos cell : cellsOf(foot)) cells.add(Positions.position(cell));
-        }
-        BlockPos start = ctx.rel(0, GROUND + 1, 0);
-        ctx.record("test setup", palette.size() + " terrain types, grid of " + COLUMNS + " columns, foot cell y=" + (GROUND + 1) + ", spacing " + SPACING + "; bot starts at " + start.toShortString());
-
-        ClientHelm helm = ClientHelm.adopt(ctx, start, 0f);
-        // The same hand on both players: the server's copy is written here and the client's follows it (by
-        // sharing it on an integrated server, by the inventory sync on a dedicated one), so a break price that
-        // differs is a rule that differs.
-        helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
-        Harness.set("allowBreak", true);
-        Harness.set("allowPlace", true);
-
-        // Let the client receive the palette before either view is asked.
-        helm.sync(40, () -> {
-            // The server side answers inline on this thread; the client's hops and answers a tick or more later.
-            // On a dedicated server self is the joined client, so the server's half names its player instead.
-            String serverSide = ClientRegistry.remote()
-                    ? "player:" + helm.player().getGameProfile().getName() : ClientHelm.SELF;
-            CellsReading server = Calls.now(DebugApi.of(api()).cells(
-                    new CellsParams(Optional.of(serverSide), Optional.of(Side.SERVER), cells, Optional.empty())));
-            // Not SceneCalls.ask: its record line would carry every cell of the reply.
-            CompletableFuture<CellsReading> client = DebugApi.of(self()).cells(
-                    new CellsParams(Optional.of(ClientHelm.SELF), Optional.empty(), cells, Optional.empty())).toCompletableFuture();
-            ctx.await(client::isDone).within(40).then(() -> compare(ctx, palette, Calls.now(client), server));
+        game.runOnServer(s -> {
+            ServerLevel level = s.overworld();
+            for (int i = 0; i < palette.size(); i++) {
+                Entry en = palette.get(i);
+                BlockPos foot = footOf(plot, i);
+                level.setBlockAndUpdate(foot.below(), en.under());
+                if (en.behind() != null) level.setBlockAndUpdate(foot.north(), en.behind());
+                level.setBlockAndUpdate(foot, en.foot());
+                for (BlockPos cell : cellsOf(foot)) cells.add(Positions.position(cell));
+            }
         });
-    }
+        BlockPos start = plot.at(0, GROUND + 1, 0);
 
-    private static BlockPos[] cellsOf(BlockPos foot) {
-        return new BlockPos[] { foot.below(), foot, foot.above() };
-    }
+        ClientRig rig = ClientRig.adopt(game, client, player, start, 0f);
+        // The same hand on both players: the server's copy is written here and the client's follows it by the
+        // inventory sync, so a break price that differs is a rule that differs.
+        rig.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
+        rig.settings().set(Map.of("allowBreak", true, "allowPlace", true));
+        // Let the client receive the palette before either view is asked.
+        rig.sync(40);
 
-    private static void compare(SceneContext ctx, List<Entry> palette, CellsReading client, CellsReading server) {
-        ctx.record("views", "client=" + client.view() + ", server=" + server.view());
-        Map<BlockPosition, Cell> c = byPos(client), s = byPos(server);
+        CellsReading server = game.api(DebugBlockingApi::of).cells(
+                new CellsParams(Optional.of(player.ref()), Optional.of(Side.SERVER), cells, Optional.empty()));
+        CellsReading clientView = rig.debug().cells(
+                new CellsParams(Optional.of(ClientRig.SELF), Optional.empty(), cells, Optional.empty()));
+
+        Map<BlockPosition, Cell> c = byPos(clientView), sv = byPos(server);
         List<String> rows = new ArrayList<>();
         int asked = 0;
         for (int i = 0; i < palette.size(); i++) {
             Entry en = palette.get(i);
-            BlockPos foot = footOf(ctx, i);
+            BlockPos foot = footOf(plot, i);
             for (BlockPos cell : cellsOf(foot)) {
                 String where = cell.getY() < foot.getY() ? "below" : cell.getY() > foot.getY() ? "above" : "foot";
-                Cell cc = c.get(Positions.position(cell)), sc = s.get(Positions.position(cell));
+                Cell cc = c.get(Positions.position(cell)), sc = sv.get(Positions.position(cell));
                 for (Question q : questions()) {
-                    Object cv = cc == null ? "missing" : q.ask().apply(cc), sv = sc == null ? "missing" : q.ask().apply(sc);
+                    Object cvalue = cc == null ? "missing" : q.ask().apply(cc);
+                    Object svalue = sc == null ? "missing" : q.ask().apply(sc);
                     asked++;
-                    if (!String.valueOf(cv).equals(String.valueOf(sv)))
-                        rows.add(en.name() + "/" + where + " " + q.name() + " client=" + cv + " server=" + sv);
+                    if (!String.valueOf(cvalue).equals(String.valueOf(svalue)))
+                        rows.add(en.name() + "/" + where + " " + q.name() + " client=" + cvalue + " server=" + svalue);
                 }
             }
         }
-        ctx.record("queries", asked + " queries, " + rows.size() + " mismatched rows");
-        ctx.record("differences", rows.isEmpty() ? "none" : String.join("; ", rows));
-        ctx.check(rows.isEmpty()).as("both views give the same answers for the same world (" + rows.size() + " mismatched rows)").isTrue();
+        game.check(rows.isEmpty(), "both views give the same answers for the same world (client=" + clientView.view()
+                + ", server=" + server.view() + "; " + rows.size() + " of " + asked + " queries mismatched): " + rows);
+    }
+
+    private static BlockPos[] cellsOf(BlockPos foot) {
+        return new BlockPos[] { foot.below(), foot, foot.above() };
     }
 
     private static Map<BlockPosition, Cell> byPos(CellsReading reading) {
