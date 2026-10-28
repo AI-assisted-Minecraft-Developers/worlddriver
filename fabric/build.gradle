@@ -81,25 +81,11 @@ dependencies {
 
 }
 
-// testmod source set — EMPTY-SOURCE BRIDGE, the fabric counterpart of neoforge's testmod
-// wiring. Fabric never carried test java of its own, and post-campaign (P4b/P4c migrated
-// every legacy @GameTest arena to a dogfooded wd.* scene, P4-final retired the GameTestServer
-// machinery) all scenes + SimProbes + the SceneProvider service live in :common's testmod.
-// This source set is therefore empty of sources — it exists purely as the run `source`
-// carrier so the headless runs keep main's full runtimeClasspath AND
-// gain :common's testmod OUTPUT+resources.
-//
-// Fabric-vs-neoforge difference (documented honestly per the brief): fabric has NO JPMS
-// module layer — every mod + loose classpath entry shares Knot's single flat classloader.
-// So, unlike neoforge (where putting :common's testmod on runtimeClasspath makes FML's
-// userdev locator synthesize a SECOND module exporting the same package = a hard
-// ResolutionException at boot, forcing that platform to deliver it ONLY through the loom
-// mods{} modFolders group), fabric can safely put :common's testmod OUTPUT directly on
-// THIS source set's runtimeClasspath. That is what actually scopes scene discovery per
-// run: only runs whose `source` is this testmod set carry the scenes; contractServer /
-// server / client keep the default `main` source set and never see them (the instrument
-// contract's scene-independence — asserted by the 23/23 gate). evaluationDependsOn(':common')
-// forces :common to configure first so its sourceSets.testmod is resolvable here.
+// testmod source set — EMPTY-SOURCE BRIDGE: it has no sources of its own and carries :common's testmod
+// output onto the runs whose `source` it is (labClient below, and the StageWright suites' runs); the other
+// runs keep `main` and never see the test content. Fabric has no module layer, so unlike NeoForge the
+// output can go straight onto the runtime classpath. evaluationDependsOn(':common') makes :common's
+// sourceSets.testmod resolvable here.
 evaluationDependsOn(':common')
 sourceSets {
     testmod {
@@ -175,13 +161,9 @@ loom {
     // what makes Fabric Loader apply it at runtime in production.
     accessWidenerPath = project(":common").loom.accessWidenerPath
 
-    // P4a Task 3: mark :common's testmod OUTPUT as belonging to the worlddriver mod so
-    // the moved scene/probe classes are grouped under worlddriver for fabric's
-    // classPathGroups (mixin/refmap ownership) and ServiceLoader(SceneProvider), run in
-    // the mod's context, treats them as first-party. On fabric the runtimeClasspath
-    // addition above is what actually puts the classes on each run's launch classpath;
-    // this block only groups entries already there, so it does NOT leak scenes into
-    // contractServer (whose `main` source set never carries :common's testmod).
+    // Groups :common's testmod output under the worlddriver mod (classPathGroups, mixin/refmap
+    // ownership). It only groups entries already on a run's classpath, so runs from `main` still
+    // carry no test content.
     //
     // FABRIC-vs-NEOFORGE DIFFERENCE (found empirically, documented per the brief):
     // neoforge/build.gradle can write `mods { named('main') { … } }` because architectury's
@@ -203,7 +185,7 @@ loom {
         // resolves the name against the MOD's own roots, not the run classpath, and
         // those roots come from this block. Without this line the server dies at boot
         // with "Missing accessWidener file worlddriver.accesswidener from mod
-        // worlddriver" and t0 sits on a dead JVM until the 900s wall timeout.
+        // worlddriver".
         mainMod.sourceSet project(':api').sourceSets.main, project(':api')
         mainMod.sourceSet project(':common').sourceSets.main, project(':common')
         mainMod.sourceSet project(':common').sourceSets.testmod, project(':common')
@@ -218,52 +200,8 @@ loom {
             client()
             vmArg '-Dfabric.addMods=run/mods'
         }
-        contractServer {
-            server()
-            property 'worlddriver.contractRun', 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-contract'
-            vmArg '-Xmx1g'
-        }
-        // ---- Self-driving topologies. No orchestrator process. ----
-        //
-        // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
-        // run-t2), deleted along with the scripts that drove them from outside. No orchestrator
-        // process remains: the last two went on 2026-08-05.
-        //
-        // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
-        // player, exit when finished — is a system property the harness reads for itself.
-
-        // Production topology, server half: holds the suite back until a real client has joined.
-        stagewrightDedicatedServerWithClient {
-            server()
-            programArgs '--nogui', '--port', '25601'
-            property 'stagewright.autorun', 'true'
-            property 'stagewright.awaitPlayer', 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            // Where the joined client's driver says its port: the wd.client* scenes drive that player.
-            property 'worlddriver.test.clientRpcPortFile', file('run-stagewright-joining-client/worlddriver-rpc.port').absolutePath
-            runDir 'run-stagewright-with-client'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // Production topology, client half. Started by the plugin as a companion of the server
-        // above; it runs no scenes of its own, it only has to be a real player.
-        stagewrightJoiningClient {
-            client()
-            property 'stagewright.client.connect', '127.0.0.1:25601'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-stagewright-joining-client'
-            vmArg '-Xmx2g'
-            // The testmod registers the marker block and items, so a client without it is refused at
-            // registry sync and the server waits for a player forever.
-            source sourceSets.testmod
-        }
-        // The lab: a client on a persistent flat world for hand-built scenes. Not a StageWright
-        // task, so nothing provisions (= wipes) `run-lab`. See docs/guide/human-verification.md.
+        // The lab: a client with the test content on a persistent flat world, for testing by hand.
+        // Nothing wipes `run-lab`. See docs/guide/human-verification.md.
         labClient {
             client()
             property 'stagewright.client.world', 'Lab'
@@ -276,320 +214,16 @@ loom {
             vmArg '-Xmx2g'
             source sourceSets.testmod
         }
-        // The playthrough ladder (wd.journey*). Deliberately NOT one of the six gates: a
-        // playthrough is hours where they are minutes, so it arms behind its own property and
-        // filters to its own family. The filter is what keeps the manifests out of it —
-        // SceneFilter skips expected-scenes reconciliation on a filtered run, which is correct
-        // here (this run is not a gate) and is why `wd.journey*` needs no manifest entry. Only
-        // `wd.journeyArmed`, which registers in every run, is listed there.
-        //
-        // Its own runDir: the journey PLAYS the world — it fells trees, digs shafts and pours
-        // lava — and the six gates assume a world whose only history is their own arenas.
-        journeyServer {
-            server()
-            property 'stagewright.autorun', 'true'
-            property 'worlddriver.journey', 'true'
-            property 'stagewright.scenes', 'wd.journey*'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-journey'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // ---- The SAME ladder, under the other two topologies. ----
-        //
-        // The three exist so that a failed rung can be read as "the player cannot physically do
-        // this" or "the driver does it wrong" rather than as one undivided fact. `journeyServer`
-        // above is the only one of them that has ever run, and it is the one with NO client at
-        // all: nothing renders, nothing sends a movement packet, and every client-side class in
-        // this repo is absent from the JVM. A defect that lives on that side cannot be observed
-        // there at ALL — which is how
-        // `ServerPlayerBody.commandUseItem(false)` shipped calling `stopUsingItem()` (clears the
-        // flag) instead of `releaseUsingItem()` (routes to `ItemStack.releaseUsing`): a fully drawn
-        // bow "fired" and produced no arrow, with no exception, past 222 green scenes.
-        //
-        // What each one adds, precisely:
-        //
-        //   journeyServer                    — headless. Nothing but the server exists.
-        //   journeyIntegratedServer          — a real client hosts the world. Both ends in ONE JVM,
-        //                                      so the client half of the driver is loaded and
-        //                                      ticking, chunks are streamed to a real view, and a
-        //                                      real ServerPlayer sits in the overworld's player list.
-        //   journeyDedicatedServerWithClient — a real client JOINS over a socket. Same as above but
-        //                                      the two halves are separate processes and every
-        //                                      packet is actually encoded, which is the difference
-        //                                      between "works in singleplayer" and "works on a
-        //                                      server".
-        //
-        // ⚠️ WHICH PLAYER CLIMBS IS NOT THE SAME ON ALL THREE, and this comment said the opposite
-        // until 2026-08-22. `journeyIntegratedServer` ADOPTS the client's real player
-        // (`JourneyRig.spawnBody` takes the adoption branch, `realPlayerHelm` flips the helm to
-        // `BotApi.runProcess`); the other two create the headless server-side player via
-        // `PlayerBot.createIsolated`. That is not a code reading — a run of it recorded
-        // `journey.body=real:ServerPlayer Player452` and `journey.steer=clientUserTask/
-        // ClientPlayerAvatar` against the headless arm's `joined` / `serverTick`, which is how the
-        // deep-water jump gate got found. So the fake-player capability gaps (fallDistance always
-        // 0, isInvulnerableTo → true, no advancements) belong to the OTHER TWO, not to all three.
-        // Every rung records `journey.topology`, `journey.body` AND `journey.steer`, because this
-        // topology varies two things at once and a row missing either cannot be compared.
-        //
-        // Each has its OWN runDir, and that is not tidiness: the ladder PLAYS its world, so two
-        // ladders sharing a directory would each measure the other's felled trees and dug shafts.
-        journeyIntegratedServer {
-            client()
-            property 'stagewright.autorun', 'true'
-            // Hold the suite until the client is actually IN the world it is hosting. Without this
-            // the integrated server arms at SERVER_STARTED, which on this topology is before the
-            // local player has been placed — so rung 1 would race the very thing this topology
-            // exists to provide, and "whether a real player is present" would depend on boot
-            // timing.
-            property 'stagewright.awaitPlayer', 'true'
-            // Empty unless asked for; the default lives in JourneyRig. -PnavigatorDebug=true turns on
-            // the per-tick navigator/AutoSwim account, which is the only record of what the client
-            // helm does to a submerged player.
-            property 'worlddriver.journey.navigatorDebug', (project.findProperty('navigatorDebug') ?: '')
-            property 'stagewright.client.world', 'JourneyClient'
-            property 'stagewright.client.exitWhenDone', 'true'
-            property 'worlddriver.journey', 'true'
-            property 'stagewright.scenes', 'wd.journey*'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-journey-integrated'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // Production topology, server half. Its own port, NOT the gate's 25601: the gate's companion
-        // dials that number, and a ladder bound to it would be joined by — or would refuse to start
-        // beside — a gate run somebody else launched.
-        journeyDedicatedServerWithClient {
-            server()
-            programArgs '--nogui', '--port', '25701'
-            property 'stagewright.autorun', 'true'
-            property 'stagewright.awaitPlayer', 'true'
-            property 'worlddriver.journey', 'true'
-            property 'stagewright.scenes', 'wd.journey*'
-            // A fixed port is exactly the thing that can already be taken, and a server that dies
-            // on BindException does NOT take the JVM with it — architectury's transformer pools are
-            // non-daemon, so the build waits forever on a process with no Server thread. Five
-            // minutes is far past a cold worldgen and far short of a rung.
-            property 'worlddriver.startupWatchdogMs', '300000'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-journey-with-client'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // Production topology, client half. Started for you as a companion of the server above — the
-        // `doFirst` on `runJourneyDedicatedServerWithClient` at the bottom of this file does it. It
-        // runs no scenes because it has no job beyond being a real player on the other end of a
-        // real socket.
-        journeyJoiningClient {
-            client()
-            property 'stagewright.client.connect', '127.0.0.1:25701'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-journey-joining-client'
-            vmArg '-Xmx2g'
-            // Carries the testmod for its registry content only — see stagewrightJoiningClient.
-            source sourceSets.testmod
-        }
-        // ONE upper rung, with its preconditions put there by hand (wd.rehearse*).
-        //
-        // The ladder above is one player climbing twenty rungs in sequence, which is the point of it
-        // and also what makes its upper rungs nearly untestable: reaching rung 12 means replaying
-        // eleven rungs and being lucky, at twenty-five minutes a try. Two committed fixes to rung 12
-        // had therefore never once executed.
-        //
-        // This is NOT a second ladder and must never be read as one. It registers its scenes under
-        // `wd.rehearse*` so no results file can carry a rehearsal under a ladder row's name, it
-        // counts every arrangement through JourneyLedger.staged, and its verdict says
-        // "REHEARSAL — not a climb, staging.calls=N". See JourneyRehearsal's class note.
-        //
-        //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT
-        rehearsalServer {
-            server()
-            property 'stagewright.autorun', 'true'
-            property 'worlddriver.journey', 'true'
-            property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
-            // The tick cap, exposed because one rung is not like the others. Most rehearse in a
-            // minute; PORTAL_LIT makes ten round trips between a pool and a cell twelve blocks
-            // below it, and a run that runs out of budget mid-cast reports a timeout where the
-            // finding is "each trip costs N ticks". Raise it rather than read that twice:
-            //   ./gradlew :fabric:runRehearsalServer -PrehearseBudget=120000
-            //
-            // EMPTY WHEN NOT ASKED FOR, like every other lever in this block — the default lives in
-            // Java (JourneyRehearsal.DEFAULT_BUDGET, also 40 000), NOT here. Substituting '40000'
-            // here made System.getProperty return a non-blank string on every run, so capFor's
-            // "an explicit -PrehearseBudget wins outright" branch was taken ALWAYS and budgetFloor
-            // was never consulted. Measured 2026-08-17: rung 20 declares 500 000 and got 40 000, and
-            // the floor written to prevent exactly that was dead code from the day it landed. The
-            // escape hatch was in Java; the build file held it permanently open.
-            property 'worlddriver.journey.rehearse.budget',
-                    (project.findProperty('rehearseBudget') ?: '').toString()
-            // Make the portal rung's staircase audit TRIP. A healthy flight never faults, so the
-            // repair that answers a fault would otherwise ship having never once run:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PbreakAStair=true
-            // Rehearsal-only twice over — this task always sets a rehearse target, and the rung
-            // refuses the sabotage when none is set.
-            property 'worlddriver.journey.breakAStair',
-                    (project.findProperty('breakAStair') ?: 'false').toString()
-            // Make the shaft's wet-column guard TRIP, and its remedy run. The flood that fires it is
-            // random on a real climb — the same seed, the same column, dirt on one ladder run and
-            // water on the next — so "switch to another column" could only ever be verified by
-            // being unlucky at twenty-five minutes a try:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=OBSIDIAN -PwetShaft=true
-            // Same two locks as breakAStair: off unless asked for, and refused when no rung is being
-            // rehearsed. See JourneyShaft.floodTheColumnOnce.
-            property 'worlddriver.journey.wetShaft',
-                    (project.findProperty('wetShaft') ?: 'false').toString()
-            // Land rung 12's return ON the bottom step instead of in the cell above it. The flight's
-            // last waypoint IS that step, and LEG_ARRIVED=1.5 calls a player one cell short "arrived",
-            // so which of the two happened is invisible in the log — while it decides where the raise
-            // starts, and therefore whether the cell pours or is lost. Naturally about one run in
-            // three at eleven minutes a run:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PshaftColumn=-8,19 -PlandOnFloor=true
-            // Same two locks as breakAStair. It WALKS the step the flight skipped — no block and no
-            // fluid is touched — which is why nothing in the alcove's own water can undo it. The
-            // earlier `-PdryAlcove`, which cleared the stairwell's water instead, is gone: its own
-            // staging rows disproved the theory it rested on (eight casts found ONE wet cell, the two
-            // above it already air, and returnedY was 57 all eight times). Judge this by
-            // `cast*.returnedY` on EVERY cast, and judge the flag itself by running it OFF too: that
-            // run must still show the natural 57/56 mixture. See JourneyPortalRung.landOnFloor.
-            property 'worlddriver.journey.landOnFloor',
-                    (project.findProperty('landOnFloor') ?: 'false').toString()
-            // Which side of the lava lake to stand the player on, which is what decides the forge's
-            // orientation and therefore the whole alcove geometry:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PforgeAway=north
-            // Empty means "whichever spot the search finds first", which is what every rehearsal did
-            // before this existed — one geometry, thirty runs. The real ladder picks a different one
-            // nearly every climb, so four directed six-minute runs cover what ten twenty-minute
-            // ladder runs only sample. See JourneyRehearsal.forcedSide for why the SIDE is staged
-            // rather than the direction forced.
-            property 'worlddriver.journey.forgeAway',
-                    (project.findProperty('forgeAway') ?: '').toString()
-            // The shaft column itself, which is the only lever that REPRODUCES a ladder's mould:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PshaftColumn=-8,19
-            // forgeAway can only ask for a side, and pickDigColumn answers it from its r>=2 ring —
-            // but a climb reaches its column by adopting whatever it is standing on, which can be
-            // r=1 and therefore unreachable by any side request. See JourneyRehearsal.stagedShaftColumn
-            // for the measurement (ladder -8,19 vs rehearsal -9,21, same pool).
-            property 'worlddriver.journey.shaftColumn',
-                    (project.findProperty('shaftColumn') ?: '').toString()
-            // How many buckets rung 12 starts with, which is what decides how many times it climbs
-            // the staircase: it goes up only when the bag has no lava left, and fills every empty
-            // bucket per visit, so the trips are ceil(10 / buckets-that-can-hold-lava).
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -Pbuckets=4
-            // Default 1, which is what the ladder's iron actually buys and therefore what a plain
-            // rehearsal must reproduce byte for byte. The multi-bucket branch is unreachable on a
-            // real climb, so this is the only thing that executes it — judge it by the trip count
-            // (`lava*.loaded` / `lava*.up` rows), not by the colour. See JourneyRehearsal.stagedBuckets.
-            property 'worlddriver.journey.buckets',
-                    (project.findProperty('buckets') ?: '1').toString()
-            // How many ender eyes rung 18 starts with. Default empty = twelve, which is what rung
-            // 16's own rehearsal measured; this exists only to reach the short-stock branch that a
-            // full bag can never run:
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -Peyes=8
-            // Judge it by `eyes.ranOutAt` and `frames.filled`, not by the colour — same rule as
-            // buckets. See JourneyRehearsal.stagedEyes.
-            property 'worlddriver.journey.eyes',
-                    (project.findProperty('eyes') ?: '').toString()
-            // How wide the STAGING's stronghold frame scan is. Default empty = rung 17's own
-            // ROOM_SCAN_CHUNKS, and paying exactly that is the point: an 18-level rehearsal then
-            // answers rung 17's open question (is ±96 blocks from the /locate START piece enough to
-            // reach the portal room?) in minutes instead of an hour of marching.
-            //   ./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -ProomScanChunks=12
-            // It widens the STAGING only; rung 17 keeps its constant, or the question could never
-            // be answered no. See JourneyRehearsal.roomScanChunks.
-            property 'worlddriver.journey.roomScanChunks',
-                    (project.findProperty('roomScanChunks') ?: '').toString()
-            property 'stagewright.scenes', 'wd.rehearse*'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            // Arm the startup watchdog: a server that fails to initialise leaves the JVM alive
-            // (architectury's transformer pools are non-daemon) and the build waits on it forever.
-            // Five minutes is far past a cold worldgen and far short of a rehearsal, so it can only
-            // fire on a launch that is never going to happen.
-            property 'worlddriver.startupWatchdogMs', '300000'
-            runDir 'run-rehearsal'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // The SAME rehearsal, on a player whose rotation belongs to a client.
-        //
-        // `rehearsalServer` above rehearses on a fake player, and a fake player is exactly the kind
-        // of player that cannot show the defect this task exists for: a real player's yaw/pitch are
-        // client-authoritative, so a server-side `aimAtBlock` is overwritten by the next
-        // `ServerboundMovePlayerPacket` — and the client, meanwhile, pulls pitch back to the horizon
-        // every tick it is not bridging or diving. Rung 11 passes on the dedicated ladder and failed
-        // on the client one for precisely that reason, on the same code and the same seed.
-        //
-        // So the two rehearsals answer different questions and BOTH are needed: the server one asks
-        // "does this rung's plan work", this one asks "does it survive a player whose client
-        // overrides its rotation". Without it, an aim fix can only be tested by climbing eleven rungs and being lucky.
-        //
-        //   ./gradlew :fabric:runRehearsalIntegratedServer -Prehearse=OBSIDIAN
-        //
-        // The levers below are the same properties `rehearsalServer` declares; the reasoning for
-        // each one lives there and is deliberately NOT repeated here. Add a lever in both places or
-        // in neither — a rehearsal that answers a question on one kind of player and cannot be
-        // asked it on the other is how the pair stops being a pair.
-        rehearsalIntegratedServer {
-            client()
-            property 'stagewright.autorun', 'true'
-            property 'stagewright.awaitPlayer', 'true'
-            property 'stagewright.client.world', 'RehearsalClient'
-            property 'stagewright.client.exitWhenDone', 'true'
-            property 'worlddriver.journey', 'true'
-            property 'worlddriver.journey.navigatorDebug', (project.findProperty('navigatorDebug') ?: '')
-            property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
-            property 'worlddriver.journey.rehearse.budget',
-                    (project.findProperty('rehearseBudget') ?: '').toString()
-            property 'worlddriver.journey.breakAStair',
-                    (project.findProperty('breakAStair') ?: 'false').toString()
-            property 'worlddriver.journey.wetShaft',
-                    (project.findProperty('wetShaft') ?: 'false').toString()
-            property 'worlddriver.journey.landOnFloor',
-                    (project.findProperty('landOnFloor') ?: 'false').toString()
-            property 'worlddriver.journey.forgeAway',
-                    (project.findProperty('forgeAway') ?: '').toString()
-            property 'worlddriver.journey.shaftColumn',
-                    (project.findProperty('shaftColumn') ?: '').toString()
-            property 'worlddriver.journey.buckets',
-                    (project.findProperty('buckets') ?: '1').toString()
-            property 'worlddriver.journey.eyes',
-                    (project.findProperty('eyes') ?: '').toString()
-            property 'worlddriver.journey.roomScanChunks',
-                    (project.findProperty('roomScanChunks') ?: '').toString()
-            property 'stagewright.scenes', 'wd.rehearse*'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            // Its own runDir: a rehearsal PLAYS its world exactly as the ladder does, and the two
-            // rehearsals must not measure each other's dug shafts.
-            runDir 'run-rehearsal-integrated'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
     }
     runConfigs.configureEach {
-        // contractServer pins its own ephemeral ports
-        // (worlddriver.rpcPort/mcpPort='0') so the headless suites never compete with a live
-        // dev client on 39800/39801. Without this guard the defaults below would clobber that.
-        // The self-driving topologies do the same.
-        //
-        // MATCHED BY PREFIX, not by a list of names. The list version silently stopped covering
-        // the ladder the moment it grew a second and third topology: `journeyIntegratedServer` and
-        // `journeyDedicatedServerWithClient` matched no clause, fell through, and had their
-        // ephemeral ports overwritten with the pinned pair — which on the two-process topology is
-        // two JVMs binding one port, and everywhere is a run that fights a live dev client. A guard
-        // whose failure mode is "a config added later is quietly not covered" has to be a rule about
-        // the family, not an enumeration of it.
-        if (it.name == 'contractServer'
-                || it.name.startsWith('journey') || it.name.startsWith('rehearsal')
-                || it.name.startsWith('stagewright')) return
+        // The StageWright suites' runs (stagewright<Suite>…) pin their own ephemeral ports and heap;
+        // the defaults below are for the dev runs and would make them fight a live dev client.
+        if (it.name.startsWith('stagewright')) return
         // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
         if (it.getSource(project) == sourceSets.testmod) {
             property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        }        // Pin the MCP / RPC ports so the external driver (Claude harness, docs
+        }
+        // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
         // 39800/39801; WorldDriverCommon reads -Dworlddriver.mcpPort / -Dworlddriver.rpcPort
         // (0 = random). Override with -PagentMcpPort=… / -PagentRpcPort=… if two
@@ -599,186 +233,10 @@ loom {
         // Persist mc.bot.setting changes to config/worlddriver_bot.properties so
         // survival toggles (autoSwim, autoRetreat, …) survive a client restart and
         // don't have to be re-applied every relaunch. Opt-in (set only on the dev
-        // runClient/runServer launch, NOT the dogfood/testkit runs) so the
-        // validation suites stay deterministic on pure defaults. Override with
-        // -PagentPersistConfig=false.
+        // runs, NOT the StageWright suites' runs) so the tests stay deterministic on
+        // pure defaults. Override with -PagentPersistConfig=false.
         property 'worlddriver.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
-        // Cap heap so a stuck client/server can't trigger system OOM when run
-        // alongside the dogfood/testkit server. MC 1.21.1 fits comfortably.
+        // Cap heap so a stuck client/server can't trigger system OOM. MC 1.21.1 fits comfortably.
         vmArg '-Xmx2g'
-    }
-}
-
-// ---- The journey run provisions its own directory. ----
-//
-// The six gates get theirs from the stagewright plugin's provision step, which writes the EULA and
-// FORCES `level-seed`. This run is not one of them, so both are on us — and the seed is not a
-// nicety here, it is the premise. Every coordinate in JourneyRoute is a statement about seed 5471;
-// booting on a random seed would put the bot in a different world and report "could not gather
-// wood" rather than "this is the wrong world". wd.journey01Recon asserts the seed for exactly that
-// reason, so a missing line here fails loudly instead of quietly — but it should not be missing.
-//
-// The value is duplicated from StageWright's RunDirectory.FIXED_SEED / ClientDirector.WORLD_SEED,
-// which already duplicate each other for the reason documented there: the two live in builds that
-// cannot see one another. This is a third copy with the same excuse, and the recon assertion is
-// what keeps all three honest.
-//
-// FIVE runs need this, identically: the rehearsal and the ladder's three topologies. They get
-// separate directories because they are separate worlds — a rehearsal digs a shaft and casts a
-// portal frame, and a ladder that inherited that would measure the rehearsal, which is the same trap
-// the deletion below exists to close one level down. Two LADDERS sharing one is worse still: each
-// would report the other's felled trees as its own missing ones.
-//
-// `port` is the server port to write. 0 → the OS picks one, which is right for a server nobody dials.
-// The production-topology half is dialled by name, so it says its number here as well as on the
-// command line — `--port` wins either way, and two places that disagree is a question somebody has to
-// answer at the worst possible moment.
-def provisionRun = { String taskName, String dirName, String what, String port = '0' ->
-  tasks.register(taskName) {
-    description = "Seed fabric/${dirName} with the EULA and the fixed world seed ${what} is written against."
-    def runDir = layout.projectDirectory.dir(dirName).asFile
-    outputs.upToDateWhen { false }
-    doLast {
-        runDir.mkdirs()
-        // ---- A journey must start from an unplayed world. ----
-        //
-        // This is the dirty-world trap the workspace notes already record for the gates, and it
-        // bites harder here. The gates build their own arenas and mostly overwrite what they find;
-        // a playthrough PLAYS the world, so run 2 begins with run 1's tree already felled, its ore
-        // already pulled and its shafts already dug. Every symptom of that reads as a bot bug —
-        // "could not gather wood" at a coordinate the survey swears has a tree — and the survey
-        // guard would fire on the tree run 1 legitimately cut, accusing the seed.
-        //
-        // So the world is deleted, not reused. The cost is a fresh worldgen per run, which is
-        // seconds; the alternative is a suite whose second run measures its first.
-        //
-        // BOTH layouts, because the ladder now runs under a client too: a dedicated server keeps its
-        // world at <run>/world, a client keeps its saves under <run>/saves. Deleting only the one
-        // this directory happens to use today would leave the client topology reusing a played world
-        // forever — and reusing one is invisible until a rung fails for a reason the seed cannot
-        // explain. Same rule the framework's own RunDirectory.provision follows.
-        ['world', 'saves'].each { name ->
-            def stale = new File(runDir, name)
-            if (stale.exists() && !stale.deleteDir()) {
-                throw new GradleException("could not delete ${stale} — a journey run must start from"
-                        + " an unplayed world, and reusing one makes run N measure run N-1."
-                        + " On Windows the usual cause is ANOTHER RUN STILL HOLDING THIS DIRECTORY:"
-                        + " check for live java.exe before blaming the disk. Two runs sharing a run"
-                        + " dir is not a slow run, it is two runs destroying each other's world.")
-            }
-        }
-        // ---- A results file that survives a dead run answers for it. ----
-        //
-        // The gates get this from the plugin's provision step and these runs did not, which was
-        // survivable while there was one ladder and nobody diffed its output. It is not survivable
-        // now: comparing three topologies means reading three results files, and a run that dies
-        // before writing a header leaves the PREVIOUS run's complete, valid, plausible file exactly
-        // where the reader expects this one. The heartbeat beside it lies in a way the results file
-        // cannot — it names a scene, so a stale one reports last run's position as this one's.
-        // The companion client's file is in the companion's own directory and is swept by that
-        // directory's own provision task, not from here.
-        ['stagewright/stagewright-results.jsonl', 'stagewright/stagewright-client-results.jsonl',
-         'stagewright/stagewright-progress.json'].each { name ->
-            def stale = new File(runDir, name)
-            if (stale.exists() && !stale.delete()) {
-                throw new GradleException("could not delete ${stale} — judging a run against the"
-                        + " previous run's results is worse than judging it against nothing, because"
-                        + " the leftover file is complete and looks entirely normal.")
-            }
-        }
-        new File(runDir, 'eula.txt').text = 'eula=true\n'
-        // Four client settings, written unconditionally because a dedicated server never reads the
-        // file and guessing the run type here would be one more thing to keep in step. Two of them
-        // are about the desktop this runs on, not about the game: vanilla singleplayer PAUSES when
-        // the window loses focus, and with vsync on the client blocks in the buffer swap whenever
-        // the compositor is not presenting it, which drops the client to ~1 fps and therefore to
-        // ten game ticks a second against the server's twenty. Both turn a desktop's ordinary
-        // behaviour into scene failures that look like bot defects. The same four StageWright's
-        // RunOptions sets in memory for a directed client, where the vsync reasoning is written out;
-        // Minecraft merges the keys it does not find with its defaults, so a four-line file is complete.
-        new File(runDir, 'options.txt').text =
-                'pauseOnLostFocus:false\nonboardAccessibility:false\nnarrator:0\nenableVsync:false\n'
-        def properties = new File(runDir, 'server.properties')
-        def body = properties.exists() ? properties.text : ''
-        // server-port=0 → the OS assigns a free one. Nobody connects to most of these servers; a
-        // fixed port buys nothing and costs collisions. Measured cost of one such collision: a second
-        // rehearsal died at `java.net.BindException: Address already in use: bind`, NPE'd in
-        // stopServer with a half-built level, and then the JVM did not exit — architectury's
-        // transformer pools are non-daemon, so the build hung for 5.5 hours reporting nothing.
-        ['level-seed': '5471', 'online-mode': 'false', 'server-port': port].each { key, value ->
-            def line = "${key}=${value}"
-            if (body =~ /(?m)^${java.util.regex.Pattern.quote(key)}\s*=.*$/) {
-                body = body.replaceAll(/(?m)^${java.util.regex.Pattern.quote(key)}\s*=.*$/, line)
-            } else {
-                body = body + (body.endsWith('\n') || body.isEmpty() ? '' : '\n') + line + '\n'
-            }
-        }
-        properties.text = body
-    }
-  }
-}
-def provisionJourneyRun = provisionRun('provisionJourneyRun', 'run-journey', 'the journey')
-def provisionRehearsalRun = provisionRun('provisionRehearsalRun', 'run-rehearsal', 'the rehearsal')
-// The client topology creates its own world through WorldOpenFlows rather than from
-// server.properties, at ClientDirector.WORLD_SEED — which is the same 5471 for the reason documented
-// at the top of this block. The seed line still goes in: it costs nothing and it keeps a reader from
-// having to know which of the two mechanisms this directory happens to use.
-def provisionJourneyIntegratedRun =
-        provisionRun('provisionJourneyIntegratedRun', 'run-journey-integrated', 'the journey')
-def provisionJourneyWithClientRun =
-        provisionRun('provisionJourneyWithClientRun', 'run-journey-with-client', 'the journey', '25701')
-def provisionJourneyJoiningClientRun =
-        provisionRun('provisionJourneyJoiningClientRun', 'run-journey-joining-client', 'the journey')
-// The client rehearsal needs its own, and needing it is not optional: every rehearsal stands the
-// player at coordinates baked from seed 5471, so a directory provisioned without that seed rehearses
-// a rung against terrain it was never written for — and it does that GREENLY, staging its kit into
-// whatever happens to be there. This line is the difference between a rehearsal and a fiction.
-def provisionRehearsalIntegratedRun =
-        provisionRun('provisionRehearsalIntegratedRun', 'run-rehearsal-integrated', 'the rehearsal')
-tasks.named('runJourneyServer') { dependsOn provisionJourneyRun }
-tasks.named('runRehearsalServer') { dependsOn provisionRehearsalRun }
-tasks.named('runRehearsalIntegratedServer') { dependsOn provisionRehearsalIntegratedRun }
-tasks.named('runJourneyIntegratedServer') { dependsOn provisionJourneyIntegratedRun }
-tasks.named('runJourneyDedicatedServerWithClient') {
-    dependsOn provisionJourneyWithClientRun, provisionJourneyJoiningClientRun
-}
-tasks.named('runJourneyJoiningClient') { dependsOn provisionJourneyJoiningClientRun }
-
-// ---- The ladder's production topology is two games, and Gradle runs tasks one at a time. ----
-//
-// `runJourneyDedicatedServerWithClient` and `runJourneyJoiningClient` have to OVERLAP: the server
-// holds its suite back until a player joins (`stagewright.awaitPlayer`), and the player is the other
-// task. Asking Gradle for both would run the server to completion first and then start a client for
-// a suite that is over — so the client is launched as a detached process from inside the server
-// task's own action, exactly the way the stagewright plugin does it for the gate twin.
-//
-// Reusing the plugin's build SERVICE rather than a ProcessBuilder of our own is the whole point:
-// Gradle closes a build service on EVERY exit path — success, failure, task timeout, Ctrl-C — and a
-// leaked game client holds its run directory open, so the next run's provisioning cannot delete the
-// world and the failure that follows reads as a scene bug. Teardown in a doLast is skipped exactly
-// when the run failed, which is when a leak is most likely.
-//
-// The command line is copied off the companion's own JavaExec spec, so loom stays the only thing
-// that knows what a dev run looks like. That means the companion's task dependencies have to have
-// run — hence dependsOn on both its declared dependencies and whatever produces its inputs (a run
-// task's classpath carries its own build dependencies, which are NOT in dependsOn; without this the
-// client is handed a path to a jar nothing has built).
-def journeyCompanionService = gradle.sharedServices.registerIfAbsent('stagewrightSideProcesses',
-        net.magicterra.stagewright.gradle.StageWrightSideProcessService) {}
-tasks.named('runJourneyDedicatedServerWithClient') {
-    def companion = tasks.getByName('runJourneyJoiningClient')
-    dependsOn companion.dependsOn
-    dependsOn companion.inputs.files
-    // Reading another task's JavaExec spec at execution time captures a Task, which the
-    // configuration cache cannot serialize. Declared rather than discovered: left unsaid, a build
-    // with the cache on fails with Gradle's own message naming loom's run task class and nothing
-    // about companions.
-    notCompatibleWithConfigurationCache('the journey production topology starts its companion client'
-            + ' from another task\'s JavaExec spec, which cannot be serialized into the'
-            + ' configuration cache')
-    def companionLog = layout.projectDirectory.file('run-journey-with-client/companion-client.log').asFile
-    doFirst {
-        companionLog.parentFile.mkdirs()
-        journeyCompanionService.get().startCompanion(companion, companionLog, logger)
     }
 }

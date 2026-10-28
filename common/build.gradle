@@ -9,18 +9,13 @@ loom {
     accessWidenerPath = file("src/main/resources/worlddriver.accesswidener")
 }
 
-// P4a Task 2: testmod source set — the wd.* dogfood scenes (WorldDriverScenes) +
-// the sim probe helpers (SimProbes) + the SceneProvider service file live here so
-// they are compiled ONLY for dev/test runs and NEVER baked into the remapped
-// production jar (common's transformProductionNeoForge/Fabric transforms only the
-// `main` output). The loader modules (neoforge/fabric) attach THIS source set's
-// OUTPUT to their dev runs; :common itself never runs, so no loom mods{} wiring is
-// needed here. Classpath mirrors the neoforge testmod convention: testmod sees
-// main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
-// can reach main classes (Navigator, PlayerBot, …) AND main's dependencies
-// (Minecraft, netty compileOnly), while the testkit scene SPI
-// (Scene/SceneContext/SceneProvider) comes from :stagewright-common namedElements
-// (added explicitly below AND already transitively present in main.compileClasspath).
+// testmod source set — the in-game tests StageWright runs and the test content (validation
+// suite, NPCs) live here so they are compiled ONLY for dev/test runs and NEVER baked into the
+// remapped production jar (common's transformProductionNeoForge/Fabric transforms only the
+// `main` output). The loader modules (neoforge/fabric) attach THIS source set's OUTPUT to their
+// dev runs; :common itself never runs, so no loom mods{} wiring is needed here. testmod sees
+// main's OUTPUT plus main's own compile/runtime classpaths, and StageWright's api (below).
+// The scenes still to be ported sit in src/testmod/legacy, which no source set compiles.
 // The `test` source set is for PURE-JVM unit tests of code that needs no running
 // game — the transports (JSON-RPC framing, RpcServer/RpcClient wire contract) are
 // the motivating case: they are plain Netty + java.util and were previously only
@@ -50,10 +45,9 @@ dependencies {
     // The api module, by the common-to-common idiom; the loader modules bundle it beside :common.
     implementation project(path: ':api', configuration: 'namedElements')
 
-    // StageWright's scene SPI (Scene/SceneContext/SceneProvider) for the wd.* scenes.
+    // StageWright's test API (net.magicterra.stagewright.test) for the in-game tests.
     //
-    // The API ONLY, never the runtime: the scenes need those three types to DECLARE
-    // themselves and nothing else. Depending on mc_stagewright-common here would be a
+    // The API ONLY, never the runtime. Depending on mc_stagewright-common here would be a
     // version CYCLE — that module compiles against worlddriver-common — which is exactly
     // why the api module was split out before the repos separated.
     //
@@ -77,19 +71,6 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     testLogging { events "failed" }
-
-    // ConfigPinDisciplineTest reads the compiled testmod BYTECODE. That directory is not on the
-    // test classpath, so Gradle did not know it was an input: editing a scene made
-    // `:common:testmodClasses` recompile while `:common:test` reported UP-TO-DATE, and the run
-    // then served the PREVIOUS verdict with EXIT=0 and BUILD SUCCESSFUL. A gate that answers a
-    // question you did not ask is worse than one that fails, because nothing about the output
-    // says it is stale. Declaring the directory makes a scene edit invalidate the test the way a
-    // source edit already does; dependsOn means plain `:common:test` builds it first, so the
-    // command needs neither an extra task nor --rerun-tasks.
-    dependsOn tasks.named('testmodClasses')
-    inputs.files(sourceSets.testmod.output.classesDirs)
-            .withPropertyName('testmodClasses')
-            .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 repositories {
@@ -110,15 +91,8 @@ dependencies {
     // in both loaders' metadata; the loader modules add their own platform artifact.
     modImplementation "dev.architectury:architectury:$rootProject.architectury_api_version"
 
-    // stagewright-common (P1.6 Task 2) — the dogfood scenes (WorldDriverScenes) + the
-    // SceneProvider service now live in this common module, so the testkit scene SPI
-    // (Scene/SceneContext/SceneProvider) is needed on the common COMPILE classpath.
-    // architectury common→common consumption idiom = plain namedElements project dep
-    // (the loom `common()`/`shadowBundle` transform pair is for PLATFORM modules only;
-    // runtime bundling of stagewright-common into the loader jars stays in neoforge/fabric).
     // stagewright is NOT a main dependency — that edge is what put the test framework in the
-    // shipped jar. Only the `testmod` source set compiles against it (the wd.* scenes need
-    // Scene/SceneContext/SceneProvider), declared in the testmod block above.
+    // shipped jar. Only the `testmod` source set compiles against it, declared in the block above.
 
     // Rhino JS engine (KubeJS fork) — common because both platforms use it
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"

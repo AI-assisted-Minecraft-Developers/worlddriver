@@ -3,10 +3,7 @@ plugins {
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
     id 'com.github.node-gradle.node' version '7.1.0' apply false
-    // First dogfood consumer of the stagewright gradle plugin (resolved from mavenLocal, wired in
-    // settings.gradle). Registers one `stagewright<Topology>` task per entry in the block below,
-    // each provisioning a clean run directory, running the loader subproject's own run task
-    // and judging its results. Applying it is negligible at configuration time (lazy registration).
+    // The StageWright plugin (resolved from mavenLocal, wired in settings.gradle): the in-game test suites below.
     id 'net.magicterra.stagewright'
 }
 
@@ -20,48 +17,7 @@ architectury {
 ext.architectury_version_range =
         "[${architectury_api_version},${(architectury_api_version.tokenize('.')[0] as int) + 1})".toString()
 
-// Dogfood consumer configuration for the stagewright gradle plugin.
-//
-// One task per (gate, loader) pair rather than one task plus a `-Pstagewright.loader` switch. The
-// switch existed because the plugin used to shell a python orchestrator that took `--loader`; now
-// that a topology IS a run task plus a results file plus an expect-file, and all three differ per
-// loader, a single parameterised task would just be three topologies wearing one name — and the
-// pair that actually needs running together (both loaders, proving byte-identity) could not be
-// asked for in one invocation.
-//
-//   ./gradlew stagewrightDedicatedServerWithClientFabric stagewrightDedicatedServerWithClientNeoforge   # both loaders, one command
-//
-// `client` marks a topology whose run task is a client, so it is refused up front without a display.
-// The display is the environment's: a desktop, or `xvfb-run ./gradlew …` on a headless host.
 stagewright {
-    topologies {
-        // The wd.client* scenes drive the joined client over its own RPC (ClientRegistry in the testmod), so
-        // no scene needs the client in the server's JVM and there is no integrated-server topology.
-        dedicatedServerWithClientFabric {
-            runTask = ':fabric:runStagewrightDedicatedServerWithClient'
-            companionRunTask = ':fabric:runStagewrightJoiningClient'
-            gameDirectory = file('fabric/run-stagewright-with-client')
-            // The client half probes the process boundary in its own JVM; without this its
-            // verdict would be written and never read.
-            companionResultsFile = file('fabric/run-stagewright-joining-client/stagewright/stagewright-client-results.jsonl')
-            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            // Several hundred scenes, many walking a bot across real terrain; the default 20 is for a game that never armed.
-            timeoutMinutes = 45
-            // JavaScript scenes, one directory for every topology: the manifests are shared per loader.
-            sceneScripts = file('stagewright-scenes')
-        }
-        dedicatedServerWithClientNeoforge {
-            runTask = ':neoforge:runStagewrightDedicatedServerWithClient'
-            companionRunTask = ':neoforge:runStagewrightJoiningClient'
-            gameDirectory = file('neoforge/run-stagewright-with-client')
-            // The client half probes the process boundary in its own JVM; without this its
-            // verdict would be written and never read.
-            companionResultsFile = file('neoforge/run-stagewright-joining-client/stagewright/stagewright-client-results.jsonl')
-            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
-            timeoutMinutes = 45
-            sceneScripts = file('stagewright-scenes')
-        }
-    }
     // The JUnit tests in the testmod, run in the game per scene: stagewrightTestFabric, stagewrightTestNeoforge.
     // The plugin declares their runs in each loader's loom, under <loader>/run-stagewright/<suite>/, and puts the
     // StageWright mod on every run of the loader's testmod source set. A clean box publishing :common before

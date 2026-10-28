@@ -85,30 +85,12 @@ dependencies {
 
 }
 
-// testmod source set — EMPTY-SOURCE BRIDGE (P4-final). The legacy @GameTest classes
-// once lived here (P4a-P4c) so they compiled/loaded ONLY in dev runs, never in the
-// production jar; P4b/P4c migrated every arena to a dogfooded wd.* testkit scene under
-// :common's testmod and P4-final retired the GameTestServer run machinery. This source
-// set now carries NO test java of its own — it survives purely as the delivery vehicle
-// that folds :common's testmod OUTPUT+resources into worlddriver's dev-run module (via
-// the loom mods{} block below) and onto the `source sourceSets.testmod` runs
-// (the self-driving topologies) so ServiceLoader discovers the wd.*
-// scenes. Deleting it would silently drop all scene delivery — keep it.
-// Classpath wiring mirrors the stagewright gradle-plugin's
-// testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
-// classpaths — so testmod code can reach main classes AND main's dependencies,
-// including common's SimProbes), but wired by hand: the plugin's testmodSourceSet
-// flag only takes effect on the root project (P4a plan §Architecture).
-// P4a Task 2: neoforge testmod must COMPILE against :common's testmod OUTPUT. The
-// wd.* scene + probe helpers moved there (SimProbes, referenced by
-// AgentGameTestSupport:122 and AgentGameTestServer:~2534/~2544; WorldDriverScenes'
-// SceneProvider service file too), so they are NO LONGER in :common namedElements
-// (main output) that testmod's main-classpath extension already sees. We add
-// :common's testmod output to the COMPILE classpath only (classesDirs so javac
-// resolves SimProbes). evaluationDependsOn forces :common to configure first so its
-// sourceSets.testmod is resolvable here.
+// testmod source set — EMPTY-SOURCE BRIDGE: no sources of its own; it folds :common's testmod
+// output into worlddriver's dev-run module (the loom mods{} block below) for the runs whose `source`
+// it is, which the StageWright suites' runs are. It compiles against :common's testmod output;
+// evaluationDependsOn forces :common to configure first so its sourceSets.testmod is resolvable here.
 //
-// It is DELIBERATELY NOT on runtimeClasspath: at RUNTIME :common's testmod is
+// :common's testmod output is DELIBERATELY NOT on runtimeClasspath: at RUNTIME :common's testmod is
 // delivered by the loom `mods { named('main') { sourceSet ..., project(':common') } }`
 // block below, which folds its output into worlddriver's fml.modFolders group (one
 // module, unioned with the moved-package's siblings in :common main). Putting it on
@@ -182,7 +164,7 @@ loom {
     }
 
     // P4a Task 1: attach the testmod source set to the mod FML scans, so :common's
-    // testkit scene classes and their SceneProvider service entries are discovered as
+    // test classes and their service entries are discovered as
     // part of worlddriver (no separate mods.toml). architectury-loom EAGERLY registers a
     // default dev-run mod named "main" (the main source set) during plugin apply, before
     // this script body runs — so we must CONFIGURE that existing "main" mod, not create a
@@ -214,66 +196,21 @@ loom {
             //      module — see the report for why the brief's identical-package layout is
             //      unsatisfiable under JPMS and this is the minimal deviation.
             // Per-run scoping holds: loom emits modFolders only for source sets on a run's
-            // classpath, so contractServer/server (no `source testmod`) never receive the
-            // scenes — the scene-independence of the instrument contract stands.
+            // classpath, so `server` (no `source testmod`) never receives the test content.
             sourceSet project(':common').sourceSets.testmod, project(':common')
         }
     }
     runs {
         server { server() }
-        contractServer {
-            server()
-            property 'worlddriver.contractRun', 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-contract'
-            vmArg '-Xmx1g'
-        }
-        // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
-        // run-t2), deleted along with the scripts that drove them from outside. The only
-        // process remains: the last two went on 2026-08-05.
-        //
-        // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
-        // player, exit when finished — is a system property the harness reads for itself.
-
-        // Production topology, server half: holds the suite back until a real client has joined.
-        stagewrightDedicatedServerWithClient {
-            server()
-            programArgs '--nogui', '--port', '25602'
-            property 'stagewright.autorun', 'true'
-            property 'stagewright.awaitPlayer', 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            // Where the joined client's driver says its port: the wd.client* scenes drive that player.
-            property 'worlddriver.test.clientRpcPortFile', file('run-stagewright-joining-client/worlddriver-rpc.port').absolutePath
-            runDir 'run-stagewright-with-client'
-            vmArg '-Xmx2g'
-            source sourceSets.testmod
-        }
-        // Production topology, client half. Started by the plugin as a companion of the server
-        // above; it runs no scenes of its own, it only has to be a real player.
-        stagewrightJoiningClient {
-            client()
-            property 'stagewright.client.connect', '127.0.0.1:25602'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-stagewright-joining-client'
-            vmArg '-Xmx2g'
-            // The testmod registers the marker block and items, so a client without it is refused at
-            // registry sync and the server waits for a player forever.
-            source sourceSets.testmod
-        }
     }
     runConfigs.configureEach {
-        // contractServer manages its own -Xmx (1g), so exclude it from the guard's default
-        // heap/runValidation pinning below. The two halves of the self-driving topology do the same.
-        if (it.name == 'contractServer'
-                || it.name.startsWith('stagewrightDedicated')
-                || it.name.startsWith('stagewrightJoining')) return
+        // The StageWright suites' runs (stagewright<Suite>…) set their own heap.
+        if (it.name.startsWith('stagewright')) return
         // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
         if (it.getSource(project) == sourceSets.testmod) {
             property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        }        // Cap heap so the dogfood/testkit server runs don't trigger system OOM.
+        }
+        // Cap heap so a stuck server can't trigger system OOM.
         vmArg '-Xmx2g'
     }
 }
