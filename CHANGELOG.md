@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifests and the gate, contract, journey and rehearsal runs. The 226 worth keeping are parked uncompiled
   in `common/src/testmod/legacy/` until they are ported. The server no longer applies the scene flag
   baseline at start under `-Dstagewright.autorun`. CI runs `stagewrightTestNeoforge` instead of the gate.
+- **The JavaScript validation scripts are StageWright script tests.** Each script under
+  `stagewright/tests/validation/` is one test, run in the scenes `wd.validation` (dedicated server) and
+  `wd.validationIntegrated` (integrated server); a failed check is reported by name and the checks after it
+  still run, the arena is seeded afresh before every script, and each script states its check count per
+  topology. `wd.agentRpcSmoke`, `ValidationSuite`, `/worlddriver test [list|result]`,
+  `-Dworlddriver.runValidation` and the api's `ScriptChecks` / `WorldDriver.scripts()` are gone;
+  `09_events.js`, which tests the operator scripts' `ScriptEvents`, runs as a unit test.
 
 ## 2026-10-27
 

@@ -162,7 +162,7 @@ curl -s http://127.0.0.1:$PORT/mcp \
 | `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体 |
 
-校验套件的 `/worlddriver test` 随 testmod 提供，只存在于开发运行中；见
+JavaScript 校验套件随 testmod 提供，以 StageWright 脚本测试的形式运行；见
 [`docs/dev/testing.md`](docs/dev/testing.md)。
 
 ---

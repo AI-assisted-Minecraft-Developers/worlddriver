@@ -66,13 +66,16 @@ only the `self` half needs a client.
 `invokeJson` parses the params with Gson around `dispatch`, answers an envelope
 `{result}` or `{error}`, and adds no behaviour.
 
-Rhino additionally exposes `Driver.invokeRpc` through `script/RpcBridge`, which
-deliberately goes back out over the socket instead of calling `dispatch` in process. It
-exists so a script can compare the two paths against each other.
+The operator's own scripts (loaded by `script/ScriptManager`) additionally get
+`Driver.invokeRpc` and `Driver.invokeMcp` through `script/RpcBridge` and `script/McpBridge`,
+which deliberately go back out over the socket instead of calling `dispatch` in process, so
+a script can compare the paths against each other. The validation scripts get the same calls
+from their kit, through the testmod's `testcontent/TransportCalls`, an outside client of both
+servers.
 
 ### What the parity scripts actually prove
 
-Two scripts under `common/src/testmod/resources/data/worlddriver/scripts/validation/`
+Two scripts under `common/src/testmod/resources/stagewright/tests/validation/`
 compare transports:
 
 - `06_rpc_parity.js` compares `Driver.invoke` against `Driver.system.rpcRoundtrip`.
@@ -198,7 +201,7 @@ told, so the cursor is best-effort.
 | `game/` | What every caller of the game shares: `observe/` reads, `edit/` writes as an operator (fill, snapshot and restore, commands), `body/` drives an entity, `ui/` is what the client's screens and input share below the contracts (the thread, focus, mouse yield, the chat log); none of it speaks the api except the thread hop |
 | `config/` | The settings, one class per layer (`GameConfig`, `WorldConfig`, `RulesConfig`, `PlanningConfig`, `ControlConfig`, `BehaviorConfig`, `ArbitrationConfig`, and the facade's `BotConfig`, which also enumerates, persists and pins them all), the settings registry and its documentation, and the settings file; each setting sits in the lowest layer that reads it, a layer reads only its own class and the ones below, and config reads no layer |
 | `debug/` | The path recorders and analysis, and the `mc.debug.*` batch and its handlers; nothing outside the facade and the wiring depends on it |
-| `test/` | `ScriptTest` and `TestContext`, the harness the `validation/*.js` files call |
+| `test/` | `ScriptTest` and `TestContext`, the check helper `script/ScriptManager` hands the operator's scripts |
 | `mixin/` | The mixins each loader applies |
 
 `bot/` is the largest and most actively changed subsystem. Its internal layering has its

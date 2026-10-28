@@ -187,30 +187,32 @@ command to run.
 
 ## The JavaScript validation suite
 
-The scripts under `common/src/testmod/resources/data/worlddriver/scripts/validation/` drive
-the driver through the same `Driver.*` surface a user script sees, on every transport. They
-ship with the testmod, not with the published jar: a run seeds the arena at the test origin
-(it clears the blocks and discards every non-player entity nearby) and the scripts summon
-mobs and run commands at operator level, which is not something a server should get by
-installing the mod.
+The scripts under `common/src/testmod/resources/stagewright/tests/validation/` drive the
+driver through the same `Driver.*` surface a user script sees, and compare its in-JVM answers
+with the same calls made over the WebSocket RPC and MCP servers. They are StageWright script
+tests, one test per script, run in two scenes: `wd.validation` (a dedicated server, where every
+client-face script registers one placeholder and the client verbs are refused) and
+`wd.validationIntegrated` (a client hosting its own server, where those scripts take their real
+branch). `stagewrightTestFabric` and `stagewrightTestNeoforge` run both.
 
-A gate runs the suite as the `wd.agentRpcSmoke` scene. In a development run that carries the
-testmod, there are two more ways to start it:
+Each script hands its checks to the step `wd.validation` in `kit.js` beside them, which keeps
+the shape the scripts were written in: `ScriptTest.run(name, body)` runs a check at once, and a
+check that throws fails alone, reported with its name when the test ends, the checks after it
+still running. Before a script's checks the step seeds the arena at the test origin afresh
+(`TestArena`: it clears the blocks and discards every non-player entity nearby) and stands the
+player, if any, on it, so no script depends on another's leftovers or on the order they run in;
+every test is `isolated`. Each script states how many checks it makes on each topology, and the
+step fails the test when the number differs: that is what notices a client-face script's real
+branch quietly turning into its placeholder. The Java half of the kit is
+`testcontent/ValidationSteps` (the arena, the topology, the RPC and MCP calls) and
+`testcontent/TransportCalls` (an outside client of both servers).
 
-| Command | Effect |
-|---|---|
-| `/worlddriver test`        | Seed the arena and run every validation script on a worker thread, then report the pass and fail counts |
-| `/worlddriver test list`   | List the validation script names |
-| `/worlddriver test result` | Print the per-test result of the last run |
+The scripts ship with the testmod, not with the published jar: they summon mobs and run
+commands at operator level, which is not something a server should get by installing the mod.
 
-These require permission level 2. Only one run holds the suite at a time: a second
-`/worlddriver test`, or the scene, is refused while one is in flight rather than sharing its
-result list and reseeding its arena.
-
-`-PagentRunValidation=true` passes `-Dworlddriver.runValidation=true` to the runs that carry
-the testmod outside the scene topologies (`:fabric:runLabClient`); the suite then runs once the
-server has started and the JVM exits non-zero if any check failed. `runClient` and `runServer`
-do not carry the testmod and ignore the flag.
+`ScriptEvents`, the attach and tick lifecycle of the operator's own scripts, exists only in the
+scope `ScriptManager` builds for them, so its checks (`09_events.js`) run as a unit test,
+`ScriptManagerEventsTest`.
 
 ## The out-of-process JUnit suite
 

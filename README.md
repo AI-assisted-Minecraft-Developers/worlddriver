@@ -181,8 +181,8 @@ endpoints are still in `worlddriver-mcp.port` and `worlddriver-rpc.port`.
 | `/worlddriver reload`      | Reload user scripts from `config/worlddriver/scripts/` |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
 
-The validation suite's `/worlddriver test` ships with the testmod and exists only in
-development runs; see [`docs/dev/testing.md`](docs/dev/testing.md).
+The JavaScript validation suite ships with the testmod and runs as StageWright script tests;
+see [`docs/dev/testing.md`](docs/dev/testing.md).
 
 ---
 

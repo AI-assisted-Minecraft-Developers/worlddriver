@@ -83,8 +83,9 @@ uv run scripts/react_smoke.py                       # smoke driving over the cli
    extension (`mc.test.*` for StageWright, `<modid>.*` for anyone else) publishes its own
    `ApiBatch` through `api.registry().registerBatch` instead — see `docs/dev/architecture.md`
    ("Registering a verb").
-3. Add a validation script under `validation/` that exercises it through all three transports.
-   `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern.
+3. Add a check to a validation script under `common/src/testmod/resources/stagewright/tests/validation/`
+   that exercises it through all three transports, and move that script's check counts.
+   `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern; `kit.js` there says how they run.
 4. Re-run the in-game test suites.
 
 ## When you remove or merge a method

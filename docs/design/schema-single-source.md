@@ -72,5 +72,5 @@ unusable parameter documentation to every model client.
 - `mcp/McpTools.java` — the `tools/list` view of the specs.
 
 The behaviour is asserted by the schema-validation scripts in
-`common/src/testmod/resources/data/worlddriver/scripts/validation/`, which run on every transport and
+`common/src/testmod/resources/stagewright/tests/validation/`, which run on every transport and
 compare the results.

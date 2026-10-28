@@ -421,5 +421,4 @@ permission level 2 (an operator, or on a single-player world, one with cheats al
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
 
 The test framework adds more subcommands when it is loaded — see
-[Human verification](human-verification.md), and `/worlddriver test` in
-[Testing](../dev/testing.md) — and the published jar has none of them.
+[Human verification](human-verification.md) — and the published jar has none of them.
