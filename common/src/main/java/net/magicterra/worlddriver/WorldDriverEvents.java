@@ -12,7 +12,6 @@ import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.application.TickClock;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotCommand;
 import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.script.ScriptEvents;
@@ -36,27 +35,13 @@ import net.minecraft.world.level.block.state.BlockState;
  * earlier in the chain suppresses the report the way it always did on NeoForge.
  */
 public final class WorldDriverEvents {
-    // Reads the same -Dstagewright.autorun property StageWright arms on, but does NOT talk to
-    // StageWright: applyGameTestBaseline() is a worlddriver concern (it pins the legacy default-OFF
-    // flag baseline the scene arenas were authored against). The property is the only thing shared,
-    // which is what lets the driver stay ignorant of whether a test framework is even installed.
-    private static final boolean TESTKIT_AUTORUN = Boolean.getBoolean("stagewright.autorun");
-
     private WorldDriverEvents() {}
 
     /** Subscribes every server-side handler. Call once, from the loader's mod-construction entry. */
     public static void register() {
         LifecycleEvent.SERVER_STARTING.register(server -> WorldDriverCommon.onServerStarting());
-        LifecycleEvent.SERVER_STARTED.register(server -> {
-            WorldDriverCommon.onServerStarted(server);
-            // Gated on autorun: this pins the legacy default-OFF flag baseline the scene arenas were
-            // authored against, and must NOT mutate a production server's live bot defaults — it only
-            // matters where a suite auto-runs its scenes at boot. StageWright arms itself from its own
-            // server-started handler; the driver does not forward lifecycle to it.
-            if (TESTKIT_AUTORUN) {
-                BotConfig.applyGameTestBaseline();
-            }
-        });
+        // StageWright arms itself from its own server-started handler; the driver does not forward lifecycle to it.
+        LifecycleEvent.SERVER_STARTED.register(WorldDriverCommon::onServerStarted);
         LifecycleEvent.SERVER_STOPPING.register(server -> {
             TickClock.server().reset();
             WorldDriverCommon.onServerStopping();

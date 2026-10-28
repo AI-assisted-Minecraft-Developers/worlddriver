@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * baseline pins it off.
  *
  * <p><b>The failure this guards is not a skipped test — it is a rewritten subject.</b>
- * {@link BotConfig#applyGameTestBaseline()} runs once at server start under
- * {@code -Dstagewright.autorun} (WorldDriverEvents' server-started handler) and writes 38 fields,
+ * {@link BotConfig#applyGameTestBaseline()} runs under every scene that takes
+ * {@link BotConfig#pinnedBaseline()} and writes 38 fields,
  * the first two of which are {@code allowBreak = false} and {@code allowPlace = false}. So a
  * scene suite that is green over a behaviour proves nothing about a live client, and a live
  * client's behaviour proves nothing about the suite — the two run different bots. Nothing

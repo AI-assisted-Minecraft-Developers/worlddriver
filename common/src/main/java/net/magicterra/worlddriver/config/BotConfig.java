@@ -304,13 +304,10 @@ public final class BotConfig {
      *  against the historical default-OFF flag set; when the #47-validated combo was
      *  flipped to default-ON for live play, 14 required arenas broke because flags the
      *  tests never touch (allowBreak/allowPlace/DrowningEscape/...) changed the bot's
-     *  behavior mid-arena. The stagewright dogfood server calls this once at server
-     *  start under {@code -Dstagewright.autorun} (WorldDriverEvents' server-started handler,
-     *  gated on {@code TESTKIT_AUTORUN}) to pin the suite back to the baseline the
-     *  scenes were written for; scenes that WANT a flag still set it explicitly. Live
-     *  clients (integrated server, autorun unset) never call this. (The GameTestServer
-     *  delivery this note once described was retired in P4-final; the baseline pin
-     *  survives, now driven by the testkit-autorun path.) */
+     *  behavior mid-arena. Nothing calls this at server start any more: the scenes
+     *  still to be ported (common/src/testmod/legacy) reach it through
+     *  {@link #pinnedBaseline()}, and scenes that WANT a flag still set it explicitly.
+     *  Live clients never call this. */
     public static void applyGameTestBaseline() {
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
