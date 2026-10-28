@@ -2,19 +2,18 @@
 
 How to tell whether a movement failure is the planner's or the navigator's, and how to wire a
 flag for trying a change. Everything here goes through the API of a running client; nothing
-runs inside a scene.
+runs inside an in-game test.
 
-The scene gates answer "did this break?". Whether a change is better across many routes,
+The in-game test suites answer "did this break?". Whether a change is better across many routes,
 rather than on the one that motivated it, is a different question: the acceptance rule for it
 and the corpus it runs over are in [`replay-corpus.md`](replay-corpus.md).
 
 ## Prerequisites
 
-A running development client with the JSON-RPC port pinned:
+A running development client, whose JSON-RPC endpoint the development run fixes at 39801:
 
 ```bash
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
+./gradlew :fabric:runClient
 ```
 
 Load a world and let it finish loading first. Launching a client is platform-dependent in one
