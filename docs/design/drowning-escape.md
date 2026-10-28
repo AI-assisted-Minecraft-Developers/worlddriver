@@ -134,7 +134,7 @@ conditional on the cell under the feet being standable.
 
 Both arms print a throttled row every ten ticks, and neither is gated on
 `GameConfig.navigatorDebug`. That is a deliberate reversal. The rows used to be behind that flag,
-and gate runs never set it, so a run in which this chain latched and the bot drowned 300 ticks
+and test runs never set it, so a run in which this chain latched and the bot drowned 300 ticks
 later at an unchanged position produced exactly one line of log — the latch — and nothing to say
 which arm had it. A reading available only behind a flag is a reading the run that needs it never
 takes, and the zero it leaves cannot be told apart from the arm never having run.
@@ -149,7 +149,7 @@ ticks.
 
 ## Why the chain names no client type
 
-The gate's matrix scenes construct this chain on a dedicated server, so it must load there. It
+The server arms of `DrownRiseTest` construct this chain on a dedicated server, so it must load there. It
 once held the client's `LocalPlayer`, and handing that to a parameter declared as a wider type made
 the verifier load `LocalPlayer` to prove the subtype relation — which is what established the
 widening rule in `AGENTS.md`. The lid scan and the debug row lived in `BotInteract` to keep that
@@ -161,12 +161,13 @@ the chain again.
 ## What is still open
 
 The reflex is best-effort against a sealed stone lid and cannot be made better by tuning. Bare-handed
-it cannot dig out at all, which is why the scene that exercises the lid break equips a pickaxe: a
-scene that armed this arm bare-handed would be asserting a privilege vanilla does not grant.
+it cannot dig out at all, which is why the test that exercises the lid break equips a pickaxe: a
+test that armed this arm bare-handed would be asserting a privilege vanilla does not grant.
 
-`wd.drownEscapeClientPinnedByNeighbourColumn` is registered as an optional failure rather than a
-required one, because it is a sensor for a hypothesis that is not settled rather than a verdict. When
-the hypothesis is settled it should be promoted in the same change, or it becomes a red nobody reads.
+Every scan in the chain looks at the one column `blockPosition()` names, while the player's
+bounding box can straddle the next one. `DrownRiseTest.drownEscapeClientPinnedByNeighbourColumn`
+stages exactly that, a solid block in the neighbouring column, so a failure there means the
+blindness is real.
 
 ## Where to look
 
@@ -179,6 +180,6 @@ the hypothesis is settled it should be promoted in the same change, or it become
 - `bot/arbitration/Priorities.java` — where 500 sits relative to the other reflexes.
 
 The decision layer is checked by the unit tests `ReflexGatesTest` (the gate) and `DrownEscapeChainTest`
-(the episode, and the scheduler handing the channel to the escape and back) and the scene
-`wd.drownEscapeSurface`, which run anywhere, and the five `wd.drownEscapeClient*` scenes for the execution
-layer, which execute only on a topology with a real client.
+(the episode, and the scheduler handing the channel to the escape and back) and the in-game test
+`CoverageTest.drownEscapeSurface`. The execution layer is checked by `DrownRiseTest`: its server arms
+on a headless bot, and its `drownEscapeClient*` arms on a real client's player in `wd.clientScenes`.
