@@ -39,7 +39,7 @@ external MCP client            in-game JS script              external WS client
 
 | 分组 | 用途 |
 |---|---|
-| `mc.system.*`    | 探查当前运行的构建、取得多数空间类方法默认以之为中心的测试场原点，以及等待固定 tick 数。 |
+| `mc.system.*`    | 探查当前运行的构建、取得多数空间类方法默认以之为中心的测试原点，以及等待固定 tick 数。 |
 | `mc.script.eval` | 在进程内运行一段 JavaScript。只要一件事本来需要三次以上往返，就应优先用它。 |
 | `mc.skill`       | 持久技能库：保存、列出、运行、删除可复用的脚本。 |
 | `mc.events`      | 驱动器到 agent 的事件通道，包含轮询某个路由、在谓词翻转时发出事件的上升沿监视器。 |
@@ -68,16 +68,16 @@ external MCP client            in-game JS script              external WS client
 子系统 —— 键有数百个，且由设置注册表生成而非手工罗列，所以该方法的 `inputSchema` 才是权威清
 单。其中两个键决定寻路器是否可以改变世界：`allowBreak` 允许它挖穿障碍，`allowPlace` 允许它
 搭出一格桥，**两者默认都是开启的**，也就是说除非你关掉它们，否则 `goto` 与 `follow` 会改变地
-形。场景套件把两者都固定为关闭，因此在那里走通的路线不能作为默认客户端上的证据。这一层背后的
+形。游戏内测试除非某个测试自己要求，否则都把两者关闭，因此在那里走通的路线不能作为默认客户端上的证据。这一层背后的
 分层设计见 [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md)。
 
 ---
 
 ## 快速上手
 
-### 1. 构建，并运行场景套件
+### 1. 构建，并运行游戏内测试
 
-场景套件所依托的游戏内测试框架 StageWright 有自己的仓库，在这里以发布到 Maven 的产物形式被
+游戏内测试所依托的测试框架 StageWright 有自己的仓库，在这里以发布到 Maven 的产物形式被
 使用：版本锁定在 `gradle.properties` 的 `stagewright_version`，由 StageWright 的持续集成发布到
 `https://nexus.gardel.top/repository/maven-releases`。克隆仓库后直接就能构建：
 
@@ -87,20 +87,20 @@ external MCP client            in-game JS script              external WS client
 
 WorldDriver 发布的 jar 里没有任何 StageWright 类，只有测试源码和开发环境的运行用到它。
 
-每个拉取请求和每次推送到 `master`，持续集成都会构建、运行单元测试，并通过 NeoForge 专用服务器加客户端的场景
-门控；推送到 `master` 且通过的构建还会以 `0.1.0-alpha.<构建编号>+1.21.1` 发布到同一个 Nexus。
+每个拉取请求和每次推送到 `master`，持续集成都会构建、运行单元测试，并在 NeoForge 上运行游戏内测试；推送到 `master` 且通过的构建还会以 `0.1.0-alpha.<构建编号>+1.21.1` 发布到同一个 Nexus。
 `master` 上还在等待前一次运行结束的运行，遇到更新的推送时会被取消，那次推送不会以自己的编号发布。
 
-一条命令就能让场景套件在“专用服务器加一个真客户端”上运行起来（客户端需要显示器；无头主机上
+每个 loader 一条命令运行游戏内测试（其中一些会启动真客户端，客户端需要显示器；无头主机上
 用 `xvfb-run` 运行）：
 
 ```bash
-./gradlew stagewrightDedicatedServerWithClientNeoforge
+./gradlew stagewrightTestNeoforge
+./gradlew stagewrightTestFabric
 ```
 
-该任务会准备一个干净的运行目录、启动游戏、运行场景与 JavaScript 校验套件，只有在每一个必需
-场景都通过时才以零退出。这样的任务共有两个，每个 loader 一个，说明见
-[`docs/dev/testing.md`](docs/dev/testing.md)。
+每条命令按测试的要求启动游戏 —— 专用服务器、加入了一个客户端的专用服务器、自己托管世界的
+客户端 —— 在其中运行 JUnit 测试和 JavaScript 校验脚本，并像任何 Gradle 测试任务一样报告结果。
+其余说明见 [`docs/dev/testing.md`](docs/dev/testing.md)。
 
 ### 2. 运行客户端并接入 MCP 客户端
 
@@ -162,7 +162,7 @@ curl -s http://127.0.0.1:$PORT/mcp \
 | `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体 |
 
-JavaScript 校验套件随 testmod 提供，以 StageWright 脚本测试的形式运行；见
+JavaScript 校验脚本随 testmod 提供，以 StageWright 脚本测试的形式运行；见
 [`docs/dev/testing.md`](docs/dev/testing.md)。
 
 ---
@@ -181,14 +181,13 @@ worlddriver/
 │   │   ├── script/         Rhino 接入、求值器、可选的类过滤器
 │   │   ├── model/          各传输层共用的 wire 类型
 │   │   └── client/         仅客户端调用的中介；实现按 loader 分别提供
-│   ├── src/testmod/     StageWright 任务所运行的场景，以及 JavaScript 校验套件
+│   ├── src/testmod/     StageWright 运行的游戏内测试，以及 JavaScript 校验脚本
 │   └── src/test/        不需要游戏的纯 JVM 测试
 ├── fabric/              Fabric 入口与客户端侧实现
 ├── neoforge/            NeoForge 入口与客户端侧实现
-├── stagewright-scenes/  会被装进运行目录 config 下的场景脚本
 ├── path-replay/         对录制下来的寻路运行做离线分析
 ├── docs/                文档；从 docs/README.md 开始读
-└── scripts/             场景清单、源码检查，以及 MCP 桥接
+└── scripts/             源码检查、冒烟驱动脚本，以及 MCP 桥接
 ```
 
 ---
@@ -196,7 +195,7 @@ worlddriver/
 ## 设计
 
 - **唯一路由器。** `ApiRegistry.route(method, params)` 是唯一一处真正运行游戏逻辑的函数。MCP
-  服务器、WebSocket 服务器与脚本桥各自只翻译参数并调用它，谁都不许自己持有行为。校验套件在
+  服务器、WebSocket 服务器与脚本桥各自只翻译参数并调用它，谁都不许自己持有行为。校验脚本在
   一部分方法上比对三条传输的结果，所以这项保证来自唯一的路由器，而不是来自穷举比对。
 - **server 线程纪律。** 写操作，以及任何触及 level 的读操作，都派发到 server 线程上执行。脚本
   运行在它之外，因此可以安心阻塞等待结果而不会自锁。
@@ -220,16 +219,11 @@ worlddriver/
 
 这个模组可用，并且在持续开发中；版本号尚未到 1.0，方法面仍在变动。
 
-场景套件在两个 loader 上都只用一种进程拓扑：一台专用服务器加上一个通过 socket 加入其中的真实
-客户端。这正是生产环境安装时的形态，也是唯一能够对进程边界下断言的形态 —— 所以它的客户端那一半
-会写出自己的结果文件，任务同样会裁决那份文件。另有一个对账任务把两次运行相互比对，因为一个在所有
-拓扑上都被跳过的场景，只是在一个从未被测过的主题上记下了通过。
+游戏内测试在两个 loader 上都会运行。大多数在专用服务器上用无头 bot 运行；关于客户端自己那名
+玩家的测试，运行在一台专用服务器加上一个通过 socket 加入其中的真实客户端上 —— 这正是生产环境
+安装时的形态，也是唯一能够对进程边界下断言的形态。测试有多少个，看一次运行的测试报告；不要从
+散文里取这个数目，无论是这里还是别处。
 
-场景的数目在 `scripts/stagewright/` 下按 loader 各一份的清单里，那些清单同时也是运行的裁判依据
-—— 一个注册了却没有列在清单里的场景会让整趟运行失败。不要从散文里取这个数目，无论是这里还是
-别处。
-
-有少数场景被声明为可选失败：它们记录一个已知缺口，但不会让整趟运行失败。
 [`CHANGELOG.md`](CHANGELOG.md) 记录每次发布改了什么，[`ROADMAP.md`](ROADMAP.md) 记录还剩下什么。
 
 ---
