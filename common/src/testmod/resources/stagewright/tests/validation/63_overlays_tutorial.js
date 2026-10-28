@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('63_overlays_tutorial', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '63_overlays_tutorial', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '63_overlays_tutorial', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Client-only — mc.client.overlays must suppress the tutorial at the source.
 // Regression guard for the 2026-07-10 feedback §2: the old reflection lookup

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('50_scene_hazard', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '50_scene_hazard', checks: { dedicated: 10, integrated: 10 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '50_scene_hazard', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // mc.observe.scene — server-side HazardField + AsciiMapRenderer integration tests.
 // Uses the same loaded test region as the other validation scripts: center (0,200,0).

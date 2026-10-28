@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('52_client_scene', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '52_client_scene', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '52_client_scene', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 function clientAvailable(){ try { Driver.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
 if (!clientAvailable()) {

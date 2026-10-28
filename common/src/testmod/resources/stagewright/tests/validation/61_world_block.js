@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('61_world_block', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '61_world_block', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '61_world_block', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Guard for mc.world.block — the read-only single-cell accessor requested in
 // docs/archive/feedback/2026-06-08 ("no first-class way to read a blockstate, a light

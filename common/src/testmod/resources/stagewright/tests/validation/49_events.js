@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('49_events', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '49_events', checks: { dedicated: 7, integrated: 7 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '49_events', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // The event stream's server side: mc.events (emit, watchers), its replay and its waits. Pure server
 // work (the ring buffer, watchers polling pollable reads), so it runs identically on the dedicated

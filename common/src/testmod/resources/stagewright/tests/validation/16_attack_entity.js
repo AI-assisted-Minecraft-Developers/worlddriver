@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('16_attack_entity', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '16_attack_entity', checks: { dedicated: 4, integrated: 4 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '16_attack_entity', DriverApiError: DriverApiError, body: (ScriptTest) => {
 Driver.system.rpcRoundtrip = ScriptTest.rpcRoundtrip;
 Driver.system.mcpRoundtrip = ScriptTest.mcpRoundtrip;
 

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('62_query_in_radius', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '62_query_in_radius', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '62_query_in_radius', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Conviction/regression guard for docs/archive/feedback/2026-06-04 §C: mc.query
 // q='entities' in_radius reportedly missed an entity standing 1 block from the

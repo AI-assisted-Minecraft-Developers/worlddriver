@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('42_combat', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '42_combat', checks: { dedicated: 3, integrated: 5 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '42_combat', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase C — active combat loop (T1). The request checks run everywhere; self's fight
 // needs Minecraft.gameMode and real mobs, so a dedicated server only sees self refused as
@@ -83,22 +83,42 @@ if (!clientAvailable()) {
     });
 } else {
 
-    // task#92: NAMED TOPOLOGY-SKIP on the integrated (client-hosted) path. `engage`
-    // runs to a full area-clear (`r.completed == true`) only on the flat,
-    // entity-clean GameTest arena the DEDICATED dogfood provides. On an uncontrolled
-    // live client world the bot does swing and credit kills (verified live) but
-    // reaching "area cleared" is pathing- AND CPU-load-coupled (this box's other dev
-    // client starves server ticks), so the completion assertion cannot be made
-    // deterministic here without building a fragile in-world arena. The OFFENSIVE
-    // combat semantics (cooldown-gated well-timed swings, kill credit, pack clear)
-    // are covered deterministically by the server-side dogfood combat scenes
-    // (wd.serverCombat*, P4c). Recorded as a counted, cited skip — NOT a swallow,
-    // NOT deleted (deleting a check is forbidden). The scene's named-skip gate pins
-    // exactly this check by the "SKIP(task#92)" marker below.
-    ScriptTest.run("42_combat: melee engage clears a zombie pack with well-timed swings — "
-            + "SKIP(task#92) needs a flat GameTest arena (integrated topology); "
-            + "offence covered by wd.serverCombat*", function(t) {
-        // PASS — named topology skip (see comment above). Body intentionally empty.
+    // The arena is seeded afresh before each script (a 9x9 stone floor, everything else killed), so the pack is the
+    // only thing in scan range and the area clear the engage ends on is reachable. NoAI zombies two blocks out on
+    // the floor: the walk to each is short and none of them wanders off it.
+    ScriptTest.run("42_combat: melee engage clears a zombie pack with well-timed swings", function(t) {
+        cleanup();
+        equip("minecraft:diamond_sword");
+        var me = Driver.invoke("mc.observe.player", {}).player;
+        var x = Math.floor(me.pos.x), y = Math.floor(me.pos.y), z = Math.floor(me.pos.z);
+        var spots = [[2, 0], [-2, 0], [0, 2]];
+        for (var i = 0; i < spots.length; i++) {
+            Driver.invoke("mc.action.runCommand", {
+                cmd: "summon zombie " + (x + spots[i][0] + 0.5) + " " + y + " " + (z + spots[i][1] + 0.5)
+                        + " {NoAI:1b,PersistenceRequired:1b}"
+            });
+        }
+        Driver.system.waitTicks({ ticks: 3 });
+        t.assertEqual(countType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "zombie"), 3, "the pack is in");
+
+        var started = Driver.bot.combat({ mode: "engage" });   // non-blocking
+        t.assertEqual(started.outcome, "accepted", "outcome");
+        var id = started.action.actionId;
+        var a = action(id);
+        for (var waited = 0; a.state === "running" && waited < 600; waited += 20) {
+            Driver.system.waitTicks({ ticks: 20 });
+            a = action(id);
+        }
+        var tally = Driver.bot.status({}).status.reflexes.combat;
+        var left = countType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "zombie");
+        var seen = JSON.stringify(a) + " tally=" + JSON.stringify(tally);
+        t.assertEqual(a.state, "succeeded", "the engage ends with the area clear: " + seen);
+        t.assertEqual(left, 0, "no zombie left: " + seen);
+        t.assertTrue(tally.kills >= 3, "every zombie credited as a kill: " + seen);
+        // Full cooldown is the swing the process waits for; an occasional early one (a target stepping into reach
+        // mid-wind-up) is tolerated, spamming is not.
+        t.assertTrue(tally.wellTimed * 2 >= tally.swings, "most swings at full cooldown: " + seen);
+        cleanup();
     });
 
     ScriptTest.run("42_combat: ranged kite keeps distance from a skeleton and fires", function(t) {

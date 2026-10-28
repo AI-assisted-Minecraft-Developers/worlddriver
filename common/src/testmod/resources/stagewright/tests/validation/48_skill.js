@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('48_skill', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '48_skill', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '48_skill', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // The persistent skill library (mc.skill, the Voyager pattern). Writes a JS skill to disk, runs it,
 // deletes it: file and evaluator work only, so it runs the same on a dedicated server and in a

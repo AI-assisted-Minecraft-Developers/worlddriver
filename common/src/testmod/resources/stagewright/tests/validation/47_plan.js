@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('47_plan', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '47_plan', checks: { dedicated: 5, integrated: 5 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '47_plan', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase H — goal-directed acquisition planner (mc.plan.acquire). Pure
 // computation over the recipe table (server-thread, like mc.recipe.resolve), so

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('59_query_projections', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '59_query_projections', checks: { dedicated: 4, integrated: 4 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '59_query_projections', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Guards for the mc.query projection gaps reported by external consumers
 // (docs/archive/feedback/2026-06-04 bugs #3/#4/#6, 2026-06-08 fix #2):

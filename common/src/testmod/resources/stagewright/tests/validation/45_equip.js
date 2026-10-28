@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('45_equip', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '45_equip', checks: { dedicated: 2, integrated: 6 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '45_equip', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase F — equipment management (T1 verb + T0 autoEquip). mc.bot.equip is
 // client-only (reads the client inventory menu + slot-clicks), so a dedicated server only

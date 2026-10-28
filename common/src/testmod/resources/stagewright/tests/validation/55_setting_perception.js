@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('55_setting_perception', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '55_setting_perception', checks: { dedicated: 4, integrated: 4 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '55_setting_perception', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // The perception settings (dusk securing, hazard grid, deep water, scene radius, muted events) through
 // mc.bot.setting. The settings are this game's, so this runs on every topology.

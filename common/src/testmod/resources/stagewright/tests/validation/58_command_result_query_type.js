@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('58_command_result_query_type', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '58_command_result_query_type', checks: { dedicated: 4, integrated: 4 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '58_command_result_query_type', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Regression guard for two feedback-driven fixes (docs/archive/feedback/):
 //  - 912dda9: mc.action.runCommand returns the command's own outcome

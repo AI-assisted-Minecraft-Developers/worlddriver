@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('01_handshake', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '01_handshake', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '01_handshake', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 ScriptTest.run("01_handshake: system.version returns expected fields", function(t) {
     var info = Driver.system.version();

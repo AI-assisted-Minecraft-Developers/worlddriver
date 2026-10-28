@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('08_sandbox', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '08_sandbox', checks: { dedicated: 6, integrated: 6 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '08_sandbox', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Sandbox: dangerous JVM classes must not be reachable from JS, while legitimate
 // scripts still reach console (System.out) and API return values

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('03_events_since', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '03_events_since', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '03_events_since', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 ScriptTest.run("03_events_since: cursor + setblock destroy produces block.break event", function(t) {
     var cursorBefore = Driver.observe.cursor().cursor;

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('46_boss', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '46_boss', checks: { dedicated: 1, integrated: 7 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '46_boss', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase G — boss sensing (mc.observe.boss) + playbook runner
 // (mc.bot.playbook). Sensing + /summon need a live client + integrated server, so

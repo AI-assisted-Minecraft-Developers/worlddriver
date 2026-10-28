@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('64_schema_validation', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '64_schema_validation', checks: { dedicated: 7, integrated: 7 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '64_schema_validation', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Strict parameter decoding: every method's contract decodes its params before the handler runs, so a
 // violation surfaces as a thrown invalid_params error whose issues carry {path, code, message}.

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('57_replay', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '57_replay', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '57_replay', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // mc.debug.replay restores a recorded path archive, puts the bot at the start, and runs it again.
 // Starting a real replay would move the bot mid-suite, so the check names an archive that does not

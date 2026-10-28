@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('60_stairs_query_guard', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '60_stairs_query_guard', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '60_stairs_query_guard', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Conviction/regression guard for docs/archive/feedback/2026-06-07: mc.query q='blocks'
 // was reported to silently omit stair blocks (vanilla + modded) while returning

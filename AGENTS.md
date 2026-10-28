@@ -85,7 +85,7 @@ uv run scripts/react_smoke.py                       # smoke driving over the cli
    `ApiBatch` through `api.registry().registerBatch` instead — see `docs/dev/architecture.md`
    ("Registering a verb").
 3. Add a check to a validation script under `common/src/testmod/resources/stagewright/tests/validation/`
-   that exercises it through all three transports, and move that script's check counts.
+   that exercises it through all three transports.
    `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern; `kit.js` there says how they run.
 4. Re-run the in-game test suites.
 

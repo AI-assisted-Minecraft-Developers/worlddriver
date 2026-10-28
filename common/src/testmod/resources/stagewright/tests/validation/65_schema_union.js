@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('65_schema_union', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '65_schema_union', checks: { dedicated: 13, integrated: 13 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '65_schema_union', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // The fields that used to be typeless "accept anything" schema nodes. A live repro showed an MCP
 // client treating a typeless field as licence to JSON-stringify the value before tools/call:

@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('12_use_item', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '12_use_item', checks: { dedicated: 3, integrated: 7 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '12_use_item', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // mc.bot.useItem: a right-click in the air, on a block face with `pos`, or on an entity with
 // `entityId`. The request checks read no body and run on every topology; the clicks themselves need

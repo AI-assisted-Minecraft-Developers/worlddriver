@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('44_craft', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '44_craft', checks: { dedicated: 2, integrated: 5 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '44_craft', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase E — craft / smelt execution. Resolution is server-authoritative
 // (covered server-side by 43_recipe), but executing a plan drives client-side

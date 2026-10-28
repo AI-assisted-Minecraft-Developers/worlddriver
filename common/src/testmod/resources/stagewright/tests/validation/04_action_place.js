@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('04_action_place', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '04_action_place', checks: { dedicated: 1, integrated: 1 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '04_action_place', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 ScriptTest.run("04_action_place: placeMany then observe shows new block", function(t) {
     var origin = Driver.system.testOrigin();

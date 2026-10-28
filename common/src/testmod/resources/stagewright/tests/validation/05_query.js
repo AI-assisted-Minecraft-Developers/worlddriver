@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('05_query', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '05_query', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '05_query', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 ScriptTest.run("05_query: entities + select restricts fields", function(t) {
     var res = Driver.query({

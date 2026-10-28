@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('41_defense', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '41_defense', checks: { dedicated: 2, integrated: 5 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '41_defense', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // ROADMAP Phase B — defensive reflexes (T0). Settings round-trips run server-side
 // (GameTest). The behavioural checks need a live client + a LocalPlayer to spawn

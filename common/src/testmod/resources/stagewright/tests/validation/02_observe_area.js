@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('02_observe_area', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '02_observe_area', checks: { dedicated: 2, integrated: 2 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '02_observe_area', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // mc.observe.area was folded into mc.query — these tests exercise the q='blocks'
 // shape ({q, blocks}), through Driver.invoke and the generated Driver.query.

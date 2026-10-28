@@ -1,6 +1,6 @@
-// Run by kit.js's 'wd.validation' step, which says what ScriptTest is and what the check counts are.
+// Run by kit.js's 'wd.validation' step, which says what ScriptTest is.
 test('30_backfill', { scene: ['wd.validation', 'wd.validationIntegrated'], isolated: true }, (t) => t.step('wd.validation', {
-    script: '30_backfill', checks: { dedicated: 5, integrated: 5 }, DriverApiError: DriverApiError, body: (ScriptTest) => {
+    script: '30_backfill', DriverApiError: DriverApiError, body: (ScriptTest) => {
 
 // Phase D8 — the autoBackfill settings behind BackfillProcess. The settings are this game's, so the
 // round-trips run on every topology.
