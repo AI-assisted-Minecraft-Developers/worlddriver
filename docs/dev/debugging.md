@@ -9,7 +9,7 @@ breakpoints behave differently from a plain Java application.
 A JDWP agent is installed when the JVM starts, so decide which run you want to debug
 before you start it.
 
-### Any Loom run task, and every gate
+### Any Loom run task, and the in-game test suites
 
 The end of `build.gradle` has a hook that reads the Gradle property `worlddriverJdwp`.
 When it is set, every entry in `loom.runs` gets
@@ -20,19 +20,19 @@ When it is set, every entry in `loom.runs` gets
 ORG_GRADLE_PROJECT_worlddriverJdwp=5005 ./gradlew :fabric:runClient   # the same thing
 ```
 
-- **Nothing changes unless you set it.** A default build and a default gate are unaffected.
+- **Nothing changes unless you set it.** A default build and a default test run are unaffected.
 - `suspend=n` means the game starts normally and a debugger may attach and detach at any
   time. With nothing attached, the run behaves as it always did.
-- **The gates get the same switch.** StageWright's Gradle plugin copies the `jvmArguments`
-  off the Loom `JavaExec` specification onto the game processes it starts, so the scene
-  gates and the playthrough tasks all pick the agent up.
-- **A two-process topology needs a port each.** The `dedicatedServerWithClient` topologies
-  start two JVMs, and both would bind the same port. Pass `worlddriverJdwp=0` to let the
-  operating system assign one, then read the chosen port from the beginning of each game's
-  own log: `Listening for transport dt_socket at address: N`.
+- **The test suites get the same switch.** StageWright reads each game's launch off the Loom
+  runs, so the games `stagewrightTestFabric` and `stagewrightTestNeoforge` start pick the agent
+  up.
+- **Two games at once need a port each.** `wd.clientScenes` starts a dedicated server and a
+  client together, and both would bind the same port. Pass
+  `worlddriverJdwp=0` to let the operating system assign one, then read the chosen port from
+  the beginning of each game's own log: `Listening for transport dt_socket at address: N`.
 
 There is a second property alongside it, `worlddriverVmArgs`, which appends arbitrary
-whitespace-separated JVM flags to every Loom run. The gates inherit those too.
+whitespace-separated JVM flags to every Loom run. The test suites inherit those too.
 
 ### Why a Gradle property rather than `JAVA_TOOL_OPTIONS`
 
@@ -66,10 +66,10 @@ The game is a real-time loop, so suspending it is never free.
 
 | Target | What happens when it stops |
 |---|---|
-| A dedicated server, including every `stagewrightDedicatedServer*` topology | **The hang watchdog kills it.** `server.properties` defaults `max-tick-time` to 60000 ms, and a tick that exceeds it terminates the server. Add `max-tick-time=-1` to that run directory's `server.properties` before setting a breakpoint. **No build script writes that line for you**: the provisioning steps only force the seed, offline mode, the port and chunk-write behaviour. |
+| A dedicated server | **The hang watchdog kills it.** `server.properties` defaults `max-tick-time` to 60000 ms, and a tick that exceeds it terminates the server. Add `max-tick-time=-1` to that run directory's `server.properties` before setting a breakpoint. |
 | A client, or an integrated server inside one | No hang watchdog. The window freezes while suspended and resumes normally. |
-| Any topology | Every client of the driver — a script over the socket, an MCP tool call, anything polling `mc.*` — times out while the game is suspended. That is expected, not a new defect. |
-| A full scene gate | A scene's tick budget stops with the game, but the orchestration layer's wall clock does not. Suspend for long enough and scenes are failed on timeout. **Do not set a suspending breakpoint inside a full gate run.** To debug a scene, reproduce it under an interactive client or a narrowed run instead. |
+| Any game | Every client of the driver — a script over the socket, an MCP tool call, anything polling `mc.*` — times out while the game is suspended. That is expected, not a new defect. |
+| An in-game test suite | A test's tick budget stops with the game, but the suite's wall clock does not. Suspend for long enough and the scene times out. **Do not set a suspending breakpoint inside a full suite run.** To debug a test, reproduce it under an interactive client, or run its class alone with `--tests`. |
 
 The order of preference follows from that table. Prefer a logpoint, which records a value
 without stopping. If you must stop, stop one thread rather than the whole VM — JDWP's
@@ -100,7 +100,7 @@ Two alternatives that never stop the game:
 - **Thread names.** A client has a `Render thread`; a client hosting an integrated server
   has both that and a `Server thread`; a dedicated server has only `Server thread`.
 - **An instrument records the moment it sampled; the locals at a breakpoint are now.**
-  The navigator's telemetry lines and the evidence a scene collects each have their own write
+  The navigator's telemetry lines and the evidence a test collects each have their own write
   times. To judge one action, read the value recorded closest to it.
 
 ## Front-ends
