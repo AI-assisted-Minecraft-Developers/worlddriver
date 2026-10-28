@@ -42,7 +42,7 @@ generated from `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
 
 | Group | What it is for |
 |---|---|
-| `mc.system.*`    | Probe the running build, fetch the test-arena origin most spatial tools centre on, and wait a fixed number of ticks. |
+| `mc.system.*`    | Probe the running build, fetch the test origin most spatial tools centre on, and wait a fixed number of ticks. |
 | `mc.script.eval` | Run a JavaScript snippet in-process. Preferred whenever a task would otherwise cost three or more round trips. |
 | `mc.skill`       | A persistent skill library: save, list, run and delete reusable scripts. |
 | `mc.events`      | The driver-to-agent event channel, including rising-edge watchers that poll a route and emit when a predicate flips. |
@@ -76,15 +76,16 @@ hundred keys, generated from the settings registry rather than hand-listed, so t
 `inputSchema` of that one method is the authoritative list. Two of those keys decide whether
 the pathfinder may modify the world: `allowBreak` lets it mine through an obstruction and
 `allowPlace` lets it bridge a one-block gap, and **both are on by default**, which means
-`goto` and `follow` will change terrain unless you turn them off. The scene suite pins both
-off, so a route that works there is not evidence about a default client. The layering behind
+`goto` and `follow` will change terrain unless you turn them off. The in-game tests turn both
+off unless a test asks for them, so a route that works there is not evidence about a default
+client. The layering behind
 all of this is described in [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md).
 
 ---
 
 ## Quick start
 
-### 1. Build, and run the scene suite
+### 1. Build, and run the in-game tests
 
 StageWright, the in-game test framework the suite runs on, lives in its own repository and is
 used here as published Maven artifacts: the exact version set as `stagewright_version` in
@@ -99,21 +100,23 @@ WorldDriver's shipped jars contain no StageWright class; only its test sources a
 use it.
 
 For every pull request and every push to `master`, CI builds the project, runs the unit tests and
-runs the scene suite on a NeoForge dedicated server with a client joined to it, and a push to `master` that passes is published
+runs the in-game tests on NeoForge, and a push to `master` that passes is published
 to the same Nexus as `0.1.0-alpha.<build number>+1.21.1`. A `master` run still waiting for an
 earlier one when a newer push arrives is cancelled, and its push is not published under a number of
 its own.
 
-One command runs the scene suite against a dedicated server with a real client joined to it
-(the client needs a display; on a headless host run it under `xvfb-run`):
+One command per loader runs the in-game tests (some start a real client, which needs a display;
+on a headless host run it under `xvfb-run`):
 
 ```bash
-./gradlew stagewrightDedicatedServerWithClientNeoforge
+./gradlew stagewrightTestNeoforge
+./gradlew stagewrightTestFabric
 ```
 
-The task provisions a clean run directory, launches the game, runs the scenes and the
-JavaScript validation suite, and exits zero only if every required scene passed. There are two
-such tasks, one per loader, described in [`docs/dev/testing.md`](docs/dev/testing.md).
+Each starts the games the tests ask for — dedicated servers, a dedicated server with a client
+joined to it, a client hosting its own world — runs the JUnit tests and the JavaScript validation
+scripts in them, and reports like any Gradle test task. [`docs/dev/testing.md`](docs/dev/testing.md)
+has the rest.
 
 ### 2. Run a client and connect an MCP client
 
@@ -181,7 +184,7 @@ endpoints are still in `worlddriver-mcp.port` and `worlddriver-rpc.port`.
 | `/worlddriver reload`      | Reload user scripts from `config/worlddriver/scripts/` |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
 
-The JavaScript validation suite ships with the testmod and runs as StageWright script tests;
+The JavaScript validation scripts ship with the testmod and runs as StageWright script tests;
 see [`docs/dev/testing.md`](docs/dev/testing.md).
 
 ---
@@ -199,14 +202,13 @@ worlddriver/
 │   │   ├── rpc/            The Netty WebSocket server and the JSON codec
 │   │   ├── script/         Rhino integration, the evaluator, the optional class filter
 │   │   └── client/         The broker for client-only calls; implementations live per loader
-│   ├── src/testmod/     The scenes the StageWright tasks run, and the JavaScript validation suite
+│   ├── src/testmod/     The in-game tests StageWright runs, and the JavaScript validation scripts
 │   └── src/test/        Plain JVM tests that need no game
 ├── fabric/              Fabric entry point and client-side implementation
 ├── neoforge/            NeoForge entry point and client-side implementation
-├── stagewright-scenes/  Scene scripts installed into a run's config directory
 ├── path-replay/         Offline analysis of recorded pathfinding runs
 ├── docs/                Documentation; start at docs/README.md
-└── scripts/             The scene manifests, the source checks, and the MCP bridge
+└── scripts/             The source checks, the smoke drivers, and the MCP bridge
 ```
 
 ---
@@ -215,8 +217,8 @@ worlddriver/
 
 - **One router.** `ApiRegistry.route(method, params)` is the only function that runs game
   logic. The MCP server, the WebSocket server and the script bridge each translate
-  parameters and call it; none of them may hold behaviour of its own. The validation suite
-  compares the three transports on a sample of methods, so the guarantee comes from the
+  parameters and call it; none of them may hold behaviour of its own. The validation scripts
+  compare the three transports on a sample of methods, so the guarantee comes from the
   single router rather than from an exhaustive comparison.
 - **Server-thread discipline.** Writes, and reads that touch the level, are dispatched onto
   the server thread. Scripts run off it, so they may block on a result without deadlocking.
@@ -246,20 +248,14 @@ The architecture in full, including the seams and the threading rules, is in
 The mod is usable and under active development; the version number is pre-1.0 and the method
 surface still moves.
 
-The scene suite runs on both loaders in one process topology: a dedicated server with a real
-client joined to it over a socket. That is the shape a production install has, and it is the only
-one in which an assertion can be made about the process boundary, which is why its client half
-writes its own results file that the task also judges. A separate reconciliation task compares
-the two runs against each other, because a scene that skips everywhere records a pass over a
-subject nothing tested.
+The in-game tests run on both loaders. Most run on a dedicated server with headless bots; the ones
+about the client's own player run on a dedicated server with a real client joined to it over a
+socket, which is the shape a production install has and the only one in which an assertion can be
+made about the process boundary. A run's test report says how many tests there are; do not take a
+count from prose, here or anywhere else.
 
-The number of scenes is in the per-loader manifests under `scripts/stagewright/`, which are
-also what a run is judged against — a scene that registers without being listed there fails
-the run. Do not take a count from prose, here or anywhere else.
-
-A handful of scenes are declared as optional failures: they record a known gap without
-failing the run. [`CHANGELOG.md`](CHANGELOG.md) records what each release changed and
-[`ROADMAP.md`](ROADMAP.md) what is still ahead.
+[`CHANGELOG.md`](CHANGELOG.md) records what each release changed and [`ROADMAP.md`](ROADMAP.md)
+what is still ahead.
 
 ---
 
