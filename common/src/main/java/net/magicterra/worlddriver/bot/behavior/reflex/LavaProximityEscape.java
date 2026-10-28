@@ -7,8 +7,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
@@ -56,6 +62,10 @@ public final class LavaProximityEscape {
             return false;
         }
         Level level = p.level();
+        if (!p.isInLava() && workingLava(level, p)) {
+            reset("working lava");
+            return false;
+        }
         BlockPos threat = nearestThreat(level, p);
         boolean hot = threat != null || p.isInLava();
         if (!active) {
@@ -140,6 +150,25 @@ public final class LavaProximityEscape {
                     if (d < bestD) { bestD = d; best = cand; }
                 }
         return best;
+    }
+
+    /**
+     * Whether the body is deliberately handling lava this tick: an empty bucket aimed at a lava source in reach (a
+     * scoop), or a lava bucket aimed at a block in reach (a pour). The flow off a source being scooped is exactly
+     * what triggers this reflex, and walking away with the aim reset spoiled every scoop — 0 of 10 casts in
+     * {@code PortalTest.serverBuildsAndLightsAPortal}. The ray is the bucket's own ({@code Item.getPlayerPOVHitResult}):
+     * eye along the look, sources only for the empty bucket.
+     */
+    private static boolean workingLava(Level lvl, LivingEntity p) {
+        ItemStack held = p.getMainHandItem();
+        boolean scoop = held.is(Items.BUCKET);
+        if (!scoop && !held.is(Items.LAVA_BUCKET)) return false;
+        double reach = p instanceof Player player ? player.blockInteractionRange() : 4.5;
+        Vec3 eye = p.getEyePosition();
+        BlockHitResult hit = lvl.clip(new ClipContext(eye, eye.add(p.getViewVector(1f).scale(reach)),
+                ClipContext.Block.OUTLINE, scoop ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE, p));
+        if (hit.getType() != HitResult.Type.BLOCK) return false;
+        return !scoop || lvl.getFluidState(hit.getBlockPos()).is(FluidTags.LAVA);
     }
 
     private static boolean isLava(Level lvl, BlockPos pos) {
