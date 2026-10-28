@@ -309,42 +309,73 @@ public final class ScreenContracts {
             @Doc("screen: the screen's own handler. raw: real character events, which mods listening for input events "
                     + "also see — a search box in JEI's overlay, for one.")
             @Default("screen") InputRoute route,
+            @Doc("A node's ref from screen.tree: the text box to type into, focused first. Without it, the focused "
+                    + "widget.")
+            Optional<@Range(min = 0) Integer> ref,
+            @Doc("Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: "
+                    + "a screen the server opens in reply, and slots the server fills later.")
+            @Default("false")
+            boolean returnTree,
             Optional<@ContextId String> contextId) {}
 
     public static final MethodSpec<TypeParams, ClientReply> TYPE_TEXT = MethodSpec.of("mc.client.input.typeText",
                     ApiTypes.record(TypeParams.class),
                     ClientContracts.reply("TypeText", Typed.class),
                     "Type text into the focused widget of the open screen, one character event per code point, "
-                            + "appending at the cursor. To overwrite a field use input.replaceText. Refused as no_screen.")
+                            + "appending at the cursor; name the box by a ref from screen.tree to focus it first. To "
+                            + "overwrite a field use input.replaceText. Refused as no_screen, and as no_target when "
+                            + "the ref is not on the screen or is not a text box.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     @Named("ReplaceTextParams")
     public record ReplaceParams(
             @Doc("The box's new whole contents.") @Length(max = 4096) String text,
-            @Doc("Case-insensitive part of the box's value or label; needed only when several boxes are open and none "
-                    + "has focus.")
+            @Doc("A node's ref from screen.tree: the text box to overwrite.")
+            Optional<@Range(min = 0) Integer> ref,
+            @Doc("Without ref: case-insensitive part of the box's value or label; needed only when several boxes are "
+                    + "open and none has focus.")
             Optional<@Length(min = 1, max = 256) String> match,
-            Optional<@ContextId String> contextId) {}
+            @Doc("Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: "
+                    + "a screen the server opens in reply, and slots the server fills later.")
+            @Default("false")
+            boolean returnTree,
+            Optional<@ContextId String> contextId) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (ref.isPresent() && match.isPresent()) {
+                at.field("match").fail(ApiIssue.Code.INVALID_VALUE, "pick a text box by ref or by match, not both");
+            }
+        }
+    }
 
     public static final MethodSpec<ReplaceParams, ClientReply> REPLACE_TEXT = MethodSpec.of("mc.client.input.replaceText",
                     ApiTypes.record(ReplaceParams.class),
                     ClientContracts.reply("ReplaceText", Replaced.class),
-                    "Overwrite a text box's whole contents at once: the box match names, else the focused one, else "
-                            + "the only one. Refused as no_screen, no_target (nothing matches) or ambiguous (several "
-                            + "boxes, none focused, no match).")
+                    "Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the "
+                            + "box match names, else the focused one, else the only one. Refused as no_screen, "
+                            + "no_target (the ref is gone or not a text box, or nothing matches) or ambiguous "
+                            + "(several boxes, none focused, no match).")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.slider
 
     @Named("SliderParams")
     public record SliderParams(
+            @Doc("A node's ref from screen.tree: the slider to set, or alone to read.")
+            Optional<@Range(min = 0) Integer> ref,
             @Doc("Case-insensitive part of the slider's label.") Optional<@Length(min = 1, max = 256) String> match,
             @Doc("Its place among the screen's sliders, without match.") Optional<@Range(min = 0) Integer> index,
-            @Doc("The value to set. Omitted: read every slider.") Optional<@Range(min = 0, max = 1) Double> fraction,
+            @Doc("The value to set. Omitted: read every slider, or the one ref names.")
+            Optional<@Range(min = 0, max = 1) Double> fraction,
+            @Doc("With fraction: also answer treeChanged, and when it is true the screen.tree read right after the "
+                    + "input. Not in it: a screen the server opens in reply, and slots the server fills later.")
+            @Default("false")
+            boolean returnTree,
             Optional<@ContextId String> contextId) implements SelfChecked {
         @Override public void check(DecodeContext at) {
-            if (match.isPresent() && index.isPresent()) {
-                at.field("index").fail(ApiIssue.Code.INVALID_VALUE, "pick a slider by match or by index, not both");
+            int named = (ref.isPresent() ? 1 : 0) + (match.isPresent() ? 1 : 0) + (index.isPresent() ? 1 : 0);
+            if (named > 1) {
+                at.field(index.isPresent() ? "index" : "match").fail(ApiIssue.Code.INVALID_VALUE,
+                        "pick a slider by one of ref, match or index");
             }
         }
     }
@@ -358,8 +389,8 @@ public final class ScreenContracts {
                             ApiTypes.record(ClientContracts.Refused.class)),
                     "Read or set a GUI slider: render distance, FOV, volume. Without fraction it reads every slider's "
                             + "label and 0-1 value, which only the shown slider can tell. With fraction it sets the "
-                            + "slider match names, else index, else the only one, and commits it as dragging would. "
-                            + "Refused as no_screen, no_target or ambiguous.")
+                            + "slider named by a ref from screen.tree, else match, else index, else the only one, and "
+                            + "commits it as dragging would. Refused as no_screen, no_target or ambiguous.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.key / keybind

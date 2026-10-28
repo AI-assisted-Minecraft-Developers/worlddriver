@@ -186,6 +186,86 @@ class CoreClientTest {
     }
 
     /**
+     * {@code mc.client.input.typeText} and {@code replaceText} by a ref from a tree, and replaceText's {@code
+     * returnTree}: chat's box takes the typed characters by ref, then is cleared by ref, and the tree that comes back
+     * says so — the box's value is part of the tree, so clearing it changes it.
+     */
+    @Test
+    void clientTextByRef(Game game, Client client, Player player) {
+        survival(game, client, player);
+        try {
+            call(client, "mc.client.input.key", Map.of("key", "T"));
+            Map<String, Object> tree = until(game, client, "mc.client.screen.tree", Map.of(),
+                    t -> "ChatScreen".equals(t.get("type")), 40, "T opens chat");
+            // By its value, not its type: chat's box is an anonymous EditBox, whose simple name is empty.
+            Map<?, ?> box = nodeWithValue(tree);
+            if (box == null) fail("no text box in chat's tree: " + tree.get("nodes"));
+            Object ref = box.get("ref");
+
+            Map<String, Object> typed = call(client, "mc.client.input.typeText", Map.of("text", "hi", "ref", ref));
+            game.check(() -> assertEquals("done", typed.get("outcome"), "typeText by ref: " + typed));
+            game.check(!typed.containsKey("treeChanged"), "no treeChanged without returnTree: " + typed);
+
+            Map<String, Object> cleared = call(client, "mc.client.input.replaceText",
+                    Map.of("text", "", "ref", ref, "returnTree", true));
+            game.check(() -> assertEquals("done", cleared.get("outcome"), "replaceText by ref: " + cleared));
+            game.check(() -> assertEquals("hi", cleared.get("previous"), "the box typeText by ref typed into"));
+            game.check(() -> assertEquals(true, cleared.get("treeChanged"), "clearing the box changed the tree"));
+            Map<?, ?> after = nodeWithRef(cleared.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
+            game.check(() -> assertEquals("", after == null ? "no node with ref " + ref : after.get("value"),
+                    "the box's value in the tree that came back"));
+        } finally {
+            call(client, "mc.client.screen.close", Map.of());
+        }
+    }
+
+    /**
+     * {@code mc.client.input.slider} by a ref from a tree, on the options screen's FOV slider, reached through the
+     * pause menu by a click by ref. The slider is moved to the far end from where it stands and put back; a typeText
+     * aimed at it by ref is refused, since it is not a text box. Every step answers on the client thread, so nothing
+     * here waits on the integrated server the pause menu pauses.
+     */
+    @Test
+    void clientSliderByRef(Game game, Client client, Player player) {
+        survival(game, client, player);
+        try {
+            Map<String, Object> paused = call(client, "mc.client.input.key", Map.of("key", "ESCAPE", "returnTree", true));
+            Map<?, ?> pause = paused.get("tree") instanceof Map<?, ?> t ? t : Map.of();
+            game.check(() -> assertEquals("PauseScreen", pause.get("type"), "ESCAPE with no screen opens: " + paused));
+            Map<?, ?> optionsButton = nodeWithKey(pause, "menu.options");
+            if (optionsButton == null) fail("no menu.options button in the pause menu's tree: " + pause.get("nodes"));
+            Map<String, Object> opened = call(client, "mc.client.input.click",
+                    Map.of("ref", optionsButton.get("ref"), "returnTree", true));
+            Map<?, ?> options = opened.get("tree") instanceof Map<?, ?> t ? t : Map.of();
+            game.check(() -> assertEquals("OptionsScreen", options.get("type"), "the options button opens: " + opened));
+
+            Map<String, Object> read = call(client, "mc.client.input.slider", Map.of());
+            Map<?, ?> first = read.get("sliders") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> m
+                    ? m : null;
+            if (first == null) fail("no slider on the options screen: " + read);
+            Map<?, ?> node = nodeWithMessage(options, first.get("label"));
+            if (node == null) fail("no node labelled " + first.get("label") + " in the options tree: " + options.get("nodes"));
+            Object ref = node.get("ref");
+            double was = ((Number) first.get("value")).doubleValue();
+            double to = was < 0.5 ? 1.0 : 0.0;
+
+            Map<String, Object> set = call(client, "mc.client.input.slider", Map.of("ref", ref, "fraction", to));
+            game.check(() -> assertEquals("set", set.get("outcome"), "slider by ref: " + set));
+            game.check(() -> assertEquals(first.get("label"), set.get("previousLabel"), "the slider the ref named"));
+            game.check(() -> assertEquals(to, set.get("value") instanceof Number n ? n.doubleValue() : -1.0, 1e-9,
+                    "the slider's value after setting it by ref"));
+            Map<String, Object> back = call(client, "mc.client.input.slider", Map.of("ref", ref, "fraction", was));
+            game.check(() -> assertEquals("set", back.get("outcome"), "the slider put back by ref: " + back));
+
+            Map<String, Object> notText = call(client, "mc.client.input.typeText", Map.of("text", "x", "ref", ref));
+            game.check(() -> assertEquals("refused", notText.get("outcome"), "typeText at a slider's ref: " + notText));
+            game.check(() -> assertEquals("no_target", notText.get("reason"), "why typeText at a slider is refused"));
+        } finally {
+            call(client, "mc.client.screen.close", Map.of());
+        }
+    }
+
+    /**
      * A {@code player.hurt} event says what hurt the player, not just how much — the #55 permanent assertion.
      * Without attribution a fall into a self-dug pit and a mob bite are the same HP delta, so the combat chain and
      * the agent above it engage phantoms. {@code player.hurt} is emitted client-side, mirroring the server's
@@ -305,6 +385,25 @@ class CoreClientTest {
             for (Object o : l)
                 if (o instanceof Map<?, ?> n && ref != null && String.valueOf(ref).equals(String.valueOf(n.get("ref"))))
                     return n;
+        return null;
+    }
+
+    /** The first node with a {@code value}, which only a text box has. */
+    private static Map<?, ?> nodeWithValue(Map<?, ?> tree) {
+        if (tree.get("nodes") instanceof List<?> l)
+            for (Object o : l) if (o instanceof Map<?, ?> n && n.containsKey("value")) return n;
+        return null;
+    }
+
+    private static Map<?, ?> nodeWithKey(Map<?, ?> tree, String key) {
+        if (tree.get("nodes") instanceof List<?> l)
+            for (Object o : l) if (o instanceof Map<?, ?> n && key.equals(n.get("key"))) return n;
+        return null;
+    }
+
+    private static Map<?, ?> nodeWithMessage(Map<?, ?> tree, Object message) {
+        if (tree.get("nodes") instanceof List<?> l)
+            for (Object o : l) if (o instanceof Map<?, ?> n && message != null && message.equals(n.get("message"))) return n;
         return null;
     }
 

@@ -106,12 +106,22 @@ public final class ClientContracts {
     public record Typed(
             @Range(min = 0) int typed,
             @Range(min = 0) int length,
+            @Doc("With returnTree: the screen's tree differs from just before the input.")
+            Optional<Boolean> treeChanged,
+            @Doc("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the "
+                    + "screen.")
+            Optional<ScreenContracts.ScreenTree> tree,
             @Doc("The screen context after this call.") @ContextId String contextId) implements ClientReply {}
 
     @Variant("done")
     public record Replaced(
             String value,
             String previous,
+            @Doc("With returnTree: the screen's tree differs from just before the input.")
+            Optional<Boolean> treeChanged,
+            @Doc("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the "
+                    + "screen.")
+            Optional<ScreenContracts.ScreenTree> tree,
             @Doc("The screen context after this call.") @ContextId String contextId) implements ClientReply {}
 
     @Variant("read")
@@ -125,6 +135,11 @@ public final class ClientContracts {
             @Range(min = 0, max = 1) double value,
             String previousLabel,
             @Range(min = 0, max = 1) double previousValue,
+            @Doc("With returnTree: the screen's tree differs from just before the input.")
+            Optional<Boolean> treeChanged,
+            @Doc("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the "
+                    + "screen.")
+            Optional<ScreenContracts.ScreenTree> tree,
             @Doc("The screen context after this call.") @ContextId String contextId)
             implements ClientReply {}
 

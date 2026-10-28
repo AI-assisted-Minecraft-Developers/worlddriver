@@ -345,7 +345,7 @@ Move the cursor to GUI coordinates without clicking, hover effects included: par
 
 ### `mc.client.input.replaceText`
 
-Overwrite a text box's whole contents at once: the box match names, else the focused one, else the only one. Refused as no_screen, no_target (nothing matches) or ambiguous (several boxes, none focused, no match).
+Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the box match names, else the focused one, else the only one. Refused as no_screen, no_target (the ref is gone or not a text box, or nothing matches) or ambiguous (several boxes, none focused, no match).
 
 - Params: `ReplaceTextParams`; reply: `ReplaceTextResponse`
 - Effects: client_input
@@ -359,7 +359,7 @@ Select the held hotbar slot and tell the server, so the next attack or use takes
 
 ### `mc.client.input.slider`
 
-Read or set a GUI slider: render distance, FOV, volume. Without fraction it reads every slider's label and 0-1 value, which only the shown slider can tell. With fraction it sets the slider match names, else index, else the only one, and commits it as dragging would. Refused as no_screen, no_target or ambiguous.
+Read or set a GUI slider: render distance, FOV, volume. Without fraction it reads every slider's label and 0-1 value, which only the shown slider can tell. With fraction it sets the slider named by a ref from screen.tree, else match, else index, else the only one, and commits it as dragging would. Refused as no_screen, no_target or ambiguous.
 
 - Params: `SliderParams` (may be omitted); reply: `SliderResponse`
 - Effects: client_input
@@ -373,7 +373,7 @@ Click a slot of the open container menu with an explicit click type, sent to the
 
 ### `mc.client.input.typeText`
 
-Type text into the focused widget of the open screen, one character event per code point, appending at the cursor. To overwrite a field use input.replaceText. Refused as no_screen.
+Type text into the focused widget of the open screen, one character event per code point, appending at the cursor; name the box by a ref from screen.tree to focus it first. To overwrite a field use input.replaceText. Refused as no_screen, and as no_target when the ref is not on the screen or is not a text box.
 
 - Params: `TypeTextParams`; reply: `TypeTextResponse`
 - Effects: client_input
@@ -3200,14 +3200,22 @@ interface MouseMoved {
 interface ReplaceTextParams {
     /** The box's new whole contents. */
     text: string;
-    /** Case-insensitive part of the box's value or label; needed only when several boxes are open and none has focus. */
+    /** A node's ref from screen.tree: the text box to overwrite. */
+    ref?: number;
+    /** Without ref: case-insensitive part of the box's value or label; needed only when several boxes are open and none has focus. */
     match?: string;
+    /** Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: a screen the server opens in reply, and slots the server fills later. */
+    returnTree?: boolean;
     contextId?: string;
 }
 type ReplaceTextResponse =
     | { outcome: 'done';
         value: string;
         previous: string;
+        /** With returnTree: the screen's tree differs from just before the input. */
+        treeChanged?: boolean;
+        /** With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen. */
+        tree?: ScreenTree;
         /** The screen context after this call. */
         contextId: string;
     }
@@ -3226,12 +3234,16 @@ type SetHotbarSlotResponse =
     }
     | { outcome: 'refused'; reason: ClientRefusal; message: string; };
 interface SliderParams {
+    /** A node's ref from screen.tree: the slider to set, or alone to read. */
+    ref?: number;
     /** Case-insensitive part of the slider's label. */
     match?: string;
     /** Its place among the screen's sliders, without match. */
     index?: number;
-    /** The value to set. Omitted: read every slider. */
+    /** The value to set. Omitted: read every slider, or the one ref names. */
     fraction?: number;
+    /** With fraction: also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: a screen the server opens in reply, and slots the server fills later. */
+    returnTree?: boolean;
     contextId?: string;
 }
 interface SliderValue { index: number; label: string; value: number; }
@@ -3246,6 +3258,10 @@ type SliderResponse =
         value: number;
         previousLabel: string;
         previousValue: number;
+        /** With returnTree: the screen's tree differs from just before the input. */
+        treeChanged?: boolean;
+        /** With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen. */
+        tree?: ScreenTree;
         /** The screen context after this call. */
         contextId: string;
     }
@@ -3280,12 +3296,20 @@ interface TypeTextParams {
     text: string;
     /** screen: the screen's own handler. raw: real character events, which mods listening for input events also see — a search box in JEI's overlay, for one. */
     route?: InputRoute;
+    /** A node's ref from screen.tree: the text box to type into, focused first. Without it, the focused widget. */
+    ref?: number;
+    /** Also answer treeChanged, and when it is true the screen.tree read right after the input. Not in it: a screen the server opens in reply, and slots the server fills later. */
+    returnTree?: boolean;
     contextId?: string;
 }
 type TypeTextResponse =
     | { outcome: 'done';
         typed: number;
         length: number;
+        /** With returnTree: the screen's tree differs from just before the input. */
+        treeChanged?: boolean;
+        /** With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen. */
+        tree?: ScreenTree;
         /** The screen context after this call. */
         contextId: string;
     }

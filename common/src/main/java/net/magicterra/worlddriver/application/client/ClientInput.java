@@ -205,6 +205,15 @@ public final class ClientInput {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             if (s == null) return noScreen();
+            Box named = p.ref().map(ClientInput::editBox).orElse(null);
+            if (named != null && named.refusal().isPresent()) return named.refusal().get();
+            ScreenTree before = ScreenIntrospection.before(p.returnTree());
+            if (named != null) {
+                // Focused as a click on it would: the screen's focus moves to the box, and the box
+                // takes the characters the screen hands its focused child.
+                s.setFocused(named.box());
+                named.box().setFocused(true);
+            }
             int typed = 0;
             for (int i = 0; i < t.length(); ) {
                 int cp = t.codePointAt(i);
@@ -224,12 +233,27 @@ public final class ClientInput {
                 }
                 typed++;
             }
-            return new Typed(typed, t.length(), ScreenContext.current());
+            ScreenIntrospection.After after = ScreenIntrospection.after(before);
+            return new Typed(typed, t.length(), after.changed(), after.tree(), ScreenContext.current());
         });
     }
 
+    /** The text box {@code ref} names, or the refusal: not on the screen, or not a text box. */
+    private record Box(EditBox box, Optional<Refused> refusal) {}
+
+    private static Box editBox(int ref) {
+        ScreenIntrospection.Target t = ScreenIntrospection.widget(ref);
+        if (t.refusal().isPresent()) {
+            return new Box(null, Optional.of(new Refused(ClientRefusal.NO_TARGET, t.refusal().get())));
+        }
+        if (!(t.widget() instanceof EditBox eb)) {
+            return new Box(null, Optional.of(new Refused(ClientRefusal.NO_TARGET, "ref " + ref + " is not a text box")));
+        }
+        return new Box(eb, Optional.empty());
+    }
+
     /**
-     * Replace the entire contents of a text input box: the box matched by {@code match}
+     * Replace the entire contents of a text input box: the box {@code ref} names, else the one matched by {@code match}
      * (case-insensitive substring of its message/value), else the focused {@link EditBox},
      * else the sole EditBox on the screen. Calls {@link EditBox#setValue} so the value-listener
      * fires exactly as if the user had retyped it.
@@ -244,12 +268,19 @@ public final class ClientInput {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
-            List<EditBox> edits = new ArrayList<>();
-            collectWidgets(s, null, edits);
-            if (edits.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no text box on screen");
             EditBox target = null;
+            List<EditBox> edits = new ArrayList<>();
+            // 0) a ref names the box outright
+            if (p.ref().isPresent()) {
+                Box named = editBox(p.ref().get());
+                if (named.refusal().isPresent()) return named.refusal().get();
+                target = named.box();
+            } else {
+                collectWidgets(s, null, edits);
+                if (edits.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no text box on screen");
+            }
             // 1) explicit match wins
-            if (!m.isEmpty()) {
+            if (target == null && !m.isEmpty()) {
                 for (EditBox e : edits) {
                     String v = e.getValue() == null ? "" : e.getValue();
                     String msg = e.getMessage() == null ? "" : e.getMessage().getString();
@@ -269,10 +300,13 @@ public final class ClientInput {
                 if (edits.size() == 1) target = edits.get(0);
                 else return new Refused(ClientRefusal.AMBIGUOUS, edits.size() + " text boxes and none focused — pass match");
             }
+            ScreenTree before = ScreenIntrospection.before(p.returnTree());
             String prev = target.getValue();
             target.setValue(p.text());
             target.moveCursorToEnd(false);
-            return new Replaced(target.getValue(), prev == null ? "" : prev, ScreenContext.current());
+            ScreenIntrospection.After after = ScreenIntrospection.after(before);
+            return new Replaced(target.getValue(), prev == null ? "" : prev, after.changed(), after.tree(),
+                    ScreenContext.current());
         });
     }
 
@@ -285,7 +319,7 @@ public final class ClientInput {
      * option actually applies and the label refreshes), and returns the new
      * label + value.
      *
-     * <p>Target selection: explicit {@code match} (case-insensitive substring of the slider's
+     * <p>Target selection: the slider {@code ref} names, else explicit {@code match} (case-insensitive substring of the slider's
      * message, e.g. "render") first, else {@code index} into the on-screen slider list, else the
      * sole slider.
      */
@@ -299,6 +333,16 @@ public final class ClientInput {
             collectWidgets(s, sliders, null);
             if (sliders.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
 
+            AbstractSliderButton named = null;
+            if (p.ref().isPresent()) {
+                ScreenIntrospection.Target t = ScreenIntrospection.widget(p.ref().get());
+                if (t.refusal().isPresent()) return new Refused(ClientRefusal.NO_TARGET, t.refusal().get());
+                if (!(t.widget() instanceof AbstractSliderButton sb)) {
+                    return new Refused(ClientRefusal.NO_TARGET, "ref " + p.ref().get() + " is not a slider");
+                }
+                named = sb;
+            }
+
             // READ mode — list every slider with its label + current value so the
             // agent always knows the live value (the value is only meaningful when
             // shown). Render-distance label like "Render Distance: 5 chunks".
@@ -306,13 +350,15 @@ public final class ClientInput {
                 List<Slider> list = new ArrayList<>();
                 for (int i = 0; i < sliders.size(); i++) {
                     AbstractSliderButton sb = sliders.get(i);
-                    list.add(new Slider(i, sb.getMessage().getString(), sb.value));
+                    if (named == null || sb == named) list.add(new Slider(i, sb.getMessage().getString(), sb.value));
                 }
                 return new SlidersRead(list, ScreenContext.current());
             }
 
             AbstractSliderButton target = null;
-            if (!m.isEmpty()) {
+            if (named != null) {
+                target = named;
+            } else if (!m.isEmpty()) {
                 for (AbstractSliderButton sb : sliders) {
                     if (sb.getMessage().getString().toLowerCase(Locale.ROOT).contains(m)) { target = sb; break; }
                 }
@@ -329,6 +375,7 @@ public final class ClientInput {
                 return new Refused(ClientRefusal.AMBIGUOUS, sliders.size() + " sliders — pass match or index");
             }
 
+            ScreenTree before = ScreenIntrospection.before(p.returnTree());
             double prev = target.value;
             String prevLabel = target.getMessage().getString();
             // value/applyValue/updateMessage are protected in vanilla and opened by
@@ -339,7 +386,9 @@ public final class ClientInput {
             target.value = p.fraction().get();
             target.applyValue();
             target.updateMessage();
-            return new SliderSet(target.getMessage().getString(), target.value, prevLabel, prev, ScreenContext.current());
+            ScreenIntrospection.After after = ScreenIntrospection.after(before);
+            return new SliderSet(target.getMessage().getString(), target.value, prevLabel, prev, after.changed(),
+                    after.tree(), ScreenContext.current());
         });
     }
 

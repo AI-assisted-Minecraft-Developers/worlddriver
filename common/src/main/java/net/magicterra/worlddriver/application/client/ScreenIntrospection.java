@@ -98,6 +98,42 @@ public final class ScreenIntrospection {
         return new Aim(0, 0, Optional.of(why));
     }
 
+    /** The live object a ref names on the open screen, or why there is none. */
+    record Target(GuiEventListener widget, Optional<String> refusal) {}
+
+    /**
+     * The widget or list row {@code ref} names, found by walking the open screen through the same children the tree
+     * walk does. Refused when it is not on the screen any more. Client thread.
+     */
+    static Target widget(int ref) {
+        Screen s = Minecraft.getInstance().screen;
+        Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        if (s != null) seen.add(s);
+        GuiEventListener hit = s == null ? null : find(s, ref, seen);
+        if (hit == null) {
+            return new Target(null, Optional.of("ref " + ref + " is not on the open screen: it closed, rebuilt its "
+                    + "widgets, or the ref came from another screen. Read screen.tree again"));
+        }
+        return new Target(hit, Optional.empty());
+    }
+
+    private static GuiEventListener find(GuiEventListener node, int ref, Set<Object> seen) {
+        if (!(node instanceof ContainerEventHandler ceh)) return null;
+        for (GuiEventListener child : ceh.children()) {
+            if (!seen.add(child)) continue;
+            // get, not refOf: an object no walk has met has no ref yet, so it cannot be the one asked for.
+            Integer r = REFS.get(child);
+            if (r != null && r == ref) return child;
+            try {
+                GuiEventListener deeper = find(child, ref, seen);
+                if (deeper != null) return deeper;
+            } catch (RuntimeException e) {
+                // As in the tree walk: a third-party widget that throws costs its own subtree.
+            }
+        }
+        return null;
+    }
+
     private static boolean inside(Box b, double x, double y) {
         return x >= b.x() && y >= b.y() && x < b.x() + b.width() && y < b.y() + b.height();
     }

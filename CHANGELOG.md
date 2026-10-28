@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-29
+
+- **`mc.client.input.typeText`, `replaceText` and `slider` take a `ref` from `screen.tree` and
+  `returnTree`**, like `click`. `typeText` focuses the named box before typing; a ref that is gone, or
+  names something other than a text box or slider, is refused as `no_target`.
+
 ## 2026-10-28
 
 - **The old StageWright scene path is gone from WorldDriver, following StageWright's deletion of it.** Of

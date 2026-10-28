@@ -55,11 +55,6 @@ thread of `McpServer`'s HttpServer. `McpServer.close()` exists but nothing calls
 (`WorldDriverCommon` only detaches the server). The executor is already daemon; the fix is to stop
 the HTTP server at JVM or driver shutdown.
 
-### Three GUI input verbs take no element ref
-
-`screen.tree` refs and `returnTree` cover click, slotClick, key and keybind. `typeText`,
-`replaceText` and `slider` still pick their target by focus or label match and return no tree.
-
 ### Out of blocks one course under a two-high bank, the bot goes back into the water
 
 `ClientWaterTest.clientTwoHighBankDigOut` takes 445–1238 ticks; its ashore check wants ≤900 (leg
