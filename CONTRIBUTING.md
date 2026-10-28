@@ -46,7 +46,7 @@ There are three layers, and which one a change needs depends on what it touches.
 or on their own with `./gradlew :common:test`. Prefer them wherever the subject allows it: a
 scene costs a full game boot and can only observe what the game exposes. Several of these
 tests are properties of the source rather than of a run — they read the compiled bytecode and
-fail with a file and a line instead of a scene verdict.
+fail with a file and a line.
 
 **In-game tests** are JUnit tests and YAML/JavaScript script tests in `common/src/testmod`, run
 by StageWright's test suites, one per loader:

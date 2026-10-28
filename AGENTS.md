@@ -71,8 +71,8 @@ Do not compile under a live run or a test run: development runs load classes laz
 uv run scripts/react_smoke.py                       # smoke driving over the client RPC; start a client first
 ```
 
-`docs/dev/testing.md` still describes the deleted scene path in places; StageWright's own
-`docs/guide/gradle-plugin.md` describes the suites.
+`docs/dev/testing.md` describes the suites, the scene files and the kit; StageWright's own
+`docs/guide/gradle-plugin.md` describes the suite tasks and their options.
 
 ## When you add a method to the API surface
 
