@@ -260,8 +260,7 @@ public final class PathFinder {
         this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, profile);
     }
     /** Back-compat: bias-only convenience ctor for callers that just want a cost
-     *  bias without a full profile (e.g. the {@code wd.*} Bias scenes in
-     *  {@code WorldDriverBiasScenes}). */
+     *  bias without a full profile. */
     public PathFinder(WorldView world, List<CostModifier> bias) {
         this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs,
                 new SearchProfile(bias, CapabilityProfile.ALL, List.of()));

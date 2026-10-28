@@ -8,8 +8,6 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
@@ -194,15 +192,7 @@ public final class LevelWorldView implements StateWorldView {
     @Override public int placeableBlockCount() {
         if (controller == null) return 0;
         if (controller.isCreative()) return Integer.MAX_VALUE;
-        int n = 0;
-        var items = controller.getInventory().items;
-        for (int slot = 0; slot < items.size(); slot++) {
-            ItemStack stk = items.get(slot);
-            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
-            n += stk.getCount();
-        }
-        return n;
+        return BuildBlocks.placeableCount(controller.getInventory().items);
     }
 
     @Override public boolean canParkourPlace() { return WorldConfig.allowParkourPlace && placeableBlockCount() > 0; }

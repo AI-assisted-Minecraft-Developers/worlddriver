@@ -376,15 +376,7 @@ public final class ClientWorldView implements StateWorldView {
         Player pl = player.get();
         if (pl == null) return 0;
         if (pl.isCreative()) return Integer.MAX_VALUE;
-        Inventory inv = pl.getInventory();
-        int n = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
-            n += stk.getCount();
-        }
-        return n;
+        return BuildBlocks.placeableCount(pl.getInventory().items.subList(0, 9));
     }
     // Cells checked for lava/fire around a candidate stand position: the 4
     // horizontal neighbours at foot, head, and foot-below levels. Diagonals

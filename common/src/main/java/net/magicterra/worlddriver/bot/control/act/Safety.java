@@ -375,7 +375,8 @@ public final class Safety {
      * deliberately the only backstop: a second threshold here ("enough progress") would be a free
      * parameter with no measurement behind it.
      */
-    private void forcedRepathIfPinnedTooLong(Body a) {
+    // Package-private, not private: SafetyGuardRepathTest drives the streak through it a tick at a time.
+    void forcedRepathIfPinnedTooLong(Body a) {
         if (guardPinStreak == 0) {
             guardStreakPath = nav.route.path();
             guardStreakStartStep = nav.route.step();
@@ -389,7 +390,7 @@ public final class Safety {
         String where = "; bot at " + (p == null ? "none" : p.blockPosition().toShortString());
         // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
         // the first entry is the streak's own opening cell, so 1 means the bot never left it.
-        // JourneyCrossingScenes parses "pinned in N cells" out of this clause.
+        // SafetyGuardRepathTest parses "pinned in N cells" out of this clause.
         String cells = ", pinned in " + guardStreakCells + " cells (including the first)"
                 + (guardStreakCells <= 1 ? " (never left that cell)"
                         : " (changed cells; for reference, not a criterion)");

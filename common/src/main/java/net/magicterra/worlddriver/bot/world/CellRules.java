@@ -155,6 +155,12 @@ public final class CellRules {
      * describe where the bot is now, not where this future dig happens.
      */
     public static double breakCost(Level lvl, BlockPos p, BlockState s, Player pl, DigSnapshot snap) {
+        return breakCost(lvl, p, s, pl == null ? java.util.List.of() : pl.getInventory().items, snap);
+    }
+
+    /** {@link #breakCost(Level, BlockPos, BlockState, Player, DigSnapshot)} over a bare bag of items: the
+     *  same price with no player behind it, which is what a planner test over a block map has. */
+    public static double breakCost(BlockGetter lvl, BlockPos p, BlockState s, Iterable<ItemStack> bag, DigSnapshot snap) {
         if (s.isAir()) return 0;
         if (!s.getFluidState().isEmpty()) return Double.POSITIVE_INFINITY;   // never "break" a fluid
         float hardness = s.getDestroySpeed(lvl, p);
@@ -166,19 +172,17 @@ public final class CellRules {
         // the search's per-node cost was the collision-shape join in isPassable, not this loop.
         float bestSpeed = 1f;
         boolean bestCorrect = !needsTool;
-        if (pl != null) {
-            for (ItemStack stk : pl.getInventory().items) {
-                if (stk.isEmpty()) continue;
-                float sp = stk.getDestroySpeed(s);
-                if (sp > 1f && snap.efficiency != null) {
-                    int el = EnchantmentHelper.getItemEnchantmentLevel(snap.efficiency, stk);
-                    if (el > 0) sp += el * el + 1;
-                }
-                boolean cor = !needsTool || stk.isCorrectToolForDrops(s);
-                if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
-                    bestSpeed = sp;
-                    bestCorrect = cor;
-                }
+        for (ItemStack stk : bag) {
+            if (stk.isEmpty()) continue;
+            float sp = stk.getDestroySpeed(s);
+            if (sp > 1f && snap.efficiency != null) {
+                int el = EnchantmentHelper.getItemEnchantmentLevel(snap.efficiency, stk);
+                if (el > 0) sp += el * el + 1;
+            }
+            boolean cor = !needsTool || stk.isCorrectToolForDrops(s);
+            if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
+                bestSpeed = sp;
+                bestCorrect = cor;
             }
         }
         bestSpeed *= snap.digSpeedMul;

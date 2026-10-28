@@ -50,6 +50,18 @@ public final class BuildBlocks {
                 net.minecraft.core.Direction.UP);
     }
 
+    /** How many blocks in {@code items} the bot may place as footing: the stacks whose block passes
+     *  {@link #isUsableBuildBlock}, summed. Which slots a body reaches is the caller's choice. */
+    public static int placeableCount(Iterable<net.minecraft.world.item.ItemStack> items) {
+        int n = 0;
+        for (net.minecraft.world.item.ItemStack stk : items) {
+            if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) continue;
+            if (!isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            n += stk.getCount();
+        }
+        return n;
+    }
+
     /** A block whose use-click opens a GUI (block-entity holders + the menu-opening
      *  work-station family). Shared by {@link #isUsableBuildBlock} (never place one
      *  as filler) and the navigator's place actuator (never CLICK one as a support —
