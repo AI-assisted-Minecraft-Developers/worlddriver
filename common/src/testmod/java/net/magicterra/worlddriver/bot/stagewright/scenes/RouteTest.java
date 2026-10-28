@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Locale;
 
 import net.magicterra.stagewright.test.Game;
-import net.magicterra.stagewright.test.KnownIssue;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
@@ -251,9 +250,6 @@ class RouteTest {
      * and place are off so the way around is the only way.
      */
     @Test
-    @KnownIssue("flaky: after the detour the navigator spends its last node a block short and the walk ends GAVE_UP"
-            + " (path-consumed) before the bot slides onto the goal; TODO.md, \"The navigator spends its last node a"
-            + " block short after a detour\"")
     void routeReplansWhenTheWayAheadIsWalledOff(Game game, @Plot.Centered @Plot.Size(x = 64, y = 24, z = 24) Plot plot,
                                                 TestReporter reporter) {
         Settings.pin(game).set("allowBreak", false).set("allowPlace", false);
