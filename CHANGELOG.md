@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifests and the gate, contract, journey and rehearsal runs. The 226 worth keeping are parked uncompiled
   in `common/src/testmod/legacy/` until they are ported. The server no longer applies the scene flag
   baseline at start under `-Dstagewright.autorun`. CI runs `stagewrightTestNeoforge` instead of the gate.
+- **The parked scenes are ported, and `common/src/testmod/legacy/` is gone.** Each family is a JUnit class
+  under `bot/stagewright/scenes/`, run in `wd.scenes` (dedicated server) or `wd.clientScenes` (with a joined
+  client), on the testmod kit in `bot/stagewright/kit`; the planner-only ones are JVM tests in `:common`. Each
+  test pins the scene flag baseline itself. Three scenes once marked flaky passed in every run and are plain
+  tests now.
 - **The JavaScript validation scripts are StageWright script tests.** Each script under
   `stagewright/tests/validation/` is one test, run in the scenes `wd.validation` (dedicated server) and
   `wd.validationIntegrated` (integrated server); a failed check is reported by name and the checks after it

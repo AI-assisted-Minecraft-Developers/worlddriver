@@ -18,8 +18,9 @@ links to; read that page before arguing with the rule.
   `stagewright_version` in `gradle.properties`; neither shipped jar contains a
   StageWright class. `CONTRIBUTING.md` ("First build") covers building against a local one.
 - **Two test layers**: JVM tests (`./gradlew :common:test`) and in-game tests run by
-  StageWright's test suites. Prefer the JVM layer wherever the subject allows it. The old scenes
-  still to be ported sit uncompiled in `common/src/testmod/legacy/`.
+  StageWright's test suites. Prefer the JVM layer wherever the subject allows it. In-game tests
+  build on the testmod kit (`bot/stagewright/kit`): pin settings with `Settings.pin`, stage bots
+  with `SceneBot`, drive the real client with `ClientRig`.
 - **`net.magicterra.worlddriver.test` is script API, not test machinery.** `ScriptTest` ships
   in the production jar on purpose; every in-game script asserts through it.
 

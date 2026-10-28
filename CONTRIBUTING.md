@@ -57,8 +57,8 @@ by StageWright's test suites, one per loader:
 ```
 
 Each starts the games each test's scene file asks for and reports like any Gradle `Test` task.
-Most of the older scenes have not been ported to these yet; they wait, uncompiled, in
-`common/src/testmod/legacy/`.
+`--tests '<class>'` runs one Java test class (script tests still run with it), and
+`-PstagewrightServerPort=<port>` lets two checkouts run their suites at once.
 
 **Source checks** under `scripts/` are run by hand; nothing in the build invokes them, and CI runs
 `check_source_budget.py` as well.

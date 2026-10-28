@@ -15,13 +15,6 @@ checked against the current tree. Read the code before acting on one.
 
 ## Porting the tests to StageWright's new path
 
-### The parked scenes still have to be ported
-
-`common/src/testmod/legacy/` holds the 226 old scenes worth keeping and their helpers, uncompiled. Port
-each family to `net.magicterra.stagewright.test` (or to a JVM unit test) and delete it from there; the
-four flaky ones go under `@KnownIssue`. They were written against `BotConfig.applyGameTestBaseline()`,
-which the server applied at start and nothing applies now.
-
 ### The survival ladder has to be rebuilt as new-path tests
 
 `wd.journey*` and its arena scenes were deleted with the old path. Rebuild the climb once StageWright can
