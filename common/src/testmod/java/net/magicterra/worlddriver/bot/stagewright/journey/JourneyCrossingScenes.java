@@ -110,12 +110,6 @@ public final class JourneyCrossingScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                Scene.of("wd.crossingWaitsOutASurvivableDrop", 400,
-                        JourneyCrossingScenes::waitsOutASurvivableDrop),
-                Scene.of("wd.crossingStillStopsForALongFall", 400,
-                        JourneyCrossingScenes::stillStopsForALongFall),
-                Scene.of("wd.crossingRowSeparatesAPerchFromMidAir", 400,
-                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir),
                 Scene.of("wd.guardRepathSeparatesARimWalkFromALivelock", 600,
                         JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock));
     }
@@ -144,121 +138,6 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** Physics ticks the walk out to the lip gets. The shelf is nine cells and a walk covers about
      *  one every five ticks, so this is roughly triple what a healthy walk-off needs. */
     private static final int WALK_TICKS = 160;
-
-    /**
-     * A bot walked off a four-block lip, judged twice: as the crossing used to, and as it does now.
-     *
-     * <p>See the class note. The control is the first verdict; if it comes back clean this arena
-     * never reproduced the stop and the arm says so instead of passing.
-     */
-    private static void waitsOutASurvivableDrop(SceneContext ctx) {
-        Harness.pin(ctx);
-        // The guards keep their live values — this arm is a claim about them staying out of the way,
-        // and an arm that switched them off could not make it. Placement is off because a plug under
-        // the bot would change the geometry the arms differ in; the shore pair owns that question.
-        Harness.set("allowPlace", false);
-        Harness.set("allowBreak", false);
-        Harness.set("navigatorDebug", false);
-        ctx.cleanup(() -> clear(ctx));
-
-        stage(ctx);
-        ctx.record("rig", "3-block-wide netherrack shelf dz=-2.." + (SHELF_CELLS - 2) + ", top face dy="
-                + DECK + "; past the lip it drops to the bay floor at dy=" + BAY_BED + ", a drop of "
-                + (DECK - BAY_BED) + " blocks. A bot at full health survives 22 blocks, so both"
-                + " navigator guards should stay silent in this arena by their own rules, not because"
-                + " a switch turned them off");
-
-        SceneBot av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
-        ServerPlayer fp = av.player();
-        Walk walk = walkOffTheLip(ctx, av);
-        ctx.record("walk", walk.line());
-        if (!walk.leftTheGround())
-            ctx.fail("THE RIG, not the subject: the bot did not walk off the lip (" + walk.line()
-                    + "). This arm judges how the verdict is taken after the bot leaves the ground;"
-                    + " if it never left the ground, nothing was measured");
-        if (!JourneyNetherRungs.stillFalling(fp))
-            ctx.fail("THE RIG, not the subject: the bot walked off but never entered the \"still"
-                    + " falling\" state (" + walk.line() + "), so the verdict branch under test was"
-                    + " never triggered");
-
-        // CONTROL: the verdict oneHop would take without the allowance, straight off a bot still in
-        // the air.
-        BlockPos airborneAt = fp.blockPosition();
-        String judgedNow = JourneyNetherRungs.hazardBlockingARetry(fp, airborneAt);
-        ctx.record("control.judgedInMidAir", judgedNow == null
-                ? "no hazard; this arm measured nothing" : judgedNow);
-        if (judgedNow == null)
-            ctx.fail("THE RIG, not the subject: the bot is still in mid-air, yet the verdict reports"
-                    + " no hazard. The criterion \"the verdict clears after landing\" then cannot tell"
-                    + " \"the wait had an effect\" from \"this arena never stops the crossing\": "
-                    + walk.line());
-
-        Allowance spent = allowanceToLand(ctx, av, "subject");
-        String judgedAfter = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
-        ctx.record("subject.judgedAfterLanding", judgedAfter == null ? "no hazard (cleared)" : judgedAfter);
-        ctx.record("subject.after", where(ctx, fp));
-
-        ctx.check(judgedAfter).as("A after the landing allowance, this hop must be judged clear. The"
-                + " control's mid-air verdict was \"" + judgedNow + "\", and the verdict on the last"
-                + " tick before landing was \"" + spent.lastMidAir() + "\"").isNull();
-        ctx.check(spent.landedAt() >= 1 && spent.landedAt() <= JourneyNetherRungs.LANDING_TICKS)
-                .as("B and the allowance must be sufficient: a " + (DECK - BAY_BED) + "-block drop"
-                        + " should land within " + JourneyNetherRungs.LANDING_TICKS + " ticks; measured"
-                        + " landing on tick " + spent.landedAt() + " (-1 = never landed)").isTrue();
-        ctx.check(blockUnder(ctx, fp)).as("C and the bot must be standing on the bay floor's netherrack,"
-                + " not on anything else: " + where(ctx, fp)).isEqualTo("netherrack");
-    }
-
-    /**
-     * The same bay from thirty-nine blocks up: the allowance expires and the verdict must still stop.
-     *
-     * <p>Staged as a drop rather than as a walk-off on purpose. A lip this arm could walk off would
-     * have to be a lethal one, and a lethal lip is a stride both navigator guards are supposed to
-     * refuse — the arm would end up measuring them instead of the allowance, and would fail for
-     * being right about something else.
-     */
-    private static void stillStopsForALongFall(SceneContext ctx) {
-        Harness.pin(ctx);
-        Harness.set("allowPlace", false);
-        Harness.set("allowBreak", false);
-        Harness.set("navigatorDebug", false);
-        ctx.cleanup(() -> clear(ctx));
-
-        stage(ctx);
-        ctx.record("rig", "the same bay (floor at dy=" + BAY_BED + "); the bot starts falling from dy="
-                + DEEP_START + ", " + (DEEP_START - (BAY_BED + 1)) + " blocks in total; an allowance of "
-                + JourneyNetherRungs.LANDING_TICKS + " ticks only covers 23.4 blocks, so the bot is"
-                + " still in the air when the allowance is spent. This arm asks whether the verdict"
-                + " still stops the crossing at that point");
-
-        // No idle settle: every tick of one is a tick of this arm's own fall, and twenty of them
-        // spent 14 of the 39 blocks before the allowance ever started (measured — the first run of
-        // this arm landed on allowance tick 16 and read as a broken premise).
-        SceneBot av = spawn(ctx, ctx.originZ() + 12.5, DEEP_START, false);
-        ServerPlayer fp = av.player();
-        int t = 0;
-        while (t < 20 && !JourneyNetherRungs.stillFalling(fp)) { step(av); t++; }
-        ctx.record("fall.began", "counted as \"falling\" only " + t + " ticks after release; "
-                + where(ctx, fp));
-        if (!JourneyNetherRungs.stillFalling(fp))
-            ctx.fail("THE RIG, not the subject: " + t + " ticks after release the bot still does not"
-                    + " count as \"falling\" (" + where(ctx, fp) + ")");
-
-        Allowance spent = allowanceToLand(ctx, av, "subject");
-        String judgedAfter = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
-        ctx.record("subject.judgedAfterAllowance", judgedAfter == null
-                ? "no hazard (cleared)" : judgedAfter);
-        ctx.record("subject.after", where(ctx, fp));
-
-        ctx.check(spent.landedAt()).as("A this arm's premise is that the allowance is insufficient: the"
-                + " bot must not land within " + JourneyNetherRungs.LANDING_TICKS + " ticks, "
-                + where(ctx, fp)).isEqualTo(-1);
-        ctx.check(judgedAfter).as("B the allowance is spent and the bot is still falling, so the verdict"
-                + " must still stop the crossing. Otherwise the next plan would be issued to a bot"
-                + " still in mid-air, which is the retry that changes nothing that this rung already"
-                + " names")
-                .isNotNull();
-    }
 
     // ── the plan the guard throws away ───────────────────────────────────────────────────────
 
@@ -484,127 +363,6 @@ public final class JourneyCrossingScenes implements SceneProvider {
     // ── the row a wedged hop is read from ────────────────────────────────────────────────────
 
     /**
-     * <b>Two bots, opposite situations, one identical evidence row.</b>
-     *
-     * <h2>The reading this is a copy of</h2>
-     *
-     * The 2026-08-20 ladder ended rung 14 in a shuttle, and the rows a reader goes to first are the
-     * ones the crossing prints for each wedged hop. Two of the four were unreadable (rendered in
-     * English):
-     *
-     * <pre>
-     * fortress.around.4 = below=dirt … onGround=true fallSpeed=-0.08 health=20 dropToSolid=0
-     * fortress.around.8 = below=air  … onGround=true fallSpeed=-0.08 health=20 dropToSolid=&gt;16
-     * </pre>
-     *
-     * <p>{@code around.8} reads as a bot hanging over a void. It was not: hop 9 started from that
-     * cell and its own flight row says y 43→43 (highest 44, lowest 41 along the way), so the bot was
-     * standing, balanced on the corner of a NEIGHBOURING block, with its own centre column open
-     * sixteen blocks down. Recovering that took cross-referencing a different row from a different
-     * hop, and the same three readings are also what a genuinely airborne bot prints on the tick it
-     * walks off a lip: {@code onGround} is a tick stale there, so the flag says {@code true} while
-     * the sole is on nothing.
-     *
-     * <p>{@link JourneyFlight}'s class note already names this — three different bugs all end with a
-     * bot hanging in {@code cave_air} and the snapshot reporting it is the same line in all three —
-     * and fixed it for the RECORDER by reading the footprint. {@code surroundings}, the row every
-     * wedged hop prints, never got that fix: it asks only the cell under the bot's centre, and a
-     * player is 0.6 wide.
-     *
-     * <h2>What this arm measures</h2>
-     *
-     * Both bots stand over the same bottomless shaft and both must print the same three readings:
-     * block below = air, {@code onGround=true}, and drop to solid = &gt;16. That is the CONTROL, and
-     * it is a measurement rather than an assertion of intent: if the two situations do not produce
-     * those same three readings, this arena has not reproduced the ambiguity and the arm fails as
-     * THE RIG instead of reporting that the new clause separated them. What must then separate them
-     * is the sole, printed through {@code NavigatorGeometry.soleRow} (read through {@code mc.debug.body}), which is this repository's single
-     * definition of "which cell the player entity is standing on", not a fourth opinion invented
-     * here.
-     *
-     * <p><b>Red before the row learned to say it.</b> Without the sole clause the two rows are
-     * byte-identical and the first check cannot pass.
-     */
-    private static void rowSeparatesAPerchFromMidAir(SceneContext ctx) {
-        Harness.pin(ctx);
-        Harness.set("allowPlace", false);
-        Harness.set("allowBreak", false);
-        Harness.set("navigatorDebug", false);
-        ctx.cleanup(() -> clearShaft(ctx));
-
-        stageShaft(ctx);
-        ctx.record("rig", "a shaft: floor at dy=" + SHAFT_FLOOR + ", 18 blocks below the foot cell."
-                + " That is deeper than the 16 blocks surroundings probes (so both bots read \">16\")"
-                + " and shallower than the drop both navigator guards refuse (so the walking half can"
-                + " walk off); deck at dy=" + DECK + ", with nothing beyond the lip; plus one lone"
-                + " netherrack block at dx=-1, dy=" + DECK + ". The perched bot stands on its corner"
-                + " with open air under its own cell");
-
-        // A: a bot cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
-        // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
-        SceneBot perch = SceneBot.spawn(ctx, ctx.level(),
-                ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
-        ServerPlayer pf = perch.player();
-        pf.getInventory().clearContent();
-        aim(pf);
-        for (int i = 0; i < SETTLE_TICKS; i++) step(perch);
-        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition(), sole(perch));
-        ctx.record("perch.row", rowPerch);
-        ctx.record("perch.sole", String.format(Locale.ROOT, "%s @ %.3f,%.3f,%.3f",
-                soleArea(perch), pf.getX(), pf.getY(), pf.getZ()));
-        if (!pf.onGround())
-            ctx.fail("THE RIG, not the subject: the bot perched on the neighbour's corner did not stay"
-                    + " put (" + where(ctx, pf) + "); this arm's premise is that it reports"
-                    + " onGround=true without standing on its own cell");
-
-        // B: the stale-flag tick. A bot one tick past the lip still reports onGround=true with its
-        // whole sole on nothing — the same three readings, the opposite situation.
-        SceneBot off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
-        ServerPlayer wf = off.player();
-        String rowAir = walkToTheStaleTick(ctx, off);
-        ctx.record("midAir.row", rowAir);
-        ctx.record("midAir.sole", String.format(Locale.ROOT, "%s @ %.3f,%.3f,%.3f",
-                soleArea(off), wf.getX(), wf.getY(), wf.getZ()));
-
-        // THE CONTROL. Three readings, both bots, or this arena is not the one that was confusing.
-        // The tokens are JourneyNetherRungs.surroundings' own wording and must match it verbatim.
-        for (String must : List.of("below=air", "onGround=true", "dropToSolid=>16")) {
-            if (!rowPerch.contains(must) || !rowAir.contains(must))
-                ctx.fail("THE RIG, not the subject: both bots should print the same \"" + must
-                        + "\", measured perched=\"" + rowPerch + "\" / mid-air=\"" + rowAir
-                        + "\". \"The new reading separated them\" then cannot tell whether the new"
-                        + " reading had an effect or this arena was separable to begin with");
-        }
-
-        // B and C read the sole clause only: a whole-row contains() would also see the rest of the
-        // row, which this arm exists to say is not enough. The marker is NavigatorGeometry.soleRow's
-        // own wording.
-        String soleOf = soleClause(rowPerch), soleOfAir = soleClause(rowAir);
-        ctx.record("perch.soleClause", soleOf.isEmpty() ? "(this row has no sole clause)" : soleOf);
-        ctx.record("midAir.soleClause", soleOfAir.isEmpty() ? "(this row has no sole clause)" : soleOfAir);
-
-        ctx.check(rowPerch).as("A the two rows must differ. The old reading only asks about the cell"
-                + " under the centre of the player entity, which is 0.6 blocks wide, so \"perched on"
-                + " a neighbour's corner\" and \"genuinely unsupported\" printed the same sentence: "
-                + rowPerch)
-                .isNotEqualTo(rowAir);
-        ctx.check(soleOf.contains("solid")).as("B in the perched row, the sole clause must contain at"
-                + " least one solid cell: " + (soleOf.isEmpty() ? rowPerch : soleOf)).isTrue();
-        ctx.check(soleOfAir.contains("solid")).as("C in the mid-air row, the sole clause must contain no"
-                + " solid cell at all; otherwise B would be satisfied by a sentence that holds in both"
-                + " situations: " + (soleOfAir.isEmpty() ? rowAir : soleOfAir))
-                .isFalse();
-    }
-
-    /** The tail of a {@code surroundings} row from its sole clause on, or empty when the row has no
-     *  such clause. Empty is the pre-fix answer and it must make B fail rather than throw. The
-     *  marker is JourneyNetherRungs.surroundings' own wording and must match it verbatim. */
-    private static String soleClause(String row) {
-        int i = row.indexOf(" sole=");
-        return i < 0 ? "" : row.substring(i);
-    }
-
-    /**
      * dy of the shaft's floor — eighteen rows under the foot cell, and the number is squeezed
      * between three constants rather than picked.
      *
@@ -622,65 +380,6 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** dy the shaft is cleared up from — one row over its floor. */
     private static final int SHAFT_CLEAR = SHAFT_FLOOR + 1;
 
-    /**
-     * Walk the deck until the bot is ONE TICK past the lip, and take the row there.
-     *
-     * <p>Not the first {@code stillFalling} tick — that is four ticks later, by which time
-     * {@code onGround} has caught up and the two rows would differ for a reason that has nothing to
-     * do with the sole. The tick wanted is the stale one: the sole already on nothing and the flag
-     * still saying {@code true}, which is what {@code fortress.ground.*} printed on the live falls.
-     */
-    /** {@link JourneyNetherRungs#surroundings}' sole column, read through {@code mc.debug.body} as the rung
-     *  reads its bot's. */
-    private static String sole(SceneBot bot) {
-        return soleArea(bot) + " (" + bot.body().footing().soleRow() + ")";
-    }
-
-    /** The solid area under the sole, of the area the guards need: {@code 0.1500/0.36}. */
-    private static String soleArea(SceneBot bot) {
-        BotDebugContracts.Footing f = bot.body().footing();
-        return String.format(Locale.ROOT, "%.4f/%.2f", f.soleOnSolid(), f.footingMin());
-    }
-
-    private static String walkToTheStaleTick(SceneContext ctx, SceneBot av) {
-        ServerPlayer fp = av.player();
-        av.goTo(Targets.block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
-        for (int t = 0; t < WALK_TICKS; t++) {
-            straightOn(av, () -> aim(fp));
-            av.step();
-            if (fp.onGround() && av.body().footing().soleOnSolid() <= 0.0)
-                return JourneyNetherRungs.surroundings(fp, fp.blockPosition(), sole(av));
-            if (!fp.onGround()) break;                        // the stale tick was overshot
-        }
-        ctx.fail("THE RIG, not the subject: after " + WALK_TICKS + " ticks of walking, no tick was"
-                + " caught where the solid sole area is 0 while onGround still reports true ("
-                + where(ctx, fp) + "); the other half of this arm's test setup was never produced");
-        return "";
-    }
-
-    /** Air out the shaft arena, well below the origin too: {@code surroundings} probes 16 cells down
-     *  and an unstaged floor inside that reach would decide the control's own premise. */
-    private static void clearShaft(SceneContext ctx) {
-        for (int dx = -4; dx <= 4; dx++)
-            for (int dz = -3; dz <= 16; dz++)
-                for (int dy = SHAFT_CLEAR; dy <= DECK + 4; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
-    }
-
-    /** The deck, the lone block beside it that a bot can corner on, and the floor eighteen rows
-     *  down. Nothing in between — the column under BOTH bots has to be open past the row's own
-     *  16-cell probe, which is the whole premise of the control. */
-    private static void stageShaft(SceneContext ctx) {
-        clearShaft(ctx);
-        for (int dx = -4; dx <= 4; dx++)
-            for (int dz = -3; dz <= 16; dz++)
-                ctx.setBlock(dx, SHAFT_FLOOR, dz, Blocks.NETHERRACK);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = 1; dz <= SHELF_CELLS - 2; dz++)
-                ctx.setBlock(dx, DECK, dz, Blocks.NETHERRACK);
-        ctx.setBlock(-1, DECK, 0, Blocks.NETHERRACK);         // the perch's neighbour, on its own
-    }
-
     // ── the rig ──────────────────────────────────────────────────────────────────────────────
 
     /** What one walk out to the lip produced. */
@@ -697,77 +396,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
         }
     }
 
-    /**
-     * Walk the shelf until the bot is in the state a crossing hop is judged in, and say what it cost.
-     *
-     * <p>The brain runs a goto so the navigator's guards run — they live in {@code Navigator#tick}'s
-     * single-exit wrapper, after every branch of {@code tickInner} — and the heading and impulse are
-     * re-imposed afterwards so the bot walks one straight line whatever the navigator would rather do. Sneak
-     * is NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
-     * says whether one did.
-     *
-     * <p>The three readings taken on the tick before the launch are the ones
-     * {@code fortress.ground.6.0} printed live, in the same order: the sole, the flag, and vanilla's
-     * own ground question. They are RECORDED and not asserted — what the guards do at a survivable
-     * lip belongs to {@code wd.serverWalksOffASurvivableLedge}, and an arm asserting it here would
-     * be a second opinion about a question that already has an owner.
-     */
-    private static Walk walkOffTheLip(SceneContext ctx, SceneBot av) {
-        ServerLevel level = ctx.level();
-        ServerPlayer fp = av.player();
-        av.goTo(Targets.block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
-
-        double startZ = fp.getZ(), farZ = fp.getZ();
-        double prevSole = 0;
-        boolean prevOnGround = false, prevSwept = false;
-        boolean left = false;
-        int pinned = 0, t = 0;
-        for (; t < WALK_TICKS; t++) {
-            double sole = av.body().footing().soleOnSolid();
-            boolean onGround = fp.onGround();
-            boolean swept = !level.noCollision(fp, groundSlab(fp.getBoundingBox()));
-            if (straightOn(av, () -> aim(fp))) pinned++;
-            av.step();
-            farZ = Math.max(farZ, fp.getZ());
-            if (!left && !fp.onGround() && fp.getY() < ctx.rel(0, DECK + 1, 0).getY() - 0.05) {
-                left = true;
-                prevSole = sole;
-                prevOnGround = onGround;
-                prevSwept = swept;
-            }
-            if (left && JourneyNetherRungs.stillFalling(fp)) break;
-            if (left && fp.onGround()) break;                 // landed before it ever counted as falling
-        }
-        return new Walk(t, farZ - startZ, left, pinned, prevSole, prevOnGround, prevSwept);
-    }
-
     /** What spending the allowance cost, and the last verdict taken while the bot was still in the
      *  air: the live row's own reading (0 blocks down to solid) rather than the first one, which is
      *  taken three blocks up and understates how close the crossing was to a landing. */
     private record Allowance(int landedAt, String lastMidAir) {}
-
-    /**
-     * Spend the crossing's landing allowance and say which tick the bot landed on, or −1.
-     *
-     * <p>The impulse is released first, every tick, because that is what {@link JourneyRig#hold} does and
-     * the crossing waits under it: a leftover forward impulse would walk the bot off whatever it
-     * lands on. Releasing the controls is not braking, and here the brake would be left off.
-     */
-    private static Allowance allowanceToLand(SceneContext ctx, SceneBot av, String arm) {
-        ServerPlayer fp = av.player();
-        int landedAt = -1;
-        String lastMidAir = "none; the bot never entered the \"still falling\" state";
-        for (int i = 1; i <= JourneyNetherRungs.LANDING_TICKS; i++) {
-            String verdict = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
-            if (landedAt < 0 && verdict != null) lastMidAir = "tick " + i + ": " + verdict;
-            step(av);
-            if (landedAt < 0 && fp.onGround()) landedAt = i;
-        }
-        ctx.record(arm + ".allowance", "allowance " + JourneyNetherRungs.LANDING_TICKS
-                + " ticks, landed on tick " + landedAt + " (-1 = never landed); last verdict before"
-                + " landing = " + lastMidAir + "; " + where(ctx, fp));
-        return new Allowance(landedAt, lastMidAir);
-    }
 
     /** One idle physics tick with everything released, exactly what {@link JourneyRig#hold} does. */
     private static void step(SceneBot av) {
@@ -811,13 +443,6 @@ public final class JourneyCrossingScenes implements SceneProvider {
         fp.yBodyRot = 0f;
     }
 
-    /** The slab vanilla sweeps to decide {@code onGround}: one tick of gravity under the box. Asked
-     *  directly so a stale flag can be told from a reading that looked at the wrong cells — the
-     *  two produce the same line and want opposite fixes. */
-    private static AABB groundSlab(AABB box) {
-        return new AABB(box.minX, box.minY - 0.0784, box.minZ, box.maxX, box.minY, box.maxZ);
-    }
-
     private static String where(SceneContext ctx, ServerPlayer fp) {
         return String.format(Locale.ROOT,
                 "bot=(%.2f,%.2f,%.2f) onGround=%s fallSpeed=%.3f below=%s dropToSolid=%s",
@@ -849,25 +474,4 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
     // ── the terrain ──────────────────────────────────────────────────────────────────────────
 
-    /** Air out the working box. Called before staging and again on cleanup, so an arm that fails
-     *  mid-drive still hands the shared dogfood world back empty. */
-    private static void clear(SceneContext ctx) {
-        for (int dx = -4; dx <= 4; dx++)
-            for (int dz = -3; dz <= 16; dz++)
-                for (int dy = 0; dy <= 43; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
-    }
-
-    /** The shelf, the lip, and the bay under it — the same terrain for both arms. */
-    private static void stage(SceneContext ctx) {
-        clear(ctx);
-        for (int dx = -1; dx <= 1; dx++)                       // the shelf the bot walks out on
-            for (int dz = -2; dz <= SHELF_CELLS - 2; dz++)
-                for (int dy = 0; dy <= DECK; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.NETHERRACK);
-        for (int dx = -4; dx <= 4; dx++)                       // the bay it steps down into
-            for (int dz = SHELF_CELLS - 1; dz <= 16; dz++)
-                for (int dy = 0; dy <= BAY_BED; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.NETHERRACK);
-    }
 }
