@@ -238,42 +238,10 @@ public interface BotApi {
      *
      * <p>Null when no {@code LocalPlayer} exists yet.
      *
-     * <h2>⚠️ KNOWN GAP: every caller today invokes the returned avatar from the SERVER thread</h2>
-     *
-     * <p>An earlier version of this comment required callers to invoke through a client-thread hop
-     * they do not wait on. <b>No caller does that, and worse, no caller CAN</b> — the requirement was
-     * incoherent, so it is stated here as the open defect it is rather than as a rule that looks
-     * satisfied. StageWright scenes run their code on the server thread, and the call sites in
-     * {@code JourneyRig.avatar()}'s users are plain inline calls; on an integrated server they
-     * therefore touch {@code mc.player}'s inventory and rotation, and send packets, from the wrong
-     * thread.
-     *
-     * <p><b>A count stood here and there is no count to put back.</b> It said 33; the javadoc on
-     * {@code JourneyRig.avatar()} says thirty-six for the same population, and two numbers for one
-     * set is how you learn neither was re-derived. Both are also the wrong SHAPE of claim: how many
-     * of those sites touch client state is decided at RUNTIME by {@code realPlayerHelm(ctx)} — false
-     * on {@code runJourneyServer}, where the answer is zero and this whole gap is unreachable, true
-     * on the integrated topology, where it is all of them. A static grep cannot settle it either,
-     * because {@code avatar()} in those files also names {@code PlayerBot.avatar()}, and
-     * because a site binding the result to a local first matches no {@code avatar().} pattern at
-     * all. State the mechanism, as above. Do not restore a number.
-     *
-     * <p><b>Why "hop without waiting" cannot simply be applied.</b> Half the call sites branch on the
-     * result — {@code boolean held = …holdItem(COBBLESTONE); if (!held) …} — and a dispatch that does
-     * not wait can only return "dispatched", which would turn each of those guards into an
-     * always-true predicate. Waiting instead is the
-     * deadlock shape: {@code BotUtil.onClient} blocks the caller until the client thread answers, and
-     * on an integrated server the caller IS the thread the client is ticking against.
-     *
-     * <p><b>The only shape that satisfies both</b> is to stop issuing single-shot actions from the
-     * server thread at all — originate them from the client tick chain, the way {@code runProcess}
-     * already does, and let the scene observe the outcome through the world rather than through a
-     * return value. That is a change of call TIMING, not of call style, and it is not yet made.
-     *
-     * <p>Until it is: this is not merely untidy. A cross-thread write to client state may not throw —
-     * few of these vanilla fields carry thread assertions — so a test that reports "consistent" can be
-     * sitting on a data race, and green would not mean correct. Any scene judging this path must
-     * record the calling thread alongside its readings, or it cannot tell the two apart.
+     * <p>Call it on the client thread. Its methods write {@code mc.player}'s inventory and rotation
+     * and send packets; the one caller, {@code BotReadings.selfBody}, runs there. Do not issue
+     * single-shot actions on it from the server thread: few of those vanilla fields assert their
+     * thread, so a cross-thread write is a silent data race, not an exception.
      */
     net.magicterra.worlddriver.game.body.Body clientAvatar();
 
