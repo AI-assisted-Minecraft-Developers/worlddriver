@@ -1,20 +1,20 @@
-"""Manual gate: no javadoc block may be silently discarded by javac.
+"""Manual check: no javadoc block may be silently discarded by javac.
 
 Javadoc attaches only the LAST doc comment immediately preceding a declaration.
 Two /** */ blocks back to back, with nothing but whitespace between them, mean the
 EARLIER one is thrown away without a warning -- so it documents nothing, or worse,
 sits on top of a member it does not describe and reads as that member's contract.
 
-NOT WIRED TO ANYTHING. No gradle task and no CI workflow invokes this file, or any
-of the five scripts/check_*.py beside it -- verified by grepping *.gradle and
-.github; the single hit is a COMMENT in neoforge/build.gradle:157. They are hand-run
-gates listed in docs/dev/testing.md. Nothing turns red on its own if this rots: someone has to
+NOT WIRED TO ANYTHING. No gradle task invokes this file or any of the scripts/check_*.py
+beside it, and CI runs only check_source_budget.py -- verified by grepping *.gradle and
+.github. They are hand-run checks listed in docs/dev/testing.md. Nothing turns red on its
+own if this rots: someone has to
 type `python scripts/check_stacked_javadoc.py`. Do not read a green build as a green
 here, and do not assume a later reader knows that -- an instrument nobody calls is
 not an instrument.
 
 BASELINE: this family was 51 blocks when first measured (main 22 / testmod 29), and
-is 0 now. The gate exists so it stays at 0: the sites were created one at a time, by
+is 0 now. The check exists so it stays at 0: the sites were created one at a time, by
 inserting a member between a doc and the member it belonged to, and nothing warned
 about any of them. Do not take a number written in this header as the current count
 -- run the scan. A count in prose is a claim about the past.
@@ -56,7 +56,7 @@ TWO MORE THINGS THIS CANNOT SEE:
     This reports that a block was dropped, never what it was separated from.
   * A block comment deliberately demoted to an ordinary one. Section headers are
     legitimately not javadoc and are invisible here by design -- which is also why
-    demoting a /** */ to silence this gate needs the same evidence as deleting it.
+    demoting a /** */ to silence this check needs the same evidence as deleting it.
 
 AND THE RULE THE WHOLE FAMILY TEACHES: a doc's POSITION relative to code is not its
 meaning. Every one of the 51 was created by trusting position. So when reattaching

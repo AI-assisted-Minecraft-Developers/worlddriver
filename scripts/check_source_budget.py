@@ -38,7 +38,7 @@ and code with a trailing comment count. Until 2026-10-17 comments counted too, a
 the cap paid for its explanations — Navigator.java stood at 2999 of 3000 lines with half of them
 comment, so any fix to it started by deleting the reasons the code is shaped the way it is.
 
-Excluded from the METHOD budget only: the testmod scene sources. Arena bodies are long
+Excluded from the METHOD budget only: the testmod sources. In-game test bodies are long
 by nature and their real problem is duplicated scaffolding, not control-flow depth.
 """
 import os

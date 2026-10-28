@@ -5,10 +5,10 @@ owner class that Loom REMAPPED in the shipped jar.
 WHY THIS EXISTS
 ---------------
 The build declares `mappings loom.officialMojangMappings()` (build.gradle:63), so
-dev runs -- `runClient`, every testkit gate -- see Mojang names.
+dev runs -- `runClient`, the in-game test suites -- see Mojang names.
 `remapJar` (fabric/build.gradle:111) then rewrites the SHIPPED fabric jar into the
 `intermediary` namespace. tiny-remapper rewrites type/field/method *references*; it
-does NOT rewrite string CONSTANTS. So this, which works in every gate we run:
+does NOT rewrite string CONSTANTS. So this, which works in every test run:
 
     MouseHandler.class.getDeclaredField("xpos")
 
@@ -24,7 +24,7 @@ NeoForge is NOT affected -- its 1.21.1 runtime namespace IS Mojang-mapped, so it
 remapJar leaves `net/minecraft/client/MouseHandler` intact. Fabric only.
 
 Every known site degrades (catch -> warn -> feature off) rather than crashing, which
-is exactly why this went unnoticed: no gate ever loads a remapped jar, and the mod
+is exactly why this went unnoticed: no test run ever loads a remapped jar, and the mod
 still boots. The cost is silent: mining-progress sensing, GUI driving, and screen
 introspection are all dead in the shipped fabric jar.
 
