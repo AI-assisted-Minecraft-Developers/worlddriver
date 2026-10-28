@@ -43,7 +43,7 @@ connecting to the port it names fails.
 
 **Cause, when it is missing.** The file is written to the JVM's *working directory*, which
 for a development run is the loader's run directory — `fabric/run/`, `neoforge/run/`, or
-the run directory a given Gradle task configures, such as `fabric/run-stagewright-with-client/` — and not
+the run directory a given Gradle task configures, such as one under `fabric/run-stagewright/` for the in-game tests — and not
 the repository root. If the mod could not write it at all, it logs a warning saying so and
 carries on serving; the port then exists only in the log line and in `/worlddriver port`.
 

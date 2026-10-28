@@ -18,8 +18,9 @@ regardless of which side of the game the process is, so it advertises client-onl
 dedicated server too; the call is what fails, not the listing. And a verb may be registered
 as *hidden*, meaning unadvertised but still callable by name on every transport — hiding
 exists only to save prompt tokens, since every listed tool ships its schema to every model
-client on every turn. The driver itself currently declares no hidden verb; the in-game test
-framework registers several when it is loaded. The `ApiRegistry`'s route table is the set of names
+client on every turn. The driver's own hidden verbs are three `mc.debug.*` readings
+(`navigator`, `body`, `cells`); the in-game test framework registers its `mc.test.*` verbs, also
+hidden, when it is loaded. The `ApiRegistry`'s route table is the set of names
 a call is validated against, and every route is required at startup to have a declared
 schema.
 
@@ -38,7 +39,7 @@ The smallest group, and the one to call first.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.system.version` | Probes the driver. Returns the mod id, version, uptime, and `loadedFrom` / `builtAt`, which name the file the running code came from and when it was written — the way to tell two builds apart. | none |
-| `mc.system.testOrigin` | The canonical test-arena origin. Most observation verbs default their search centre to it. | none |
+| `mc.system.testOrigin` | The canonical test origin. Most observation verbs default their search centre to it. | none |
 | `mc.system.waitTicks` | Blocks for N server ticks, roughly 50 ms each and not lag-compensated. Refuses to run on the server thread. | `ticks` (0–200) |
 
 For anything conditional, prefer the `mc.wait.*` family below over counting ticks.
