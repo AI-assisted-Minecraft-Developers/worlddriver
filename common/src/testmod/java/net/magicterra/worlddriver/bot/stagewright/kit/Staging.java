@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -50,7 +51,13 @@ public final class Staging {
      */
     public static Npc drivenPiglin(Game game, BlockPos feet) {
         Npc npc = game.npc(NpcContent.DRIVEN_PIGLIN.get(), feet);
-        npc.runOnServer(mob -> mob.setInvulnerable(true));
+        npc.runOnServer(mob -> {
+            mob.setInvulnerable(true);
+            // game.npc spawns through finalizeSpawn, which makes one piglin in five a baby (half the size, other
+            // speed) and arms the rest; the old adoptNpc created a bare adult, the body every course was measured on.
+            mob.setBaby(false);
+            for (EquipmentSlot slot : EquipmentSlot.values()) mob.setItemSlot(slot, ItemStack.EMPTY);
+        });
         return npc;
     }
 }
