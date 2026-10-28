@@ -123,8 +123,6 @@ class ClientDigTest {
         plot.fill(0, GROUND + 1, -1, 2, GROUND + 2, 1, Blocks.AIR);
         BlockPos start = plot.at(-6, GROUND + 1, 0);
         BlockPos goal = plot.at(2, GROUND + 1, 0);
-        BlockPos mouthFoot = plot.at(-1, GROUND + 1, 0);
-        BlockPos mouthHead = plot.at(-1, GROUND + 2, 0);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         // Cobblestone from the start: this test is about which cells get filled, not about pickup.
         rig.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64));
@@ -140,26 +138,38 @@ class ClientDigTest {
         rig.sync(IDLE_TICKS);
         Slot builder = rig.status().slots().builder();
 
-        record Room(String mouthFoot, String mouthHead, boolean plugged, List<String> filled) {}
+        // Which tunnel the player dug is the planner's choice among equal-cost rows, so the mouth is found, not assumed:
+        // the cells of the stone wall west of the room (x = -1) that are cobblestone were dug and filled back.
+        record Room(List<String> mouthFilled, List<String> mouthOpen, List<String> tunnelFilled, List<String> filled) {}
         Room room = game.onServer(s -> {
             var level = s.overworld();
-            List<String> filled = new ArrayList<>();
+            List<String> filled = new ArrayList<>(), mouthFilled = new ArrayList<>(), mouthOpen = new ArrayList<>(),
+                    tunnelFilled = new ArrayList<>();
             for (int dy = 1; dy <= 2; dy++)
                 for (int dx = 0; dx <= 2; dx++)
                     for (int dz = -1; dz <= 1; dz++) {
                         BlockPos cell = plot.at(dx, GROUND + dy, dz);
                         if (!level.getBlockState(cell).isAir()) filled.add(cell.toShortString());
                     }
-            return new Room(level.getBlockState(mouthFoot).getBlock().toString(),
-                    level.getBlockState(mouthHead).getBlock().toString(),
-                    level.getBlockState(mouthFoot).is(Blocks.COBBLESTONE)
-                            && level.getBlockState(mouthHead).is(Blocks.COBBLESTONE), filled);
+            for (int dy = 0; dy <= 3; dy++)
+                for (int dx = -5; dx <= -1; dx++)
+                    for (int dz = -1; dz <= 1; dz++) {
+                        BlockPos cell = plot.at(dx, GROUND + dy, dz);
+                        boolean cobble = level.getBlockState(cell).is(Blocks.COBBLESTONE);
+                        if (cobble) tunnelFilled.add("(" + dx + "," + dy + "," + dz + ")");
+                        if (dx != -1 || dy < 1) continue;
+                        if (cobble) mouthFilled.add("(" + dy + "," + dz + ")");
+                        else if (level.getBlockState(cell).isAir()) mouthOpen.add("(" + dy + "," + dz + ")");
+                    }
+            return new Room(mouthFilled, mouthOpen, tunnelFilled, filled);
         });
         String after = rig.where() + "; builder=" + builder;
         game.check(closest[0] <= 1.5, "A: during the goto the player reached the far side of the room: closest "
                 + "horizontal distance " + f(closest[0]) + "; " + after);
-        game.check(room.plugged(), "B: both cells of the tunnel mouth the player dug are filled back in: feet "
-                + room.mouthFoot() + ", head " + room.mouthHead() + "; " + after);
+        game.check(room.mouthOpen().isEmpty() && room.mouthFilled().size() >= 2, "B: both cells of the tunnel mouth the "
+                + "player dug are filled back in and the room's west wall has no opening: wall cells (dy,dz) filled "
+                + room.mouthFilled() + ", open " + room.mouthOpen() + "; tunnel cells (dx,dy,dz) filled "
+                + room.tunnelFilled() + "; " + after);
         game.check(room.filled().isEmpty(), "C: no cell of the natural air room is filled, including the ones the "
                 + "player walked through: filled " + room.filled() + "; " + after);
         game.check(!builder.active(), "D: the backfill process has ended by the end of the idle window instead of "
