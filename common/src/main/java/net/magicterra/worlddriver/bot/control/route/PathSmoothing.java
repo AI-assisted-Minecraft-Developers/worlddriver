@@ -353,8 +353,6 @@ public final class PathSmoothing {
         return sum;
     }
 
-    /** An edge still needs work iff a block it must break is still solid, or a
-     *  block it must place isn't solid yet. */
     /** How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the bot
      *  executes before the next periodic search could correct it. */
     private static final int STALE_CHECK_EDGES = 12;
@@ -438,6 +436,8 @@ public final class PathSmoothing {
         return peak >= 2 && path.get(path.size() - 1).getY() <= path.get(peak).getY() - SUNK_TAIL_DROP ? peak : -1;
     }
 
+    /** An edge still needs work iff a block it must break is still solid, or a
+     *  block it must place isn't solid yet. */
     public static boolean hasPendingEdge(WorldView w, Move.Edge e) {
         if (e == null) return false;
         for (BlockPos b : e.toBreak) if (w.isSolid(b)) return true;

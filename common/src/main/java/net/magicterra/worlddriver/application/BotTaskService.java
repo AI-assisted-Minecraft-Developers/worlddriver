@@ -164,16 +164,16 @@ final class BotTaskService implements BotTaskApi {
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.elytraFly(p, body));
     }
 
-    /**
-     * A body task whose process the same {@link VerbOrders} builder makes for every body. The caller has
-     * already turned away, before anything starts, the ids this game does not have.
-     */
     /** A task another mod registered, answering as these do. */
     <P extends BodyTasks.Params, R> ApiMethod<P, ActionResponse<R>> registered(BodyTasks.Entry<P, R> entry) {
         return new ApiMethod<>(entry.spec(),
                 (p, ctx) -> task(p.bot(), p.awaitMs(), ctx, body -> TaskStepProcess.order(entry, p, body)));
     }
 
+    /**
+     * A body task whose process the same {@link VerbOrders} builder makes for every body. The caller has
+     * already turned away, before anything starts, the ids this game does not have.
+     */
     private <R> CompletionStage<ActionResponse<R>> task(String body, int awaitMs, CallContext ctx,
                                                         Function<LivingEntity, VerbOrders.Order<R>> order) {
         return actions.start(body, awaitMs, ctx, entity -> plan(order.apply(entity)));

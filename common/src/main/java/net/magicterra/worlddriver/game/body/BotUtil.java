@@ -324,6 +324,9 @@ public final class BotUtil {
         return firstClear;
     }
 
+    /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */
+    public static final double STATION_REACH = 4.3;
+
     /**
      * The nearest {@code block} this bot could use from where it stands: the closest one in a
      * {@code radiusH}×{@code radiusV} box around the feet whose CENTRE is inside {@code reach}
@@ -349,9 +352,6 @@ public final class BotUtil {
      * @param radiusH horizontal half-width of the scan box, in cells
      * @param radiusV vertical half-height of the scan box, in cells
      */
-    /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */
-    public static final double STATION_REACH = 4.3;
-
     public static BlockPos nearestBlockWithinReach(Player p, Level lvl, Block block,
                                                    double reach, int radiusH, int radiusV) {
         return nearestMatching(lvl, p.blockPosition(), p.getEyePosition(), s -> s.is(block), reach, radiusH, radiusV);

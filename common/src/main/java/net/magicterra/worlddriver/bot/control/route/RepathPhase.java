@@ -187,6 +187,19 @@ public final class RepathPhase {
 
     private static final int BLOCK_REPLANS_LOGGED = 8;
 
+    /** The foot-search kickoff's front door: names WHICH trigger fired (under navigatorDebug), then the
+     *  wedge penalty. A search that supersedes a route the navigator had just adopted is otherwise
+     *  invisible — the log shows the search, never the reason — and every trigger here looks the
+     *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
+    private void kickoff(Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
+                                boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
+                    nav.route.path() == null, nav.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
+                    periodic, nav.route.step(), nav.route.path() == null ? 0 : nav.route.path().size());
+        penalizeWedgeNodes(nav, p, world, foot, wedged, fellOffPath);
+    }
+
     /**
      * Price out the cells a wedged bot keeps re-planning into, so the re-search that follows
      * routes AROUND the obstruction instead of straight back at it.
@@ -207,19 +220,6 @@ public final class RepathPhase {
      * exactly the tidy-up that disguise hides in — {@code bot/movement/**} is dual-loaded, so this
      * is safe only because the local was never the client type. Re-check it, do not assume it.
      */
-    /** The foot-search kickoff's front door: names WHICH trigger fired (under navigatorDebug), then the
-     *  wedge penalty. A search that supersedes a route the navigator had just adopted is otherwise
-     *  invisible — the log shows the search, never the reason — and every trigger here looks the
-     *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
-    private void kickoff(Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
-                                boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
-        if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
-                    nav.route.path() == null, nav.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
-                    periodic, nav.route.step(), nav.route.path() == null ? 0 : nav.route.path().size());
-        penalizeWedgeNodes(nav, p, world, foot, wedged, fellOffPath);
-    }
-
     private void penalizeWedgeNodes(Navigator nav, LivingEntity p, WorldView world, BlockPos foot,
                                            boolean wedged, boolean fellOffPath) {
         if (!((nav.stuckTicks > STUCK_TICKS || wedged || fellOffPath)

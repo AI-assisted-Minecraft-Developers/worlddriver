@@ -493,7 +493,6 @@ public final class DrivePhase {
         return true;
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     /**
      * The block navigatorWallDigFallback punches: the wp-facing one at head then feet height. §85: that probe goes
      * EMPTY-HANDED when the pinning wall's normal is not the wp direction (ultra#2: wall south, wp east; C98-J2
@@ -519,6 +518,7 @@ public final class DrivePhase {
         return null;
     }
 
+    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;

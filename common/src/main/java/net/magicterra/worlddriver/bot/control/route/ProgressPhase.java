@@ -682,20 +682,6 @@ public final class ProgressPhase {
         return nxOverhead && w.getY() > foot.getY();
     }
 
-    /**
-     * Hold the pointer on the LAST node instead of spending it while the foot is still short of
-     * the goal. Disk goals: the node sits inside the goal radius but the FOOT cell is one block
-     * short; the node-reach gate (~0.67 blk) fires ~1 block out, so consuming here ends the path
-     * with goal.reached(foot) still FALSE — the segment-end handler hits frontierHoldOrArrive,
-     * STOPS the drive and declares ARRIVED a block short (live 2026-06-23: XZ -1700,900 r6 pinned
-     * the bot at foot -1693, dx=7, OUTSIDE r6, then fake-ARRIVED). Exact goals, bounded
-     * ({@code navigatorHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
-     * air ends the walk "path-consumed goalReached=false" with the bot about to stand in the goal
-     * cell a few ticks later — a reading the ladder acts on. Either way the normal pure-pursuit
-     * walks the foot ONTO the node and the goal.reached check at the top of the tick fires for
-     * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the bot genuinely
-     * cannot stand in still ends the walk the honest way.
-     */
     /** A node the bot went PAST at arm's length: across the plane through it square to the incoming
      *  segment, within {@link NavigatorConstants#SKIRT_PASS_SQ}, and with a walkable line on to the next
      *  node. The halfway rule ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node,
@@ -724,6 +710,20 @@ public final class ProgressPhase {
 
     private static final double LEG_HALF_WIDTH = 0.8;
 
+    /**
+     * Hold the pointer on the LAST node instead of spending it while the foot is still short of
+     * the goal. Disk goals: the node sits inside the goal radius but the FOOT cell is one block
+     * short; the node-reach gate (~0.67 blk) fires ~1 block out, so consuming here ends the path
+     * with goal.reached(foot) still FALSE — the segment-end handler hits frontierHoldOrArrive,
+     * STOPS the drive and declares ARRIVED a block short (live 2026-06-23: XZ -1700,900 r6 pinned
+     * the bot at foot -1693, dx=7, OUTSIDE r6, then fake-ARRIVED). Exact goals, bounded
+     * ({@code navigatorHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
+     * air ends the walk "path-consumed goalReached=false" with the bot about to stand in the goal
+     * cell a few ticks later — a reading the ladder acts on. Either way the normal pure-pursuit
+     * walks the foot ONTO the node and the goal.reached check at the top of the tick fires for
+     * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the bot genuinely
+     * cannot stand in still ends the walk the honest way.
+     */
     private boolean holdLastNode(Navigator nav, BlockPos foot, BlockPos w) {
         if (nav.route.step() + 1 < nav.route.path().size() || nav.goal.reached(foot)) return false;
         boolean diskGoal = (nav.goal instanceof Goal.XZ xz && xz.radius() > 0)

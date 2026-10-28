@@ -114,14 +114,6 @@ public final class AimPhase {
     }
 
     /**
-     * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
-     * plane, so a tangent that carries the bot past it is fine; the last one is spent only by
-     * CLOSING to within ~0.67 of its centre, and a tangent is by construction the direction that
-     * does not close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured
-     * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
-     * ticks of unstuck bursts and repaths around a goal the bot had already reached.
-     */
-    /**
      * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the
      * body, so on the turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw
      * aim and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
@@ -369,6 +361,14 @@ public final class AimPhase {
         return true;
     }
 
+    /**
+     * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
+     * plane, so a tangent that carries the bot past it is fine; the last one is spent only by
+     * CLOSING to within ~0.67 of its centre, and a tangent is by construction the direction that
+     * does not close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured
+     * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
+     * ticks of unstuck bursts and repaths around a goal the bot had already reached.
+     */
     private boolean onLastNode(Navigator nav) {
         return ControlConfig.navigatorFinalNodeDirectAim && nav.route.path() != null && nav.route.step() == nav.route.path().size() - 1;
     }

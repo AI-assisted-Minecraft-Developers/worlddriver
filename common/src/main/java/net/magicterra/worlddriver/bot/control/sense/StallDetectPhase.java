@@ -469,6 +469,12 @@ public final class StallDetectPhase {
         return null;
     }
 
+    /** A current node to be below: fellOffPath also folds in flags that stay set once the path is dropped, and
+     *  wd.bridgeStepTwoBypassNoPlace read the node of a null path from the fell-below and deep-pit checks. */
+    private boolean onRoute(Navigator nav) {
+        return nav.route.path() != null && nav.route.step() < nav.route.path().size();
+    }
+
     /** More than 3 cells from the edge being walked. A surface sprint-swim cruise rides 1-3 cells UNDER its
      *  surface nodes on purpose (DrivePhase.surfaceCruise), which the 3D distance read as off-path
      *  every few blocks; the replan then started with a swim-up chain from the sunk foot and broke the
@@ -489,12 +495,6 @@ public final class StallDetectPhase {
      *  in as a profile constraint or bias). With diagonal string-pulling on, open terrain is mostly
      *  such edges, and the node reference re-searched 224 times in one 200 s route (live
      *  2026-09-28), each adoption a speed dip. */
-    /** A current node to be below: fellOffPath also folds in flags that stay set once the path is dropped, and
-     *  wd.bridgeStepTwoBypassNoPlace read the node of a null path from the fell-below and deep-pit checks. */
-    private boolean onRoute(Navigator nav) {
-        return nav.route.path() != null && nav.route.step() < nav.route.path().size();
-    }
-
     private boolean offPath(Navigator nav, BlockPos foot, LivingEntity p) {
         if (nav.route.path() == null || nav.route.step() >= nav.route.path().size()) return false;
         BlockPos node = nav.route.path().get(nav.route.step());
