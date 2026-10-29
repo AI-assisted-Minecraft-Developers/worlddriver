@@ -29,6 +29,7 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
@@ -1000,5 +1001,58 @@ class MobFightTest {
     /** The searches the bot's running navigator has made, or -1 when it has none. Server thread. */
     private static long searches(SceneBot bot) {
         return bot.navigator().counters().getOrDefault("searches", -1L);
+    }
+
+    /**
+     * A zombie two blocks from an idle bot with a sword, and no order given: with {@code autoFight} on the bot attacks
+     * it. {@code CombatChain.bid}: the top threat scoring at least {@code autoFightThreatThreshold} (0.05; a zombie in
+     * sight two blocks away scores about 0.6) bids {@code Priorities.COMBAT} and runs an ENGAGE fight. The same
+     * staging is ticked with the setting off first, which must leave the zombie untouched.
+     */
+    @Test
+    void autoFightAttacksAHostileInReach(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+        BlockPos o = plot.origin();
+        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);
+        Zombie zombie = game.onServer(s -> {
+            ServerLevel level = s.getLevel(plot.dimension());
+            Zombie z = new Zombie(EntityType.ZOMBIE, level);
+            z.setNoAi(true);
+            z.setPersistenceRequired();
+            z.setPos(cx + 2.5, floorY + 1, cz + 0.5);
+            level.addFreshEntity(z);
+            return z;
+        });
+        game.afterTest(s -> zombie.discard());
+
+        float off = game.onServer(s -> {
+            fightTicks(bot, zombie, cx, cz, floorY, 60);
+            return zombie.getHealth();
+        });
+        settings.set("autoFight", true);
+        float[] on = game.onServer(s -> {
+            int t = fightTicks(bot, zombie, cx, cz, floorY, 400);
+            bot.park();
+            return new float[] {zombie.getHealth(), t};
+        });
+        reporter.publishEntry("zombie.health.off", String.valueOf(off));
+        reporter.publishEntry("zombie.health.on/ticks", on[0] + "/" + (int) on[1]);
+        assertEquals(zombie.getMaxHealth(), off, "with autoFight off the idle bot hurt the zombie");
+        assertTrue(on[0] < zombie.getMaxHealth(), "with autoFight on the bot did not hurt the zombie in 400 ticks");
+    }
+
+    /** Tick the bot and the zombie in lockstep, the zombie held in place, until it is hurt or {@code max} ticks pass;
+     *  the ticks it took. Server thread. */
+    private static int fightTicks(SceneBot bot, Zombie zombie, int cx, int cz, int floorY, int max) {
+        int t = 0;
+        for (; t < max && zombie.getHealth() >= zombie.getMaxHealth(); t++) {
+            bot.tick();
+            zombie.tick();                      // its hurt cooldown
+            zombie.setPos(cx + 2.5, floorY + 1, cz + 0.5);
+            zombie.setDeltaMovement(Vec3.ZERO);
+        }
+        return t;
     }
 }
