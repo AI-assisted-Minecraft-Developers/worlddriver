@@ -25,7 +25,7 @@ public final class Parkour4 extends Move {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
-        if (!Move.hasRunway(w, from)) return false;
+        if (!Move.hasRunway(w, from, dx, dz)) return false;
         BlockPos to = apply(from);
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug

@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No leap launches under fire or powder snow two above the launch foot.** Three leaping moves refused
   a hazard there; the flat parkour leaps (2, 3 and 4 blocks, both diagonals) and parkour-place asked only
   that the cell be passable, which fire and powder snow are.
+- **Every leap longer than 2 blocks needs two cells of run-up behind the launch**, as the 3-block leap
+  already did: the 4-block leap, the 3-block diagonal and the distance-3 rising and falling leaps planned
+  from a 1-cell pad at the sprint-jump price. All four are behind `allowParkour4`, which is off by default.
+  The 2-block leaps keep their rules, since a 2-block gap is inside a standing jump.
 
 ## 2026-10-28
 

@@ -235,9 +235,11 @@ public abstract class Move {
      * puts two arms over the identical gap differing only in run-up length and shows both planning
      * the identical {@code parkour3}. Rung 20 pays for that difference by falling out of the world.
      *
-     * <p>Only the 3-block leap uses this. A 2-block gap is inside a standing jump, so requiring a
-     * run-up there would refuse leaps the bot can actually make — and a guard that refuses what
-     * works is how a route gets replaced by a worse one rather than a safer one.
+     * <p>Every leap longer than 2 uses this: {@code Parkour3}, {@code Parkour4}, {@code Parkour3Diagonal}
+     * and the distance-3 {@code ParkourAscend}/{@code ParkourDescend}. A 2-block gap is inside a standing
+     * jump, so requiring a run-up there would refuse leaps the bot can actually make — and a guard that
+     * refuses what works is how a route gets replaced by a worse one rather than a safer one.
+     * {@code LeapClearanceTest} pins the run-up each leap needs.
      */
     public static boolean hasRunway(WorldView w, BlockPos from, int dx, int dz) {
         if (!hasRunway(w, from)) return false;

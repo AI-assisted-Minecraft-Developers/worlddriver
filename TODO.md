@@ -180,12 +180,6 @@ The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s
 the peak stall and arrival itself before a tool can compare a candidate against a baseline again
 (`docs/dev/replay-corpus.md`, "The regression check").
 
-### Only one of three run-up rules is the strict one
-
-`Parkour3` alone requires two clear cells behind the jump (`Move.hasRunway(w, from, dx, dz)`).
-`ParkourAscend` requires one through an inlined check; every other leap, the four longest included,
-requires zero. Same check as the hazard item above.
-
 ### The smelt wait does not verify the bot is present
 
 It reads the furnace block every tick and never reads distance, and a collect has succeeded from

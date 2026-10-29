@@ -119,4 +119,28 @@ class LeapClearanceTest {
         assertEquals(List.of(), disagreeing(2, Blocks.POWDER_SNOW, false),
                 "these leap with powder snow over the launch head");
     }
+
+    /** Cells of standable ground each leap needs behind its launch. A 2-block gap is inside a standing jump,
+     *  so the short leaps need none; a rising 2-block leap needs one; every leap longer than 2 needs
+     *  {@link Move#RUNUP_CELLS}, the sprint run-up its price assumes. */
+    private static int runUpNeeded(String name) {
+        return switch (name) {
+            case "parkour2", "parkour2d", "parkourPlace2", "parkourDescend2d1", "diagUp" -> 0;
+            case "parkourAscend2" -> 1;
+            case "parkour3", "parkour4", "parkour3d", "parkourAscend3", "parkourDescend3d1" -> Move.RUNUP_CELLS;
+            default -> throw new IllegalArgumentException("no run-up rule pinned for " + name);
+        };
+    }
+
+    @Test
+    void eachLeapNeedsItsRunUpAndNoMore() {
+        List<String> wrong = new ArrayList<>();
+        for (Leap leap : leaps()) {
+            int need = runUpNeeded(leap.name());
+            if (!leap.move().valid(stage(leap, need), FROM)) wrong.add(leap.name() + " refused with " + need);
+            if (need > 0 && leap.move().valid(stage(leap, need - 1), FROM))
+                wrong.add(leap.name() + " allowed with " + (need - 1));
+        }
+        assertEquals(List.of(), wrong, "run-up cells behind the launch");
+    }
 }

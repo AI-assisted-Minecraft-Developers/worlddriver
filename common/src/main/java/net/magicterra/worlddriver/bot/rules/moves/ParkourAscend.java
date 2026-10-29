@@ -63,6 +63,8 @@ public final class ParkourAscend extends Move {
         // the cell directly BEHIND the launch (opposite the leap, same Y) to be standable — a flat run-up; a
         // thin-lip crest (staircase drops away behind) is forbidden so A* substitutes a makeable stepUp climb.
         if (RulesConfig.pathfinderParkourAscendNeedRunway && !w.canStandAt(from.offset(-sx, 0, -sz))) return false;
+        // A leap longer than 2 needs the full sprint run-up, as every long leap does (Move.hasRunway).
+        if (dist >= 3 && !Move.hasRunway(w, from, dx, dz)) return false;
         for (int i = 1; i < dist; i++) {
             // 3-tall clear corridor: the player rises from y to y+1 across the
             // gap, so foot/head/head+1 must all be open.
