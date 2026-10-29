@@ -282,15 +282,6 @@ the JaCoCo agent, that call never returned from `ChunkMap.processUnloads`, the w
 after 60 seconds, and every scene after `WorldDriverTest.gearScope` failed. Not reproduced alone or in
 the next full run. The probe should not tick the level itself.
 
-### The coverage scripts predate the build migration
-
-`scripts/coverage/report.py` reads classes only from `classes-t0`/`classes-t1`, named after the deleted
-runners, and nothing sets `classdumpdir`, so a run reports nothing without that passed by hand;
-`triage.py` matches only `control/Navigator*.java`, not the phase and controller subpackages;
-`includes=net.magicterra.*` counts the testmod's scenes and StageWright's classes into the total; and
-no document says where the JaCoCo jars come from. The run itself still works: `testkitCoverageAgent`
-reaches both game processes.
-
 ---
 
 ## Found on the survival ladder

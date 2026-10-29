@@ -1,10 +1,10 @@
 # Coverage exemptions
 
-Companion to the branch-coverage tooling in `scripts/coverage/` (`report.py` merges JaCoCo
-execution data and digests it per class; `triage.py` sorts the uncovered lines). Every
-entry below names a family of navigator-execution branches that the in-game tests **cannot**
-exercise, explains why that is structural rather than an omission, and says where the
-branch is exercised instead.
+The record of which uncovered branches are left uncovered on purpose. Every entry below names
+a family of navigator-execution branches that the in-game tests **cannot** exercise, explains
+why that is structural rather than an omission, and says where the branch is exercised
+instead. To measure coverage, pass a JaCoCo agent to the game processes with
+`-PtestkitCoverageAgent` ([build.md](build.md)); reading what it writes is up to you.
 
 Anything not listed here and not covered by a test is open test debt, not an exemption.
 An exemption must name a *mechanism* that makes the branch unreachable in the terrain and
