@@ -22,12 +22,9 @@ neoForge {
         }
     }
     runs {
+        // Unlike Fabric's, these take ephemeral ports (docs/guide/getting-started.md, Ports).
         client {
             client()
-            // The same fixed ports as the Fabric dev runs, so rpc.py and .mcp.json find the client.
-            systemProperty 'worlddriver.mcpPort', project.findProperty('agentMcpPort') ?: '39800'
-            systemProperty 'worlddriver.rpcPort', project.findProperty('agentRpcPort') ?: '39801'
-            systemProperty 'worlddriver.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
         }
         server {
             server()
