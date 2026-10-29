@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **`mc.system.version` answers the mod's real version.** It answered a fixed `0.1.0-dev` on every
+  build, and the MCP handshake's server version with it. Both now answer the version the mod loader
+  lists for WorldDriver, the one in `fabric.mod.json` or `neoforge.mods.toml`, which the build fills
+  in: `0.1.0-snapshot+1.21.1` for a local build, `0.1.0-alpha.<n>+1.21.1` for a numbered one.
+
 - **Goal and error text prints positions as numbers.** A goal's text (`mc.bot.goto`'s `goal`, a process's
   `goal` in `mc.bot.status`) and the reasons a walk, a mine or a sleep gives printed a block position
   through the game's own `toString`, which names the class, so a Fabric production game answered

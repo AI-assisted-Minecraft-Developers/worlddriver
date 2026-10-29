@@ -16,9 +16,8 @@ import java.util.Map;
 /**
  * Which copy of worlddriver the JVM actually loaded, and when that copy was written.
  *
- * <p>{@link #VERSION} alone cannot answer "am I running the code that was just built" — it is
- * pinned in {@code gradle.properties} and does not move between two compiles of different
- * source. Several caches sit between a rebuild and a running game (loom's remap output, the
+ * <p>{@link #version()} alone cannot answer "am I running the code that was just built" — it is
+ * the mod's version, which does not move between two compiles of different source. Several caches sit between a rebuild and a running game (loom's remap output, the
  * per-loader run directory, the mods folder of an assembled client), and any of them can serve
  * an older artifact without anything looking wrong; the usual symptom is a fix that "did not
  * work" because the game never received it.
@@ -31,8 +30,22 @@ import java.util.Map;
 public final class BuildStamp {
     private BuildStamp() {}
 
-    /** Kept in one place so the MCP handshake and {@code mc.system.version} cannot drift apart. */
-    public static final String VERSION = "0.1.0-dev";
+    /** What {@link #version()} answers before a loader has named the version, as in a unit test. */
+    public static final String UNKNOWN_VERSION = "unknown";
+
+    private static volatile String version = UNKNOWN_VERSION;
+
+    /**
+     * The mod's version as the loader read it from the mod's metadata ({@code fabric.mod.json},
+     * {@code neoforge.mods.toml}), which the build fills in; kept in one place so the MCP handshake
+     * and {@code mc.system.version} cannot drift apart.
+     */
+    public static String version() { return version; }
+
+    /** Called by each loader's entry point, before any transport opens. */
+    public static void loaderVersion(String loaderVersion) {
+        if (loaderVersion != null && !loaderVersion.isBlank()) version = loaderVersion;
+    }
 
     /** Unmodifiable but ordered — the key order is the order the fields were measured in. */
     private static final Map<String, Object> STAMP = Collections.unmodifiableMap(measure());
@@ -41,7 +54,7 @@ public final class BuildStamp {
      * {@code loadedFrom} + {@code loadedKind} ({@code classes} for a loose class file,
      * {@code jar} for an archive), and — when that file is readable — {@code builtAt}
      * (ISO-8601 UTC, second precision), {@code builtMs} and {@code sizeBytes}. The time and
-     * size are what distinguish two builds carrying the same {@link #VERSION}.
+     * size are what distinguish two builds carrying the same {@link #version()}.
      */
     public static Map<String, Object> asMap() { return STAMP; }
 

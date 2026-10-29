@@ -3904,6 +3904,7 @@ interface EvalParams {
 }
 interface Version {
     modid: string;
+    /** The mod's version, as the mod loader lists it, for example 0.1.0-snapshot+1.21.1. */
     version: string;
     uptimeMs: number;
     /** The jar or class directory the running code came from. */

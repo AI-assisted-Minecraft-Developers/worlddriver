@@ -5,7 +5,10 @@ test('01_handshake', { scene: ['wd.validation', 'wd.validationIntegrated'], isol
 ScriptTest.run("01_handshake: system.version returns expected fields", function(t) {
     var info = Driver.system.version();
     t.assertEqual(info.modid, "worlddriver", "modid mismatch");
-    t.assertEqual(info.version, "0.1.0-dev", "version mismatch");
+    // The loader's own reading of the mod's metadata, which the build fills in: a local build is
+    // <base>-snapshot+<minecraft>, a numbered one <base>-alpha.<n>+<minecraft>.
+    t.assertTrue(/^\d+\.\d+\.\d+-(snapshot|alpha\.\d+)\+\d+\.\d+/.test(info.version),
+        "version is not the build's: " + info.version);
     t.assertTrue(info.uptimeMs >= 0, "uptimeMs should be non-negative");
 });
 

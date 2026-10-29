@@ -6,8 +6,10 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.WorldDriverEvents;
+import net.magicterra.worlddriver.config.BuildStamp;
 
 /**
  * Fabric entry. Subscribes the driver's server hooks in {@link WorldDriverEvents} to Fabric API's events. Block
@@ -17,6 +19,9 @@ import net.magicterra.worlddriver.WorldDriverEvents;
 public final class WorldDriverFabric implements ModInitializer {
     @Override
     public void onInitialize() {
+        // Main entrypoints run before the client one, which opens the transports that answer this version.
+        FabricLoader.getInstance().getModContainer(WorldDriverCommon.MOD_ID).ifPresent(mod ->
+                BuildStamp.loaderVersion(mod.getMetadata().getVersion().getFriendlyString()));
         // Fabric's SERVER_STARTING fires before the server loads its levels, earlier than NeoForge's. The driver's
         // start-up needs no level, and it has to come before every SERVER_STARTED listener: StageWright's publishes
         // its methods onto the registry this creates.

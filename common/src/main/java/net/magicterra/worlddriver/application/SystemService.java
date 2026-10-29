@@ -50,7 +50,7 @@ public final class SystemService implements SystemApi {
 
     public Version version() {
         Map<String, Object> s = BuildStamp.asMap();
-        return new Version("worlddriver", BuildStamp.VERSION, (System.nanoTime() - api.startNanos) / 1_000_000L,
+        return new Version("worlddriver", BuildStamp.version(), (System.nanoTime() - api.startNanos) / 1_000_000L,
                 String.valueOf(s.get("loadedFrom")), String.valueOf(s.get("loadedKind")),
                 Optional.ofNullable((String) s.get("builtAt")), Optional.ofNullable((Long) s.get("builtMs")),
                 Optional.ofNullable((Long) s.get("sizeBytes")), Optional.ofNullable((String) s.get("stampError")));

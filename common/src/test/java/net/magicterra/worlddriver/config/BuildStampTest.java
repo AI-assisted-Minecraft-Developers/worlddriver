@@ -73,6 +73,16 @@ class BuildStampTest {
         assertTrue(Files.exists(Path.of((String) stamp.get("loadedFrom"))), "no file for " + stamp);
     }
 
+    /** The version is the loader's; a loader that names none leaves whatever was named before. */
+    @Test
+    void theVersionIsTheOneTheLoaderNamed() {
+        BuildStamp.loaderVersion("9.8.7-snapshot+1.21.1");
+        assertEquals("9.8.7-snapshot+1.21.1", BuildStamp.version());
+        BuildStamp.loaderVersion(" ");
+        BuildStamp.loaderVersion(null);
+        assertEquals("9.8.7-snapshot+1.21.1", BuildStamp.version());
+    }
+
     private static Path writeClass(Path dir) throws IOException {
         Path cls = dir.resolve(ENTRY);
         Files.createDirectories(cls.getParent());

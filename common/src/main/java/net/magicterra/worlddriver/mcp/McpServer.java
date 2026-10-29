@@ -89,7 +89,6 @@ public final class McpServer implements Closeable {
     /** The one protocol version spoken: the first with outputSchema and structuredContent. */
     static final String PROTOCOL_VERSION = "2025-06-18";
     private static final String SERVER_NAME = "worlddriver";
-    private static final String SERVER_VERSION = BuildStamp.VERSION;
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
      *  limit so the two cannot disagree about what a request may weigh. See
      *  {@link RequestLimits}. */
@@ -272,7 +271,7 @@ public final class McpServer implements Closeable {
                     result.add("capabilities", capabilities);
                     JsonObject serverInfo = new JsonObject();
                     serverInfo.addProperty("name", SERVER_NAME);
-                    serverInfo.addProperty("version", SERVER_VERSION);
+                    serverInfo.addProperty("version", BuildStamp.version());
                     result.add("serverInfo", serverInfo);
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }

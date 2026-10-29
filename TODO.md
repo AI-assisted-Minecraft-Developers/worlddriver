@@ -291,10 +291,6 @@ runners, and nothing sets `classdumpdir`, so a run reports nothing without that 
 no document says where the JaCoCo jars come from. The run itself still works: `testkitCoverageAgent`
 reaches both game processes.
 
-### `mc.system.version` answers a hard-coded version
-
-It answers `0.1.0-dev` from `BuildStamp` on every build.
-
 ---
 
 ## Found on the survival ladder

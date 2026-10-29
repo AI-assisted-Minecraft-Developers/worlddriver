@@ -22,13 +22,14 @@ public final class SystemContracts {
     // ------------------------------------------------------------------ version
 
     /**
-     * {@code version} is pinned and never moves between builds; {@code loadedFrom} and the file's time and
-     * size are measured from the file the classes were loaded from, which is what tells two builds apart.
+     * {@code version} is the mod's version and is the same for two builds of one version; {@code loadedFrom} and
+     * the file's time and size are measured from the file the classes were loaded from, which is what tells two
+     * builds apart.
      */
     @Named("Version")
     public record Version(
             String modid,
-            String version,
+            @Doc("The mod's version, as the mod loader lists it, for example 0.1.0-snapshot+1.21.1.") String version,
             @Range(min = 0) long uptimeMs,
             @Doc("The jar or class directory the running code came from.") String loadedFrom,
             @Doc("jar, classes, or the URL protocol when no file backs it.") String loadedKind,
