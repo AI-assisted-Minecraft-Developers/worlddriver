@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A smelt fails when the bot is beyond reach of its furnace**, vanilla's container reach (interaction
   range plus 4), and leaves the furnace's contents where they are. The wait never read distance, and a
   collect had taken the ingots from sixty blocks away.
+- **The stand pickers behind `goto block:`, fill, farm and mine refuse a hazard in the floor, foot or
+  head cell**, as the planner does. A magma floor or a lava, fire or berry-bush foot cell used to be
+  chosen as a stand the planner would never expand, so the goto burned its node budget instead of failing.
 
 ## 2026-10-28
 

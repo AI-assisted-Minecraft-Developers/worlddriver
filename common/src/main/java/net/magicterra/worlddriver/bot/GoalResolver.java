@@ -45,7 +45,8 @@ public final class GoalResolver {
  *        foot-Y-relative (reach-from-below first for an overhead target, then sides, then
  *        below-2, then on-top) and its {@code canStandHere} adds the lava veto;
  *        {@code BotUtil.findStandAdjacent} is four cardinals over three dy plus an
- *        above-arm, judged by the hazard-blind {@code canStandHereStatic}.</li>
+ *        above-arm, judged by {@code canStandHereStatic}, which refuses a hazard in the floor,
+ *        foot or head cell but not lava beside them.</li>
  *    <li>a different budget: 200_000 here against {@code MineProcess.SCAN_BUDGET} = 50_000.</li>
  *  </ul>
  *  None of that is necessarily wrong — a goto is not a mine — but "Mirrors" invited the

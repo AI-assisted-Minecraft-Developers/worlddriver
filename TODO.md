@@ -114,12 +114,6 @@ on needs a live A/B with the flag off and on over the same route.
 `BuildProcess` and `BackfillProcess` return a stand with no reach test; `BboxFillProcess` gates its
 own on `FILL_STAND_REACH`. Adding one changes two placement paths, so it needs its own check.
 
-### `BotUtil.canStandHereStatic` has no hazard clause and `WorldView.canStandAt` does
-
-`BotUtil.canStandHereStatic` (`game/body`) refuses no hazard; `WorldView.canStandAt` refuses it on
-floor, foot and head, so `goto block:` can be handed a magma or lava cell A* never expands.
-Tightening it changes `goto block:` and the fill and farm stand pickers, so it needs its own check.
-
 ### A continuation search is discarded and re-issued, and the loop does not terminate
 
 On a fell-off-path stall `StallDetectPhase` calls `Route.abortSearch()`, which drops the continuation
