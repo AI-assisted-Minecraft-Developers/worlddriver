@@ -39,6 +39,15 @@ public final class Roster {
         return new Done(id);
     }
 
+    /**
+     * {@link #spawn(MinecraftServer, ServerLevel, Vec3, String)} at {@code pos} in {@code level}. StageWright builds
+     * published before the four-argument form link against this one.
+     */
+    @Deprecated
+    public static Outcome spawn(ServerLevel level, Vec3 pos, String name) {
+        return spawn(level.getServer(), level, pos, name);
+    }
+
     /** Take {@code mob} over as {@code mob:<name>}, or as {@code entity:<uuid>} when {@code name} is null. */
     public static Outcome adopt(Mob mob, String name) {
         String id = name != null ? MobBot.KIND + ":" + name : BotRegistry.ENTITY_PREFIX + mob.getUUID();
