@@ -30,9 +30,10 @@ final class PlaceNearby {
      * one below, and one ABOVE. dy=+1 is the hole-rim case (gap#61): standing in
      * a 1-deep depression — e.g. the very hole duskSecure digs each dusk — every
      * foot-level neighbour is solid wall and the only natural spot is on top of
-     * the rim. Last so flat ground keeps preferring same-level spots. A full
-     * block can sit on the top face of ANY non-air, non-replaceable support —
-     * including leaves, which fail isFaceSturdy yet still accept a block on top.
+     * the rim. Last so flat ground keeps preferring same-level spots. The support
+     * must be non-replaceable and pass {@link PlaceSupport#holds} — which accepts
+     * leaves and dirt path (both fail isFaceSturdy yet take a block on top) and
+     * refuses a lily pad, on whose top a recorded click placed nothing.
      *
      * @return the cell now holding {@code expected}, or null (reason logged).
      */
@@ -51,7 +52,7 @@ final class PlaceNearby {
                 BlockState cs = lvl.getBlockState(cell);
                 BlockState bs = lvl.getBlockState(below);
                 if (!cs.canBeReplaced()) continue;
-                if (bs.isAir() || bs.canBeReplaced()) continue;
+                if (bs.canBeReplaced() || !PlaceSupport.holds(bs)) continue;   // a lily pad's top holds nothing
                 a.aimAtBlock(cell);
                 // Click the support's top face → block lands in `cell`.
                 blocks.useBlock(below, Direction.UP);

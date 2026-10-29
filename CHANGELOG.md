@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build, backfill and fill share one support rule for a placed block**, vanilla's `isSolid()`, which
   they each carried as a copy. No behaviour changes. A unit table now pins it: leaves, dirt path and
   pressure plates hold a block; a lily pad, carpet, buttons, flowers and torches do not.
+- **Placing a crafting table or furnace no longer clicks the top of a lily pad.** The candidate scan took
+  any non-air, non-replaceable block as support, and a live run's click on a pad placed nothing. It now
+  uses the same support rule as build and fill, so carpet, buttons, flowers and torches are refused as
+  well; pressure plates still count.
 
 ## 2026-10-28
 

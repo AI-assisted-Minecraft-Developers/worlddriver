@@ -336,6 +336,35 @@ class StationTest {
         });
     }
 
+    /** A bot on a stone pillar in a pond, lily pads level with its floor on seven of the eight cells around it and one
+     *  stone block on the last diagonal, the last candidate the table scan tries at foot level. A pad is no support: the
+     *  table must stand on the stone and on no pad. A recorded live run clicked a pad's top and placed nothing. */
+    @Test
+    void serverCraftTableBesidePadsOnly(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game).set("navigatorDebug", false).set("craftReclaimTable", false);
+        plot.fill(-3, 0, -3, 3, 1, 3, Blocks.STONE);
+        plot.fill(-2, 1, -2, 2, 1, 2, Blocks.WATER);
+        plot.fill(0, 1, 0, 0, 2, 0, Blocks.STONE);   // the pillar the bot stands on
+        int[][] ring = {{0, -1}, {0, 1}, {1, 0}, {-1, 0}, {1, -1}, {1, 1}, {-1, -1}};
+        for (int[] o : ring) plot.place(o[0], 2, o[1], Blocks.LILY_PAD);
+        plot.fill(-1, 1, 1, -1, 2, 1, Blocks.STONE);   // the one real support, offset {-1, 1}
+        SceneBot bot = SceneBot.spawn(game, plot, 0, 3, 0);
+        bot.give(Items.CRAFTING_TABLE, 1).give(Items.OAK_PLANKS, 3).give(Items.STICK, 2);
+        game.runOnServer(s -> {
+            bot.craft("minecraft:wooden_pickaxe", 1);
+            bot.tickUntilIdle(400);
+            String err = lastError(bot.status().slots().craft());
+            List<String> onPads = new ArrayList<>();
+            for (int[] o : ring)
+                if (bot.level().getBlockState(plot.at(o[0], 3, o[1])).is(Blocks.CRAFTING_TABLE)) onPads.add(o[0] + "," + o[1]);
+            assertTrue(onPads.isEmpty(), "a crafting table stands on a lily pad at " + onPads + " (err=" + err + ")");
+            assertTrue(bot.level().getBlockState(plot.at(-1, 3, 1)).is(Blocks.CRAFTING_TABLE),
+                    "no crafting table on the one stone support (err=" + err + ")");
+            assertEquals(null, err, "the craft failed");
+            assertEquals(1, Staging.countItem(bot.player(), Items.WOODEN_PICKAXE), "no pickaxe crafted (err=" + err + ")");
+        });
+    }
+
     /** Gap#62: placeFurnace must share placeTable's candidate scan — a bot in the same 1-deep hole must land a furnace
      *  in the world. */
     @Test

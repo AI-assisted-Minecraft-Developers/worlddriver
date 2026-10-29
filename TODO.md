@@ -109,11 +109,6 @@ carried. Wanted: a food chain that bids above the user task, like AltoClef's `Fo
 `RiskCostTable` is wired into the pathfinder behind `riskBias` (default off, scale 15). Turning it
 on needs a live A/B with the flag off and on over the same route.
 
-### `PlaceNearby` accepts a lily pad as support
-
-`PlaceNearby.place` accepts any non-air, non-replaceable support, so it still clicks at a lily pad
-(`ValidationSteps.arena`'s javadoc records one). Tightening it needs a check on both loaders.
-
 ### The build and backfill stance pickers have no reach test
 
 `BuildProcess` and `BackfillProcess` return a stand with no reach test; `BboxFillProcess` gates its
