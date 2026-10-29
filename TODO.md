@@ -35,12 +35,6 @@ javac keeps only the second of two doc comments.
 
 ## Engine and mod code
 
-### `MobFightTest.serverEarnsAnEnderPearl` depends on loot rolls
-
-It asserts at least one pearl from six looting-less kills and no longer carries `@KnownIssue`, so a
-bad loot roll fails it. Make the pearl deterministic (enough kills, a looting weapon) or stop
-requiring a random drop.
-
 ### A required test fails now and then on a full Fabric with-client run
 
 `MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time
@@ -385,9 +379,8 @@ runs actually report. **Unverified:** the exact log text or test name would sett
 
 ### An enderman fight sometimes never ends
 
-`MobFightTest.serverEarnsAnEnderPearl`: some fights burn the full 4000 ticks. Record, per such fight,
-whether the target lives, its distance, its largest position jump and the combat search count, to
-tell target-lost from re-search storms.
+`MobFightTest.serverEarnsAnEnderPearl`: some fights burn the full 4000 ticks. The scene's
+`fights.stall` entry now records each one; read one to tell target-lost from a re-search storm.
 
 ### There is no reading for who wrote a cell
 

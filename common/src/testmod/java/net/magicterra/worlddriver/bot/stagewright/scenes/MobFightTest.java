@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
 import net.magicterra.worlddriver.bot.stagewright.kit.Staging;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
@@ -883,7 +884,11 @@ class MobFightTest {
      *
      * <p>The bar is "more than one kill out of six": eight archived runs of unchanged code read
      * 6,6,6,4,4,4,3,1 — a majority bar sat inside the test's own spread. 0-or-1, the systematic break, still
-     * reddens; the speed question moves to {@code fights.slow}, recorded and not gated.
+     * reddens; the speed question moves to {@code fights.slow}, recorded and not gated, with a
+     * {@code fights.stall} row per fight that used the whole budget.
+     *
+     * <p>The pearl is not a roll: each enderman carries a fixed loot seed, so every kill must yield exactly
+     * {@link #PEARLS_PER_KILL}, and a short count means a kill did not reach its loot table.
      */
     @Test
     void serverEarnsAnEnderPearl(Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot,
@@ -914,27 +919,51 @@ class MobFightTest {
         int killed = 0, pearls = 0, slow = 0;
         StringBuilder tally = new StringBuilder();
         StringBuilder ticks = new StringBuilder();
+        String[] stalls = {null};
         for (int i = 0; i < fights; i++) {
+            final int fightNo = i;
             // One server task per fight: the bot and the enderman's own tick in lockstep.
             int[] fight = game.onServer(s -> {
                 ServerLevel level = s.getLevel(plot.dimension());
                 ServerPlayer fp = bot.player();
                 EnderMan man = new EnderMan(EntityType.ENDERMAN, level);
+                // A fixed loot seed makes the drop a constant, so the test asks "do kills reach the loot table" and
+                // not "did this roll come up". Mob reads the seed only beside a DeathLootTable, so both are set;
+                // load() goes first so the round trip cannot undo the position or persistence set after it.
+                CompoundTag tag = man.saveWithoutId(new CompoundTag());
+                tag.putString("DeathLootTable", "minecraft:entities/enderman");
+                tag.putLong("DeathLootTableSeed", PEARL_SEED);
+                man.load(tag);
                 man.setPos(cx + 2.5, floorY + 1, cz + 0.5);
                 man.setPersistenceRequired();
                 level.addFreshEntity(man);
                 man.setTarget(fp);
 
+                int bagBefore = bot.count(Items.ENDER_PEARL);
                 kill(bot, "minecraft:enderman");
+                long searchesBefore = searches(bot);
+                Vec3 prev = man.position();
+                double maxJump = 0;
                 int t = 0;
                 for (; t < fightTicks && man.isAlive(); t++) {
                     bot.tick();
                     if (man.isAlive()) man.tick();                 // AI ON: it teleports when hurt
+                    maxJump = Math.max(maxJump, man.position().distanceTo(prev));
+                    prev = man.position();
                 }
                 int dead = man.isAlive() ? 0 : 1;
+                if (t >= fightTicks) {
+                    // Target lost (a large jump, a long distance, few searches) or a search storm (searches in the
+                    // hundreds): the four readings that tell the two apart. Recorded, not gated.
+                    stalls[0] = (stalls[0] == null ? "" : stalls[0] + "; ") + "fight " + fightNo + ": alive="
+                            + man.isAlive() + " removed=" + man.isRemoved()
+                            + String.format(Locale.ROOT, " dist=%.1f maxJump=%.1f", man.distanceTo(fp), maxJump)
+                            + " searches=" + (searches(bot) - searchesBefore)
+                            + " process=" + bot.navigator().process().orElse("none");
+                }
                 bot.tick(10);
 
-                int here = 0;
+                int here = bot.count(Items.ENDER_PEARL) - bagBefore;    // a pearl already picked up still counts
                 for (ItemEntity d : level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
                     if (d.getItem().is(Items.ENDER_PEARL)) here += d.getItem().getCount();
                     d.discard();
@@ -954,8 +983,22 @@ class MobFightTest {
                 + "-tick budget without a kill; ticks per fight: " + ticks);
         reporter.publishEntry("pearls.perFight", tally + " (× = not killed)");
         reporter.publishEntry("pearls.total", pearls + "");
+        if (stalls[0] != null) reporter.publishEntry("fights.stall", stalls[0]);
         assertTrue(killed >= 2, "teleport-on-hurt does not make an enderman unkillable — more than a lucky single"
                 + " resolve out of " + fights + " fights: " + killed);
-        assertTrue(pearls >= 1, "the kills yield ender pearls: " + pearls);
+        assertEquals(killed * PEARLS_PER_KILL, pearls, "every seeded kill yields exactly what its seed rolls: "
+                + tally + " (× = not killed)");
+    }
+
+    /**
+     * The enderman's loot seed. Its table is one ender_pearl entry with {@code set_count} uniform 0..1 and no
+     * looting on the sword, so the count is the seeded random's first {@code nextInt(2)}, which for this seed is 1.
+     */
+    private static final long PEARL_SEED = 20_261_029L;
+    private static final int PEARLS_PER_KILL = 1;
+
+    /** The searches the bot's running navigator has made, or -1 when it has none. Server thread. */
+    private static long searches(SceneBot bot) {
+        return bot.navigator().counters().getOrDefault("searches", -1L);
     }
 }
