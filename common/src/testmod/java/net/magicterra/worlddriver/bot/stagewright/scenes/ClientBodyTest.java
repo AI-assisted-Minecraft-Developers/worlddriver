@@ -24,6 +24,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * The precondition in front of every verb that moves or acts through the player ({@code Readiness}), on the client's
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.TestReporter;
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
+@ResourceLock(ClientWalk.PLAYER)
 class ClientBodyTest {
 
     @Test
