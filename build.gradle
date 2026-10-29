@@ -22,8 +22,6 @@ stagewright {
                 create(loader) {
                     loaderProject = ":${loader}"
                     includeWorldDriver = false
-                    // Architectury's dev-time transformer leaves thread pools that hold the JVM; goes with it.
-                    leaks = 'report'
                     jvmArgs.add('-Xmx2g')
                     systemProperties.putAll(['worlddriver.rpcPort': '0', 'worlddriver.mcpPort': '0'])
                     // -PstagewrightServerPort lets two checkouts run their suites at once.
