@@ -74,17 +74,6 @@ public final class ParkourAscend extends Move {
             }
             // Real gap at launch level (a mid floor -> cheaper Walk/StepUp).
             if (w.canStandAt(from.offset(sx * i, 0, sz * i))) return false;
-            // Water-bottomed gap DROP-ZONE (pathfinderForbidParkourOverWaterGap): an UNDERSHOT rising leap
-            // drops ~1 below the launch into the gap column; if that drop-zone is DEEP water (>=2) the buoyant
-            // player cannot climb out and bob-stalls against the far wall (live -665,64: parkourAscend2 from a
-            // y63 launch over an air gap with water below falls to y62 water, hCol, ~3.7 s repath-bounce — a
-            // route-variance stall the executor layer structurally can't A/B-recover). A buoyant bot should
-            // SWIM a water crossing, not sprint-jump it, so forbid the leap and let A* route around / swim.
-            // Mirrors the forbid-parkour-from/into-water family (takeoff / landing); this guards the GAP DROP.
-            if (RulesConfig.pathfinderForbidParkourOverWaterGap) {
-                BlockPos drop = from.offset(sx * i, -1, sz * i);
-                if (w.isWater(drop) && w.isWater(drop.offset(0, -1, 0))) return false;
-            }
         }
         return w.isPassable(to.offset(0, 1, 0));
     }

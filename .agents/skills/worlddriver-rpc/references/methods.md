@@ -799,10 +799,6 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinder.maxNodes` | integer 100–1000000 | `100000` | A* node budget. |
 | `pathfinder.maxMs` | integer 100–30000 | `1500` | A* wall-clock budget, ms. |
 | `pathfinder.heuristicWeight` | number 1–3 | `1.0` | Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. |
-| `pathfinderGoalField` | `boolean` | `false` | Obstacle-aware goal-distance heuristic (coarse D*-lite field): routes AROUND concave pinches instead of backtracking. Phase-0 A/B knob. |
-| `goalFieldCellSize` | integer 1–16 | `4` | Goal-field coarse cell size (blocks) |
-| `goalFieldRadius` | integer 8–192 | `64` | Goal-field horizontal half-extent (blocks; keep ≤ render distance) |
-| `goalFieldVerticalRadius` | integer 4–128 | `32` | Goal-field vertical half-extent (blocks) |
 | `pathfinderDepthPenalty` | number 0–100 | `6.0` | Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. |
 | `pathfinderDepthSlack` | integer 0–64 | `4` | Free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply. |
 | `pathfinderDescendCost` | number 0–200 | `40.0` | REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes getting stuck climbing ashore from a deep-water bowl: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off. |
@@ -818,10 +814,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `allowParkour4` | `boolean` | `false` | Enable 4-block cardinal leaps in A* (edge of vanilla physics) |
 | `pathfinderForbidParkourIntoDeepWater` | `boolean` | `true` | Planner: forbid a PARKOUR leap that LANDS on the surface of a DEEP floating-water pocket (≥2 deep, head air) — the buoyant bot floats there and can't climb back out (~25× underwater bank-dig). Forces A* to bridge over / find a shallower entry. Step/fall water entries (real river crossings) untouched. |
 | `pathfinderForbidParkourFromFloatingWater` | `boolean` | `true` | Planner: forbid a PARKOUR leap that LAUNCHES from a DEEP floating-water cell (water+water below) — a buoyant bot can't sprint-jump out (no floor to push off), so A* must swim-to-edge + step/diag climb out instead. Takeoff complement of pathfinderForbidParkourIntoDeepWater. |
-| `pathfinderForbidParkourOverWaterGap` | `boolean` | `false` | Planner: forbid a parkourAscend whose GAP DROP-ZONE (launch-1, in the gap column) is DEEP water (≥2) — an undershot leap drops into unclimbable water and bob-stalls on the far wall (live -665 repath-bounce). GAP-bottom complement of the from/into-water guards; a buoyant bot should swim, not jump, a water crossing. |
 | `pathfinderParkourAscendNeedRunway` | `boolean` | `true` | Planner: forbid a +1-up parkourAscend whose BEHIND cell (opposite the leap, same Y) isn't standable — no flat run-up means the bot launches the rising leap from a standstill (decelerated by the stepUp climb to the crest), lands short, falls back. Forces A* to a makeable stepUp staircase at no-runway bank crests. Task#86: standstill pillar-top parkourAscend2 caused a deterministic 20-block self-shaft backslide. |
-| `riskBias` | `boolean` | `false` |  |
-| `riskBias.scale` | integer 0–400 | `15` | Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block) |
 | `snapshotBoxMax` | integer 16–512 | `96` | Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped scope reports snapshotTruncated. |
 | `pathfinderBridgeCost` | number 0–1000 | `80.0` | TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. |
 | `pathfinderPillarCost` | `number` | `150.0` |  |
@@ -2376,14 +2369,6 @@ interface SettingValues {
     'pathfinder.maxMs'?: number;
     /** Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open terrain, don't leave it on. @default 1.0 */
     'pathfinder.heuristicWeight'?: number;
-    /** Obstacle-aware goal-distance heuristic (coarse D*-lite field): routes AROUND concave pinches instead of backtracking. Phase-0 A/B knob. @default false */
-    pathfinderGoalField?: boolean;
-    /** Goal-field coarse cell size (blocks) @default 4 */
-    goalFieldCellSize?: number;
-    /** Goal-field horizontal half-extent (blocks; keep ≤ render distance) @default 64 */
-    goalFieldRadius?: number;
-    /** Goal-field vertical half-extent (blocks) @default 32 */
-    goalFieldVerticalRadius?: number;
     /** Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off. @default 6.0 */
     pathfinderDepthPenalty?: number;
     /** Free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply. @default 4 */
@@ -2414,14 +2399,8 @@ interface SettingValues {
     pathfinderForbidParkourIntoDeepWater?: boolean;
     /** Planner: forbid a PARKOUR leap that LAUNCHES from a DEEP floating-water cell (water+water below) — a buoyant bot can't sprint-jump out (no floor to push off), so A* must swim-to-edge + step/diag climb out instead. Takeoff complement of pathfinderForbidParkourIntoDeepWater. @default true */
     pathfinderForbidParkourFromFloatingWater?: boolean;
-    /** Planner: forbid a parkourAscend whose GAP DROP-ZONE (launch-1, in the gap column) is DEEP water (≥2) — an undershot leap drops into unclimbable water and bob-stalls on the far wall (live -665 repath-bounce). GAP-bottom complement of the from/into-water guards; a buoyant bot should swim, not jump, a water crossing. @default false */
-    pathfinderForbidParkourOverWaterGap?: boolean;
     /** Planner: forbid a +1-up parkourAscend whose BEHIND cell (opposite the leap, same Y) isn't standable — no flat run-up means the bot launches the rising leap from a standstill (decelerated by the stepUp climb to the crest), lands short, falls back. Forces A* to a makeable stepUp staircase at no-runway bank crests. Task#86: standstill pillar-top parkourAscend2 caused a deterministic 20-block self-shaft backslide. @default true */
     pathfinderParkourAscendNeedRunway?: boolean;
-    /** @default false */
-    riskBias?: boolean;
-    /** Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block) @default 15 */
-    'riskBias.scale'?: number;
     /** Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped scope reports snapshotTruncated. @default 96 */
     snapshotBoxMax?: number;
     /** TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes the freeze when bridging in mid-air across a deep ravine). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30. @default 80.0 */

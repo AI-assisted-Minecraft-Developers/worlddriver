@@ -59,15 +59,6 @@ public record PlanningSettings(
                 + "bot on hilly/jungle terrain (greedy frontier climbs a dead-end hill); opt in per use on open "
                 + "terrain, don't leave it on.")
         @Wire("pathfinder.heuristicWeight") @Default("1.0") @Range(min = 1, max = 3) double pathfinderHeuristicWeight,
-        @Doc("Obstacle-aware goal-distance heuristic (coarse D*-lite field): routes AROUND concave pinches instead "
-                + "of backtracking. Phase-0 A/B knob.")
-        @Default("false") boolean pathfinderGoalField,
-        @Doc("Goal-field coarse cell size (blocks)")
-        @Default("4") @Range(min = 1, max = 16) int goalFieldCellSize,
-        @Doc("Goal-field horizontal half-extent (blocks; keep ≤ render distance)")
-        @Default("64") @Range(min = 8, max = 192) int goalFieldRadius,
-        @Doc("Goal-field vertical half-extent (blocks)")
-        @Default("32") @Range(min = 4, max = 128) int goalFieldVerticalRadius,
         @Doc("Anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end "
                 + "valleys without it); biases routes higher/smoother. 0=off.")
         @Default("6.0") @Range(min = 0, max = 100) double pathfinderDepthPenalty,

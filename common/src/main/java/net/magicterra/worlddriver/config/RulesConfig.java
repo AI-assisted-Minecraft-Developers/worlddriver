@@ -9,19 +9,6 @@ import net.magicterra.worlddriver.api.methods.setting.RulesSettings;
 public final class RulesConfig {
     private RulesConfig() {}
 
-    /** task#97c learned stuck-risk edge tax (ml/costmodel): when ON, A* adds
-     *  {@code risk(move,terrain) * riskBiasScale / 100} cost units to edges of
-     *  the table-listed move families (swim-, bridgePlace-, parkour-family), steering
-     *  around patterns that historically precede navigator wedges. PURE additive
-     *  g-tax — no prune, no capability change; OFF = byte-identical search.
-     *  Default OFF until the journey+bench A/B goes GREEN (navigatorAscendMovement
-     *  precedent). */
-    public static volatile boolean riskBias = RulesSettings.DEFAULTS.riskBias();
-
-    /** Max extra cost (in A* cost units, 10 = one walk block) a risk-100 edge
-     *  pays under {@link #riskBias}. 40 ≈ a 4-block detour breaks even against
-     *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
-    public static volatile int riskBiasScale = RulesSettings.DEFAULTS.riskBiasScale();
     /** Per-axis cap, blocks, on the box one search scans for entities ({@code SearchScope.gather});
      *  {@code Level.getEntities} costs by volume, and a capped scope reports {@code snapshotTruncated}. */
     public static volatile int snapshotBoxMax = RulesSettings.DEFAULTS.snapshotBoxMax();
@@ -146,25 +133,6 @@ public final class RulesConfig {
      *  1-deep shallow water (solid floor → {@code isFloatingWater} false) is unaffected. Default ON; the gate below predates the flip and describes the
      *  live A/B (the landing-side sibling defaults ON once proven; flip after A/B confirms 409→low + no regression). */
     public static volatile boolean pathfinderForbidParkourFromFloatingWater = RulesSettings.DEFAULTS.pathfinderForbidParkourFromFloatingWater();
-
-    /** Third member of the forbid-parkour-water family (after {@link #pathfinderForbidParkourFromFloatingWater}
-     *  takeoff + {@link #pathfinderForbidParkourIntoDeepWater} landing): the GAP DROP-ZONE guard. A rising/flat
-     *  parkour leap clears a gap whose floor sits below the launch; if the bot UNDERSHOOTS (the common buoyant /
-     *  low-momentum failure) it drops ~1 below launch INTO that gap, and when the drop-zone is DEEP water (≥2:
-     *  water at launch-1 AND below) the buoyant bot can't climb back out — it bob-stalls against the far wall.
-     *  <p>Live #47 J2 -665,64,313 (2026-06-26): A* committed a {@code parkourAscend2} from a y63 launch over an
-     *  AIR gap with water below (so the existing launch-level {@code canStandAt}=false "real gap" test and the
-     *  isFloatingWater takeoff guard both pass — the takeoff is dry land, the LANDING is a dry y64 node, only the
-     *  GAP BOTTOM is water). The bot undershoots to y62 water, hCol on the far wall, hSpd~0.01, onG=false 94%,
-     *  ~74t / 3.7s before a repath bounces it around. This is a route-variance repath-bounce chokepoint the
-     *  EXECUTOR layer structurally CAN'T A/B-recover (Task-19: jitter-recovery reroutes BEFORE the gap so the
-     *  in-water recovery branch never even fires; rerouting is itself unreliable, 1/5 → totStuck 991). The clean
-     *  fix is here, at the source: a buoyant bot should SWIM a water crossing, not sprint-jump it, so forbid the
-     *  leap whose undershoot strands in deep water and let A* route around / swim. Currently wired into
-     *  {@link net.magicterra.worlddriver.bot.rules.moves.ParkourAscend} (the live -665 case); the flat parkour
-     *  siblings can adopt the same per-gap-cell check if a flat-gap water-drop stall surfaces. Default OFF
-     *  pending the live planner A/B (confirm A* drops the -665 leap + routes around with the flag ON). */
-    public static volatile boolean pathfinderForbidParkourOverWaterGap = RulesSettings.DEFAULTS.pathfinderForbidParkourOverWaterGap();
 
     /** Approach-runway gate for {@link net.magicterra.worlddriver.bot.rules.moves.ParkourAscend} (the +1-up
      *  cardinal parkour leap): a rising sprint-jump needs horizontal MOMENTUM at launch (~5.6 b/s), but a bot

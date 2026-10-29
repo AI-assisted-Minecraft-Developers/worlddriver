@@ -49,11 +49,8 @@ class SettingsRangeTest {
     }
 
     @Test
-    void theGoalFieldAndDepthKeysRejectBothEnds() throws ReflectiveOperationException {
+    void theDepthKeysRejectBothEnds() throws ReflectiveOperationException {
         for (Object[] row : List.of(
-                new Object[] {"goalFieldCellSize", 0, 17},
-                new Object[] {"goalFieldRadius", 2, 100_000},
-                new Object[] {"goalFieldVerticalRadius", 3, 129},
                 new Object[] {"pathfinderDepthSlack", -1, 65},
                 new Object[] {"pathfinderDepthPenalty", -1.0, 101.0},
                 new Object[] {"pathfinderDescendCost", -1.0, 201.0},
@@ -103,7 +100,7 @@ class SettingsRangeTest {
 
     @Test
     void anInRangeValueIsApplied() {
-        patch("goalFieldRadius", 96);
-        assertEquals(96, PlanningConfig.goalFieldRadius);
+        patch("pathfinderDepthSlack", 9);
+        assertEquals(9, PlanningConfig.pathfinderDepthSlack);
     }
 }

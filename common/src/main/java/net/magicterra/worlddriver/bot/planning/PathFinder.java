@@ -445,9 +445,6 @@ public final class PathFinder {
         /** Per-intent hard edge prunes (A2a) — checked in the neighbor loop. Empty
          *  for a plain search (the whole prune block is then skipped). */
         private final List<Constraint> constraints;
-        /** Obstacle-aware goal-distance field, or null when disabled / unusable
-         *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
-        private final CoarseGoalField goalField;
         /** Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
          *  ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding navigatorDebug —
          *  which scenes flip off to silence the per-TICK navigator spam. Eight of the
@@ -529,10 +526,6 @@ public final class PathFinder {
                 active.add(m);
             }
             this.activeMoves = active.toArray(new Move[0]);
-            // Build the obstacle-aware heuristic field once per search (before any
-            // node is created so the start node gets the field estimate too).
-            this.goalField = PlanningConfig.pathfinderGoalField
-                    ? CoarseGoalField.build(world, goal, start) : null;
             this.startNode = new Node(start, null, null, 0, heuristic(start));
             nodes.put(start, startNode);
             open.add(startNode);
@@ -567,11 +560,6 @@ public final class PathFinder {
             tax("padCell", (f, t, e, g, w) -> padCellTax(t));
             tax("vineOverWater", (f, t, e, g, w) -> vineOverWaterTax(t));
             tax("padOverWater", (f, t, e, g, w) -> padOverWaterTax(t));
-            // task#97c learned stuck-risk tax — appended LAST so the legacy tax
-            // sum order (FP-sensitive) is untouched; contributes exactly 0.0
-            // when RulesConfig.riskBias is OFF or the move isn't table-listed.
-            tax("riskTable", (f, t, e, g, w)
-                    -> net.magicterra.worlddriver.bot.rules.modifiers.RiskCostTable.tax(f, e, w));
             tax("climbOut", (f, t, e, g, w) -> climbOutTax(f, t));
             if (!diveRelief) tax("submerged", (f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
@@ -724,16 +712,9 @@ public final class PathFinder {
             return out;
         }
 
-        /** A* heuristic for a node: the obstacle-aware goal-field estimate when
-         *  available (max'd with the admissible Euclidean lower bound so it never
-         *  drops below it), else the plain Euclidean estimate. Falls back per-cell,
-         *  so an unbuilt or partial field simply yields today's behaviour. */
+        /** A* heuristic for a node: the plain Euclidean estimate plus the anti-basin-dive term. */
         private double heuristic(BlockPos p) {
             double h = goal.estimate(p);
-            if (goalField != null) {
-                double field = goalField.costToGoal(p);
-                if (field != CoarseGoalField.UNKNOWN) h = Math.max(h, field);
-            }
             // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).

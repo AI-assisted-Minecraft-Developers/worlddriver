@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.annotation.Default;
 import net.magicterra.worlddriver.api.schema.annotation.Doc;
 import net.magicterra.worlddriver.api.schema.annotation.Range;
-import net.magicterra.worlddriver.api.schema.annotation.Wire;
 
 /**
  * The rules layer's keys of {@code mc.bot.setting}, one component each. A component is named as the field that
@@ -24,20 +23,12 @@ public record RulesSettings(
                 + "buoyant bot can't sprint-jump out (no floor to push off), so A* must swim-to-edge + step/diag "
                 + "climb out instead. Takeoff complement of pathfinderForbidParkourIntoDeepWater.")
         @Default("true") boolean pathfinderForbidParkourFromFloatingWater,
-        @Doc("Planner: forbid a parkourAscend whose GAP DROP-ZONE (launch-1, in the gap column) is DEEP water (≥2) "
-                + "— an undershot leap drops into unclimbable water and bob-stalls on the far wall (live -665 "
-                + "repath-bounce). GAP-bottom complement of the from/into-water guards; a buoyant bot should swim, "
-                + "not jump, a water crossing.")
-        @Default("false") boolean pathfinderForbidParkourOverWaterGap,
         @Doc("Planner: forbid a +1-up parkourAscend whose BEHIND cell (opposite the leap, same Y) isn't standable — "
                 + "no flat run-up means the bot launches the rising leap from a standstill (decelerated by the "
                 + "stepUp climb to the crest), lands short, falls back. Forces A* to a makeable stepUp staircase at "
                 + "no-runway bank crests. Task#86: standstill pillar-top parkourAscend2 caused a deterministic "
                 + "20-block self-shaft backslide.")
         @Default("true") boolean pathfinderParkourAscendNeedRunway,
-        @Default("false") boolean riskBias,
-        @Doc("Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block)")
-        @Wire("riskBias.scale") @Default("15") @Range(min = 0, max = 400) int riskBiasScale,
         @Doc("Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped "
                 + "scope reports snapshotTruncated.")
         @Default("96") @Range(min = 16, max = 512) int snapshotBoxMax,

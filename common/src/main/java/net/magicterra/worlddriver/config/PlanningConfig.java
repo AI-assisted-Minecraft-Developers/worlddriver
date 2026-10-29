@@ -32,27 +32,6 @@ public final class PlanningConfig {
      *  still help in OPEN terrain — opt in per use, don't ship it on. */
     public static volatile double pathfinderHeuristicWeight = PlanningSettings.DEFAULTS.pathfinderHeuristicWeight();
 
-    /** Obstacle-aware goal-distance heuristic ({@link net.magicterra.worlddriver.bot.planning.CoarseGoalField}).
-     *  When ON, each search builds a coarse, symmetric, goal-rooted cost-to-goal
-     *  field over the loaded region and uses it (max'd with the Euclidean
-     *  estimate) as the A* heuristic, so the fine search routes AROUND a concave
-     *  pinch instead of expanding into the wall and committing a backward
-     *  best-effort segment (the backtracking oscillation). Degrades to the plain
-     *  Euclidean heuristic wherever the field has no value, so it can never be
-     *  worse than off. Phase-0 premise test: default OFF until A/B-validated. */
-    public static volatile boolean pathfinderGoalField = PlanningSettings.DEFAULTS.pathfinderGoalField();
-
-    /** Coarse-grid cell edge in blocks for {@link #pathfinderGoalField} (bigger =
-     *  cheaper to build, coarser routing). */
-    public static volatile int goalFieldCellSize = PlanningSettings.DEFAULTS.goalFieldCellSize();
-
-    /** Horizontal half-extent (blocks) of the goal-field box around the search start — keep within
-     *  the client render distance so cells map to known terrain. */
-    public static volatile int goalFieldRadius = PlanningSettings.DEFAULTS.goalFieldRadius();
-
-    /** Vertical half-extent (blocks) of the goal-field box around the search start. */
-    public static volatile int goalFieldVerticalRadius = PlanningSettings.DEFAULTS.goalFieldVerticalRadius();
-
     /** Anti-basin-dive heuristic term (cost units per block). For an XZ goal the
      *  estimate is Y-agnostic, so the search treats DESCENDING as free progress
      *  and dives down a slope into a low valley/basin that is a dead-end toward

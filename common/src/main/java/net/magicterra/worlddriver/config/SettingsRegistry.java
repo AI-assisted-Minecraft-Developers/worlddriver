@@ -46,7 +46,6 @@ public final class SettingsRegistry {
         field("pathfinder.ledgeDangerMinDrop", "ledgeDangerMinDrop"),
         field("pathfinder.mobAvoidRadius", "mobAvoidRadius"),
         field("pathfinder.mobAvoidPenalty", "mobAvoidPenalty"),
-        field("riskBias.scale", "riskBiasScale"),
         field("pathfinder.maxNodes", "pathfinderMaxNodes"),
         field("pathfinder.maxMs", "pathfinderMaxMs"),
         field("pathfinder.sliceMs", "pathfinderSliceMs"),
