@@ -315,6 +315,37 @@ class CoreClientTest {
         game.check(cp.pos().isPresent(), "mc.client.player's pos is there, not a hole in a well-shaped payload: " + cp);
     }
 
+    /**
+     * A chat line the client's player sends reaches the server driver as one {@code chat.message} carrying the text
+     * and the sender. It is read from the server's ring, not the client's: the event is the server's report of chat it
+     * received.
+     */
+    @Test
+    void serverReportsTheChatTheClientSent(Game game, Client client, Player player) {
+        alone(game);
+        String marker = "wd-chat-" + Long.toHexString(System.nanoTime());
+        EventBlockingApi events = game.api(EventBlockingApi::of);
+        long cursor = events.cursor(new EventContracts.CursorParams()).cursor();
+        Map<String, Object> sent = call(client, "mc.client.chat.send", Map.of("text", marker));
+        game.check(() -> assertEquals("done", sent.get("outcome"), "the client sent the line: " + sent));
+        List<Map<?, ?>> seen = new ArrayList<>();
+        game.await().within(200).as("a chat.message with the marker reaches the server's ring").until(() -> {
+            seen.clear();
+            EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
+            for (EventContracts.Event e : page.events())
+                if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m
+                        && marker.equals(m.get("text"))) seen.add(m);
+            return !seen.isEmpty();
+        });
+        game.ticks(5);
+        EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
+        long count = page.events().stream()
+                .map(e -> SceneJson.plain(e.data().map(JsonValue::json).orElse(null)))
+                .filter(d -> d instanceof Map<?, ?> m && marker.equals(m.get("text"))).count();
+        game.check(() -> assertEquals(1L, count, "chat.message reports for the marker line"));
+        game.check(() -> assertEquals(player.name(), seen.get(0).get("player"), "the chat.message sender: " + seen.get(0)));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /**
