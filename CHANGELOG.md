@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **Goal and error text prints positions as numbers.** A goal's text (`mc.bot.goto`'s `goal`, a process's
+  `goal` in `mc.bot.status`) and the reasons a walk, a mine or a sleep gives printed a block position
+  through the game's own `toString`, which names the class, so a Fabric production game answered
+  `Block[target=class_2338{x=6, y=64, z=-3}]`. Positions now read `6 64 -3` on every build, as in
+  `Block[target=6 64 -3]`. A goal made of several goals lists them instead of printing an array's hash.
+
 - **Code inside the game can wait longer for a busy server thread.** A call that needs the server
   thread gave up after 8 seconds with `not_executed` whoever made it, so a test harness whose calls
   queued behind a server thread generating chunks for several tests failed calls that would have run a

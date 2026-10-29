@@ -1,10 +1,18 @@
 package net.magicterra.worlddriver.bot.rules;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 
 /**
  * A* termination + admissible heuristic. Lightweight value type — created per
  * {@code mc.bot.goto} call, immutable, must be safe to share across threads.
+ *
+ * <p>A goal's {@code toString} is the goal text answers carry ({@code mc.bot.goto}'s {@code goal}, a process
+ * slot's {@code goal}), so every record holding a {@link BlockPos} prints it through {@link CellText}: the
+ * position's own {@code toString} names its class, which is obfuscated in a Fabric production game.
  *
  * Heuristic contract: {@link #estimate(BlockPos)} returns a lower bound on the
  * remaining cost in the same units as {@code Move.cost()} (≈ ticks * 10). An
@@ -84,6 +92,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     /** Reach the exact block. Admissible 3D lower bound. */
     record Block(BlockPos target) implements Goal {
         @Override public BlockPos targetPos() { return target; }
+        @Override public String toString() { return "Block[target=" + CellText.of(target) + "]"; }
         public boolean reached(BlockPos p) { return p.equals(target); }
         public double estimate(BlockPos p) {
             return blockHeuristic(p.getX() - target.getX(), p.getY() - target.getY(), p.getZ() - target.getZ());
@@ -93,6 +102,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     /** Get within {@code radius} blocks (Euclidean) of {@code target}. */
     record Near(BlockPos target, int radius) implements Goal {
         @Override public BlockPos targetPos() { return target; }
+        @Override public String toString() { return "Near[target=" + CellText.of(target) + ", radius=" + radius + "]"; }
         public boolean reached(BlockPos p) { return p.distSqr(target) <= radius * radius; }
         public double estimate(BlockPos p) {
             double d = Math.sqrt(p.distSqr(target)) - radius;
@@ -132,6 +142,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * where {@link #reached} fires. (Bounded sibling of {@link Inverted}.)
      */
     record RunAway(BlockPos source, int minDist) implements Goal {
+        @Override public String toString() { return "RunAway[source=" + CellText.of(source) + ", minDist=" + minDist + "]"; }
         public boolean reached(BlockPos p) { return p.distSqr(source) >= (long) minDist * minDist; }
         public double estimate(BlockPos p) {
             double d = Math.sqrt(p.distSqr(source));
@@ -141,6 +152,10 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
 
     /** Any-of: reached when any child reached; heuristic = min child heuristic. */
     record Composite(Goal[] children) implements Goal {
+        /** The children, not the array: a record prints an array component as its identity hash. */
+        @Override public String toString() {
+            return Arrays.stream(children).map(Goal::toString).collect(Collectors.joining(", ", "Composite[", "]"));
+        }
         public boolean reached(BlockPos p) {
             for (Goal g : children) if (g.reached(p)) return true;
             return false;
@@ -161,6 +176,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     record GetToBlock(BlockPos target) implements Goal {
         @Override public BlockPos targetPos() { return target; }
+        @Override public String toString() { return "GetToBlock[target=" + CellText.of(target) + "]"; }
         public boolean reached(BlockPos p) {
             int dy = p.getY() - target.getY();
             return Math.abs(p.getX() - target.getX()) + Math.abs(dy < 0 ? dy + 1 : dy)
@@ -179,6 +195,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     record TwoBlocks(BlockPos target) implements Goal {
         @Override public BlockPos targetPos() { return target; }
+        @Override public String toString() { return "TwoBlocks[target=" + CellText.of(target) + "]"; }
         public boolean reached(BlockPos p) {
             return p.getX() == target.getX() && (p.getY() == target.getY() || p.getY() == target.getY() - 1) && p.getZ() == target.getZ();
         }
@@ -229,6 +246,9 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     record StrictDirection(BlockPos origin, int dx, int dz) implements Goal {
         @Override public boolean open() { return true; }
+        @Override public String toString() {
+            return "StrictDirection[origin=" + CellText.of(origin) + ", dx=" + dx + ", dz=" + dz + "]";
+        }
         public boolean reached(BlockPos p) { return false; }
         public double estimate(BlockPos p) {
             int forward = (p.getX() - origin.getX()) * dx + (p.getZ() - origin.getZ()) * dz;

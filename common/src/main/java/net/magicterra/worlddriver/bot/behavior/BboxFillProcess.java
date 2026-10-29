@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -67,7 +68,7 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     public void attach(BotState st) {
         String mode = (filterFromId != null) ? "replace[" + filterFromId + "→" + fillId + "]"
                     : (fillId != null) ? "fill[" + fillId + "]" : "clear";
-        st.builder.beginRun(mode + " " + minP + "→" + maxP + " (vol=" + totalEstimate + ")", null);
+        st.builder.beginRun(mode + " " + CellText.of(minP) + "→" + CellText.of(maxP) + " (vol=" + totalEstimate + ")", null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

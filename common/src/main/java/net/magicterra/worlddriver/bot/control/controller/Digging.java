@@ -17,6 +17,7 @@ import net.minecraft.world.entity.player.Player;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
+import net.magicterra.worlddriver.game.observe.CellText;
 
 /**
  * The navigator's one dig door — every navigator dig routes through {@link #avatarDig}; aim at the cell
@@ -133,7 +134,7 @@ public final class Digging {
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
         if (GameConfig.navigatorDebug)
             LOG.info("[navigator] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
-        nav.error = "breath-infeasible dig at " + b;
+        nav.error = "breath-infeasible dig at " + CellText.of(b);
         nav.route.drop(nav.error);
         return true;
     }

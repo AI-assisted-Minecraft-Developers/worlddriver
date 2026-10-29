@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -70,7 +71,7 @@ public final class FarmProcess implements BotProcess, Navigating {
     public int replanted() { return replanted; }
 
     public void attach(BotState st) {
-        st.builder.beginRun("farm[" + String.join(",", crops) + "] " + minP + "→" + maxP +
+        st.builder.beginRun("farm[" + String.join(",", crops) + "] " + CellText.of(minP) + "→" + CellText.of(maxP) +
                 " (cells=" + totalEstimate + ", replant=" + replant + ")", null);
     }
 

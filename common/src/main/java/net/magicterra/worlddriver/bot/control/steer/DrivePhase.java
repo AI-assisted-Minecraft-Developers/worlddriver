@@ -37,6 +37,7 @@ import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.control.act.Safety;
 import net.magicterra.worlddriver.bot.control.controller.Digging;
+import net.magicterra.worlddriver.game.observe.CellText;
 
 
 /**
@@ -1766,7 +1767,7 @@ public final class DrivePhase {
                 || nav.search.gov.deadZoneRepeats < ControlConfig.navigatorAscendDeadZoneCap) return null;
         nav.error = "ascent dead-zone " + nav.search.gov.deadZoneRepeats
                 + " times from the same cell — the search keeps returning " + edge.move
-                + " to " + node + " and the executor keeps refusing it (foot=" + foot
+                + " to " + CellText.of(node) + " and the executor keeps refusing it (foot=" + CellText.of(foot)
                 + "); the plan is fine and the bot cannot perform it";
         return nav.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH,
                 nav.error, "failed:" + nav.error, p.blockPosition());

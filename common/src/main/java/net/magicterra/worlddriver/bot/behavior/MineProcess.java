@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.game.observe.BlockMatch;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.magicterra.worlddriver.game.observe.NearestFirstScan;
 import java.util.Set;
 
@@ -398,7 +399,7 @@ public final class MineProcess implements BotProcess, Navigating {
                     } else if (++goingStallTicks >= GOING_STALL_TICKS) {
                         retireTarget(String.format(java.util.Locale.ROOT,
                                 "made no progress toward stand %2$s within %1$dt (closest %3$.1f blocks) — unreachable",
-                                GOING_STALL_TICKS, currentStand, goingBestDist));
+                                GOING_STALL_TICKS, CellText.of(currentStand), goingBestDist));
                         return false;
                     }
                 }
@@ -695,7 +696,7 @@ public final class MineProcess implements BotProcess, Navigating {
                 // all end with items on the floor, and the count alone sent two investigations
                 // to the wrong file.
                 + (lastCollectStep != null
-                        ? ", sweep " + lastCollectStep + " toward " + currentCollectGoal
+                        ? ", sweep " + lastCollectStep + " toward " + CellText.of(currentCollectGoal)
                           + ", retired " + unreachableDrops.size() + " drop(s): "
                           + retiredUnpathable + " unpathable + " + retiredArrivedShort
                           + " arrived-but-short"
@@ -1225,7 +1226,7 @@ public final class MineProcess implements BotProcess, Navigating {
      */
     public String approachProbe() {
         return "phase=" + phase + " broken=" + broken + "/" + desiredQty
-                + " target=" + currentTarget + " stand=" + currentStand
+                + " target=" + CellText.of(currentTarget) + " stand=" + CellText.of(currentStand)
                 + " endReason=" + navigator.result().endReason()
                 + " goalReached=" + navigator.result().goalReached()
                 + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", navigator.result().finalDist())

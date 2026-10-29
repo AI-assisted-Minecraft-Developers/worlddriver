@@ -291,11 +291,9 @@ runners, and nothing sets `classdumpdir`, so a run reports nothing without that 
 no document says where the JaCoCo jars come from. The run itself still works: `testkitCoverageAgent`
 reaches both game processes.
 
-### Production answers carry obfuscated class names
+### `mc.system.version` answers a hard-coded version
 
-A goto's result on a Fabric production game reads `Block[target=class_2338{x=6,…}]`: a `BlockPos`'s
-`toString` leaks into the goal text. `mc.system.version` also answers the hard-coded `0.1.0-dev` from
-`BuildStamp` on every build.
+It answers `0.1.0-dev` from `BuildStamp` on every build.
 
 ---
 

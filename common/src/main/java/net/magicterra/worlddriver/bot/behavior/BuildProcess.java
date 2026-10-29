@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 
 public final class BuildProcess implements BotProcess, Navigating {
@@ -63,7 +64,7 @@ public final class BuildProcess implements BotProcess, Navigating {
     public int skipped() { return skipped; }
 
     public void attach(BotState st) {
-        st.builder.beginRun("build " + schematic.entries.size() + " blocks @ " + origin, null);
+        st.builder.beginRun("build " + schematic.entries.size() + " blocks @ " + CellText.of(origin), null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
@@ -47,7 +48,7 @@ public final class SleepProcess implements BotProcess, Navigating {
 
     public void attach(BotState st) {
         st.mc_goto.beginRun(explicit != null
-                ? "sleep[bed@" + explicit + "]"
+                ? "sleep[bed@" + CellText.of(explicit) + "]"
                 : "sleep[nearest bed within " + searchRadius + "]", null);
     }
 
@@ -74,7 +75,7 @@ public final class SleepProcess implements BotProcess, Navigating {
                 st.mc_goto.pathLen = navigator.pathLen();
                 st.mc_goto.pathStep = navigator.pathStep();
                 if (s == Locomotor.Status.FAILED) {
-                    return giveUp(st, "no path to bed @" + bedPos);
+                    return giveUp(st, "no path to bed @" + CellText.of(bedPos));
                 }
                 if (s.ended()) {
                     // A give-up also stops as ARRIVED. The bed may still be in reach from there, so
@@ -110,7 +111,7 @@ public final class SleepProcess implements BotProcess, Navigating {
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
                     return giveUp(st, approachShortfall != null
-                            ? "did not reach bed @" + bedPos + ": " + approachShortfall
+                            ? "did not reach bed @" + CellText.of(bedPos) + ": " + approachShortfall
                             : "bed click did not start sleep (wrong time / monsters / occupied)");
                 }
             }

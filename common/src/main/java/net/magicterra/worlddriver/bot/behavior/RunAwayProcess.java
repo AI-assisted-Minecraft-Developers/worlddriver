@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
@@ -44,7 +45,7 @@ public final class RunAwayProcess implements BotProcess, Navigating {
 
     public String kind() { return "runAway"; }
     public void attach(BotState st) {
-        slot(st).beginRun("runAway from=" + from + " minDist=" + minDist, from);
+        slot(st).beginRun("runAway from=" + CellText.of(from) + " minDist=" + minDist, from);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

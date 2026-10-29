@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.LookController;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -65,7 +66,7 @@ public final class ParkourPlace implements Controller {
         nav.totalTicks = 0;
         nav.stuckTicks = 0;       // owns this cell while leaping — not "stuck"
         if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
-            nav.error = "parkour-place stalled at " + dest;
+            nav.error = "parkour-place stalled at " + CellText.of(dest);
             nav.route.drop(nav.error);
             return true;
         }
