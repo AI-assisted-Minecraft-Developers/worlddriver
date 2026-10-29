@@ -129,7 +129,7 @@ class DuskSecureLifecycleTest {
         assertFalse(DuskSecureChain.startGateBlocks(true, true, true, true),
                 "armed: the own-shaft cornered reading must not block the re-dig");
         assertTrue(DuskSecureChain.startGateBlocks(true, true, true, false),
-                "unarmed: genuine cornered still sits the reflex out (BunkerChain's case)");
+                "unarmed: genuine cornered still sits the reflex out");
         assertTrue(DuskSecureChain.startGateBlocks(true, false, true, true), "armed but day/dawn: window closed, gate blocks");
         assertTrue(DuskSecureChain.startGateBlocks(false, true, true, true), "armed but absent: gate blocks");
         assertFalse(DuskSecureChain.startGateBlocks(true, true, false, false),

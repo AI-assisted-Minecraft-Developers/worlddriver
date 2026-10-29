@@ -88,31 +88,8 @@ public final class ArbitrationConfig {
     /** gap#68-⑨: allow DuskSecureChain to escalate above the user task when exposed at
      *  night and unsheltered. Off = legacy idle-only (40) behaviour. */
     public static volatile boolean duskUrgent = ArbitrationSettings.DEFAULTS.duskUrgent();
-    /** First-night canary: when true the escalated tier only LOGS/emits (bid stays 40),
-     *  so the new preemption path can be observed before it is allowed to act. */
-    public static volatile boolean duskUrgentDryRun = ArbitrationSettings.DEFAULTS.duskUrgentDryRun();
 
-    /** Emergency "dig three, fill one" bunker reflex (BunkerChain): when cornered — low HP
-     *  AND several hostiles right next to the bot, where fleeing just runs into
-     *  more mobs — dig straight down a couple of blocks and seal the roof with the
-     *  dug blocks, making a 1×1 pocket mobs can't reach. The canonical no-gear
-     *  survival move for a swarm; needs no items (digging supplies the seal block).
-     *  Off by default (it modifies the world); enable for autonomous survival. */
-    public static volatile boolean autoBunker = ArbitrationSettings.DEFAULTS.autoBunker();
-    /** HP at/below which the bunker reflex may trigger (when also surrounded).
-     *  Default 10 (not lower): digging+sealing a 2-deep pocket by hand takes a few
-     *  seconds during which the swarm keeps hitting, so the bot needs a buffer to
-     *  finish before it dies — triggering at HP 8 was too late in live tests. */
-    public static volatile double bunkerHpThreshold = ArbitrationSettings.DEFAULTS.bunkerHpThreshold();
-    /** A hostile within this many blocks counts as "surrounding" for the trigger.
-     *  Default 7 (not 5): a real moving swarm clusters at 5–8 blocks and rarely puts
-     *  two mobs inside a 5-block bubble at once — a tight radius never fired in live
-     *  tests while the bot was beaten to death just outside it. */
-    public static volatile double bunkerTriggerRadius = ArbitrationSettings.DEFAULTS.bunkerTriggerRadius();
-    /** How many surrounding hostiles (within {@link #bunkerTriggerRadius}) it takes
-     *  to decide fleeing is hopeless and to dig in instead. */
-    public static volatile int bunkerMinHostiles = ArbitrationSettings.DEFAULTS.bunkerMinHostiles();
-    /** How many blocks straight down the bunker digs before sealing the roof. */
+    /** How many blocks straight down the bunker digs before sealing the roof (mc.bot.bunker, DuskSecureChain). */
     public static volatile int bunkerDepth = ArbitrationSettings.DEFAULTS.bunkerDepth();
 
     // Last, after every field above: see BotConfig.initialize.

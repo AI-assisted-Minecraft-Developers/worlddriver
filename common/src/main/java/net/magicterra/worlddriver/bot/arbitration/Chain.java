@@ -52,10 +52,9 @@ public interface Chain {
      * value is a short phase label (e.g. {@code "SEALED"}, {@code "FLEEING"},
      * {@code "ENGAGED"}) surfaced in {@code mc.bot.status.chains}.
      *
-     * <p>This exists because some chains (notably {@link BunkerChain}) keep state
-     * that outlives any {@code BotProcess} and re-bids priority every tick purely
-     * from that state (gap#68-⑦: a sealed {@link BunkerAnchor} bids priority 300
-     * forever with no process to cancel). Without a uniform seam, {@code mc.bot.cancel}
+     * <p>This exists because a chain can keep state that outlives any {@code BotProcess}
+     * and re-bid priority every tick purely from that state (gap#68-⑦: a since-removed
+     * bunker reflex's sealed anchor bid priority 300 forever with no process to cancel). Without a uniform seam, {@code mc.bot.cancel}
      * structurally could not reach it — only flipping the feature's config flag off
      * broke the loop, after it starved the user task overnight in a live run.
      */
@@ -82,13 +81,12 @@ public interface Chain {
      * The {@link net.magicterra.worlddriver.bot.behavior.BotProcess#kind()} of the process
      * this chain is currently HOLDING and driving, or {@code null} when it holds
      * none (gap#72-②). This is the seam that lets {@code mc.bot.cancel} resolve a
-     * process by KIND across chain owners: "bunker" is both {@link BunkerChain}'s
-     * chain name AND {@link net.magicterra.worlddriver.bot.behavior.BunkerProcess}'s kind,
-     * so {@code cancel{process:"bunker"}} used to hit only the (idle) BunkerChain's
-     * anchor while duskSecure's live BunkerProcess sat untouched — and still
-     * returned ok:true. Chains that own a process (duskSecure, retreat) override
-     * this; a chain whose held state is not a BotProcess (BunkerChain's anchor)
-     * keeps the default and is reached by chain NAME via {@link #episodePhase}/
+     * process by KIND across chain owners: "bunker" was both a chain's name AND
+     * {@link net.magicterra.worlddriver.bot.behavior.BunkerProcess}'s kind, so
+     * {@code cancel{process:"bunker"}} used to hit only that idle chain while
+     * duskSecure's live BunkerProcess sat untouched — and still returned ok:true.
+     * Chains that own a process (duskSecure, retreat) override this; a chain whose
+     * held state is not a BotProcess keeps the default and is reached by chain NAME via {@link #episodePhase}/
      * {@link #cancelEpisode} instead. {@code UserTaskChain} also keeps the default:
      * the user slot is cancel's own first routing step. A hit is cancelled through
      * {@link #cancelEpisode}, i.e. the unified {@link ChainProcessLifecycle} drop.

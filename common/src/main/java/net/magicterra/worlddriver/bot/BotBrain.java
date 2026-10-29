@@ -27,7 +27,6 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.bot.arbitration.BunkerChain;
 import net.magicterra.worlddriver.bot.arbitration.CancelRouting;
 import net.magicterra.worlddriver.bot.arbitration.Chain;
 import net.magicterra.worlddriver.bot.arbitration.CombatChain;
@@ -170,18 +169,6 @@ public final class BotBrain {
         // PREEMPT, like every other lethal-now reflex. Above bunker (digging DOWN
         // while drowning is precisely lethal), below panic/dodge.
         scheduler.register(new DrownEscapeChain()); // 500 — drowning under an active process (autoDrownEscape)
-        // "Dig three, fill one" emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
-        // an OPT-IN last-resort reflex for a no-gear bot a flee can't save (a skeleton
-        // matches walking speed on open ground — fleeing just circles, HP bleeds out).
-        // The two original "too uncontrollable" concerns are now structurally fixed:
-        //  (1) it no longer fights the creeper-panic — BUNKER(300) sits BELOW
-        //      PANIC(1000)/DODGE(900), so those preempt it; and
-        //  (2) it no longer digs at bad spots — tick() bails on water/lava/hazard
-        //      below or beside the foot.
-        // Still default-off (it modifies the world); enable per-run via
-        // mc.bot.setting{autoBunker:true}. Agent-planned mc.bot.bunker{depth} stays
-        // available for deliberate (e.g. at-dusk) dig-ins.
-        scheduler.register(new BunkerChain());    // 300  — opt-in emergency dig-in (autoBunker)
         scheduler.register(new RetreatChain(state)); // 100 — low-HP flee
         scheduler.register(combatChain);          // 60  — active combat
         scheduler.register(userTask);             // 50  — foreground task
@@ -536,8 +523,8 @@ public final class BotBrain {
         }
         // gap#72-②: a NAMED cancel routes through the shared resolver — user slot
         // by kind, chain episode by NAME, then any chain-HELD process by KIND
-        // ("bunker" is both BunkerChain's name and BunkerProcess's kind; duskSecure's
-        // held BunkerProcess was unreachable by every lookup step while cancel said ok:true).
+        // (duskSecure's held BunkerProcess, kind "bunker", was once unreachable by every
+        // lookup step while cancel said ok:true).
         BotProcess c = userTask.process();
         CancelRouting.Plan plan =
                 CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
@@ -750,7 +737,7 @@ public final class BotBrain {
         }
         // gap#68-R1a: per-chain priority + episode phase, so the agent (and the
         // player-death hook) can see chain-internal state that outlives any
-        // BotProcess — the ⑦ deadlock (a sealed BunkerAnchor bidding 300 forever with
+        // BotProcess — the ⑦ deadlock (a sealed bunker anchor bidding 300 forever with
         // nothing in the process slot) was invisible to status() before this.
         Map<String, Object> chains = new LinkedHashMap<>();
         Map<String, Float> prios = scheduler.lastPriorities();

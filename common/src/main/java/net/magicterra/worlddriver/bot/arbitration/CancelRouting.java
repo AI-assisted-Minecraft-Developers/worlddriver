@@ -33,7 +33,7 @@ public final class CancelRouting {
      *       ({@link Chain#episodePhase} non-null) counts as a hit, labelled
      *       {@code <name>-episode}. An idle chain's {@code cancelEpisode} is a
      *       documented no-op, so "hit" would be a lie (the gap#72-② live incident:
-     *       byName("bunker") found the idle BunkerChain and cancel said ok:true
+     *       byName("bunker") found an idle chain of that name and cancel said ok:true
      *       while duskSecure's held BunkerProcess dug on untouched);</li>
      *   <li><b>chain-HELD process by KIND</b> — any chain whose
      *       {@link Chain#heldProcessKind} matches, labelled

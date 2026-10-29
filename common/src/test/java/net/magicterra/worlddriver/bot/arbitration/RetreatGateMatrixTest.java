@@ -241,27 +241,6 @@ class RetreatGateMatrixTest {
     }
 
     @Test
-    void aLowHpBotPinnedByArrowsBunkers() {
-        // death#26 sub-fix ②: a low-HP bot SHOT from range in the open escalates to a bunker to break
-        // LoS (retreatThr=6; skeleton=RangedAttackMob, zombie not).
-        // (cc) THE incident: hp 5 (<=thr 6) + a connected arrow at 13, not sealed -> escalate.
-        assertTrue(BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{false, true}), /*sealed*/ false),
-                "death#26②(cc): low HP + connected ranged hit in the open must escalate to bunker");
-        // (dd) healthy bot (hp>thr) being shot -> no bunker; retreat/flee handles it.
-        assertFalse(BunkerChain.shouldRangedBunker(8f, 6f, skel.apply(13.0, new boolean[]{false, true}), false),
-                "death#26②(dd): hp above retreatThr must NOT escalate to bunker (only a low-HP pin does)");
-        // (ee) skeleton aiming but no hit landed -> the bunker escalation needs a CONNECTED shot.
-        assertFalse(BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{true, false}), false),
-                "death#26②(ee): charging-but-not-hit must NOT bunker (needs a connected shot)");
-        // (ff) already sealed -> must NOT re-trigger (re-dig ratchet guard).
-        assertFalse(BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{false, true}), /*sealed*/ true),
-                "death#26②(ff): already sealed must NOT re-escalate (no deeper re-dig once capped)");
-        // (gg) a MELEE hit -> not a ranged pin; the swarm 'cornered' path governs melee.
-        assertFalse(BunkerChain.shouldRangedBunker(5f, 6f, meleeHit.apply(5.0), false),
-                "death#26②(gg): a melee (non-ranged) hit must NOT trigger the ranged-pin bunker");
-    }
-
-    @Test
     void theReasonClassifiersAreTheGates() {
         // gap#72-④: shouldEnter == enterReason!=null and shouldRelease == releaseReason!=null by
         // construction, so pin the classification itself: first-match order is

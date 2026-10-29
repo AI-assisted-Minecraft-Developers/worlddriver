@@ -477,7 +477,7 @@ The newest event's seq, as a decimal string. Pass it as the cursor of mc.observe
 
 ### `mc.observe.eventsSince`
 
-The events after cursor, oldest first, at most limit of them. Only the newest 4096 events are kept, so a cursor older than that gets what is left. The driver's own types are block.break, block.place, block.fill, entity.death, player.join, player.leave, chat.message, world.restore, command.result, wait.done, condition.met, player.death, player.hurt, player.enteredWater, player.enteredLava, time.phase, item.pickup, tool.broke, advancement, screen.autoClosed, client.message, client.actionBar, client.title, duskExposed, cornered, threat.appeared, duskSecure.triggered, duskSecure.urgentDryRun, route.blocked, route.detour, route.exposed; whatever mc.events emit names comes too. After an action, returnEvents on the action saves this round trip. Needs a server.
+The events after cursor, oldest first, at most limit of them. Only the newest 4096 events are kept, so a cursor older than that gets what is left. The driver's own types are block.break, block.place, block.fill, entity.death, player.join, player.leave, chat.message, world.restore, command.result, wait.done, condition.met, player.death, player.hurt, player.enteredWater, player.enteredLava, time.phase, item.pickup, tool.broke, advancement, screen.autoClosed, client.message, client.actionBar, client.title, duskExposed, cornered, threat.appeared, duskSecure.triggered, route.blocked, route.detour, route.exposed; whatever mc.events emit names comes too. After an action, returnEvents on the action saves this round trip. Needs a server.
 
 - Params: `EventsSinceParams` (may be omitted); reply: `EventPage`
 - Effects: snapshot_read
@@ -655,10 +655,6 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `debugFly` | `boolean` |  |  |
 | `autoRetreat` | `boolean` | `false` | Flee to safety when HP drops below retreatHpThreshold (in-engine reflex; the only reliable mob defense — an MCP round-trip is too slow to react to a swarm) |
 | `retreatHpThreshold` | number 0–20 | `6.0` | HP at/below which autoRetreat flees. |
-| `autoBunker` | `boolean` | `false` | "dig three, fill one" emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with the dug block — the no-gear survival move vs a swarm. Modifies the world. |
-| `bunkerHpThreshold` | number 0–20 | `10.0` | HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) |
-| `bunkerTriggerRadius` | number 1–16 | `7.0` | A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) |
-| `bunkerMinHostiles` | integer 1–10 | `2` | How many surrounding hostiles before digging in. |
 | `bunkerDepth` | integer 1–5 | `2` | Blocks to dig straight down before sealing. |
 | `autoDodge` | `boolean` | `false` | Sidestep creeper detonations and incoming projectiles. |
 | `creeperKeepDistance` | number 1–16 | `3.5` | A swelling creeper this close makes the bot sprint away. |
@@ -670,7 +666,6 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `drownEscapeReleaseAir` | `number` | `280` | Air ticks at/above which DrownEscapeChain hands the channel back (wide hysteresis; values >300 clamp to vanilla max) |
 | `combatFrailThreshold` | `number` | `6.0` |  |
 | `duskUrgent` | `boolean` | `true` |  |
-| `duskUrgentDryRun` | `boolean` | `false` |  |
 | `mine.searchVerticalRadius` | integer 1–32 | `8` | Vertical band of mine scan. |
 | `autoEatFoodThreshold` | integer 0–20 | `18` | Trigger autoEat below this food level. |
 | `healHpThreshold` | number 0–20 | `12.0` | HP at/below which autoHeal uses a healing item. |
@@ -904,7 +899,6 @@ The types the driver emits itself; a script's own `mc.events` types come too, wi
 | `cornered` | `EventPosition` | info | The bot has hostiles around it and nowhere to step away to. |
 | `threat.appeared` | `ThreatAppearedEvent` | warning | A different hostile became the most dangerous one near the bot. |
 | `duskSecure.triggered` | `DuskSecureTriggeredEvent` | warning | The dusk reflex started digging in on its own; mc.bot.cancel stops it. |
-| `duskSecure.urgentDryRun` | `EventPosition` | info | The dusk reflex would have preempted the current task, had duskUrgentDryRun been off. |
 | `route.blocked` | `RouteBlockedEvent` | info | A search under route conditions could not reach the goal. |
 | `route.detour` | `RouteDetourEvent` | info | Route conditions made the route much longer than the straight line. |
 | `route.exposed` | `RouteExposedEvent` | info | A hostile can see part of the planned route. |
@@ -2081,14 +2075,6 @@ interface SettingValues {
     autoRetreat?: boolean;
     /** HP at/below which autoRetreat flees. @default 6.0 */
     retreatHpThreshold?: number;
-    /** "dig three, fill one" emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with the dug block — the no-gear survival move vs a swarm. Modifies the world. @default false */
-    autoBunker?: boolean;
-    /** HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire) @default 10.0 */
-    bunkerHpThreshold?: number;
-    /** A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8) @default 7.0 */
-    bunkerTriggerRadius?: number;
-    /** How many surrounding hostiles before digging in. @default 2 */
-    bunkerMinHostiles?: number;
     /** Blocks to dig straight down before sealing. @default 2 */
     bunkerDepth?: number;
     /** Sidestep creeper detonations and incoming projectiles. @default false */
@@ -2111,8 +2097,6 @@ interface SettingValues {
     combatFrailThreshold?: number;
     /** @default true */
     duskUrgent?: boolean;
-    /** @default false */
-    duskUrgentDryRun?: boolean;
     /** Vertical band of mine scan. @default 8 */
     'mine.searchVerticalRadius'?: number;
     /** Trigger autoEat below this food level. @default 18 */

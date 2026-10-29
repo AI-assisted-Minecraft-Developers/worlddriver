@@ -262,8 +262,6 @@ public final class EventCatalog {
     public static final Entry<DuskSecureTriggered> DUSK_SECURE_TRIGGERED = entry("duskSecure.triggered",
             ApiTypes.record(DuskSecureTriggered.class),
             Level.WARNING, "The dusk reflex started digging in on its own; mc.bot.cancel stops it.");
-    public static final Entry<At> DUSK_SECURE_URGENT_DRY_RUN = entry("duskSecure.urgentDryRun", AT, Level.INFO,
-            "The dusk reflex would have preempted the current task, had duskUrgentDryRun been off.");
 
     @Named("RouteBlockedEvent")
     public record RouteBlocked(

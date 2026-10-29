@@ -17,16 +17,6 @@ public record ArbitrationSettings(
         @Default("false") boolean autoRetreat,
         @Doc("HP at/below which autoRetreat flees.")
         @Default("6.0") @Range(min = 0, max = 20) double retreatHpThreshold,
-        @Doc("\"dig three, fill one\" emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles "
-                + "hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with "
-                + "the dug block — the no-gear survival move vs a swarm. Modifies the world.")
-        @Default("false") boolean autoBunker,
-        @Doc("HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire)")
-        @Default("10.0") @Range(min = 0, max = 20) double bunkerHpThreshold,
-        @Doc("A hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8)")
-        @Default("7.0") @Range(min = 1, max = 16) double bunkerTriggerRadius,
-        @Doc("How many surrounding hostiles before digging in.")
-        @Default("2") @Range(min = 1, max = 10) int bunkerMinHostiles,
         @Doc("Blocks to dig straight down before sealing.")
         @Default("2") @Range(min = 1, max = 5) int bunkerDepth,
         @Doc("Sidestep creeper detonations and incoming projectiles.")
@@ -53,8 +43,7 @@ public record ArbitrationSettings(
                 + "to vanilla max)")
         @Default("280") int drownEscapeReleaseAir,
         @Default("6.0") double combatFrailThreshold,
-        @Default("true") boolean duskUrgent,
-        @Default("false") boolean duskUrgentDryRun) {
+        @Default("true") boolean duskUrgent) {
 
     public static final ArbitrationSettings DEFAULTS =
             ApiTypes.record(ArbitrationSettings.class).decode(new JsonObject());

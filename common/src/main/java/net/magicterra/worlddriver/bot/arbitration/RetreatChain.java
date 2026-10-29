@@ -455,8 +455,7 @@ public final class RetreatChain implements Chain {
     }
 
     // underRangedFire is now ThreatScanner.Scan#underRangedFire — the only predicate in this
-    // block that compares against no threshold, and the one BunkerChain also needed. Its two
-    // measurements (death #6 here, death #26 there) are recorded on it.
+    // block that compares against no threshold. Its measurement (death #6) is recorded on it.
 
     /** A {@link RangedAttackMob} within {@code radius} that the bot can currently
      *  SEE — gap#71's release guard, deliberately independent of {@code charging}

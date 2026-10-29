@@ -56,7 +56,7 @@ class ProcessNameTest {
                 chains++;
             }
         }
-        assertTrue(kinds >= 15 && chains >= 8, "the scan found only " + kinds + " kinds and " + chains + " chains");
+        assertTrue(kinds >= 15 && chains >= 7, "the scan found only " + kinds + " kinds and " + chains + " chains");
         Set<String> api = new TreeSet<>(Arrays.stream(ProcessName.values()).map(WireName::wireName).toList());
         assertEquals(spelled, api);
     }

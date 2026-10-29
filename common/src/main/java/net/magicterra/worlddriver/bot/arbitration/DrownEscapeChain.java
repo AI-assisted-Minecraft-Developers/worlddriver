@@ -37,8 +37,8 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * structural fix is scheduler-semantic: drowning under an ACTIVE process must
  * PREEMPT the movement channel, exactly like bunker/retreat/panic do.
  *
- * <p>Priority {@link Priorities#DROWN_ESCAPE} (500): above {@link BunkerChain}
- * (300 — bunker digs DOWN, which while drowning is precisely lethal) and the
+ * <p>Priority {@link Priorities#DROWN_ESCAPE} (500): above an ordered bunker
+ * (300 — a bunker digs DOWN, which while drowning is precisely lethal) and the
  * user task, below {@link PanicChain} (1000)/{@link DodgeChain} (900) so a
  * creeper-blast sprint still wins.
  *
@@ -47,7 +47,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * drew: a survival float is a reflex, not autonomous movement). If something is
  * in the way of the rise — asked by sweeping the player's own box up, see
  * {@link #blockedAbove}, NOT by naming one cell above one column — break it,
- * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
+ * {@code allowBreak} permitting, aiming and attacking the block like a player would
  * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
  *
  * <p>The lateral arm steers only along a route it has walked in the scan — see
@@ -76,8 +76,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * {@code "FLOATING"}), reachable by {@code mc.bot.cancel} and the player-death
  * hook via {@link #cancelEpisode}; it holds no {@code BotProcess}, so
  * {@link #heldProcessKind} keeps the default null. Note a cancel while still
- * underwater+critical re-arms next tick by design (same contract as a cancelled
- * BunkerChain under an ongoing siege): {@link Chain#cancelEpisode} restores
+ * underwater+critical re-arms next tick by design: {@link Chain#cancelEpisode} restores
  * "fresh instance" state, not immunity.
  */
 public final class DrownEscapeChain implements Chain {
@@ -114,8 +113,7 @@ public final class DrownEscapeChain implements Chain {
 
     /** Headless-test sensor override ({@code null} in production): lets the
      *  dedicated-server arena feed the REAL FakePlayer's underwater/air readings
-     *  through the real priority()/scheduler path without any client classes
-     *  (same seam philosophy as {@link BunkerChain#anchorForTest}). */
+     *  through the real priority()/scheduler path without any client classes. */
     private BooleanSupplier underwaterForTest;
     private IntSupplier airForTest;
 
@@ -135,8 +133,8 @@ public final class DrownEscapeChain implements Chain {
     }
 
     /** One pure latch transition (server-safe, matrix/arena-testable): feed this
-     *  tick's readings, get the new latch. Public for the same cross-module
-     *  GameTest reason as {@link BunkerChain#resetEpisodeState()}. */
+     *  tick's readings, get the new latch. Public because the scenes that drive it
+     *  sit in another module. */
     public boolean updateLatch(boolean underwater, int air) {
         boolean was = latched;
         latched = DrownEscapeGate.next(latched, underwater, air,
@@ -441,14 +439,13 @@ public final class DrownEscapeChain implements Chain {
     }
 
     /** Pure episode-state reset (server-safe, matrix-testable) — the client
-     *  key-release half stays in {@link #releaseHeldKeys(Body)}, same split as
-     *  {@link BunkerChain#resetEpisodeState()}. */
+     *  key-release half stays in {@link #releaseHeldKeys(Body)}. */
     public void resetEpisodeState() {
         latched = false;
         prevAir = -1;
     }
 
-    /** Test seam ({@link BunkerChain#anchorForTest} precedent): route priority()
+    /** Test seam: route priority()
      *  readings through the given suppliers instead of {@code mc.player}, so the
      *  dedicated-server arena can drive the real chain+scheduler. */
     public void sensorForTest(BooleanSupplier underwater, IntSupplier air) {

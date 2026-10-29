@@ -51,7 +51,7 @@ public final class BotInteract {
      *
      * <p><b>Why this is a static here instead of two lines at the call site.</b> A chain class lives
      * in the scheduler and is CONSTRUCTED on a dedicated server — the pure-logic gate scenes build
-     * {@code BunkerChain}, {@code RetreatChain} and {@code DuskSecureChain} directly to drive their
+     * {@code RetreatChain} and {@code DuskSecureChain} directly to drive their
      * matrices. Those classes may hold {@code LocalPlayer} locals and call methods ON them; that has
      * always been fine. What is NOT fine is naming a client class the chain never named before:
      * writing {@code mc.gameMode.continueDestroyBlock(…)} inline puts an {@code invokevirtual} on

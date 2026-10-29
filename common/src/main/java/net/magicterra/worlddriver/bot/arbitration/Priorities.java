@@ -23,9 +23,9 @@ public final class Priorities {
      *  which while drowning is precisely lethal — and below PANIC/DODGE so a
      *  creeper-blast sprint or projectile sidestep still wins the tick. */
     public static final float DROWN_ESCAPE = 500f;
-    /** Emergency dig-in (BunkerChain's "dig three, fill one") when cornered by a swarm — outranks
-     *  a plain low-HP retreat, because fleeing into more mobs is worse than sealing
-     *  a hole. Below DODGE so a creeper/projectile reflex still wins. */
+    /** An ordered "dig three, fill one" dig-in ({@code mc.bot.bunker}, bid by UserTaskChain for a
+     *  BunkerProcess) — outranks a plain low-HP retreat, because fleeing into more mobs is worse than
+     *  finishing a sealed hole. Below DODGE so a creeper/projectile reflex still wins. */
     public static final float BUNKER = 300f;
     /** Low-HP disengage (RetreatChain). Ramps up as HP falls below threshold. */
     public static final float SURVIVAL = 100f;

@@ -14,7 +14,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Idle-only proactive shelter at dusk (controlled re-intro of the shelved BunkerChain).
+ * Idle-only proactive shelter at dusk.
  * Bids IDLE_SECURE (40) — below USER (50) — ONLY when dusk/night + sky-exposed + not
  * cornered + no nearby threat, and only after a short debounce so a brief between-intents
  * pause doesn't trigger a dig. Drives BunkerProcess. See docs/design/perception-and-decision-layers.md.
@@ -22,14 +22,11 @@ import net.minecraft.world.entity.LivingEntity;
  * <p>gap#68-④⑨: a user task bidding USER(50) permanently suppressed this reflex all
  * night (it never outbids 40). When still exposed and unsheltered — and not already
  * cornered/mid-dig — this now escalates to {@link Priorities#DUSK_URGENT}(90), which
- * outranks USER/COMBAT but stays below SURVIVAL/BUNKER so a real flee/dig-in still wins.
- * {@link ArbitrationConfig#duskUrgentDryRun} lets the escalated path be observed (an emitted
- * event) for a first live night before it is allowed to actually preempt.
+ * outranks USER/COMBAT but stays below SURVIVAL so a real flee still wins.
  */
 public final class DuskSecureChain implements Chain {
     private static final int IDLE_DEBOUNCE_TICKS = 20; // ~1s at 20 tps (spec §3.4)
     private static final double THREAT_RADIUS = 12.0;
-    private static final int DRY_RUN_EMIT_COOLDOWN_TICKS = 200;
     /** How long a failed shelter keeps this chain out of the bid: thirty seconds, so the user task
      *  gets a real stretch of travel off the failed site before the next try, and a night still
      *  holds some twenty tries for when it has found diggable ground. */
@@ -41,7 +38,6 @@ public final class DuskSecureChain implements Chain {
     private ProcessScheduler scheduler;
     private int idleTicks;
     private float lastBidTier = Priorities.IDLE_SECURE;
-    private int dryRunCooldown;
     /** gap#75-b: true while the last dig episode ended by PREEMPTION (onInterrupt)
      *  rather than by the process's own verdict. The bot preempted mid-dig is left
      *  standing in its own half-dug 1×1 shaft, which reads {@code cornered=true}
@@ -70,42 +66,27 @@ public final class DuskSecureChain implements Chain {
     /**
      * Pure bid policy for the dusk reflex (matrix-testable in isolation, per gap#68-⑨
      * spec §3.4): {@code cornered} always sits out (0 — either genuinely boxed in by
-     * mobs, where BUNKER(300) should own the channel, or our own half-dug shaft mid-dig,
-     * which the caller already handles via the {@code process != null} hold). Otherwise
-     * the reflex always has AT LEAST the legacy {@link Priorities#IDLE_SECURE}(40) tier;
+     * mobs, where fleeing or an ordered bunker should own the channel, or our own half-dug
+     * shaft mid-dig, which the caller already handles via the {@code process != null} hold).
+     * Otherwise the reflex always has AT LEAST the legacy {@link Priorities#IDLE_SECURE}(40) tier;
      * it only climbs to {@link Priorities#DUSK_URGENT}(90) when actually exposed at night
-     * AND the escalation flag is on AND the dry-run canary isn't holding it back. Note:
+     * AND the escalation flag is on. Note:
      * in production, {@link #priority} only ever calls this once its own day/present/
      * cornered gate has already passed (exposedAtNight=true, cornered=false) — the
      * daytime/cornered branches below exist so this pure gate is fully specified and
      * independently testable for any input combination, not just the ones the current
      * caller happens to produce.
      */
-    public static float urgentBid(boolean exposedAtNight, boolean cornered,
-                                  boolean urgentOn, boolean dryRun) {
+    public static float urgentBid(boolean exposedAtNight, boolean cornered, boolean urgentOn) {
         if (cornered) return 0f;
-        if (exposedAtNight && urgentOn && !dryRun) return Priorities.DUSK_URGENT;
+        if (exposedAtNight && urgentOn) return Priorities.DUSK_URGENT;
         return Priorities.IDLE_SECURE;
-    }
-
-    /** Pure predicate (final-review finding #3): would the escalation have fired this
-     *  tick if not for dry-run mode holding it at the legacy tier? Deliberately NOT
-     *  gated on the legacy idle-tier {@link #THREAT_RADIUS} veto or the idle-debounce
-     *  window — both live downstream in {@link #priority} and both can suppress/reset
-     *  on the EXACT condition (a threat nearby at night) the canary exists to observe.
-     *  A threat sitting at, say, 8 blocks all night would veto the bid to 0 every tick
-     *  (never entering the debounce window at all) and previously starved the canary of
-     *  a single emit during precisely the case escalation is for. The 200-tick emit
-     *  cooldown ({@link #maybeEmitDryRun}) is the sole anti-spam guard. */
-    public static boolean wouldEscalate(boolean exposedAtNight, boolean cornered,
-                                        boolean urgentOn, boolean dryRun) {
-        return exposedAtNight && !cornered && urgentOn && dryRun;
     }
 
     /** gap#75-b pure start-gate (server-safe, matrix-testable — the {@link #urgentBid}
      *  split precedent): does the legacy day/present/cornered gate refuse to (re)start
      *  a dig this tick? {@code cornered} normally sits the reflex out (a genuinely
-     *  boxed-in bot is BunkerChain(300)'s case) — EXCEPT while {@code rearmPending}:
+     *  boxed-in bot is not a shelter case) — EXCEPT while {@code rearmPending}:
      *  a preemption dropped the held process mid-dig, so the cornered reading IS our
      *  own unsealed shaft and must not block finishing/sealing it. Day/absent always
      *  block; the caller's THREAT_RADIUS veto and idle debounce stay downstream. */
@@ -134,17 +115,7 @@ public final class DuskSecureChain implements Chain {
             if (s.present() && !s.exposedAtNight()) rearmPending = false;
             idleTicks = 0; return 0f;
         }
-        float bid = urgentBid(true, false, ArbitrationConfig.duskUrgent, ArbitrationConfig.duskUrgentDryRun);
-        // final-review finding #3: emit the "would have escalated" canary BEFORE the
-        // legacy idle-tier THREAT_RADIUS veto below (and independent of the idle-debounce
-        // window) — a nearby-threat night is exactly the case the escalation is for, and
-        // the old placement let the veto zero the bid (and reset idleTicks) before
-        // maybeEmitDryRun was ever reached, so the canary emitted nothing precisely when
-        // mobs were near. This only affects the OBSERVE-ONLY emit; the RETURNED bid below
-        // still runs through the legacy veto/debounce path completely unchanged.
-        if (wouldEscalate(true, false, ArbitrationConfig.duskUrgent, ArbitrationConfig.duskUrgentDryRun)) {
-            maybeEmitDryRun(p.blockPosition());
-        }
+        float bid = urgentBid(true, false, ArbitrationConfig.duskUrgent);
         if (bid == Priorities.IDLE_SECURE) {
             // Legacy idle tier keeps its protections: never near a threat, never preempting.
             for (ThreatScanner.Threat t : st.threats.current().threats()) {
@@ -153,7 +124,7 @@ public final class DuskSecureChain implements Chain {
         }
         // NOTE: the escalated DUSK_URGENT tier deliberately skips the THREAT_RADIUS veto
         // above — a real threat should make the bot dig in MORE urgently, not sit out;
-        // RetreatChain(100)/BunkerChain(300) still outrank 90 in genuine combat.
+        // RetreatChain(100) still outranks 90 in genuine combat.
         idleTicks++;
         if (idleTicks < IDLE_DEBOUNCE_TICKS) return 0f;  // require a stable window before acting
         lastBidTier = bid;
@@ -202,19 +173,6 @@ public final class DuskSecureChain implements Chain {
         emitter.emit("duskSecure.triggered", p, data);
     }
 
-    /** Observe-only canary for {@link ArbitrationConfig#duskUrgentDryRun}: pushes at most one
-     *  {@code duskSecure.urgentDryRun} event per {@link #DRY_RUN_EMIT_COOLDOWN_TICKS}
-     *  ticks so a first live night can confirm the escalation WOULD have fired before
-     *  the flag is flipped to actually preempt the user task. Mirrors {@link
-     *  #announceAutoTrigger}'s emit shape. */
-    private void maybeEmitDryRun(BlockPos p) {
-        if (dryRunCooldown > 0) { dryRunCooldown--; return; }
-        JsonObject data = new JsonObject();
-        data.add("pos", cell(p));
-        emitter.emit("duskSecure.urgentDryRun", p, data);
-        dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
-    }
-
     private static JsonObject cell(BlockPos p) {
         JsonObject pos = new JsonObject();
         pos.addProperty("x", p.getX());
@@ -235,8 +193,7 @@ public final class DuskSecureChain implements Chain {
     @Override public String episodePhase() { return process != null ? "SECURING" : null; }
 
     /** gap#72-②: expose the held BunkerProcess's kind ("bunker") so a targeted
-     *  {@code mc.bot.cancel{process:"bunker"}} can reach it — by NAME it only ever
-     *  found the (unrelated, usually idle) BunkerChain. */
+     *  {@code mc.bot.cancel{process:"bunker"}} can reach it by kind. */
     @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
 
     @Override public String heldProcessDetail() { return process != null ? process.statusDetail() : null; }
@@ -247,7 +204,7 @@ public final class DuskSecureChain implements Chain {
     }
 
     /** State half of {@link #onInterrupt}, which the matrix scenes drive with no body to
-     *  release (the {@link BunkerChain#resetEpisodeState()} split precedent). gap#72-①: a bare
+     *  release. gap#72-①: a bare
      *  {@code process = null} here orphaned the
      *  st.bunker slot (its only reset lives in BunkerProcess.finish, unreachable once
      *  the reference is dropped) — active=true/SEALED lingered forever after a
@@ -273,8 +230,8 @@ public final class DuskSecureChain implements Chain {
     }
 
     /** Test seam (gap#72): inject a held process so the interrupt/cancel lifecycle is
-     *  matrix-testable without a client tick. Public for the same cross-module reason
-     *  as {@link BunkerChain#anchorForTest()}. */
+     *  matrix-testable without a client tick. Public because the scenes that drive it sit
+     *  in another module. */
     public void adoptProcessForTest(BunkerProcess p) { this.process = p; }
 
     /** Test seam (gap#72): the held process, or null once dropped. */

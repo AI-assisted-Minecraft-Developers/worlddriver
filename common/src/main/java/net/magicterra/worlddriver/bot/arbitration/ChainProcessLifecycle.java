@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.bot.behavior.BotProcess;
  * before — add new chain-held-process drop sites HERE, not inline.
  *
  * <p>Deliberately server-safe (no client classes): key release stays in the
- * chains' client half, same split as {@code BunkerChain.resetEpisodeState()}.
+ * chains' client half, same split as {@code DrownEscapeChain.resetEpisodeState()}.
  */
 public final class ChainProcessLifecycle {
 
