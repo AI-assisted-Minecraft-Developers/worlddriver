@@ -275,6 +275,28 @@ The blaze-rod advancement. Measure whether the inventory-changed trigger fires f
 before believing either side of it. **Unverified:** a joined bot picks up a blaze rod and the test
 reads `minecraft:nether/obtain_blaze_rod` progress.
 
+### `probeSwing` ticking the level by hand can hang the server
+
+`SimProbes.probeSwing` calls `level.tick` from inside a server task; once, under a full Fabric suite with
+the JaCoCo agent, that call never returned from `ChunkMap.processUnloads`, the watchdog killed the server
+after 60 seconds, and every scene after `WorldDriverTest.gearScope` failed. Not reproduced alone or in
+the next full run. The probe should not tick the level itself.
+
+### The coverage scripts predate the build migration
+
+`scripts/coverage/report.py` reads classes only from `classes-t0`/`classes-t1`, named after the deleted
+runners, and nothing sets `classdumpdir`, so a run reports nothing without that passed by hand;
+`triage.py` matches only `control/Navigator*.java`, not the phase and controller subpackages;
+`includes=net.magicterra.*` counts the testmod's scenes and StageWright's classes into the total; and
+no document says where the JaCoCo jars come from. The run itself still works: `testkitCoverageAgent`
+reaches both game processes.
+
+### Production answers carry obfuscated class names
+
+A goto's result on a Fabric production game reads `Block[target=class_2338{x=6,…}]`: a `BlockPos`'s
+`toString` leaks into the goal text. `mc.system.version` also answers the hard-coded `0.1.0-dev` from
+`BuildStamp` on every build.
+
 ---
 
 ## Found on the survival ladder
