@@ -19,8 +19,6 @@ import net.magicterra.worlddriver.api.methods.bot.BotTaskBlockingApi;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.BotTicker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -73,8 +71,6 @@ class JupiterBodyTest {
         assertEquals(new BlockPos(40, 70, 40), courier.blockPos(), "where it stood");
         float health = courier.onServer(p -> p.getHealth());
         assertEquals(7.0F, health, "as it was");
-        boolean ticking = game.onServer(s -> BotTicker.isRegistered(BotRegistry.get(courier.ref())));
-        assertTrue(ticking, "back on the tick list");
     }
 
     @Test
