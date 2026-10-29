@@ -61,6 +61,11 @@ public class PlayerBot extends ServerBot {
         return new PlayerBot(ServerPlayerBody.createUnique(level, x, y, z));
     }
 
+    /** A driver over the player named {@code name} ({@link ServerPlayerBody#createNamed}), addressed by that name. */
+    public static PlayerBot createNamed(ServerLevel level, String name, double x, double y, double z) {
+        return new PlayerBot(ServerPlayerBody.createNamed(level, name, x, y, z)).named(name);
+    }
+
     /**
      * Point the driver at a goal (re-arms a finished driver).
      *

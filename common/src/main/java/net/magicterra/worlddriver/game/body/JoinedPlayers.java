@@ -126,7 +126,7 @@ public final class JoinedPlayers {
      * from a removal callback, keeps the cache self-healing — players are only ever created on the
      * server thread, so the sweep-then-put is not racing anything.
      *
-     * <p>The sweep is not optional. Scenes create players under unique names ({@code agent-body-N}),
+     * <p>The sweep is not optional. Scenes create players under names unique within the process,
      * so a stale entry is never overwritten by a re-join; it just stays, and the map was the last
      * thing holding each departed {@code ServerPlayer} with its advancements, stats and inventory.
      * Measured on the dedicated Fabric suite: 255 players retained after 300 scenes, and the 2 GB

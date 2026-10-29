@@ -17,13 +17,19 @@ public final class Roster {
     /** {@code unknown} when the ref names no bot; otherwise the request names something that cannot be a bot. */
     public record Refusal(String message, boolean unknown) implements Outcome {}
 
-    /** A new player bot at {@code pos} in {@code level}, addressed as {@code player:<name>}. */
+    /**
+     * A new player bot at {@code pos} in {@code level}, addressed as {@code player:<name>} and named {@code name} in
+     * the game too ({@link PlayerBot#createNamed}): a name used before in this world loads what was saved for it.
+     */
     public static Outcome spawn(ServerLevel level, Vec3 pos, String name) {
         String id = PlayerBot.KIND + ":" + name;
         // Checked before the player joins, so a taken name spawns nothing. Every registry writer runs on
         // the server thread, so nothing can take the name in between.
         if (BotRegistry.get(id) != null) return new Refusal("a bot named " + id + " already exists", false);
-        PlayerBot bot = PlayerBot.createIsolated(level, pos.x, pos.y, pos.z).named(name);
+        if (level.getServer().getPlayerList().getPlayerByName(name) != null) {
+            return new Refusal("a player named " + name + " is already on this server", false);
+        }
+        PlayerBot bot = PlayerBot.createNamed(level, name, pos.x, pos.y, pos.z);
         BotTicker.register(bot);
         BotRegistry.register(bot);
         return new Done(id);

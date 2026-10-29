@@ -1,8 +1,11 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -10,7 +13,14 @@ import java.util.function.Consumer;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
+import net.magicterra.worlddriver.api.methods.action.ActionBlockingApi;
+import net.magicterra.worlddriver.api.methods.action.ActionContracts.CommandParams;
+import net.magicterra.worlddriver.api.methods.action.ActionContracts.CommandResult;
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlBlockingApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
 import net.magicterra.worlddriver.bot.stagewright.kit.Calls;
@@ -20,10 +30,12 @@ import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.testcontent.TestPlayerEvents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -68,6 +80,30 @@ class AvatarTest {
                 fail("driving agent A dragged idle agent B " + bDrift + " blocks: the two agents are sharing one player");
             }
         });
+    }
+
+    /**
+     * A bot is the name it was spawned with in the game: its profile has that name and the UUID an offline-mode
+     * server gives it, a command finds it by name, and the name cannot join a second time.
+     */
+    @Test
+    void aSpawnedBotJoinsUnderItsOwnName(Game game, @Plot.Centered Plot plot) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        Settings.pin(game);
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
+        String profile = bot.onServer(p -> p.getGameProfile().getName());
+        UUID uuid = bot.onServer(Entity::getUUID);
+        assertEquals(bot.name(), profile, "the bot's player is not named as the bot");
+        assertEquals(UUIDUtil.createOfflinePlayerUUID(bot.name()), uuid, "the bot's UUID is not the offline one for its name");
+
+        CommandResult byName = game.api(ActionBlockingApi::of)
+                .runCommand(new CommandParams("data get entity " + bot.name() + " Pos", false, Optional.empty()));
+        assertTrue(byName.success(), "data get entity " + bot.name() + " did not find the bot: " + byName.feedback());
+
+        Responses.ImmediateResponse again = game.api(ControlBlockingApi::of)
+                .roster(new ControlContracts.Spawn(bot.name(), Optional.empty(), Optional.empty()));
+        assertTrue(again instanceof Responses.Refused<?> refused && refused.reason() == RefusalReason.INVALID_WORLD_TARGET,
+                "a second bot under the name " + bot.name() + " was not refused: " + again);
     }
 
     /**

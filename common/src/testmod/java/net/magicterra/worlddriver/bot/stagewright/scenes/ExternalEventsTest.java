@@ -46,7 +46,7 @@ class ExternalEventsTest {
         Settings.pin(game);
         long cursor = cursor(game);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
-        // The player's own profile name, which the bot's roster name is not.
+        // The player's own profile name, which is the bot's roster name.
         String name = bot.onServer(p -> p.getGameProfile().getName());
         List<EventContracts.Event> joined = since(game, cursor, "player.join");
         long joins = joined.stream().filter(e -> name.equals(data(e))).count();

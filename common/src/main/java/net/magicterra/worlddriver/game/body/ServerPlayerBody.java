@@ -4,9 +4,11 @@ import net.magicterra.worlddriver.config.GameConfig;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import com.mojang.authlib.GameProfile;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,8 +43,9 @@ import net.minecraft.world.phys.Vec3;
  * (was NeoForge {@code FakePlayer}) and the player is obtained through the
  * {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
  *
- * <p><b>Who calls this.</b> {@link #createUnique}, through {@link PlayerBot#createIsolated}: every bot
- * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and {@code /worlddriver
+ * <p><b>Who calls this.</b> {@link #createNamed}, through {@link PlayerBot#createNamed}: every bot
+ * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and a named {@code /worlddriver
+ * server}; {@link #createUnique}, through {@link PlayerBot#createIsolated}, for an unnamed {@code /worlddriver
  * server} ({@link BotCommand}). The class
  * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
  * used to subclass it was deleted with the fake players.
@@ -127,8 +130,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     /** A bot player at {@code (x, y, z)} in {@code level}, ready to drive, with a player of its OWN — a fresh
      *  unique GameProfile, so this avatar can never be steered/teleported through another driver's player
-     *  (gap #48). Every server-side player bot comes from here: {@code mc.bot.roster}'s, which is how the
-     *  testmod's scenes get theirs, and {@code /worlddriver server}'s (two agents = two players).
+     *  (gap #48). An unnamed {@code /worlddriver server} agent comes from here, as {@code agent-body-N}; a
+     *  bot with a name, which is every {@code mc.bot.roster} bot, comes from {@link #createNamed}, and two
+     *  names are two players the same way.
      *
      *  <p>There was a factory that shared one player per level. It went because a concurrent scene could
      *  steal/teleport the shared player, so a solo-RED scene could ride a neighbour's shove to a full-suite
@@ -144,12 +148,27 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *  single-demo-agent command; revisit if agents get spawned in bulk. */
     public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
-        com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
+        GameProfile profile = new GameProfile(
                 java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
-        return init(JoinedPlayers.BOTS.unique(level, profile), x, y, z);
+        return init(level, JoinedPlayers.BOTS.unique(level, profile), x, y, z);
     }
 
-    private static ServerPlayerBody init(ServerPlayer fp, double x, double y, double z) {
+    /**
+     * A bot player whose in-game name is {@code name}, with the UUID an offline-mode server gives that name, so the
+     * same name is the same player every time: selectors and {@code /data get entity <name>} find it, and after a
+     * restart it is the player it was. The join loads whatever the world saved for that UUID (bag, health, game
+     * mode, effects) as it does for any player; a name never seen in this world joins fresh. The caller checks the
+     * name is not already on the server.
+     */
+    public static ServerPlayerBody createNamed(ServerLevel level, String name, double x, double y, double z) {
+        GameProfile profile = new GameProfile(UUIDUtil.createOfflinePlayerUUID(name), name);
+        return init(level, JoinedPlayers.BOTS.unique(level, profile), x, y, z);
+    }
+
+    private static ServerPlayerBody init(ServerLevel level, ServerPlayer fp, double x, double y, double z) {
+        // The join puts a player in the dimension its saved data names, and in the overworld when it has none,
+        // whatever level it was built for.
+        if (fp.serverLevel() != level) fp.teleportTo(level, x, y, z, 0f, 0f);
         fp.setPos(x, y, z);
         fp.setDeltaMovement(Vec3.ZERO);
         fp.setYRot(0);

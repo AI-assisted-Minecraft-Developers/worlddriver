@@ -87,8 +87,8 @@ public final class BotRegistry {
 
     /**
      * The player {@code ref} (a {@code player:<name>}) names on {@code server}: a roster bot registered under
-     * that full ref, whose profile name is not {@code <name>}, else a joined player of that profile name. Null
-     * when neither. Server thread only.
+     * that full ref, else a joined player of that profile name; a roster bot's profile name is its own name, so
+     * the two agree. Null when neither. Server thread only.
      */
     public static ServerPlayer serverPlayer(MinecraftServer server, String ref) {
         if (get(ref) instanceof ServerBot bot && bot.entity() instanceof ServerPlayer p) return p;

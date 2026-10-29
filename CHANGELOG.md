@@ -15,6 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spawn, its output still answered in `feedback`. The new optional `as` (`player:<name>`, a bot or a
   joined player) runs it as that player instead, for a command that needs `@s` or the player's
   dimension. A caller that relied on `@s` being the player must now pass `as` or write the name.
+- **A bot spawned with a name is that name in the game.** `mc.bot.roster spawn` (and so every StageWright
+  bot) used to join a player called `agent-body-N`, numbered per process, and keep the asked-for name
+  only as a label: `/data get entity sw_bot_1` found nothing, selectors by the bot's name failed, and a
+  bot could not be recognised after a restart. The player now has the asked-for name and the UUID an
+  offline-mode server gives that name, so the same name is the same player every time. A name already
+  on the server is refused like a taken bot name. Only an unnamed `/worlddriver server` still joins as
+  `agent-body-N`.
+  - **What the join loads.** Joining reads what the world saved for that UUID, as it does for any
+    player, and a bot's player is saved when it leaves. A name never used in the world joins fresh,
+    with an empty bag and the server's default game mode; a name used before comes back with its bag,
+    health, game mode and effects, which is what a bot kept across a restart needs. The position is
+    always the one the spawn asked for. This was already true of `agent-body-N` across restarts, since
+    the numbering starts again at 1; the testmod's `SceneBot` and StageWright reset bag, game mode,
+    health and food after each join for that reason.
+  - **A bot lands in the dimension it was spawned in.** The join puts a player in the dimension its
+    saved data names, or in the overworld when there is none, so a bot spawned in the Nether, or
+    under a name last saved in another dimension, stood at the right coordinates in the wrong
+    dimension. It is now moved to the dimension asked for.
 - **The NeoForge client loads on every NeoForge 21.1 release again.** On releases before 21.1.80 the
   client failed to load, because the driver's client entry listened for a mod-bus event and
   game-bus events from one class and those loaders register a class on a single bus. The entry is
