@@ -30,7 +30,9 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
@@ -875,18 +877,22 @@ class MobFightTest {
     /**
      * The ender pearl — a drop from a mob whose defence is to stop being there.
      *
-     * <p>An enderman teleports when hurt, which makes it the one fight on this road where the failure mode is
-     * not "cannot do enough damage" but "cannot land a second hit". So the reading that matters is a RATE: how
-     * many of a fixed number die, and how many pearls come back.
+     * <p>Measured on 1.21.1: an enderman teleports when its target player looks at it from within 4 blocks, and
+     * when hurt by a source that is not a living entity; the bot's melee is the player's, so it never takes the
+     * second path. The first is what lost fights: aiming at it from 3.5 blocks counts as a stare, and the teleport
+     * picks a spot within ±32 and walks down to the first solid block, which from a plot 145 blocks above the
+     * ground is the ground, where the enderman cannot reach the bot again. A fight after the first started with
+     * the bot still facing where the last enderman died, which is where the next one spawns. So the bot wears a
+     * carved pumpkin, vanilla's own counter: the stare reaction is gone, and the test measures whether driven melee
+     * kills an enderman and the kill reaches its loot table.
      *
-     * <p><b>Enclosed on purpose.</b> Vanilla's teleport picks a destination within ±32, so an open arena lets
-     * the mob leave the measurement rather than survive it; a roofed box keeps every teleport inside. A real
-     * stronghold is not a box. Like the blaze, the bot is invulnerable: the fight can be won, not survived.
+     * <p>The box only keeps the fight in one place; it cannot keep a teleport inside, since every destination is
+     * outside it. Like the blaze, the bot is invulnerable: the fight can be won, not survived.
      *
-     * <p>The bar is "more than one kill out of six": eight archived runs of unchanged code read
-     * 6,6,6,4,4,4,3,1 — a majority bar sat inside the test's own spread. 0-or-1, the systematic break, still
-     * reddens; the speed question moves to {@code fights.slow}, recorded and not gated, with a
-     * {@code fights.stall} row per fight that used the whole budget.
+     * <p>The bar is "more than one kill out of six", set when stare teleports made the count a spread
+     * (6,6,6,4,4,4,3,1 over eight archived runs). 0-or-1, the systematic break, still reddens; the speed question
+     * is {@code fights.slow}, recorded and not gated, with a {@code fights.stall} row per fight that used the
+     * whole budget.
      *
      * <p>The pearl is not a roll: each enderman carries a fixed loot seed, so every kill must yield exactly
      * {@link #PEARLS_PER_KILL}, and a short count means a kill did not reach its loot table.
@@ -899,8 +905,7 @@ class MobFightTest {
 
         Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, 0, 0);
-        // A lid and four walls, five high — tall enough for an enderman, closed enough that a teleport lands
-        // back inside.
+        // A lid and four walls, five high — tall enough for an enderman; they keep the fight in one place.
         final int r = 5, h = 5;
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -914,6 +919,8 @@ class MobFightTest {
         });
 
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.DIAMOND_SWORD);
+        // Vanilla's counter to the stare reaction; see the javadoc.
+        game.runOnServer(s -> bot.player().setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.CARVED_PUMPKIN)));
 
         final int fights = 6;
         final int fightTicks = 4_000;
@@ -948,7 +955,7 @@ class MobFightTest {
                 int t = 0;
                 for (; t < fightTicks && man.isAlive(); t++) {
                     bot.tick();
-                    if (man.isAlive()) man.tick();                 // AI ON: it teleports when hurt
+                    if (man.isAlive()) man.tick();                 // AI ON: it fights back and can still teleport
                     maxJump = Math.max(maxJump, man.position().distanceTo(prev));
                     prev = man.position();
                 }
@@ -985,8 +992,8 @@ class MobFightTest {
         reporter.publishEntry("pearls.perFight", tally + " (× = not killed)");
         reporter.publishEntry("pearls.total", pearls + "");
         if (stalls[0] != null) reporter.publishEntry("fights.stall", stalls[0]);
-        assertTrue(killed >= 2, "teleport-on-hurt does not make an enderman unkillable — more than a lucky single"
-                + " resolve out of " + fights + " fights: " + killed);
+        assertTrue(killed >= 2, "a driven bot wearing a carved pumpkin kills an enderman in more than one of "
+                + fights + " fights: " + killed);
         assertEquals(killed * PEARLS_PER_KILL, pearls, "every seeded kill yields exactly what its seed rolls: "
                 + tally + " (× = not killed)");
     }
