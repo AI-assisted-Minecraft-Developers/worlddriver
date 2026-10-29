@@ -44,7 +44,7 @@ public final class Parkour2 extends Move {
         // shallow 1-deep splash (floor below → not floating-water) stays valid.
         if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch clearance — need air at head+1 to jump.
-        if (!w.isPassable(from.offset(0, 2, 0))) return false;
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         // Middle column: foot + head must be passable (or water — Baritone
         // allows leaping over water/lava as long as foot column is clear).
         BlockPos midFoot = from.offset(dx / 2, 0, dz / 2);

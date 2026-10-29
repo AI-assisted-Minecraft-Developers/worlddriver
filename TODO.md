@@ -180,13 +180,6 @@ The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s
 the peak stall and arrival itself before a tool can compare a candidate against a baseline again
 (`docs/dev/replay-corpus.md`, "The regression check").
 
-### The head-cell hazard test covers three leaping moves out of nine
-
-`ParkourAscend`, `ParkourDescend` and `DiagonalAscend` test `isHazard` on the cell two above the
-origin. `Parkour2`, `Parkour2Diagonal`, `Parkour3`, `Parkour3Diagonal`, `Parkour4` and `ParkourPlace`
-only test that it is passable, and fire, berry bushes and powder snow are passable. This changes
-which edges the pathfinder can expand, so it needs its own check and its own attribution.
-
 ### Only one of three run-up rules is the strict one
 
 `Parkour3` alone requires two clear cells behind the jump (`Move.hasRunway(w, from, dx, dz)`).

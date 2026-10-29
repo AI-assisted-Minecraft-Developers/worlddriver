@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   any non-air, non-replaceable block as support, and a live run's click on a pad placed nothing. It now
   uses the same support rule as build and fill, so carpet, buttons, flowers and torches are refused as
   well; pressure plates still count.
+- **No leap launches under fire or powder snow two above the launch foot.** Three leaping moves refused
+  a hazard there; the flat parkour leaps (2, 3 and 4 blocks, both diagonals) and parkour-place asked only
+  that the cell be passable, which fire and powder snow are.
 
 ## 2026-10-28
 

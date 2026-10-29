@@ -58,7 +58,7 @@ public final class Parkour2Diagonal extends Move {
         // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
         // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
         if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
-        if (!w.isPassable(from.offset(0, 2, 0))) return false;
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         // Diagonal midpoint (1,1) and the two cardinal half-steps must
         // all be clear at foot+head — the player sweeps that whole corner.

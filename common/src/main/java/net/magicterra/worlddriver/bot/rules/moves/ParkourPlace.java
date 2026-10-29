@@ -36,7 +36,7 @@ public final class ParkourPlace extends Move {
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return null;
         if (!Move.hasRunway(w, from)) return null;                  // need solid ground to push off
-        if (!w.isPassable(from.offset(0, 2, 0))) return null;       // jump clearance over launch head
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return null;   // launch head clearance
         BlockPos to = apply(from);
         // Destination foot + head must be open (we land + stand there).
         if (!w.isPassable(to) || w.isHazard(to)) return null;
