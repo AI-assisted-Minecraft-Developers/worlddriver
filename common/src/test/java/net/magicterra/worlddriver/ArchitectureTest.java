@@ -206,6 +206,22 @@ class ArchitectureTest {
         assertNone(bad);
     }
 
+    /**
+     * The bot stack moves the hand only through the body ({@code setSelectedSlot}, {@code holdItem}), which
+     * publishes the slot to the other side. {@code Inventory.pickSlot} and a bare {@code selected} write move it
+     * on one side only.
+     */
+    @Test
+    void theBotMovesTheHandOnlyThroughTheBody() {
+        Pattern bare = Pattern.compile("\\bpickSlot\\s*\\(|\\.selected\\s*=(?!=)");
+        List<String> bad = new ArrayList<>();
+        for (Map.Entry<String, String> e : SOURCES.entrySet()) {
+            if (!e.getKey().startsWith("bot/")) continue;
+            if (bare.matcher(e.getValue()).find()) bad.add(e.getKey() + ": moves the selected slot past the body");
+        }
+        assertNone(bad);
+    }
+
     @Test
     void theScanSeesTheTree() {
         // A source root that resolved to nothing would make every test above pass vacuously.

@@ -438,7 +438,22 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 clickBlock.getY() + 0.5 + face.getStepY() * 0.5,
                 clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5);
         BlockHitResult brh = new BlockHitResult(hit, face, clickBlock, false);
-        fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh);
+        swingIf(fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh));
+    }
+
+    /**
+     * Swing when a connected player's client would have, and tell this player's own client too
+     * ({@code updateSelf}), which an adopted player has.
+     *
+     * <p>The swing a player's place shows comes from its client: {@code MultiPlayerGameMode.useItemOn}
+     * swings on a {@code shouldSwing()} result and sends the swing packet. Most uses answer
+     * {@code sidedSuccess(isClientSide)}, which is {@code SUCCESS} there and {@code CONSUME} here, so
+     * {@code shouldSwing()} alone on the server result never swings for a placed block; {@code CONSUME} is
+     * read as the client's {@code SUCCESS}. {@code useItemInHand} and {@code attackEntityUnchecked} do not
+     * swing here: their callers already do, and a second swing in the same tick would broadcast twice.
+     */
+    private void swingIf(net.minecraft.world.InteractionResult r) {
+        if (r.shouldSwing() || r == net.minecraft.world.InteractionResult.CONSUME) fp.swing(InteractionHand.MAIN_HAND, true);
     }
 
     @Override public void breakHold(boolean v) {
@@ -476,6 +491,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
         advancedCell = cell.immutable();
         advancedTick = fp.tickCount;
+        fp.swing(InteractionHand.MAIN_HAND, true);   // every dig tick swings, as the client's continueDestroyBlock does
         if (!GameConfig.faithfulBreak) {
             destroyAt(cell);
             return;
@@ -639,7 +655,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 cell.getY() + 0.5 + face.getStepY() * 0.5,
                 cell.getZ() + 0.5 + face.getStepZ() * 0.5);
         BlockHitResult brh = new BlockHitResult(hit, face, cell, false);
-        fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh);
+        swingIf(fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh));
     }
 
     @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {

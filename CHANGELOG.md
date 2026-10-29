@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call that clears them.
 - **A finished descend leaves `slots.escape` empty, as escape does.** Its goal, target, start time and
   path length used to linger after it ended.
+- **A server-side bot swings its arm when it digs, places a block or uses one**, as a player does:
+  every dig tick, and every place or block use that a player's client would swing for. Other
+  players, and the adopted player's own client, now see it. Attacks and item uses already swung.
+- **A creative bot that takes a block or item out of its bag for a build, fill, farm or tower now does it
+  through the body's own swap.** It used `Inventory.pickSlot`, which moved the hand without telling the
+  other side, so the server and the adopted player's client could hold different slots.
 
 ## 2026-10-28
 

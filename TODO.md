@@ -305,20 +305,19 @@ furnace on a joined bot, moves it away and asserts `containerMenu == inventoryMe
 The twin has not landed; the parity doc's "Look" row is `Accepted`. **Unverified:** settles once
 someone names which parity row the missing twin belongs to.
 
-### `Inventory.selected` is written in five production places
+### `BotInteract.creativePick` moves the hand through `pickSlot`
 
-Three direct (`ClientInput.setHotbarSlot`, `BotInteract.selectHotbar`, `ServerPlayerBody.carryTo`) and
-two through `pickSlot` (`HeldItem.holdById`, `BotInteract.creativePick`). The `HeldItem` one runs on
-the server bot without `carryTo`'s packet.
+It moves the client's `selected` and two stacks locally, with neither a carried-item packet nor
+vanilla's `ServerboundPickItemPacket`. The other writers are `ClientInput.setHotbarSlot`,
+`BotInteract.selectHotbar` and `ServerPlayerBody.carryTo`.
 
 ### Digging fidelity on the server-side avatar
 
 Bare-handed obsidian breaks, silk touch does not apply, and tools take no durability.
 
-### Pitch and hand swing
+### Pitch is written outside the look controller
 
-Pitch is written directly by about twenty sites outside the look controller; the server-side
-place/use/attack actuators do not swing. Parity doc "Breaking, placing and reach".
+About twenty sites write pitch directly. Parity doc "Breaking, placing and reach".
 
 ### Crafting leaves dropped items behind
 

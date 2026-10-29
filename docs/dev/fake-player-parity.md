@@ -224,16 +224,17 @@ player more power.
 | Break duration | progress accumulates per tick and the not-on-ground and underwater penalties apply | the server-side player destroys in one tick unless `ServerPlayerBody.faithfulBreak` is set, which two scenes do and nothing in production does | `Open` |
 | Break reach and visibility | the crosshair raycast, plus the server's distance check | the server-side player requires the target to have at least one face that is not a full solid render, and the eye-to-centre distance to be within the bot's own interaction range plus half a block. It does not raycast | `Approximate`, deliberately |
 | Break reach on the client player | the crosshair raycast and the server's distance check | the client player answers "yes" to every cell and lets vanilla's own game mode decide, because second-guessing it there could only disagree with the game | `Accepted` |
-| Placing | the server checks reach and the hit vector before `useItemOn`, then swings | the process-facing actuator calls `gameMode.useItemOn` with no reach check and no swing | `Open` |
-| Attacking | the server checks reach before `Player.attack`, then swings | the process-facing actuator calls `Player.attack` with no reach check and no swing | `Open` |
+| Placing | the server checks reach and the hit vector before `useItemOn`, then swings | the process-facing actuator calls `gameMode.useItemOn` with no reach check, and swings when a player's client would have (`SUCCESS`, or the server's `CONSUME`, which is the client's `SUCCESS`) | `Open` for reach, `Parity` for the swing |
+| Attacking | the server checks reach before `Player.attack`, then swings | the process-facing actuator calls `Player.attack` with no reach check and no swing of its own; every caller swings | `Open` for reach |
 | Placing into a cell with no solid neighbour | impossible — there is nothing to click | also impossible, and the actuator counts the refusal separately from "held nothing placeable" | `Parity` |
-| Swinging | every consumed use, place and attack swings | the swing lives at the call sites, not on the bot: the client player swings on each dig tick, and the combat, interaction and elytra processes swing on a consumed action. The server-side player's place, use and attack do not | `Open` |
+| Swinging | the client swings on every dig tick and on every use, place and attack whose client-side result `shouldSwing()`, and tells the server | the server-side player swings on each dig tick and on a place or block use whose server result is `SUCCESS`, `SUCCESS_NO_ITEM_USED` or `CONSUME` (a `sidedSuccess` answers `CONSUME` on the server where the client gets `SUCCESS`), telling its own client too. Use-in-hand and attack swing at their call sites: the combat, interaction, elytra and clutch code swing on a consumed action, which also swings for `CONSUME_PARTIAL` | `Parity` for dig, place and block use; `Approximate` at the call sites |
 
 The two routes described above do not agree here, and the difference is deliberate. A
 `mc.bot.*` verb addressed at a named bot lands in `application/BodyInteractions`, which does what
 the server's packet handlers do with a packet, reach check included: it refuses a use or an
 attack out of range, where a client's equivalent packet would simply be ignored, and swings
-on a consumed action. The `Equipment` / `Attack` / `BlockInteraction` actuators the navigator and the processes drive do neither.
+on a consumed action. The `Equipment` / `Attack` / `BlockInteraction` actuators the navigator and the processes drive
+check no reach; on the server-side player, place, block use and dig swing inside the actuator.
 That asymmetry is the first thing to check when a scene and an API call disagree about
 whether an action was possible.
 
@@ -259,7 +260,7 @@ the writes that skip the packet handler a real click would have gone through.
 
 | Behaviour | A connected player | A driven bot | Status |
 |---|---|---|---|
-| The selected hotbar slot | the client sends its choice and the server applies it | one method writes the field and publishes a carried-item packet, guarded on the value actually changing | `Parity` |
+| The selected hotbar slot | the client sends its choice and the server applies it | one method writes the field and publishes a carried-item packet, guarded on the value actually changing. The processes' held-item scan reaches the bag in creative through the body's own swap, not `Inventory.pickSlot`, and a source scan keeps the bot stack off both `pickSlot` and the bare field. `BotInteract.creativePick` on the client still calls `pickSlot` | `Parity` |
 | Changing the selected slot while an item is in use | the handler also stops the use, so a drawn bow is released from the draw | the driven bot's write does not, so a bow drawn to full stays "in use" across a slot change | `Open` |
 | Moving a stack between the bag and the hand | a container click | the slot contents are swapped directly; that much rides `containerMenu.broadcastChanges()` in the player's own tick, which is the same channel a click would have used | `Parity` for the contents |
 | Opening a station | right-click, `openMenu` | `useBlock` calls `gameMode.useItemOn` and the block's own use opens the menu through vanilla's `openMenu` | `Parity` |

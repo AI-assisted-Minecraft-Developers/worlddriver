@@ -23,7 +23,7 @@ import net.minecraft.world.item.Items;
  * matching bag slot in creative, so collapsing them changed nothing.
  *
  * <p><b>What this reaches, and what it does not.</b> Held slot, then hotbar slots 0..8, then — in
- * CREATIVE ONLY — main-inventory slots 9..35 via {@code Inventory.pickSlot}. In survival a stack
+ * CREATIVE ONLY — main-inventory slots 9..35 via {@link Equipment#holdItem}. In survival a stack
  * sitting past slot 8 is invisible here and the caller reports "no block".
  *
  * <p>That is NOT what {@link Equipment#holdItem} does. Both avatars reach the bag there:
@@ -76,13 +76,13 @@ final class HeldItem {
                 return true;
             }
         }
-        // Survival cannot auto-swap main → hotbar by writing to the list: the client would desync
-        // from the server's copy. pickSlot is a creative-only affordance, so survival gives up here.
+        // Survival stops here (see the class note). Creative takes the bag stack through the body's own
+        // swap: the server body publishes the carried slot, the client body clicks. A bare
+        // Inventory.pickSlot moved `selected` and the two stacks with neither, so the other side drifted.
         if (p.isCreative()) {
             for (int slot = 9; slot < inv.items.size(); slot++) {
                 if (matches(inv.items.get(slot), itemId)) {
-                    inv.pickSlot(slot);
-                    return matches(inv.getSelected(), itemId);
+                    return hands.holdItem(inv.items.get(slot).getItem()) && matches(inv.getSelected(), itemId);
                 }
             }
         }

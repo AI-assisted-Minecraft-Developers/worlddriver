@@ -294,6 +294,98 @@ class AvatarTest {
         });
     }
 
+    /** A tower places blocks, and a player that places a block swings its arm, as {@code handleUseItemOn} does. */
+    @Test
+    void serverPlacingSwingsTheArm(Game game, @Plot.Centered Plot plot) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set("navigatorDebug", false);
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
+        bot.give(Items.COBBLESTONE, 16);
+        game.runOnServer(s -> {
+            ServerPlayer fp = bot.player();
+            bot.tower(fp.blockPosition().getY() + 3, "minecraft:cobblestone", false);
+            int swung = 0, t = 0;
+            for (; t < 200 && bot.busy(); t++) {
+                bot.tick();
+                if (fp.swinging) swung++;
+            }
+            int placed = 16 - bot.count(Items.COBBLESTONE);
+            if (placed < 1) fail("rig broken: the tower placed nothing in " + t + " ticks");
+            if (swung < 1) fail("the tower placed " + placed + " blocks and the arm never swung");
+        });
+    }
+
+    /** A dig tick swings the arm, as the client's {@code continueDestroyBlock} does. */
+    @Test
+    void serverDiggingSwingsTheArm(Game game, @Plot.Centered Plot plot) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        plot.place(1, 1, 0, Blocks.STONE);
+        BlockPos cell = plot.at(1, 1, 0);
+        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", false).set("navigatorDebug", false);
+        SceneBot bot = SceneBot.spawn(game, plot.at(-1, 1, 0));
+        game.runOnServer(s -> {
+            ServerPlayer fp = bot.player();
+            bot.mineCell(cell);
+            int swung = 0, t = 0;
+            for (; t < 200 && bot.busy(); t++) {
+                bot.tick();
+                if (fp.swinging) swung++;
+            }
+            if (!bot.level().getBlockState(cell).isAir()) fail("rig broken: the cell was not dug in " + t + " ticks");
+            if (swung < 1) fail("the bot dug " + cell.toShortString() + " and the arm never swung");
+        });
+    }
+
+    /** The guard on the other side: a hit still swings, from the attack's call site. */
+    @Test
+    void serverAttackStillSwingsOnce(Game game, @Plot.Centered Plot plot) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        Settings.pin(game).set("navigatorDebug", false);
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
+        game.runOnServer(s -> {
+            ServerPlayer fp = bot.player();
+            net.minecraft.world.entity.monster.Zombie z =
+                    new net.minecraft.world.entity.monster.Zombie(net.minecraft.world.entity.EntityType.ZOMBIE, fp.serverLevel());
+            z.setNoAi(true);
+            z.setPos(fp.getX() + 1.5, fp.getY(), fp.getZ());
+            fp.serverLevel().addFreshEntity(z);
+            bot.tick(20);
+            float before = z.getHealth();
+            var hit = bot.attack(z.getId());
+            boolean swingingNow = fp.swinging;
+            z.discard();
+            if (!(hit instanceof net.magicterra.worlddriver.api.methods.shared.Responses.Attacked) || z.getHealth() >= before)
+                fail("rig broken: the hit was refused or did no damage: " + hit);
+            if (!swingingNow) fail("a hit no longer swings the arm: " + hit);
+        });
+    }
+
+    /**
+     * A creative bot whose block sits only in the bag takes it into the hand through the body's own swap, and ends
+     * holding it in a hotbar slot. The tower's held-item scan used to call {@code Inventory.pickSlot} instead.
+     */
+    @Test
+    void serverCreativeTowerTakesTheBlockFromTheBag(Game game, @Plot.Centered Plot plot) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set("navigatorDebug", false);
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
+        game.runOnServer(s -> {
+            ServerPlayer fp = bot.player();
+            fp.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+            fp.getInventory().clearContent();
+            fp.getInventory().items.set(20, new ItemStack(Items.COBBLESTONE, 16));
+            int startY = fp.blockPosition().getY();
+            bot.tower(startY + 1, "minecraft:cobblestone", false);
+            bot.tickUntilIdle(200);
+            int sel = fp.getInventory().selected;
+            String at = "selected=" + sel + " holding=" + fp.getInventory().getSelected() + " feetY=" + fp.blockPosition().getY()
+                    + " lastError=" + bot.status().slots().builder().lastError().orElse(null);
+            fp.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            if (!fp.getInventory().getSelected().is(Items.COBBLESTONE)) fail("the block never reached the hand: " + at);
+            if (fp.blockPosition().getY() <= startY) fail("the tower did not rise: " + at);
+        });
+    }
+
     /** {@code mc.observe.player}'s attack readiness for the bot's player, which joined the player list. Server thread. */
     private static Attack attackOf(SceneBot bot) {
         String name = bot.player().getGameProfile().getName();
