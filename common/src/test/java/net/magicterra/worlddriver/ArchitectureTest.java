@@ -40,6 +40,7 @@ class ArchitectureTest {
 
     private static final Pattern COMMENTS_AND_STRINGS =
             Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|/\\*.*?\\*/|//[^\\n]*", Pattern.DOTALL);
+    private static final Pattern STRINGS = Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"");
     private static final Pattern PACKAGE_LINE = Pattern.compile("(?m)^package [^;]+;");
     private static final Pattern DRIVER_REFERENCE =
             Pattern.compile("net\\.magicterra\\.worlddriver\\.((?:[a-z]\\w*\\.)*)([A-Z]\\w*)");
@@ -113,6 +114,26 @@ class ArchitectureTest {
             }
         }
         assertTrue(hooks > 0, "found no event hooks in WorldDriverEvents / WorldDriverClientEvents");
+        assertNone(bad);
+    }
+
+    /**
+     * {@code common}, main and testmod, names no loader and not the Architectury API: each loader's own API is
+     * reached only from that loader's module. String literals are skipped, so a {@code Class.forName} probe for an
+     * optional loader class is allowed.
+     */
+    @Test
+    void commonNamesNoLoaderApi() {
+        List<String> bad = new ArrayList<>();
+        for (Path root : List.of(SOURCE_ROOTS.get(1), TESTMOD)) {
+            List<Path> files = javaFiles(root);
+            assertTrue(files.size() > 20, "only " + files.size() + " sources under " + root.toAbsolutePath());
+            for (Path p : files) {
+                String text = STRINGS.matcher(code(p)).replaceAll("\"\"");
+                for (String loader : List.of("dev.architectury.", "net.fabricmc.", "net.neoforged."))
+                    if (text.contains(loader)) bad.add(root.relativize(p) + ": names " + loader);
+            }
+        }
         assertNone(bad);
     }
 

@@ -87,10 +87,6 @@ dependencies {
     // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
-    // Architectury API: registries and events written once in common. A required mod, declared
-    // in both loaders' metadata; the loader modules add their own platform artifact.
-    modImplementation "dev.architectury:architectury:$rootProject.architectury_api_version"
-
     // stagewright is NOT a main dependency — that edge is what put the test framework in the
     // shipped jar. Only the `testmod` source set compiles against it, declared in the block above.
 

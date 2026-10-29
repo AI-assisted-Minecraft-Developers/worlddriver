@@ -51,8 +51,6 @@ repositories {
 
 dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
-    // Required mod (neoforge.mods.toml dependency), not nested: the player installs it alongside.
-    modImplementation "dev.architectury:architectury-neoforge:$rootProject.architectury_api_version"
 
     common(project(path: ':api', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':api', configuration: 'transformProductionNeoForge')
@@ -116,7 +114,6 @@ processResources {
             minecraft_version_range: rootProject.minecraft_version_range,
             neoforge_version_range : rootProject.neoforge_version_range,
             loader_version_range   : rootProject.loader_version_range,
-            architectury_version_range: rootProject.architectury_version_range,
             mod_license            : rootProject.mod_license,
             mod_authors            : rootProject.mod_authors,
             mod_description        : rootProject.mod_description,

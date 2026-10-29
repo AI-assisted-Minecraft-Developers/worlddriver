@@ -138,8 +138,8 @@ the shared root.
 
 StageWright's common module compiles against WorldDriver's API registry and contract types
 (`api/registry/*`, `api/schema/*`, and the records in `api/methods/test/TestInputContracts`)
-and against `BotHooks`, `BotApi`, `EventContracts` and `WorldDriverCommon`. None of those names an Architectury type anywhere — all the subscriptions are inside method bodies
-of other classes. StageWright's own runs do not load the WorldDriver mod, so this
+and against `BotHooks`, `BotApi`, `EventContracts` and `WorldDriverCommon`. None of those names a loader type — the loader callbacks live in the loader modules.
+StageWright's own runs do not load the WorldDriver mod, so this
 dependency is invisible to it.
 
 ## No reflection on a Mojang-mapped member

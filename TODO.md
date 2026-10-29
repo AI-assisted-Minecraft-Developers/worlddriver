@@ -217,21 +217,12 @@ The five denial checks in `08_sandbox.js` run with `ScriptClassFilter` off. Read
 are vacuous and should be rewritten or removed. Only if it resolves is a `-Dworlddriver.sandbox=on`
 run worth taking.
 
-### Every install still needs the Architectury API mod
-
-`fabric.mod.json` and `neoforge.mods.toml` declare `architectury` as a required dependency, for the
-fifteen events `WorldDriverEvents` and `WorldDriverClientEvents` subscribe. Replace them with each
-loader's own callbacks behind a thin port in `:common`, keeping `block.break` before removal and
-`entity.death` at the decision. Fabric API has no block-place event, so that one needs a mixin. The
-testmod's registries, `EnvExecutor` and `AvatarTest`'s `PlayerEvent` can stay on it as dev-only.
-
 ### The build still goes through Architectury's plugin and transformer
 
 Move to the MultiLoader layout: Fabric Loom for `fabric/`, ModDevGradle for `neoforge/`, MDG's
 NeoForm-only mode for `common/`, each loader compiling common's sources instead of the
 `namedElements` / `transformProduction*` / `shadowBundle` wiring. Nothing uses `@ExpectPlatform`.
-`dev.architectury.loom` is pinned at `1.11-SNAPSHOT` meanwhile; upstream is at 1.17. Do the API item
-above first, so no source references `dev.architectury.*` when the build changes.
+`dev.architectury.loom` is pinned at `1.11-SNAPSHOT` meanwhile; upstream is at 1.17.
 
 ---
 

@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
-- **The driver hears server events through each loader's own callbacks** instead of through
-  Architectury API's events. What it reports is the same, with three differences on Fabric:
+- **WorldDriver no longer needs the Architectury API mod.** Install it with Fabric API on
+  Fabric, and on its own on NeoForge.
+- **The driver hears server and client events through each loader's own callbacks** instead
+  of through Architectury API's events. What it reports is the same, with three differences on Fabric:
   - **The driver starts its RPC and MCP servers earlier on a Fabric server**: when the server
     begins starting, before it loads its worlds, rather than once the worlds are loaded. NeoForge
     is unchanged. Nothing it starts needs a world, and it still comes before every

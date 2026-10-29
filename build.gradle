@@ -11,12 +11,6 @@ architectury {
     minecraft = project.minecraft_version
 }
 
-// Architectury's range in both loaders' metadata: from the version this build compiles against up
-// to the next major, each major being one Minecraft line. Derived from the pin so a bump moves the
-// declared floor too, instead of letting a pack install an older one and fail with NoSuchMethodError.
-ext.architectury_version_range =
-        "[${architectury_api_version},${(architectury_api_version.tokenize('.')[0] as int) + 1})".toString()
-
 stagewright {
     // The JUnit tests in the testmod, run in the game per scene: stagewrightTestFabric, stagewrightTestNeoforge.
     // The plugin declares their runs in each loader's loom, under <loader>/run-stagewright/<suite>/, and puts the
@@ -187,18 +181,9 @@ configure(modProjects) {
                 // POM must not re-declare them: a consumer that naively resolves
                 // the POM would put a SECOND copy of Rhino on its classpath
                 // (docs/archive/feedback/2026-06-04-first-external-consumer-winefoxs.md).
-                // Architectury is the exception: it is a mod the jar does not carry, and a consumer needs it beside.
-                def module = project
                 pom.withXml {
                     def deps = asNode().dependencies
                     if (!deps.isEmpty()) asNode().remove(deps.first())
-                    if (module.name in ['fabric', 'neoforge']) {
-                        def dependency = asNode().appendNode('dependencies').appendNode('dependency')
-                        dependency.appendNode('groupId', 'dev.architectury')
-                        dependency.appendNode('artifactId', "architectury-${module.name}")
-                        dependency.appendNode('version', rootProject.architectury_api_version)
-                        dependency.appendNode('scope', 'runtime')
-                    }
                 }
             }
         }

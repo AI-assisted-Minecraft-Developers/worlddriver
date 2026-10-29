@@ -16,15 +16,11 @@ live in `gradle.properties`, which is the file to read if this page has aged.
 |---|---|---|
 | Minecraft | 1.21.1 | `minecraft_version` |
 | Java | 21 | `JavaVersion.VERSION_21` in the root `build.gradle` |
-| Architectury API | 13.0.8 or a later 13.x, **required on both loaders** | `architectury_api_version` |
 | Fabric Loader | 0.16.14 or newer | `fabric_loader_version` |
 | Fabric API | 0.116.4+1.21.1, required on Fabric | `fabric_api_version` |
 | NeoForge | 21.1.230 | `neoforge_version` |
 
-Architectury API is not optional on either side. It is declared `required` in
-`neoforge/src/main/resources/META-INF/neoforge.mods.toml` and listed under `depends` in
-`fabric/src/main/resources/fabric.mod.json`, so a pack without it refuses to load the mod.
-On Fabric you also need Fabric API.
+On Fabric you need Fabric API beside the mod. On NeoForge the mod needs nothing else.
 
 You do not need a separate Gradle or JDK install for the development flow: the wrapper
 pulls Gradle, and Gradle resolves the toolchain.

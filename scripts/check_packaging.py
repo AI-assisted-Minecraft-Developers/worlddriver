@@ -32,8 +32,8 @@ pom     Every module's POM declares the licence (gradle.properties `mod_license`
 metadata
         The mod metadata inside the shipped loader jars says what gradle.properties says:
         licence, description, authors, a link to the source, and dependency ranges derived from the pinned
-        versions (Architectury from its pin up to the next major, the Fabric loader from
-        its pin, Minecraft from `minecraft_version_range` in each loader's syntax). A value
+        versions (the Fabric loader from its pin, Minecraft from `minecraft_version_range`
+        in each loader's syntax), and no Architectury API dependency. A value
         hardcoded in one loader's file drifts from the other's on the next edit.
 sources Each loader's `-sources` jar holds every source file of :api's and :common's, because
         the loader's binary jar bundles both. A sources jar that covers only the loader's
@@ -153,8 +153,6 @@ def fabric_range(maven):
 
 def check_metadata():
     props = gradle_properties()
-    arch = props["architectury_api_version"]
-    arch_next = int(arch.split(".")[0]) + 1
     authors = [a.strip() for a in props["mod_authors"].split(",")]
     problems = []
 
@@ -163,10 +161,10 @@ def check_metadata():
     templates = {
         "fabric/src/main/resources/fabric.mod.json": (
             "mod_license", "mod_description", "mod_authors", "mod_source_url",
-            "minecraft_range", "architectury_range", "fabric_loader_range"),
+            "minecraft_range", "fabric_loader_range"),
         "neoforge/src/main/resources/META-INF/neoforge.mods.toml": (
             "mod_license", "mod_description", "mod_authors", "mod_source_url", "loader_version_range",
-            "minecraft_version_range", "neoforge_version_range", "architectury_version_range"),
+            "minecraft_version_range", "neoforge_version_range"),
     }
     for path, keys in templates.items():
         with open(os.path.join(ROOT, path), encoding="utf-8") as f:
@@ -190,7 +188,8 @@ def check_metadata():
             ("contact.homepage", meta.get("contact", {}).get("homepage"), props["mod_source_url"]),
             ("contact.sources", meta.get("contact", {}).get("sources"), props["mod_source_url"]),
             ("depends.minecraft", depends.get("minecraft"), fabric_range(props["minecraft_version_range"])),
-            ("depends.architectury", depends.get("architectury"), f">={arch} <{arch_next}"),
+            # No longer a dependency; a stale template line would make every install fail without it.
+            ("depends.architectury", depends.get("architectury"), None),
             ("depends.fabricloader", depends.get("fabricloader"), f">={props['fabric_loader_version']}"),
         ]:
             if got != want:
@@ -213,7 +212,7 @@ def check_metadata():
             ("displayURL", mod.get("displayURL"), props["mod_source_url"]),
             ("minecraft range", ranges.get("minecraft"), props["minecraft_version_range"]),
             ("neoforge range", ranges.get("neoforge"), props["neoforge_version_range"]),
-            ("architectury range", ranges.get("architectury"), f"[{arch},{arch_next})"),
+            ("architectury range", ranges.get("architectury"), None),
         ]:
             if got != want:
                 problems.append(f"{rel}!META-INF/neoforge.mods.toml: {key} is {got!r}, want {want!r}")

@@ -11,8 +11,7 @@ All three translate their parameters and call the same router, so an external ag
 exactly what an in-game script sees.
 
 - Minecraft **1.21.1**, Architectury (Fabric and NeoForge from one source tree)
-- **Architectury API 13.0.8** must be installed alongside on either loader, the way
-  Fabric API must be on Fabric
+- Fabric API on Fabric; nothing else on NeoForge
 - JDK **21**
 - Rhino fork `dev.latvian.mods:rhino:2101.2.7-build.81` (the KubeJS build)
 - Licence: [LGPL-3.0-only](COPYING.LESSER); the GPL-3.0 text it builds on is [`COPYING`](COPYING)
@@ -241,8 +240,9 @@ worlddriver/
   machine. `mc.script.eval` additionally enforces a wall-clock deadline through Rhino's
   instruction-count observer, which is a liveness guard, not a security one.
 - **One source tree, two loaders.** The same `common/` sources ship on Fabric and NeoForge
-  through Architectury. The loader-specific modules carry only the entry point and the
-  implementation of the client-only calls.
+  through Architectury's build tooling. The loader-specific modules carry the entry point,
+  which hooks the shared code up to the loader's own events, and the implementation of the
+  client-only calls.
 
 The architecture in full, including the seams and the threading rules, is in
 [`docs/dev/architecture.md`](docs/dev/architecture.md).

@@ -48,7 +48,7 @@ For someone adding or changing code here.
 | [Pathfinding conformance](dev/pathfinding-conformance.md) | Telling a planner problem from a navigator problem, and wiring a flag to try a change. |
 | [The replay corpus](dev/replay-corpus.md) | Recording, replaying and analysing a traversal, and what replay can and cannot be evidence of. |
 | [Debugging](dev/debugging.md) | Attaching a debugger to a game this build starts, and what stopping the game costs. |
-| [Loader glue](dev/loader-glue.md) | What stays loader-specific now that Architectury API is a required dependency. |
+| [Loader glue](dev/loader-glue.md) | How the shared code is hooked up to each loader's own events, and what stays loader-specific. |
 | [Running a development client](dev/running-the-client.md) | Getting a real game window open, including the platform cases where it hangs. |
 
 ## Design — why the live code is shaped this way

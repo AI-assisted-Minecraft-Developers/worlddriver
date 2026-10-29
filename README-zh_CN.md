@@ -10,7 +10,7 @@
 完全一致。
 
 - Minecraft **1.21.1**，Architectury（同一套源码同时供 Fabric 与 NeoForge）
-- 两个 loader 上都必须另行安装 **Architectury API 13.0.8**，就像 Fabric 上必须装 Fabric API 一样
+- Fabric 上需要 Fabric API；NeoForge 上不需要别的模组
 - JDK **21**
 - Rhino 分支 `dev.latvian.mods:rhino:2101.2.7-build.81`（KubeJS 构建）
 - 许可证：[LGPL-3.0-only](COPYING.LESSER)；其所基于的 GPL-3.0 正文见 [`COPYING`](COPYING)
