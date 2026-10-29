@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.client.input.typeText`, `replaceText` and `slider` take a `ref` from `screen.tree` and
   `returnTree`**, like `click`. `typeText` focuses the named box before typing; a ref that is gone, or
   names something other than a text box or slider, is refused as `no_target`.
+- **The swim reflex no longer steers a drowning bot at a bank with lava or fire in its foot or head
+  cell.** The shore scan asked about a hazard only in the block below, so lava over stone counted as
+  a bank. A pond whose only bank is such a cell now has no shore, and the bot keeps rising instead.
 
 ## 2026-10-28
 

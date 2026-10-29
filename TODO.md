@@ -73,14 +73,6 @@ the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223,
 the bot then slides onto the goal cell; its check C tolerates 1.5 blocks. Look at the step-advance
 gates in `bot/control/route/ProgressPhase` for a last node approached at an angle.
 
-### The shore scan can aim a drowning bot at lava
-
-`AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while
-`WorldView.canStandAt` tests all three cells. Lava is passable and is not water, so a lava foot
-cell over stone satisfies every clause the scan checks. The fix is to reject a hazardous foot or
-head cell as well; the caller's null branch already holds the jump key to keep rising, so the
-degradation is benign. Needs a test that fails without the added clause.
-
 ### The shore scan gives up in wide water
 
 `AutoSwim.SHORE_SCAN_R` is 10, so in water wider than that the shore direction is null and an idle

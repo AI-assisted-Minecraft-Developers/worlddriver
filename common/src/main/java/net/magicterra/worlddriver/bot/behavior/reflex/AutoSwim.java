@@ -233,32 +233,15 @@ public final class AutoSwim {
      * climb onto. Returns {dx,dz} from the bot toward it, or null if none within
      * {@link #SHORE_SCAN_R}.
      *
-     * <p><b>"Standable" here is NOT {@code WorldView#canStandAt}, and the gap is on the
-     * dangerous side.</b> This is a survival reflex that STEERS A DROWNING BOT at whatever
-     * it returns, so what the predicate below omits is worth stating rather than leaving to
-     * be re-derived. Against {@code canStandAt} it differs twice:
-     * <ul>
-     *   <li><b>The floor rule is {@code isSolid(below)}, not {@code canStandOn(below)}</b> —
-     *       coarser, so on the client view it accepts banks the planner refuses (bottom
-     *       slabs, the 14/16 family). Costs a failed climb-out, not a life.</li>
-     *   <li><b>{@code isHazard} is asked about {@code below} ONLY.</b> {@code canStandAt}
-     *       asks it about the foot and head cells too; this does not. That combination is
-     *       reachable, not theoretical: a column of solid stone with LAVA in the foot cell
-     *       satisfies every clause here — lava is not water, it does not block motion so
-     *       {@code isPassable(foot)} is true, and the stone below is not a hazard. The
-     *       reflex then points a bot that is already out of air at a lava pool and holds
-     *       forward.</li>
-     * </ul>
-     *
-     * <p>Written down, not fixed, because the fix wants a gate this was not able to take:
-     * add {@code && !w.isHazard(foot) && !w.isHazard(head)} to the clause below. Note the
-     * direction is the safe one — it only ever REFUSES banks this accepts today — and the
-     * degradation is graceful rather than a new failure mode: the caller's {@code dir == null}
-     * arm keeps holding jump to rise, which is the right thing to do when there is no bank
-     * worth swimming to. What it needs measuring for is the opposite risk, that some pond
-     * this reflex currently escapes has its only bank behind a fire or lava cell.
+     * <p>"Standable" here differs from {@code WorldView#canStandAt} in one way: the floor rule
+     * is {@code isSolid(below)}, not {@code canStandOn(below)} — coarser, so on the client view
+     * it accepts banks the planner refuses (bottom slabs, the 14/16 family). That costs a failed
+     * climb-out, not a life. The hazard rule is the same as {@code canStandAt}'s: floor, foot and
+     * head. Lava in the foot cell over stone is passable and not water, so without the foot and
+     * head clauses this steered a drowning bot into it; a pond whose only bank is a hazard now
+     * gets null, and the caller keeps holding jump to rise.
      */
-    private static int[] nearestShore(WorldView w, int bx, int by, int bz) {
+    static int[] nearestShore(WorldView w, int bx, int by, int bz) {
         // Scan ring by ring (nearest first). Within the first ring that has any dry
         // standable bank, pick the LOWEST one (gentlest to climb out onto), tie-broken
         // by horizontal distance. Scanning low→high per column and keeping the lowest
@@ -275,7 +258,7 @@ public final class AutoSwim {
                         BlockPos head = new BlockPos(x, y + 1, z);
                         if (w.isSolid(below) && !w.isWater(foot)
                                 && w.isPassable(foot) && w.isPassable(head)
-                                && !w.isHazard(below)) {
+                                && !w.isHazard(below) && !w.isHazard(foot) && !w.isHazard(head)) {
                             int d = dx * dx + dz * dz;
                             if (y < bestY || (y == bestY && d < bestD)) {
                                 bestY = y; bestD = d; bdx = dx; bdz = dz;
