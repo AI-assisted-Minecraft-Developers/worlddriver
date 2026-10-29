@@ -23,16 +23,16 @@ public final class ServerCommands {
      */
     public record Outcome(boolean ok, String error, boolean success, int value, List<String> feedback) {}
 
-    /** Run {@code cmd} (no leading slash) as an operator. */
-    public static Outcome run(MinecraftServer s, String cmd) {
-        // Anchor the source on a real player when one is connected so @s / @p
-        // resolve to them (and the command runs *in their dimension*). Without
-        // this, the server-console source has no entity, so @s silently matches
-        // 0 selectors and runCommand returns ok:true for a no-op — exactly the
-        // footgun that drove this fix. Falls back to the server console on
-        // dedicated server / before-anyone-joined.
-        ServerPlayer anchor = s.getPlayerList().getPlayers().isEmpty()
-                ? null : s.getPlayerList().getPlayers().get(0);
+    /**
+     * Run {@code cmd} (no leading slash) as an operator: as the server, at the overworld spawn, or as {@code as}
+     * when it is not null.
+     *
+     * <p>The server is the default, not whichever player happens to be first in the list. That player is often a
+     * bot: a permission mod (LuckPerms) then gates every command node by the bot's own permissions, which
+     * {@code withPermission(4)} does not lift, and under concurrent tests {@code @s}/{@code @p} resolved to some
+     * other test's bot. A caller that needs {@code @s} names the player.
+     */
+    public static Outcome run(MinecraftServer s, String cmd, ServerPlayer as) {
         // Collect feedback instead of suppressing it: parse errors and command
         // output (e.g. `data get`'s NBT text) land in `feedback` for the caller.
         List<String> feedback = new ArrayList<>();
@@ -66,9 +66,9 @@ public final class ServerCommands {
             cbState[1] = success;
             cbValue[0] = result;
         };
-        CommandSourceStack src = ((anchor != null)
-                ? anchor.createCommandSourceStack()
-                : s.createCommandSourceStack())
+        // The server's own source carries the server as its CommandSource, which prints to the log rather than
+        // collecting; withSource swaps in the collector for either kind.
+        CommandSourceStack src = (as != null ? as.createCommandSourceStack() : s.createCommandSourceStack())
                 .withSource(collector)
                 .withPermission(4)
                 .withCallback(callback);

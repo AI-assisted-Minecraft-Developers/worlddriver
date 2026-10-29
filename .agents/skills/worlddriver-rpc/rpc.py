@@ -45,7 +45,7 @@ Usage
     # or stdin (lines starting with # are comments; blank lines skipped). Stops
     # on the first error unless --keep-going.
     python3 rpc.py --batch setup.rpc
-    printf 'mc.action.runCommand {"cmd":"tp @p 0 -60 0"}\nmc.observe.player\n' | python3 rpc.py --batch -
+    printf 'mc.action.runCommand {"cmd":"tp Dev 0 -60 0"}\nmc.observe.player\n' | python3 rpc.py --batch -
 
 Options
 -------

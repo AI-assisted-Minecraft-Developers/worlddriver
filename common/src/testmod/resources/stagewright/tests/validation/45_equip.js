@@ -22,15 +22,21 @@ function errorOf(call) {
     return null;
 }
 
+// A command runs as the server unless it names a player; this names the client's own, so @s is it.
+function asSelf(c) {
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    return Driver.invoke("mc.action.runCommand", { cmd: c, as: "player:" + me.name });
+}
+
 function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
-    Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
+    asSelf("clear @s");
     patch({ autoEquip: false });
     Driver.system.waitTicks({ ticks: 4 });
 }
 
 function give(item) {
-    Driver.invoke("mc.action.runCommand", { cmd: "give @s " + item });
+    asSelf("give @s " + item);
 }
 
 function has(s, needle) { return typeof s === "string" && s.indexOf(needle) >= 0; }

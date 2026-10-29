@@ -27,9 +27,9 @@ HZ = 20
 REACH = 10
 PLACEABLE_HINT = ("block.place", "block.break")
 # Both drivers start from the same inventory, or the comparison measures the kit, not the driver.
-KIT = ("clear @p", "give @p minecraft:iron_pickaxe", "give @p minecraft:iron_shovel",
-       "give @p minecraft:iron_axe", "give @p minecraft:dirt 64", "give @p minecraft:cobblestone 64",
-       "give @p minecraft:cooked_beef 16", "give @p minecraft:water_bucket")
+KIT = ("clear @s", "give @s minecraft:iron_pickaxe", "give @s minecraft:iron_shovel",
+       "give @s minecraft:iron_axe", "give @s minecraft:dirt 64", "give @s minecraft:cobblestone 64",
+       "give @s minecraft:cooked_beef 16", "give @s minecraft:water_bucket")
 
 
 def xz(s):
@@ -54,13 +54,15 @@ async def record(args):
     async with websockets.connect(uri, max_size=16 * 1024 * 1024, ping_interval=None) as ws:
         await _call(ws, st, "mc.bot.cancel")
         # The kit's `clear` would take a goal compass with it, so the compass is part of the kit.
-        compass = (f"give @p minecraft:compass[minecraft:lodestone_tracker={{target:{{pos:[I;{int(gx)},"
+        compass = (f"give @s minecraft:compass[minecraft:lodestone_tracker={{target:{{pos:[I;{int(gx)},"
                    f"{int(sy)},{int(gz)}],dimension:\"minecraft:overworld\"}},tracked:false}},"
                    f"minecraft:custom_name='\"goal\"']")
-        for cmd in (f"tp @p {sx} {sy} {sz} {args.yaw} 0", "effect clear @p",
-                    "effect give @p minecraft:instant_health 1 10 true",
-                    "effect give @p minecraft:saturation 1 10 true", *KIT, compass):
-            await _call(ws, st, "mc.action.runCommand", {"cmd": cmd})
+        # Commands run as the server unless they name a player; `as` makes @s this client's own.
+        me = "player:" + (await _call(ws, st, "mc.observe.player"))["player"]["name"]
+        for cmd in (f"tp @s {sx} {sy} {sz} {args.yaw} 0", "effect clear @s",
+                    "effect give @s minecraft:instant_health 1 10 true",
+                    "effect give @s minecraft:saturation 1 10 true", *KIT, compass):
+            await _call(ws, st, "mc.action.runCommand", {"cmd": cmd, "as": me})
         cursor = (await _call(ws, st, "mc.observe.cursor"))["cursor"]  # a decimal string
         await asyncio.sleep(2.0)                                   # let chunks settle after the tp
         # The body can settle ~1 block off the tp target; measure "moved" from where it came to rest.

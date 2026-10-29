@@ -78,7 +78,7 @@ situation; they are not how a survival agent plays.
 |---|---|---|
 | `mc.action.fill` | Fills an axis-aligned box with one block id in a single server tick. Volume capped at 32768. Emits one `block.fill` event, not one per cell. | `from`, `to`, `type`, `returnEvents` |
 | `mc.action.placeMany` | Places a list of `(pos, type)` blocks in one tick, up to 4096 of them. This is also how you place a single block. | `blocks`, `returnEvents` |
-| `mc.action.runCommand` | Runs a vanilla command through the server's dispatcher at operator level. There is no allowlist. `setblock` takes a fast path that emits the same events as `placeMany`. | `cmd`, `returnEvents` |
+| `mc.action.runCommand` | Runs a vanilla command through the server's dispatcher at operator level, as the server at the overworld spawn, or as the player `as` names, so that `@s` is that player. There is no allowlist. `setblock` takes a fast path that emits the same events as `placeMany`. | `cmd`, `returnEvents`, `as` |
 | `mc.world.snapshot` | Captures a box of block states, and by default block-entity NBT, into a named in-memory snapshot. Volume capped at 32768; up to 64 snapshots are retained, and they do not outlive the server. | `from`, `to`, `id`, `blockEntities` |
 | `mc.world.restore` | Puts a snapshot back verbatim, contents included. The undo for a risky build. | `id`, `discard`, `returnEvents` |
 

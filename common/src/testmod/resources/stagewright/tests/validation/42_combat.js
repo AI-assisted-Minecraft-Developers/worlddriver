@@ -28,18 +28,24 @@ function findType(threats, needle) {
     return null;
 }
 
+// A command runs as the server unless it names a player; this names the client's own, so @s is it.
+function asSelf(c) {
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    return Driver.invoke("mc.action.runCommand", { cmd: c, as: "player:" + me.name });
+}
+
 // Top-level so the deferred ScriptTest.run callbacks can reach them.
 function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
     patch({ autoFight: false, autoRetreat: false });
-    Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
+    asSelf("clear @s");
     Driver.system.waitTicks({ ticks: 3 });
 }
 
 // Put a weapon in hotbar slot 0 and select it; wait for the client inventory to sync.
 function equip(item) {
-    Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @s hotbar.0 with " + item });
+    asSelf("item replace entity @s hotbar.0 with " + item);
     Driver.invoke("mc.client.input.setHotbarSlot", { slot: 0 });
     Driver.system.waitTicks({ ticks: 6 });
 }
@@ -119,7 +125,7 @@ if (!clientAvailable()) {
     ScriptTest.run("42_combat: ranged kite keeps distance from a skeleton and fires", function(t) {
         cleanup();
         equip("minecraft:bow");
-        Driver.invoke("mc.action.runCommand", { cmd: "give @s minecraft:arrow 64" });
+        asSelf("give @s minecraft:arrow 64");
         patch({ kiteDistance: 8 });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);

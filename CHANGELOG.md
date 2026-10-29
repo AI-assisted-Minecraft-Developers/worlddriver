@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **`mc.action.runCommand` runs as the server, not as a player, unless it is given `as`.** It used to
+  run as the first player in the server's list, which with a bot online was that bot. A permission mod
+  such as LuckPerms then judged every command by the bot's permissions and refused to parse them, and
+  `@s` and `@p` meant whichever bot happened to be first, which under tests running side by side was
+  another test's. The command now runs as the server's own source: operator level, at the overworld
+  spawn, its output still answered in `feedback`. The new optional `as` (`player:<name>`, a bot or a
+  joined player) runs it as that player instead, for a command that needs `@s` or the player's
+  dimension. A caller that relied on `@s` being the player must now pass `as` or write the name.
 - **The NeoForge client loads on every NeoForge 21.1 release again.** On releases before 21.1.80 the
   client failed to load, because the driver's client entry listened for a mod-bus event and
   game-bus events from one class and those loaders register a class on a single bus. The entry is

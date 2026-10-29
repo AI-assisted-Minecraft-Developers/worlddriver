@@ -64,7 +64,7 @@ Set up to 4096 cells, each to its own block, in one server task; one block.place
 
 ### `mc.action.runCommand`
 
-Run any server command at operator level, as the first player when one is on (so @s and @p resolve), else as the server. Emits command.result. There is no allow-list: the transports listen on loopback only.
+Run any server command at operator level as the server, at the overworld spawn, or as the player named by as. Emits command.result. There is no allow-list: the transports listen on loopback only.
 
 - Params: `RunCommandParams`; reply: `CommandResult`
 - Effects: world_write
@@ -1097,11 +1097,14 @@ interface PlaceManyParams {
     returnEvents?: boolean;
 }
 interface Placed { placed: number; events?: DriverEvent[]; }
+type BotRef = 'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`;
 interface RunCommandParams {
     /** The command, leading slash optional. */
     cmd: string;
     /** Also answer the events the call emitted, so no separate cursor read is needed. */
     returnEvents?: boolean;
+    /** A bot or a joined player on this server, as player:<name>: run as that player, so @s is it. */
+    as?: BotRef;
 }
 type CommandVia = 'fast-path' | 'brigadier';
 interface CommandResult {
@@ -1117,7 +1120,6 @@ interface CommandResult {
     feedback: string[];
     events?: DriverEvent[];
 }
-type BotRef = 'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`;
 interface AttackEntityParams { bot?: BotRef; entityId: number; }
 type RefusalReason = 'bot_unavailable' | 'unsupported_capability' | 'invalid_world_target' | 'busy' | 'action_limit';
 type Unready = 'no_player' | 'loading' | 'dead' | 'paused' | 'sleeping' | 'chunk_unloaded' | 'no_hands' | 'unknown_bot';

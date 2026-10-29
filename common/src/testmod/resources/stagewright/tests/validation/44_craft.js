@@ -14,14 +14,20 @@ function clientAvailable() {
 }
 
 // Top-level so the deferred ScriptTest.run callbacks can see them.
+// A command runs as the server unless it names a player; this names the client's own, so @s is it.
+function asSelf(c) {
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    return Driver.invoke("mc.action.runCommand", { cmd: c, as: "player:" + me.name });
+}
+
 function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
-    Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
+    asSelf("clear @s");
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=item]" });
 }
 
 function give(item, n) {
-    Driver.invoke("mc.action.runCommand", { cmd: "give @s " + item + " " + (n || 1) });
+    asSelf("give @s " + item + " " + (n || 1));
 }
 
 // `give` mutates the SERVER inventory; CraftProcess/SmeltProcess plan against the

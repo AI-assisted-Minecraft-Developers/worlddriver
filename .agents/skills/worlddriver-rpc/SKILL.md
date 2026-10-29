@@ -68,8 +68,9 @@ python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.status --jq status.reflexes
 
 # multi-step setup: one call per line "<method> [json]", '#' comments
 python3 .claude/skills/worlddriver-rpc/rpc.py --batch - <<'EOF'
-mc.action.runCommand {"cmd":"give @p minecraft:stone 64"}
-mc.action.runCommand {"cmd":"tp @p 20 -60 0"}
+# commands run as the server; "as" runs one as a player, so @s is that player (mc.observe.player names yours)
+mc.action.runCommand {"cmd":"give @s minecraft:stone 64","as":"player:Dev"}
+mc.action.runCommand {"cmd":"tp @s 20 -60 0","as":"player:Dev"}
 mc.action.runCommand {"cmd":"fill 16 149 -1 20 149 1 minecraft:stone"}
 mc.bot.setting {"op":"patch","values":{"allowParkourPlace":true,"navigatorDebug":true}}
 EOF

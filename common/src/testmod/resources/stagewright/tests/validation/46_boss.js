@@ -15,6 +15,11 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 function cmd(c)  { return Driver.invoke("mc.action.runCommand", { cmd: c }); }
+// A command runs as the server unless it names a player; this names the client's own, so @s is it.
+function asSelf(c) {
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    return Driver.invoke("mc.action.runCommand", { cmd: c, as: "player:" + me.name });
+}
 function boss(r) { return Driver.invoke("mc.observe.boss", r ? { radius: r } : {}); }
 function has(s, needle) { return typeof s === "string" && s.indexOf(needle) >= 0; }
 
@@ -132,7 +137,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("46_boss: wither playbook aborts on failed gear gate", function (t) {
         cleanupBosses();
-        cmd("clear @s");
+        asSelf("clear @s");
         Driver.system.waitTicks({ ticks: 4 });
         Driver.invoke("mc.bot.playbook", { op: "start", name: "wither", args: { summon: false } });
         var s = waitPlaybookIdle(80);

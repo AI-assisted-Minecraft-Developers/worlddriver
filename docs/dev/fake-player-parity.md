@@ -321,7 +321,7 @@ largest reason joined players replaced players that were merely constructed.
 | Leaving the world | disconnect, and the chat line that goes with it | leaving means leaving the player list; the bot routes its own removal through `PlayerList.remove` behind a re-entry guard | `Parity`, with the instrumentation caveat below |
 | Modded network channels | a custom payload packet reaches the mod | no verb, and nothing to deliver one to | `Open` — this is the ceiling on what modpack behaviour can be exercised |
 | Chat as a source | a player can speak | sending chat is a client verb (`mc.client.chat.send`), as is every screen-level input verb; a headless bot has none of them | `Accepted` |
-| Commands | run with the player's own permission level, entity and position | `mc.action.runCommand` builds its source from the first player in the list, or from the server when there is none, and always at permission level 4 | `Approximate` — no bot is ever refused for permission, and the anchor may be a different bot than the caller had in mind |
+| Commands | run with the player's own permission level, entity and position | `mc.action.runCommand` runs as the server, or as the player its `as` names, and always at permission level 4 | `Approximate` — no bot is ever refused for permission; a permission mod still gates the nodes a named player may see |
 
 A departure is *required* to be silent in vanilla's channel. The arrival is announced by the
 join path, but the "left the game" line is broadcast from the disconnect path a driven bot

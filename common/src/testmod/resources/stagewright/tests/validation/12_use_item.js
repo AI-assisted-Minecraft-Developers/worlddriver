@@ -79,7 +79,9 @@ if (!clientAvailable()) {
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         // Mounting needs an EMPTY main hand: a held item would be used on the boat instead.
-        Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @p weapon.mainhand with minecraft:air" });
+        // A command runs as the server unless it names a player: @s is the client's own only with as.
+        var meRef = "player:" + me.name;
+        Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @s weapon.mainhand with minecraft:air", as: meRef });
         Driver.invoke("mc.action.runCommand",
             { cmd: "summon minecraft:boat " + x + " " + y + " " + z + " {Tags:[\"t12_boat\"]}" });
         try {
@@ -103,7 +105,7 @@ if (!clientAvailable()) {
             // The answer rereads the vehicle after the click until the server's mount arrives.
             t.assertEqual(res.on.riding, "minecraft:boat", "riding must report the mounted boat type");
         } finally {
-            Driver.invoke("mc.action.runCommand", { cmd: "ride @p dismount" });
+            Driver.invoke("mc.action.runCommand", { cmd: "ride @s dismount", as: meRef });
             Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t12_boat]" });
         }
     });

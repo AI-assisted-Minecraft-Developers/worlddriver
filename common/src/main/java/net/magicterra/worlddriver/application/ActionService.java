@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
@@ -22,6 +23,7 @@ import net.magicterra.worlddriver.game.edit.ServerCommands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
@@ -98,7 +100,8 @@ public final class ActionService implements ActionApi {
     }
 
     /**
-     * Run a server command through Brigadier with operator-level permission.
+     * Run a server command through Brigadier with operator-level permission, as the
+     * server or, with {@code as}, as that player ({@link ServerCommands#run}).
      * Any verb is accepted (the command allow-list was removed). The legacy
      * setblock fast-path (used pre-Brigadier wiring) is preserved so existing
      * scripts and event consumers see the same {@code block.place} /
@@ -121,7 +124,8 @@ public final class ActionService implements ActionApi {
         ServerLevel level = api.level();
         long cursor = api.eventCursor();
 
-        if (verb.equals("setblock") && tok.length >= 5) {
+        // A command run as a player takes Brigadier's path, which honours that player's dimension.
+        if (verb.equals("setblock") && tok.length >= 5 && p.as().isEmpty()) {
             // Fast-path only when all three coords are absolute integers.
             // Anything else (`~`, `~N`, `^N`, decimals) falls through to
             // Brigadier so the command source's position context is honored
@@ -160,7 +164,15 @@ public final class ActionService implements ActionApi {
         String finalCmd = trimmed;
         MinecraftServer s = api.server();
         return api.requireServerHop().submit(() -> {
-            ServerCommands.Outcome o = ServerCommands.run(s, finalCmd);
+            ServerPlayer as = null;
+            if (p.as().isPresent()) {
+                as = BotRegistry.serverPlayer(s, p.as().get());
+                if (as == null) {
+                    throw ApiException.invalidParam("/as", ApiIssue.Code.INVALID_VALUE,
+                            "no player " + p.as().get().substring("player:".length()) + " on this server");
+                }
+            }
+            ServerCommands.Outcome o = ServerCommands.run(s, finalCmd, as);
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
             api.emit(EventCatalog.COMMAND_RESULT, null, new EventCatalog.CommandResult(finalCmd, o.ok(), o.success()));

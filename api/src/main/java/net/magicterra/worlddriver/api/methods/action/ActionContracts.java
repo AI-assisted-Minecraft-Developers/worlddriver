@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
@@ -33,7 +35,15 @@ public final class ActionContracts {
     public record CommandParams(
             @Doc("The command, leading slash optional.") @Length(min = 1, max = 32767) String cmd,
             @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
-            boolean returnEvents) {}
+            boolean returnEvents,
+            @Doc("A bot or a joined player on this server, as player:<name>: run as that player, so @s is it.")
+            Optional<@BotRef String> as) implements SelfChecked {
+        @Override public void check(DecodeContext at) {
+            if (as.isPresent() && !as.get().startsWith("player:")) {
+                at.field("as").fail(ApiIssue.Code.INVALID_VALUE, "as names a player on this server as player:<name>");
+            }
+        }
+    }
 
     @Named("CommandVia")
     public enum Via implements WireName {
@@ -69,8 +79,8 @@ public final class ActionContracts {
     // One command is budgeted as one short server task; what it does is opaque, so it counts as a world write.
     public static final MethodSpec<CommandParams, CommandResult> RUN_COMMAND = MethodSpec.of("mc.action.runCommand",
                     COMMAND_PARAMS, COMMAND_RESULT,
-                    "Run any server command at operator level, as the first player when one is on (so @s and @p resolve), "
-                            + "else as the server. Emits command.result. There is no allow-list: the transports listen on "
+                    "Run any server command at operator level as the server, at the overworld spawn, or as the player "
+                            + "named by as. Emits command.result. There is no allow-list: the transports listen on "
                             + "loopback only.")
             .effects(MethodSpec.Effect.WORLD_WRITE);
 

@@ -41,7 +41,9 @@
             var p = player();
             if (p) {
                 var sx = Math.floor(p.pos.x) + 4, sy = Math.floor(p.pos.y), sz = Math.floor(p.pos.z);
-                Driver.invoke('mc.action.runCommand', { cmd: 'summon minecraft:wither ' + sx + ' ' + sy + ' ' + sz });
+                // As the player, so the wither lands in the player's dimension rather than the overworld.
+                Driver.invoke('mc.action.runCommand',
+                    { cmd: 'summon minecraft:wither ' + sx + ' ' + sy + ' ' + sz, as: 'player:' + p.name });
             }
             Driver.system.waitTicks({ ticks: 10 });
         }
