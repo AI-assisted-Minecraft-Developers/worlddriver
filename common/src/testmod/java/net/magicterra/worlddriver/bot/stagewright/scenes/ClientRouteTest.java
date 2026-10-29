@@ -117,7 +117,10 @@ class ClientRouteTest {
         String walkId = actionId(walk);
         rig.sync(15);
         Map<String, Object> preview = goTo(client, other, Map.of("plan", "preview", "route", Map.of("risk", "safe")));
-        Object previewState = read(client, actionId(preview)).get("state");
+        // The accepted reply IS the state at submission: the snapshot is taken in the same client-thread task that
+        // queues the preview (awaitMs defaults to 0). A later read races the preview's own slice, which can finish a
+        // 28-cell search inside one client tick.
+        Object previewState = action(preview).get("state");
         Object walkState = read(client, walkId).get("state");
         String at = "preview=" + previewState + " walk=" + walkState + ", player " + rig.where();
         game.check(!action(preview).isEmpty(), "B: the preview is accepted at once: " + preview);

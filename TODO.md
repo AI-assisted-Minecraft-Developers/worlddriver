@@ -41,12 +41,10 @@ It asserts at least one pearl from six looting-less kills and no longer carries 
 bad loot roll fails it. Make the pearl deterministic (enough kills, a looting weapon) or stop
 requiring a random drop.
 
-### Two required tests fail now and then on a full Fabric with-client run
+### A required test fails now and then on a full Fabric with-client run
 
 `MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time
-(< 2000 ms) that load inflates. `ClientRouteTest.clientRoutePreviewDoesNotInterrupt` check C wants
-the ~28-cell flat preview still running when it is read, and the preview can finish first. Measure
-the first in something load can't inflate, and make the second's preview unable to land before the read.
+(< 2000 ms) that load inflates. Measure it in something load can't inflate.
 
 ### The MCP server's HTTP dispatcher outlives the server
 
