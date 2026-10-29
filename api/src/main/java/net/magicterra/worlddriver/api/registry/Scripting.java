@@ -12,7 +12,15 @@ import java.util.Map;
  * <p>Values cross as plain Java: {@code null}, {@link Boolean}, {@link Number} (a script's numbers arrive as
  * {@link Double}), {@link String}, {@link java.util.List}, {@link Map} with string keys, and {@link Function}. A
  * script's function arrives as a {@link Function}; a {@link Function} given to a script is a function there. Any
- * other Java object is refused rather than wrapped, so nothing of the engine's leaks either way.
+ * other Java object reaches a script as a Java object, and comes back from it as the same object, so a Java step can
+ * hand a game object to a script and the script can pass it on.
+ *
+ * <p>A script reaches Java through the {@code Java} global: {@code Java.type(name)}, or {@code Java.loadClass(name)},
+ * answers the class with that binary name, its static members and {@code new}; an unknown name throws an error the
+ * script can catch. A Minecraft class goes by the name the running game uses, which in a Fabric production game is
+ * the intermediary one ({@code net.minecraft.class_2338}) and on NeoForge and in development the Mojang one. A script
+ * runs on the caller's thread, so one that touches the game through {@code Java} must do so from the server thread,
+ * through whatever its caller offers for that.
  *
  * <p>An exception a Java {@link Function} throws reaches the Java code that started the script as itself, through
  * however much script lies between; an error the script throws arrives as a {@link ScriptFailure}.

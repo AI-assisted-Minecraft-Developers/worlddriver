@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world spawn. A `pos` still moves it there, and a `dimension` other than the saved one is honoured as
   before, at the world spawn when no `pos` comes with it. `remove` already saved the player on its way
   out, as a disconnect does, so a remove and spawn within one game returns it to the same spot.
+- **Scripts run through `Scripting` can reach Java.** Script tests (StageWright's JavaScript tests run on
+  this interface, not on `mc.script.eval`) get a `Java` global: `Java.type(name)`, also spelled
+  `Java.loadClass(name)`, answers a class by its binary name, with its static members and `new`, and an
+  unknown name is an error the script can catch. A Minecraft class goes by the running game's name, which
+  in a Fabric production game is the intermediary one. A Java object other than a plain value used to be
+  refused at the boundary; it now reaches the script as a Java object and comes back as the same object,
+  so a Java step can return a game object and a script can pass it to the next. The script class filter
+  applies to `Java.type` as it does to `mc.script.eval`, and stays off unless `-Dworlddriver.sandbox=on`.
 
 ## 2026-10-29
 

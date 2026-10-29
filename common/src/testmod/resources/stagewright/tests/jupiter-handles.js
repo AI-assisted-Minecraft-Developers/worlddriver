@@ -54,6 +54,11 @@ test('a refused call can be caught and checked', { scene: SCENE }, (t) => {
     t.record('refusal', caught.message);
 });
 
+// The Java global reaches a class by name, here a JDK one, whose name is the same in every game.
+test('Java.type reaches a static method', { scene: SCENE }, (t) => {
+    t.expect(Java.type('java.lang.Math').max(1, 2)).equals(2);
+});
+
 // A record may be blank, and afterTest runs when the test ends, after the body that registered it.
 const AFTER = 'afterTest runs when the test ends';
 

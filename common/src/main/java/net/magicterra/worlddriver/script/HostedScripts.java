@@ -10,19 +10,23 @@ import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.JavaScriptException;
 import dev.latvian.mods.rhino.NativeArray;
+import dev.latvian.mods.rhino.NativeJavaClass;
 import dev.latvian.mods.rhino.NativeJavaObject;
 import dev.latvian.mods.rhino.RhinoException;
+import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.Scriptable;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.WrappedException;
+import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Scripting;
 
 /**
  * {@link Scripting} over the engine {@code mc.script.eval} uses, without its run, budget or result envelope: the
  * caller owns the thread and decides how long a script may take. Each function call enters a context of its own,
- * since a script's function is called later and from whichever thread the caller is on.
+ * since a script's function is called later and from whichever thread the caller is on. Every scope also holds the
+ * {@code Java} global ({@link #installJava}).
  */
 public final class HostedScripts implements Scripting {
     private final ApiRegistry api;
@@ -38,6 +42,7 @@ public final class HostedScripts implements Scripting {
         try {
             ScriptableObject scope = cx.initStandardObjects();
             ScriptPrelude.install(cx, scope, ScriptCalls.standalone(api));
+            installJava(cx, scope);
             for (Map.Entry<String, ?> g : globals.entrySet()) {
                 ScriptableObject.putProperty(scope, g.getKey(), toJs(g.getValue(), cx, scope), cx);
             }
@@ -47,12 +52,51 @@ public final class HostedScripts implements Scripting {
         }
     }
 
+    /**
+     * The {@code Java} global: {@code Java.type(name)} answers the class with that binary name as a script sees a
+     * Java class (its static members, {@code new}), and {@code Java.loadClass(name)} is the same under the name
+     * KubeJS-style scripts use. An unknown name throws an error a script can catch.
+     *
+     * <p>Classes load through this mod's class loader, so a Minecraft class is named as the running game names it:
+     * intermediary ({@code net.minecraft.class_2338}) in a Fabric production game, Mojang names on NeoForge and in
+     * development (see {@link ScriptJava}). The class filter applies as it does to {@code mc.script.eval}: off unless
+     * {@code -Dworlddriver.sandbox=on}.
+     */
+    private static void installJava(Context cx, ScriptableObject scope) {
+        Scriptable java = cx.newObject(scope);
+        BaseFunction type = new JavaType();
+        ScriptableObject.putProperty(java, "type", type, cx);
+        ScriptableObject.putProperty(java, "loadClass", type, cx);
+        ScriptableObject.putProperty(scope, "Java", java, cx);
+    }
+
+    /** {@code Java.type(name)}. */
+    private static final class JavaType extends BaseFunction {
+        @Override
+        public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            String name = args.length == 0 ? "undefined" : ScriptRuntime.toString(cx, args[0]);
+            if (!cx.visibleToScripts(name, ClassVisibilityContext.CLASS_IN_PACKAGE)) {
+                throw ScriptRuntime.constructError(cx, "Error", "the Java class " + name + " is not visible to scripts");
+            }
+            Class<?> cls;
+            try {
+                cls = Class.forName(name, true, HostedScripts.class.getClassLoader());
+            } catch (ClassNotFoundException | LinkageError e) {
+                throw ScriptRuntime.constructError(cx, "Error", "no Java class named " + name);
+            }
+            return new NativeJavaClass(cx, getTopLevelScope(scope), cls);
+        }
+    }
+
     private Object toJava(Object js, Scriptable scope) {
         if (js == null || js instanceof Undefined) return null;
         if (js instanceof Boolean || js instanceof Double) return js;
         if (js instanceof Number n) return n.doubleValue();
         if (js instanceof CharSequence cs) return cs.toString();
         if (js instanceof JavaFunction f) return f.target;
+        // A Java object the script got from Java (a Java.type, what a Java function or method returned) goes back as
+        // itself. Before the array, function and map checks: a wrapped Java list, map or class is one of those too.
+        if (js instanceof NativeJavaObject o) return o.unwrap();
         if (js instanceof NativeArray array) {
             List<Object> out = new ArrayList<>();
             for (Object o : array) out.add(toJava(o, scope));
@@ -84,8 +128,8 @@ public final class HostedScripts implements Scripting {
             for (int i = 0; i < items.length; i++) items[i] = toJs(list.get(i), cx, scope);
             return cx.newArray(scope, items);
         }
-        throw new IllegalArgumentException("a script was handed a " + java.getClass().getName()
-                + ", which is not a plain value (null, Boolean, Number, String, List, Map or Scripting.Function)");
+        // Any other Java object: the script sees it as a Java object, and handing it back gives Java the same object.
+        return cx.javaToJS(java, scope);
     }
 
     /**

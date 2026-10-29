@@ -75,8 +75,42 @@ class HostedScriptsTest {
     }
 
     @Test
-    void anObjectThatIsNotAPlainValueIsRefused() {
-        assertThrows(IllegalArgumentException.class,
-                () -> scripts.evaluate("refused.js", "1", Map.of("thread", Thread.currentThread())));
+    void aJavaObjectRoundTripsThroughAScript() {
+        Thread thread = Thread.currentThread();
+        assertSame(thread, scripts.evaluate("same.js", "thread", Map.of("thread", thread)));
+        Object made = new Object();
+        Scripting.Function make = args -> made;
+        List<Object> seen = new ArrayList<>();
+        Scripting.Function take = args -> { seen.add(args[0]); return null; };
+        scripts.evaluate("pass.js", "var pass = function (o) { take(o); return o; }; pass(make())",
+                Map.of("make", make, "take", take));
+        assertSame(made, seen.get(0));
+        assertEquals(thread.getName(), scripts.evaluate("call.js", "thread.getName()", Map.of("thread", thread)));
+    }
+
+    @Test
+    void javaTypeReachesAStaticMember() {
+        assertEquals(2.0, ((Number) scripts.evaluate("max.js", "Java.type('java.lang.Math').max(1, 2)", Map.of()))
+                .doubleValue());
+        assertEquals(true, scripts.evaluate("number.js", "Java.type('java.lang.Math').max(1, 2) === 2", Map.of()));
+        assertEquals(7.0, ((Number) scripts.evaluate("load.js", "Java.loadClass('java.lang.Integer').parseInt('7')",
+                Map.of())).doubleValue());
+    }
+
+    @Test
+    void javaTypeConstructs() {
+        Object built = scripts.evaluate("new.js",
+                "var Sb = Java.type('java.lang.StringBuilder'); var sb = new Sb('ab'); sb.append('c'); sb", Map.of());
+        assertTrue(built instanceof StringBuilder sb && sb.toString().equals("abc"), String.valueOf(built));
+    }
+
+    @Test
+    void anUnknownClassIsCatchable() {
+        Object caught = scripts.evaluate("unknown.js",
+                "try { Java.type('no.such.Clazz'); 'loaded' } catch (e) { e.message }", Map.of());
+        assertTrue(String.valueOf(caught).contains("no.such.Clazz"), String.valueOf(caught));
+        ScriptFailure uncaught = assertThrows(ScriptFailure.class,
+                () -> scripts.evaluate("uncaught.js", "Java.type('no.such.Clazz')", Map.of()));
+        assertTrue(uncaught.getMessage().contains("no.such.Clazz"), uncaught.getMessage());
     }
 }
