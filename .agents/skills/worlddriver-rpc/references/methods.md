@@ -676,6 +676,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `antiSuffocate` | `boolean` | `true` | Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak. |
 | `contactDamageEscape` | `boolean` | `true` |  |
 | `lavaProximityEscape` | `boolean` | `true` |  |
+| `lavaEscapeWaterRadius` | integer 0–16 | `8` | Still burning once clear of lava, lavaProximityEscape walks into water this close and waits there until the fire is out; 0 hands back at once. |
 | `autoBackfillBlock` | `string` | `"minecraft:cobblestone"` | Block placed by autoBackfill. |
 | `autoBackfillRadius` | integer 1–16 | `6` | Chebyshev radius around player considered for backfill. |
 | `craftReclaimTable` | `boolean` | `true` | Break back a crafting table mc.bot.craft placed itself, once the craft ends (gap #276). Without it the table is abandoned where it stood: 4 planks burned at every craft site and the world littered with tables. Reclaims ONLY a table this craft placed — one found already standing (village, player base) is borrowed and left untouched. Best-effort: a reclaim that can't finish never changes the craft's own result. Runs on failure too (a craft that died after placing still littered a table). |
@@ -2119,6 +2120,8 @@ interface SettingValues {
     contactDamageEscape?: boolean;
     /** @default true */
     lavaProximityEscape?: boolean;
+    /** Still burning once clear of lava, lavaProximityEscape walks into water this close and waits there until the fire is out; 0 hands back at once. @default 8 */
+    lavaEscapeWaterRadius?: number;
     /** Block placed by autoBackfill. @default "minecraft:cobblestone" */
     autoBackfillBlock?: string;
     /** Chebyshev radius around player considered for backfill. @default 6 */

@@ -15,6 +15,7 @@ import net.magicterra.worlddriver.bot.stagewright.kit.Calls;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
 import net.magicterra.worlddriver.bot.stagewright.kit.SimProbes;
+import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -289,6 +290,74 @@ class ReflexTest {
         assertTrue(off[1] > 0 && on[1] > 0, "the look task did not hold the slot through both arms");
         assertTrue(off[0] < floor + 0.5, "with autoSwim off the bot rose from the pool floor: +" + (off[0] - floor));
         assertTrue(on[0] >= floor + 3, "with autoSwim on the bot did not swim up: rose only +" + (on[0] - floor));
+    }
+
+    // ---------------------------------------------------------------- lavaProximityEscape
+
+    /**
+     * Out of a lava pool and still burning, with water a few blocks off: the bot walks into the water, the fire goes
+     * out, and the reflex hands back, so an order then moves the bot. Lava sets a bot burning for fifteen seconds
+     * ({@code Entity.lavaHurt}), which leaving it does not end. The bot stands in the pool's east edge, where every
+     * cardinal is lava or wall, so the escape takes its fallback east; the water lies to the south of that line, so
+     * the escape's own walk away (some eight blocks) passes it by. With {@code lavaEscapeWaterRadius} 0 the bot is
+     * left burning on the stone.
+     */
+    @Test
+    void lavaEscapeWalksABurningBotIntoWater(Game game, @Plot.Centered @Plot.Size(x = 24, y = 16, z = 16) Plot plot,
+                                             TestReporter reporter) {
+        Settings settings = Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
+        plot.fill(-7, -1, -6, 9, 0, 7, Blocks.STONE);
+        plot.fill(-5, 0, -1, -3, 0, 1, Blocks.LAVA);
+        plot.fill(-1, 0, 4, 1, 0, 6, Blocks.WATER);
+        SceneBot bot = SceneBot.spawn(game, plot, -3, 0, 0);
+        BlockPos inLava = plot.at(-3, 0, 0);
+
+        double[] off = burnAndRun(game, bot, inLava, 120);
+        settings.set("lavaEscapeWaterRadius", 8);
+        double[] on = burnAndRun(game, bot, inLava, 200);
+        reporter.publishEntry("off.inLava/inWater/burning/x", off[0] + "/" + off[1] + "/" + off[2] + "/" + off[4]);
+        reporter.publishEntry("on.inLava/inWater/burning/ticksToOut/x", on[0] + "/" + on[1] + "/" + on[2] + "/" + on[3]
+                + "/" + on[4]);
+        assertTrue(off[0] > 0 && on[0] > 0, "the bot was never in the lava, so nothing set it burning");
+        assertTrue(off[2] > 0 && off[1] == 0, "with lavaEscapeWaterRadius 0 the bot was not left burning out of the water: "
+                + "inWater/burning/ticksToOut/x=" + off[1] + "/" + off[2] + "/" + off[3] + "/" + off[4]);
+        assertTrue(on[1] > 0, "with lavaEscapeWaterRadius 8 the bot did not reach the water in 200 ticks: x/z="
+                + on[4] + "/" + on[5]);
+        assertTrue(on[2] == 0, "with lavaEscapeWaterRadius 8 the bot was still burning after 200 ticks");
+
+        // Handed back: a goto out of the water arrives, which a reflex still holding the bot in it would not let happen.
+        BlockPos dry = plot.at(3, 1, 2);
+        double gap = game.onServer(s -> {
+            bot.goTo(Targets.block(dry));
+            bot.tickUntilIdle(300);
+            bot.park();
+            return bot.player().position().distanceTo(Vec3.atBottomCenterOf(dry));
+        });
+        reporter.publishEntry("goto.gap", String.valueOf(gap));
+        assertTrue(gap < 1.0, "after the fire was out a goto did not take the bot out of the water: " + gap + " blocks short");
+    }
+
+    /**
+     * Stand the bot in {@code inLava} and tick it {@code ticks} times. Answers 1/0 for: it was in lava, it ended in
+     * water, it ended burning; then the tick its fire went out (-1 if it did not) and its final x and z relative to
+     * the cell.
+     */
+    private static double[] burnAndRun(Game game, SceneBot bot, BlockPos inLava, int ticks) {
+        return game.onServer(s -> {
+            ServerPlayer fp = bot.player();
+            fp.setDeltaMovement(Vec3.ZERO);
+            fp.setPos(inLava.getX() + 0.5, inLava.getY(), inLava.getZ() + 0.5);
+            boolean wasInLava = false, burned = false;
+            int outAt = -1;
+            for (int t = 0; t < ticks; t++) {
+                bot.tick();
+                wasInLava |= fp.isInLava();
+                burned |= fp.isOnFire();
+                if (burned && outAt < 0 && !fp.isOnFire()) outAt = t;
+            }
+            return new double[] {wasInLava ? 1 : 0, fp.isInWater() ? 1 : 0, fp.isOnFire() ? 1 : 0, outAt,
+                    fp.getX() - inLava.getX(), fp.getZ() - inLava.getZ()};
+        });
     }
 
     // ---------------------------------------------------------------- autoSecureAtDusk

@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     saved data names, or in the overworld when there is none, so a bot spawned in the Nether, or
     under a name last saved in another dimension, stood at the right coordinates in the wrong
     dimension. It is now moved to the dimension asked for.
+- **A bot still burning after escaping lava walks into water.** The lava reflex used to hand control back
+  as soon as the bot was clear of the lava, with the bot still alight for up to fifteen seconds. Now,
+  while the bot burns, it walks into water within `lavaEscapeWaterRadius` blocks (a new setting,
+  default 8) and stands in it until the fire is out, then hands back. With no water that close, or
+  with the setting at 0, it hands back as before.
 - **The NeoForge client loads on every NeoForge 21.1 release again.** On releases before 21.1.80 the
   client failed to load, because the driver's client entry listened for a mod-bus event and
   game-bus events from one class and those loaders register a class on a single bus. The entry is

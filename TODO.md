@@ -111,14 +111,6 @@ two governors on one loop race — and reuse the existing cap rather than adding
 the recorded corpus offline first: a new counting rule has to catch the two known cases without
 firing on an ordinary detour around a tree.
 
-### The lava reflex hands control back while the bot is still burning
-
-`LavaProximityEscape` decides it is clear from the environment alone — a nearby threat or being in
-lava — and never asks `isOnFire()` or `getRemainingFireTicks()`. Leaving lava does not put a bot
-out, so the reflex releases control with the bot still alight. Adding the fire test to that
-condition is not by itself the fix: the reflex's action is to walk away from lava, and a burning
-bot with no lava left near it does not benefit from walking further.
-
 ### Every reflex is off by default
 
 The six reflexes default off by design. A survival driver (now Journeyman) wants them on, healing

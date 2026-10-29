@@ -80,6 +80,10 @@ public final class BehaviorConfig {
     public static volatile boolean contactDamageEscape = BehaviorSettings.DEFAULTS.contactDamageEscape();
     /** Walk away from an adjacent FLOWING lava front (devil-bench deaths #27/#29/#30). */
     public static volatile boolean lavaProximityEscape = BehaviorSettings.DEFAULTS.lavaProximityEscape();
+    /** How far (blocks, horizontally) {@link #lavaProximityEscape} looks for water for a bot still burning
+     *  once it is clear of lava. Leaving lava does not put a bot out, and walking further from the lava does
+     *  not either; 0 hands control back while the bot still burns. */
+    public static volatile int lavaEscapeWaterRadius = BehaviorSettings.DEFAULTS.lavaEscapeWaterRadius();
 
     /** gap#70 (live death #18): an IDLE bot (no movement process) that sinks in
      *  deep water gets ZERO self-rescue — {@link BotConfig#autoSwim}'s lift/beach steer is

@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BotUtil;
@@ -42,16 +46,26 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * preferring a hazard-free cardinal when the away-vector is degenerate or
  * itself blocked; linger a few ticks past the last sighting, hard-capped per
  * episode so a fully-ringed bot hands the channel back to the planner.
+ *
+ * <p>Leaving lava does not put a bot out: it burns for fifteen seconds more, and walking further from
+ * the lava does nothing about that. So once clear, a bot still alight with water within
+ * {@link BehaviorConfig#lavaEscapeWaterRadius} walks into it and stands there until the fire is out,
+ * and only then hands back; with no water in reach it hands back burning.
  */
 public final class LavaProximityEscape {
 
     private static final int LINGER_TICKS = 12;
     private static final int MAX_EPISODE_TICKS = 80;
+    /** A walk to water within the largest radius takes about a hundred ticks; past this it is not getting there. */
+    private static final int MAX_QUENCH_TICKS = 200;
 
     private boolean active;
     private int linger;
     private int episodeTicks;
     private BlockPos lastLava;
+    /** Clear of the lava, still burning, walking into water ({@link #quench}). */
+    private boolean quenching;
+    private int quenchTicks;
 
     /** @return true if it drove the escape this tick (keys are ours). */
     public boolean tick(Body body) {
@@ -68,6 +82,10 @@ public final class LavaProximityEscape {
         }
         BlockPos threat = nearestThreat(level, p);
         boolean hot = threat != null || p.isInLava();
+        if (quenching) {
+            if (!hot) return quench(body, level, p);
+            quenching = false;      // back among the lava: escape first
+        }
         if (!active) {
             if (!hot) return false;
             active = true;
@@ -86,6 +104,14 @@ public final class LavaProximityEscape {
                     String.format("%.1f", p.getHealth()));
         }
         if (hot) linger = LINGER_TICKS;
+        else if (p.isOnFire() && BehaviorConfig.lavaEscapeWaterRadius > 0
+                && towardWater(level, p.blockPosition(), BehaviorConfig.lavaEscapeWaterRadius) != null) {
+            // Clear of the lava and still alight: walking further from the lava does not put it out, water does.
+            quenching = true;
+            quenchTicks = 0;
+            LOG.info("[lavaEscape] still burning at {} → walking into water", p.blockPosition().toShortString());
+            return quench(body, level, p);
+        }
         else if (--linger <= 0) { reset("clear"); return false; }
         if (++episodeTicks > MAX_EPISODE_TICKS) { reset("episode-cap"); return false; }
 
@@ -181,10 +207,92 @@ public final class LavaProximityEscape {
      *  this an actual latch leak — {@code keyUp.setDown(true)} stays down — which is why the
      *  sibling had a release and this one's absence was a divergence, not a simplification.) */
     private void reset(String why) {
-        if (active) LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks);
+        if (active) LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks + quenchTicks);
         active = false;
         linger = 0;
         episodeTicks = 0;
         lastLava = null;
+        quenching = false;
+        quenchTicks = 0;
+    }
+
+    /**
+     * One tick of the walk into water: hand back once the fire is out, stand still once in water (touching water
+     * puts the fire out on the entity's next tick), otherwise step toward the nearest water cell
+     * {@link #towardWater} can reach. Hands back burning when no water is reachable any more or the walk runs past
+     * {@link #MAX_QUENCH_TICKS}.
+     */
+    private boolean quench(Body body, Level level, LivingEntity p) {
+        if (!p.isOnFire()) { reset("fire out"); return false; }
+        if (++quenchTicks > MAX_QUENCH_TICKS) { reset("quench-cap"); return false; }
+        if (p.isInWater()) {
+            body.commandMove(0f, 0f);
+            body.commandJump(false);
+            return true;
+        }
+        BlockPos step = towardWater(level, p.blockPosition(), BehaviorConfig.lavaEscapeWaterRadius);
+        if (step == null) { reset("no water"); return false; }
+        double dx = step.getX() + 0.5 - p.getX(), dz = step.getZ() + 0.5 - p.getZ();
+        p.setYRot((float) Math.toDegrees(Math.atan2(-dx, dz)));
+        p.setXRot(0f);
+        body.commandMove(0f, 1f);
+        body.commandJump(p.horizontalCollision);
+        return true;
+    }
+
+    /**
+     * The first cell to walk to on the shortest walk from {@code foot} to water within {@code radius} blocks
+     * horizontally, or null when there is none. A walk moves one cardinal cell at a time onto a floor, up one
+     * block or down at most two, never through or onto lava; it ends in a cell holding water or just above water.
+     * {@code foot} itself when it already is one. Breadth first, so the walk found is a shortest one.
+     */
+    private static BlockPos towardWater(Level level, BlockPos foot, int radius) {
+        if (watery(level, foot)) return foot;
+        Map<BlockPos, BlockPos> firstStep = new HashMap<>();
+        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        firstStep.put(foot, foot);
+        open.add(foot);
+        while (!open.isEmpty()) {
+            BlockPos at = open.poll();
+            for (Direction d : Direction.Plane.HORIZONTAL) {
+                BlockPos side = at.relative(d);
+                if (Math.abs(side.getX() - foot.getX()) > radius || Math.abs(side.getZ() - foot.getZ()) > radius) continue;
+                BlockPos next = landing(level, at, side);
+                if (next == null || firstStep.containsKey(next)) continue;
+                BlockPos first = at.equals(foot) ? next : firstStep.get(at);
+                if (watery(level, next)) return first;
+                firstStep.put(next, first);
+                open.add(next);
+            }
+        }
+        return null;
+    }
+
+    /** Where a step from {@code at} toward the column {@code side} ends: level, up one, or down one or two. */
+    private static BlockPos landing(Level level, BlockPos at, BlockPos side) {
+        if (fits(level, side)) {
+            for (int down = 0; down <= 2; down++) {
+                BlockPos c = side.below(down);
+                if (down > 0 && !fits(level, c)) return null;
+                if (watery(level, c) || standable(level, c)) return c;
+            }
+            return null;
+        }
+        BlockPos up = side.above();
+        return fits(level, up) && fits(level, at.above(2)) && standable(level, up) ? up : null;
+    }
+
+    /** The player's two cells at {@code feet} are free and free of lava. */
+    private static boolean fits(Level level, BlockPos feet) {
+        return !level.getBlockState(feet).blocksMotion() && !level.getBlockState(feet.above()).blocksMotion()
+                && !isLava(level, feet) && !isLava(level, feet.above());
+    }
+
+    private static boolean standable(Level level, BlockPos feet) {
+        return level.getBlockState(feet.below()).blocksMotion() && !isLava(level, feet.below());
+    }
+
+    private static boolean watery(Level level, BlockPos feet) {
+        return level.getFluidState(feet).is(FluidTags.WATER) || level.getFluidState(feet.below()).is(FluidTags.WATER);
     }
 }

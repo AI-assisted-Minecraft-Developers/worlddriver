@@ -32,6 +32,9 @@ public record BehaviorSettings(
         @Default("true") boolean antiSuffocate,
         @Default("true") boolean contactDamageEscape,
         @Default("true") boolean lavaProximityEscape,
+        @Doc("Still burning once clear of lava, lavaProximityEscape walks into water this close and waits there "
+                + "until the fire is out; 0 hands back at once.")
+        @Default("8") @Range(min = 0, max = 16) int lavaEscapeWaterRadius,
         @Doc("Block placed by autoBackfill.")
         @Default("minecraft:cobblestone") @BlockId String autoBackfillBlock,
         @Doc("Chebyshev radius around player considered for backfill.")
