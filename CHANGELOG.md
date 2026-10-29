@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **Code inside the game can wait longer for a busy server thread.** A call that needs the server
+  thread gave up after 8 seconds with `not_executed` whoever made it, so a test harness whose calls
+  queued behind a server thread generating chunks for several tests failed calls that would have run a
+  few seconds later. `ApiRegistry.withThreadWait(ms)` answers a view of the registry whose calls,
+  generated typed callers included, wait up to `ms` for the thread to start them, and
+  `CallContext.withThreadWait(ms)` does the same for one call. The call's deadline still bounds the
+  wait. The MCP, WebSocket RPC and `mc.script.eval` transports keep the 8 second limit.
+
 - **A bot spawned again by name comes back where it was.** `mc.bot.roster spawn` with no `pos` used to put
   a returning name at the world spawn, so a bot kept across a restart, or removed and spawned again, got
   its bag and health back but not its place. Now, with no `pos`, a name this world has saved data for

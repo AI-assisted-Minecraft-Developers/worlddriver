@@ -70,6 +70,27 @@ It also holds the testmod (the in-game tests and their test content) to what ano
 gets it added to the api — a reading under the hidden `mc.debug` family, or, for a mutation only a
 test should make, a `mc.test.*` method StageWright provides.
 
+## Waiting for a game thread
+
+A call whose work must run on the server thread queues it there through `thread/ServerThreadHop` and
+waits for that thread to start it. The wait is the shorter of the call's deadline (`CallContext`) and
+the hop's own limit, 8 seconds on the server thread. A task the thread has not started by then is
+withdrawn and the call answers `not_executed`, which is safe to retry. The transports (MCP, the
+WebSocket RPC, `mc.script.eval`) always use that limit, so a client on the wire is told within seconds
+that the server is busy.
+
+Code inside this JVM may instead choose to wait longer, for example a test harness whose calls queue
+behind a server thread busy generating chunks for several tests:
+
+- `registry.withThreadWait(ms)` answers a view of the same registry. Every call made through it, by
+  `route`, `dispatch`, `invoke`, or a generated caller such as `WorldBlockingApi.of(view)`, waits up to
+  `ms` for the thread to start its task. Publishing and listeners still go to the registry itself.
+- `ctx.withThreadWait(ms)` does the same for one `CallContext`, and `child` contexts keep it.
+
+The call's deadline still bounds the wait (an in-JVM `route` has the server's cap, ten minutes), and
+the withdraw-or-unknown answer is unchanged when even that wait runs out. A context that already names
+a thread wait keeps its own when it goes through a view.
+
 ## Changing a public type
 
 StageWright links against the schema, the method contracts and the registry. Java links lazily,

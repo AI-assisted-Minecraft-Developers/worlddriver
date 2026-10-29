@@ -105,7 +105,9 @@ public final class ServerThreadHop {
             return CompletableFuture.failedFuture(new NotExecutedException(threadName + " refused the task ("
                     + e.getMessage() + "); it will not run and is safe to retry"));
         }
-        long waitMs = Math.max(1, Math.min(timeoutMs, ctx.remainingMillis()));
+        // The caller's own thread wait when it set one (an in-JVM caller that would rather wait), else this hop's.
+        long limit = ctx.threadWaitMs() > 0 ? ctx.threadWaitMs() : timeoutMs;
+        long waitMs = Math.max(1, Math.min(limit, ctx.remainingMillis()));
         ScheduledFuture<?> timer = ApiTimers.schedule(() -> {
             if (f.isDone()) return;
             if (state.compareAndSet(QUEUED, ABANDONED)) {

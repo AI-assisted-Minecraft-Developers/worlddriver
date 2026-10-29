@@ -101,7 +101,8 @@ public final class ScriptEvaluator {
         long start = System.nanoTime();
         long own = start + TimeUnit.MILLISECONDS.toNanos(budgetMs);
         long deadline = own - caller.deadlineNanos() < 0 ? own : caller.deadlineNanos();
-        CallContext ctx = new CallContext(deadline, caller.requestCancelled(), Optional.of(run), caller.waits(), true);
+        CallContext ctx = new CallContext(deadline, caller.requestCancelled(), Optional.of(run), caller.waits(), true,
+                caller.threadWaitMs());
         BooleanSupplier stopped = () -> run.stopped().isCancelled() || caller.requestCancelled().isCancelled();
 
         CompletableFuture<Outcome> out = new CompletableFuture<>();

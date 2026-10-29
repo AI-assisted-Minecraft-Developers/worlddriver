@@ -9,10 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -97,6 +100,54 @@ class ServerThreadHopTest {
         Executor refuses = r -> { throw new AssertionError("must not queue a task from the server thread"); };
         ServerThreadHop hop = new ServerThreadHop(refuses, () -> true, 1);
         assertEquals("inline", hop.call(() -> "inline"));
+    }
+
+    /** A server thread busy for {@code ms}, then working through its queue. */
+    private static ParkedExecutor busyFor(long ms) {
+        ParkedExecutor server = new ParkedExecutor();
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
+            server.drain();
+        }, "test-busy-server");
+        t.setDaemon(true);
+        t.start();
+        return server;
+    }
+
+    @Test
+    @Timeout(10)
+    void aCallerWithItsOwnThreadWaitOutlastsTheHopsLimit() throws Exception {
+        // The hop's own limit stands in for the server thread's 8 s, scaled down; the thread is busy past it.
+        ServerThreadHop hop = new ServerThreadHop(busyFor(600), () -> false, 200);
+        CallContext ctx = CallContext.standalone().withThreadWait(3_000);
+        assertEquals(7, hop.submit(() -> 7, ctx).get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    @Timeout(10)
+    void withoutOneTheHopsOwnLimitStillApplies() {
+        AtomicInteger runs = new AtomicInteger();
+        ParkedExecutor server = busyFor(600);
+        ServerThreadHop hop = new ServerThreadHop(server, () -> false, 200);
+        long start = System.nanoTime();
+        ExecutionException e = assertThrows(ExecutionException.class,
+                () -> hop.submit(runs::incrementAndGet, CallContext.standalone()).get(5, TimeUnit.SECONDS));
+        long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertInstanceOf(ServerThreadHop.NotExecutedException.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("within 200ms"), e.getCause().getMessage());
+        assertTrue(tookMs < 600, "gave up after " + tookMs + "ms, not at the hop's 200ms");
+        server.drain();
+        assertEquals(0, runs.get(), "the withdrawn task ran");
+    }
+
+    @Test
+    @Timeout(10)
+    void theDeadlineStillBoundsTheThreadWait() {
+        ServerThreadHop hop = new ServerThreadHop(busyFor(2_000), () -> false, 200);
+        CallContext ctx = CallContext.withBudget(300, CancellationToken.NEVER, CallContext.SHARED_WAITS).withThreadWait(5_000);
+        ExecutionException e = assertThrows(ExecutionException.class,
+                () -> hop.submit(() -> 1, ctx).get(5, TimeUnit.SECONDS));
+        assertInstanceOf(ServerThreadHop.NotExecutedException.class, e.getCause());
     }
 
     @Test

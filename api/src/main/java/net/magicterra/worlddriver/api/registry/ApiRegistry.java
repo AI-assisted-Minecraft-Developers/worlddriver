@@ -49,8 +49,45 @@ public final class ApiRegistry {
         public List<String> names() { return List.copyOf(methods.keySet()); }
     }
 
-    private volatile Snapshot snapshot = new Snapshot(0, Map.of(), Map.of(), Map.of());
-    private final List<Consumer<Snapshot>> listeners = new CopyOnWriteArrayList<>();
+    /** What is published, shared by a registry and every {@link #withThreadWait} view of it. */
+    private static final class Published {
+        volatile Snapshot snapshot = new Snapshot(0, Map.of(), Map.of(), Map.of());
+        final List<Consumer<Snapshot>> listeners = new CopyOnWriteArrayList<>();
+    }
+
+    private final Published state;
+    /** What {@link #withThreadWait} gave this view, or 0 for the registry itself: each hop's own limit. */
+    private final long threadWaitMs;
+
+    public ApiRegistry() {
+        this(new Published(), 0);
+    }
+
+    private ApiRegistry(Published state, long threadWaitMs) {
+        this.state = state;
+        this.threadWaitMs = threadWaitMs;
+    }
+
+    /**
+     * The same methods, for a caller inside this JVM that will wait up to {@code ms} for a game thread to
+     * start each call's task, where a call otherwise gives up after that thread's own limit (8 s for the
+     * server thread) and answers {@code not_executed}. Every call through the view, a {@link #route}, a
+     * {@link #dispatch} or a generated caller ({@code XxxBlockingApi.of(view)}), gets a context carrying
+     * {@link CallContext#withThreadWait} unless its context already names a wait; the call's deadline
+     * still bounds it. Publishing and listening go to the registry itself. The transports never use a view,
+     * so a client on the wire keeps the thread's own limit.
+     *
+     * @param ms at least 1; {@link CallContext#SERVER_CAP_MS} at most is honoured
+     */
+    public ApiRegistry withThreadWait(long ms) {
+        if (ms < 1) throw new IllegalArgumentException("a thread wait is at least 1 ms, got " + ms);
+        return new ApiRegistry(state, ms);
+    }
+
+    /** {@code ctx} with this view's thread wait, unless it already names one. */
+    private CallContext adjust(CallContext ctx) {
+        return threadWaitMs > 0 && ctx.threadWaitMs() == 0 ? ctx.withThreadWait(threadWaitMs) : ctx;
+    }
 
     /**
      * Encoding a result that a game thread completed must not run on that game thread: an image or a
@@ -59,10 +96,10 @@ public final class ApiRegistry {
     private static final ExecutorService ENCODE = new ThreadPoolExecutor(1, 4, 30, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(), Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
 
-    public Snapshot snapshot() { return snapshot; }
+    public Snapshot snapshot() { return state.snapshot; }
 
     /** Told after every publish, on the publishing thread, with the new snapshot. */
-    public void addListener(Consumer<Snapshot> listener) { listeners.add(Objects.requireNonNull(listener)); }
+    public void addListener(Consumer<Snapshot> listener) { state.listeners.add(Objects.requireNonNull(listener)); }
 
     /**
      * Check the whole batch, then publish it in one step. Returns false when this very batch object is
@@ -74,8 +111,8 @@ public final class ApiRegistry {
     public boolean registerBatch(ApiBatch batch) {
         Objects.requireNonNull(batch, "batch");
         Snapshot published;
-        synchronized (this) {
-            Snapshot cur = snapshot;
+        synchronized (state) {
+            Snapshot cur = state.snapshot;
             String key = batch.owner() + "/" + batch.id();
             ApiBatch existing = cur.batches().get(key);
             if (existing == batch) return false;
@@ -106,9 +143,9 @@ public final class ApiRegistry {
             batches.put(key, batch);
             published = new Snapshot(cur.version() + 1, Collections.unmodifiableMap(methods),
                     Collections.unmodifiableMap(batches), Collections.unmodifiableMap(ownerOf));
-            snapshot = published;
+            state.snapshot = published;
         }
-        for (Consumer<Snapshot> l : listeners) {
+        for (Consumer<Snapshot> l : state.listeners) {
             try { l.accept(published); } catch (RuntimeException ignored) { /* a listener cannot unpublish */ }
         }
         return true;
@@ -125,12 +162,12 @@ public final class ApiRegistry {
 
     /** The method called {@code name}, or null. */
     public ApiMethod<?, ?> method(String name) {
-        return name == null ? null : snapshot.methods().get(name);
+        return name == null ? null : state.snapshot.methods().get(name);
     }
 
     /** Every callable method name, in registration order. */
     public Set<String> methods() {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(snapshot.names()));
+        return Collections.unmodifiableSet(new LinkedHashSet<>(state.snapshot.names()));
     }
 
     /** The spec of {@code method}, or null for an unknown one. */
@@ -151,7 +188,7 @@ public final class ApiRegistry {
             return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.METHOD_NOT_FOUND,
                     method == null ? "the request named no method" : "unknown method: " + method));
         }
-        return run(m, paramsTree == null ? new JsonObject() : paramsTree, context);
+        return run(m, paramsTree == null ? new JsonObject() : paramsTree, adjust(context));
     }
 
     private static <P, R> CompletionStage<JsonElement> run(ApiMethod<P, R> m, JsonElement tree, CallContext context) {
@@ -232,7 +269,7 @@ public final class ApiRegistry {
         }
         try {
             P checked = spec.input().validate(params);
-            CompletionStage<R> stage = ((ApiMethod<P, R>) m).handler().execute(checked, context);
+            CompletionStage<R> stage = ((ApiMethod<P, R>) m).handler().execute(checked, adjust(context));
             if (stage == null) throw new IllegalStateException(spec.name() + " returned no stage");
             return stage;
         } catch (Throwable t) {
