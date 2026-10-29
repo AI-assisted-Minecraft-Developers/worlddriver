@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **Removed settings that were off by default and that no test, scene or run ever turned on**, with
+  the code only they reached. Nothing changes at the defaults; `mc.bot.setting` now refuses these keys.
+  Navigator: `navigatorVerticalResync`, `navigatorLevelRiserJump`, `navigatorPadRamBreak`,
+  `navigatorDescentFlipHold`, `navigatorStepUpCrestReach`, `navigatorAscentRamJitterImmune`,
+  `navigatorArcLengthShadow`, `navigatorArcProgressWedge`, `navigatorFellBelowAlign`,
+  `navigatorTraverseBreakOvershootResync`, `navigatorFloatingBankFollow`, `navigatorCruiseHop`,
+  `navigatorDryWedgeFootY`, `navigatorWallCornerNodeAim`, `navigatorOvershootReaim`,
+  `navigatorDiagDownCenter`, `navigatorCarrotHColShrink`, `navigatorChainMount`,
+  `navigatorCommitTailPlatform`. Pathfinder: `pathfinderGoalField` with `goalFieldCellSize`,
+  `goalFieldRadius` and `goalFieldVerticalRadius` (the coarse goal-distance heuristic),
+  `pathfinderForbidParkourOverWaterGap`, and `riskBias` with `riskBias.scale` (the learned risk-cost
+  table and its bundled `stuckrisk-table.bin`). Reflexes: `autoBunker` with `bunkerHpThreshold`,
+  `bunkerTriggerRadius` and `bunkerMinHostiles` (the emergency bunker chain, so `mc.bot.status` no longer lists a `bunker` chain; `mc.bot.bunker`, the
+  dusk shelter and `bunkerDepth` stay), and `duskUrgentDryRun` with its `duskSecure.urgentDryRun`
+  event, the trial switch from before `duskUrgent` defaulted on.
 - **`mc.client.input.typeText`, `replaceText` and `slider` take a `ref` from `screen.tree` and
   `returnTree`**, like `click`. `typeText` focuses the named box before typing; a ref that is gone, or
   names something other than a text box or slider, is refused as `no_target`.

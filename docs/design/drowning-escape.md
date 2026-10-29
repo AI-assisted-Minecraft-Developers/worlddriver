@@ -8,7 +8,7 @@ that kept steering, because the in-process jump backstop in `AutoSwim` shares th
 channel with the process and the process's own per-tick steering suppressed it.
 
 So the fix had to be a scheduling one: drowning under an active process must preempt the
-movement channel outright, the way the bunker, retreat and panic reflexes do. That is
+movement channel outright, the way the retreat and panic reflexes do. That is
 `bot/arbitration/DrownEscapeChain`.
 
 Everything after that is arithmetic. Once the reflex holds the channel it has a fixed budget,
@@ -56,7 +56,7 @@ a deliberate dive is not preempted. It releases on wide hysteresis: air back abo
 plus `RECOVER_MARGIN` (40).
 
 While latched the chain bids `Priorities.DROWN_ESCAPE` (500). That is above `BUNKER` (300) —
-the bunker reflex digs downward, which while drowning is exactly lethal — and above the user
+an ordered bunker digs downward, which while drowning is exactly lethal — and above the user
 task, and below `DODGE` (900) and `PANIC` (1000), so a creeper blast still wins.
 
 The latch is the episode: it is reachable by `mc.bot.cancel` and by the death hook, and it

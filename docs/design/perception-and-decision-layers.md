@@ -74,8 +74,8 @@ lethal penalty sent every crossing hugging the nearest shore. See `docs/design/w
 ### Being cornered is reported, not acted on
 
 When no improving non-lethal step exists the bot stops at the safest reachable cell and reports the
-situation. It does not dig itself a shelter. An autonomous bunkering reflex had already been built once
-and withdrawn as too unpredictable, and sealing yourself in while surrounded by melee attackers is a
+situation. It does not dig itself a shelter. An autonomous bunkering reflex was built, kept behind a switch
+nothing turned on, and removed, and sealing yourself in while surrounded by melee attackers is a
 known way to die. The caller decides whether to bunker, fight, or build upwards.
 
 ## What this rules out

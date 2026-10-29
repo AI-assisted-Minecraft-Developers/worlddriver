@@ -102,11 +102,6 @@ The water anti-spin in `SearchPhase` ends best-effort with `TickStep.ARRIVED` /
 Only the `AutoEat` reflex exists; nothing interrupts the current task when food runs low and none is
 carried. Wanted: a food chain that bids above the user task, like AltoClef's `FoodChain`.
 
-### The learned risk-cost table is off by default with no evidence either way
-
-`RiskCostTable` is wired into the pathfinder behind `riskBias` (default off, scale 15). Turning it
-on needs a live A/B with the flag off and on over the same route.
-
 ### The build and backfill stance pickers have no reach test
 
 `BuildProcess` and `BackfillProcess` return a stand with no reach test; `BboxFillProcess` gates its
@@ -154,11 +149,10 @@ Besides `Body`, the shared vanilla keybinds are still written by `BotInteract.re
 `ClientKeybinds`. Only `Body` can drive a server-side player; whether those two move onto it is an
 architecture decision.
 
-### Default-off flags that no real run has ever turned on
+### Three default-off settings are never run by a test
 
-`allowParkour4` is one of them, which means the movement members behind it have never taken a step
-in real navigation. Each of them needs either a test that exercises it or deletion. Leaving them as
-features awaiting activation is the outcome to avoid.
+`autoFight` and `allowParkourPlace` are never turned on by a test or a run, and `allowParkour4` only
+by a validation script that writes it and reads it back. Each needs a test that runs it, or deletion.
 
 ### Nothing runs the replay corpus's acceptance rule
 

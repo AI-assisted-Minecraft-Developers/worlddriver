@@ -152,12 +152,11 @@ configuration that persists across a restart.
   data in `WorldModel` would be guessing.
 - **Being cornered does not by itself commit the bot to a bunker.** Sealing yourself
   in while surrounded by melee attackers is a way to die, so being cornered is
-  reported as an event and the emergency bunker reflex has its own entry conditions
-  (low health and several hostiles close by) rather than firing on the cornered signal
-  alone.
-- **A learned cost model.** A model trained on recorded replays ranks how risky each
-  kind of move is, and its table is wired into the pathfinder behind `riskBias`, off by
-  default. It stays a cost bias under the symbolic planner and reflexes, never a
-  replacement, and the default stays off until a live comparison on the same route shows
-  it helps. Distilling a small policy for jump timing, swimming and parkour is further
+  reported as an event and a bunker is dug only when ordered (`mc.bot.bunker`) or by
+  the dusk shelter reflex, never on the cornered signal alone.
+- **A learned cost model.** A model trained on recorded replays could rank how risky
+  each kind of move is and bias the pathfinder's costs. The table and the switch that
+  shipped for it were removed on 2026-10-29 without ever being turned on; only the idea
+  stays. It would be a cost bias under the symbolic planner and reflexes, never a
+  replacement, and would need a live comparison on the same route first. Distilling a small policy for jump timing, swimming and parkour is further
   off still: it would only ever be a hint, and nothing is blocked on it.

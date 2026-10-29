@@ -37,8 +37,8 @@ Resuming forces a replan rather than continuing the old path. During the interru
 may have been knocked back and the terrain may have changed, and reusing a stale path walks into
 a wall.
 
-The bands, in `Priorities`, are: panic at 1000, dodging at 900, drowning escape at 500, bunkering
-at 300, retreat at 100, urgent shelter at 90, combat at 60, the user task at 50, and idle
+The bands, in `Priorities`, are: panic at 1000, dodging at 900, drowning escape at 500, an ordered
+bunker at 300, retreat at 100, urgent shelter at 90, combat at 60, the user task at 50, and idle
 shelter-seeking at 40. Reading them in order is reading the design: a reflex outranks deliberation,
 and the foreground user task sits near the bottom, above only the behaviour that exists to fill
 idle time.
@@ -59,9 +59,7 @@ and while it stands `mc.bot.status` shows it under `chains.<name>.bail` as `{rea
 Cancelling every episode, on `mc.bot.cancel{all}` or on death, lifts every bail, because the site the
 chain gave up on is no longer the question.
 
-The bunker reflex bails for 200 ticks when it will not dig the column it stands on (water, a hazard,
-a floor that does not break): it is cornered by definition, so without the bail its 300 starved the
-retreat reflex below it for the whole siege. Dusk shelter bails for 600 ticks when its bunker process
+Dusk shelter bails for 600 ticks when its bunker process
 ends without enclosing the bot, and restarts its start debounce: an unsafe site fails on the first
 tick and changes nothing, so it would otherwise restart the dig on every tick of the night at 90,
 above the user task.
@@ -86,7 +84,8 @@ Running this for a while produced fourteen deaths and several deadlocks, and the
 structural causes rather than to fourteen bugs. All five were in the semantics of the scheduler, not
 in any one behaviour.
 
-**A reflex's state must be cancellable.** The bunker chain kept its anchor in a private field and
+**A reflex's state must be cancellable.** The bunker chain (an opt-in reflex, removed on 2026-10-29
+without ever having been switched on by default) kept its anchor in a private field and
 re-bid the top priority from it every tick. Because that state was outside any process, nothing
 could reach it: `mc.bot.cancel` cancels processes, and this chain held none. The only way out was to
 flip a configuration flag, and the state survived death. The fix is a cancellation seam on the chain
