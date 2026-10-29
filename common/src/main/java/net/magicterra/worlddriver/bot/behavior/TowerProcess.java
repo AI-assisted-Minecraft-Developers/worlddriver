@@ -112,10 +112,7 @@ public final class TowerProcess implements BotProcess {
     public int placed() { return placed; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
-        st.builder.goal = "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : "");
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun("tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

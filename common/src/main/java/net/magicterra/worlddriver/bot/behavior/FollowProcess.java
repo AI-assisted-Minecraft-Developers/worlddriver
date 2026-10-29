@@ -58,12 +58,9 @@ public final class FollowProcess implements BotProcess, Navigating {
 
     public String kind() { return "follow"; }
     public void attach(BotState st) {
-        st.follow.active = true;
-        st.follow.goal = "follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius
+        st.follow.beginRun("follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius
             + (maxIdleTicks > 0 ? " idle≤" + maxIdleTicks + "t" : "")
-            + (giveUpTicks > 0 ? " giveUp≤" + giveUpTicks + "t" : "");
-        st.follow.startedAtMs = System.currentTimeMillis();
-        st.follow.lastError = null;
+            + (giveUpTicks > 0 ? " giveUp≤" + giveUpTicks + "t" : ""), null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

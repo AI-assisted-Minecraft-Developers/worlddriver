@@ -106,10 +106,7 @@ public final class CraftProcess implements BotProcess {
     public int crafted() { return crafted; }
 
     @Override public void attach(BotState s) {
-        s.craft.active = true;
-        s.craft.goal = "craft " + count + "× " + target;
-        s.craft.startedAtMs = System.currentTimeMillis();
-        s.craft.lastError = null;
+        s.craft.beginRun("craft " + count + "× " + target, null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState s) {

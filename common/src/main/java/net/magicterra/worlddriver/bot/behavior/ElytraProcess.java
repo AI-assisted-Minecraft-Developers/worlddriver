@@ -115,13 +115,9 @@ public final class ElytraProcess implements BotProcess {
     public String kind() { return "elytra"; }
 
     public void attach(BotState st) {
-        st.elytra.active = true;
-        st.elytra.goal = target != null
+        st.elytra.beginRun(target != null
                 ? "fly→" + target.getX() + "," + target.getY() + "," + target.getZ()
-                : String.format(Locale.ROOT, "glide pitch %.1f", pitch);
-        st.elytra.target = target;
-        st.elytra.startedAtMs = System.currentTimeMillis();
-        st.elytra.lastError = null;
+                : String.format(Locale.ROOT, "glide pitch %.1f", pitch), target);
         slot = st.elytra;
     }
 

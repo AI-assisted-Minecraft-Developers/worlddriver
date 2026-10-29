@@ -65,12 +65,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     public String kind() { return "builder"; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
         String mode = (filterFromId != null) ? "replace[" + filterFromId + "→" + fillId + "]"
                     : (fillId != null) ? "fill[" + fillId + "]" : "clear";
-        st.builder.goal = mode + " " + minP + "→" + maxP + " (vol=" + totalEstimate + ")";
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun(mode + " " + minP + "→" + maxP + " (vol=" + totalEstimate + ")", null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

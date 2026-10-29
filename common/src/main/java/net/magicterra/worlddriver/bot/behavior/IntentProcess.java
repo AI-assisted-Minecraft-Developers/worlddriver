@@ -111,17 +111,11 @@ public final class IntentProcess implements BotProcess, Navigating {
 
     public void attach(BotState st) {
         Goal goal = intent.target();
-        st.mc_goto.active = true;
-        st.mc_goto.goal = goal.toString();
-        if (goal instanceof Goal.Block b) st.mc_goto.target = b.target();
-        else if (goal instanceof Goal.Near n) st.mc_goto.target = n.target();
-        else if (goal instanceof Goal.TwoBlocks t) st.mc_goto.target = t.target();
-        else if (goal instanceof Goal.GetToBlock g) st.mc_goto.target = g.target();
-        st.mc_goto.startedAtMs = System.currentTimeMillis();
-        st.mc_goto.lastError = null;
-        st.mc_goto.goalReached = null;
-        st.mc_goto.endReason = null;
-        st.mc_goto.finalDist = -1;
+        BlockPos target = goal instanceof Goal.Block b ? b.target()
+                : goal instanceof Goal.Near n ? n.target()
+                : goal instanceof Goal.TwoBlocks t ? t.target()
+                : goal instanceof Goal.GetToBlock g ? g.target() : null;
+        st.mc_goto.beginRun(goal.toString(), target);
     }
 
     /** Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge)

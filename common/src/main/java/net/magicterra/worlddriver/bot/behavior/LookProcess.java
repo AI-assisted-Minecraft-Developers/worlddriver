@@ -30,13 +30,9 @@ public final class LookProcess implements BotProcess {
     public String kind() { return "look"; }
 
     public void attach(BotState st) {
-        st.look.active = true;
-        st.look.goal = track != null
+        st.look.beginRun(track != null
                 ? "pos " + track.getX() + "," + track.getY() + "," + track.getZ()
-                : String.format(Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch);
-        if (track != null) st.look.target = track;
-        st.look.startedAtMs = System.currentTimeMillis();
-        st.look.lastError = null;
+                : String.format(Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch), track);
         if (GameConfig.navigatorDebug)
             LOG.info("[look] attach goal={} smoothLook={} degPerTick={}",
                     st.look.goal, GameConfig.smoothLook, GameConfig.smoothLookDegPerTick);

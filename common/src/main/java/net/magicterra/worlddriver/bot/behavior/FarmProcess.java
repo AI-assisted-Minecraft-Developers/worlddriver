@@ -70,11 +70,8 @@ public final class FarmProcess implements BotProcess, Navigating {
     public int replanted() { return replanted; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
-        st.builder.goal = "farm[" + String.join(",", crops) + "] " + minP + "→" + maxP +
-                " (cells=" + totalEstimate + ", replant=" + replant + ")";
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun("farm[" + String.join(",", crops) + "] " + minP + "→" + maxP +
+                " (cells=" + totalEstimate + ", replant=" + replant + ")", null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

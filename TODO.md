@@ -154,12 +154,6 @@ Besides `Body`, the shared vanilla keybinds are still written by `BotInteract.re
 `ClientKeybinds`. Only `Body` can drive a server-side player; whether those two move onto it is an
 architecture decision.
 
-### A process's `attach()` does not clear the previous run's terminal fields
-
-`ProcessSlot.goalReached/endReason/finalDist` survive `reset()` and only `IntentProcess` and
-`BunkerProcess` clear them in `attach()`; `MineProcess` and `ReplayProcess` don't, so status shows the
-last run's verdict on a running one. Collect into one `beginRun()`, with a check.
-
 ### Default-off flags that no real run has ever turned on
 
 `allowParkour4` is one of them, which means the movement members behind it have never taken a step
@@ -237,13 +231,6 @@ current caller reaches them off-thread. Add the guard, or an assertion, before a
 ### The farm process's break timeout is a private constant
 
 Sixty ticks, hard-coded, not wired to the configured break timeout.
-
-### Descend and escape end differently on a shared state slot
-
-Escape resets the slot and logs a bail (debug only) on failure; descend only clears the active flag.
-After a descend, the escape slot still reports the old goal, target and start time, and a failed
-descend logs nothing at all. The shared slot itself is documented design and is not the defect.
-Aligning the two changes what `mc.bot.state` reports, so it needs a check.
 
 ### `isFalling(Level, BlockPos)` exists three times, verbatim
 
@@ -441,7 +428,6 @@ reopen one without that observation.
 None of these has been confirmed. Before acting on one, grep for the line the code itself would
 write, read the production code, and measure the file.
 
-- Escape and descend disagree on their reset conventions.
 - A parkour take-off gate: refuse the jump when less than one block of horizontal room remains.
   Planner side done (`Parkour3`'s run-up, `ParkourVoidTest.parkourVoidRunwayGate`); the executor side
   is open — `DrivePhase` only records take-off samples.

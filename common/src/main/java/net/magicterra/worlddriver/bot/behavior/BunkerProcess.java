@@ -111,12 +111,7 @@ public final class BunkerProcess implements BotProcess {
     public boolean sealed() { return sealedOk; }
 
     @Override public void attach(BotState st) {
-        st.bunker.active = true;
-        st.bunker.goal = "bunker depth=" + depth;
-        st.bunker.startedAtMs = System.currentTimeMillis();
-        st.bunker.lastError = null;
-        st.bunker.goalReached = null;
-        st.bunker.endReason = null;
+        st.bunker.beginRun("bunker depth=" + depth, null);
         sealedVerdictStamped = false;
     }
 

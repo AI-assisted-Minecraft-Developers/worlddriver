@@ -46,12 +46,9 @@ public final class SleepProcess implements BotProcess, Navigating {
     public BlockPos bedPos() { return bedPos; }
 
     public void attach(BotState st) {
-        st.mc_goto.active = true;
-        st.mc_goto.goal = explicit != null
+        st.mc_goto.beginRun(explicit != null
                 ? "sleep[bed@" + explicit + "]"
-                : "sleep[nearest bed within " + searchRadius + "]";
-        st.mc_goto.startedAtMs = System.currentTimeMillis();
-        st.mc_goto.lastError = null;
+                : "sleep[nearest bed within " + searchRadius + "]", null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

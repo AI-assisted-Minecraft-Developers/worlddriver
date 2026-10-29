@@ -64,11 +64,7 @@ public final class ReplayProcess implements BotProcess, Navigating {
     @Override public String kind() { return "replay"; }
 
     @Override public void attach(BotState st) {
-        st.mc_goto.active = true;
-        st.mc_goto.goal = endGoal.toString();
-        if (endGoal instanceof Goal.Block b) st.mc_goto.target = b.target();
-        st.mc_goto.startedAtMs = System.currentTimeMillis();
-        st.mc_goto.lastError = null;
+        st.mc_goto.beginRun(endGoal.toString(), endGoal instanceof Goal.Block b ? b.target() : null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

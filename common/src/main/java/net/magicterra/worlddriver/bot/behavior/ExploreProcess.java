@@ -37,10 +37,7 @@ public final class ExploreProcess implements BotProcess, Navigating {
     /** Chunk centres reached so far. */
     public int visited() { return visitedCount; }
     public void attach(BotState st) {
-        st.explore.active = true;
-        st.explore.goal = "explore around chunk (" + centerChunkX + "," + centerChunkZ + ") max=" + maxChunks;
-        st.explore.startedAtMs = System.currentTimeMillis();
-        st.explore.lastError = null;
+        st.explore.beginRun("explore around chunk (" + centerChunkX + "," + centerChunkZ + ") max=" + maxChunks, null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

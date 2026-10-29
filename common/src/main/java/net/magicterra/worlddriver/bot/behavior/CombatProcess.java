@@ -113,12 +113,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
 
     @Override public void attach(BotState s) {
-        s.combat.active = true;
-        s.combat.goal = "combat " + mode.name().toLowerCase()
+        s.combat.beginRun("combat " + mode.name().toLowerCase()
                 + (targetId != null ? " id=" + targetId : "")
-                + (targetType != null ? " type=" + targetType : "");
-        s.combat.startedAtMs = System.currentTimeMillis();
-        s.combat.lastError = null;
+                + (targetType != null ? " type=" + targetType : ""), null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

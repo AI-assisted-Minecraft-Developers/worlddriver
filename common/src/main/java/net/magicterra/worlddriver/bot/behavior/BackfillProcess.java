@@ -59,10 +59,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
     public String kind() { return "builder"; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
-        st.builder.goal = "backfill " + tracker.size() + " tracked cells";
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun("backfill " + tracker.size() + " tracked cells", null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

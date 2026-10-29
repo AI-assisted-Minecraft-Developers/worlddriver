@@ -226,10 +226,7 @@ public final class MineProcess implements BotProcess, Navigating {
     public int broken() { return broken; }
 
     public void attach(BotState st) {
-        st.mine.active = true;
-        st.mine.goal = String.join(",", targetIds) + "×" + desiredQty;
-        st.mine.startedAtMs = System.currentTimeMillis();
-        st.mine.lastError = null;
+        st.mine.beginRun(String.join(",", targetIds) + "×" + desiredQty, null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

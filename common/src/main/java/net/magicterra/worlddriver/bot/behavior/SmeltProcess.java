@@ -117,10 +117,7 @@ public final class SmeltProcess implements BotProcess {
     public String fuelChosen() { return fuelChosen; }
 
     @Override public void attach(BotState s) {
-        s.smelt.active = true;
-        s.smelt.goal = "smelt " + count + "× " + input;
-        s.smelt.startedAtMs = System.currentTimeMillis();
-        s.smelt.lastError = null;
+        s.smelt.beginRun("smelt " + count + "× " + input, null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState s) {

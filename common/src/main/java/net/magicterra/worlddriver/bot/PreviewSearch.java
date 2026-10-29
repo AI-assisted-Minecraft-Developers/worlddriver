@@ -128,11 +128,8 @@ public final class PreviewSearch {
         String id = "p-" + seq.incrementAndGet();
         queue.add(new Pending(id, req, action));
         action.bindStopper(why -> cancel(id));
-        state.plan.active = true;
-        state.plan.goal = req.goals().get(req.goals().size() - 1).toString();
-        state.plan.target = req.goals().get(req.goals().size() - 1).targetPos();
-        state.plan.startedAtMs = System.currentTimeMillis();
-        state.plan.lastError = null;
+        Goal last = req.goals().get(req.goals().size() - 1);
+        state.plan.beginRun(last.toString(), last.targetPos());
         Map<String, Object> queued = new LinkedHashMap<>();
         queued.put("planId", id);
         queued.put("queued", queue.size() + (current == null ? 0 : 1));

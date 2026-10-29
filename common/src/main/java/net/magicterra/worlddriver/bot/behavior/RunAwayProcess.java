@@ -44,12 +44,7 @@ public final class RunAwayProcess implements BotProcess, Navigating {
 
     public String kind() { return "runAway"; }
     public void attach(BotState st) {
-        BotState.ProcessSlot s = slot(st);
-        s.active = true;
-        s.goal = "runAway from=" + from + " minDist=" + minDist;
-        s.target = from;
-        s.startedAtMs = System.currentTimeMillis();
-        s.lastError = null;
+        slot(st).beginRun("runAway from=" + from + " minDist=" + minDist, from);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

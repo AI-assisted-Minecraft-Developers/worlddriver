@@ -55,11 +55,8 @@ public final class BridgeProcess implements BotProcess {
     public int placed() { return placed; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
-        st.builder.goal = "bridge " + face.getName() + " ×" + distance
-                + (preferredBlockId != null ? " (" + preferredBlockId + ")" : "");
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun("bridge " + face.getName() + " ×" + distance
+                + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

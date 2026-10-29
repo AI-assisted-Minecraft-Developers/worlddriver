@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The stand pickers behind `goto block:`, fill, farm and mine refuse a hazard in the floor, foot or
   head cell**, as the planner does. A magma floor or a lava, fire or berry-bush foot cell used to be
   chosen as a stand the planner would never expand, so the goto burned its node budget instead of failing.
+- **A running process no longer shows the previous run's verdict in `mc.bot.status`.** Only goto (intent)
+  and bunker cleared `goalReached`, `endReason` and `finalDist` when they started, so a second mine, or a
+  replay, sleep or mineCell after a goto, reported the last run's ending for its whole run; a replay left
+  the previous goto's verdict in place after it ended too. Every process now starts its slot through one
+  call that clears them.
+- **A finished descend leaves `slots.escape` empty, as escape does.** Its goal, target, start time and
+  path length used to linger after it ended.
 
 ## 2026-10-28
 

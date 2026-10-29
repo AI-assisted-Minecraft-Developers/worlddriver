@@ -63,10 +63,7 @@ public final class BuildProcess implements BotProcess, Navigating {
     public int skipped() { return skipped; }
 
     public void attach(BotState st) {
-        st.builder.active = true;
-        st.builder.goal = "build " + schematic.entries.size() + " blocks @ " + origin;
-        st.builder.startedAtMs = System.currentTimeMillis();
-        st.builder.lastError = null;
+        st.builder.beginRun("build " + schematic.entries.size() + " blocks @ " + origin, null);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

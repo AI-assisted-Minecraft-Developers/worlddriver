@@ -274,6 +274,25 @@ public final class BotState {
             return m;
         }
 
+        /**
+         * Start a run: switch the slot on and forget every reading the previous run left, the terminal
+         * verdict that {@link #reset()} keeps included. Every attach goes through here, so a running
+         * process never shows the last run's {@code goalReached}/{@code endReason}/{@code finalDist}.
+         */
+        public void beginRun(String goal, BlockPos target) {
+            reset();
+            active = true;
+            this.goal = goal;
+            this.target = target;
+            startedAtMs = System.currentTimeMillis();
+            lastError = null;
+            goalReached = null;
+            endReason = null;
+            finalDist = -1;
+            firstPlan = null;
+            parkourTakeoff = null;
+        }
+
         public void reset() {
             active = false;
             goal = null;

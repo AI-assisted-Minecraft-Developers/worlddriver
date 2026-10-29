@@ -36,11 +36,7 @@ final class MoverProcess implements BotProcess {
 
     @Override public void attach(BotState st) {
         Goal last = targets.get(targets.size() - 1);
-        st.mc_goto.active = true;
-        st.mc_goto.goal = last.toString();
-        st.mc_goto.target = last.targetPos();
-        st.mc_goto.startedAtMs = System.currentTimeMillis();
-        st.mc_goto.lastError = null;
+        st.mc_goto.beginRun(last.toString(), last.targetPos());
     }
 
     @Override public boolean tick(Body body, WorldView world, BotState st) {

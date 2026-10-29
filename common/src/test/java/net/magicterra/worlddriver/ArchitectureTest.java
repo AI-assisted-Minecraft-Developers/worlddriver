@@ -191,6 +191,21 @@ class ArchitectureTest {
                 + String.join("\n  ", found));
     }
 
+    /**
+     * A status slot is switched on only by {@code ProcessSlot.beginRun}, which also forgets the last run's verdict. A
+     * process that set {@code active} by hand showed the previous run's {@code goalReached}/{@code endReason} on its own.
+     */
+    @Test
+    void onlyBeginRunSwitchesAStatusSlotOn() {
+        Pattern handSet = Pattern.compile("\\.active\\s*=\\s*true");
+        List<String> bad = new ArrayList<>();
+        for (Map.Entry<String, String> e : SOURCES.entrySet()) {
+            if (!e.getKey().startsWith("bot/") || e.getKey().equals("bot/behavior/BotState")) continue;
+            if (handSet.matcher(e.getValue()).find()) bad.add(e.getKey() + ": sets a slot active by hand; call beginRun");
+        }
+        assertNone(bad);
+    }
+
     @Test
     void theScanSeesTheTree() {
         // A source root that resolved to nothing would make every test above pass vacuously.

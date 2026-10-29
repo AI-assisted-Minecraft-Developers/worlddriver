@@ -70,12 +70,8 @@ public final class DescendProcess implements BotProcess {
     @Override public String kind() { return "escape"; }
 
     @Override public void attach(BotState st) {
-        BotState.ProcessSlot s = st.escape;
-        s.active = true;
-        s.goal = "descend to y=" + targetY;
-        s.pathLen = MAX_STEPS;
-        s.startedAtMs = System.currentTimeMillis();
-        s.lastError = null;
+        st.escape.beginRun("descend to y=" + targetY, null);
+        st.escape.pathLen = MAX_STEPS;
     }
 
     @Override public String statusDetail() { return phase.name(); }
@@ -83,9 +79,11 @@ public final class DescendProcess implements BotProcess {
     private boolean done(Body a, BotState st, String error) {
         if (blocks != null) blocks.breakHold(false);
         a.releaseInputs();
+        // Ends the way EscapeProcess does (the slot is shared): reset, so no goal, target or start time lingers.
         BotState.ProcessSlot s = st.escape;
-        s.active = false;
         s.lastError = error;
+        s.reset();
+        if (error != null) dbg("BAIL: {}", error);
         failure = error;
         return true;
     }

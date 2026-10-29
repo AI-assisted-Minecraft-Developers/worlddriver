@@ -43,11 +43,7 @@ public final class MineCellProcess implements BotProcess, Navigating {
     @Override public void onResume() { if (walking) navigator.replan(); }
 
     @Override public void attach(BotState st) {
-        st.mine.active = true;
-        st.mine.goal = "cell " + target.toShortString();
-        st.mine.target = target;
-        st.mine.startedAtMs = System.currentTimeMillis();
-        st.mine.lastError = null;
+        st.mine.beginRun("cell " + target.toShortString(), target);
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {

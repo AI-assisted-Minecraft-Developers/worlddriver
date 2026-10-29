@@ -80,12 +80,8 @@ public final class EscapeProcess implements BotProcess {
     @Override public String kind() { return "escape"; }
 
     @Override public void attach(BotState st) {
-        BotState.ProcessSlot s = st.escape;
-        s.active = true;
-        s.goal = "escape to y=" + targetY;
-        s.pathLen = MAX_STEPS;
-        s.startedAtMs = System.currentTimeMillis();
-        s.lastError = null;
+        st.escape.beginRun("escape to y=" + targetY, null);
+        st.escape.pathLen = MAX_STEPS;
     }
 
     /** Single exit point: release inputs, stamp the outcome on the escape slot

@@ -101,11 +101,8 @@ public final class CombatChain implements Chain {
         this.intentForce = force;
         this.process = null;
         resetCounters();
-        state.combat.active = true;
-        state.combat.lastError = null;
-        state.combat.startedAtMs = System.currentTimeMillis();
-        state.combat.goal = "combat " + mode.name().toLowerCase()
-                + (id != null ? " id=" + id : "") + (type != null ? " type=" + type : "");
+        state.combat.beginRun("combat " + mode.name().toLowerCase()
+                + (id != null ? " id=" + id : "") + (type != null ? " type=" + type : ""), null);
     }
 
     /** Drop any combat intent and release the channel (the {@code mc.bot.cancel}
