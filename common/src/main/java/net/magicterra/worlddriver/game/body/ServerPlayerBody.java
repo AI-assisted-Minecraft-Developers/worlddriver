@@ -183,9 +183,20 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // way looks identical to one that fired -- draw timer climbs, ammo untouched,
         // no exception, and no projectile. RELEASE_USE_ITEM from a real client lands on
         // releaseUsingItem() too.
-        if (hold && !useHeld) fp.startUsingItem(InteractionHand.MAIN_HAND);
+        if (hold && !useHeld) fp.startUsingItem(useHand());
         else if (!hold && useHeld) fp.releaseUsingItem();
         useHeld = hold;
+    }
+
+    /** The hand the client's use key ends up using: the main hand, unless it holds nothing that can be used and the
+     *  offhand does. Always the main hand left an offhand shield down behind an empty hand or a sword. */
+    private InteractionHand useHand() {
+        return !usable(fp.getMainHandItem()) && usable(fp.getOffhandItem())
+                ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+    }
+
+    private boolean usable(ItemStack stack) {
+        return !stack.isEmpty() && stack.getUseDuration(fp) > 0;
     }
     @Override public void requestLookSnap() { /* no camera slew server-side */ }
 

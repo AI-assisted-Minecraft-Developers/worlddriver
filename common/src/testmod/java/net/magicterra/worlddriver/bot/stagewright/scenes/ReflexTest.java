@@ -62,6 +62,55 @@ class ReflexTest {
         return mob;
     }
 
+    // ---------------------------------------------------------------- autoShield
+
+    /**
+     * An arrow on its way in: the shield goes up. {@code AutoShield.wants}: a shield in the offhand or on the hotbar,
+     * and a projectile {@code ThreatScanner} predicts will hit within 30 ticks. {@code ThreatWatch} takes an arrow's
+     * velocity from where it was one refresh ago, so the arrow is moved by hand between the bot's ticks and never
+     * ticked itself (it would hit). {@code isBlocking} is vanilla's: five ticks into the use of a shield.
+     */
+    @Test
+    void autoShieldRaisesTheShieldAgainstAnIncomingArrow(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
+                                                         TestReporter reporter) {
+        Settings settings = Settings.pin(game);
+        SceneBot bot = onFloor(game, plot);
+        game.runOnServer(s -> bot.player().setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD)));
+
+        boolean[] off = arrowIn(game, bot);
+        settings.set("autoShield", true);
+        boolean[] on = arrowIn(game, bot);
+        reporter.publishEntry("off.usingItem/blocking", off[0] + "/" + off[1]);
+        reporter.publishEntry("on.usingItem/blocking", on[0] + "/" + on[1]);
+        assertFalse(off[0], "with autoShield off the bot used an item while the arrow came in");
+        assertTrue(on[1], "with autoShield on the shield was not raised against the incoming arrow: usingItem=" + on[0]);
+    }
+
+    /** An arrow ten blocks out flying at the bot's chest, closed by half a block per bot tick for twelve ticks;
+     *  whether the bot was using an item, and blocking, at the end. */
+    private static boolean[] arrowIn(Game game, SceneBot bot) {
+        return game.onServer(s -> {
+            ServerPlayer fp = bot.player();
+            ServerLevel level = bot.level();
+            Vec3 chest = fp.position().add(0, 1.0, 0);
+            Vec3 from = chest.add(10, 0, 0);
+            Vec3 step = chest.subtract(from).normalize().scale(0.5);
+            Arrow arrow = new Arrow(level, from.x, from.y, from.z, new ItemStack(Items.ARROW), null);
+            arrow.setDeltaMovement(step);
+            arrow.setNoGravity(true);
+            level.addFreshEntity(arrow);
+            try {
+                for (int t = 0; t < 12; t++) {
+                    bot.tick();
+                    arrow.setPos(arrow.position().add(step));
+                }
+                return new boolean[] {fp.isUsingItem(), fp.isBlocking()};
+            } finally {
+                arrow.discard();
+            }
+        });
+    }
+
     // ---------------------------------------------------------------- autoHeal
 
     /**
