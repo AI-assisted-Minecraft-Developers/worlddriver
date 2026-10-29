@@ -264,9 +264,7 @@ public final class BotUtil {
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
-        boolean hazard = isHazardState(below) || isHazardState(here) || isHazardState(head);
-        if (hazard) net.magicterra.worlddriver.config.Mod.LOG.info("[stand] hazard-refused {} below={} here={} head={} by={}", foot.toShortString(), below.getBlock(), here.getBlock(), head.getBlock(), StackWalker.getInstance().walk(s -> s.skip(1).findFirst().map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "." + f.getMethodName()).orElse("?")));   // TEMPORARY attribution line for the two-run diff; delete after it
-        return !hazard;
+        return !isHazardState(below) && !isHazardState(here) && !isHazardState(head);
     }
 
     /**
