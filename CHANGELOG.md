@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already did: the 4-block leap, the 3-block diagonal and the distance-3 rising and falling leaps planned
   from a 1-cell pad at the sprint-jump price. All four are behind `allowParkour4`, which is off by default.
   The 2-block leaps keep their rules, since a 2-block gap is inside a standing jump.
+- **A smelt fails when the bot is beyond reach of its furnace**, vanilla's container reach (interaction
+  range plus 4), and leaves the furnace's contents where they are. The wait never read distance, and a
+  collect had taken the ingots from sixty blocks away.
 
 ## 2026-10-28
 

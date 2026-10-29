@@ -20,6 +20,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
@@ -154,7 +155,8 @@ public final class SmeltProcess implements BotProcess {
             // (same rationale as the COLLECT sweep, gap#64③).
             String before = "no menu";
             String after = before;
-            if (p.containerMenu instanceof AbstractFurnaceMenu m) {
+            // Not from beyond reach: a sweep from there is a take no player could make.
+            if (p.containerMenu instanceof AbstractFurnaceMenu m && atTheFurnace(p)) {
                 before = slotSummary(m);
                 for (int slot : new int[]{AbstractFurnaceMenu.RESULT_SLOT,
                                           AbstractFurnaceMenu.INGREDIENT_SLOT,
@@ -303,6 +305,8 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private void smeltWait(Body a, Player p, BotState s) {
+        // Before the menu check: a player tick closes a menu left out of reach, and the reason to report is the distance.
+        if (leftTheFurnace(p)) return;
         AbstractContainerMenu menu = p.containerMenu;
         if (!(menu instanceof AbstractFurnaceMenu fm)) { fail("the furnace screen closed unexpectedly"); return; }
         // Is the furnace still THERE? Nothing in this repo reclaims one mid-smelt, so a hit here
@@ -399,6 +403,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private void collect(Body a, Player p, BotState s) {
+        if (leftTheFurnace(p)) return;
         AbstractContainerMenu menu = p.containerMenu;
         // Take back ALL THREE furnace slots, not just the result (gap#64③): the
         // shift-click loading moves whole stacks, so surplus ingredient and unburned
@@ -535,4 +540,19 @@ public final class SmeltProcess implements BotProcess {
     // Every failure that concerns the furnace says "furnace": wd.serverSmeltStationOpens reads
     // that word in smelt.lastError as "the furnace never opened or took its load".
     private void fail(String msg) { this.error = msg; this.st = St.FAIL; }
+
+    /** Within vanilla's own container reach of the furnace ({@code Container.stillValidBlockEntity}: the
+     *  interaction range plus 4). A menu kept open from farther away is one no player could be using. */
+    private boolean atTheFurnace(Player p) {
+        return furnacePos == null || p.canInteractWithBlock(furnacePos, 4.0);
+    }
+
+    /** Fails the smelt when the bot is beyond {@link #atTheFurnace} reach; whatever is in the furnace stays there. */
+    private boolean leftTheFurnace(Player p) {
+        if (atTheFurnace(p)) return false;
+        fail("the bot left the furnace @" + furnacePos.toShortString() + " ("
+                + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(p.distanceToSqr(Vec3.atCenterOf(furnacePos))))
+                + " blocks away) while it was smelting; its contents stay in it");
+        return true;
+    }
 }

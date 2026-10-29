@@ -18,6 +18,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestReporter;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
@@ -113,10 +114,70 @@ class SmeltDeliveryTest {
                 + "lastError=" + err + " furnaceHolds=" + holds);
     }
 
+    /**
+     * A bot teleported sixty blocks from its furnace mid-smelt must fail the smelt for being away, and must not take the
+     * furnace's contents from there: vanilla refuses a container to a player beyond its interaction range plus 4. A
+     * collect from sixty blocks away once succeeded.
+     *
+     * <p>Also published, not asserted: on which tick after the move the bot's open menu first reads as its inventory
+     * menu, and whether the smelt was still running then — whether the player's own tick closes a menu out of reach
+     * before the smelt notices.
+     */
+    @Test
+    void serverSmeltFailsWhenTheBotLeaves(Game game, @Plot.Centered @Plot.Size(x = 80, y = 16, z = 16) Plot plot,
+                                          TestReporter reporter) {
+        Settings.pin(game).set("navigatorDebug", false);
+        plot.fill(-33, 0, -3, -27, 0, 3, Blocks.STONE);
+        plot.fill(27, 0, -1, 33, 0, 1, Blocks.STONE);
+        SceneBot bot = SceneBot.spawn(game, plot.at(-30, 1, 0));
+        bot.give(Items.FURNACE, 1).give(Items.RAW_IRON, 3).give(Items.COAL, 2);
+
+        bot.smelt("minecraft:raw_iron", 3);
+        BlockPos[] fpos = {null};
+        game.await().within(300).as("the ore enters the bot's furnace, or the smelt ends").until(() -> {
+            fpos[0] = findBlockNear(bot.level(), plot, Blocks.FURNACE, -30);
+            return !bot.busy() || (fpos[0] != null && bot.level().getBlockEntity(fpos[0]) instanceof Container c
+                    && !c.getItem(0).isEmpty());
+        });
+        assertNotNull(fpos[0], "the bot placed its furnace");
+        game.check(game.onServer(s -> bot.busy()), "the smelt is still running when the ore is in: lastError="
+                + game.onServer(s -> bot.status().slots().smelt().lastError().orElse("null")));
+
+        bot.moveTo(plot.at(30, 1, 0));
+        int[] tick = {0};
+        int[] menuClosedAt = {-1};
+        boolean[] busyWhenClosed = {false};
+        game.await().within(900).as("the smelt ends after the bot left").until(() -> {
+            tick[0]++;
+            if (menuClosedAt[0] < 0 && bot.player().containerMenu == bot.player().inventoryMenu) {
+                menuClosedAt[0] = tick[0];
+                busyWhenClosed[0] = bot.busy();
+            }
+            return !bot.busy();
+        });
+        reporter.publishEntry("menu.closedAtTick", menuClosedAt[0] + " busy=" + busyWhenClosed[0]);
+
+        String err = game.onServer(s -> bot.status().slots().smelt().lastError().orElse(null));
+        int bagIngots = game.onServer(s -> Staging.countItem(bot.player(), Items.IRON_INGOT));
+        int bagOre = game.onServer(s -> Staging.countItem(bot.player(), Items.RAW_IRON));
+        String holds = game.onServer(s -> containerSummary(bot.level(), fpos[0]));
+        int inFurnace = game.onServer(s -> bot.level().getBlockEntity(fpos[0]) instanceof Container c
+                ? c.getItem(0).getCount() + c.getItem(2).getCount() : -1);
+        game.check(err != null && err.contains("left the furnace"), "the smelt names the bot's absence: lastError=" + err);
+        game.check(bagIngots == 0 && bagOre == 0, "nothing came back from sixty blocks away: bag ingots=" + bagIngots
+                + " ore=" + bagOre + " furnaceHolds=" + holds);
+        game.check(inFurnace == 3, "the three ore, raw or cooked, are still in the furnace: furnaceHolds=" + holds);
+    }
+
     /** First cell of the arena (plot y 0..2, ±3) holding {@code want}, or null. Server thread. */
     private static BlockPos findBlockNear(ServerLevel level, Plot plot, Block want) {
+        return findBlockNear(level, plot, want, 0);
+    }
+
+    /** {@link #findBlockNear(ServerLevel, Plot, Block)} around plot x {@code cx}. */
+    private static BlockPos findBlockNear(ServerLevel level, Plot plot, Block want, int cx) {
         for (int dy = 0; dy <= 2; dy++)
-            for (int dx = -3; dx <= 3; dx++)
+            for (int dx = cx - 3; dx <= cx + 3; dx++)
                 for (int dz = -3; dz <= 3; dz++) {
                     BlockPos at = plot.at(dx, dy, dz);
                     if (level.getBlockState(at).is(want)) return at;

@@ -180,11 +180,6 @@ The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s
 the peak stall and arrival itself before a tool can compare a candidate against a baseline again
 (`docs/dev/replay-corpus.md`, "The regression check").
 
-### The smelt wait does not verify the bot is present
-
-It reads the furnace block every tick and never reads distance, and a collect has succeeded from
-sixty blocks away. Beyond interaction range it should record an error or fail.
-
 ### A step-up still jumps in place in water deeper than 0.4
 
 Vanilla swims and rises by bumping into the bank. Fixing it requires `WorldView` to carry fluid
