@@ -32,6 +32,18 @@ public final class YamlJavaSteps {
         return List.copyOf(MARKS);
     }
 
+    /** The step {@code wd.serverTick}: the server's tick count, for a script to tell which tick its calls ran in. */
+    @Step("wd.serverTick")
+    public static int serverTick(Game game, Object ignored) {
+        return game.onServer(server -> server.getTickCount());
+    }
+
+    /** The step {@code wd.gameTime}: the overworld's game time, which a frozen world does not advance. */
+    @Step("wd.gameTime")
+    public static long gameTime(Game game, Object ignored) {
+        return game.onServer(server -> server.overworld().getGameTime());
+    }
+
     /** Whether a script test took {@code wd.mark} with {@code name}. */
     static boolean marked(String name) {
         return MARKS.contains(name);

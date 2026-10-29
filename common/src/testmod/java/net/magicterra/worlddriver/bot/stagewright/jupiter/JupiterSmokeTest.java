@@ -63,6 +63,17 @@ class JupiterSmokeTest {
     }
 
     @Test
+    void aCheckInsideAServerTaskCountsForTheTest(Game game) {
+        // Would fail "only from a test's own thread" if the task did not run as part of this test.
+        game.runOnServer(server -> game.check(server.isSameThread(), "the task runs on the server thread"));
+        assertTrue(game.onServerHolds(server -> server.isSameThread()));
+        // What the test must undo when it ends is still only for its own thread.
+        IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> game.runOnServer(server -> game.afterTest(s -> {})));
+        assertTrue(refused.getMessage().contains("own thread"), refused.getMessage());
+    }
+
+    @Test
     @DependsOn(scripts = "stagewright/tests/jupiter-handles.js#a Java test depends on this")
     void runsAfterTheScriptTestItDependsOn() {
         assertTrue(YamlJavaSteps.marked("a Java test depends on this"), "the script test had not taken its step");

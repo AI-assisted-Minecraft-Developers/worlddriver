@@ -59,6 +59,67 @@ test('Java.type reaches a static method', { scene: SCENE }, (t) => {
     t.expect(Java.type('java.lang.Math').max(1, 2)).equals(2);
 });
 
+// Everything t.onServer's function calls runs in one server task, so in one tick.
+test('t.onServer makes its calls in one tick', { scene: SCENE }, (t) => {
+    const plot = t.plot({ size: 4 });
+    const a = plot.at(0, 0, 0);
+    const b = plot.at(3, 0, 3);
+    const seen = t.onServer(() => {
+        const first = t.step('wd.serverTick', {});
+        t.call('mc.action.runCommand', { cmd: `setblock ${a.x} ${a.y} ${a.z} minecraft:stone` });
+        t.call('mc.action.runCommand', { cmd: `setblock ${b.x} ${b.y} ${b.z} minecraft:stone` });
+        t.check(t.call('mc.world.block', { pos: a }).type === 'minecraft:stone', 'the first block is placed');
+        return { first: first, last: t.step('wd.serverTick', {}), b: t.call('mc.world.block', { pos: b }).type };
+    });
+    t.expect(seen.last).equals(seen.first);
+    t.expect(seen.b).equals('minecraft:stone');
+    let refused = null;
+    try {
+        t.onServer(() => t.wait(1));
+    } catch (e) {
+        refused = e.message;
+    }
+    t.expect(refused).contains('cannot be called inside t.onServer');
+});
+
+// A frozen world moves only when the test steps it, by exactly the ticks it waits. Isolated: every other test running
+// would be frozen with it.
+test('t.freezeTicks then t.wait steps the world', { scene: SCENE, isolated: true }, (t) => {
+    t.freezeTicks();
+    // The overworld's game time advances only on the ticks the world runs, not on every server tick.
+    const before = t.step('wd.gameTime', {});
+    t.wait(3);
+    t.expect(t.step('wd.gameTime', {}) - before).equals(3);
+    t.wait(1);
+    t.expect(t.step('wd.gameTime', {}) - before).equals(4);
+});
+
+// A summoned mob in a plot is kept although no player is near it.
+test('a mob summoned in a plot does not despawn', { scene: SCENE }, (t) => {
+    const plot = t.plot({ size: 8 });
+    plot.fill(0, 0, 0, 7, 0, 7, 'minecraft:stone');
+    const at = plot.at(4, 1, 4);
+    t.call('mc.action.runCommand', { cmd: `summon minecraft:zombie ${at.x} ${at.y} ${at.z}` });
+    t.wait(40);
+    const zombies = t.call('mc.query', { q: 'entities', center: at,
+        filter: { in_radius: 8, type: 'minecraft:zombie' } }).entities;
+    t.expect(zombies.length).equals(1);
+});
+
+test('a script asks what the game has', { scene: SCENE }, (t) => {
+    t.expect(t.capabilities().registered().length).gt(0);
+    t.expect(t.capabilities().has('no-such-capability')).equals(false);
+    t.expect(t.hasClass('java.lang.String')).equals(true);
+    t.expect(t.hasClass('com.example.definitely.NotHere')).equals(false);
+    const mods = t.call('mc.test.mods', { op: 'list' });
+    t.expect(mods.mods.map((m) => m.id)).contains('worlddriver');
+    t.expect(t.call('mc.test.mods', { op: 'has', id: 'worlddriver' }).has).equals(true);
+    t.expect(t.call('mc.test.recipes', { op: 'count' }).total).gt(0);
+    t.expect(t.call('mc.test.loot', { op: 'list', namespace: 'minecraft' }).count).gt(0);
+    t.expect(t.call('mc.test.advancements', { op: 'list' }).count).gt(0);
+    t.expect(t.call('mc.test.structures', { op: 'list' }).structures).contains('minecraft:village_plains');
+});
+
 // A record may be blank, and afterTest runs when the test ends, after the body that registered it.
 const AFTER = 'afterTest runs when the test ends';
 
