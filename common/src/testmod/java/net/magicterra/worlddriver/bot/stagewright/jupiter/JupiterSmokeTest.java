@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Locks;
 import net.magicterra.stagewright.test.Perf;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Requires;
@@ -23,6 +24,7 @@ import net.magicterra.worlddriver.api.methods.world.WorldContracts.BlockParams;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /** The in-game JUnit runner end to end: blocking API calls, tick waits, and an await that runs out. */
 @Scene("wd.jupiterSmoke")
@@ -60,6 +62,17 @@ class JupiterSmokeTest {
         game.ticks(5);
         int after = game.onServer(server -> server.getTickCount());
         assertTrue(after - before >= 5, "ticks advanced by " + (after - before));
+    }
+
+    /** The Java form of the script test that freezes the world: a wait then steps it by exactly the ticks waited. */
+    @Test
+    @ResourceLock(Locks.TICK_RATE)
+    void aFrozenWorldMovesByTheTicksWaited(Game game) {
+        game.freezeTicks();
+        // The overworld's game time advances only on the ticks the world runs, not on every server tick.
+        long before = YamlJavaSteps.gameTime(game, null);
+        game.ticks(3);
+        assertEquals(3, YamlJavaSteps.gameTime(game, null) - before);
     }
 
     @Test
