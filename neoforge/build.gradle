@@ -2,44 +2,60 @@ plugins {
     id 'com.gradleup.shadow'
 }
 
-architectury {
-    platformSetupLoomIde()
-    neoForge()
-}
-
-repositories {
-    maven {
-        name = 'NeoForged'
-        url = 'https://maven.neoforged.net/releases'
-    }
-}
-
 // :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :fabric.
 apply from: rootProject.file('gradle/loader.gradle')
 
-dependencies {
-    neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
+neoForge {
+    enable {
+        version = rootProject.neoforge_version
+        // For the reason given in common/build.gradle.
+        disableRecompilation = true
+    }
+    // :common's access transformer, which the jar carries at the default place NeoForge reads it from.
+    accessTransformers = [project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')]
 
+    mods {
+        // The testmod is in no mod of this build's own: StageWright's plugin gives the suites' runs a copy of this
+        // mod with the testmod in it, and every other run loads this one.
+        worlddriver {
+            sourceSet sourceSets.main
+        }
+    }
+    runs {
+        client {
+            client()
+            // The same fixed ports as the Fabric dev runs, so rpc.py and .mcp.json find the client.
+            systemProperty 'worlddriver.mcpPort', project.findProperty('agentMcpPort') ?: '39800'
+            systemProperty 'worlddriver.rpcPort', project.findProperty('agentRpcPort') ?: '39801'
+            systemProperty 'worlddriver.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
+        }
+        server {
+            server()
+        }
+        configureEach {
+            // The StageWright suites' runs (stagewright<Suite>…) set their own heap.
+            if (name.startsWith('stagewright')) return
+            // Cap heap so a stuck client/server can't trigger system OOM.
+            jvmArgument '-Xmx2g'
+        }
+    }
+}
+
+dependencies {
     // The StageWright mod reaches the runs that start from the testmod source set through the StageWright
-    // plugin's own remap configuration, the root's `stagewright { tests { } }` declaring this project a loader.
+    // plugin's own runtime configuration, the root's `stagewright { tests { } }` declaring this project a loader.
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
     // put the whole test harness inside the shipped worlddriver jar and forced the driver to
     // forward server lifecycle into it. StageWright is its own mod — its neoforge module ships a
     // neoforge.mods.toml — and it depends on worlddriver, not the other way round.
 
-    // netty-codec-http for WebSocket support. NeoForge's ModuleClassLoader will
-    // NOT see plain `implementation` jars at runtime (FML only discovers mods,
-    // not arbitrary classpath libraries). `forgeRuntimeLibrary` adds the jar to
-    // FML's bootstrap classpath so it joins the module graph in dev runs; the
-    // matching `include` nests it (Jar-in-Jar) as a library jar in the prod jar.
-    // transitive=false so we ship only codec-http and reuse MC's netty core.
-    // See https://docs.architectury.dev/loom/using_libraries
-    include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
-    forgeRuntimeLibrary "io.netty:netty-codec-http:$rootProject.netty_version"
-    // :common's WebSocket code is compiled here now.
+    // netty-codec-http for WebSocket support. FML loads game code from mods only, so a plain dependency is
+    // invisible to it in a dev run; additionalRuntimeClasspath puts the jar on the game's classpath. jarJar nests
+    // it in the shipped jar. transitive=false so we ship only codec-http and reuse MC's netty core.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
-
+    additionalRuntimeClasspath("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    jarJar("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
 }
 
 processResources {
@@ -63,41 +79,14 @@ processResources {
     }
 }
 
+// The shipped jar is shadowJar's: ModDevGradle nests the jarJar output into `jar` only, so it is added here too.
+tasks.named('jar', Jar) { archiveClassifier = 'slim' }
 shadowJar {
-    archiveClassifier = 'dev-shadow'
+    archiveClassifier = ''
+    from(tasks.named('jarJar'))
 }
 
-remapJar {
-    inputFile.set shadowJar.archiveFile
-}
-
-loom {
-    // NeoForge uses access transformers, and architectury-loom 1.11 does NOT convert
-    // access wideners for it (ForgeExtensionAPI has convertAccessWideners /
-    // extraAccessWideners; NeoForgeExtensionAPI has neither — only accessTransformer).
-    // So the same members are declared a second time in AT form; the two files are
-    // kept in lockstep by scripts/check_remap_safety.py, not by the build.
-    neoForge {
-        accessTransformer file("src/main/resources/META-INF/accesstransformer.cfg")
-    }
-
-    // The testmod joins the mod FML scans, so the test classes and their service entries are part of worlddriver:
-    // a bare -classpath dir would be a second module, and two modules exporting one package fail at boot.
-    // architectury-loom registers the default `main` mod before this script runs, so it is configured, not created.
-    // Per-run scoping holds: loom emits modFolders only for source sets on a run's classpath, so `server`
-    // (no `source testmod`) never receives the test content.
-    mods {
-        named('main') {
-            sourceSet sourceSets.testmod
-        }
-    }
-    runs {
-        server { server() }
-    }
-    runConfigs.configureEach {
-        // The StageWright suites' runs (stagewright<Suite>…) set their own heap.
-        if (it.name.startsWith('stagewright')) return
-        // Cap heap so a stuck server can't trigger system OOM.
-        vmArg '-Xmx2g'
-    }
-}
+// Published as the same jar under both names: NeoForge runs in Mojang names, so nothing is remapped.
+ext.shippedJar = tasks.named('shadowJar')
+ext.devJar = tasks.named('shadowJar')
+tasks.named('assemble') { dependsOn 'shadowJar' }

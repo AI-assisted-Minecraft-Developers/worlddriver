@@ -65,6 +65,13 @@ sourceSets {
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
     }
 }
+dependencies {
+    // What :common's testmod compiles against, for the same sources compiled here (common/build.gradle). Compile
+    // only: in a game both come inside StageWright's mod, and a second copy would split their packages.
+    testmodCompileOnly("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
+    testmodCompileOnly platform('org.junit:junit-bom:5.11.3')
+    testmodCompileOnly 'org.junit.jupiter:junit-jupiter-api'
+}
 tasks.named('compileTestmodJava', JavaCompile) {
     source(common.sourceSets.testmod.java)
 }

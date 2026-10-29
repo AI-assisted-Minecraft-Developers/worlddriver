@@ -1,19 +1,18 @@
 plugins {
-    id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
-    id 'architectury-plugin' version '3.4-SNAPSHOT'
-    id 'com.gradleup.shadow' version '8.3.6' apply false
+    // :fabric builds with Fabric Loom; :api, :common and :neoforge with ModDevGradle. Loom is the newest on Gradle 8,
+    // as StageWright's plugin cannot run the suites on Gradle 9 yet. See docs/dev/build.md.
+    id 'fabric-loom' version '1.13.6' apply false
+    id 'net.neoforged.moddev' version '2.0.141' apply false
+    // Shadow 9: 8.x unpacks the nested jars ModDevGradle's jarJar adds to the NeoForge jar.
+    id 'com.gradleup.shadow' version '9.2.2' apply false
     id 'com.github.node-gradle.node' version '7.1.0' apply false
     // The StageWright plugin (resolved from mavenLocal, wired in settings.gradle): the in-game test suites below.
     id 'net.magicterra.stagewright'
 }
 
-architectury {
-    minecraft = project.minecraft_version
-}
-
 stagewright {
     // The JUnit tests in the testmod, run in the game per scene: stagewrightTestFabric, stagewrightTestNeoforge.
-    // The plugin declares their runs in each loader's loom, under <loader>/run-stagewright/<suite>/, and puts the
+    // The plugin declares their runs in each loader's Loom or ModDevGradle, under <loader>/run-stagewright/<suite>/, and puts the
     // StageWright mod on every run of the loader's testmod source set. A clean box publishing :common before
     // StageWright exists (-PworlddriverBootstrap) declares none, so nothing asks for it.
     tests {
@@ -76,8 +75,7 @@ repositories {
 def modProjects = subprojects.findAll { it.name != 'api-processor' }
 
 configure(modProjects) {
-    apply plugin: 'dev.architectury.loom'
-    apply plugin: 'architectury-plugin'
+    apply plugin: project.name == 'fabric' ? 'fabric-loom' : 'net.neoforged.moddev'
     apply plugin: 'maven-publish'
 
     base {
@@ -95,27 +93,14 @@ configure(modProjects) {
             url = 'https://nexus.gardel.top/repository/maven-releases'
             content { includeGroup 'net.magicterra' }
         }
-        // Loom adds the essential maven repositories to download Minecraft and libraries
-        // from automatically; only declare others when depending on mods.
-    }
-
-    loom {
-        silentMojangMappingsLicense()
-    }
-
-    dependencies {
-        minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
-        mappings loom.officialMojangMappings()
+        // Both loader plugins add the repositories Minecraft and their own artifacts come from;
+        // only declare others when depending on mods.
     }
 
     java {
-        // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-        // if it is present.
-        // If you remove this line, sources will not be generated.
         withSourcesJar()
-
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        // Compiles and runs the game on 21 whatever JDK runs Gradle itself.
+        toolchain.languageVersion = JavaLanguageVersion.of(21)
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -133,26 +118,7 @@ configure(modProjects) {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                from components.java
-
-                // ---- `dev` classifier: the NAMED-mappings jar, for cross-repo compilation ----
-                // components.java publishes loom's REMAPPED artifact, whose Minecraft references
-                // are intermediary (net/minecraft/class_1291). That is correct for shipping and
-                // useless for compiling: a consumer building in a dev environment resolves against
-                // named/mojmap (net/minecraft/core/BlockPos), so linking the published jar directly
-                // fails on every Minecraft-touching signature.
-                //
-                // Inside one Gradle build, consumers dodge this via
-                // `project(path: ':x', configuration: 'namedElements')`. That configuration has no
-                // published equivalent — so publish the artifact it points at. Loom already builds
-                // it (build/devlibs/<name>-dev.jar); this only stops it being thrown away.
-                //
-                // Needed in BOTH directions once StageWright and WorldDriver are separate repos:
-                // stagewright-common compiles against worlddriver-common:dev, and worlddriver's
-                // testmod compiles against mc_stagewright-api:dev. Attached as a classifier rather
-                // than a second publication so the coordinates stay one artifact with two faces —
-                // `:dev` for compiling, plain for shipping — and no POM claims a dependency on it.
-                artifact(tasks.named('jar')) { classifier = 'dev' }
+                // The artifacts are each module's own, attached below once its script has said which jars they are.
 
                 // Without a <licenses> entry a licence scanner reports the artifact as "unknown";
                 // url and scm are how a consumer finds the Corresponding Source the LGPL promises.
@@ -192,9 +158,18 @@ configure(modProjects) {
         // reached the publication (P3b finding: they published as
         // worlddriver-testkit-* instead). afterEvaluate defers the read until the
         // child's overrides are in place.
+        //
+        // Each module's script names its jars: `shippedJar`, the plain artifact (a loader's mod jar; :api's is
+        // attached by :fabric, which remaps it), and `devJar`, the `dev` classifier in Mojang names, which
+        // StageWright compiles against. See docs/dev/api-artifacts.md.
         afterEvaluate {
             publishing.publications.named('mavenJava') {
                 artifactId = base.archivesName.get()
+                if (project.ext.has('shippedJar')) artifact(project.ext.shippedJar)
+                artifact(project.ext.devJar) { classifier = 'dev' }
+                artifact(project.ext.has('sourcesJarTask') ? project.ext.sourcesJarTask : tasks.named('sourcesJar')) {
+                    classifier = 'sources'
+                }
             }
         }
 
@@ -240,7 +215,7 @@ configure(modProjects) {
     }
 }
 
-// ---- Coverage hook: opt-in jacoco agent for every loom game JVM. ----
+// ---- Coverage hook: opt-in jacoco agent for every game JVM. ----
 // Pass the FULL -javaagent value via the project property `testkitCoverageAgent`
 // (normally through the env var ORG_GRADLE_PROJECT_testkitCoverageAgent, which the
 // gradle CLIENT forwards into the build regardless of daemon staleness — a plain
@@ -248,34 +223,23 @@ configure(modProjects) {
 // already-running daemon; that null-measured as 0% across the board on 2026-07-19).
 // Example value:
 //   /abs/.local/jacoco/org.jacoco.agent-0.8.12-runtime.jar=destfile=/abs/coverage-out/game.exec,includes=net.magicterra.*
-subprojects {
-    plugins.withId('dev.architectury.loom') {
-        def cov = providers.gradleProperty('testkitCoverageAgent')
-        if (cov.isPresent()) {
-            loom.runs.configureEach {
-                vmArg "-javaagent:${cov.get()}"
-            }
-        }
-    }
-}
-
-// ---- Debugger hook: opt-in JDWP agent for every loom game JVM, test suites included; see docs/dev/debugging.md ----
+//
+// ---- Debugger hook: opt-in JDWP agent for every game JVM, test suites included; see docs/dev/debugging.md ----
 // -PworlddriverJdwp=<port> (or env ORG_GRADLE_PROJECT_worlddriverJdwp); `0` lets the OS pick a port.
+// -PworlddriverVmArgs="-Da=b -Dc=d": extra JVM flags for every game JVM (e.g. a system GLFW).
+def gameJvmArgs = []
+providers.gradleProperty('testkitCoverageAgent').orNull?.with { gameJvmArgs << "-javaagent:${it}".toString() }
+providers.gradleProperty('worlddriverJdwp').orNull?.with {
+    gameJvmArgs << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:${it}".toString()
+}
+providers.gradleProperty('worlddriverVmArgs').orNull?.with { gameJvmArgs.addAll(it.trim().split(/\s+/)) }
+// One hook per loader plugin, as each names its runs and their JVM flags differently.
 subprojects {
-    plugins.withId('dev.architectury.loom') {
-        def jdwp = providers.gradleProperty('worlddriverJdwp')
-        if (jdwp.isPresent()) {
-            loom.runs.configureEach {
-                vmArg "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:${jdwp.get()}"
-            }
-        }
-        // -PworlddriverVmArgs="-Da=b -Dc=d": extra JVM flags for every loom game JVM (e.g. a system GLFW).
-        def extra = providers.gradleProperty('worlddriverVmArgs')
-        if (extra.isPresent()) {
-            loom.runs.configureEach {
-                extra.get().trim().split(/\s+/).each { vmArg it }
-            }
-        }
+    plugins.withId('fabric-loom') {
+        loom.runs.configureEach { run -> gameJvmArgs.each { run.vmArg it } }
+    }
+    plugins.withId('net.neoforged.moddev') {
+        neoForge.runs.configureEach { run -> gameJvmArgs.each { run.jvmArgument it } }
     }
 }
 

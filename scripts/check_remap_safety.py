@@ -4,9 +4,9 @@ owner class that Loom REMAPPED in the shipped jar.
 
 WHY THIS EXISTS
 ---------------
-The build declares `mappings loom.officialMojangMappings()` (build.gradle:63), so
+fabric/build.gradle declares `mappings loom.officialMojangMappings()`, so
 dev runs -- `runClient`, the in-game test suites -- see Mojang names.
-`remapJar` (fabric/build.gradle:111) then rewrites the SHIPPED fabric jar into the
+Fabric Loom's `remapJar` then rewrites the SHIPPED fabric jar into the
 `intermediary` namespace. tiny-remapper rewrites type/field/method *references*; it
 does NOT rewrite string CONSTANTS. So this, which works in every test run:
 
@@ -21,7 +21,7 @@ Verified empirically 2026-07-26 by disassembling both jars: the owner became
 `net/minecraft/class_312` while the literal stayed `xpos`.
 
 NeoForge is NOT affected -- its 1.21.1 runtime namespace IS Mojang-mapped, so its
-remapJar leaves `net/minecraft/client/MouseHandler` intact. Fabric only.
+jar is never remapped and keeps `net/minecraft/client/MouseHandler`. Fabric only.
 
 Every known site degrades (catch -> warn -> feature off) rather than crashing, which
 is exactly why this went unnoticed: no test run ever loads a remapped jar, and the mod
@@ -58,18 +58,17 @@ REMEDIATION (for anything this reports)
 Access widener + access transformer -- ESTABLISHED, piloted on MouseHandler.xpos/ypos
 2026-07-26 and green on both loaders. Add the member to BOTH:
 
-    common/src/main/resources/worlddriver.accesswidener     (fabric + compile)
-    neoforge/src/main/resources/META-INF/accesstransformer.cfg   (neoforge)
+    common/src/main/resources/worlddriver.accesswidener            (fabric)
+    common/src/main/resources/META-INF/accesstransformer.cfg       (common, neoforge)
 
 then delete the reflection and use the member directly. The source stays Mojang-named
 and readable; Loom remaps the widener with the jar (verified: the shipped fabric jar
 carries `accessWidener v2 intermediary` / `class_312 field_1795`, and the call site is
 a plain `putfield class_312.field_1795` with no string constant anywhere).
 
-Two files because architectury-loom 1.11 cannot convert one to the other for NeoForge
-(`convertAccessWideners` is ForgeExtensionAPI-only; NeoForgeExtensionAPI offers just
-accessTransformer/getAccessTransformers). check_widener_sync() below is what keeps
-them identical.
+Two files because Fabric Loom applies only access wideners and ModDevGradle only
+access transformers, and neither converts one into the other. check_widener_sync()
+below is what keeps them identical.
 
 Fallbacks, if a member ever resists the above:
   - Mixin @Accessor/@Invoker. Also correct, more boilerplate, and needs mixin infra
@@ -157,15 +156,15 @@ def find_jar(explicit: str | None) -> pathlib.Path:
 
 
 AW_PATH = ROOT / "common" / "src" / "main" / "resources" / "worlddriver.accesswidener"
-AT_PATH = ROOT / "neoforge" / "src" / "main" / "resources" / "META-INF" / "accesstransformer.cfg"
+AT_PATH = ROOT / "common" / "src" / "main" / "resources" / "META-INF" / "accesstransformer.cfg"
 
 
 def check_widener_sync() -> list[str]:
-    """The access widener (fabric/common) and access transformer (neoforge) must open
+    """The access widener (fabric) and access transformer (common, neoforge) must open
     exactly the same members.
 
-    They are separate files only because architectury-loom 1.11 cannot convert one into
-    the other for NeoForge (NeoForgeExtensionAPI has no convertAccessWideners). Nothing
+    They are separate files only because Fabric Loom has no access transformers and
+    ModDevGradle no access wideners, and neither converts one into the other. Nothing
     in the build ties them together, so a member added to one and not the other compiles
     and ships: the feature works on one loader and throws IllegalAccessError on the
     other, at runtime, in whichever code path happens to touch it. This check is the

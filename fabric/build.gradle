@@ -4,15 +4,12 @@ plugins {
     id 'com.gradleup.shadow'
 }
 
-architectury {
-    platformSetupLoomIde()
-    fabric()
-}
-
 // :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :neoforge.
 apply from: rootProject.file('gradle/loader.gradle')
 
 dependencies {
+    minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
+    mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
     modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
 
@@ -76,20 +73,36 @@ remapJar {
     inputFile.set shadowJar.archiveFile
 }
 
-loom {
-    // Share :common's access widener rather than declaring a second one, so the two
-    // loaders can never widen different sets of members. Loom remaps the file into the
-    // artifact's namespace during remapJar; fabric.mod.json's "accessWidener" key is
-    // what makes Fabric Loader apply it at runtime in production.
-    accessWidenerPath = project(":common").loom.accessWidenerPath
+// The published artifacts: the remapped jar ships, Loom's named jar is `dev`.
+ext.shippedJar = tasks.named('remapJar')
+ext.devJar = tasks.named('jar')
+ext.sourcesJarTask = tasks.named('remapSourcesJar')
 
-    // Fabric Loom creates its default `main` mod only when the build declares none, after this script, so the
-    // entry is made here. The testmod joins it; it only groups entries already on a run's classpath, so runs
-    // from `main` still carry no test content.
+// :api's plain artifact: its Mojang-named jar remapped to intermediary, for a Fabric Loom consumer's modCompileOnly.
+// Registered here because this is the project with Loom's mappings. See docs/dev/api-artifacts.md.
+def api = project(':api')
+def remapApiJar = tasks.register('remapApiJar', net.fabricmc.loom.task.RemapJarTask) {
+    inputFile = api.tasks.named('jar', Jar).flatMap { it.archiveFile }
+    archiveBaseName = api.base.archivesName
+    archiveClassifier = ''
+    destinationDirectory = api.layout.buildDirectory.dir('libs')
+    addNestedDependencies = false
+}
+api.tasks.named('assemble') { dependsOn remapApiJar }
+api.publishing.publications.named('mavenJava') { artifact(remapApiJar) }
+
+loom {
+    // :common's widener, the file fabric.mod.json names. Loom remaps it into the artifact's namespace during
+    // remapJar, and Fabric Loader applies it at run time. The access transformer beside it is NeoForge's.
+    accessWidenerPath = project(':common').file('src/main/resources/worlddriver.accesswidener')
+
     mods {
-        def mainMod = maybeCreate('main')
-        mainMod.sourceSet sourceSets.main
-        mainMod.sourceSet sourceSets.testmod
+        // The testmod joins the mod; it only groups entries already on a run's classpath, so runs from `main` still
+        // carry no test content.
+        worlddriver {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.testmod
+        }
     }
     runs {
         server { server() }
@@ -116,7 +129,7 @@ loom {
             source sourceSets.testmod
         }
     }
-    runConfigs.configureEach {
+    runs.configureEach {
         // The StageWright suites' runs (stagewright<Suite>…) pin their own ephemeral ports and heap;
         // the defaults below are for the dev runs and would make them fight a live dev client.
         if (it.name.startsWith('stagewright')) return

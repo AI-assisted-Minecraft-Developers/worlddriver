@@ -1,12 +1,13 @@
-architectury {
-    common rootProject.enabled_platforms.split(',')
-}
-
-loom {
-    // Access widener (see the file's header for why). Declared on :common and
-    // referenced by both platform modules, so one list of widened members serves
-    // every artifact and cannot drift between loaders.
-    accessWidenerPath = file("src/main/resources/worlddriver.accesswidener")
+neoForge {
+    // Vanilla in Mojang names, the one NeoForge $neoforge_version is built on. The access transformer at its default
+    // place, META-INF/accesstransformer.cfg, is applied to it; both loaders compile these sources again with their
+    // own access file (the widener on Fabric). See docs/dev/build.md.
+    enable {
+        neoFormVersion = rootProject.neoform_version
+        // Applied to the compiled game, not to its decompiled source: recompiled, a widened slider method would be
+        // more open than the protected overrides vanilla declares, which javac refuses.
+        disableRecompilation = true
+    }
 }
 
 // testmod source set — the in-game tests StageWright runs and the test content (validation
@@ -40,9 +41,18 @@ sourceSets {
     }
 }
 
+neoForge {
+    addModdingDependenciesTo(sourceSets.testmod)
+    addModdingDependenciesTo(sourceSets.test)
+}
+
+// Published as the same jar under both names: nothing here is remapped.
+ext.shippedJar = tasks.named('jar')
+ext.devJar = tasks.named('jar')
+
 dependencies {
-    // The api module, by the common-to-common idiom; the loader modules bundle it beside :common.
-    implementation project(path: ':api', configuration: 'namedElements')
+    // The api module; the loader modules compile both from source.
+    implementation project(':api')
 
     // StageWright's test API (net.magicterra.stagewright.test) for the in-game tests.
     //
@@ -84,8 +94,8 @@ repositories {
 }
 
 dependencies {
-    // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
-    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    // The mixin annotations; each loader brings its own Mixin at run time.
+    compileOnly "org.spongepowered:mixin:$rootProject.mixin_version"
 
     // stagewright is NOT a main dependency — that edge is what put the test framework in the
     // shipped jar. Only the `testmod` source set compiles against it, declared in the block above.

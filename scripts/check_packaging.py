@@ -73,10 +73,16 @@ def published_jars(module):
                f"+{props['minecraft_version']}")
     base = f"{props['archives_name']}-{module}-{version}"
     build = os.path.join(ROOT, module, "build")
+    # `dev` is the Mojang-named jar: Fabric Loom's named jar, :api's own jar beside the remapped
+    # one :fabric writes, and for :common and :neoforge the shipped jar itself.
+    dev = {
+        "fabric": os.path.join(build, "devlibs", base + "-dev.jar"),
+        "api": os.path.join(build, "libs", base + "-dev.jar"),
+    }.get(module, os.path.join(build, "libs", base + ".jar"))
     return [
         ("jar", os.path.join(build, "libs", base + ".jar")),
         ("sources", os.path.join(build, "libs", base + "-sources.jar")),
-        ("dev", os.path.join(build, "devlibs", base + "-dev.jar")),
+        ("dev", dev),
     ]
 
 
