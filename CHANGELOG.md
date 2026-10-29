@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world spawn. A `pos` still moves it there, and a `dimension` other than the saved one is honoured as
   before, at the world spawn when no `pos` comes with it. `remove` already saved the player on its way
   out, as a disconnect does, so a remove and spawn within one game returns it to the same spot.
+- **`mc.world.block` reads any dimension.** It took no dimension and always read the overworld, so a test
+  could not check a block it had placed in the Nether. The new optional `dimension` names the level, and
+  omitted it is still `minecraft:overworld`, as for `mc.world.snapshot`; an unknown one is
+  `invalid_params` at `/dimension`.
 - **Scripts run through `Scripting` can reach Java.** Script tests (StageWright's JavaScript tests run on
   this interface, not on `mc.script.eval`) get a `Java` global: `Java.type(name)`, also spelled
   `Java.loadClass(name)`, answers a class by its binary name, with its static members and `new`, and an

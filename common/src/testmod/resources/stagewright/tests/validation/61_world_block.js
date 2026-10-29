@@ -63,4 +63,39 @@ ScriptTest.run("61_world_block: block-entity NBT via nbt:true", function(t) {
             + (origin.x + 24) + " " + (origin.y + 6) + " " + (origin.z + 24) + " minecraft:air" });
 });
 
+// JSON with keys sorted, so two transports' answers compare whatever order each built its object in.
+function stable(v) {
+    if (v === null || typeof v !== "object") return JSON.stringify(v);
+    if (Array.isArray(v)) return "[" + v.map(stable).join(",") + "]";
+    return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + stable(v[k]); }).join(",") + "}";
+}
+
+ScriptTest.run("61_world_block: dimension reads the Nether, identically over every transport", function(t) {
+    var origin = Driver.system.testOrigin();
+    var x = Math.floor(origin.x / 8) + 3, y = 100, z = Math.floor(origin.z / 8) + 3;
+    var at = x + " " + y + " " + z;
+    var s = Driver.invoke("mc.action.runCommand",
+        { cmd: "execute in minecraft:the_nether run forceload add " + x + " " + z });
+    t.assertEqual(s.success, true, "forceload in the Nether should succeed");
+    try {
+        s = Driver.invoke("mc.action.runCommand",
+            { cmd: "execute in minecraft:the_nether run setblock " + at + " minecraft:gold_block" });
+        t.assertEqual(s.success, true, "setblock in the Nether should succeed");
+        var params = { pos: { x: x, y: y, z: z }, dimension: "minecraft:the_nether" };
+        var direct = Driver.world.block(params);
+        t.assertEqual(direct.type, "minecraft:gold_block", "the Nether cell, read through dimension");
+        var overworld = Driver.world.block({ pos: { x: x, y: y, z: z } });
+        t.assertTrue(overworld.type !== "minecraft:gold_block", "omitted, dimension is the overworld");
+        var viaTcp = ScriptTest.rpcRoundtrip("mc.world.block", params);
+        var viaMcp = ScriptTest.mcpRoundtrip("mc.world.block", params);
+        t.assertEqual(stable(viaTcp), stable(direct), "in-JVM and TCP must agree");
+        t.assertEqual(stable(viaMcp), stable(direct), "in-JVM and MCP must agree");
+    } finally {
+        Driver.invoke("mc.action.runCommand",
+            { cmd: "execute in minecraft:the_nether run setblock " + at + " minecraft:air" });
+        Driver.invoke("mc.action.runCommand",
+            { cmd: "execute in minecraft:the_nether run forceload remove " + x + " " + z });
+    }
+});
+
 }}));

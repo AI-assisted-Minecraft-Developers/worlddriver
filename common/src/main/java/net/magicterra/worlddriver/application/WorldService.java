@@ -85,7 +85,7 @@ public final class WorldService implements WorldApi {
     @Override
     public CompletionStage<BlockReading> block(BlockParams p, CallContext ctx) {
         BlockPos pos = Positions.blockPos(p.pos());
-        ServerLevel level = api.level();
+        ServerLevel level = levelOf(p.dimension().orElse(OVERWORLD));
         return api.requireServerHop().submit(() -> {
             BlockState st = level.getBlockState(pos);
             Light light = new Light(level.getBrightness(LightLayer.BLOCK, pos), level.getBrightness(LightLayer.SKY, pos));

@@ -4001,6 +4001,8 @@ interface WorldBlockParams {
     pos: BlockPosition;
     /** Also the block entity's full NBT, as SNBT. */
     nbt?: boolean;
+    /** Omitted: minecraft:overworld. */
+    dimension?: string;
 }
 interface Light { block: number; sky: number; }
 interface BlockReading {

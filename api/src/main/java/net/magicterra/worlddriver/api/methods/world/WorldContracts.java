@@ -58,7 +58,8 @@ public final class WorldContracts {
     @Named("WorldBlockParams")
     public record BlockParams(
             BlockPosition pos,
-            @Doc("Also the block entity's full NBT, as SNBT.") @Default("false") boolean nbt) {}
+            @Doc("Also the block entity's full NBT, as SNBT.") @Default("false") boolean nbt,
+            @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension) {}
 
     @Named("Light")
     public record Light(@Range(min = 0, max = 15) int block, @Range(min = 0, max = 15) int sky) {}
