@@ -7,7 +7,8 @@ links to; read that page before arguing with the rule.
 
 ## The project at a glance
 
-- **Stack.** Minecraft 1.21.1, Architectury (one source tree, Fabric and NeoForge),
+- **Stack.** Minecraft 1.21.1, one source tree for Fabric (Fabric Loom) and NeoForge
+  (ModDevGradle), each loader compiling the shared modules itself (`docs/dev/build.md`),
   JDK 21, the Gradle wrapper. Rhino is the embedded JavaScript engine.
 - **Source of truth.** `api/src/main/java/net/magicterra/worlddriver/api/registry/ApiRegistry.java`.
   Every transport — the MCP HTTP server, the WebSocket RPC server, the in-process script

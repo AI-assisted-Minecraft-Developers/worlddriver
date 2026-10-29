@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **The build uses Fabric Loom for Fabric and ModDevGradle for NeoForge and the shared modules**,
+  instead of Architectury's Gradle plugin. Each loader now compiles the shared code into its own jar.
+  What gets installed is the same mod, with three visible differences in the jars:
+  - The Fabric jar no longer carries a mixin refmap file; the newer Loom writes the remapped names
+    into the mixin classes themselves.
+  - The NeoForge jar nests netty-codec-http under `META-INF/jarjar/` instead of `META-INF/jars/`.
+  - The access transformer moved from `neoforge/` to `common/src/main/resources/META-INF/`, so
+    both loader jars carry it; Fabric ignores it.
+  The published coordinates are unchanged, including the `dev` jars, which are in Mojang names.
+  See `docs/dev/build.md`.
 - **WorldDriver no longer needs the Architectury API mod.** Install it with Fabric API on
   Fabric, and on its own on NeoForge.
 - **The driver hears server and client events through each loader's own callbacks** instead

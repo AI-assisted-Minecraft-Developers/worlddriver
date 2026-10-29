@@ -217,12 +217,11 @@ The five denial checks in `08_sandbox.js` run with `ScriptClassFilter` off. Read
 are vacuous and should be rewritten or removed. Only if it resolves is a `-Dworlddriver.sandbox=on`
 run worth taking.
 
-### The build still goes through Architectury's plugin and transformer
+### Fabric Loom is held at 1.13 by StageWright's plugin
 
-Move to the MultiLoader layout: Fabric Loom for `fabric/`, ModDevGradle for `neoforge/`, MDG's
-NeoForm-only mode for `common/`, each loader compiling common's sources instead of the
-`namedElements` / `transformProduction*` / `shadowBundle` wiring. Nothing uses `@ExpectPlatform`.
-`dev.architectury.loom` is pinned at `1.11-SNAPSHOT` meanwhile; upstream is at 1.17.
+Loom 1.14+ needs Gradle 9, where StageWright's plugin cannot write its launch specs (it resolves the
+loader's run classpath from the root project, and misreads Loom 1.19's provider-valued `configureLaunch`
+dependency). Once StageWright runs on Gradle 9: Loom to the latest, wrapper to Gradle 9, daemon on JDK 25.
 
 ---
 

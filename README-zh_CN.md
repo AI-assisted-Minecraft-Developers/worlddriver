@@ -9,7 +9,7 @@
 三者都只负责翻译参数，然后调用同一个路由器，因此外部 agent 看到的东西与游戏内脚本看到的
 完全一致。
 
-- Minecraft **1.21.1**，Architectury（同一套源码同时供 Fabric 与 NeoForge）
+- Minecraft **1.21.1**，同一套源码同时供 Fabric 与 NeoForge（Fabric Loom 与 ModDevGradle）
 - Fabric 上需要 Fabric API；NeoForge 上不需要别的模组
 - JDK **21**
 - Rhino 分支 `dev.latvian.mods:rhino:2101.2.7-build.81`（KubeJS 构建）
@@ -177,7 +177,7 @@ worlddriver/
 │       ├── registry/       ApiRegistry，所有传输层都调用的路由器
 │       └── thread/         把工作派发到游戏线程
 ├── api-processor/       生成类型化调用器的注解处理器，只在编译期使用
-├── common/              Architectury 共享源码
+├── common/              两个 loader 共用的源码
 │   ├── src/main/java/net/magicterra/worlddriver/
 │   │   ├── application/    每个方法族背后的服务
 │   │   ├── bot/            自主层：寻路器、navigator、各种行为
@@ -212,7 +212,7 @@ worlddriver/
   限制驱动器自身的能力，而任何能够连上 RPC 或 MCP 端点的一方本来就已经掌握了这个进程，所以
   信任边界在端点上，不在解释器上。请把这两个端点当作这台机器上的一个 shell 来对待。
   `mc.script.eval` 额外通过 Rhino 的指令计数观察器施加一个挂钟超时，那是活性保护，不是安全措施。
-- **一套源码，两个 loader。** 同一份 `common/` 源码通过 Architectury 同时出 Fabric 与 NeoForge。
+- **一套源码，两个 loader。** 同一份 `common/` 源码同时出 Fabric 与 NeoForge：每个 loader 的构建把它编译进自己的 jar。
   loader 专有的模块只承载入口点和仅客户端调用的实现。
 
 完整的架构，包括各处接缝与线程规则，见

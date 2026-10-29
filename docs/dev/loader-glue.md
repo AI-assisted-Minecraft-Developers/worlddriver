@@ -153,11 +153,11 @@ remapped jar — which is why the existing sites went unnoticed.
 
 To open a member, add it to **both** of these and call it directly:
 
-- `common/src/main/resources/worlddriver.accesswidener` — Fabric and compile
-- `neoforge/src/main/resources/META-INF/accesstransformer.cfg` — NeoForge
+- `common/src/main/resources/worlddriver.accesswidener` — Fabric
+- `common/src/main/resources/META-INF/accesstransformer.cfg` — `common` and NeoForge
 
-They are separate because the loom version in use has no access-widener-to-transformer
-conversion for NeoForge. The check asserts the two stay in step; nothing in the build does, and a
+They are separate because Fabric Loom applies only access wideners and ModDevGradle only access
+transformers, and neither converts one into the other ([build.md](build.md)). The check asserts the two stay in step; nothing in the build does, and a
 member opened on one loader only is a runtime `IllegalAccessError` on the other. Remaining
 reflection sites are baselined in the script with a per-site reason. Shrink that list, never grow
 it; if you must add one, make the degradation loud and say so in the entry.

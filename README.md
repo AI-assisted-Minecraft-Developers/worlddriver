@@ -10,7 +10,7 @@ three ways:
 All three translate their parameters and call the same router, so an external agent sees
 exactly what an in-game script sees.
 
-- Minecraft **1.21.1**, Architectury (Fabric and NeoForge from one source tree)
+- Minecraft **1.21.1**, Fabric and NeoForge from one source tree (Fabric Loom and ModDevGradle)
 - Fabric API on Fabric; nothing else on NeoForge
 - JDK **21**
 - Rhino fork `dev.latvian.mods:rhino:2101.2.7-build.81` (the KubeJS build)
@@ -198,7 +198,7 @@ worlddriver/
 │       ├── registry/       ApiRegistry, the router every transport calls
 │       └── thread/         Getting work onto the game thread
 ├── api-processor/       Annotation processor that generates the typed callers; compile time only
-├── common/              Architectury shared sources
+├── common/              Sources shared by both loaders
 │   ├── src/main/java/net/magicterra/worlddriver/
 │   │   ├── application/    The service behind each method family
 │   │   ├── bot/            The autonomous layer: pathfinder, navigator, behaviours
@@ -239,8 +239,8 @@ worlddriver/
   the endpoint and not the interpreter. Treat both endpoints as you would a shell on the
   machine. `mc.script.eval` additionally enforces a wall-clock deadline through Rhino's
   instruction-count observer, which is a liveness guard, not a security one.
-- **One source tree, two loaders.** The same `common/` sources ship on Fabric and NeoForge
-  through Architectury's build tooling. The loader-specific modules carry the entry point,
+- **One source tree, two loaders.** The same `common/` sources ship on Fabric and NeoForge:
+  each loader's build compiles them into its own jar. The loader-specific modules carry the entry point,
   which hooks the shared code up to the loader's own events, and the implementation of the
   client-only calls.
 
