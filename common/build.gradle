@@ -11,10 +11,9 @@ neoForge {
 }
 
 // testmod source set — the in-game tests StageWright runs and the test content (validation
-// scripts, NPCs) live here so they are compiled ONLY for dev/test runs and NEVER baked into the
-// remapped production jar (common's transformProductionNeoForge/Fabric transforms only the
-// `main` output). The loader modules (neoforge/fabric) attach THIS source set's OUTPUT to their
-// dev runs; :common itself never runs, so no loom mods{} wiring is needed here. testmod sees
+// scripts, NPCs) live here so they are compiled ONLY for dev/test runs and NEVER baked into a
+// shipped jar. Each loader compiles these sources into its own testmod (gradle/loader.gradle);
+// :common compiles them only to check them and for the unit tests below. testmod sees
 // main's OUTPUT plus main's own compile/runtime classpaths, and StageWright's api (below).
 // The `test` source set is for PURE-JVM unit tests of code that needs no running
 // game — the transports (JSON-RPC framing, RpcServer/RpcClient wire contract) are
@@ -60,9 +59,8 @@ dependencies {
     // version CYCLE — that module compiles against worlddriver-common — which is exactly
     // why the api module was split out before the repos separated.
     //
-    // `:dev` is the named-mappings jar. Not a `mod*` configuration, so loom does not remap
-    // it, which is correct: the dev jar is already in the mappings this compile classpath
-    // uses. The plain artifact is intermediary and would fail to link.
+    // `:dev` is the Mojang-named jar, the names this compile classpath uses. The plain
+    // artifact is intermediary and would fail to link.
     // Not transitive: its POM names worlddriver-api, which is this build's own :api.
     testmodImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
     // The unit tests see testmod's classes (sourceSets above), so they need what those link against.
@@ -104,8 +102,8 @@ dependencies {
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
 
     // Netty WebSocket — MC ships only the core (transport/codec). We need
-    // codec-http for the WS server/client. Compile-only here; fabric/neoforge
-    // wire runtime visibility (forgeRuntimeLibrary on NeoForge) + shadow-bundle.
+    // codec-http for the WS server/client. Compile-only here; each loader nests it
+    // in its jar and, on NeoForge, puts it on the dev runs' classpath.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
 
 }

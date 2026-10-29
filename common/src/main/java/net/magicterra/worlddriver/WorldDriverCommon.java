@@ -171,9 +171,10 @@ public final class WorldDriverCommon {
     /**
      * Halt the JVM if the server never finishes starting.
      *
-     * <p>A server that fails to initialise does not take the JVM down with it. Architectury's
-     * transformer pools are non-daemon, so the process lingers with no {@code Server thread} and
-     * nothing to do, and a Gradle run task waits on it forever. Measured: a second rehearsal
+     * <p>A server that fails to initialise does not take the JVM down with it. Any non-daemon
+     * thread left behind (Architectury's transformer pools were such threads, while the build used
+     * it) keeps the process up with no {@code Server thread} and nothing to do, and a Gradle run
+     * task waits on it forever. Measured: a second rehearsal
      * launched against a run whose port was still held died at {@code java.net.BindException:
      * Address already in use: bind}, threw {@code NullPointerException} out of {@code stopServer}
      * with a half-built level, and then <b>hung for 5.5 hours reporting nothing</b>. The port

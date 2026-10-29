@@ -114,9 +114,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * pool before calling route(); past the per-connection or pool cap in
  * {@link TransportLimits} a request is answered with a busy error instead.
  *
- * Build note: MC ships only netty-codec/transport; netty-codec-http is added via
- * the {@code forgeRuntimeLibrary} configuration (NeoForge) / {@code implementation}
- * (Fabric) plus shadow-bundled into the prod jar. See module build.gradle files.
+ * Build note: MC ships only netty-codec/transport; netty-codec-http is nested in each
+ * loader's jar, and on NeoForge dev runs put on the game's classpath with
+ * {@code additionalRuntimeClasspath}. See docs/dev/build.md.
  */
 public final class RpcServer implements Closeable {
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
