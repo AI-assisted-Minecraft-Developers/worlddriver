@@ -149,11 +149,6 @@ Besides `Body`, the shared vanilla keybinds are still written by `BotInteract.re
 `ClientKeybinds`. Only `Body` can drive a server-side player; whether those two move onto it is an
 architecture decision.
 
-### Three default-off settings are never run by a test
-
-`autoFight` and `allowParkourPlace` are never turned on by a test or a run, and `allowParkour4` only
-by a validation script that writes it and reads it back. Each needs a test that runs it, or deletion.
-
 ### Nothing runs the replay corpus's acceptance rule
 
 The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s result has to carry
