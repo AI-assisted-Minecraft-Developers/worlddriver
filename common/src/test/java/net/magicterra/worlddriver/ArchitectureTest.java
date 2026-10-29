@@ -84,6 +84,38 @@ class ArchitectureTest {
         assertNone(bad);
     }
 
+    /**
+     * Every event hook the driver exposes is called from both loaders. Each loader subscribes its own callbacks
+     * (or mixins) to these methods, so a hook one loader forgot is silently never called there; the in-game tests
+     * cannot reach some of them (client shutdown, the HUD). {@code install} is a bootstrap call, not a hook.
+     */
+    @Test
+    void everyEventHookIsWiredOnBothLoaders() {
+        Pattern publicStatic = Pattern.compile("public\\s+static\\s+(?!final\\b|class\\b)[\\w<>\\[\\],.? ]+?\\s+(\\w+)\\s*\\(");
+        Map<Path, String> loaderCode = new LinkedHashMap<>();
+        for (Path root : LOADER_SOURCES) {
+            StringBuilder all = new StringBuilder();
+            for (Path p : javaFiles(root)) all.append(code(p)).append('\n');
+            loaderCode.put(root, all.toString());
+        }
+        List<String> bad = new ArrayList<>();
+        int hooks = 0;
+        for (String facade : List.of("WorldDriverEvents", "WorldDriverClientEvents")) {
+            Matcher m = publicStatic.matcher(SOURCES.get(facade));
+            while (m.find()) {
+                String method = m.group(1);
+                if (method.equals("install")) continue;
+                hooks++;
+                Pattern use = Pattern.compile("\\b" + facade + "\\s*(?:\\.|::)\\s*" + method + "\\b");
+                for (Map.Entry<Path, String> loader : loaderCode.entrySet())
+                    if (!use.matcher(loader.getValue()).find())
+                        bad.add(facade + "." + method + " is never called from " + loader.getKey());
+            }
+        }
+        assertTrue(hooks > 0, "found no event hooks in WorldDriverEvents / WorldDriverClientEvents");
+        assertNone(bad);
+    }
+
     @Test
     void noAreaReachesWhatItMustNot() {
         List<String> bad = new ArrayList<>();
