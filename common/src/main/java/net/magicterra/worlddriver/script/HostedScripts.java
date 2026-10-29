@@ -43,7 +43,7 @@ public final class HostedScripts implements Scripting {
             }
             return toJava(cx.evaluateString(scope, source, name, 1, null), scope);
         } catch (RuntimeException e) {
-            throw unwrap(e);
+            throw unwrap(e, cx);
         }
     }
 
@@ -93,10 +93,17 @@ public final class HostedScripts implements Scripting {
      * Eclipse compiler inside loom's source remapper takes exponential time over pattern variables chained with
      * {@code &&} inside a {@code ?:}, and the published sources jar never finished.
      */
-    private static Throwable wrapped(Throwable t) {
+    private static Throwable wrapped(Throwable t, Context cx) {
         if (t instanceof WrappedException w) return w.getWrappedException();
         if (!(t instanceof JavaScriptException js)) return null;
-        if (!(js.getValue() instanceof NativeJavaObject o)) return null;
+        Object value = js.getValue();
+        // A script that caught a Java exception and threw it again: the catch value is the engine's error object,
+        // which keeps the Java exception under javaException.
+        if (value instanceof Scriptable s && !(value instanceof NativeJavaObject)
+                && ScriptableObject.hasProperty(s, "javaException", cx)) {
+            value = ScriptableObject.getProperty(s, "javaException", cx);
+        }
+        if (!(value instanceof NativeJavaObject o)) return null;
         return o.unwrap() instanceof Throwable inner ? inner : null;
     }
 
@@ -104,10 +111,10 @@ public final class HostedScripts implements Scripting {
      * What the Java code that started the script should see: a Java exception as itself, however many times the
      * engine wrapped it on the way out (including a script that caught and rethrew it), else the script's error.
      */
-    private static RuntimeException unwrap(RuntimeException e) {
+    private static RuntimeException unwrap(RuntimeException e, Context cx) {
         Throwable current = e;
         for (int hops = 0; current != null && hops < 8; hops++) {
-            Throwable inner = wrapped(current);
+            Throwable inner = wrapped(current, cx);
             if (inner == null) break;
             current = inner;
         }
@@ -142,12 +149,17 @@ public final class HostedScripts implements Scripting {
                 for (int i = 0; i < args.length; i++) in[i] = toJs(args[i], cx, scope);
                 return toJava(target.call(cx, scope, scope, in), scope);
             } catch (RuntimeException e) {
-                throw unwrap(e);
+                throw unwrap(e, cx);
             }
         }
     }
 
-    /** A Java function, handed to a script. Its exceptions leave as they were thrown. */
+    /**
+     * A Java function, handed to a script. An exception it throws goes through the engine as a {@link WrappedException},
+     * which a script's {@code catch} receives as an error whose message carries the Java one; thrown raw, Rhino would
+     * run only the script's {@code finally} blocks. An {@link Error} stays raw and so stays uncatchable. {@link #unwrap}
+     * hands the Java caller the original either way.
+     */
     private final class JavaFunction extends BaseFunction {
         final Scripting.Function target;
 
@@ -159,7 +171,11 @@ public final class HostedScripts implements Scripting {
         public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             Object[] in = new Object[args.length];
             for (int i = 0; i < args.length; i++) in[i] = toJava(args[i], scope);
-            return toJs(target.call(in), cx, scope);
+            try {
+                return toJs(target.call(in), cx, scope);
+            } catch (RuntimeException e) {
+                throw Context.throwAsScriptRuntimeEx(e, cx);
+            }
         }
     }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **A script can catch what a Java function it was handed throws.** Such an exception left the engine
+  raw, so the script ran only its `finally` blocks and never its `catch`; it now reaches `catch` as a
+  script error carrying the Java message, and the Java caller still receives the original exception
+  when the script does not catch it. A Java `Error`, such as a failed assertion, stays uncatchable.
 - **`mc.action.runCommand` runs as the server, not as a player, unless it is given `as`.** It used to
   run as the first player in the server's list, which with a bot online was that bot. A permission mod
   such as LuckPerms then judged every command by the bot's permissions and refused to parse them, and

@@ -52,6 +52,20 @@ class HostedScriptsTest {
     }
 
     @Test
+    void aScriptCanCatchAJavaExceptionButNotAJavaError() {
+        Scripting.Function boom = args -> { throw new IllegalStateException("from java"); };
+        Object caught = scripts.evaluate("catch.js",
+                "var seen = 'none'; try { boom() } catch (e) { seen = 'caught: ' + e.message } finally { seen += ' /finally' } seen",
+                Map.of("boom", boom));
+        assertTrue(String.valueOf(caught).startsWith("caught: ") && String.valueOf(caught).contains("from java")
+                && String.valueOf(caught).endsWith(" /finally"), caught + "");
+        AssertionError failed = new AssertionError("expected");
+        Scripting.Function check = args -> { throw failed; };
+        assertSame(failed, assertThrows(AssertionError.class, () -> scripts.evaluate("uncaught.js",
+                "try { check() } catch (e) { 'swallowed' }", Map.of("check", check))));
+    }
+
+    @Test
     void aScriptErrorSaysWhere() {
         ScriptFailure failure = assertThrows(ScriptFailure.class,
                 () -> scripts.evaluate("where.js", "var a = 1;\nthrow new Error('nope');", Map.of()));
