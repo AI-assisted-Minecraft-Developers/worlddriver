@@ -262,11 +262,10 @@ class WorldDriverTest {
         Settings.pin(game).set("navigatorDebug", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
 
+        float bare = SimProbes.probeSwing(game, bot, ItemStack.EMPTY, cx, floorY, cz);
+        float sword = SimProbes.probeSwing(game, bot, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
         game.runOnServer(s -> {
-            ServerLevel level = s.overworld();
             ServerPlayer fp = bot.player();
-            float bare = SimProbes.probeSwing(level, bot, ItemStack.EMPTY, cx, floorY, cz);
-            float sword = SimProbes.probeSwing(level, bot, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
             float tookBare = SimProbes.probeHurt(fp, false);
             float tookArmored = SimProbes.probeHurt(fp, true);
 

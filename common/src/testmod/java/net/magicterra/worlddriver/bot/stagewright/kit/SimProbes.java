@@ -1,10 +1,12 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
+import net.magicterra.stagewright.test.Game;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -21,8 +23,9 @@ import net.minecraft.world.item.Items;
  * list first: it is far likelier that the environment ate the measurement than that the
  * driver stopped working.
  *
- * <p>All of them touch the world and the player directly: call them on the server thread, inside
- * {@code game.runOnServer(…)}.
+ * <p>All of them but {@link #probeSwing} touch the world and the player directly: call them on the server
+ * thread, inside {@code game.runOnServer(…)}. {@link #probeSwing} waits for server ticks between its two
+ * halves, so it is called from the test's own thread and makes its own server calls.
  */
 public final class SimProbes {
 
@@ -34,12 +37,21 @@ public final class SimProbes {
      *  <p>The swing is vanilla's own {@code Player#attack}, the call the bot's body makes once its
      *  footing rule lets a swing through; that rule refuses only targets that explode when hit, which a
      *  zombie never does. */
-    public static float probeSwing(ServerLevel level, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
+    public static float probeSwing(Game game, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
+        Zombie z = game.onServer(s -> swingTarget(s.overworld(), bot, weapon, cx, floorY, cz));
+        // Real server ticks settle the target. Ticking the level by hand from inside a server task once never
+        // returned from ChunkMap.processUnloads, and the watchdog killed the server.
+        game.ticks(3);
+        return game.onServer(s -> swingAt(bot, z, weapon));
+    }
+
+    /** Arm the player and spawn the target the swing measures; see {@link #probeSwing}. */
+    private static Zombie swingTarget(ServerLevel level, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
         ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
         if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
         fp.getInventory().selected = 0;
-        var z = new net.minecraft.world.entity.monster.Zombie(level);
+        var z = new Zombie(level);
         z.setPos(cx + 2 + 0.5, floorY + 1, cz + 0.5);
         z.setNoAi(true);
         z.setPersistenceRequired();
@@ -58,7 +70,12 @@ public final class SimProbes {
         // isInvulnerableTo, never by actuallyHurt).
         z.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
         level.addFreshEntity(z);
-        for (int i = 0; i < 3; i++) level.tick(() -> true);
+        return z;
+    }
+
+    /** The swing itself, once the target has settled; the health {@code z} lost, then {@code z} is gone. */
+    private static float swingAt(SceneBot bot, Zombie z, ItemStack weapon) {
+        ServerPlayer fp = bot.player();
         // Full recharge: the body step is the only thing that advances the player's ticker.
         fp.resetAttackStrengthTicker();
         bot.step(30);
