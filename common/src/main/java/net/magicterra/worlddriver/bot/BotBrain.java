@@ -42,6 +42,7 @@ import net.magicterra.worlddriver.bot.behavior.BackfillProcess;
 import net.magicterra.worlddriver.bot.behavior.BackfillTracker;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.Readiness;
@@ -278,7 +279,8 @@ public final class BotBrain {
         // best armor/weapon on through the fight. Gated on an engaged combat chain
         // so it doesn't reshuffle the inventory during peaceful crafting/building;
         // idempotent (worn gear outscores the inventory) so it settles after a tick.
-        if (BotConfig.autoEquip && combatChain.engaged()) {
+        // A bot other than self runs an ordered fight as its held process, not through the chain.
+        if (BotConfig.autoEquip && (combatChain.engaged() || c instanceof CombatProcess)) {
             AutoEquip.tick(body, BotConfig.equipDurabilityThreshold);
         }
         // autoSwim is applied AFTER the chain scheduler's idle release

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so `autoShield` with an empty or weapon main hand pressed use on nothing and the shield stayed down. The
   use now goes to the offhand when the main hand holds nothing usable and the offhand does, as the client's
   use key does.
+- **`autoEquip` puts armour on during a fight a server bot was ordered into.** It ran only while the combat
+  chain was engaged, and an ordered `mc.bot.combat` on any bot but the client's own player runs as a held
+  process instead, so only an automatic fight equipped those bots.
 - **Removed settings that were off by default and that no test, scene or run ever turned on**, with
   the code only they reached. Nothing changes at the defaults; `mc.bot.setting` now refuses these keys.
   Navigator: `navigatorVerticalResync`, `navigatorLevelRiserJump`, `navigatorPadRamBreak`,

@@ -173,6 +173,45 @@ class ReflexTest {
         assertTrue(on[0] > 10, "with autoEat on the bot did not eat in 200 ticks: food=" + on[0] + " bread=" + on[1]);
     }
 
+    // ---------------------------------------------------------------- autoEquip
+
+    /**
+     * A fight with armour in the bag: the bot puts it on. {@code BotBrain.act} runs {@code AutoEquip.tick} only while
+     * the combat chain is engaged, so the fight is ordered ({@code mc.bot.combat}) against a zombie that cannot be hurt
+     * and so never ends.
+     */
+    @Test
+    void autoEquipPutsOnArmourInAFight(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+        Settings settings = Settings.pin(game);
+        SceneBot bot = onFloor(game, plot);
+        bot.give(Items.IRON_SWORD, 1).give(Items.IRON_HELMET, 1).give(Items.IRON_CHESTPLATE, 1)
+                .give(Items.IRON_LEGGINGS, 1).give(Items.IRON_BOOTS, 1);
+        var zombie = still(game, EntityType.ZOMBIE, plot.at(2, 1, 0));
+        game.runOnServer(s -> zombie.setInvulnerable(true));
+
+        int off = game.onServer(s -> {
+            Calls.started("combat kill zombie", bot.tasks().combat(new CombatContracts.Params(bot.ref(),
+                    CombatContracts.Mode.KILL, Optional.of(new CombatContracts.FoeType("minecraft:zombie")), false, 0)));
+            bot.tick(20);
+            return armourWorn(bot.player());
+        });
+        settings.set("autoEquip", true);
+        int on = game.onServer(s -> {
+            bot.tick(20);
+            bot.park();
+            return armourWorn(bot.player());
+        });
+        reporter.publishEntry("armourWorn.off/on", off + "/" + on);
+        assertEquals(0, off, "with autoEquip off the bot put armour on");
+        assertEquals(4, on, "with autoEquip on the bot did not put on all four pieces in its bag");
+    }
+
+    private static int armourWorn(ServerPlayer fp) {
+        int n = 0;
+        for (ItemStack s : fp.getInventory().armor) if (!s.isEmpty()) n++;
+        return n;
+    }
+
     // ---------------------------------------------------------------- autoTool
 
     /**
