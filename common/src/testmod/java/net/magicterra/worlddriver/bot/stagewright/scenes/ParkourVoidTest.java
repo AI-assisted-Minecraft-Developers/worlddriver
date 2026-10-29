@@ -297,6 +297,75 @@ class ParkourVoidTest {
                 + " has deleted the move rather than given it a precondition): " + planShape(longPlan));
     }
 
+    /**
+     * {@code allowParkourPlace}: a two-cell leap onto a cell with no floor, the block under it placed mid-air. A 1-wide
+     * pad ends at x=0, x=-1 is void, and the landing cell x=-2 has no floor; its only neighbour is one block beside it
+     * at z=+1, which is the place support ({@code ParkourPlace.eval}: {@code canParkourPlace()}, a runway, a real gap,
+     * and {@code Move.hasPlaceSupport} for the landing floor) and the goal. No leap reaches that block from the pad, so
+     * the way there is through the landing. (A goal on the floorless cell itself is snapped by {@code goto} to the
+     * nearest standable cell.) Off, {@code mc.debug.plan} holds no {@code parkourPlace2} edge; on, it does, and the
+     * walk ends on the goal having spent one block, which sits under the landing cell.
+     */
+    @Test
+    void parkourPlaceLeapsOntoItsOwnBlock(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot,
+                                          TestReporter reporter) {
+        final int standY = PAD_Y + 1;
+        catchFloor(plot, 2);
+        plot.fill(0, PAD_Y, 0, 9, PAD_Y, 0, Blocks.STONE);        // launch pad, lip at x=0; x=-1 is void
+        plot.place(-2, PAD_Y, 1, Blocks.STONE);                   // the support beside the landing floor, and the goal
+        BlockPos floor = plot.at(-2, PAD_Y, 0);
+        BlockPos goal = plot.at(-2, standY, 1);
+
+        Settings settings = Settings.pinUntimed(game).set("allowBreak", false).set("allowParkour4", false);
+        SceneBot bot = SceneBot.spawn(game, plot.at(6, standY, 0));
+        bot.give(Items.COBBLESTONE, 16);
+        PlanParams ask = PlanParams.of(bot.ref(), Targets.block(goal));
+
+        SinglePlan off = bot.plan(ask);
+        settings.set("allowParkourPlace", true);
+        SinglePlan on = bot.plan(ask);
+        reporter.publishEntry("plan.off", planShape(off));
+        reporter.publishEntry("plan.on", planShape(on));
+        game.check(off.edges().stream().noneMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
+                "with allowParkourPlace off the plan holds a parkourPlace edge: " + planShape(off));
+        game.check(on.edges().stream().anyMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
+                "with allowParkourPlace on the plan holds no parkourPlace edge: " + planShape(on));
+
+        int padAbs = plot.at(0, PAD_Y, 0).getY();
+        int lipX = plot.at(0, PAD_Y, 0).getX();
+        String[] gapMove = {null};
+        double[] walk = game.onServer(s -> {
+            ServerPlayer fp = bot.player();
+            SimProbes.grantWaterEffects(fp);
+            fp.getInventory().selected = 0;
+            bot.goTo(Targets.block(goal));
+            double minY = fp.getY();
+            int t = 0;
+            for (; t < 400 && bot.busy(); t++) {
+                bot.tick();
+                minY = Math.min(minY, fp.getY());
+                if (gapMove[0] == null && fp.getX() < lipX)
+                    gapMove[0] = bot.navigator().plan().flatMap(PlanCursor::move).orElse("none");
+                if (fp.getY() < padAbs - 3) break;
+            }
+            bot.park();
+            return new double[] {minY, fp.getX(), fp.getY(), fp.getZ(), 16 - carrying(fp, Items.COBBLESTONE), t};
+        });
+        boolean floorPlaced = game.onServer(s -> bot.level().getBlockState(floor).is(Blocks.COBBLESTONE));
+        String walked = String.format(Locale.ROOT, "minY=%.2f end=(%.2f,%.2f,%.2f) spent=%d ticks=%d move past the lip=%s",
+                walk[0], walk[1], walk[2], walk[3], (int) walk[4], (int) walk[5], gapMove[0]);
+        reporter.publishEntry("walk", walked);
+        game.check(walk[0] > padAbs - 1, "the bot fell during the leap: lowest y " + walk[0] + ", pad y " + padAbs);
+        // Within a block of the goal's centre, at its height: the navigator calls a walk arrived at the edge of the
+        // cell before it, which here is the placed block itself.
+        game.check(Math.hypot(walk[1] - (goal.getX() + 0.5), walk[3] - (goal.getZ() + 0.5)) <= 1.0
+                        && Math.abs(walk[2] - goal.getY()) <= 0.4,
+                "the bot did not end standing at the goal " + goal.toShortString() + ": " + walked);
+        game.check((int) walk[4] == 1, "the leap spent " + (int) walk[4] + " blocks, not the one landing block: " + walked);
+        game.check(floorPlaced, "no cobblestone under the landing cell " + floor.toShortString() + ": " + walked
+                + " | " + planShape(on));
+    }
+
     /** True when the plan gets from the pad side to the deck side in ONE parkour edge. */
     private static boolean crossesGapByParkour(SinglePlan plan, int lipX) {
         List<PlanEdge> edges = plan.edges();
