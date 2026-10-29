@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **A bot is one player whichever dimension it is in.** The bots' players were kept per dimension, filed
+  under the dimension they were asked for, so a bot restored from its save in the Nether, or moved
+  there by a portal or a teleport, was filed under the overworld, and asking for it in its real
+  dimension joined a second player with its name. They are now kept by name across the server.
+
 - **A script can call methods on a map whose keys are not strings.** The script engine looked every
   property name up as a key of a Java map before it looked for a method, and a typed map such as
   fastutil's `Int2ObjectMap` refuses a text key with an error, so `map.size()` or

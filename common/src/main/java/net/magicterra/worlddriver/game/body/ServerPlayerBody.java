@@ -148,7 +148,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *  (3 isolated runs → failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,
      *  descentdrift,horizon,rpcsmoke}, 139s vs 41s).
      *
-     *  <p>NOTE: the seam caches players per profile per level, and each call here mints a new
+     *  <p>NOTE: the seam caches players by profile name, and each call here mints a new
      *  profile, so each call joins one more player that stays until it is discarded. Fine for the
      *  single-demo-agent command; revisit if agents get spawned in bulk. */
     public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {

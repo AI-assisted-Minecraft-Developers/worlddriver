@@ -96,27 +96,21 @@ public final class JoinedPlayers {
         return connection instanceof SilentConnection;
     }
 
-    private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
+    /**
+     * The joined players by name, whatever level each is in. Not by level: the level a player is asked for is only
+     * where a new one starts. The join moves a returning player to the dimension its save names, and a portal or a
+     * teleport moves it later without leaving the player list; a map keyed by the asked-for level filed such a player
+     * under a dimension it was not in, and the next ask for its real one joined a second player with its name.
+     */
+    private final Map<String, JoinedBody> byName = new ConcurrentHashMap<>();
 
-    /** A player of its own for {@code profile}, per level. */
+    /**
+     * The player for {@code profile} on {@code level}'s server: the one already joined under that name, in whatever
+     * dimension it now is, or a new one joined starting in {@code level}. A caller that needs it in {@code level}
+     * moves it there.
+     */
     public ServerPlayer unique(ServerLevel level, GameProfile profile) {
         return body(level, profile);
-    }
-
-    /** Drop this level's bot players — they leave the player list rather than linger as ghosts. */
-    public void unloadLevel(ServerLevel level) {
-        Map<String, JoinedBody> bodies = byLevel.remove(level);
-        if (bodies == null) return;
-        for (JoinedBody body : bodies.values()) {
-            try {
-                // discard(), not PlayerList.remove(): the player's own remove() is what leaves the
-                // list, and going straight to PlayerList would re-enter it from the outside.
-                body.discard();
-            } catch (RuntimeException e) {
-                Mod.LOG.warn("[realbody] could not remove {} on unload: {}",
-                        body.getGameProfile().getName(), e.toString());
-            }
-        }
     }
 
     /**
@@ -134,8 +128,9 @@ public final class JoinedPlayers {
      * server heap ran out around scene 290 in two of three runs.
      */
     private JoinedBody body(ServerLevel level, GameProfile profile) {
-        Map<String, JoinedBody> byName = byLevel.computeIfAbsent(level, l -> new ConcurrentHashMap<>());
-        byName.values().removeIf(JoinedBody::isRemoved);
+        // A player of a server that has stopped (an integrated server's earlier world) is removed with it, so the
+        // same sweep drops it; the server check is for one whose removal never ran.
+        byName.values().removeIf(b -> b.isRemoved() || b.getServer() != level.getServer());
         JoinedBody cached = byName.get(profile.getName());
         if (cached != null) return cached;
         JoinedBody fresh = join(level, profile);
