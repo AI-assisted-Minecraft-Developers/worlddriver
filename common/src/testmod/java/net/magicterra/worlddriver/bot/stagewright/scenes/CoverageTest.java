@@ -324,8 +324,7 @@ class CoverageTest {
      * {@code navigatorAboveNodeStallRecover}: a 2-deep stepped trench crosses the course; once the bot has committed
      * the descending route and closes on the west rim, the trench is FILLED flush, so the bot walks level ground while
      * its step pointer holds a node 2 below the new surface. The fold must fire before the wedge burst and the
-     * re-route must finish the crossing. {@code navigatorVerticalResync} stays at its default OFF so this pins the
-     * above-node branch alone.
+     * re-route must finish the crossing.
      */
     @Test
     void aboveNodeStallPitFill(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {

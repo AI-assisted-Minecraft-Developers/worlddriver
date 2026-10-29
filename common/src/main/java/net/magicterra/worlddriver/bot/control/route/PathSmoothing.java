@@ -233,8 +233,8 @@ public final class PathSmoothing {
      *  hitbox overlaps (4-corner AABB probe, half-width 0.3), plus the centre cell's
      *  floor support. Catches the "ray threads a slit the bot can't" case (jungle
      *  trunks: the centre line stays in passable cells while the bot radius clips a
-     *  trunk column — the navigatorCarrotHColShrink A/B showed the far carrot bearing is
-     *  the right detour, so the cure is to make the carrot's LOS honest about the player's
+     *  trunk column — an A/B of shrinking the carrot to the node under wall contact showed the far
+     *  carrot bearing is the right detour, so the cure is to make the carrot's LOS honest about the player's
      *  width instead of shrinking pursuit). Used by the Navigator's carrotPoint behind
      *  {@code navigatorCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
     public static boolean losWalkableBody(WorldView w, BlockPos a, BlockPos b) {

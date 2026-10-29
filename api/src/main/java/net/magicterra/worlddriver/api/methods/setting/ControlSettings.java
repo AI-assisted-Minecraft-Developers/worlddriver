@@ -29,25 +29,6 @@ public record ControlSettings(
         @Default("true") boolean allowSwimEscapePlace,
         @Doc("Scoop the MLG water source back into the bucket after landing (reusable bucket, clean world).")
         @Default("true") boolean waterBucketScoop,
-        @Doc("Re-sync the step-pointer when grounded but the target node is ≥2 blocks off VERTICALLY in the "
-                + "horizontal dead-zone with no wall-contact (a descent overshoot / ascent slide-back the other "
-                + "recovery gates miss) → fold into the repath recovery instead of waiting out the ~5s wedge burst.")
-        @Default("false") boolean navigatorVerticalResync,
-        @Doc("JUMP a y-mislabeled +1 riser: when A* labels an edge a LEVEL walk but its floor is actually +1, the "
-                + "bot sprints in level, drops onto the lower cell ONE below the node, and rams the +1 riser it "
-                + "never squared up for (hCol, hSpd≈0). Force a grounded jump up-and-over at once instead of "
-                + "bob-ramming for ~8 ticks until the freeze-breaker recovers. Fires only on a walk-labeled edge "
-                + "whose node is +1 above the grounded foot with a mountable riser dead ahead and a confirmed ram → "
-                + "inert on flat ground / real stepUps.")
-        @Default("false") boolean navigatorLevelRiserJump,
-        @Doc("Break a LILY PAD a floating bot rams in an ADJACENT column its hitbox overlaps that the head-on pad "
-                + "scan misses: a surface swimmer can straddle 4 XZ cells, and a pad off the heading axis blocks "
-                + "the bot (hCol, hSpd≈0, attack stays false) until A* repaths (~13.5s). When CONFIRMED rammed in "
-                + "water (noStepProgressTicks past the gate) and nothing was found ahead, scan the player's "
-                + "footprint cells at the surface for an instabreak obstruction and punch the nearest. "
-                + "Instabreak-only (lily pad / surface plant) so a real wall is never touched; inert on dry land / "
-                + "pad-free crossings.")
-        @Default("false") boolean navigatorPadRamBreak,
         @Doc("Hold the step-pointer on a RISING parkour leap until the feet have risen to its landing (grounded), "
                 + "like the pillarUp/parkourPlace gates, so the within/passed re-sync can't skip the un-executed "
                 + "leap and strand the bot on the +2 walk node above a water climb-out.")
@@ -74,13 +55,6 @@ public record ControlSettings(
                 + "kills sprint on the same tick, so the bot safely down-steps the routed ≤4 staircase. Cannot "
                 + "deadlock (a ≤4 staircase keeps wp within maxDryFall → never fires).")
         @Default("true") boolean navigatorDescentStepSkipBrake,
-        @Doc("Kill the backward lurch (jumping backwards while moving, looking back while going downhill) on a "
-                + "DISCRETE drop: when a fall/stepDown node sits >120° behind the steady descent trend (the bot "
-                + "landed 1 above & short of it, stuck in the step-advance dead-zone), HOLD the trend continuously "
-                + "instead of escaping to the backward node every 5th tick (which pushed the bot away from the "
-                + "node, growing cur2 until a repath). Continuous slopes (diagDown/parkourDescend) keep their "
-                + "bounded escape; safetyRepath still rescues a real wedge.")
-        @Default("false") boolean navigatorDescentFlipHold,
         @Doc("Advance the step-pointer off a stepDown/fall/diagDown node that is a SHALLOW WATER-SURFACE foothold "
                 + "(water at node, SOLID floor below, head not water) once the buoyant bot has grounded vertically "
                 + "AT it but pinned ~0.74 b short of centre (cur2≈0.55, just over the 0.45 reach gate — buoyancy + "
@@ -89,15 +63,6 @@ public record ControlSettings(
                 + "approach advances normally first. Dry step-downs, deep floating-water landings, and "
                 + "climb/walk/parkour edges are inert.")
         @Default("true") boolean navigatorWaterStepDownFloat,
-        @Doc("Advance the step-pointer off a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau lip) the DRY "
-                + "bot has topped out on (foot risen to the node's Y, |dyNode|<0.5) but ORBITS, pinning cur2 at "
-                + "~0.49-1.2 just over the 0.45 reach gate so `within` never fires and `passed` never reads the "
-                + "next node strictly closer while circling — the step freezes ~25-51 ticks (live -633,80,318, "
-                + "deterministic). No actuator catches it (ascentRamSlide needs node >=2 above a grounded foot; the "
-                + "bot is +1 above, airborne, no hCol). Treats the apex arrival as reaching the node (relaxed reach "
-                + "1.3), gated on a confirmed stall so a clean fast stepUp advances normally first. A "
-                + "not-yet-topped climb (|dyNode|>=0.5), a non-ascent edge, and every in-water case are inert.")
-        @Default("false") boolean navigatorStepUpCrestReach,
         @Doc("The surface-swim turn/wall-corner FREEZE breaker (stuck against a wall or stuck in water): a flat "
                 + "`walk` water-surface node sits the buoyant bot ~0.67 b out (cur2 floor ~0.455, just over the "
                 + "0.45 reach gate) so `within` never closes; a straight crossing advances via `passed` (forward "
@@ -108,22 +73,8 @@ public record ControlSettings(
                 + "advances the step (next node |Δy|<1.2 bars a climb-skip). A clean crossing advances via passed "
                 + "first; dry walk and non-walk edges inert.")
         @Default("true") boolean navigatorWaterWalkReach,
-        @Doc("Deep fix for the steep CLIMB-FAILURE stall: the bot slides 2-3 blocks BELOW a √2 diagUp node (an "
-                + "effective +2/+3 ram, too tall for one jump, under the fellOffPath >3 threshold). The existing "
-                + "ascentRamSlide recovery hangs on noStepProgress, which the slide-back's re-approach/bob zeroes "
-                + "on every 3D new-low, so the gate never fills and the bot bob-rams 150+t (live J3b -877,75: "
-                + "diagUp node 3 above, 156t/7.8s). ON: a node >=2 above the foot that DWELT rawStepDwellTicks "
-                + "(bob-immune, step-tracked) past 30 folds into fellOffPath (fresh foot-search blacklists the "
-                + "unreachable node, re-routes from here) — no onGround req so it catches the airborne ram too. DRY "
-                + "only; pillarUp/parkour keep their handling; a clean climb advances in 1-3t and never trips it.")
-        @Default("false") boolean navigatorAscentRamJitterImmune,
-        @Doc("Phase-0 of the arc-length pursuit refactor: SHADOW computation projecting the foot onto the path "
-                + "polyline (projected segment, arc-length s, perpendicular distance, tangent heading), logged only "
-                + "(navigatorDebug), DRIVES NOTHING. Proves via replay that s is monotonic + tracks the live step "
-                + "before later phases drive the step pointer / aim off it.")
-        @Default("false") boolean navigatorArcLengthShadow,
         @Doc("Phase-1: drive the step pointer from the path PROJECTION (projSeg>step OR within) instead of the "
-                + "per-tick bob-compensating gates (passed/crossedWalk/waterStepDown/crestReach/waterWalkReach are "
+                + "per-tick bob-compensating gates (passed/crossedWalk/waterStepDown/waterWalkReach are "
                 + "bypassed). Bob-immune by construction — unfreezes the step pointer the buoyancy bob strands "
                 + "(live P0: projSeg led the frozen step by 2-5 segments at stalls). Edge-execution holds still "
                 + "gate it.")
@@ -141,12 +92,10 @@ public record ControlSettings(
         @Doc("Phase-3: bob/jitter-IMMUNE ram-wedge recovery. When the arc-length projection makes no forward "
                 + "progress (|ds|<0.05/tick) while horizontalCollision for ~1.5s, fold into the existing "
                 + "fellOffPath recovery (blacklist the un-advanceable node + re-route). Structural replacement for "
-                + "the descentRamStuck/ascentRamSlide/verticalResync zoo, which hang on noStepProgressTicks — a "
+                + "the descentRamStuck/ascentRamSlide zoo, which hang on noStepProgressTicks — a "
                 + "3D-new-low counter the ram-jitter+bob zero every tick so it never fills (live -672,94: "
                 + "descentRamStuck's exact node-1-below+hCol case, yet bobbed 34+t with no recovery).")
         @Default("true") boolean navigatorArcLengthWedge,
-        @Default("false") boolean navigatorArcProgressWedge,
-        @Default("false") boolean navigatorFellBelowAlign,
         @Doc("Bob-immune freeze-breaker trigger for a steep TALL-bank +1 stepUp/diagUp mount (live W→E -861→-632, "
                 + "~50-70s jank, reproducible): the bot jumps off the diagonal corner & slides back, foot pinned "
                 + "~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the 0.45 gate (drive even flips ~180° "
@@ -172,7 +121,6 @@ public record ControlSettings(
         @Default("true") boolean navigatorBankDigForwardExit,
         @Default("true") boolean navigatorPillarReachGoalNoSnap,
         @Default("true") boolean navigatorBankDigSkipWhenCwpSwims,
-        @Default("false") boolean navigatorTraverseBreakOvershootResync,
         @Default("true") boolean navigatorSwimAshorePillarDespiteDeepDig,
         @Default("true") boolean navigatorFootholdBeforeBankDig,
         @Default("true") boolean navigatorClimbIntentFromSurface,
@@ -184,7 +132,6 @@ public record ControlSettings(
         @Default("true") boolean navigatorOrbitBreaksAimLag,
         @Default("true") boolean navigatorSurfaceSprintSwim,
         @Default("true") boolean navigatorFloatingBankBobFreeze,
-        @Default("false") boolean navigatorFloatingBankFollow,
         @Default("false") boolean navigatorFasterChurnRepath,
         @Doc("At the segment anchor-gate, ACCEPT a continuation whose far first node is reachable by a straight "
                 + "clear-LOS swim over open water (foot floating + all-water/air LOS + within ±2 Y), instead of "
@@ -244,7 +191,6 @@ public record ControlSettings(
         @Default("true") boolean navigatorDropAheadResync,
         @Default("true") boolean navigatorCornerFootingConsume,
         @Default("true") boolean navigatorDiagAscentSprint,
-        @Default("false") boolean navigatorCruiseHop,
         @Default("true") boolean navigatorAvoidLoneRisers,
         @Default("48") int navigatorContinuationMaxLead,
         @Doc("Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub "
@@ -259,26 +205,19 @@ public record ControlSettings(
         @Default("true") boolean navigatorNoLaunchAtAdjacentBelowNode,
         @Default("1.0") double navigatorNoLaunchWithin,
         @Default("true") boolean navigatorDescentNodeHold,
-        @Default("false") boolean navigatorDryWedgeFootY,
-        @Default("false") boolean navigatorWallCornerNodeAim,
-        @Default("false") boolean navigatorOvershootReaim,
         @Default("true") boolean navigatorDryReanchor,
-        @Default("false") boolean navigatorDiagDownCenter,
         @Default("true") boolean navigatorWallCornerFastChurn,
         @Default("true") boolean navigatorDrowningEscape,
         @Default("true") boolean navigatorClimbGaveUpSticky,
         @Default("true") boolean navigatorStepUpBackoffRetry,
-        @Default("false") boolean navigatorCarrotHColShrink,
         @Default("true") boolean navigatorCarrotBodyLos,
         @Default("true") boolean navigatorDiagonalStringPull,
-        @Default("false") boolean navigatorChainMount,
         @Default("true") boolean navigatorRiserLeadJump,
         @Default("0.1") double navigatorRiserLeadMargin,
         @Default("true") boolean navigatorDescentLaneKeep,
         @Default("true") boolean navigatorRiserLeadExact,
         @Default("true") boolean navigatorStepUpRawHeading,
         @Default("true") boolean navigatorSearchFromLanding,
-        @Default("false") boolean navigatorCommitTailPlatform,
         @Default("true") boolean navigatorCommitTailPeak,
         @Default("true") boolean navigatorRouteHysteresis,
         @Default("true") boolean navigatorDigCommitHoldRepath,

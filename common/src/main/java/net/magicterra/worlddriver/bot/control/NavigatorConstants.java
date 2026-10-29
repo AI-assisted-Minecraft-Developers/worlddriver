@@ -23,13 +23,6 @@ public final class NavigatorConstants {
      *  enough from the column for the bearing to be meaningful again. Far larger than
      *  the old 1e-4 epsilon (which only caught standing-exactly-on-the-point). */
     public static final double YAW_DEADZONE_SQ = 0.25;
-    /** navigatorWallCornerNodeAim: how far (degrees) the immediate node must sit off the path tangent before a
-     *  RAM (horizontalCollision) hands the aim back from the tangent to the direct node bearing — turn the
-     *  corner off the wall instead of grinding along the trend into it. 20° = a real corner, not jitter. */
-    public static final float WALL_CORNER_AIM_DEG = 20f;
-    /** navigatorOvershootReaim: ticks wedged (stuckTicks) before a dry overshoot at a cliff base re-aims BACK
-     *  onto the overshot node. ~40 = 2s, well past a clean approach but before the multi-second churn. */
-    public static final int OVERSHOOT_REAIM_STUCK = 40;
     /** navigatorDryReanchor: sustained stuck ticks before the dry repath-rechurn breaker anchors back to the
      *  last cleanly-passed node. ~50 = 2.5s, past safetyRepath's stuck>60? no — fire BEFORE the repath
      *  churn deepens, but well past any clean slow move (water creep is in-water-excluded). */
@@ -354,13 +347,9 @@ public final class NavigatorConstants {
      *  jump arcs full margin, while the task#82 pose (cur2 wedged in (0.45,4.0), no hCol, riser
      *  unbroken — every legacy gate misses it) times out in ~3.6 s instead of churning forever. Both
      *  progress marks are MONOTONIC high-waters, so a jump-land-slideback bob cannot keep resetting
-     *  the clock (the crestOrbitTicks trick). Digging is exempt: bare-hand stone is 150 t+/block
+     *  the clock. Digging is exempt: bare-hand stone is 150 t+/block
      *  (#66) and an active BREAK is progress by definition. */
     public static final int ASCEND_DEADZONE_GIVEUP = STEPUP_FREEZE_TICKS * 3;
-    /** Lateral-bank-follow: how many cells to scan along the bank (each way) for a mountable exit lip.
-     *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
-     *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */
-    public static final int BANK_FOLLOW_SCAN = 10;
     /** How little of the bot's own sole may be on solid ground before the lethal-edge / bridge
      *  gate brakes, out of the 0.36 blocks² a player's 0.6-wide box has. Half a sole: a bot
      *  centred on a one-wide ridge keeps the full 0.36 and one drifted more than 0.2 off that
@@ -377,19 +366,6 @@ public final class NavigatorConstants {
      *  self-correcting never reaches even this low count — recovering here only ever fires on a
      *  truly frozen ram, and BEFORE the freeze-breaker wastes a jump on an unmountable step. */
     public static final int ASCENT_SLIDE_RECOVER_TICKS = 10;
-    /** rawStepDwellTicks (bob-immune, resets only on step-change) a steep +2/+3 ascent slide-back must DWELL
-     *  before {@link ControlConfig#navigatorAscentRamJitterImmune} folds it into fellOffPath. Higher than
-     *  {@link #ASCENT_SLIDE_RECOVER_TICKS}=10 (which counts only non-progress ticks) because this counts EVERY
-     *  tick on the step; 30 (~1.5 s) confirms a sustained ram (a transient 2-above overshoot resolves via
-     *  within/passed in 1-3 t, resetting the dwell) while still recovering ~5× sooner than the slow
-     *  {@link #WEDGE_TICKS}=100 burst the jitter-defeated noStepProgress gate falls back to. */
-    public static final int RAM_JITTER_RECOVER_TICKS = 30;
-    /** rawStepDwellTicks gap before {@link ControlConfig#navigatorAscentRamJitterImmune} may FOLD again within the
-     *  SAME ram episode. Without a cap the recover fires every tick (10-85×/episode → a fellOffPath/repath
-     *  cascade); but a pure once-per-step latch lets a STUBBORN ram — whose post-fold repath returns to the
-     *  same step — never re-attempt, so it churns (live: -777 diagUp 244 t). A 20-tick (~1 s) debounce caps
-     *  the rate to ~1 fold/s (no cascade) yet still re-attempts a stubborn ram every second (no long churn). */
-    public static final int RAM_RECOVER_DEBOUNCE = 20;
     /** Ticks an in-place pillar-up recovery is latched once armed — long enough for a
      *  jump's airborne arc to crest and place a support (vanilla peak ~tick 6-8), short
      *  enough that it re-evaluates promptly. Re-armed each grounded tick while the bot is
@@ -446,25 +422,9 @@ public final class NavigatorConstants {
      *  {@link #OVERSHOOT_RESYNC_SQ}=4 so it can never skip a node the bot is still genuinely approaching
      *  / cut a live corner. */
     public static final double WATER_STEPDOWN_REACH_SQ = 1.2;
-    /** noStepProgressTicks a bot ORBITING a +1 stepUp/diagUp CREST node must be stalled before
-     *  {@link ControlConfig#navigatorStepUpCrestReach} advances the step at the relaxed crest reach. Same
-     *  spirit as {@link #WATER_STEPDOWN_STALL_TICKS}/{@link #WALK_OVERSHOOT_STUCK_TICKS}: a clean
-     *  stepUp tops out and advances via within/passed in <12 ticks (resetting noStepProgressTicks),
-     *  so this ONLY rescues a confirmed crest bob-orbit, never a node still being climbed. */
-    public static final int STEPUP_CREST_STALL_TICKS = 16;
-    /** Relaxed horizontal reach² for advancing a STALLED +1 stepUp/diagUp crest node the bot has
-     *  topped out on but ORBITS ({@link ControlConfig#navigatorStepUpCrestReach}). On a diagonal staircase
-     *  crest (a +2 plateau lip) the bot reaches the node's Y at the bob crest (|dyNode|≈0) but the
-     *  buoyancy-free apex bob + the ±0.5 b lateral orbit keep cur2 pinned at ~0.49-1.2 — just over
-     *  the tight {@link #REACH_DIST_SQ}=0.45 — so `within` never fires and `passed` never reads the
-     *  next node STRICTLY closer while circling, freezing the step ~25-51 ticks (live -633,80,318:
-     *  cur2 floor 0.492, py 79.0↔80.25 across node y80, 25 t orbit). 1.3 (≈1.14 b) comfortably covers
-     *  that pin yet stays well under {@link #OVERSHOOT_RESYNC_SQ}=4 so it can never skip a node the
-     *  bot is still genuinely approaching from afar / cut a live corner. */
-    public static final double STEPUP_CREST_REACH_SQ = 1.3;
     /** noStepProgressTicks a buoyant bot ORBITING/FROZEN at a flat {@code walk} WATER-SURFACE node must be
      *  stalled before {@link ControlConfig#navigatorWaterWalkReach} advances the step at the relaxed reach. Same
-     *  spirit as {@link #STEPUP_CREST_STALL_TICKS}: a clean surface crossing advances each walk node via
+     *  spirit as {@link #WATER_STEPDOWN_STALL_TICKS}: a clean surface crossing advances each walk node via
      *  {@code passed} (forward momentum) in 1-2 ticks — noStepProgressTicks (HORIZONTAL-only in water,
      *  Navigator:~1666, so the bob can't fake-reset it) stays low — and never trips it; only a turn / terminal /
      *  WALL-CORNER freeze where neither {@code within} nor {@code passed} can fire accumulates it. */
@@ -496,13 +456,6 @@ public final class NavigatorConstants {
      *  closes on its node via bestStepDist) so a healthy walk never trips it, and below the ~16-tick
      *  overshoot-advance so an actual overshoot still prefers the discrete step-skip. */
     public static final int APPROACH_NODE_AIM_TICKS = 12;
-    /** noStepProgressTicks a floating bot must be RAMMED (in-water hCol) before the lateral-pad
-     *  break ({@link ControlConfig#navigatorPadRamBreak}) scans the bot-overlap columns for a lily pad the
-     *  head-on pad scan missed. Long enough that a normal swim through clean water — which advances its
-     *  step every 1-2 ticks and resets noStepProgressTicks — never trips it (so a transient brush past
-     *  a pad while still moving isn't broken), short enough to cut the ~270-tick (13.5 s) repath freeze
-     *  the unbroken lateral pad otherwise causes. */
-    public static final int PAD_RAM_STALL_TICKS = 10;
     /** Anti-spin: consecutive in-water repaths with no goal-progress before the camera
      *  heading is FROZEN. A failed water climb-out makes every repath return a
      *  swim-back/circle best-effort; following each one U-turns the bot and the

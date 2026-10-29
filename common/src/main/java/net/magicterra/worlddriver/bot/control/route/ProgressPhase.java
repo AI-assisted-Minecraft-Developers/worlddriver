@@ -170,13 +170,6 @@ public final class ProgressPhase {
      *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
      *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
     public static final int ARC_WEDGE_TICKS = 30;
-    /** Phase-3b net-arc-progress window (navigatorArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
-     *  of arc-length, the slowest legit climb still clears several, so requiring ≥ ARC_PROG_MIN net progress over the
-     *  window flags an oscillating/frozen limit cycle (net ≈ 0) without misfiring on slow-but-moving travel. Shorter
-     *  than the legacy 100-tick wedge so it recovers ~2.5× sooner. */
-    static final int ARC_PROG_WINDOW = 40;
-    static final double ARC_PROG_MIN = 2.0;
-    // ===== Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow) — DRIVES NOTHING, logged only =====
     /** Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick}
      *  (called per tick from ProgressPhase); the wedge/stall verdicts are consumed by
      *  StallDetect/Drive, the projection by Aim/Progress. NO journey reset — everything
@@ -189,7 +182,7 @@ public final class ProgressPhase {
         stepProg.restartWindows();
     }
 
-    /** Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow). Projects the continuous foot XZ onto the
+    /** Arc-length projection, the projector behind the advance, tangent aim and wedge flags. Projects the continuous foot XZ onto the
      *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
      *  earlier segment — the dominant projection risk), honouring the adoption's overlap barriers (a submerged
      *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
@@ -213,20 +206,6 @@ public final class ProgressPhase {
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
         if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arc.wedgeTicks = 0;
         else arc.wedgeTicks++;
-        // Phase-3b NET arc-progress window: an oscillating limit cycle makes per-tick |ds| > ARC_WEDGE_DS (so the ram
-        // counter above resets) yet zero NET path progress. Measure s over a whole window instead. Excludes water
-        // (own recovery) and a legit pending-vertical-edge hold (barrierHit = expected zero ds). No hCol/onGround gate
-        // — a bob-jumping airborne churn has neither.
-        if (reset || inW) { arc.progBaseS = arc.proj.s; arc.progWindowTicks = 0; arc.progStall = false; }
-        else if (++arc.progWindowTicks >= ARC_PROG_WINDOW) {
-            arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
-            if (arc.progStall && GameConfig.navigatorDebug)
-                LOG.info("[navigator] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
-                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, nav.route.step(),
-                        (nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null));
-            arc.progBaseS = arc.proj.s;
-            arc.progWindowTicks = 0;
-        }
         arc.shadowPath = nav.route.path();
         arc.shadowS = arc.proj.s;
         float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
@@ -276,7 +255,7 @@ public final class ProgressPhase {
     /** The step-advance gates, in the order {@link #advanceCause} is handed their flags. */
     private static final String[] ADVANCE_NAMES = {
             "within", "passed", "tail", "crossDesc", "crossWalk",
-            "waterStepDown", "crestReach", "waterWalk", "arc", "dropAhead"};
+            "waterStepDown", "waterWalk", "arc", "dropAhead"};
 
     /** [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't
      *  advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
@@ -387,12 +366,10 @@ public final class ProgressPhase {
      * pointer that keeps <i>advancing</i>. The new behaviour is a deterministic failure that reports
      * itself.
      *
-     * <p>Two siblings of the same defect are NOT fixed here, and both should be read as still
-     * suspect: {@code within}'s {@code |dyNode| < 1.2} and {@code stepUpCrestReach}'s
-     * {@code |dyNode| < 0.5} (default off, and the only relaxed-advance gate with no {@code nx}
-     * reachability clause at all). Both decide a vertical question from the y the bot happens to
-     * hold this tick. This guard sits at the advance OUTLET, so it covers them; their own criteria
-     * remain wrong.
+     * <p>A sibling of the same defect is NOT fixed here and should be read as still suspect:
+     * {@code within}'s {@code |dyNode| < 1.2}, which decides a vertical question from the y the bot
+     * happens to hold this tick. This guard sits at the advance OUTLET, so it covers it; its own
+     * criterion remains wrong.
      *
      * <p>A bot whose sole sits exactly on {@code w}'s row with any solid under it has landed on
      * {@code w}, however little of the sole that is: the next climb starts from this row. Live R1
@@ -844,17 +821,7 @@ public final class ProgressPhase {
             stepProg.noProgressStep = nav.route.step();
             stepProg.noStepProgressTicks = 0;
             stepProg.noProgressBestD2 = Double.POSITIVE_INFINITY;
-            stepProg.rawStepDwellTicks = 0;
-            stepProg.ramRecoverLastFireDwell = -1;   // step/path changed → re-arm the ascent-ram-jitter recover
         } else {
-            // Raw step dwell — this `else` is reached ONLY when the step is unchanged, so the counter
-            // accumulates pure ticks-on-the-same-step and resets only via the step-change branch above,
-            // NEVER on a 3D new-low. noStepProgressTicks (below) zeroes on every closest-approach
-            // improvement, and a steep-ascent slide-back's re-approach / vertical bob manufactures those,
-            // jitter-defeating the ram-recovery stall gates that hang on it (live J3b -877,75: diagUp node
-            // 3 above the foot, 156 t / 7.8 s before recovery). This gives navigatorAscentRamJitterImmune a
-            // bob-immune wedge timer so it recovers on time.
-            stepProg.rawStepDwellTicks++;
             // Genuinely closing in on the current node is progress, not a wedge: a
             // water cruise crosses 20+-block string-pulled edges at ~1.5 b/s (260
             // ticks on ONE step — far over WEDGE_TICKS) and used to trip safety
@@ -876,17 +843,9 @@ public final class ProgressPhase {
             // unmountable bank without gaining XZ) still fails to close XZ and trips the wedge
             // exactly as before (so deep-water climb-out detection is unchanged). Dry land keeps
             // the full 3D test (a stepUp/pillar that gains height IS progress there).
-            // navigatorDryWedgeFootY: at an ABOVE node on dry land, the continuous p.getY() vertical term lets the
-            // jump/buoyant bob (p.y oscillates ~0.1 toward the node) manufacture a wd2 new-low every tick →
-            // resets the wedge timer → a stalled +1 climb (stepUp ram / stairUpBreak whose break never completes)
-            // never trips recovery and churns. Quantize the vertical term to foot.getY() so only a REAL climb
-            // (foot rises a whole block) counts; an in-place bob does not. See ControlConfig.navigatorDryWedgeFootY.
-            double wdyEff = (ControlConfig.navigatorDryWedgeFootY && !p.isInWater() && wn.getY() > foot.getY())
-                    ? (wn.getY() - foot.getY())
-                    : wdy;
             double wd2 = p.isInWater()
                     ? wdx * wdx + wdz * wdz
-                    : wdx * wdx + wdyEff * wdyEff + wdz * wdz;
+                    : wdx * wdx + wdy * wdy + wdz * wdz;
             if (wd2 < stepProg.noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
                 stepProg.noProgressBestD2 = wd2;
                 stepProg.noStepProgressTicks = 0;
@@ -943,20 +902,16 @@ public final class ProgressPhase {
             nav.stuckTicks = 0;
         }
 
-        // ===== Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow) — DRIVES NOTHING =====
-        // Projects the continuous foot XZ onto the path polyline within a forward window and reports the
-        // projected segment, cumulative arc-length s, horizontal perpendicular distance, and the tangent
-        // heading at s+lookahead. The structural replacement (refactor plan §7) for the ~8 instantaneous
+        // Arc-length projection: projects the continuous foot XZ onto the path polyline within a forward window
+        // and reports the projected segment, cumulative arc-length s, horizontal perpendicular distance, and the
+        // tangent heading at s+lookahead. The structural replacement (refactor plan §7) for the ~8 instantaneous
         // step-advance gates + the bob-immune dwell zoo, which exist ONLY because the buoyancy bob defeats
-        // the per-tick cur2<0.45 / |dyNode|<1.2 gates. Logged only, so a replay can confirm s is monotonic
-        // and the projected segment tracks the live `step` on clean runs BEFORE Phase 1 drives off it.
-        if ((ControlConfig.navigatorArcLengthShadow || ControlConfig.navigatorArcLengthAdvance || ControlConfig.navigatorTangentAim
-                || ControlConfig.navigatorArcLengthWedge || ControlConfig.navigatorArcProgressWedge || ControlConfig.navigatorFellBelowAlign)
+        // the per-tick cur2<0.45 / |dyNode|<1.2 gates.
+        if ((ControlConfig.navigatorArcLengthAdvance || ControlConfig.navigatorTangentAim || ControlConfig.navigatorArcLengthWedge)
                 && nav.route.path() != null && nav.route.step() < nav.route.path().size() && foot != null) {
             arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
         } else {
             arc.wedgeTicks = 0;   // no projection this tick → don't carry a stale ram count into the next path
-            arc.progBaseS = Double.NaN; arc.progWindowTicks = 0; arc.progStall = false;   // reset the net-progress window too
         }
 
         int dropAheadTo = dropAheadTarget(nav, world, p, foot);
@@ -1243,8 +1198,7 @@ public final class ProgressPhase {
             boolean crossedWalkNode = false;
             if (!within && !passed && !crossedDescendNode
                     && se != null && se.move != null
-                    && (se.move.equals("walk")
-                        || (ControlConfig.navigatorTraverseBreakOvershootResync && se.move.equals("traverseBreak")))
+                    && se.move.equals("walk")
                     && !p.isInWater() && stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
                     && nav.route.step() + 1 < nav.route.path().size()) {
                 BlockPos nxw = nav.route.path().get(nav.route.step() + 1);
@@ -1282,56 +1236,6 @@ public final class ProgressPhase {
                             nav.route.step(), nav.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
                             String.format(Locale.ROOT, "%.2f", dyNode), stepProg.noStepProgressTicks);
             }
-            // STEPUP-CREST float-and-advance: a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau
-            // lip) that the buoyancy-free bot has TOPPED OUT on but ORBITS — it reaches the node's Y at
-            // the apex bob (|dyNode|≈0) yet the small lateral orbit (±0.5 b) keeps cur2 pinned at
-            // ~0.49-1.2, just over the tight REACH_DIST_SQ=0.45, so `within` never fires, and while
-            // circling the next node never reads STRICTLY closer so `passed` never fires either — the
-            // step freezes ~25-51 ticks (live 2026-06-26 -633,80,318 diagonal-staircase crest: move=stepUp,
-            // cur2 floor 0.492, py 79.0↔80.25 across node y80, pz 317.7↔318.7 orbit, onGround flickering,
-            // ~1.25 s pin; worst documented 2.55 s). NO actuator catches it: ascentRamSlide needs the node
-            // ≥2 ABOVE a GROUNDED foot (here +1 above a bobbing/airborne foot); descentRamStuck needs the
-            // node 1 BELOW + hCol; stepUpFreeze needs a grounded riser-ram (the bot is airborne-orbiting,
-            // no hCol). Mirror waterStepDownFloat/crossedWalkNode: once the bot has reached the crest node's
-            // Y and STALLED there orbiting, treat the apex arrival as reaching the node and ADVANCE at a
-            // RELAXED reach (STEPUP_CREST_REACH_SQ, well under OVERSHOOT_RESYNC_SQ=4 so it can't cut a live
-            // corner). STRICTLY scoped: a stepUp/diagUp incoming edge + the foot ALREADY risen to the node
-            // (|dyNode|<0.5 — a node still being climbed from a full block below has |dyNode|≥0.5, so it is
-            // never skipped) + a CONFIRMED stall (a clean stepUp advances via within/passed in <12 t,
-            // resetting noStepProgressTicks, and never trips the 16-tick gate) + DRY land (water ascents
-            // are owned by floatOverSubmerged / the in-water climb gate). A non-ascent edge, a node not yet
-            // reached vertically, a fast clean climb, and any in-water case are all byte-identical inert.
-            // BOB-IMMUNE crest-orbit dwell: noStepProgressTicks (the stall gate below) resets on every new
-            // 3D-low (Navigator:1669), and a DRY topped-out crest's vertical bob folds wdy into wd2 and
-            // manufactures a new low each bob cycle, so on a WIDE bob orbit the gate is never reached and the
-            // crest never advances (live -677,80: cur2 0.5→8.6, ADVANCE never fired, 120-173 t orbit). Count
-            // raw ticks the bot dwells on the SAME dry stepUp/diagUp crest step without within/passed
-            // advancing, reset ONLY on a step-advance/path-change — the bob can't zero it, so a genuine orbit
-            // accumulates past the gate. The crest-reach's |dyNode|<0.5 topped-out guard still picks the firing
-            // tick, so this never advances a node the foot hasn't risen to (no skip-node strand).
-            boolean onAscentCrest = se != null && se.move != null
-                    && (se.move.equals("stepUp") || se.move.equals("diagUp")) && !p.isInWater();
-            if (nav.route.step() != stepProg.crestOrbitStep) {
-                stepProg.crestOrbitStep = nav.route.step();
-                stepProg.crestOrbitTicks = 0;
-            } else if (onAscentCrest && !within && !passed) {
-                stepProg.crestOrbitTicks++;
-            }
-            boolean stepUpCrestReach = false;
-            if (ControlConfig.navigatorStepUpCrestReach && !within && !passed
-                    && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat
-                    && se != null && se.move != null
-                    && (se.move.equals("stepUp") || se.move.equals("diagUp"))
-                    && !p.isInWater()
-                    && stepProg.crestOrbitTicks > STEPUP_CREST_STALL_TICKS
-                    && cur2 < STEPUP_CREST_REACH_SQ
-                    && Math.abs(dyNode) < 0.5) {
-                stepUpCrestReach = true;
-                if (GameConfig.navigatorDebug)
-                    LOG.info("[navigator] stepup-crest-reach ADVANCE step={}/{} node={} move={} cur2={} dyNode={} crestStall={} noStep={}",
-                            nav.route.step(), nav.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
-                            String.format(Locale.ROOT, "%.2f", dyNode), stepProg.crestOrbitTicks, stepProg.noStepProgressTicks);
-            }
             // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
             // water-surface node the buoyant bot sits ~0.67 b out from (cur2 floor ~0.455, just over
             // REACH_DIST_SQ=0.45) so `within` never closes. On a straight crossing forward momentum fires
@@ -1339,7 +1243,7 @@ public final class ProgressPhase {
             // so `passed` can't fire either — the flat water walk node then has NO relaxed-advance and the bot
             // orbits / freezes against the corner (live deep-water bay corner: cur2 1.142 FROZEN 321 ticks,
             // within=0, aim swinging 403° — the stuck-against-a-wall or stuck-in-water jank; attack=0, NOT digging). Mirror
-            // waterStepDownFloat / stepUpCrestReach: on a CONFIRMED in-water stall at a flat walk water node
+            // waterStepDownFloat: on a CONFIRMED in-water stall at a flat walk water node
             // within a relaxed reach, advance so the segment continues / repaths from here. In water
             // noStepProgressTicks is HORIZONTAL-only (Navigator:~1666) so the bob can't fake-reset it — only a
             // genuine non-closing freeze accumulates it past the gate; a clean crossing advances via `passed`
@@ -1347,7 +1251,7 @@ public final class ProgressPhase {
             // bars an impossible climb-skip; dry walk and every non-walk edge are byte-identical inert.
             boolean waterWalkReach = false;
             if (ControlConfig.navigatorWaterWalkReach && !within && !passed
-                    && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat && !stepUpCrestReach
+                    && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat
                     && se != null && se.move != null && se.move.equals("walk")
                     && p.isInWater()
                     && stepProg.noStepProgressTicks > WATER_WALK_STALL_TICKS
@@ -1362,19 +1266,18 @@ public final class ProgressPhase {
             stepAdvDiag(nav, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
             // Phase-1 (navigatorArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
             // gates miss — advance when the foot's forward projection has reached a later segment
-            // (arcProj.segIdx > step). It is a SUPPLEMENT, not a replacement: the seven legacy gates
-            // (passed/tailConsumed/crossedDescend/crossedWalk/waterStepDownFloat/stepUpCrestReach/waterWalkReach)
-            // still fire because they advance in NEAR-reach cases the projection is too strict for — e.g. the bot
-            // orbiting just below a crest stepUp (cur2~0.55, the foot hasn't projected past the node so segIdx is
-            // pinned, but stepUpCrestReach legitimately advances it over the crest; stepUpCrestOrbitArena /
-            // waterStepDownFloatArena assert exactly this). The union (legacy || projection) is strictly more
+            // (arcProj.segIdx > step). It is a SUPPLEMENT, not a replacement: the six legacy gates
+            // (passed/tailConsumed/crossedDescend/crossedWalk/waterStepDownFloat/waterWalkReach)
+            // still fire because they advance in NEAR-reach cases the projection is too strict for — e.g. a
+            // buoyant bot pinned just short of a shallow water-surface step-down (the foot hasn't projected past
+            // the node so segIdx is pinned; waterStepDownFloatArena asserts exactly this). The union (legacy || projection) is strictly more
             // advancing than either alone, so it both kills the bob-defeated step-freeze (projection drives) AND
             // keeps the reach helpers (legacy drives). Edge-execution holds above still gate advancement.
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
-                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach || dropAheadTo > nav.route.step();
+                    || waterStepDownFloat || waterWalkReach || dropAheadTo > nav.route.step();
             BlockPos nxt = nav.route.step() + 1 < nav.route.path().size() ? nav.route.path().get(nav.route.step() + 1) : null;
             boolean doAdvance = (legacyAdvance || (ControlConfig.navigatorArcLengthAdvance && arc.proj.segIdx > nav.route.step()))
-                    && !airborneClimbConsume(world, p, w, nxt)             // ONE outlet for all nine gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
+                    && !airborneClimbConsume(world, p, w, nxt)             // ONE outlet for all eight gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
                     && !unwalkedDescentConsume(nav, world, p, foot, w, nxt) // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
                     && !airborneDryArrival(nav, world, p, foot, w, nxt);    // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
@@ -1383,7 +1286,7 @@ public final class ProgressPhase {
                 // are all covered here) and AFTER the disk-goal hold — see Navigator#noteStepAdvance.
                 noteStepAdvance(nav, world, p, foot, w, nxt,
                         advanceCause(within, passed, tailConsumed, crossedDescendNode, crossedWalkNode,
-                                waterStepDownFloat, stepUpCrestReach, waterWalkReach,
+                                waterStepDownFloat, waterWalkReach,
                                 ControlConfig.navigatorArcLengthAdvance && arc.proj.segIdx > nav.route.step(),
                                 dropAheadTo > nav.route.step()),
                         cur2, nd2, overshot);

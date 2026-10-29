@@ -13,8 +13,7 @@ import net.minecraft.core.BlockPos;
  *  (Navigator ~2265); SUCCESS is telemetry-only.
  *
  *  Progress marks are MONOTONIC high-waters (best Y ever, best gap-close ever), so a
- *  jump-land-slideback bob cannot keep resetting the clock — the same trick crestOrbitTicks uses
- *  against the vertical bob. An active planned dig (ctx.digging) is progress by definition
+ *  jump-land-slideback bob cannot keep resetting the clock. An active planned dig (ctx.digging) is progress by definition
  *  (bare-hand stone is 150 t+/block, #66). */
 public final class AscendMovement implements Movement {
     /** Public alias of the watchdog budget (NavigatorConstants is package-private; the gametest seam needs the number). */

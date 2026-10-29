@@ -44,10 +44,6 @@ public final class AimPhase {
      *  Returns {x, z} world coords. */
     public double[] carrotPoint(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
-        // Sustained wall collision → the far carrot is steering the bot at a gap only
-        // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
-        // the A* chain is walkable at player width by construction (navigatorCarrotHColShrink).
-        if (ControlConfig.navigatorCarrotHColShrink && nav.stallDetect.churn.hColRamTicks >= 8) remaining = 0.01;
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
@@ -86,8 +82,7 @@ public final class AimPhase {
      *  cleared on every journey reset via {@link DiveLatches#reset()}. */
     public final DiveLatches dive = new DiveLatches();
 
-    /** Riser-ram fold counters (task#96 step B7): the four stepUpFreeze/bank-follow
-     *  feeders, counted by AimPhase (bankFollowRamTicks also driven in Drive).
+    /** Riser-ram fold counters (task#96 step B7): the three stepUpFreeze feeders, counted by AimPhase.
      *  All self-zero on their own disengage conditions — no journey reset ever
      *  touched them. */
     public final RamFold ramFold = new RamFold();
@@ -656,29 +651,6 @@ public final class AimPhase {
         //      camera-swing anomaly. Gating on no-progress keeps a precisely-advancing
         //      approach on the TIGHT dead-zone, so the climb-out mount stays accurate
         //      (deepWaterClimboutNoBlockArena regressed when this widened unconditionally).
-        // navigatorOvershootReaim: a dry walk-node OVERSHOOT at a cliff base wedges hard — the foot blew PAST
-        // the node (cur2 > OVERSHOOT_RESYNC_SQ) but the NEXT node is the climb (>1 up) so `passed` can't
-        // advance onto it, and the carrot/tangent aim points the bot the wrong way (backward into a wall)
-        // so it never re-centres — a ram-frozen wedge (journey 2026-06-29 -558,82: yaw -179 / yawErr -120 /
-        // hCol / cur2 6.28 / 260 ticks; even safetyRepath at stuck>60 re-commits the same path). When wedged
-        // there, aim BACK at the overshot node so the bot walks onto it (the slight step back it should take) and
-        // relaunches the climb from the aligned base. Dry + grounded + next-too-high + long stuck only.
-        // hCol-gate refinement REVERTED 2026-06-29: requiring horizontalCollision made it WORSE (rev-897, a
-        // STABLE archive, regressed 161→380 — the hCol subset is where backing up HURTS, i.e. ram-and-push-
-        // through, not ram-and-retreat; gating to it dropped the beneficial non-ram firings). Keep the
-        // unconditional grounded-overshoot trigger that was NET-POSITIVE (corpus 4811→4104, long-540 −81%).
-        if (ControlConfig.navigatorOvershootReaim && nav.route.path() != null && nav.route.step() < nav.route.path().size()
-                && nav.route.step() + 1 < nav.route.path().size() && !p.isInWater() && p.onGround()
-                && nav.stuckTicks > OVERSHOOT_REAIM_STUCK) {
-            BlockPos ow = nav.route.path().get(nav.route.step());
-            double ocx = (ow.getX() + 0.5) - p.getX(), ocz = (ow.getZ() + 0.5) - p.getZ();
-            if (ocx * ocx + ocz * ocz > OVERSHOOT_RESYNC_SQ
-                    && nav.route.path().get(nav.route.step() + 1).getY() - foot.getY() > 1) {
-                adx = ocx;
-                adz = ocz;   // walk BACK onto the overshot cliff-base node, then climb cleanly
-                aimSrc = "overshoot";
-            }
-        }
         // navigatorDryReanchor: the dry repath-rechurn breaker (REGRESSION.md §21). When a move has failed and
         // the foot is FAR off the current node (dist² > DRY_REANCHOR_OFFPATH_SQ) with a sustained stall
         // (stuckTicks > DRY_REANCHOR_STUCK) on dry land, override the carrot/tangent/node aim with a FIXED
@@ -686,8 +658,7 @@ public final class AimPhase {
         // as the bot closes, so the node-orbit yaw-thrash that paces the repath churn collapses and the bot
         // walks deterministically back ONTO the path before resuming — breaking the amplifier common to every
         // heterogeneous wedge. Excludes water (the in-water anti-spin machinery owns that) and the very first
-        // node (no prior anchor). Independent of navigatorOvershootReaim (this is the general off-path case; that
-        // is the specific cliff-base-overshoot case) — both may compute, the later assignment wins.
+        // node (no prior anchor).
         if (ControlConfig.navigatorDryReanchor && !p.isInWater() && nav.route.step() > 0 && nav.route.step() < nav.route.path().size()
                 && nav.stuckTicks > DRY_REANCHOR_STUCK) {
             BlockPos cn = nav.route.path().get(nav.route.step());
@@ -695,8 +666,8 @@ public final class AimPhase {
             // ram-while-facing-wrong extension REVERTED 2026-06-29 (§25): adding an `|| (hCol && |yawErr|>90)`
             // trigger made the live -671 diagDown stall MUCH worse (oscillating limit cycle, totStuck 6009 vs
             // 509 slow-recover) — anchoring BACK to step-1 on a CLOSE ram just bounces the bot back and forth
-            // (pull to step-1 → re-approach → re-ram → anchor), the same oscillation that killed WallCornerNodeAim
-            // (§13) and the hCol-gate (§16). A close ram is NOT fixable by aim-back. Keep the FAR-off-path-only
+            // (pull to step-1 → re-approach → re-ram → anchor), the same oscillation that killed the wall-corner node
+            // aim (§13) and the hCol-gate (§16). A close ram is NOT fixable by aim-back. Keep the FAR-off-path-only
             // trigger (corpus-validated net-positive, §22-24); the close diagDown-ram is a separate open problem.
             if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ) {
                 BlockPos anchor = nav.route.path().get(nav.route.step() - 1);
@@ -749,26 +720,11 @@ public final class AimPhase {
                 && nav.route.path().get(nav.route.step()).getY() <= foot.getY()) {
             float tangent = tangentOrPursuit(nav, p, launch, foot);
             walkedRound = (targetYaw = aroundWall(nav, world, p, foot, tangent)) != tangent;
-            // navigatorWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
-            // immediate node sits well off the tangent AND a wall is on the tangent heading, the bot RAMS
-            // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
-            // creeps across as drift sweeps the geometry (live dry-627 start: yaw frozen 91° / node bearing
-            // 122° / hCol=true / 350-tick churn, the stuck-against-a-wall signature). When ramming with the node well
-            // off the tangent, yield back to the DIRECT node bearing so the bot turns off the wall onto the
-            // node. Gated on hCol so a clean trend-cruise (no wall) keeps the bob-immune tangent unchanged.
-            if (ControlConfig.navigatorWallCornerNodeAim && p.horizontalCollision) {
-                BlockPos wn3 = nav.route.path().get(nav.route.step());
-                float nodeBear = (float) Math.toDegrees(Math.atan2(
-                        -((wn3.getX() + 0.5) - p.getX()), (wn3.getZ() + 0.5) - p.getZ()));
-                if (Math.abs(angleDiff(nav.progress.arc.proj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
-                    targetYaw = nodeBear;
-            }
         }
         // navigatorRamNodeAimRelease (§80): dry wall-pin with the drive heading >60° off the
         // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
         // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
-        // switchback tangent (B: tangent -180° vs node bearing 14°, corner corrector
-        // default-dead) steers the bot INTO a wall while the node sits elsewhere.
+        // switchback tangent (B: tangent -180° vs node bearing 14°) steers the bot INTO a wall while the node sits elsewhere.
         // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
@@ -1218,17 +1174,6 @@ public final class AimPhase {
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         if (ControlConfig.navigatorFloatingBankBobFreeze && floatingBankNotTopped) ramFold.floatingBankBobTicks++;
         else ramFold.floatingBankBobTicks = 0;
-        // Lateral-bank-follow (navigatorFloatingBankFollow): a FLOATING bot ramming a water bank at
-        // ANY node-Y — including the walk-ram facet the ascending freeze counter above misses (node
-        // AT/BELOW the foot across a 1-block lip). The dominant residual is NON-DETERMINISTIC: the
-        // same route lands the buoyant approach on a mountable spot (~0s, steps up) OR a dig-required
-        // spot (~30s underwater dig, replay-proven 0s/0s/33s). Count sustained floating-water-rams to
-        // drive a SLIDE ALONG the bank (perpendicular strafe, see the lane-keep block) so the bot
-        // sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Self-
-        // terminating: any climb-out progress drops onGround/hCol → counter resets → normal mount.
-        boolean bankFollowRam = atWaterBank && !p.onGround() && p.horizontalCollision;
-        if (ControlConfig.navigatorFloatingBankFollow && bankFollowRam) ramFold.bankFollowRamTicks++;
-        else ramFold.bankFollowRamTicks = 0;
         boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
                 && (!p.isInWater() || shallowBankStep
                     || (ControlConfig.navigatorFloatingBankBobFreeze && ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))

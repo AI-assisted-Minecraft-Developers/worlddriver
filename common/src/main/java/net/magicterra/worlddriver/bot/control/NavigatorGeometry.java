@@ -127,33 +127,6 @@ public final class NavigatorGeometry {
                 && !w.isHazard(foot) && !w.isHazard(head);
     }
 
-    /** Find the breakable surface obstruction (lily pad / instabreak plant) the floating bot
-     *  actually OVERLAPS but the head-on pad scan in the drive missed. The player AABB is ~0.6
-     *  wide (half-width 0.3), so at the surface the bot can straddle up to four XZ columns; a pad
-     *  in any of them blocks horizontal motion even though it isn't the single cell directly toward
-     *  the waypoint. Scans the columns spanned by the bot footprint ({@code x±0.3, z±0.3}) at the
-     *  HEAD cell ({@code floor(p.y)+1} — where a pad resting on the water surface sits) and returns
-     *  the one nearest the bot centre. {@code isBreakableObstruction} is instabreak-by-hand only
-     *  (destroySpeed 0, has a collision box, not a fluid) so solid terrain — a genuine wall — is never
-     *  returned; null when no breakable cell is overlapped (a pad-free ram against real geometry, so
-     *  the caller leaves it to the normal wedge recovery). */
-    public static BlockPos nearestBodyPad(WorldView w, LivingEntity p) {
-        int headY = BlockPos.containing(p.getX(), p.getY(), p.getZ()).getY() + 1;
-        BlockPos best = null;
-        double bestD2 = Double.MAX_VALUE;
-        for (double ox = -0.3; ox <= 0.3; ox += 0.6) {
-            for (double oz = -0.3; oz <= 0.3; oz += 0.6) {
-                BlockPos col = BlockPos.containing(p.getX() + ox, p.getY(), p.getZ() + oz);
-                BlockPos c = new BlockPos(col.getX(), headY, col.getZ());
-                if (!w.isBreakableObstruction(c)) continue;
-                double dx = (c.getX() + 0.5) - p.getX(), dz = (c.getZ() + 0.5) - p.getZ();
-                double d2 = dx * dx + dz * dz;
-                if (d2 < bestD2) { bestD2 = d2; best = c; }
-            }
-        }
-        return best;
-    }
-
     public static float angleDiff(float a, float b) { return Mth.degreesDifference(a, b); }
 
     /** An edge whose landing is below its start. A bot found BELOW such a node overshot it on the
@@ -446,32 +419,6 @@ public final class NavigatorGeometry {
         return fall > threshold;
     }
 
-    /** Y-MISLABELED-RISER RAM detector (executor-side, see {@code levelRiserJump} below).
-     *  A* can label an edge a LEVEL {@code walk} (Move dy=0) whose DESTINATION floor is actually
-     *  +1 — a mislabeled ridge step. The bot, expecting level ground, sprints in, walks off the
-     *  lower approach block and drops onto the cell ONE below the node ({@code upDy==1}), then rams
-     *  the +1 riser it never squared up for (hCol=true, hSpd≈0). The destination column is standable
-     *  (so {@code canStandAt} passed, the move was legal) — only the dy LABEL was wrong.
-     *  <p>Detect the riser the bot is pressed against: take the unit step toward the node and
-     *  sample the cell one block ahead at the GROUNDED FOOT level (= node.y-1 when {@code upDy==1}).
-     *  It is a mountable +1 riser iff that forward cell is solid ({@code canStandOn} — a real floor
-     *  to stand on, not a fence/cocoa nub), the cell above it (foot+1) is passable (the jump arc
-     *  clears), and foot+2 is passable (head room once standing on the riser, feet at node.y). Pure
-     *  geometry; the caller additionally gates on the walk-mislabel signature + a CONFIRMED grounded
-     *  ram (horizontalCollision + stepRamStuck), so a clean level walk over flat ground — where the
-     *  forward foot cell is air — is INERT (never fires, no bunny-hop). */
-    public static boolean forwardRiserMountable(WorldView world, BlockPos foot, double dx, double dz) {
-        double len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 1e-3) return false;
-        int fx = (int) Math.round(dx / len);
-        int fz = (int) Math.round(dz / len);
-        if (fx == 0 && fz == 0) return false;
-        BlockPos riser = foot.offset(fx, 0, fz);                 // the +1 block dead ahead at foot level
-        return world.canStandOn(riser)                          // a solid top to stand on after the hop
-                && world.isPassable(riser.offset(0, 1, 0))      // jump arc clears the cell above the riser
-                && world.isPassable(riser.offset(0, 2, 0));     // head room once standing on the riser
-    }
-
     /**
      * True if a DEEP floating-water cell ({@link WorldView#isFloatingWater}) lies under any part of
      * the body's width (±0.3) within {@code reach} blocks along its horizontal velocity, at foot level
@@ -551,17 +498,6 @@ public final class NavigatorGeometry {
         int n = 0;
         for (Move.Edge e : edges) if (e != null && e.toPlace != null) n += e.toPlace.size();
         return n;
-    }
-
-    /** True when the foot's horizontal distance² to {@code node} is in the step-advance DEAD-ZONE
-     *  (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) — too far for {@code within}, too near for the horizontal
-     *  overshoot re-sync. Sole caller is the {@code navigatorVerticalResync} gate (so the cur2 maths only
-     *  runs when that flag is on). */
-    public static boolean deadZoneCur2(BlockPos node, LivingEntity p) {
-        double dx = (node.getX() + 0.5) - p.getX();
-        double dz = (node.getZ() + 0.5) - p.getZ();
-        double cur2 = dx * dx + dz * dz;
-        return cur2 > REACH_DIST_SQ && cur2 < OVERSHOOT_RESYNC_SQ;
     }
 
 }

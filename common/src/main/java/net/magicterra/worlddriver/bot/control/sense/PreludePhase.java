@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
 import net.magicterra.worlddriver.bot.control.act.Keys;
-import net.magicterra.worlddriver.bot.control.steer.DriveLatches;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
@@ -147,20 +146,6 @@ public final class PreludePhase {
         }
     }
 
-    /** The tick's foot during a cruise hop ({@code DrivePhase.cruiseHop}): its apex lifts the feet 1.25 over
-     *  the level it left, so floor(y) read a row up and every "node below the foot" branch (aim at the node, the
-     *  descent hold) took the heading over mid-flight and swung it 40° (R1 1422,64,-403). Until it lands the hop is
-     *  judged from its take-off level. The keying tick itself may still be grounded, so landing counts after it. */
-    BlockPos hopFoot(Navigator nav, LivingEntity p, BlockPos foot) {
-        DriveLatches l = nav.drive.driveLatch;
-        if (l.hopY == Integer.MIN_VALUE) return foot;
-        if (p.isInWater() || foot.getY() < l.hopY || p.onGround() && p.tickCount > l.hopTick + 1) {
-            l.hopY = Integer.MIN_VALUE;
-            return foot;
-        }
-        return foot.getY() > l.hopY ? new BlockPos(foot.getX(), l.hopY, foot.getZ()) : foot;
-    }
-
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
@@ -240,7 +225,7 @@ public final class PreludePhase {
         // scooped. So there's nothing to do here; the walk dispatch below only
         // SIGNALS the planned case and biases the step-off keys.
 
-        BlockPos foot = hopFoot(nav, p, blockPosOf(p));
+        BlockPos foot = blockPosOf(p);
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
         // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
         // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't

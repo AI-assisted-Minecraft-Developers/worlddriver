@@ -15,15 +15,4 @@ public final class ArcShadow {
     // is immune to that vertical/jitter noise (a wall-ram makes no forward arc progress regardless of bob), so
     // ticks of |ds|<ARC_WEDGE_DS while horizontalCollision accumulate reliably → fold into fellOffPath far sooner.
     public int wedgeTicks;               // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
-    // Phase-3b (navigatorArcProgressWedge): NET arc-length progress over a WINDOW — catches an OSCILLATING limit cycle
-    // the per-tick ram wedge (wedgeTicks, needs hCol + per-tick |ds|<0.05) and the anti-churn net-XZ both miss.
-    // A steep-face diagUp churn (live 2026-06-28 -815, replay-0006) has the bot bob-jumping airborne (no hCol), making
-    // small per-tick FORWARD ds then sliding back — net arc-s ≈ 0 over the cycle yet per-tick |ds| > 0.05 (so the ram
-    // wedge resets) and net-XZ swings 35 blocks laterally (so the anti-churn is fooled). arc-s is the projection ONTO
-    // the path, immune to the lateral swing AND the vertical bob, so net arc-s over a window cleanly flags "no path
-    // progress despite motion". Folds into the SAME fellOffPath recovery (fresh foot-search blacklists the
-    // un-advanceable node + re-routes). Window-based so it does NOT need hCol or onGround.
-    public double progBaseS = Double.NaN;  // proj.s at the start of the current progress window
-    public int progWindowTicks;          // ticks elapsed in the current arc-progress window
-    public boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
 }

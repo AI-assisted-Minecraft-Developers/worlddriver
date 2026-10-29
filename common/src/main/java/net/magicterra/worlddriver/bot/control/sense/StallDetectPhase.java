@@ -41,7 +41,7 @@ public final class StallDetectPhase {
     public final GoalSpin goalSpin = new GoalSpin();
 
     /** Land boxed-pocket churn window (task#96 step B4), owned by StallDetectPhase;
-     *  Navigator's carrot logic reads hColRamTicks (navigatorCarrotHColShrink).
+     *  the wedge timers and BoxedChurn read hColRamTicks.
      *  {@link BoxedChurn#resetForNewGoal()} runs in start only (replan never
      *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
      *  on every collision-free tick. The water anti-spin's goalSpin.churnResets stays a loose
@@ -191,36 +191,6 @@ public final class StallDetectPhase {
                 && (wedgeEdge.move == null || !wedgeEdge.move.startsWith("parkour"))
                 && nav.route.path().get(nav.route.step()).getY() - foot.getY() >= 2
                 && nav.progress.stepProg.noStepProgressTicks > ASCENT_SLIDE_RECOVER_TICKS;
-        // JITTER-IMMUNE +2/+3 ascent-ram recovery (the steep-climb-failure deep fix): ascentRamSlide above
-        // hangs on noStepProgressTicks, which a slide-back's re-approach / vertical bob zeroes on every 3D
-        // new-low — so on a WIDE steep ram the gate never fills and the bot bob-rams 150+ ticks before the
-        // slow WEDGE_TICKS(100) burst (live J3b -877,75,241: diagUp node 3 above the grounded/airborne foot,
-        // cur2 3.2-4.1, repeated side-to-side hopping, 156 t / 7.8 s). Mirror crestOrbitTicks: a stepUp/diagUp edge (a PLANNED +1
-        // the bot has slid 2-3 BELOW, so its node now sits >=2 above the foot) that has DWELT rawStepDwellTicks
-        // past the bar — bob-immune, and NO onGround requirement so it ALSO catches the airborne-bob ram the
-        // grounded ascentRamSlide misses — folds into fellOffPath so the fresh foot-search blacklists the
-        // unreachable node and re-routes from HERE now. The move MUST be stepUp/diagUp: a broad "any node >=2
-        // above" test MISFIRES on climbUp (a vine ascent legitimately spans 3-8 blocks in one edge — the
-        // planner's intended route up, NOT a ram; live regression: a climbUp folded 85× → repath storm,
-        // totStuck 908), and on pillarUp/swimUp/parkour multi-block climbs. DRY only (the water bank-climb-out
-        // owns its own dig recovery). LATCHED to ONE fold per ram episode (ramRecoverLatchedStep): without it
-        // the gate re-fires every tick from dwell 31 up until the step changes, folding into fellOffPath
-        // 10-85× → a repath cascade that inflates churn even on a legit ram. A clean climb advances via
-        // within/passed in 1-3 t (step changes, rawStepDwellTicks + the latch reset) and never trips it.
-        boolean ascentRamSlideJitterImmune = ControlConfig.navigatorAscentRamJitterImmune
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size() && !p.isInWater()
-                && wedgeEdge != null && wedgeEdge.move != null
-                && (wedgeEdge.move.equals("stepUp") || wedgeEdge.move.equals("diagUp"))
-                && nav.route.path().get(nav.route.step()).getY() - foot.getY() >= 2
-                && nav.progress.stepProg.rawStepDwellTicks > RAM_JITTER_RECOVER_TICKS
-                && (nav.progress.stepProg.ramRecoverLastFireDwell < 0 || nav.progress.stepProg.rawStepDwellTicks - nav.progress.stepProg.ramRecoverLastFireDwell >= RAM_RECOVER_DEBOUNCE);
-        if (ascentRamSlideJitterImmune) {
-            nav.progress.stepProg.ramRecoverLastFireDwell = nav.progress.stepProg.rawStepDwellTicks;   // next fold ≥RAM_RECOVER_DEBOUNCE later; the line-1640 step/path reset clears it
-            if (GameConfig.navigatorDebug)
-                LOG.info("[navigator] ascent-ram-jitter RECOVER step={}/{} node={} move={} nodeDy={} dwell={} noStep={}",
-                        nav.route.step(), nav.route.path().size(), nav.route.path().get(nav.route.step()), wedgeEdge.move,
-                        nav.route.path().get(nav.route.step()).getY() - foot.getY(), nav.progress.stepProg.rawStepDwellTicks, nav.progress.stepProg.noStepProgressTicks);
-        }
         // +1 DESCENT-RAM blind spot (mirror of ascentRamSlide above): the bot drifted 1 block ABOVE
         // the planned y-level onto a dead-end platform whose only forward exit is a step-down the
         // planner CORRECTLY rejected — StepDown's passthrough+1 / DiagonalDescend's to+2 head-clearance
@@ -240,36 +210,6 @@ public final class StallDetectPhase {
                 && foot.getY() - nav.route.path().get(nav.route.step()).getY() == 1
                 && p.horizontalCollision
                 && nav.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS;
-        // VERTICAL step-pointer re-sync dead-zone (the descent-OVERSHOOT blind spot; mirror also
-        // covers an ascent SLIDE-BACK). The bot is GROUNDED but its step-pointer node sits ≥2
-        // blocks off VERTICALLY (|foot.y − node.y| ≥ 2, either sign) while the foot is in the
-        // horizontal step-advance dead-zone — cur2 ∈ (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ): too FAR
-        // for `within` (cur2<0.45) yet too NEAR for the horizontal overshoot re-sync (cur2>4) — and
-        // there is NO horizontalCollision (so it is NOT a ram: descentRamStuck/ascentRamSlide own
-        // those). The classic case: the bot crosses a steep crest/shoulder with un-braked momentum,
-        // free-falls 2 PAST a stepDown/fall node, and grounds on the terrace ~1.6 b shy of it — node
-        // 2 BELOW, cur2≈2.5, hCol=false (live -1037, totStuck oscillating ~80 t until a WEDGE_TICKS
-        // burst yanks it BACKWARD). Every step-advance gate then misses by a hair: `within` fails
-        // (|Δy|=2>1.2); `passed`/`crossedDescendNode` are blocked by their |nx.y−p.y|<1.2 / forward-
-        // projection reachability gates (the next node is also ~2 below); `fellOffPath`'s 3D-fall
-        // test is one block short (|Δy|=2 ≤ maxJumpUp+2=3); ascentRamSlide needs ≥2 ABOVE and
-        // descentRamStuck needs EXACTLY 1 below + hCol — a genuine hole. Fold the confirmed dead-zone
-        // stall into fellOffPath so the SAME proven recovery (continuation-cancel → fresh foot-search
-        // that blacklists the un-advanceable node → re-route from the actual position) fires NOW
-        // instead of after the ~5 s burst. STRICT extension: the STEPUP_FREEZE_TICKS gate + the tight
-        // cur2 band + the no-hCol + grounded conditions are all FALSE on a normal descent (lands clean
-        // and advances via within/passed in 1-3 t) and on every other stall (the general wedge timer
-        // owns those), so outside this exact state the bot behaves identically. pillarUp/parkour
-        // incoming edges keep their own handling. (The ≥2-ABOVE branch is normally caught FIRST by
-        // ascentRamSlide at its earlier tick-10 gate; this generic clause is the mirror that also
-        // covers a no-hCol slide-back, and the disjoint descent-overshoot the family was missing.)
-        boolean verticalResync = ControlConfig.navigatorVerticalResync           // flag FIRST → OFF is a true zero-cost no-op (nothing below runs)
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size() && p.onGround() && !p.horizontalCollision
-                && wedgeEdge != null && !"pillarUp".equals(wedgeEdge.move)
-                && (wedgeEdge.move == null || !wedgeEdge.move.startsWith("parkour"))
-                && Math.abs(foot.getY() - nav.route.path().get(nav.route.step()).getY()) >= 2
-                && nav.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS
-                && deadZoneCur2(nav.route.path().get(nav.route.step()), p);   // horizontal cur2 ∈ (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ)
         // Phase-3 bob/jitter-immune ram wedge: the arc-length s has not advanced for ARC_WEDGE_TICKS while
         // horizontalCollision (the count lives in arcShadowTick). This is the STRUCTURAL replacement for the
         // descentRamStuck/ascentRamSlide family above — they hang on noStepProgressTicks, which the ram-jitter's
@@ -279,10 +219,6 @@ public final class StallDetectPhase {
         // routes from here) at ~1.5 s instead of the 5 s wedge burst. Default-OFF behind navigatorArcLengthWedge.
         boolean arcWedge = ControlConfig.navigatorArcLengthWedge && nav.progress.arc.wedgeTicks > ProgressPhase.ARC_WEDGE_TICKS
                 && nav.route.path() != null && nav.route.step() < nav.route.path().size();
-        // Phase-3b: an OSCILLATING limit cycle (net arc-s ≈ 0 over a window) the per-tick ram wedge + anti-churn miss.
-        boolean arcProgWedge = ControlConfig.navigatorArcProgressWedge && nav.progress.arc.progStall
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size();
-        if (arcProgWedge) nav.progress.arc.progStall = false;   // consume once so the recovery isn't re-fired before the next window
         // navigatorAboveNodeStallRecover: the CLIMBED-PAST-THE-NODE blind spot (C26-J3
         // 2026-07-02, the steep-mountain churn's core): the bot grinds UP a slope past
         // its committed stepUp node and ends grounded 2-3 blocks ABOVE it (dY exactly
@@ -300,7 +236,7 @@ public final class StallDetectPhase {
         if (aboveNodeStall && GameConfig.navigatorDebug)
             LOG.info("[navigator] above-node-stall RECOVER step={}/{} node={} dyAbove={} noStepProg={}",
                     nav.route.step(), nav.route.path().size(), nav.route.path().get(nav.route.step()), foot.getY() - nav.route.path().get(nav.route.step()).getY(), nav.progress.stepProg.noStepProgressTicks);
-        boolean fellOffPath = forceFellOffPath || arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || aboveNodeStall || (nav.route.path() != null && nav.route.step() < nav.route.path().size()
+        boolean fellOffPath = forceFellOffPath || arcWedge || ascentRamSlide || descentRamStuck || aboveNodeStall || (nav.route.path() != null && nav.route.step() < nav.route.path().size()
                 && Math.abs(nav.route.path().get(nav.route.step()).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2);
         forceFellOffPath = false;   // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
         if (arcWedge && GameConfig.navigatorDebug)

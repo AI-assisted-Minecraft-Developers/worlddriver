@@ -55,7 +55,7 @@ public final class RouteAdoption {
         List<Move.Edge> edges = sm.edges;
         boolean bestEffort = !res.goalReached();
         if (bestEffort) {
-            int cut = commitTailCut(world, path);
+            int cut = commitTailCut(path);
             if (cut > 0) {
                 path = List.copyOf(path.subList(0, cut + 1));
                 edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
@@ -249,32 +249,13 @@ public final class RouteAdoption {
     }
 
     /** Where a best-effort segment's commit stops, which is where the continuation launches from; 0 to
-     *  keep the whole segment.
-     *  §93 platform retreat (#15 final lane): the tail is wherever the node budget ran out — often
-     *  MID-SLOPE on complex steep terrain. The bot then climbs to a half-mounted ledge, the periodic
-     *  repath re-plans from that awkward stance, and the climb-fall oscillation burns ~100s
-     *  (slow-map zones; the SAME terrain runs clean in 8s standalone, §92b — the grind is planner
-     *  state, not executor skill). When the tail node is not a platform (fewer than 2 same-Y
-     *  standable cardinal neighbours), retreat up to 8 nodes to the nearest platform node so the
-     *  segment ends on ground the executor can stand square on while the next search runs.
-     *  Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
-    private static int commitTailCut(WorldView world, List<BlockPos> path) {
-        int cut = -1;
-        if (ControlConfig.navigatorCommitTailPlatform && path.size() > 4) {
-            for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8) && cut < 0; k--) {
-                BlockPos n = path.get(k);
-                int flat = 0;
-                for (int[] d4 : new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
-                    if (world.canStandAt(n.offset(d4[0], 0, d4[1]))) flat++;
-                if (flat >= 2) cut = k;
-            }
-        }
-        int peak = ControlConfig.navigatorCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
-        if (peak > 0 && (cut < 0 || peak < cut)) cut = peak;
+     *  keep the whole segment. Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
+    private static int commitTailCut(List<BlockPos> path) {
+        int cut = ControlConfig.navigatorCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
         if (cut <= 0 || cut >= path.size() - 1) return 0;
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
-                    cut == peak ? "ridge" : "platform", path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
+            LOG.info("[navigator] commit-tail retreat: {} -> {} (ridge {},{},{})", path.size() - 1, cut,
+                    path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
         return cut;
     }
 }
