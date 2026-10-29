@@ -10,6 +10,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
 import net.magicterra.worlddriver.config.Mod;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.Connection;
@@ -162,8 +163,10 @@ public final class JoinedPlayers {
         // why the vanilla log cannot answer this question. Stamping the list size on both edges is
         // what makes residue readable at every moment of a run rather than only where a scene
         // happened to ask: peak = max over the joins, leak = the last value at shutdown.
+        // body.level(), not level: placeNewPlayer reads the player's save and moves a returning player to the
+        // dimension it was saved in, so the level asked for is only where a new player starts.
         Mod.LOG.info("[realbody] {} joined {} at {} (players={})", profile.getName(),
-                level.dimension().location(), body.blockPosition(),
+                body.level().dimension().location(), CellText.of(body.blockPosition()),
                 level.getServer().getPlayerList().getPlayerCount());
         return body;
     }
