@@ -81,8 +81,8 @@ dependencies {
 
 }
 
-// testmod source set — EMPTY-SOURCE BRIDGE: it has no sources of its own and carries :common's testmod
-// output onto the runs whose `source` it is (labClient below, and the StageWright suites' runs); the other
+// testmod source set: the Fabric registration of the test content (src/testmod), and the bridge that
+// carries :common's testmod output onto the runs whose `source` it is (labClient below, and the StageWright suites' runs); the other
 // runs keep `main` and never see the test content. Fabric has no module layer, so unlike NeoForge the
 // output can go straight onto the runtime classpath. evaluationDependsOn(':common') makes :common's
 // sourceSets.testmod resolvable here.
@@ -189,6 +189,8 @@ loom {
         mainMod.sourceSet project(':api').sourceSets.main, project(':api')
         mainMod.sourceSet project(':common').sourceSets.main, project(':common')
         mainMod.sourceSet project(':common').sourceSets.testmod, project(':common')
+        // This module's own testmod: the Fabric registration of the test content and its service file.
+        mainMod.sourceSet sourceSets.testmod
     }
     runs {
         server { server() }

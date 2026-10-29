@@ -106,9 +106,18 @@ phase. It uses `ServiceLoader` to find implementations of
 `net.magicterra.worlddriver.api.game.TestContent` and calls `register()` on each. The test content
 is folded into the WorldDriver mod itself on both loaders, so the service file is visible
 to the same class loader; a published jar contains no implementation, and the loop does
-nothing. This exists because `DeferredRegister.register()` is only effective during
-construction, which an in-game test — started only once the game is running — cannot
-satisfy.
+nothing. This exists because registrations only take effect during start-up, which an
+in-game test — started only once the game is running — cannot satisfy.
+
+The test content is split three ways, like the driver itself:
+
+| Where | What |
+|---|---|
+| `common/src/testmod/.../testcontent/` | What names no loader: the NPC definitions in `NpcContent` (each bound to its registered type by the loader, then read with `get()`), their renderers in `NpcContentClient`, the body task, and `TestPlayerEvents`, a join hook tests add themselves to |
+| `fabric/src/testmod/.../testcontent/fabric/` | `FabricTestContent`, found through the service file: `Registry.register`, `FabricDefaultAttributeRegistry`, the renderers on a client, and `ServerPlayConnectionEvents.JOIN` firing `TestPlayerEvents` |
+| `neoforge/src/testmod/.../testcontent/neoforge/` | `NeoForgeTestContent` and its client half, found by `@EventBusSubscriber`: `RegisterEvent`, `EntityAttributeCreationEvent`, `EntityRenderersEvent.RegisterRenderers`, and `PlayerLoggedInEvent` firing `TestPlayerEvents` |
+
+The loader packages exist in no other source set, for the reason below.
 
 The interface sits in the api (`api/game`) rather than in the package its implementations live
 in, and that is NeoForge's module system's doing. In a development environment the main

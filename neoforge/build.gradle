@@ -85,8 +85,8 @@ dependencies {
 
 }
 
-// testmod source set — EMPTY-SOURCE BRIDGE: no sources of its own; it folds :common's testmod
-// output into worlddriver's dev-run module (the loom mods{} block below) for the runs whose `source`
+// testmod source set: the NeoForge registration of the test content (src/testmod), and the bridge that
+// folds :common's testmod output into worlddriver's dev-run module (the loom mods{} block below) for the runs whose `source`
 // it is, which the StageWright suites' runs are. It compiles against :common's testmod output;
 // evaluationDependsOn forces :common to configure first so its sourceSets.testmod is resolvable here.
 //

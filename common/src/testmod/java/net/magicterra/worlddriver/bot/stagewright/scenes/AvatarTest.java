@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
-import dev.architectury.event.events.common.PlayerEvent;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -18,6 +18,7 @@ import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
 import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
+import net.magicterra.worlddriver.testcontent.TestPlayerEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -243,13 +244,13 @@ class AvatarTest {
         // spawns the bot, so the player that joins in that window is the bot.
         AtomicBoolean armed = new AtomicBoolean();
         AtomicInteger sentAtJoin = new AtomicInteger();
-        PlayerEvent.PlayerJoin onJoin = player -> {
+        Consumer<ServerPlayer> onJoin = player -> {
             if (!armed.get()) return;
             player.connection.send(new ClientboundCustomPayloadPacket(new ProbePayload()));
             sentAtJoin.incrementAndGet();
         };
-        PlayerEvent.PLAYER_JOIN.register(onJoin);
-        game.afterTest(s -> PlayerEvent.PLAYER_JOIN.unregister(onJoin));
+        TestPlayerEvents.addJoinListener(onJoin);
+        game.afterTest(s -> TestPlayerEvents.removeJoinListener(onJoin));
 
         SceneBot bot;
         armed.set(true);

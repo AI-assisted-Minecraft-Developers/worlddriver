@@ -1,24 +1,26 @@
 package net.magicterra.worlddriver.testcontent;
 
-import dev.architectury.registry.client.level.entity.EntityRendererRegistry;
 import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.client.renderer.entity.PiglinRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Mob;
 
-/** The client half of {@link NpcContent}: how a driven piglin is drawn. */
+/**
+ * The client half of {@link NpcContent}: how each NPC is drawn. Each loader's testmod hands
+ * {@link #renderer} to its own renderer registration. Only ever loaded on a client.
+ */
 public final class NpcContentClient {
     private NpcContentClient() {}
 
-    public static void init() {
-        EntityRendererRegistry.register(NpcContent.DRIVEN_PIGLIN, Renderer::new);
-        // The stand-ins for modded mobs are only ever measured, never looked at.
-        EntityRendererRegistry.register(NpcContent.CASTING_MOB, NoopRenderer::new);
-        EntityRendererRegistry.register(NpcContent.SELF_MOVING_MOB, NoopRenderer::new);
-        EntityRendererRegistry.register(NpcContent.VELOCITY_MOB, NoopRenderer::new);
-        EntityRendererRegistry.register(NpcContent.MOVER_MOB, NoopRenderer::new);
+    /** A piglin's look for the driven piglin; nothing for the stand-ins, which are only ever measured. */
+    @SuppressWarnings("unchecked")
+    public static <T extends Mob> EntityRendererProvider<T> renderer(NpcContent.Npc<T> npc) {
+        // Renderer draws any Mob, so handing it out for T is sound; the cast only narrows its type argument.
+        if (npc.drawnAsPiglin()) return ctx -> (EntityRenderer<T>) (EntityRenderer<?>) new Renderer(ctx);
+        return NoopRenderer::new;
     }
 
     /**
