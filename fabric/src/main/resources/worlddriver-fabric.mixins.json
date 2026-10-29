@@ -8,6 +8,9 @@
     "LivingEntityDeathMixin",
     "PlayerListMixin"
   ],
+  "client": [
+    "client.MinecraftDisconnectMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

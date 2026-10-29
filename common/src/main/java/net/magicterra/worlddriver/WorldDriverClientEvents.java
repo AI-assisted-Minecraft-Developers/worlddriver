@@ -1,13 +1,8 @@
 package net.magicterra.worlddriver;
 
-import dev.architectury.event.events.client.ClientGuiEvent;
-import dev.architectury.event.events.client.ClientLifecycleEvent;
-import dev.architectury.event.events.client.ClientPlayerEvent;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import dev.architectury.event.events.client.ClientTickEvent;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -23,20 +18,21 @@ import net.magicterra.worlddriver.game.ui.MouseYieldHud;
 import net.magicterra.worlddriver.game.ui.ClientThread;
 import net.magicterra.worlddriver.application.client.ClientDriverApiImpl;
 import net.magicterra.worlddriver.application.client.ClientHooks;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * The driver's client-side bootstrap and event subscriptions, shared by both loaders' client
- * entries. Only ever loaded on a client: the loader entries are dist-gated, and nothing on the
- * server path names this class.
+ * The driver's client-side bootstrap and event hooks, shared by both loaders' client entries,
+ * which subscribe their own callbacks to the hooks (Fabric's client entrypoint and one client
+ * mixin; NeoForge's {@code Dist.CLIENT} subscriber). Only ever loaded on a client: the loader
+ * entries are dist-gated, and nothing on the server path names this class. Every hook runs on the
+ * render thread and tolerates running before {@link #install}.
  *
- * <p>Two calls, because the loaders differ in WHEN the registration may run. {@link #subscribe}
- * only appends listeners and is safe wherever the loader hands control to the mod;
- * {@link #install} constructs the client API and the bot and must run on the render thread, which
- * on NeoForge means inside {@code FMLClientSetupEvent.enqueueWork} (Architectury's own
- * {@code CLIENT_SETUP} is invoked directly from that event's handler, off the render thread).
+ * <p>{@link #install} constructs the client API and the bot and must run on the render thread,
+ * which on NeoForge means inside {@code FMLClientSetupEvent.enqueueWork}.
  *
- * <p>Stays loader-side: the packet-level chat tap. It records lines other mods cancel, and
- * Architectury's {@code ClientChatEvent.RECEIVED} has no canceled variant.
+ * <p>Stays loader-side: the packet-level chat tap, which records lines other mods cancel, in each
+ * loader's own form.
  */
 public final class WorldDriverClientEvents {
     private static volatile ClientBot bot;
@@ -77,29 +73,42 @@ public final class WorldDriverClientEvents {
         WorldDriverCommon.LOG.info("[{}] client api + bot registered", WorldDriverCommon.MOD_ID);
     }
 
-    /** Subscribes the client-side handlers; they tolerate running before {@link #install}. */
-    public static void subscribe() {
-        ClientTickEvent.CLIENT_POST.register(mc -> {
-            ClientBot b = bot;
-            if (b != null) b.clientTick();
-            // Whatever asked for a tick boundary rather than the next render task — the release
-            // half of mc.client.input.key's click, so far.
-            ClientThread.drainNextTick();
-        });
-        // FocusPolicy holds the human's real pauseOnLostFocus while the bot drives. Minecraft
-        // saves options.txt on close, so a force-quit mid-drive would otherwise PERSIST our
-        // temporary false into their settings. The tick's falling edge covers every normal
-        // stop; this covers the one path where ticks just stop arriving.
-        ClientLifecycleEvent.CLIENT_STOPPING.register(FocusPolicy::release);
-        // Leaving a server ends what this client's player was doing there; nothing may carry an old
-        // task into the next world. Marked before the chain drops it, so the ending is the cause.
-        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
-            ActionRegistry.GLOBAL.cancelScope(ActionHandle.Scope.CLIENT, Responses.CancelReason.CONNECTION_CLOSED);
-            ClientBot b = bot;
-            if (b != null) b.onDisconnect();
-        });
-        // "Bot is driving" badge — the visible half of the mouse-yield handshake
-        // (GameConfig.mouseYield / mouseYieldHud). Drawn after the vanilla HUD so it lands on top.
-        ClientGuiEvent.RENDER_HUD.register((graphics, delta) -> MouseYieldHud.render(graphics));
+    /** The end of a client tick. Tolerates running before {@link #install}. */
+    public static void clientTickEnd() {
+        ClientBot b = bot;
+        if (b != null) b.clientTick();
+        // Whatever asked for a tick boundary rather than the next render task — the release
+        // half of mc.client.input.key's click, so far.
+        ClientThread.drainNextTick();
+    }
+
+    /**
+     * The client is shutting down. FocusPolicy holds the human's real pauseOnLostFocus while the bot
+     * drives. Minecraft saves options.txt on close, so a force-quit mid-drive would otherwise PERSIST
+     * our temporary false into their settings. The tick's falling edge covers every normal stop; this
+     * covers the one path where ticks just stop arriving. Any point before the options are written
+     * on close will do.
+     */
+    public static void clientStopping(Minecraft mc) {
+        FocusPolicy.release(mc);
+    }
+
+    /**
+     * This client's player is leaving its server. Leaving ends what the player was doing there;
+     * nothing may carry an old task into the next world. Marked before the chain drops it, so the
+     * ending is the cause. Takes no player, so no client type is ever handed to a wider parameter.
+     */
+    public static void clientPlayerLeft() {
+        ActionRegistry.GLOBAL.cancelScope(ActionHandle.Scope.CLIENT, Responses.CancelReason.CONNECTION_CLOSED);
+        ClientBot b = bot;
+        if (b != null) b.onDisconnect();
+    }
+
+    /**
+     * After the vanilla HUD is drawn: the "Bot is driving" badge, the visible half of the
+     * mouse-yield handshake (GameConfig.mouseYield / mouseYieldHud), lands on top.
+     */
+    public static void hudRendered(GuiGraphics graphics) {
+        MouseYieldHud.render(graphics);
     }
 }

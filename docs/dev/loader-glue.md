@@ -38,24 +38,30 @@ each of those events twice.
 cannot tell whether the callback is the right one; the in-game `ExternalEventsTest` and
 `CoreClientTest.serverReportsTheChatTheClientSent` check that.
 
-## The client points in `common`
+## The client hooks: `WorldDriverClientEvents`
 
-| Method | Called from | What it subscribes |
+`WorldDriverClientEvents.install()` is not a hook: it constructs the client API and the bot
+implementation and registers them with `ClientHooks` and `BotHooks`, and it must run **on the
+render thread**. Fabric's client entry point already runs there, so it calls `install()`
+directly. NeoForge's `FMLClientSetupEvent` runs on a mod-loading worker thread, so
+`install()` is handed to `event.enqueueWork`.
+
+The hooks all run on the render thread and tolerate running before `install()`.
+
+| Hook | Fabric (`WorldDriverFabricClient`, `fabric/.../mixin/client/`) | NeoForge (`WorldDriverNeoForgeClient`) |
 |---|---|---|
-| `WorldDriverClientEvents.subscribe()` | Both client entry points | `ClientTickEvent.CLIENT_POST`, which drives the bot's client tick; `ClientLifecycleEvent.CLIENT_STOPPING`, which releases the input focus policy; `ClientGuiEvent.RENDER_HUD`, which draws the mouse-yield overlay |
-| `WorldDriverClientEvents.install()` | Both client entry points, **on the render thread** | Not a subscription: it constructs the client API and the bot implementation and registers them with `ClientHooks` and `BotHooks` |
+| `clientTickEnd` (the bot's client tick) | `ClientTickEvents.END_CLIENT_TICK` | `ClientTickEvent.Post` |
+| `clientStopping` (releases the input focus policy) | `ClientLifecycleEvents.CLIENT_STOPPING`, in `Minecraft.destroy` | `GameShuttingDownEvent`, earlier, in `Minecraft.stop()` |
+| `clientPlayerLeft` (ends the client's actions and the bot's task) | `MinecraftDisconnectMixin`, in `Minecraft.disconnect` before the narrator is cleared | `ClientPlayerNetworkEvent.LoggingOut`, at the same point |
+| `hudRendered` (the mouse-yield overlay) | `HudRenderCallback.EVENT` | `RenderGuiEvent.Post` |
 
-## The timing difference between the two loaders
+`clientStopping` only has to restore the player's `pauseOnLostFocus` before the options are
+written on close, so NeoForge's earlier point is safe. Fabric's own client disconnect event is
+not used because it can come from a network thread.
 
-`install()` and `subscribe()` are separate because the two loaders hand control to a mod
-at different moments.
-
-Fabric's client entry point already runs on the render thread, so it calls both back to
-back. NeoForge's `FMLClientSetupEvent` runs on a mod-loading worker thread, so
-`subscribe()` is called directly and `install()` is handed to `event.enqueueWork` to reach
-the render thread. Architectury's own `ClientLifecycleEvent.CLIENT_SETUP` is invoked
-directly from that NeoForge handler, without going through `enqueueWork`, which is why it
-is not used as the installation hook.
+Client callbacks never reach a dedicated server: Fabric Loader does not run the `client`
+entrypoint or the mixin config's `client` list there, and NeoForge does not load the
+`Dist.CLIENT` subscriber class.
 
 ## Where the two loaders' event semantics still differ
 
@@ -85,7 +91,7 @@ is the identity transform, so the two produce the same text.
 
 | Entry point | What it keeps | Why |
 |---|---|---|
-| `WorldDriverFabricClient` | The GAME and CHAT message events, including both `_CANCELED` variants | `mc.client.chat.history` must record lines other mods cancelled, and Architectury's client chat event has no cancelled variant. The two variants register the same method so they cannot drift. |
+| `WorldDriverFabricClient` | The GAME and CHAT message events, including both `_CANCELED` variants | `mc.client.chat.history` must record lines other mods cancelled. The two variants register the same method so they cannot drift. |
 | `WorldDriverNeoForgeClient` | The client chat received event with `receiveCanceled = true` | The same reason, expressed in the platform's own form. |
 
 Beyond subscribing the hooks, neither server entry point keeps anything. The factory for

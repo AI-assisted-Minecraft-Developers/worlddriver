@@ -3,7 +3,10 @@ package net.magicterra.worlddriver.fabric.client;
 import com.mojang.authlib.GameProfile;
 import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.magicterra.worlddriver.WorldDriverClientEvents;
 import net.magicterra.worlddriver.application.client.ClientChat;
 import net.minecraft.network.chat.ChatType;
@@ -14,13 +17,17 @@ import net.minecraft.network.chat.PlayerChatMessage;
  * Fabric client entry. Only loaded under Dist.CLIENT — Fabric Loader skips client entrypoints on
  * a dedicated-server install — so referencing {@link WorldDriverClientEvents} here doesn't drag
  * client classes into dedi-server classloading. The client entrypoint already runs on the render
- * thread, so install and subscribe happen back to back.
+ * thread, so the client API is installed here directly, then the client hooks are subscribed.
  */
 public final class WorldDriverFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         WorldDriverClientEvents.install();
-        WorldDriverClientEvents.subscribe();
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> WorldDriverClientEvents.clientTickEnd());
+        ClientLifecycleEvents.CLIENT_STOPPING.register(WorldDriverClientEvents::clientStopping);
+        HudRenderCallback.EVENT.register((graphics, delta) -> WorldDriverClientEvents.hudRendered(graphics));
+        // Leaving a server: MinecraftDisconnectMixin. Fabric's disconnect event can come from a
+        // network thread, and the hook runs on the render thread.
         // Packet-level chat tap for mc.client.chat.history / awaitReplyMs —
         // GAME carries system lines (command feedback, /say, server broadcasts),
         // CHAT carries player chat. Capture policy (overlay exclusion, sender→
