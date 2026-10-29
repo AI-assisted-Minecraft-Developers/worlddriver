@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   world spawn. A `pos` still moves it there, and a `dimension` other than the saved one is honoured as
   before, at the world spawn when no `pos` comes with it. `remove` already saved the player on its way
   out, as a disconnect does, so a remove and spawn within one game returns it to the same spot.
+- **A bot that changes dimension stays on the player list.** The game moves a player between dimensions
+  by removing it from one level and adding it to the other, and the bot's player treated that removal as
+  leaving the game: a bot that went through a portal or was teleported to another dimension dropped off
+  the player list, was saved where it stood before the move, and saved nothing when it really left. It
+  now stays on the list, as a connected player does.
 - **`mc.world.block` reads any dimension.** It took no dimension and always read the overworld, so a test
   could not check a block it had placed in the Nether. The new optional `dimension` names the level, and
   omitted it is still `minecraft:overworld`, as for `mc.world.snapshot`; an unknown one is

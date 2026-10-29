@@ -211,7 +211,11 @@ public final class JoinedPlayers {
          */
         @Override
         public void remove(RemovalReason reason) {
-            if (!leaving && getServer() != null) {
+            // Changing dimension also comes through here (ServerLevel.removePlayerImmediately with CHANGED_DIMENSION,
+            // undone by unsetRemoved once the player is in the new level). A connected player stays on the list
+            // through that; leaving it here took a bot that went through a portal or a teleport off the list, saved
+            // it where it stood before the move, and made its later real departure save nothing.
+            if (!leaving && reason != RemovalReason.CHANGED_DIMENSION && getServer() != null) {
                 leaving = true;
                 try {
                     getServer().getPlayerList().remove(this);
