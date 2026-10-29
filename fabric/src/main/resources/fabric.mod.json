@@ -15,7 +15,8 @@
   "environment": "*",
   "accessWidener": "worlddriver.accesswidener",
   "mixins": [
-    "worlddriver-common.mixins.json"
+    "worlddriver-common.mixins.json",
+    "worlddriver-fabric.mixins.json"
   ],
   "entrypoints": {
     "main": [

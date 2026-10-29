@@ -1,18 +1,47 @@
 # Loader glue: what stays in `fabric/` and `neoforge/`, and what lives in `common`
 
-Architectury API is a required dependency on both loaders. The version is
-`architectury_api_version` in `gradle.properties`, and both loaders' mod metadata declare
-it. This document describes the division of labour that follows, written against the
-source; each claim names the file it can be checked in.
+This document describes how the driver's code in `common` is hooked up to each loader,
+written against the source; each claim names the file it can be checked in.
 
-**In one sentence:** event subscriptions and registrations are written once, in `common`,
-and each loader entry point keeps only what has no cross-loader form.
+**In one sentence:** what the driver does on an event is written once, in `common`, as plain
+static methods that name no loader; each loader module subscribes its own callbacks to those
+methods, with a mixin where the loader has no event at the right point.
 
-## The two subscription points in `common`
+## The server hooks: `WorldDriverEvents`
+
+`WorldDriverEvents` has one public static method per hook. The driver only listens: no hook
+cancels anything or returns a value, so a listener of another mod that cancels the action
+earlier in the chain still suppresses the report.
+
+| Hook | Fabric (`fabric/.../WorldDriverFabric.java`, `fabric/.../mixin/`) | NeoForge (`neoforge/.../NeoForgeServerEvents.java`, game bus) |
+|---|---|---|
+| `serverStarting` | `ServerLifecycleEvents.SERVER_STARTING` | `ServerStartingEvent` |
+| `serverStarted` | `ServerLifecycleEvents.SERVER_STARTED` | `ServerStartedEvent` |
+| `serverStopping` | `ServerLifecycleEvents.SERVER_STOPPING` | `ServerStoppingEvent` |
+| `serverStopped` | `ServerLifecycleEvents.SERVER_STOPPED` | `ServerStoppedEvent` |
+| `serverTickEnd` (script tick, then the server-side bot players) | `ServerTickEvents.END_SERVER_TICK` | `ServerTickEvent.Post` |
+| `registerCommands` | `CommandRegistrationCallback.EVENT` | `RegisterCommandsEvent` |
+| `blockBreaking` (`block.break`) | `PlayerBlockBreakEvents.BEFORE` | `BlockEvent.BreakEvent` |
+| `blockPlaced` (`block.place`) | `BlockItemMixin`, around `BlockItem.placeBlock` in `BlockItem.place` | `BlockEvent.EntityPlaceEvent` |
+| `livingDying` (`entity.death`) | `LivingEntityDeathMixin`, head of `die` on `LivingEntity`, `Player`, `ServerPlayer` | `LivingDeathEvent` |
+| `playerJoined` (`player.join`) | `PlayerListMixin`, end of `PlayerList.placeNewPlayer` | `PlayerEvent.PlayerLoggedInEvent` |
+| `playerLeft` (`player.leave`) | `PlayerListMixin`, start of `PlayerList.remove` | `PlayerEvent.PlayerLoggedOutEvent` |
+| `chatReceived` (`chat.message`) | `ServerMessageEvents.ALLOW_CHAT_MESSAGE`, returning `true` | `ServerChatEvent` at `LOWEST` |
+
+The NeoForge listeners are all at `HIGH` except chat. The Fabric mixins are in
+`worlddriver-fabric.mixins.json`, which only Fabric loads. They must not go in
+`worlddriver-common.mixins.json`: both loaders apply that one, and NeoForge would then report
+each of those events twice.
+
+`ArchitectureTest.everyEventHookIsWiredOnBothLoaders` fails when a public method of
+`WorldDriverEvents` or `WorldDriverClientEvents` is not called from both loaders' sources. It
+cannot tell whether the callback is the right one; the in-game `ExternalEventsTest` and
+`CoreClientTest.serverReportsTheChatTheClientSent` check that.
+
+## The client points in `common`
 
 | Method | Called from | What it subscribes |
 |---|---|---|
-| `WorldDriverEvents.register()` | Both loader entry points, once each during mod construction | `LifecycleEvent` SERVER_STARTING, SERVER_STARTED and SERVER_STOPPING; `TickEvent.SERVER_POST`, which fires the script tick and then drives the server-side bot players; `CommandRegistrationEvent`; `BlockEvent.BREAK` and `BlockEvent.PLACE`; `EntityEvent.LIVING_DEATH`; `PlayerEvent.PLAYER_JOIN` and `PLAYER_QUIT`; `ChatEvent.RECEIVED` |
 | `WorldDriverClientEvents.subscribe()` | Both client entry points | `ClientTickEvent.CLIENT_POST`, which drives the bot's client tick; `ClientLifecycleEvent.CLIENT_STOPPING`, which releases the input focus policy; `ClientGuiEvent.RENDER_HUD`, which draws the mouse-yield overlay |
 | `WorldDriverClientEvents.install()` | Both client entry points, **on the render thread** | Not a subscription: it constructs the client API and the bot implementation and registers them with `ClientHooks` and `BotHooks` |
 
@@ -30,25 +59,27 @@ is not used as the installation hook.
 
 ## Where the two loaders' event semantics still differ
 
-The subscriptions are shared, but what Architectury fires them from is not identical, and
-two of the three differences are visible in what the driver reports.
+The hooks are shared, but what each loader calls them from is not identical.
 
-- **`block.break` fires before the block is removed on both loaders.** On Fabric,
-  Architectury injects into `ServerPlayerGameMode.destroyBlock` before the block state is
-  consumed; on NeoForge it maps onto the platform's pre-break event. Both are cancellable,
-  so a listener earlier in the chain that cancels the break also suppresses the report.
-- **`block.place` covers a narrower set of placements on Fabric.** Architectury fires it
-  from `BlockItem.place`, so on Fabric the event only covers a block item being placed
-  from an entity's hand. On NeoForge it maps onto the platform's entity-place event, which
-  is broader. The driver drops the event when no placer is present, so the two agree on
-  that case.
-- **`entity.death` fires at the moment death is decided, not after it.** On Fabric,
-  Architectury injects at the head of `LivingEntity.die`; on NeoForge it hooks the
-  platform's living-death event. Same position, same payload, cancellable on both.
+- **`serverStarting` runs earlier on Fabric.** Fabric's `SERVER_STARTING` fires before the
+  server loads its levels; NeoForge's `ServerStartingEvent` fires after. The hook needs no
+  level (the client runs the same start-up at the title screen), and on both loaders it comes
+  before every server-started handler, which is where StageWright publishes its methods onto
+  the registry this hook creates.
+- **`block.break` fires before the block is removed on both loaders**, and neither reports a
+  break the game refuses. Fabric's `BEFORE` fires after vanilla's adventure-mode and
+  command-block permission checks; NeoForge's break event comes pre-cancelled for those.
+- **`block.place` covers a narrower set of placements on Fabric.** The mixin reports from
+  `BlockItem.place`, after the block is set and only when it was, so it only covers a block
+  item placed from an entity's hand. NeoForge's entity-place event is broader. The driver
+  drops the event without a placer and on a client level, so the two agree on that case.
+- **`entity.death` fires at the moment death is decided, before the drops**, at the head of
+  `die` on both loaders. A `Player` that is not a `ServerPlayer` is reported twice on both,
+  since `Player.die` calls `super.die`; on a server every player is a `ServerPlayer`.
 
-The `text` of a `chat.message` is the message component's string on both loaders. Architectury
-takes the decorated content on Fabric and the server chat event's message on NeoForge;
-vanilla decoration is the identity transform, so the two produce the same text.
+The `text` of a `chat.message` is the message component's string on both loaders. Fabric
+passes the decorated content and NeoForge the server chat event's message; vanilla decoration
+is the identity transform, so the two produce the same text.
 
 ## What stays on the loader side, and why
 
@@ -57,10 +88,10 @@ vanilla decoration is the identity transform, so the two produce the same text.
 | `WorldDriverFabricClient` | The GAME and CHAT message events, including both `_CANCELED` variants | `mc.client.chat.history` must record lines other mods cancelled, and Architectury's client chat event has no cancelled variant. The two variants register the same method so they cannot drift. |
 | `WorldDriverNeoForgeClient` | The client chat received event with `receiveCanceled = true` | The same reason, expressed in the platform's own form. |
 
-Neither server entry point keeps anything. The factory for server-side players and the
-`/worlddriver server` command subtree live in `common`: such a player joins through vanilla's own
-`PlayerList.placeNewPlayer`, which needs no loader API, and the command registers along
-with the rest of `WorldDriverEvents`.
+Beyond subscribing the hooks, neither server entry point keeps anything. The factory for
+server-side players and the `/worlddriver server` command subtree live in `common`: such a
+player joins through vanilla's own `PlayerList.placeNewPlayer`, which needs no loader API, and
+the command registers through `WorldDriverEvents.registerCommands`.
 
 ## Test content has a construction-time entry point
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **The driver hears server events through each loader's own callbacks** instead of through
+  Architectury API's events. What it reports is the same, with three differences on Fabric:
+  - **The driver starts its RPC and MCP servers earlier on a Fabric server**: when the server
+    begins starting, before it loads its worlds, rather than once the worlds are loaded. NeoForge
+    is unchanged. Nothing it starts needs a world, and it still comes before every
+    server-started handler.
+  - **`block.break` is no longer reported for a break the game refuses on Fabric**, such as a
+    player in adventure mode breaking a block its tool may not break, or a command block without
+    permission. NeoForge never reported those, so the two loaders now agree.
+  - **`block.place` is reported on Fabric only once the block is actually placed, and only on
+    the server.** It used to be reported just before the placement, also for one that then
+    failed, and also from a client's own prediction of its placement.
 - **A server bot raises a shield held in its offhand.** Its body started every item use with the main hand,
   so `autoShield` with an empty or weapon main hand pressed use on nothing and the shield stayed down. The
   use now goes to the offhand when the main hand holds nothing usable and the offhand does, as the client's
