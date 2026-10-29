@@ -35,6 +35,12 @@ javac keeps only the second of two doc comments.
 
 ## Engine and mod code
 
+### The ranged kite sometimes barely backs off
+
+`42_combat.js` "ranged kite keeps distance": one NeoForge run in five read `d0=3.1` rising only to 3.6 over
+60 ticks with the fight still running and two arrows loosed, so the check went red on "backed off past melee
+range". The other four passed. Find what holds the drawing bot near the skeleton in that run.
+
 ### A required test fails now and then on a full Fabric with-client run
 
 `MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time

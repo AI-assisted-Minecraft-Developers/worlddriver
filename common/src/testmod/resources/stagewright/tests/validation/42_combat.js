@@ -17,11 +17,6 @@ function clientAvailable() {
 
 function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
 
-function dist(a, b) {
-    var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
 function countType(threats, needle) {
     var n = 0;
     for (var i = 0; i < threats.length; i++) if (threats[i].type.indexOf(needle) >= 0) n++;
@@ -128,29 +123,40 @@ if (!clientAvailable()) {
         patch({ kiteDistance: 8 });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
-        // Stationary skeleton 3 blocks away — inside the kite band, so the bot must
-        // back off toward kiteDistance (8) while drawing. NoAI keeps it as a fixed
-        // reference point even if an arrow drops it.
-        var sx = x, sy = y, sz = z + 3;
+        // A skeleton 3 blocks away, inside the kite band, so the bot must back off toward kiteDistance (8) while
+        // drawing. NoAI keeps it put; 1024 HP keeps the fight on for the whole window, so every sample is kiting
+        // and none is the post-kill drop sweep walking back to the kill site.
         Driver.invoke("mc.action.runCommand", {
-            cmd: "summon skeleton " + sx + " " + sy + " " + sz + " {NoAI:1b,PersistenceRequired:1b}"
+            cmd: "summon skeleton " + x + " " + y + " " + (z + 3) + " {NoAI:1b,PersistenceRequired:1b,Health:1024f,"
+                    + "attributes:[{id:\"minecraft:generic.max_health\",base:1024d}]}"
         });
         Driver.system.waitTicks({ ticks: 3 });
-        var th = Driver.invoke("mc.observe.threats", { radius: 16 });
-        var sk = findType(th.threats, "skeleton");
+        var sk = findType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "skeleton");
         t.assertTrue(sk !== null, "skeleton present");
+        var d0 = sk.distance;
 
-        Driver.bot.combat({ mode: "kill", target: { kind: "entity", entityId: sk.id } });   // non-blocking
-        Driver.system.waitTicks({ ticks: 50 });
-
-        var s = Driver.bot.status({}).status.reflexes;
-        var now = Driver.invoke("mc.observe.player", {}).player;
-        var d = dist(now.pos, { x: sx + 0.5, y: sy, z: sz + 0.5 });
-        // A melee bot would have closed to < combatReach (3); the kite backs AWAY,
-        // so distance from the spawn point grows. Drawing slows movement to a crawl,
-        // hence the modest >4 threshold over 50 ticks rather than the full 8.
-        t.assertTrue(d > 4.0, "bot kited away from the skeleton, not into melee (d=" + d.toFixed(1) + ")");
-        t.assertTrue(s.combat.swings >= 1, "drew and released at least one arrow (" + s.combat.swings + ")");
+        var started = Driver.bot.combat({ mode: "kill", target: { kind: "entity", entityId: sk.id } });   // non-blocking
+        var id = started.action.actionId;
+        // Distance to the live target every 5 ticks while the fight is on. Drawing slows movement to a crawl, so
+        // the bar is "out past melee at some point" and "never back closer than the start once 20 ticks in".
+        var samples = [], a = null, maxD = d0, minLate = Infinity;
+        for (var tick = 5; tick <= 60; tick += 5) {
+            Driver.system.waitTicks({ ticks: 5 });
+            a = action(id);
+            var th = Driver.invoke("mc.observe.threats", { radius: 24 }).threats, live = null;
+            for (var i = 0; i < th.length; i++) if (th[i].id === sk.id) live = th[i];
+            if (live === null || a.state !== "running") break;      // the fight is over; what follows is not kiting
+            samples.push(tick + ":" + live.distance.toFixed(1));
+            maxD = Math.max(maxD, live.distance);
+            if (tick >= 20) minLate = Math.min(minLate, live.distance);
+        }
+        var tally = Driver.bot.status({}).status.reflexes.combat;
+        var seen = "d0=" + d0.toFixed(1) + " samples=" + samples.join(",") + " state=" + (a && a.state)
+                + " tally=" + JSON.stringify(tally);
+        t.assertEqual(a.state, "running", "the fight is still on across the window, so it measured kiting: " + seen);
+        t.assertTrue(maxD > 4.0, "the bot backed off past melee range: " + seen);
+        t.assertTrue(minLate >= d0, "once it had backed off it never closed back in toward melee: " + seen);
+        t.assertTrue(tally.swings >= 1, "drew and released at least one arrow: " + seen);
         cleanup();
     });
 
