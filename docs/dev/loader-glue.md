@@ -48,7 +48,7 @@ directly. NeoForge's `FMLClientSetupEvent` runs on a mod-loading worker thread, 
 
 The hooks all run on the render thread and tolerate running before `install()`.
 
-| Hook | Fabric (`WorldDriverFabricClient`, `fabric/.../mixin/client/`) | NeoForge (`WorldDriverNeoForgeClient`) |
+| Hook | Fabric (`WorldDriverFabricClient`, `fabric/.../mixin/client/`) | NeoForge (`WorldDriverNeoForgeClientEvents`, game bus) |
 |---|---|---|
 | `clientTickEnd` (the bot's client tick) | `ClientTickEvents.END_CLIENT_TICK` | `ClientTickEvent.Post` |
 | `clientStopping` (releases the input focus policy) | `ClientLifecycleEvents.CLIENT_STOPPING`, in `Minecraft.destroy` | `GameShuttingDownEvent`, earlier, in `Minecraft.stop()` |
@@ -61,7 +61,13 @@ not used because it can come from a network thread.
 
 Client callbacks never reach a dedicated server: Fabric Loader does not run the `client`
 entrypoint or the mixin config's `client` list there, and NeoForge does not load the
-`Dist.CLIENT` subscriber class.
+`Dist.CLIENT` subscriber classes.
+
+NeoForge's mod-bus setup (`WorldDriverNeoForgeClient`) and game-bus hooks
+(`WorldDriverNeoForgeClientEvents`) are two `@EventBusSubscriber` classes, each naming its bus.
+FML before 21.1.80 registers a whole class on the one bus named (game by default), so a mod-bus
+event in a mixed class fails the mod's load there; newer FML routes by event type and ignores the
+attribute. The testmod's `NeoForgeTestContent` / `NeoForgeTestPlayerEvents` split the same way.
 
 ## Where the two loaders' event semantics still differ
 
@@ -92,7 +98,7 @@ is the identity transform, so the two produce the same text.
 | Entry point | What it keeps | Why |
 |---|---|---|
 | `WorldDriverFabricClient` | The GAME and CHAT message events, including both `_CANCELED` variants | `mc.client.chat.history` must record lines other mods cancelled. The two variants register the same method so they cannot drift. |
-| `WorldDriverNeoForgeClient` | The client chat received event with `receiveCanceled = true` | The same reason, expressed in the platform's own form. |
+| `WorldDriverNeoForgeClientEvents` | The client chat received event with `receiveCanceled = true` | The same reason, expressed in the platform's own form. |
 
 Beyond subscribing the hooks, neither server entry point keeps anything. The factory for
 server-side players and the `/worlddriver server` command subtree live in `common`: such a

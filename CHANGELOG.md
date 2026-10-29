@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-29
 
+- **The NeoForge client loads on every NeoForge 21.1 release again.** On releases before 21.1.80 the
+  client failed to load, because the driver's client entry listened for a mod-bus event and
+  game-bus events from one class and those loaders register a class on a single bus. The entry is
+  now two classes, one per bus.
 - **The build uses Fabric Loom for Fabric and ModDevGradle for NeoForge and the shared modules**,
   instead of Architectury's Gradle plugin. Each loader now compiles the shared code into its own jar.
   What gets installed is the same mod, with three visible differences in the jars:

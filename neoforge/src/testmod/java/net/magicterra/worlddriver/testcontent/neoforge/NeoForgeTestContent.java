@@ -2,24 +2,22 @@ package net.magicterra.worlddriver.testcontent.neoforge;
 
 import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.testcontent.TestPlayerEvents;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
- * The testmod's content on NeoForge: registers the NPCs of {@link NpcContent} and their attributes, and fires
- * {@link TestPlayerEvents} from the login event, which NeoForge posts at the end of {@code PlayerList.placeNewPlayer}.
- * FML finds this class by its annotation in the testmod folded into the driver's mod, and routes each listener to
- * the mod bus or the game bus by its event type.
+ * The testmod's content on NeoForge: registers the NPCs of {@link NpcContent} and their attributes on the mod
+ * bus. FML finds this class by its annotation in the testmod folded into the driver's mod. The game-bus half
+ * is {@link NeoForgeTestPlayerEvents}; the bus is named on both for the same reason as on the driver's own
+ * client entry.
  */
-@EventBusSubscriber(modid = TestMod.MOD_ID)
+@SuppressWarnings("removal")
+@EventBusSubscriber(modid = TestMod.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class NeoForgeTestContent {
     private NeoForgeTestContent() {}
 
@@ -41,10 +39,5 @@ public final class NeoForgeTestContent {
     @SubscribeEvent
     public static void onAttributes(EntityAttributeCreationEvent event) {
         for (NpcContent.Npc<?> npc : NpcContent.ALL) event.put(npc.get(), npc.attributes().build());
-    }
-
-    @SubscribeEvent
-    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) TestPlayerEvents.fireJoin(player);
     }
 }
