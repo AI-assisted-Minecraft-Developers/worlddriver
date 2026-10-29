@@ -53,9 +53,10 @@ dependencies {
     // `:dev` is the named-mappings jar. Not a `mod*` configuration, so loom does not remap
     // it, which is correct: the dev jar is already in the mappings this compile classpath
     // uses. The plain artifact is intermediary and would fail to link.
-    testmodImplementation "net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev"
+    // Not transitive: its POM names worlddriver-api, which is this build's own :api.
+    testmodImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
     // The unit tests see testmod's classes (sourceSets above), so they need what those link against.
-    testImplementation "net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev"
+    testImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
     // The JUnit tests StageWright runs inside the game; its loader jar ships the runtime.
     testmodImplementation platform('org.junit:junit-bom:5.11.3')
     testmodImplementation 'org.junit.jupiter:junit-jupiter-api'
