@@ -174,7 +174,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
     private static Cells cells(Level lvl) {
         return new Cells() {
             @Override public boolean isAir(BlockPos p) { return lvl.getBlockState(p).isAir(); }
-            @Override public boolean isSolid(BlockPos p) { return lvl.getBlockState(p).isSolid(); }
+            @Override public boolean isSolid(BlockPos p) { return PlaceSupport.holds(lvl.getBlockState(p)); }
         };
     }
 
@@ -220,8 +220,8 @@ public final class BackfillProcess implements BotProcess, Navigating {
     }
 
     /** This method's body is line-for-line the twin of {@code BuildProcess#findPlacement} (only its
-     *  comments differ), and it carries the same two gaps — no reach test on the stand it returns,
-     *  and {@code isSolid()} as the support rule. The reasoning is written out once, over there;
+     *  comments differ), and it carries the same gap — no reach test on the stand it returns — and
+     *  the same support rule, {@link PlaceSupport#holds}. The reasoning is written out once, over there;
      *  this pointer exists so the two copies cannot drift into disagreeing about what they know,
      *  which is the failure {@code PlaceNearby}'s header was created to end. Fix one twin, fix both.
      *
@@ -234,8 +234,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(support);
-            if (!ss.isSolid()) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
             BlockPos stand = findStandableNear(lvl, block);
             if (stand == null) continue;
             return new Placement(stand, d.getOpposite());

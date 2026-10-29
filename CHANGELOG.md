@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The swim reflex no longer steers a drowning bot at a bank with lava or fire in its foot or head
   cell.** The shore scan asked about a hazard only in the block below, so lava over stone counted as
   a bank. A pond whose only bank is such a cell now has no shore, and the bot keeps rising instead.
+- **Build, backfill and fill share one support rule for a placed block**, vanilla's `isSolid()`, which
+  they each carried as a copy. No behaviour changes. A unit table now pins it: leaves, dirt path and
+  pressure plates hold a block; a lily pad, carpet, buttons, flowers and torches do not.
 
 ## 2026-10-28
 

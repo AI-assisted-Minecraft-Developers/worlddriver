@@ -234,15 +234,9 @@ public final class BuildProcess implements BotProcess, Navigating {
      * such gate at all. It also notes both of these sneak, costing another 0.35 of eye height that
      * the reach budget would have to carry.
      *
-     * <p>2. <b>{@code ss.isSolid()} is a narrower support rule than the one the repo settled on.</b>
-     * {@code PlaceNearby}'s header records that a stricter support gate was a real defect once
-     * (gap#62: the furnace copy's {@code isFaceSturdy} "wrongly rejects leaf/dirt-path ground"),
-     * and states the rule that replaced it: a full block sits on the top face of ANY non-air,
-     * non-replaceable support, leaves included. {@code isSolid()} is not the predicate that defect
-     * was filed against, so whether it refuses the same supports is UNMEASURED — and measuring it
-     * is the first step of any fix, not a thing to assume in either direction. Note the direction:
-     * a support wrongly refused costs a placement that was available, so this errs toward doing
-     * nothing rather than toward placing somewhere unsafe.
+     * <p>2. <b>The support rule is {@link PlaceSupport#holds}</b>, shared with {@code BackfillProcess},
+     * {@code BboxFillProcess} and {@code PlaceNearby}. It accepts the leaves and dirt path that the
+     * {@code isFaceSturdy} rule of gap#62 wrongly refused; its javadoc has the measured table.
      */
     private Placement findPlacement(Level lvl, BlockPos block) {
         // Each candidate: a SOLID neighbor we can click. The face is THAT neighbor's
@@ -250,8 +244,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(support);
-            if (!ss.isSolid()) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
             // Player needs to stand near `block` AND look at the appropriate face of `support`.
             BlockPos stand = findStandableNear(lvl, block);
             if (stand == null) continue;

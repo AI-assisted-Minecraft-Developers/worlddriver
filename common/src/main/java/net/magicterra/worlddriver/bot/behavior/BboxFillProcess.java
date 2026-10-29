@@ -285,8 +285,7 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(support);
-            if (!ss.isSolid()) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
             return d.getOpposite();
         }
         return null;

@@ -114,13 +114,10 @@ on needs a live A/B with the flag off and on over the same route.
 `PlaceNearby.place` accepts any non-air, non-replaceable support, so it still clicks at a lily pad
 (`ValidationSteps.arena`'s javadoc records one). Tightening it needs a check on both loaders.
 
-### `isSolid()` as a support rule is copied three times
+### The build and backfill stance pickers have no reach test
 
-`BuildProcess`, `BackfillProcess` and `BboxFillProcess` each carry it. `BuildProcess`'s javadoc
-records that this rule is narrower than the one the repository settled on, rejecting leaves and
-dirt paths. Separately, the build and backfill paths choose a stance with no reach test;
-`BboxFillProcess` annotates that difference without fixing it. This is a loosening change, so it
-needs its own check.
+`BuildProcess` and `BackfillProcess` return a stand with no reach test; `BboxFillProcess` gates its
+own on `FILL_STAND_REACH`. Adding one changes two placement paths, so it needs its own check.
 
 ### `BotUtil.canStandHereStatic` has no hazard clause and `WorldView.canStandAt` does
 
