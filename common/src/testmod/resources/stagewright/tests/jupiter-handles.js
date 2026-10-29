@@ -40,6 +40,36 @@ test('a bot joins for the test and holds what it is given', { scene: SCENE }, (t
     t.expect(bot.count('minecraft:diamond')).equals(3);
 });
 
+// A refused call reaches the script's catch with the Java message; what the script does not catch still fails it.
+test('a refused call can be caught and checked', { scene: SCENE }, (t) => {
+    let caught = null;
+    try {
+        t.call('mc.world.block', { pos: { x: 'not a number', y: 0, z: 0 } });
+    } catch (e) {
+        caught = e;
+    }
+    t.expect(caught === null).equals(false);
+    t.expect(typeof caught.message).equals('string');
+    t.expect(caught.message.length > 0).equals(true);
+    t.record('refusal', caught.message);
+});
+
+// A record may be blank, and afterTest runs when the test ends, after the body that registered it.
+const AFTER = 'afterTest runs when the test ends';
+
+test(AFTER, { scene: SCENE }, (t) => {
+    t.record('blank', '');
+    t.afterTest(() => t.step('wd.mark', AFTER + ' / after'));
+    t.afterTest(() => t.step('wd.mark', AFTER + ' / body'));
+});
+
+test('and the marks it left are there in order', { scene: SCENE, dependsOn: [AFTER] }, (t) => {
+    const marks = t.step('wd.marks', {});
+    const body = marks.indexOf(AFTER + ' / body');
+    const after = marks.indexOf(AFTER + ' / after');
+    t.expect(body >= 0 && after > body).equals(true);
+});
+
 test('the client sees the player the server has', { scene: SCENE, requires: 'client' }, (t) => {
     t.expect(t.client().call('mc.client.player', {}).name).equals(t.player().name);
 });

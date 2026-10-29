@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.bot.stagewright.jupiter;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Step;
@@ -17,13 +17,19 @@ public final class YamlJavaSteps {
     /** What a {@code java:} step answers when its method returns an object rather than plain values. */
     public record Found(String type, int y) {}
 
-    private static final Set<String> MARKS = ConcurrentHashMap.newKeySet();
+    private static final List<String> MARKS = new CopyOnWriteArrayList<>();
 
     /** The step {@code wd.mark}: remembers {@code name}, for a Java test to see that a script test before it ran. */
     @Step("wd.mark")
     public static String mark(Object name) {
         MARKS.add(String.valueOf(name));
         return String.valueOf(name);
+    }
+
+    /** The step {@code wd.marks}: every mark taken so far, in the order they were taken. */
+    @Step("wd.marks")
+    public static List<String> marks(Object ignored) {
+        return List.copyOf(MARKS);
     }
 
     /** Whether a script test took {@code wd.mark} with {@code name}. */
