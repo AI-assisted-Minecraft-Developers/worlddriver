@@ -7,55 +7,18 @@ architectury {
     neoForge()
 }
 
-configurations {
-    common {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentNeoForge.extendsFrom common
-
-    shadowBundle {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-    rhinoSource {
-        canBeResolved = true
-        canBeConsumed = false
-        transitive = false
-    }
-}
-
-// Rhino's classes only: its neoforge.mods.toml must not reach the shipped jar.
-tasks.register('rhinoClasses', Jar) {
-    archiveBaseName = 'rhino-classes'
-    destinationDirectory = layout.buildDirectory.dir('rhino')
-    from({ configurations.rhinoSource.collect { zipTree(it) } }) {
-        include 'dev/latvian/mods/rhino/**'
-    }
-}
-
 repositories {
     maven {
         name = 'NeoForged'
         url = 'https://maven.neoforged.net/releases'
     }
-    maven {
-        name = 'latvian-releases'
-        url = 'https://maven.latvian.dev/releases'
-        // Fenced for the reason given in common/build.gradle.
-        content { includeGroup 'dev.latvian.mods' }
-    }
 }
+
+// :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :fabric.
+apply from: rootProject.file('gradle/loader.gradle')
 
 dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
-
-    common(project(path: ':api', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':api', configuration: 'transformProductionNeoForge')
-    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
     // The StageWright mod reaches the runs that start from the testmod source set through the StageWright
     // plugin's own remap configuration, the root's `stagewright { tests { } }` declaring this project a loader.
@@ -64,12 +27,6 @@ dependencies {
     // put the whole test harness inside the shipped worlddriver jar and forced the driver to
     // forward server lifecycle into it. StageWright is its own mod — its neoforge module ships a
     // neoforge.mods.toml — and it depends on worlddriver, not the other way round.
-
-    // Rhino (KubeJS fork): `implementation` is the dev/compile classpath; the shipped jar gets a
-    // relocated, metadata-free copy of its classes (rhinoClasses, below), never a nested mod.
-    implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
-    rhinoSource "dev.latvian.mods:rhino:$rootProject.rhino_version"
-    shadowBundle files(rhinoClasses)
 
     // netty-codec-http for WebSocket support. NeoForge's ModuleClassLoader will
     // NOT see plain `implementation` jars at runtime (FML only discovers mods,
@@ -80,29 +37,9 @@ dependencies {
     // See https://docs.architectury.dev/loom/using_libraries
     include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     forgeRuntimeLibrary "io.netty:netty-codec-http:$rootProject.netty_version"
+    // :common's WebSocket code is compiled here now.
+    compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
 
-}
-
-// testmod source set: the NeoForge registration of the test content (src/testmod), and the bridge that
-// folds :common's testmod output into worlddriver's dev-run module (the loom mods{} block below) for the runs whose `source`
-// it is, which the StageWright suites' runs are. It compiles against :common's testmod output;
-// evaluationDependsOn forces :common to configure first so its sourceSets.testmod is resolvable here.
-//
-// :common's testmod output is DELIBERATELY NOT on runtimeClasspath: at RUNTIME :common's testmod is
-// delivered by the loom `mods { named('main') { sourceSet ..., project(':common') } }`
-// block below, which folds its output into worlddriver's fml.modFolders group (one
-// module, unioned with the moved-package's siblings in :common main). Putting it on
-// runtimeClasspath too would ALSO expose it as a bare -classpath dir that FML's
-// userdev locator re-packages into a second synthetic module (generated_XXX) — and
-// two modules exporting net.magicterra.worlddriver.bot.stagewright is a hard
-// java.lang.module.ResolutionException at boot (ModuleLayerHandler).
-// Compile-only stays dev-only and never reaches any jar/publication.
-evaluationDependsOn(':common')
-sourceSets {
-    testmod {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + project(':common').sourceSets.testmod.output
-        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
-    }
 }
 
 processResources {
@@ -127,27 +64,11 @@ processResources {
 }
 
 shadowJar {
-    // Rhino is shaded and relocated so KubeJS's copy cannot change WorldDriver's scripts;
-    // netty-codec-http stays nested (Jar-in-Jar).
-    relocate 'dev.latvian.mods.rhino', 'net.magicterra.worlddriver.shadow.rhino'
-    configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
 }
 
 remapJar {
     inputFile.set shadowJar.archiveFile
-}
-
-// The binary bundles :api and :common, so their sources ship here too, or this jar would not be the source
-// of the one published beside it. The manifest and licence texts are this jar's own.
-sourcesJar {
-    [':api', ':common'].each { path ->
-        def bundled = project(path).tasks.named('sourcesJar', Jar)
-        dependsOn bundled
-        from(bundled.flatMap { it.archiveFile }.map { zipTree(it) }) {
-            exclude 'META-INF/MANIFEST.MF', 'META-INF/COPYING', 'META-INF/COPYING.LESSER'
-        }
-    }
 }
 
 loom {
@@ -160,27 +81,14 @@ loom {
         accessTransformer file("src/main/resources/META-INF/accesstransformer.cfg")
     }
 
-    // Attach the testmod source set to the mod FML scans, so :common's
-    // test classes and their service entries are discovered as
-    // part of worlddriver (no separate mods.toml). architectury-loom EAGERLY registers a
-    // default dev-run mod named "main" (the main source set) during plugin apply, before
-    // this script body runs — so we must CONFIGURE that existing "main" mod, not create a
-    // second one. (Declaring a new `worlddriver` mod instead produces two MOD_CLASSES
-    // groups — main-only "main" + main+testmod "worlddriver" — and FML resolves the
-    // duplicate mods.toml to the main-only group, silently dropping testmod. Verified via
-    // the launch MOD_CLASSES env + "Found mod file main" in the boot log.)
+    // The testmod joins the mod FML scans, so the test classes and their service entries are part of worlddriver:
+    // a bare -classpath dir would be a second module, and two modules exporting one package fail at boot.
+    // architectury-loom registers the default `main` mod before this script runs, so it is configured, not created.
+    // Per-run scoping holds: loom emits modFolders only for source sets on a run's classpath, so `server`
+    // (no `source testmod`) never receives the test content.
     mods {
         named('main') {
             sourceSet sourceSets.testmod
-            // :common's testmod (the in-game tests, the test content and their service files).
-            // A bare -classpath dir is auto-moduled by FML on a layer worlddriver does not read,
-            // so ServiceLoader in the mod's context would not see its service files; loom's
-            // `sourceSet(SourceSet, Project)` folds it into worlddriver's fml.modFolders group
-            // instead. Its packages must stay disjoint from :common main's, which is its own dev
-            // module: two modules exporting one package is a ResolutionException at boot.
-            // Per-run scoping holds: loom emits modFolders only for source sets on a run's
-            // classpath, so `server` (no `source testmod`) never receives the test content.
-            sourceSet project(':common').sourceSets.testmod, project(':common')
         }
     }
     runs {
@@ -193,4 +101,3 @@ loom {
         vmArg '-Xmx2g'
     }
 }
-

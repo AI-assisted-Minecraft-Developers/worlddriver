@@ -9,52 +9,12 @@ architectury {
     fabric()
 }
 
-configurations {
-    common {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentFabric.extendsFrom common
-
-    shadowBundle {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-    rhinoSource {
-        canBeResolved = true
-        canBeConsumed = false
-        transitive = false
-    }
-}
-
-// Rhino's classes only: its fabric.mod.json / mods.toml must not reach the shipped jar.
-tasks.register('rhinoClasses', Jar) {
-    archiveBaseName = 'rhino-classes'
-    destinationDirectory = layout.buildDirectory.dir('rhino')
-    from({ configurations.rhinoSource.collect { zipTree(it) } }) {
-        include 'dev/latvian/mods/rhino/**'
-    }
-}
-
-repositories {
-    maven {
-        name = 'latvian-releases'
-        url = 'https://maven.latvian.dev/releases'
-        // Fenced for the reason given in common/build.gradle.
-        content { includeGroup 'dev.latvian.mods' }
-    }
-}
+// :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :neoforge.
+apply from: rootProject.file('gradle/loader.gradle')
 
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
     modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
-
-    common(project(path: ':api', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':api', configuration: 'transformProductionFabric')
-    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
     // The StageWright mod reaches the runs that start from the testmod source set through the StageWright
     // plugin's own remap configuration, the root's `stagewright { tests { } }` declaring this project a loader.
@@ -64,12 +24,6 @@ dependencies {
     // forward server lifecycle into it. StageWright is its own mod — its fabric module ships a
     // fabric.mod.json — and it depends on worlddriver, not the other way round.
 
-    // Rhino (KubeJS fork): `implementation` is the dev/compile classpath; the shipped jar gets a
-    // relocated, metadata-free copy of its classes (rhinoClasses, below), never a nested mod.
-    implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
-    rhinoSource "dev.latvian.mods:rhino:$rootProject.rhino_version"
-    shadowBundle files(rhinoClasses)
-
     // netty-codec-http for WebSocket support. Fabric loader doesn't isolate
     // libraries the way NeoForge does, so plain `implementation` is enough at
     // runtime; `include` nests it (Jar-in-Jar) inside the prod jar.
@@ -77,19 +31,6 @@ dependencies {
     include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     implementation "io.netty:netty-codec-http:$rootProject.netty_version"
 
-}
-
-// testmod source set: the Fabric registration of the test content (src/testmod), and the bridge that
-// carries :common's testmod output onto the runs whose `source` it is (labClient below, and the StageWright suites' runs); the other
-// runs keep `main` and never see the test content. Fabric has no module layer, so unlike NeoForge the
-// output can go straight onto the runtime classpath. evaluationDependsOn(':common') makes :common's
-// sourceSets.testmod resolvable here.
-evaluationDependsOn(':common')
-sourceSets {
-    testmod {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + project(':common').sourceSets.testmod.output
-        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output + project(':common').sourceSets.testmod.output
-    }
 }
 
 // Fabric writes a range as space-joined predicates, not a Maven interval: `[1.21.1,1.22)` is
@@ -128,27 +69,11 @@ processResources {
 }
 
 shadowJar {
-    // Rhino is shaded and relocated so KubeJS's copy cannot change WorldDriver's scripts;
-    // netty-codec-http stays nested (Jar-in-Jar).
-    relocate 'dev.latvian.mods.rhino', 'net.magicterra.worlddriver.shadow.rhino'
-    configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
 }
 
 remapJar {
     inputFile.set shadowJar.archiveFile
-}
-
-// The binary bundles :api and :common, so their sources ship here too, or this jar would not be the source
-// of the one published beside it. The manifest and licence texts are this jar's own.
-sourcesJar {
-    [':api', ':common'].each { path ->
-        def bundled = project(path).tasks.named('sourcesJar', Jar)
-        dependsOn bundled
-        from(bundled.flatMap { it.archiveFile }.map { zipTree(it) }) {
-            exclude 'META-INF/MANIFEST.MF', 'META-INF/COPYING', 'META-INF/COPYING.LESSER'
-        }
-    }
 }
 
 loom {
@@ -158,35 +83,12 @@ loom {
     // what makes Fabric Loader apply it at runtime in production.
     accessWidenerPath = project(":common").loom.accessWidenerPath
 
-    // Groups :common's testmod output under the worlddriver mod (classPathGroups, mixin/refmap
-    // ownership). It only groups entries already on a run's classpath, so runs from `main` still
-    // carry no test content.
-    //
-    // FABRIC-vs-NEOFORGE DIFFERENCE (found empirically, documented per the brief):
-    // neoforge/build.gradle can write `mods { named('main') { … } }` because architectury's
-    // neoForge() setup EAGERLY registers the default "main" mod during plugin apply. fabric()
-    // does NOT — loom only creates "main" lazily in an afterEvaluate fallback (Loom
-    // CompileConfiguration: `if (getMods().isEmpty()) create("main").sourceSet(main)`), which
-    // runs AFTER this script body, so `named('main')` here throws "ModSettings with name 'main'
-    // not found". We therefore replicate loom's own default explicitly — maybeCreate('main')
-    // + attach the main source set — then add :common's testmod. Creating the entry ourselves
-    // also makes the container non-empty, so loom's isEmpty() fallback is a no-op (no double
-    // registration).
+    // Fabric Loom creates its default `main` mod only when the build declares none, after this script, so the
+    // entry is made here. The testmod joins it; it only groups entries already on a run's classpath, so runs
+    // from `main` still carry no test content.
     mods {
         def mainMod = maybeCreate('main')
         mainMod.sourceSet sourceSets.main
-        // :common's MAIN, so the access widener declared in fabric.mod.json is inside
-        // the worlddriver mod container during DEV runs. The production jar was never
-        // the problem — shadowJar merges :common's resources, and the remapped jar does
-        // carry the widener. Dev is different: FabricLoaderImpl.loadAccessWideners()
-        // resolves the name against the MOD's own roots, not the run classpath, and
-        // those roots come from this block. Without this line the server dies at boot
-        // with "Missing accessWidener file worlddriver.accesswidener from mod
-        // worlddriver".
-        mainMod.sourceSet project(':api').sourceSets.main, project(':api')
-        mainMod.sourceSet project(':common').sourceSets.main, project(':common')
-        mainMod.sourceSet project(':common').sourceSets.testmod, project(':common')
-        // This module's own testmod: the Fabric registration of the test content and its service file.
         mainMod.sourceSet sourceSets.testmod
     }
     runs {

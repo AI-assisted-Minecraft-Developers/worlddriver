@@ -1,0 +1,106 @@
+// Applied by each loader project: it compiles :api's and :common's sources itself, so its own jar holds every
+// class it ships and no other project's jar is transformed or merged into it. See docs/dev/build.md.
+evaluationDependsOn(':api')
+evaluationDependsOn(':common')
+def api = project(':api')
+def common = project(':common')
+
+configurations {
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    rhinoSource {
+        canBeResolved = true
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+repositories {
+    maven {
+        name = 'latvian-releases'
+        url = 'https://maven.latvian.dev/releases'
+        // Fenced for the reason given in common/build.gradle.
+        content { includeGroup 'dev.latvian.mods' }
+    }
+}
+
+// Rhino's classes only: its fabric.mod.json / mods.toml must not reach the shipped jar.
+def rhinoClasses = tasks.register('rhinoClasses', Jar) {
+    archiveBaseName = 'rhino-classes'
+    destinationDirectory = layout.buildDirectory.dir('rhino')
+    from({ configurations.rhinoSource.collect { zipTree(it) } }) {
+        include 'dev/latvian/mods/rhino/**'
+    }
+}
+
+dependencies {
+    // :api's @Spec bindings are generated wherever its sources are compiled (docs/dev/java-api.md).
+    annotationProcessor project(':api-processor')
+
+    // Rhino (KubeJS fork): `implementation` is the dev/compile classpath; the shipped jar gets a relocated,
+    // metadata-free copy of its classes (rhinoClasses, above), never a nested mod.
+    implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    rhinoSource "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    shadowBundle files(rhinoClasses)
+}
+
+// Added to the compile task rather than as source directories, so an IDE does not give one directory to two modules.
+tasks.named('compileJava', JavaCompile) {
+    source(api.sourceSets.main.java)
+    source(common.sourceSets.main.java)
+}
+// :common's resources as a source directory: loom gives a refmap only to the mixin configs it finds in one.
+sourceSets.main.resources.srcDir(common.file('src/main/resources'))
+tasks.named('processResources', ProcessResources) {
+    dependsOn api.tasks.named('generateApiArtifacts')
+    with common.generatedApiResources
+}
+
+// testmod: :common's loader-free tests and test content, compiled here with this loader's own registration of it.
+sourceSets {
+    testmod {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+tasks.named('compileTestmodJava', JavaCompile) {
+    source(common.sourceSets.testmod.java)
+}
+tasks.named('processTestmodResources', ProcessResources) {
+    from(common.sourceSets.testmod.resources)
+    // Both testmods may name providers of one service: one file listing all of them, not the last one copied.
+    def services = [:]
+    filesMatching('META-INF/services/*') { details ->
+        services.computeIfAbsent(details.path) { [] } << details.file.text.trim()
+        details.exclude()
+    }
+    doLast {
+        services.each { path, parts ->
+            def merged = new File(destinationDir, path)
+            merged.parentFile.mkdirs()
+            merged.text = parts.join('\n') + '\n'
+        }
+        services.clear()
+    }
+}
+
+shadowJar {
+    // Rhino is shaded and relocated so KubeJS's copy cannot change WorldDriver's scripts;
+    // netty-codec-http stays nested (Jar-in-Jar).
+    relocate 'dev.latvian.mods.rhino', 'net.magicterra.worlddriver.shadow.rhino'
+    configurations = [project.configurations.shadowBundle]
+}
+
+// The binary holds :api's and :common's classes, so their sources ship here too, or this jar would not be the source
+// of the one published beside it. :api's sources jar has the generated bindings; :common's resources are already in
+// this one. The manifest and licence texts are this jar's own.
+tasks.named('sourcesJar', Jar) {
+    def bundled = api.tasks.named('sourcesJar', Jar)
+    dependsOn bundled
+    from(bundled.flatMap { it.archiveFile }.map { zipTree(it) }) {
+        exclude 'META-INF/MANIFEST.MF', 'META-INF/COPYING', 'META-INF/COPYING.LESSER'
+    }
+    from(common.sourceSets.main.java)
+}

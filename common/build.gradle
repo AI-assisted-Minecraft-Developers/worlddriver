@@ -153,8 +153,8 @@ def checkSkillManual = tasks.register('checkSkillManual') {
 }
 tasks.named('check') { dependsOn checkSkillManual }
 
-tasks.named('processResources') {
-    dependsOn generateApiArtifacts
+// The generated files the mod jar carries; each loader's processResources takes them too.
+ext.generatedApiResources = copySpec {
     from(generatedApiDir) {
         include 'driver-api.js'
         into 'data/worlddriver/scripts/generated'
@@ -163,4 +163,8 @@ tasks.named('processResources') {
         exclude 'driver-api.js', 'skill-methods.md'
         into 'worlddriver-api'
     }
+}
+tasks.named('processResources') {
+    dependsOn generateApiArtifacts
+    with generatedApiResources
 }
