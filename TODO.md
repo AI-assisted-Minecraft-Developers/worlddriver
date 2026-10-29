@@ -28,11 +28,6 @@ Planned in `ROADMAP.md`.
 `check_baseline_coverage.py` read settings in a form the code no longer has and was deleted. The remaining guard,
 `GameTestBaselineManifestTest`, covers what the baseline sets, not that some test exercises the shipped value.
 
-### Eight stacked doc comments on master
-
-`scripts/check_stacked_javadoc.py` fails on eight places in `bot/control/`, `BotTaskService` and `BotUtil` where
-javac keeps only the second of two doc comments.
-
 ## Engine and mod code
 
 ### The ranged kite sometimes barely backs off
@@ -45,13 +40,6 @@ range". The other four passed. Find what holds the drawing bot near the skeleton
 
 `MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time
 (< 2000 ms) that load inflates. Measure it in something load can't inflate.
-
-### The MCP server's HTTP dispatcher outlives the server
-
-A finished dedicated server's JVM does not end by itself; one holder is the JDK `HTTP-Dispatcher`
-thread of `McpServer`'s HttpServer. `McpServer.close()` exists but nothing calls it
-(`WorldDriverCommon` only detaches the server). The executor is already daemon; the fix is to stop
-the HTTP server at JVM or driver shutdown.
 
 ### Out of blocks one course under a two-high bank, the bot goes back into the water
 
@@ -199,32 +187,11 @@ The deep-water drift brake drops sprint when deep water lies within 1.5 cells al
 windows. Deliberately deferred; the reasoning is in `WorldModel.dayPhase`'s javadoc. Reopen when
 the dusk-securing chain's firing window changes.
 
-### Four line samplers share one piece of arithmetic
-
-`losWalkable`, `straightLineBias`, `straightLineDanger` and `isOpenWaterLine` compute the same step
-count and interpolation, and `NavigatorInspector.planSpans` and `PreviewSearch.polylineCells` are
-near copies. Extract only the per-step cell computation, not an iterator returning a list.
-Allocation is expensive by count inside a sliced search's tick budget.
-
 ### Client-avatar actions have no client-thread guard
 
 `ClientPlayerBody`'s `useItemInHand`, `continueDestroy`, hold, slot, container-click,
 recipe-placement and attack methods have no client-thread guard, unlike `clientUseItemOn`. No
 current caller reaches them off-thread. Add the guard, or an assertion, before anything does.
-
-### The farm process's break timeout is a private constant
-
-Sixty ticks, hard-coded, not wired to the configured break timeout.
-
-### `isFalling(Level, BlockPos)` exists three times, verbatim
-
-In the bunker, descend and escape processes. Do not merge it into the world view's falling-block
-check: that one reads through a view which may belong to another dimension. A shared static helper
-is safe but buys three lines each.
-
-### Two `fail(...)` helpers take a state parameter they never use
-
-In the craft and smelt processes.
 
 ### Reach radii differ by call site
 
