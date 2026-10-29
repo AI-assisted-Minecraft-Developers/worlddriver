@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **A script can call methods on a map whose keys are not strings.** The script engine looked every
+  property name up as a key of a Java map before it looked for a method, and a typed map such as
+  fastutil's `Int2ObjectMap` refuses a text key with an error, so `map.size()` or
+  `map.int2ObjectEntrySet()` threw. A name the map cannot hold as a key is now looked up as a method or
+  field; a map that can hold it still answers its entry first, as before.
+
 - **`mc.system.version` answers the mod's real version.** It answered a fixed `0.1.0-dev` on every
   build, and the MCP handshake's server version with it. Both now answer the version the mod loader
   lists for WorldDriver, the one in `fabric.mod.json` or `neoforge.mods.toml`, which the build fills

@@ -104,6 +104,17 @@ class HostedScriptsTest {
         assertTrue(built instanceof StringBuilder sb && sb.toString().equals("abc"), String.valueOf(built));
     }
 
+    /** A map whose keys are not strings still has methods: looking a member name up as a key must not throw. */
+    @Test
+    void aMethodOnAnIntKeyedMapIsCallable() {
+        // Entries go in by index: put has int, Integer and Object overloads, which Rhino cannot choose between.
+        String make = "var M = Java.type('it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap'); var m = new M();"
+                + " m[3] = 'three';";
+        Object size = scripts.evaluate("int-map.js", make + " m.int2ObjectEntrySet().size() + m.size()", Map.of());
+        assertEquals(2.0, ((Number) size).doubleValue());
+        assertEquals("three", String.valueOf(scripts.evaluate("int-map-key.js", make + " String(m[3])", Map.of())));
+    }
+
     @Test
     void anUnknownClassIsCatchable() {
         Object caught = scripts.evaluate("unknown.js",
