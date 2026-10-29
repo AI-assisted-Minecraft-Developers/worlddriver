@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import net.magicterra.worlddriver.bot.StatusView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
@@ -173,5 +174,24 @@ class DuskSecureLifecycleTest {
         assertFalse(DuskSecureChain.startGateBlocks(true, true, SurvivalFacts.cornered(hf), chain.rearmPendingForTest()),
                 "gap#75-b: duskSecure preempted mid-dig never re-arms — its own unsealed shaft reads cornered and the"
                         + " start-gate self-vetoes for the rest of the night (rearmPending=" + chain.rearmPendingForTest() + ")");
+    }
+
+    /** While dusk-securing holds the bunker, status shows the bunker's phase beside the chain's episode. */
+    @Test
+    void theHeldBunkersPhaseReachesTheChainsStatus() {
+        BotState st = new BotState();
+        DuskSecureChain chain = new DuskSecureChain(st, new WorldModel());
+        ProcessScheduler sched = new ProcessScheduler();
+        sched.register(chain);
+        assertEquals(java.util.Optional.empty(), StatusView.chains(sched).get("duskSecure").detail(), "nothing held yet");
+
+        BunkerProcess held = new BunkerProcess(3);
+        held.attach(st);
+        chain.adoptProcessForTest(held);
+        assertEquals("DIG_DOWN", chain.heldProcessDetail());
+        assertEquals(java.util.Optional.of("DIG_DOWN"), StatusView.chains(sched).get("duskSecure").detail());
+
+        chain.cancelEpisodeState("x");
+        assertNull(chain.heldProcessDetail(), "a dropped process reports no phase");
     }
 }

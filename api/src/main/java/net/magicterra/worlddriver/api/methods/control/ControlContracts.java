@@ -174,7 +174,8 @@ public final class ControlContracts {
     public record ChainState(
             @Doc("Its bid on the last tick; the highest steers.") double priority,
             Optional<String> episode,
-            Optional<Bail> bail) {}
+            Optional<Bail> bail,
+            @Doc("The phase of the process the chain holds, e.g. bunker DIG_DOWN.") Optional<String> detail) {}
 
     @Named("CombatTally")
     public record CombatTally(

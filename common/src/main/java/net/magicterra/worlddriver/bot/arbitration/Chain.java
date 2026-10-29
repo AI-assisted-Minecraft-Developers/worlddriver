@@ -94,4 +94,10 @@ public interface Chain {
      * {@link #cancelEpisode}, i.e. the unified {@link ChainProcessLifecycle} drop.
      */
     default String heldProcessKind() { return null; }
+
+    /**
+     * {@code statusDetail()} of the process this chain holds, or null. The user task's own phase is
+     * {@code activeProcessDetail}; this is the one a chain's process reports beside the chain's episode.
+     */
+    default String heldProcessDetail() { return null; }
 }

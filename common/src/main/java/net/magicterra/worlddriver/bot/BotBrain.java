@@ -762,6 +762,8 @@ public final class BotBrain {
             if (ep != null) one.put("episode", ep);
             ProcessScheduler.Bail bail = scheduler.bailOf(ch);
             if (bail != null) one.put("bail", Map.of("reason", bail.reason(), "ticksLeft", bail.ticksLeft()));
+            String detail = ch.heldProcessDetail();
+            if (detail != null) one.put("detail", detail);
             chains.put(ch.name(), one);
         }
         snap.put("chains", chains);
@@ -773,14 +775,7 @@ public final class BotBrain {
 
     public ControlContracts.BotStatus botStatus(String id) {
         BotProcess c = userTask.process();
-        Map<String, ControlContracts.ChainState> chains = new LinkedHashMap<>();
-        Map<String, Float> prios = scheduler.lastPriorities();
-        for (Chain ch : scheduler.chains()) {
-            Float pr = prios.get(ch.name());
-            ProcessScheduler.Bail bail = scheduler.bailOf(ch);
-            chains.put(ch.name(), new ControlContracts.ChainState(pr == null ? 0 : pr, Optional.ofNullable(ch.episodePhase()),
-                    bail == null ? Optional.empty() : Optional.of(new ControlContracts.Bail(bail.reason(), bail.ticksLeft()))));
-        }
+        Map<String, ControlContracts.ChainState> chains = StatusView.chains(scheduler);
         NavigatorTelemetry.PathStats ps = lastPathStats();
         Optional<ControlContracts.PathStats> lastPath = ps == null ? Optional.empty()
                 : Optional.of(new ControlContracts.PathStats(ps.expanded(), ps.ms(), ps.goalReached(), ps.finalCost(), ps.pathLen(),

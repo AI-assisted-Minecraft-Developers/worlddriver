@@ -538,6 +538,8 @@ public final class RetreatChain implements Chain {
      *  just the user-verb slot. */
     @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
 
+    @Override public String heldProcessDetail() { return process != null ? process.statusDetail() : null; }
+
     /** gap#68-⑦: reach the flee latch even with no process (e.g. mid-preempt,
      *  {@code process == null} while a higher chain steers) so cancel is idempotent
      *  and fully stops the reflex from re-arming. */

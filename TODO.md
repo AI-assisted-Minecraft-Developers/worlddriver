@@ -217,11 +217,6 @@ count and interpolation, and `NavigatorInspector.planSpans` and `PreviewSearch.p
 near copies. Extract only the per-step cell computation, not an iterator returning a list.
 Allocation is expensive by count inside a sliced search's tick budget.
 
-### `activeProcessDetail` is null while the dusk-securing chain owns the bunker
-
-`activeProcessDetail` reads only the foreground user task, so while `DuskSecureChain` runs its own
-`BunkerProcess` the status shows `chains.duskSecure.episode = SECURING` but never the bunker's sub-phase.
-
 ### Client-avatar actions have no client-thread guard
 
 `ClientPlayerBody`'s `useItemInHand`, `continueDestroy`, hold, slot, container-click,

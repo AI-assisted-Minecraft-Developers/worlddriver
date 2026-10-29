@@ -2725,6 +2725,8 @@ interface ChainState {
     priority: number;
     episode?: string;
     bail?: ChainBail;
+    /** The phase of the process the chain holds, e.g. bunker DIG_DOWN. */
+    detail?: string;
 }
 interface PathStats { expanded: number; ms: number; goalReached: boolean; finalCost: number; pathLen: number; sightBudgetExhausted: boolean; snapshotTruncated: boolean; }
 type ClutchPhase = 'idle' | 'lip' | 'falling';

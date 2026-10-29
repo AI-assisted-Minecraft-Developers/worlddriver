@@ -239,6 +239,8 @@ public final class DuskSecureChain implements Chain {
      *  found the (unrelated, usually idle) BunkerChain. */
     @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
 
+    @Override public String heldProcessDetail() { return process != null ? process.statusDetail() : null; }
+
     @Override public void cancelEpisode(Body body, String reason) {
         cancelEpisodeState(reason);
         if (body != null) body.releaseControls();

@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A creative bot that takes a block or item out of its bag for a build, fill, farm or tower now does it
   through the body's own swap.** It used `Inventory.pickSlot`, which moved the hand without telling the
   other side, so the server and the adopted player's client could hold different slots.
+- **`mc.bot.status` names the phase of a process a chain holds, in `reflexes.chains.<name>.detail`.**
+  While dusk-securing ran its own bunker, status showed `episode: SECURING` and never the bunker's phase
+  (`DIG_DOWN` … `SEALED`), because `activeProcessDetail` describes only the user's task, and stays so.
+  The field is optional and present only while a chain holds a process that reports a phase.
 
 ## 2026-10-28
 
