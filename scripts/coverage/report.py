@@ -30,11 +30,12 @@ except ImportError:
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CLI = os.path.join(ROOT, ".local/jacoco/org.jacoco.cli-0.8.12-nodeps.jar")
 OUT = os.path.join(ROOT, "coverage-out")
-# IMPORTANT: report against the classes the game JVM ACTUALLY loaded — the
-# architectury-transformer agent rewrites every :common class at load time, so
-# build/classes ids never match (silent 0% across the board, 2026-07-19). The
-# jacoco agent's `classdumpdir=` option dumps the post-transform bytes; point
-# CLASSES there (override via COVERAGE_CLASSES env if needed).
+# Report against the classes the game JVM actually loaded: the jacoco agent's
+# `classdumpdir=` option dumps them; point CLASSES there (override via
+# COVERAGE_CLASSES env if needed). This was mandatory while the Architectury
+# transformer rewrote every :common class at load time (build/classes ids never
+# matched: silent 0% across the board, 2026-07-19). Without it the loader's own
+# build/classes should match too, but no coverage run has confirmed that yet.
 CLASSES = os.environ.get("COVERAGE_CLASSES",
                          os.pathsep.join(p for p in (os.path.join(OUT, "classes-t0"),
                                                      os.path.join(OUT, "classes-t1"))
