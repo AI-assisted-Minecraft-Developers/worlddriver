@@ -205,7 +205,11 @@ naming a bot from `mc.bot.status`; with a bot other than `self`, the call goes d
 path that names no client class at all, which is why the same verbs answer for server-side
 players on a dedicated server. `mc.bot.status` itself works everywhere, and `mc.bot.roster`
 adds and removes bots: `op: 'spawn'` with a `name` joins a server-side player as
-`player:<name>`, at `pos` in `dimension` or at the world spawn. The exceptions —
+`player:<name>`, at `pos` in `dimension`. The same name is the same player every time, so a
+name this world has seen before comes back with what it had; given no `pos`, it also comes
+back where it was when it last left or the server last saved, in that dimension, and only a
+name with nothing saved starts at the world spawn. A `pos` always wins and moves it there.
+`op: 'remove'` saves the player on its way out, as a disconnect does. The exceptions —
 `equip`, `setting`, `waypoint` and `playbook` — take no `bot` and are client-only. A
 server-side player has the same reflexes as your own, switched on by the same settings. A bot
 that is not a player entity has no hands, so a task or a hand verb that needs them is refused

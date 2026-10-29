@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-30
+
+- **A bot spawned again by name comes back where it was.** `mc.bot.roster spawn` with no `pos` used to put
+  a returning name at the world spawn, so a bot kept across a restart, or removed and spawned again, got
+  its bag and health back but not its place. Now, with no `pos`, a name this world has saved data for
+  stands where that save left it and in that dimension; only a name with nothing saved starts at the
+  world spawn. A `pos` still moves it there, and a `dimension` other than the saved one is honoured as
+  before, at the world spawn when no `pos` comes with it. `remove` already saved the player on its way
+  out, as a disconnect does, so a remove and spawn within one game returns it to the same spot.
+
 ## 2026-10-29
 
 - **A script can catch what a Java function it was handed throws.** Such an exception left the engine

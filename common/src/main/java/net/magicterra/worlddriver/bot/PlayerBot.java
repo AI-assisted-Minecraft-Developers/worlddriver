@@ -10,8 +10,11 @@ import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 
@@ -61,9 +64,11 @@ public class PlayerBot extends ServerBot {
         return new PlayerBot(ServerPlayerBody.createUnique(level, x, y, z));
     }
 
-    /** A driver over the player named {@code name} ({@link ServerPlayerBody#createNamed}), addressed by that name. */
-    public static PlayerBot createNamed(ServerLevel level, String name, double x, double y, double z) {
-        return new PlayerBot(ServerPlayerBody.createNamed(level, name, x, y, z)).named(name);
+    /** A driver over the player named {@code name} ({@link ServerPlayerBody#createNamed}, which says where it
+     *  stands when {@code level} or {@code pos} is null), addressed by that name. */
+    public static PlayerBot createNamed(MinecraftServer server, String name, @Nullable ServerLevel level,
+                                        @Nullable Vec3 pos) {
+        return new PlayerBot(ServerPlayerBody.createNamed(server, name, level, pos)).named(name);
     }
 
     /**

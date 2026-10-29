@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -19,6 +20,7 @@ import net.magicterra.worlddriver.api.methods.action.ActionContracts.CommandResu
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlBlockingApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
@@ -34,6 +36,7 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -104,6 +107,64 @@ class AvatarTest {
                 .roster(new ControlContracts.Spawn(bot.name(), Optional.empty(), Optional.empty()));
         assertTrue(again instanceof Responses.Refused<?> refused && refused.reason() == RefusalReason.INVALID_WORLD_TARGET,
                 "a second bot under the name " + bot.name() + " was not refused: " + again);
+    }
+
+    /**
+     * Removing a bot saves its player as a disconnect does, so spawning the name again with no {@code pos} finds it
+     * where it left, in the dimension it left from; a {@code pos} still moves it.
+     */
+    @Test
+    void aBotSpawnedAgainByNameStandsWhereItLeft(Game game, @Plot.Centered Plot plot,
+                                                 @Plot.In("minecraft:the_nether") Plot nether) {
+        plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
+        nether.fill(0, 0, 0, 2, 0, 2, Blocks.STONE);
+        Settings.pin(game);
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
+        BlockPos away = nether.at(1, 1, 1);
+        bot.moveTo(Level.NETHER, away);
+        ControlBlockingApi control = game.api(ControlBlockingApi::of);
+        assertTrue(control.roster(new ControlContracts.Remove(bot.ref())) instanceof Responses.Rostered, "remove");
+
+        String back = game.onServer(s -> where(s, control, bot.name(), Optional.empty()));
+        assertEquals(Level.NETHER.location() + " " + Vec3.atBottomCenterOf(away), back,
+                "spawned again with no pos, the bot is not where it was removed");
+        assertTrue(control.roster(new ControlContracts.Remove(bot.ref())) instanceof Responses.Rostered, "remove");
+
+        BlockPos asked = plot.at(1, 1, 1);
+        String moved = game.onServer(s -> where(s, control, bot.name(), Optional.of(Targets.pos(asked))));
+        assertEquals(Level.OVERWORLD.location() + " " + Vec3.atBottomCenterOf(asked), moved, "a pos did not move it");
+    }
+
+    /** A bot left somewhere in one game, for {@link #andIsThereAfterARestart}. */
+    @Test
+    void aBotIsLeftSomewhere(Game game, @Plot.Centered Plot plot) {
+        // Not a SceneBot name: those count from 1 again in every game, and the next game must not reuse this one.
+        String name = "wdLeftBehind";
+        ControlBlockingApi control = game.api(ControlBlockingApi::of);
+        String left = game.onServer(s -> where(s, control, name, Optional.of(Targets.pos(plot.at(2, 1, -2)))));
+        assertTrue(control.roster(new ControlContracts.Remove("player:" + name)) instanceof Responses.Rostered, "remove");
+        game.store().put("leftBot", name);
+        game.store().put("leftAt", left);
+    }
+
+    /** The save outlives the game: a restarted server spawns the name where the last game left it. */
+    @Test
+    @DependsOn(value = "aBotIsLeftSomewhere", afterRestart = true)
+    void andIsThereAfterARestart(Game game) {
+        String name = game.store().get("leftBot", String.class);
+        ControlBlockingApi control = game.api(ControlBlockingApi::of);
+        String back = game.onServer(s -> where(s, control, name, Optional.empty()));
+        control.roster(new ControlContracts.Remove("player:" + name));
+        assertEquals(game.store().get("leftAt", String.class), back, "after a restart the bot is not where it was left");
+    }
+
+    /** Spawn {@code name} and read where it stands in the same server task, before any tick can move it. */
+    private static String where(MinecraftServer server, ControlBlockingApi control, String name,
+                                Optional<CommonTypes.BlockPosition> pos) {
+        Responses.ImmediateResponse r = control.roster(new ControlContracts.Spawn(name, Optional.empty(), pos));
+        if (!(r instanceof Responses.Rostered)) fail("mc.bot.roster spawn " + name + " answered " + r);
+        ServerPlayer p = server.getPlayerList().getPlayerByName(name);
+        return p.level().dimension().location() + " " + p.position();
     }
 
     /**

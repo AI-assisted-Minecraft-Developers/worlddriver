@@ -119,7 +119,7 @@ public final class BotCommand {
             BotTicker.register(current);
             what = "a server-side agent";
         } else {
-            switch (Roster.spawn(level, p, name)) {
+            switch (Roster.spawn(level.getServer(), level, p, name)) {
                 case Roster.Refusal r -> {
                     src.sendFailure(Component.literal("worlddriver server: " + r.message()));
                     return 0;

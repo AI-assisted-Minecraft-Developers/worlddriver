@@ -123,11 +123,15 @@ final class ControlService implements ControlApi {
             MinecraftServer server = app.server();
             Roster.Outcome out = switch (op) {
                 case ControlContracts.Spawn s -> {
-                    ResourceLocation dim = ResourceLocation.parse(s.dimension().orElse("minecraft:overworld"));
-                    ServerLevel level = server.getLevel(ResourceKey.create(Registries.DIMENSION, dim));
-                    if (level == null) yield new Roster.Refusal("no dimension " + dim, false);
-                    BlockPos at = s.pos().map(Positions::blockPos).orElseGet(level::getSharedSpawnPos);
-                    yield Roster.spawn(level, Vec3.atBottomCenterOf(at), s.name());
+                    // Both left null when omitted: Roster.spawn decides between the bot's save and the world spawn.
+                    ServerLevel level = null;
+                    if (s.dimension().isPresent()) {
+                        ResourceLocation dim = ResourceLocation.parse(s.dimension().get());
+                        level = server.getLevel(ResourceKey.create(Registries.DIMENSION, dim));
+                        if (level == null) yield new Roster.Refusal("no dimension " + dim, false);
+                    }
+                    Vec3 at = s.pos().map(p -> Vec3.atBottomCenterOf(Positions.blockPos(p))).orElse(null);
+                    yield Roster.spawn(server, level, at, s.name());
                 }
                 case ControlContracts.Adopt a -> {
                     Entity e = null;

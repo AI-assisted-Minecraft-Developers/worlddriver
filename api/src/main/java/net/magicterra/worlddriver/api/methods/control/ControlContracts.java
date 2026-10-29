@@ -285,8 +285,10 @@ public final class ControlContracts {
     @Variant("spawn")
     public record Spawn(
             @Doc("The bot is player:<name>.") @BotName String name,
-            @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension,
-            @Doc("Omitted: the world spawn.") Optional<BlockPosition> pos) implements RosterOp {}
+            @Doc("Omitted: the saved one when pos is omitted too, else minecraft:overworld.")
+            Optional<@ResourceId String> dimension,
+            @Doc("Omitted: where the bot's save left it (if dimension is omitted or the saved one), else the world "
+                    + "spawn. Given: it is moved there.") Optional<BlockPosition> pos) implements RosterOp {}
     @Variant("adopt")
     public record Adopt(
             @Doc("The mob to take over.") @EntityId int entityId,

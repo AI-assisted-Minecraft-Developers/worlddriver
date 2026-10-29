@@ -1970,9 +1970,9 @@ type RosterParams =
     | { op: 'spawn';
         /** The bot is player:<name>. */
         name: string;
-        /** Omitted: minecraft:overworld. */
+        /** Omitted: the saved one when pos is omitted too, else minecraft:overworld. */
         dimension?: string;
-        /** Omitted: the world spawn. */
+        /** Omitted: where the bot's save left it (if dimension is omitted or the saved one), else the world spawn. Given: it is moved there. */
         pos?: BlockPosition;
     }
     | { op: 'adopt';

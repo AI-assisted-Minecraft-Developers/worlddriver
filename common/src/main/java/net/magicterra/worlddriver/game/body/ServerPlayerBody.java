@@ -1,8 +1,11 @@
 package net.magicterra.worlddriver.game.body;
 
 import net.magicterra.worlddriver.config.GameConfig;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Predicate;
+import org.jetbrains.annotations.Nullable;
 
 import com.mojang.authlib.GameProfile;
 import net.magicterra.worlddriver.config.Mod;
@@ -10,6 +13,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -17,6 +21,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -157,12 +162,34 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * A bot player whose in-game name is {@code name}, with the UUID an offline-mode server gives that name, so the
      * same name is the same player every time: selectors and {@code /data get entity <name>} find it, and after a
      * restart it is the player it was. The join loads whatever the world saved for that UUID (bag, health, game
-     * mode, effects) as it does for any player; a name never seen in this world joins fresh. The caller checks the
-     * name is not already on the server.
+     * mode, effects, and where it stood) as it does for any player; a name never seen in this world joins fresh. The
+     * caller checks the name is not already on the server.
+     *
+     * <p>Where it ends up: at {@code pos} in {@code level} when {@code pos} is given. With no {@code pos}, a player
+     * that has a save stays where the save left it, provided {@code level} is null or the save's own dimension;
+     * otherwise it goes to the world spawn of {@code level}, or of the overworld when {@code level} is null.
      */
-    public static ServerPlayerBody createNamed(ServerLevel level, String name, double x, double y, double z) {
+    public static ServerPlayerBody createNamed(MinecraftServer server, String name, @Nullable ServerLevel level,
+                                               @Nullable Vec3 pos) {
         GameProfile profile = new GameProfile(UUIDUtil.createOfflinePlayerUUID(name), name);
-        return init(level, JoinedPlayers.BOTS.unique(level, profile), x, y, z);
+        // Asked before the join, because the join is what the save is read by, and the player list writes one on
+        // the way out (PlayerList.remove saves, as for a disconnect), so after it there always is one.
+        boolean saved = hasSave(server, profile);
+        ServerLevel join = level != null ? level : server.overworld();
+        ServerPlayer fp = JoinedPlayers.BOTS.unique(join, profile);
+        if (saved && pos == null && (level == null || level == fp.serverLevel())) {
+            fp.setDeltaMovement(Vec3.ZERO);
+            return new ServerPlayerBody(fp);
+        }
+        Vec3 at = pos != null ? pos : Vec3.atBottomCenterOf(join.getSharedSpawnPos());
+        return init(join, fp, at.x, at.y, at.z);
+    }
+
+    /** Whether this world holds player data for {@code profile}, in the file vanilla's player storage reads. */
+    private static boolean hasSave(MinecraftServer server, GameProfile profile) {
+        Path dir = server.getWorldPath(LevelResource.PLAYER_DATA_DIR);
+        String id = profile.getId().toString();
+        return Files.isRegularFile(dir.resolve(id + ".dat")) || Files.isRegularFile(dir.resolve(id + ".dat_old"));
     }
 
     private static ServerPlayerBody init(ServerLevel level, ServerPlayer fp, double x, double y, double z) {
