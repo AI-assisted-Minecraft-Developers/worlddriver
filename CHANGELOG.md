@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   While dusk-securing ran its own bunker, status showed `episode: SECURING` and never the bunker's phase
   (`DIG_DOWN` … `SEALED`), because `activeProcessDetail` describes only the user's task, and stays so.
   The field is optional and present only while a chain holds a process that reports a phase.
+- **A server-side bot's dig follows the player's rules for drops and wear.** It breaks through its own
+  game mode, as a connected player's break does, instead of `Level#destroyBlock`, which dropped the plain
+  harvest whatever was held. A bare-handed or wrong-tool dig of a block that needs a tool now breaks it
+  and drops nothing (obsidian by fist, iron ore with a wooden pickaxe), Silk Touch and Fortune apply, and
+  tools wear and break. A bot in creative drops nothing, as a player does. Scenes and runs that relied on
+  the free harvest bank less than before.
 
 ## 2026-10-28
 

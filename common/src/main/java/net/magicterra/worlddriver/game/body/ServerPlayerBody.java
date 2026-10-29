@@ -296,16 +296,11 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * started dropping their harvest it genuinely was optional: nothing the avatar broke produced
      * anything, so which tool was held could not change an outcome.
      *
-     * <p><b>What it does and does not decide today.</b> It decides break SPEED, through
-     * {@code getDestroyProgress} on the {@code faithfulBreak} path. It does <b>not</b> decide
-     * drops, and an earlier revision of this comment claimed it did — wrongly.
-     * {@code Level#destroyBlock} hands {@code Block.dropResources} a literal
-     * {@code ItemStack.EMPTY} as the tool and never looks at the hand, so on this avatar's default
-     * (instant) break path every block yields its plain, unenchanted harvest no matter what is
-     * held. That is more generous than survival, not less: the wrong-tool case cannot be the
-     * reason a bag comes back empty. Restoring the real rule means breaking through
-     * {@code fp.gameMode.destroyBlock} — see {@code DROP_HARVEST} for why that has not been done
-     * as a drive-by.
+     * <p><b>What it decides.</b> Break SPEED, through {@code getDestroyProgress} on the
+     * {@code faithfulBreak} path, and since breaks go through {@code fp.gameMode.destroyBlock}, the
+     * DROP as well: the held stack decides whether a block that needs a tool yields anything, Silk
+     * Touch and Fortune apply, and the tool wears. A wrong tool here is now a reason a bag comes back
+     * empty, as it is for a player.
      *
      * <p><b>Ranking is the client's rule, minus Efficiency.</b> A candidate wins if it is
      * correct-for-drops when the current pick is not, or if it is equally correct and faster —
@@ -533,7 +528,14 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // Solid as the pathfinder's views read it: the block stops motion.
         Predicate<BlockPos> solid = c -> fp.level().getBlockState(c).blocksMotion();
         double soleBefore = loggedDugOwnFloor ? 0.0 : BodyGeometry.soleOnSolid(solid, fp);
-        fp.level().destroyBlock(target, DROP_HARVEST, fp);
+        // Through the player's own game mode, as a connected player's break arrives: the break event, the tool
+        // requirement for drops, Silk Touch and Fortune through Block#playerDestroy with the real held stack, and
+        // tool wear through ItemStack#mineBlock. Level#destroyBlock (what this was) dropped through
+        // Block.dropResources(..., ItemStack.EMPTY): obsidian by fist, no enchantments, tools that never wore.
+        // Drops matter at all because this player is meant to gather: a break that dropped nothing once left
+        // MineProcess circling a drop that did not exist. In creative the game mode removes without dropping,
+        // as it does for a player, so a scene that banks what it digs pins survival.
+        fp.gameMode.destroyBlock(target);
         if (soleBefore <= 0.0) return;
         if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) return;
         loggedDugOwnFloor = true;
@@ -549,7 +551,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Can a player standing here actually break that block?
      *
-     * <p>{@code Level#destroyBlock} has no reach gate and no visibility gate, so without this the
+     * <p>{@code ServerPlayerGameMode.destroyBlock} has no reach gate and no visibility gate (the packet
+     * handler that a connected player's break passes through first has the reach one), so without this the
      * avatar mines through solid rock. That is not merely unfaithful — it is the reason a
      * playthrough could not gather buried ore. Measured on {@code wd.serverMineHarvestBuried}: the
      * bot broke two ores under an intact floor and both drops landed in a sealed 1×1×1 pocket,
@@ -586,50 +589,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         double reach = fp.blockInteractionRange() + 0.5;
         return fp.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
     }
-
-    /**
-     * Whether a block this avatar breaks drops its harvest, as {@code Level#destroyBlock}'s second
-     * argument.
-     *
-     * <p>{@code true}, because that is what happens when a player in survival breaks a block, and
-     * this avatar is meant to be a player. It was {@code false} at both call sites — an unexplained
-     * literal, and almost certainly a leftover from when this class only ever dug THROUGH terrain to
-     * open a path, where drops are litter.
-     *
-     * <p><b>What that cost.</b> A server-side agent could mine all day and acquire nothing: the
-     * block vanished and no {@code ItemEntity} was ever created, so {@code MineProcess} met its
-     * broken-block quota, entered its COLLECT phase and walked laps around a drop that did not
-     * exist. Paired with the missing entity-touch loop (vanilla's, in {@code Player.aiStep}) it meant
-     * <b>no material could be gathered on the headless path at all</b> — which is every rung of a
-     * playthrough. Neither gap was visible to the 222 scenes that were green over them, because none
-     * of them asserted that an item reached the inventory; the one named for it,
-     * {@code wd.serverCombatCollectDrops}, passes when the bot merely ends within two blocks of a
-     * drop it did not have to collect. The wood stage of the journey ladder asked for one log and got
-     * zero.
-     *
-     * <p><b>Blast radius, stated rather than hidden.</b> Every arena where the avatar digs now
-     * produces item entities, and — because pickup works now too — the avatar may end a scene
-     * holding what it dug. That can change behaviour, not just bookkeeping: {@code holdPlaceable()}
-     * selects the first placeable in the hotbar, so a bot that has just picked up the dirt it
-     * tunnelled through can start PLACING where it previously had nothing to place. This is the
-     * faithful behaviour and the client path has always had it; scenes written against the old
-     * silent-break avatar are the ones that have to move.
-     *
-     * <p><b>Still not the player's rule, and knowing which way it errs matters.</b>
-     * {@code Level#destroyBlock} drops through {@code Block.dropResources(..., ItemStack.EMPTY)}:
-     * no tool requirement, no Silk Touch, no Fortune, no tool durability spent. So this avatar
-     * currently harvests obsidian with its fists and diamonds with a wooden pickaxe. For a driver
-     * whose job is to tell a modpack author what a player would experience, that is a fidelity
-     * hole on the critical path — the survival ladder's obsidian rung is exactly a
-     * wrong-tool-must-fail case. The faithful route is {@code fp.gameMode.destroyBlock(pos)}
-     * ({@code ServerPlayerGameMode}), which gates the drop on
-     * {@code player.hasCorrectToolForDrops}, passes the real held stack to
-     * {@code Block#playerDestroy}, and calls {@code ItemStack#mineBlock} so tools wear out. It is
-     * left for a change of its own because it moves a requirement, not a bug: every arena where
-     * the avatar digs bare-handed keeps breaking blocks (removal is not tool-gated) but stops
-     * banking them, so the scenes that quietly rely on free harvest have to be found first.
-     */
-    private static final boolean DROP_HARVEST = true;
 
     @Override public boolean breakHeld() { return breakHeld; }
 

@@ -64,7 +64,7 @@ public interface BlockInteraction {
      * <p>Asked BEFORE aiming, so a digger can peel what is in the way instead of swinging at
      * something it will never hit. The client answer is {@code true}: vanilla's own game mode owns
      * reach and the crosshair raycast, and second-guessing it here would only disagree with the
-     * game. The server answer is real, because {@code Level#destroyBlock} enforces nothing — see
+     * game. The server answer is real, because the game mode's {@code destroyBlock} checks no reach — see
      * {@code ServerPlayerBody}, where a bot mining through solid rock sealed its own drops
      * into pockets nothing could collect.
      */

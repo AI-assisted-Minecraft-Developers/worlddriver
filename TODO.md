@@ -306,10 +306,6 @@ It moves the client's `selected` and two stacks locally, with neither a carried-
 vanilla's `ServerboundPickItemPacket`. The other writers are `ClientInput.setHotbarSlot`,
 `BotInteract.selectHotbar` and `ServerPlayerBody.carryTo`.
 
-### Digging fidelity on the server-side avatar
-
-Bare-handed obsidian breaks, silk touch does not apply, and tools take no durability.
-
 ### Pitch is written outside the look controller
 
 About twenty sites write pitch directly. Parity doc "Breaking, placing and reach".

@@ -220,7 +220,7 @@ player more power.
 
 | Behaviour | A connected player | A driven bot | Status |
 |---|---|---|---|
-| Breaking a block | the server's game mode applies the tool requirement, Silk Touch, Fortune, `Block#playerDestroy` and tool wear | the server-side player calls `Level#destroyBlock` directly, so none of those rules apply and the block yields its plain unenchanted harvest whatever is held | `Open` |
+| Breaking a block | the server's game mode applies the tool requirement, Silk Touch, Fortune, `Block#playerDestroy` and tool wear | the server-side player breaks through its own game mode's `destroyBlock`, so the same rules apply: bare-handed obsidian breaks and drops nothing, Silk Touch and Fortune apply, and the tool wears. In creative it drops nothing, as a player does. Only the packet handler's reach check is skipped, replaced by the row below | `Parity` |
 | Break duration | progress accumulates per tick and the not-on-ground and underwater penalties apply | the server-side player destroys in one tick unless `ServerPlayerBody.faithfulBreak` is set, which two scenes do and nothing in production does | `Open` |
 | Break reach and visibility | the crosshair raycast, plus the server's distance check | the server-side player requires the target to have at least one face that is not a full solid render, and the eye-to-centre distance to be within the bot's own interaction range plus half a block. It does not raycast | `Approximate`, deliberately |
 | Break reach on the client player | the crosshair raycast and the server's distance check | the client player answers "yes" to every cell and lets vanilla's own game mode decide, because second-guessing it there could only disagree with the game | `Accepted` |
