@@ -1,1 +1,4 @@
 topology: dedicatedServerWithClient
+# A mod neither game has: excluding it must be reported for each game, not refused.
+mods:
+  exclude: [no-such-mod-for-this-check]
