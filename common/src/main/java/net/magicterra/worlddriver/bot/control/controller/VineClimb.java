@@ -127,6 +127,8 @@ public final class VineClimb implements Controller {
     }
 
     @Override
+    // The vine tick is one ordered decision chain (free hang, wall-backed, legacy) that shares its locals.
+    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -187,7 +189,7 @@ public final class VineClimb implements Controller {
         // off-axis drift is corrected without the camera lag mis-aiming a raw forward press. Wall-
         // backed cells (wallYaw!=null) hand back to the wall-press path to top out + step off.
         boolean freeHang = ControlConfig.navigatorVineFreeHangClimb && wallYaw == null && climbUp;
-        float vYaw;
+        float climbYaw;
         boolean pressForward = false; // for the wall-backed / legacy path below
         boolean freeHangDrive = false; // true → horizontal driven by commandMove (decoupled)
         float fhBearing = 0f; // radians; world bearing to the climb target
@@ -201,7 +203,7 @@ public final class VineClimb implements Controller {
             if (tx * tx + tz * tz < 0.04) {
                 // wp is DIRECTLY above (within 0.2 block): atan2 of a ~zero vector is pure noise.
                 // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.
-                vYaw = p.getYRot();
+                climbYaw = p.getYRot();
                 freeHangDrive = false;
                 freeHangDriveYaw = Float.NaN; // resync the slew when a real bearing returns
             } else {
@@ -222,20 +224,20 @@ public final class VineClimb implements Controller {
                 }
                 freeHangDrive = true;
                 fhBearing = (float) Math.toRadians(freeHangDriveYaw); // drive along the slewed heading
-                vYaw = freeHangDriveYaw; // camera follows the same slewed heading
+                climbYaw = freeHangDriveYaw; // camera follows the same slewed heading
             }
         } else if (wallYaw != null) {
-            vYaw = wallYaw;
+            climbYaw = wallYaw;
             pressForward = climbUp;
         } else if (vdx * vdx + vdz * vdz < YAW_DEADZONE_SQ) {
-            vYaw = p.getYRot();
+            climbYaw = p.getYRot();
             pressForward = climbUp;
         } else {
-            vYaw = (float) Math.toDegrees(Math.atan2(-vdx, vdz));
+            climbYaw = (float) Math.toDegrees(Math.atan2(-vdx, vdz));
             pressForward = climbUp;
         }
-        if (Math.abs(angleDiff(p.getYRot(), vYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
-            float want = smoothAngle(p.getYRot(), vYaw);
+        if (Math.abs(angleDiff(p.getYRot(), climbYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
+            float want = smoothAngle(p.getYRot(), climbYaw);
             float dyaw = angleDiff(p.getYRot(), want);
             if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
                 dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
@@ -290,5 +292,7 @@ public final class VineClimb implements Controller {
     }
 
     @Override
-    public void stop(String why) {}
+    public void stop(String why) {
+        // No state of its own to clear on stop.
+    }
 }

@@ -97,12 +97,9 @@ public final class NavigatorGeometry {
      * fix.
      */
     public static boolean floodedShaft(WorldView world, BlockPos dest) {
-        if (!world.isWater(dest)) {
-            return false;
-        }
         // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
         // Floating higher is physically impossible there, so the bot must crest and place.
-        return !(ControlConfig.navigatorPillarSurfacePlace && !world.isWater(dest.above()));
+        return world.isWater(dest) && !(ControlConfig.navigatorPillarSurfacePlace && !world.isWater(dest.above()));
     }
 
     /**
@@ -176,6 +173,7 @@ public final class NavigatorGeometry {
         return w.isWater(foot) && !w.isWater(head) && w.isPassable(head) && !w.isHazard(foot) && !w.isHazard(head);
     }
 
+    /** Shortest signed angle in degrees between two headings, as {@code Mth.degreesDifference} computes it. */
     public static float angleDiff(float a, float b) {
         return Mth.degreesDifference(a, b);
     }
@@ -357,11 +355,11 @@ public final class NavigatorGeometry {
      *   held at -7,64,16          87             5
      * </pre>
      *
-     * 146 of the released hops are ones the ring would have held (123 at ring 2, 23 at ring 1), and the deterministic
-     * stall — the same coordinates every ~30 s for three minutes — is gone. Zero deaths in either arm. ⚠️ The treatment
-     * arm also ran LONGER (16214 ticks against 14478 / 14609 / 15019 for three control runs); that is one sample
-     * against three and is recorded, not explained — this rung is known to produce different colours from the same
-     * command.
+     * <p>146 of the released hops are ones the ring would have held (123 at ring 2, 23 at ring 1), and the
+     * deterministic stall — the same coordinates every ~30 s for three minutes — is gone. Zero deaths in either arm. ⚠️
+     * The treatment arm also ran LONGER (16214 ticks against 14478 / 14609 / 15019 for three control runs); that is one
+     * sample against three and is recorded, not explained — this rung is known to produce different colours from the
+     * same command.
      *
      * <p><b>What is NOT measured, and must not be written up as if it were.</b> That same run produced <b>no</b> firing
      * hop pointed AT a lethal cell, so the death side has no direct sample. It rests on two independent

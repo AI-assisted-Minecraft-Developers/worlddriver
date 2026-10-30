@@ -189,7 +189,7 @@ public final class Digging {
      *       Surface-bobbing digs refill air at the bob peaks, so they are judged by the effort ceiling alone.
      * </ol>
      *
-     * Callers poison the cell (TTL) so the very next search routes around.
+     * <p>Callers poison the cell (TTL) so the very next search routes around.
      *
      * <p>CLIENT-SIDE ONLY: the estimate models the vanilla client mining loop (per-tick destroyProgress, zeroed on
      * interruption). Server avatars break through their own simplified fast path, so gating them on the vanilla

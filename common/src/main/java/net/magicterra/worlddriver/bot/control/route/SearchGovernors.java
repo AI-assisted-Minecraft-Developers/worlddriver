@@ -77,6 +77,7 @@ public final class SearchGovernors {
         return futileLatchFoot != null && futileLatchFoot.distSqr(foot) <= 4;
     }
 
+    /** Clears the dead-zone, futility and quick-search state, and the no-path wait. */
     public void reset() {
         deadZoneRepeats = 0;
         deadZoneFoot = null;

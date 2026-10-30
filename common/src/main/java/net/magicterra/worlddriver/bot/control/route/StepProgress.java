@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+/** Progress state for the node the bot is walking toward: its closest approach and the stuck-step windows. */
 public final class StepProgress {
     public double bestStepDist =
             Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
@@ -22,6 +23,7 @@ public final class StepProgress {
     // the wedge
     // timer but a slow water cruise along a long string-pulled edge does
 
+    /** Clears the closest-approach and stuck-step windows so the next node is judged from fresh readings. */
     public void restartWindows() {
         bestStepDist = Double.POSITIVE_INFINITY;
         stuckStep = -1;

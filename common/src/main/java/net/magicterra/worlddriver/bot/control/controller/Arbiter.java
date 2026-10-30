@@ -35,6 +35,7 @@ public final class Arbiter {
 
     private final Controller[] owner = new Controller[Channel.values().length];
 
+    /** Orders the controllers by priority; the sort is stable, so equal priorities keep the order given. */
     public Arbiter(List<Controller> all) {
         controllers.addAll(all);
         controllers.sort(Comparator.comparingInt(Controller::priority));
@@ -44,11 +45,13 @@ public final class Arbiter {
     }
 
     /** One tick of the lifecycle; returns the channels taken this tick. */
+    // The stop chain names its reasons in the order they are checked, so its negated guard reads as the reason itself.
+    @SuppressWarnings("PMD.ConfusingTernary")
     public Set<Channel> tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         for (Controller c : controllers) {
             c.sense(nav, cx, world);
         }
-        EnumSet<Channel> taken = EnumSet.noneOf(Channel.class);
+        Set<Channel> taken = EnumSet.noneOf(Channel.class);
         Arrays.fill(owner, null);
         for (int i = 0; i < controllers.size(); i++) {
             Controller c = controllers.get(i);
@@ -113,7 +116,7 @@ public final class Arbiter {
      * LOOK=recovery JUMP=recovery HANDS=- | recovery running 3/42}.
      */
     public String snapshot() {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(128);
         for (Channel ch : Channel.values()) {
             Controller c = owner[ch.ordinal()];
             if (sb.length() > 0) {

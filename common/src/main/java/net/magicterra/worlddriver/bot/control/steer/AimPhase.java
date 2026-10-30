@@ -65,6 +65,8 @@ import net.minecraft.world.entity.LivingEntity;
  * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class AimPhase {
+    /** Zero-decimal number format for log lines. */
+    private static final String FMT0 = "%.0f";
 
     /** How far past a lone +1 step node the aim point sits, along the planned approach. */
     private static final double LOOK_THROUGH = 1.5;
@@ -206,7 +208,7 @@ public final class AimPhase {
      * circling its node one cell out: the slow alpha can never catch a bearing that rotates at its own convergence
      * rate. Dry only — water has its own drive heading.
      */
-    private float smoothingAlpha(Navigator nav, LivingEntity p, boolean trendCam, float targetYaw) {
+    private float smoothingAlpha(LivingEntity p, boolean trendCam, float targetYaw) {
         float alpha = trendCam ? (float) ControlConfig.navigatorDescentYawAlpha : YAW_SMOOTH_ALPHA;
         AimSmoothing a = aimSmooth;
         float turn = Float.isNaN(a.orbitLastYaw) ? 0f : angleDiff(a.orbitLastYaw, p.getYRot());
@@ -239,9 +241,9 @@ public final class AimPhase {
         if (GameConfig.navigatorDebug && !a.orbitBreaking) {
             LOG.info(
                     "[navigator] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
-                    String.format("%.0f", err),
+                    String.format(FMT0, err),
                     a.orbitTicks,
-                    String.format("%.0f", a.orbitWinding));
+                    String.format(FMT0, a.orbitWinding));
         }
         a.orbitBreaking = true;
         return YAW_SMOOTH_ALPHA;
@@ -255,6 +257,8 @@ public final class AimPhase {
      * 2060°, most of it under this aim. A point past the node keeps the same line while it stays far enough not to
      * swing.
      */
+    // null is the "no look-through point" answer, and the caller tests for it; an empty array would read as an answer.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
         BlockPos prev = nav.route.path().get(nav.route.step() - 1);
         double ux = wp.getX() - prev.getX();
@@ -322,6 +326,8 @@ public final class AimPhase {
      * with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still passes: walking
      * round the cliff staircase's side steps cost it 2 s a run.
      */
+    // null means "any cell may be beside a rise", which besideAny tests for; an empty list would mean none may.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
         if (!ControlConfig.navigatorAvoidLoneRisers) {
             return null;
@@ -430,6 +436,8 @@ public final class AimPhase {
      * its corner) walked the parallel into a trunk the line itself clears: R1 1483,66,-312, 17 contacts in six runs.
      * Aiming back at the line first walks around it.
      */
+    // null is the "no reachable aim point" answer, and the caller tests for it; an empty array would read as an answer.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private double[] reachableAim(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         PathProjection pr = nav.progress.arc.proj;
         int i = Math.min(pr.aheadNode, nav.route.path().size() - 1);
@@ -549,11 +557,11 @@ public final class AimPhase {
     }
 
     /**
-     * navigatorTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the path (a smoothed
-     * route whose first hop is a diagonal off the start, a shove, a corner cut) walks PARALLEL to it and never rejoins
-     * — measured in {@code wd.routeStaysOutOfSkeletonSight}: perp 1.4 held for 20 cells, the bot in the open while the
-     * route it was given ran in the wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on
-     * the path the two bearings coincide, so the tuned tangent cruise is unchanged there.
+     * {@code navigatorTangentPursuit}: the bare tangent carries no cross-track term, so a bot that is off the path (a
+     * smoothed route whose first hop is a diagonal off the start, a shove, a corner cut) walks PARALLEL to it and never
+     * rejoins — measured in {@code wd.routeStaysOutOfSkeletonSight}: perp 1.4 held for 20 cells, the bot in the open
+     * while the route it was given ran in the wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead
+     * instead; on the path the two bearings coincide, so the tuned tangent cruise is unchanged there.
      */
     private float tangentOrPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
         return offPathPursuit(nav, p, launch, foot)
@@ -614,18 +622,23 @@ public final class AimPhase {
                 : foot;
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The aim decision is one long run over the tick's inputs, each step using the ones before it; it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = ascentAimFoot(nav, p, cx.frame.foot, cx.edges.wp);
-        Move.Edge edge = cx.edges.edge;
+        final Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;
         boolean parkourEdge = cx.edges.parkourEdge;
-        boolean bridging = cx.edges.bridging;
-        boolean placingEdge = cx.edges.placingEdge;
-        boolean steppingOffFall = cx.edges.steppingOffFall;
-        boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
+        final boolean bridging = cx.edges.bridging;
+        final boolean placingEdge = cx.edges.placingEdge;
+        final boolean steppingOffFall = cx.edges.steppingOffFall;
+        final boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         // Aim at a line-of-sight carrot further along the (now string-pulled)
@@ -991,8 +1004,8 @@ public final class AimPhase {
                     if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
-                                String.format(Locale.ROOT, "%.0f", rnb),
-                                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                                String.format(Locale.ROOT, FMT0, rnb),
+                                String.format(Locale.ROOT, FMT0, p.getYRot()),
                                 rn.getX(),
                                 rn.getY(),
                                 rn.getZ(),
@@ -1012,8 +1025,8 @@ public final class AimPhase {
                     if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
-                                String.format(Locale.ROOT, "%.0f", targetYaw),
-                                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                                String.format(Locale.ROOT, FMT0, targetYaw),
+                                String.format(Locale.ROOT, FMT0, p.getYRot()),
                                 nav.stuckTicks);
                     }
                 }
@@ -1210,7 +1223,7 @@ public final class AimPhase {
             aimSmooth.smoothTargetYaw = targetYaw;
             aimSmooth.reversalStreak = 0;
         } else {
-            float alpha = smoothingAlpha(nav, p, trendCam, targetYaw);
+            float alpha = smoothingAlpha(p, trendCam, targetYaw);
             // (An antipode EMA-snap here — snap after 6 consecutive >170° ticks —
             // was tried and REVERTED: it regressed wd.vineOverWaterClimb and
             // wd.bridgeStepTwoBypassNoPlace, where per-repath ±180° target flips
@@ -1317,8 +1330,8 @@ public final class AimPhase {
                             aimSmooth.frozenStallTicks,
                             String.format("%.1f", p.getX()),
                             String.format("%.1f", p.getZ()),
-                            String.format("%.0f", aimSmooth.smoothTargetYaw),
-                            String.format("%.0f", targetYaw));
+                            String.format(FMT0, aimSmooth.smoothTargetYaw),
+                            String.format(FMT0, targetYaw));
                 }
                 aimSmooth.smoothTargetYaw = targetYaw;
                 aimYaw = targetYaw;
@@ -1431,7 +1444,7 @@ public final class AimPhase {
         // checked HEADING — so a drift-off-column / sharp-turn arrival bob-jammed the
         // step. Gate both forward (keyUp) and the step jump on this. Excludes parkour
         // and water (own handling; launches snap heading so the error is ≈0 anyway).
-        float stepHeadingErr = stepHeadingErr(p, aimYaw, targetYaw);
+        final float stepHeadingErr = stepHeadingErr(p, aimYaw, targetYaw);
         // STEP-UP FREEZE BREAKER (cur2≈0.64 ram): a dry stepUp/diagUp that has dwelt
         // past STEPUP_FREEZE_TICKS without closing on its node, while laterally CLOSE to
         // the step column, is ramming the riser — the close-node bearing swings on every
@@ -1453,7 +1466,7 @@ public final class AimPhase {
         // frees it (live 2026-06-15 (2366,62,1875): x frozen at the bank, y bobbing
         // 62↔64, 212 ticks onG=true inW=true). Grounded-in-water IS the shallow bank
         // case — admit it so the grounded jump + forward mounts the step, like dry.
-        boolean shallowBankStep = p.onGround() && p.isInWater();
+        final boolean shallowBankStep = p.onGround() && p.isInWater();
         // Bob-immune ram counter (live #47 R2: -706,85 dry stepUp + -723,63 shallow-water bank, both
         // ~16-24s creep): the noStepProgressTicks gate below is reset by the vertical bob toward an
         // above-node (line ~1506, wd2 includes wdy), so a misaligned/shallow step creeps for seconds
@@ -1514,7 +1527,7 @@ public final class AimPhase {
                         || ramFold.ascentRamBobTicks > STEPUP_FREEZE_TICKS
                         || ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        boolean pivotForStepUp = wp.getY() > foot.getY()
+        final boolean pivotForStepUp = wp.getY() > foot.getY()
                 && !parkourEdge
                 && !p.isInWater()
                 && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG
@@ -1532,7 +1545,7 @@ public final class AimPhase {
         boolean descendLeap = edge != null && edge.move != null && edge.move.startsWith("parkourDescend");
         double landDx = wp.getX() + 0.5 - p.getX();
         double landDz = wp.getZ() + 0.5 - p.getZ();
-        boolean descendBrake = descendLeap
+        final boolean descendBrake = descendLeap
                 && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4; // within ~1.2 block of landing center
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----

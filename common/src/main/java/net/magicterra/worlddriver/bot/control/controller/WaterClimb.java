@@ -49,6 +49,9 @@ import net.minecraft.world.entity.LivingEntity;
  * <p>Its state is its own fields below; what it reads about the climb context each tick is computed in {@link #sense},
  * whether it runs or not.
  */
+// Every field below is read and written as nav.waterClimb.<name> from this class; PMD does not follow that qualified
+// access, so it reports the fields as unused.
+@SuppressWarnings("PMD.UnusedPrivateField")
 public final class WaterClimb implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.allOf(Channel.class);
@@ -229,7 +232,9 @@ public final class WaterClimb implements Controller {
         return Integer.MAX_VALUE;
     }
 
+    // The sense pass is one ordered run of reads and latch updates over the climb context, so it stays in one method.
     @Override
+    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"})
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -314,7 +319,7 @@ public final class WaterClimb implements Controller {
         } else if (nav.waterClimb.touchRecent > 0) {
             nav.waterClimb.touchRecent--;
         }
-        boolean nearWater = touchingWater || nav.waterClimb.touchRecent > 0;
+        final boolean nearWater = touchingWater || nav.waterClimb.touchRecent > 0;
         if (wantClimbNow) {
             nav.waterClimb.wantClimbRecent = WANT_CLIMB_STICKY;
         } else if (nav.waterClimb.wantClimbRecent > 0) {
@@ -555,14 +560,13 @@ public final class WaterClimb implements Controller {
             }
         }
         // The takeover let go this tick (or never ran): the bank dig may take it.
-        if (whyNoDig(nav) != null) {
-            return false;
-        }
-        return bankDigTick(nav, a, world, p, foot);
+        return whyNoDig(nav) == null && bankDigTick(nav, a, world, p, foot);
     }
 
     @Override
-    public void stop(String why) {}
+    public void stop(String why) {
+        // No state of its own to clear on stop.
+    }
 
     /**
      * Why the bank dig may not fire this tick, or null when it may.
@@ -797,9 +801,9 @@ public final class WaterClimb implements Controller {
             }
         }
         BlockPos[] cands = {
-            dx != 0 || dz != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
-            dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
-            dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null
+            dx == 0 && dz == 0 ? null : new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz),
+            dx == 0 ? null : new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()),
+            dz == 0 ? null : new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz)
         };
         // Dig the forward column's LOWEST solid cell ABOVE the waterline — a DRY notch
         // whose floor (the cell below it) stays solid, so the bob-jump can ground on
@@ -887,13 +891,7 @@ public final class WaterClimb implements Controller {
      * and the next rung is what matters.
      */
     private static void climboutPlaceTick(
-            Navigator nav,
-            Body a,
-            WorldView world,
-            LivingEntity p,
-            BlockPos fillCell,
-            BlockPos foot,
-            boolean dryGrounded) {
+            Navigator nav, WorldView world, LivingEntity p, BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
         boolean fcSolid = world.isSolid(fillCell);
         boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
         boolean fcCleared = crestClearOf(p, fillCell);
@@ -1121,13 +1119,13 @@ public final class WaterClimb implements Controller {
             if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] water climb-out: bail ({}) → fallback",
-                        !haveBlock
-                                ? "no block"
-                                : tooHigh
+                        haveBlock
+                                ? (tooHigh
                                         ? "over ceiling"
                                         : drifted
                                                 ? "drifted off column"
-                                                : placeFutile ? "place futile" : "no longer climbing");
+                                                : placeFutile ? "place futile" : "no longer climbing")
+                                : "no block");
             }
             return null; // the normal actuators / bank-dig take the tick
         }
@@ -1139,6 +1137,8 @@ public final class WaterClimb implements Controller {
      * chosen (surface cell afloat, the cell on the column's solid top when dry), the side-foothold branch for one-deep
      * water, the keys, and the click.
      */
+    // One tick of the pillar drive; its steps (heading, keys, click) run in order and share the same locals.
+    @SuppressWarnings("checkstyle:javancss")
     private static TickStep pillarDriveTick(
             Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot, boolean dryGrounded) {
         // Pin to the LOCKED bank heading + column; look down to aim the place.
@@ -1255,8 +1255,8 @@ public final class WaterClimb implements Controller {
         boolean sideMode = ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung;
         boolean wet = p.isInWater();
         boolean settled = p.getDeltaMovement().horizontalDistanceSqr() < SETTLED_SPEED_SQ;
-        Keys.forward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
-        nav.keys.jump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
+        Keys.forward(a, !sideMode || wet && !rungPending && !insidePending);
+        nav.keys.jump(a, !sideMode || wet || p.onGround() && settled);
         if (rungBeside) {
             nav.waterClimb.yaw =
                     (float) Math.toDegrees(Math.atan2(-(rung.getX() + 0.5 - p.getX()), rung.getZ() + 0.5 - p.getZ()));
@@ -1283,7 +1283,7 @@ public final class WaterClimb implements Controller {
                 return TickStep.WALKING;
             }
         }
-        climboutPlaceTick(nav, a, world, p, fillCell, foot, dryGrounded);
+        climboutPlaceTick(nav, world, p, fillCell, foot, dryGrounded);
         return TickStep.WALKING;
     }
 
@@ -1294,6 +1294,8 @@ public final class WaterClimb implements Controller {
      * {@code null} when every side is a wall or already filled — the caller then falls back to the ordinary own-column
      * attempt.
      */
+    // The first cell in the search order that qualifies is the answer, so the loop returns on its first hit by design.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private static BlockPos sideFoothold(
             WorldView world, BlockPos foot, float yaw, net.minecraft.world.phys.AABB body) {
         double rad = Math.toRadians(yaw);

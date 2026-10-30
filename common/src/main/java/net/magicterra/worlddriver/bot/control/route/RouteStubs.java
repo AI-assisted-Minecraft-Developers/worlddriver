@@ -40,6 +40,8 @@ final class RouteStubs {
      *
      * @return true if a stub segment was adopted (path != null, step = 1).
      */
+    // The search runs inside the loop's condition: each call advances it until the node cap or the time slice ends it.
+    @SuppressWarnings("PMD.EmptyControlStatement")
     static boolean quickStart(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
         if (ControlConfig.pathfinderQuickNodes <= 0) {
             return false;
@@ -96,7 +98,7 @@ final class RouteStubs {
                         ? foot.above()
                         : isOpenSurfaceWater(world, foot.below()) ? foot.below() : foot;
         List<BlockPos> path = march(surface, goal, n -> isOpenSurfaceWater(world, n));
-        if (path == null) {
+        if (path.isEmpty()) {
             return false;
         }
         if (GameConfig.navigatorDebug) {
@@ -127,7 +129,7 @@ final class RouteStubs {
             return false; // water is waterBeeline's job
         }
         List<BlockPos> path = march(foot, goal, n -> isDryWalkable(world, n));
-        if (path == null) {
+        if (path.isEmpty()) {
             return false;
         }
         if (GameConfig.navigatorDebug) {
@@ -139,8 +141,8 @@ final class RouteStubs {
     }
 
     /**
-     * Greedy same-level march from {@code from} toward {@code goal} over cells {@code ok} accepts; null when it is too
-     * short to be worth a stub.
+     * Greedy same-level march from {@code from} toward {@code goal} over cells {@code ok} accepts; an empty list when
+     * it is too short to be worth a stub.
      */
     private static List<BlockPos> march(BlockPos from, Goal goal, java.util.function.Predicate<BlockPos> ok) {
         List<BlockPos> path = new ArrayList<>();
@@ -173,7 +175,7 @@ final class RouteStubs {
             cur = best;
             curEst = bestEst;
         }
-        return path.size() <= BEELINE_MIN_STEPS ? null : path; // too short to be worth a stub
+        return path.size() <= BEELINE_MIN_STEPS ? List.of() : path; // too short to be worth a stub
     }
 
     /** A best-effort result walking {@code path} node to node, the first node carrying no edge. */

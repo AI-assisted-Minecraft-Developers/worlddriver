@@ -38,7 +38,7 @@ public final class RouteAdoption {
      * 15 s freeze). Refused too when the world changed under its first edge while the search ran.
      */
     public static Route.Adoption adopt(Navigator nav, PathFinder.Result res, WorldView world, BlockPos foot) {
-        Route route = nav.route;
+        final Route route = nav.route;
         if (foot != null && !res.path().isEmpty()) {
             String misanchored = misanchored(world, res, foot);
             if (misanchored != null) {

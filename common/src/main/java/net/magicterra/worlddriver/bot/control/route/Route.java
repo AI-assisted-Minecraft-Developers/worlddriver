@@ -128,6 +128,7 @@ public final class Route {
         return path;
     }
 
+    /** The edges of the current plan. */
     public List<Move.Edge> edges() {
         return edges;
     }
@@ -137,6 +138,7 @@ public final class Route {
         return step;
     }
 
+    /** True once the route has been entered as a replay; see {@link #enterReplay}. */
     public boolean replay() {
         return replay;
     }
@@ -145,6 +147,7 @@ public final class Route {
         return lastDrop;
     }
 
+    /** The edge into step {@code i} of the plan, or null when {@code i} is out of range. */
     public Move.Edge edgeAt(int i) {
         return edges != null && i >= 0 && i < edges.size() ? edges.get(i) : null;
     }
@@ -210,6 +213,7 @@ public final class Route {
         lastDrop = null;
     }
 
+    /** Marks the route as replaying. */
     public void enterReplay() {
         replay = true;
     }
@@ -230,7 +234,7 @@ public final class Route {
      * holds the next such replan off for {@link #CHANGE_REPLAN_GAP} ticks.
      */
     String searchAfterBlockChange(PathFinder.Search search) {
-        String where = changedAt.toShortString() + " on the plan " + changedAhead + " nodes ahead";
+        final String where = changedAt.toShortString() + " on the plan " + changedAhead + " nodes ahead";
         searchFromFoot(search, false);
         seg.afterBlockChange = true;
         changedAt = null;

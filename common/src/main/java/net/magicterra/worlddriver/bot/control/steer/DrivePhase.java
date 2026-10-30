@@ -59,7 +59,7 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>Why the lethal-edge sprint exemption is {@code parkourEdge}, not {@code parkourAscend}</h2>
  *
- * Two gates in {@link #run} carry a {@code parkourEdge} term whose reason is one measurement, so it is written here
+ * <p>Two gates in {@link #run} carry a {@code parkourEdge} term whose reason is one measurement, so it is written here
  * once rather than twice inline (and here rather than inline at all, because {@code run} is on the source-budget
  * grandfather list and may only shrink):
  *
@@ -80,8 +80,8 @@ import net.minecraft.world.phys.Vec3;
  *     t+0 sprinting=true h=0.1563 → t+1 sprinting=false h=0.1400    (x0.896: plain air decay, no impulse)
  * </pre>
  *
- * The only difference between the arms is {@code sprinting} on the takeoff tick, and the long arm fell into the gap. A
- * fuller run-up makes the bot MORE likely to stand on the lip, so under the old gate a run-up was actively harmful —
+ * <p>The only difference between the arms is {@code sprinting} on the takeoff tick, and the long arm fell into the gap.
+ * A fuller run-up makes the bot MORE likely to stand on the lip, so under the old gate a run-up was actively harmful —
  * the exemption has to key on the leap, not on the cell.
  *
  * <p>It keys on {@code parkourEdge} and not on {@code parkourAscend} ({@code = parkourEdge && wp.y > foot.y}) because a
@@ -98,6 +98,12 @@ import net.minecraft.world.phys.Vec3;
  * {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
 public final class DrivePhase {
+    /** Two-decimal number format for log lines. */
+    private static final String FMT2 = "%.2f";
+
+    /** Zero-decimal number format for log lines. */
+    private static final String FMT0 = "%.0f";
+
     /**
      * How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link NavigatorGeometry#HOP_RANGE} on
      * purpose: the point of the reading is to show whether the gate's radius is SHORTER than the throw it guards
@@ -189,6 +195,8 @@ public final class DrivePhase {
 
     private int parkourSamples;
 
+    // A field on purpose: the five samples are appended on five different ticks, so it outlives one call.
+    @SuppressWarnings("PMD.AvoidStringBufferField")
     private StringBuilder parkourTakeoffBuf;
 
     /**
@@ -279,9 +287,9 @@ public final class DrivePhase {
     }
 
     /**
-     * task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already test — a plain
-     * stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp. stepUp2 (+2, horse) and parkourAscend*
-     * are excluded (spec §10). Cheap string check so the OFF delegation short-circuit costs nothing.
+     * Whether a move is one of the ascents the migrated recovery gates handle: exactly the three they already test — a
+     * plain stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp. stepUp2 (+2, horse) and
+     * parkourAscend* are excluded. A cheap string check, so the OFF delegation short-circuit costs nothing.
      */
     public static boolean isMigratedAscent(String move) {
         return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
@@ -309,7 +317,7 @@ public final class DrivePhase {
         }
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) {
-            parkourTakeoffBuf = new StringBuilder();
+            parkourTakeoffBuf = new StringBuilder(256);
         }
         long now = p.level().getGameTime();
         long lastJump = a.dbgLastJumpTick();
@@ -321,7 +329,7 @@ public final class DrivePhase {
                 // phrase "N ticks before takeoff" has no meaning to argue over.
                 .append("t+")
                 .append(parkourSamples)
-                .append("@")
+                .append('@')
                 .append(now)
                 // Ticks since the bot last actually EMITTED an impulse (not since one was asked
                 // for). This is what separates a bot that jumped ITSELF off the platform — the
@@ -443,6 +451,9 @@ public final class DrivePhase {
         return c;
     }
 
+    // The verdict is one ordered ladder of exits that share the cruise latches, so it stays whole. The loop
+    // inspects only the first non-water node ahead on purpose, hence the break.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.AvoidBranchingStatementAsLastInLoop"})
     private Cruise cruiseVerdict(
             Navigator nav,
             WorldView world,
@@ -497,9 +508,9 @@ public final class DrivePhase {
                         diving,
                         world.isWater(foot.below()),
                         world.isSolid(foot.offset(0, 2, 0)),
-                        String.format("%.2f", p.getX()),
-                        String.format("%.2f", p.getY()),
-                        String.format("%.2f", p.getZ()));
+                        String.format(FMT2, p.getX()),
+                        String.format(FMT2, p.getY()),
+                        String.format(FMT2, p.getZ()));
             }
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks = 0;
@@ -548,10 +559,10 @@ public final class DrivePhase {
                     nav.route.step(),
                     nav.route.path().size(),
                     nav.progress.arc.proj.segIdx,
-                    String.format("%.2f", p.getY()),
+                    String.format(FMT2, p.getY()),
                     String.format("%.3f", p.getDeltaMovement().y),
-                    String.format("%.0f", p.getXRot()),
-                    String.format("%.0f", p.getYRot()),
+                    String.format(FMT0, p.getXRot()),
+                    String.format(FMT0, p.getYRot()),
                     p.isSprinting(),
                     p.isUnderWater(),
                     p.getAirSupply(),
@@ -606,6 +617,8 @@ public final class DrivePhase {
      * stair is the drop (live 1512.7,76,-240.5: the heading lagged west of the x=1513 stair and the body walked off a
      * 5-block ridge, most runs).
      */
+    // Null is the contract, not an empty array: the caller tests it to mean "no lane held this tick".
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private double[] segmentLaneOffset(Navigator nav, LivingEntity p, BlockPos wp, boolean stepDown) {
         if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0) {
             return null;
@@ -643,7 +656,7 @@ public final class DrivePhase {
         double rz = -Math.sin(yr); // the player's right, as in the lane-keep above
         double errR = latX * rx + latZ * rz;
         Vec3 v = p.getDeltaMovement();
-        double velR = (latX != 0 ? v.x : 0) * rx + (latZ != 0 ? v.z : 0) * rz;
+        double velR = (latX == 0 ? 0 : v.x) * rx + (latZ == 0 ? 0 : v.z) * rz;
         return -Mth.clamp(LANE_KP * errR - LANE_KD * velR, -1.0, 1.0);
     }
 
@@ -703,7 +716,12 @@ public final class DrivePhase {
         return null;
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick (propagated by the driver), or null to fall
+     * through.
+     */
+    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
@@ -712,24 +730,21 @@ public final class DrivePhase {
         Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;
         boolean parkourEdge = cx.edges.parkourEdge;
-        boolean bridging = cx.edges.bridging;
-        boolean placingEdge = cx.edges.placingEdge;
-        boolean steppingOffFall = cx.edges.steppingOffFall;
-        boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
-        boolean aimAtWaypoint = cx.aim.aimAtWaypoint;
-        boolean reCentre = cx.aim.reCentre;
-        String aimSrc = cx.aim.aimSrc;
-        float descentNodeYaw = cx.aim.descentNodeYaw;
-        boolean dryDescent = cx.aim.dryDescent;
-        boolean flatWaterTrend = cx.aim.flatWaterTrend;
-        boolean trendCam = cx.aim.trendCam;
-        float aimYaw = cx.aim.aimYaw;
-        boolean diveUnderCap = cx.aim.diveUnderCap;
-        boolean diving = cx.aim.diving;
-        double stepColDx = cx.aim.stepColDx;
-        double stepColDz = cx.aim.stepColDz;
-        boolean stepUpFreeze = cx.aim.stepUpFreeze;
-        boolean pivotForStepUp = cx.aim.pivotForStepUp;
+        final boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
+        final boolean aimAtWaypoint = cx.aim.aimAtWaypoint;
+        final boolean reCentre = cx.aim.reCentre;
+        final String aimSrc = cx.aim.aimSrc;
+        final float descentNodeYaw = cx.aim.descentNodeYaw;
+        final boolean dryDescent = cx.aim.dryDescent;
+        final boolean flatWaterTrend = cx.aim.flatWaterTrend;
+        final boolean trendCam = cx.aim.trendCam;
+        final float aimYaw = cx.aim.aimYaw;
+        final boolean diveUnderCap = cx.aim.diveUnderCap;
+        final boolean diving = cx.aim.diving;
+        final double stepColDx = cx.aim.stepColDx;
+        final double stepColDz = cx.aim.stepColDz;
+        final boolean stepUpFreeze = cx.aim.stepUpFreeze;
+        final boolean pivotForStepUp = cx.aim.pivotForStepUp;
         boolean descendBrake = cx.aim.descendBrake;
         // ---- original body (byte-identical modulo member prefixes) ----
         // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
@@ -738,9 +753,6 @@ public final class DrivePhase {
         // can't do both (turning to centre kills forward progress, so the bot only
         // creeps and grinds the wall); strafing centres while forward still drives
         // it down the lane. Projects the cross-axis error onto the player's right
-        // vector to pick the key. Skipped during leaps/brakes/bridging.
-        boolean strafeL = false;
-        boolean strafeR = false;
         // Baritone MovementAscend jump-timing for a DRY cardinal +1 step. Baritone
         // does NOT sprint an ascend and does NOT hold jump continuously — it walks
         // toward the step squaring up, then presses jump ONLY when CLOSE
@@ -802,6 +814,7 @@ public final class DrivePhase {
                     }
                 }
                 case PREP, RUNNING, SUCCESS -> {} // fall through — legacy drive actuates this tick
+                default -> {}
             }
         }
         // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
@@ -812,12 +825,14 @@ public final class DrivePhase {
         boolean ascendJumpReady = true;
         boolean sprintAscend = false;
         if (dryStepUp) {
-            int xA = wp.getX() != foot.getX() ? 1 : 0;
-            int zA = wp.getZ() != foot.getZ() ? 1 : 0;
-            double flatDist = xA * Math.abs(wp.getX() + 0.5 - p.getX()) + zA * Math.abs(wp.getZ() + 0.5 - p.getZ());
-            double sideDist = zA * Math.abs(wp.getX() + 0.5 - p.getX()) + xA * Math.abs(wp.getZ() + 0.5 - p.getZ());
+            int alongX = wp.getX() == foot.getX() ? 0 : 1;
+            int alongZ = wp.getZ() == foot.getZ() ? 0 : 1;
+            double flatDist =
+                    alongX * Math.abs(wp.getX() + 0.5 - p.getX()) + alongZ * Math.abs(wp.getZ() + 0.5 - p.getZ());
+            double sideDist =
+                    alongZ * Math.abs(wp.getX() + 0.5 - p.getX()) + alongX * Math.abs(wp.getZ() + 0.5 - p.getZ());
             Vec3 vel = p.getDeltaMovement();
-            double lateralMotion = xA * vel.z + zA * vel.x;
+            double lateralMotion = alongX * vel.z + alongZ * vel.x;
             // SPRINT-BUNNY-HOP a cardinal +1 step (a smooth stair climb). The deterministic
             // ascentSpeedArena shows a gentle staircase costs ~40% speed: each step drops
             // sprint + the in-place jump rams the riser + the bot re-accelerates from ~0.
@@ -870,7 +885,7 @@ public final class DrivePhase {
                             wp.getX(),
                             wp.getY(),
                             wp.getZ(),
-                            String.format(Locale.ROOT, "%.2f", flatDist));
+                            String.format(Locale.ROOT, FMT2, flatDist));
                 }
             }
         }
@@ -893,6 +908,16 @@ public final class DrivePhase {
         // mounts it (the aligned cardinal climb that already works on dry land).
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
         boolean stepDownLane = ControlConfig.navigatorDescentLaneKeep && wp.getY() == foot.getY() - 1 && !p.isInWater();
+        // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
+        // at the lane centre with a sideways strafe so the bot clears a flush 1-wide
+        // channel wall WITHOUT turning off the forward heading. Pure yaw steering
+        // can't do both (turning to centre kills forward progress, so the bot only
+        // creeps and grinds the wall); strafing centres while forward still drives
+        // it down the lane. Projects the cross-axis error onto the player's right
+        // vector to pick the key. Skipped during leaps/brakes/bridging.
+        boolean steppingOffFall = cx.edges.steppingOffFall;
+        boolean strafeL = false;
+        boolean strafeR = false;
         double laneLatX = 0;
         double laneLatZ = 0;
         if (!descendBrake
@@ -990,7 +1015,7 @@ public final class DrivePhase {
                 && !p.onGround()
                 && driveLatch.steepDescentLatch > 0
                 && !parkourEdge;
-        double driveF = !descendBrake && !pivotForStepUp && !descentAirborneDriftClamp ? 1.0 : 0.0;
+        double driveF = descendBrake || pivotForStepUp || descentAirborneDriftClamp ? 0.0 : 1.0;
         double driveL = laneStrafe(p, laneLatX, laneLatZ, strafeL, strafeR, cardinalUp && !p.isInWater());
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
@@ -1147,9 +1172,9 @@ public final class DrivePhase {
                     rpz += oz / d * push;
                 }
             }
-            double rMag = Math.sqrt(rpx * rpx + rpz * rpz);
-            if (rMag > 1e-6) {
-                double scale = Math.min(0.5, rMag) / rMag; // cap the nudge at half impulse
+            double repelMag = Math.sqrt(rpx * rpx + rpz * rpz);
+            if (repelMag > 1e-6) {
+                double scale = Math.min(0.5, repelMag) / repelMag; // cap the nudge at half impulse
                 // world → camera frame: forward = (−sinθ, cosθ), left = (cosθ, sinθ)
                 double cam = Math.toRadians(p.getYRot());
                 double camSin = Math.sin(cam);
@@ -1169,11 +1194,11 @@ public final class DrivePhase {
             LOG.info(
                     "[navigator] FREEZE-DIAG stuckT={} driveF={} fwdComp={} ddeg={} dTgtYaw={} camYaw={} aimAtWp={} reCentre={} pivotSU={} descBrake={} stepUpFreeze={} sneak={} sprint={} wpY-footY={} stepCol2={}",
                     nav.stuckTicks,
-                    String.format(Locale.ROOT, "%.2f", driveF),
-                    String.format(Locale.ROOT, "%.2f", fwdComp),
-                    String.format(Locale.ROOT, "%.0f", Math.toDegrees(driveDelta)),
-                    String.format(Locale.ROOT, "%.0f", driveTargetYaw),
-                    String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                    String.format(Locale.ROOT, FMT2, driveF),
+                    String.format(Locale.ROOT, FMT2, fwdComp),
+                    String.format(Locale.ROOT, FMT0, Math.toDegrees(driveDelta)),
+                    String.format(Locale.ROOT, FMT0, driveTargetYaw),
+                    String.format(Locale.ROOT, FMT0, p.getYRot()),
                     aimAtWaypoint,
                     reCentre,
                     pivotForStepUp,
@@ -1182,7 +1207,7 @@ public final class DrivePhase {
                     a.dbgSneak(),
                     p.isSprinting(),
                     wp.getY() - foot.getY(),
-                    String.format(Locale.ROOT, "%.2f", stepColDx * stepColDx + stepColDz * stepColDz));
+                    String.format(Locale.ROOT, FMT2, stepColDx * stepColDx + stepColDz * stepColDz));
         }
         // Bridging a chasm one placed block at a time: sneak (so a sprint
         // overshoot can't carry the bot off the fresh 1-wide block into the
@@ -1215,7 +1240,7 @@ public final class DrivePhase {
         // step-down: a pinned descent stalls and repaths (recoverable); a fall
         // at 1-6 HP is not. Sprint is also suppressed below (same gate).
         boolean lowHpCareful = ControlConfig.lowHealthCareful > 0 && p.getHealth() <= ControlConfig.lowHealthCareful;
-        boolean edgeBrake = lethalNear && (!plannedDescent || lowHpCareful);
+        final boolean edgeBrake = lethalNear && (!plannedDescent || lowHpCareful);
         // Steep-descent SPRINT brake (NOT a sneak-pin): a survivable-but-deep drop in an
         // edge-neighbour while descending is invisible to lethalNear (its threshold is
         // survivableFall ≈ 23 blk, even higher with resist buffs), so the bot SPRINTS a
@@ -1275,7 +1300,7 @@ public final class DrivePhase {
         } else if (driveLatch.steepDescentLatch > 0) {
             driveLatch.steepDescentLatch--;
         }
-        boolean steepDescentNear = steepDescentRaw || driveLatch.steepDescentLatch > 0;
+        final boolean steepDescentNear = steepDescentRaw || driveLatch.steepDescentLatch > 0;
         if (steepDescentPathAhead && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
@@ -1292,7 +1317,6 @@ public final class DrivePhase {
         // never >4), so this never fired. The flag navigatorDescentStepSkipBrake is now repurposed as
         // the AIRBORNE forward-drift clamp on driveF (see ~line 4259). Kept as `false` here so the
         // brakeSneak/sprint terms below stay byte-identical without editing them.
-        boolean descentStepSkip = false;
         // DEEP-WATER drift SPRINT brake (mechanism b, sibling of steepDescentNear for a water
         // hazard): a dry descending/flush staircase that runs ALONG a deep floating-water pocket
         // is invisible to the dry-drop brakes (dropAdjacentExceeds skips water as a splash), so the
@@ -1347,7 +1371,7 @@ public final class DrivePhase {
         } else if (driveLatch.deepWaterDriftLatch > 0) {
             driveLatch.deepWaterDriftLatch--;
         }
-        boolean deepWaterDriftNear = deepWaterEdgeRaw || driveLatch.deepWaterDriftLatch > 0;
+        final boolean deepWaterDriftNear = deepWaterEdgeRaw || driveLatch.deepWaterDriftLatch > 0;
         // DYNAMIC fall-correction while bridging: correct the heading to prevent falls rather than
         // crouching the whole time at the cost of speed. A 1-wide place-bridge has void on BOTH sides, so the
         // lethal-edge pin
@@ -1444,6 +1468,7 @@ public final class DrivePhase {
         }
         boolean hazardAhead = hazardCell != null;
         boolean bridgeBrake = false;
+        boolean bridging = cx.edges.bridging;
         // Descending-place lip anchor (task#4, replay-0013): the !plannedDescent gate
         // below exists because a sneak pin across a planned step-down deadlocks — but
         // when the descent runs over a bridgePlace whose SUPPORT IS NOT PLACED YET,
@@ -1494,7 +1519,7 @@ public final class DrivePhase {
         boolean lavaBrake = hazardAhead
                 && !p.isInWater(); // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not
         // stop
-        announceLavaBrake(nav, lavaBrake, foot, hazardCell, wp, p);
+        announceLavaBrake(lavaBrake, foot, hazardCell, wp, p);
         // sneak in water = vanilla active SINK (buoyancy never sinks a surface swimmer on its
         // own) — so the dry-land safety brakes (bridge / cliff-descend) must NOT sneak in water,
         // exactly like lavaBrake above: a brake's job is to STOP, but shift in water DIVES the bot
@@ -1502,6 +1527,7 @@ public final class DrivePhase {
         // descendBrake → shift → the buoyant bot sank y62→58 and churned ~100 t clawing back to the
         // surface, then re-planned a parkour-onto-water it cannot execute. Only a real dive (diving)
         // sneaks in water; buoyancy alone already keeps a surface swimmer off any lethal edge.
+        final boolean descentStepSkip = false;
         boolean brakeSneak = (bridgeBrake || descendBrake || descentStepSkip) && !p.isInWater();
         // A5 UNDERWATER HORIZONTAL DEPTH-HOLD (dive → traverse). After a dive the path
         // continues through SUBMERGED horizontal edges — the planner emits plain walk/diag
@@ -1723,7 +1749,7 @@ public final class DrivePhase {
                     foot.getY(),
                     foot.getZ());
         }
-        if (jump && vetoJumpOnAGraze(nav, world, p, parkourEdge)) {
+        if (jump && vetoJumpOnGraze(nav, world, p, parkourEdge)) {
             jump = false;
         }
         if (jump) {
@@ -1893,10 +1919,10 @@ public final class DrivePhase {
             // hCol/minorCol = vanilla collision flags; pos = real feet so we can see
             // dwell (pos frozen while wp/yaw change = stuck, not moving).
             Vec3 dm = p.getDeltaMovement();
-            double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
+            double horizSpeed = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
             LOG.info(
                     "[navigator] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={}{} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={} lead={}",
-                    String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                    String.format(Locale.ROOT, FMT0, p.getYRot()),
                     wp.getX(),
                     wp.getY(),
                     wp.getZ(),
@@ -1907,17 +1933,17 @@ public final class DrivePhase {
                     a.dbgSneak(),
                     p.horizontalCollision,
                     p.minorHorizontalCollision,
-                    String.format(Locale.ROOT, "%.3f", hSpd),
-                    String.format(Locale.ROOT, "%.2f", p.getX()),
-                    String.format(Locale.ROOT, "%.2f", p.getY()),
-                    String.format(Locale.ROOT, "%.2f", p.getZ()),
+                    String.format(Locale.ROOT, "%.3f", horizSpeed),
+                    String.format(Locale.ROOT, FMT2, p.getX()),
+                    String.format(Locale.ROOT, FMT2, p.getY()),
+                    String.format(Locale.ROOT, FMT2, p.getZ()),
                     p.onGround(),
                     nav.blocks.breakHeld(),
                     dryDescent,
-                    String.format(Locale.ROOT, "%.0f", driveTargetYaw),
+                    String.format(Locale.ROOT, FMT0, driveTargetYaw),
                     aimSrc,
                     nav.stuckTicks,
-                    Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
+                    Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, FMT2, riserLead));
         }
         return TickStep.WALKING;
     }
@@ -2057,6 +2083,8 @@ public final class DrivePhase {
      *   <li>{@code dipLeap} — see {@link #dipLeap}.
      * </ul>
      */
+    // One flag per veto arm, read in one expression by the caller; a parameter object would only move the list.
+    @SuppressWarnings("checkstyle:parameternumber")
     private static int sprintVeto(
             boolean bridge,
             boolean offFall,
@@ -2165,7 +2193,7 @@ public final class DrivePhase {
      * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines and may shrink,
      * not grow.
      */
-    private boolean vetoJumpOnAGraze(Navigator nav, WorldView world, LivingEntity p, boolean parkour) {
+    private boolean vetoJumpOnGraze(Navigator nav, WorldView world, LivingEntity p, boolean parkour) {
         if (Safety.grazingBesideTheVoid(world, p)) {
             nav.jumpTag = "vetoed: grazing beside the void";
             return true;
@@ -2289,8 +2317,7 @@ public final class DrivePhase {
      * here. A full ladder log of 2026-08-26 contained the word "sprint" zero times, which made that question
      * unanswerable rather than answered no.
      */
-    private void announceLavaBrake(
-            Navigator nav, boolean lavaBrake, BlockPos foot, BlockPos hazard, BlockPos wp, LivingEntity p) {
+    private void announceLavaBrake(boolean lavaBrake, BlockPos foot, BlockPos hazard, BlockPos wp, LivingEntity p) {
         if (lavaBrake && !driveLatch.lavaBrakeLogged) {
             // BOT and HAZARD as two named cells, plus the two numbers that decide whether the
             // sneak can hold: speed (sneak still creeps ~0.9 b/s, so "braked" is not "stopped")

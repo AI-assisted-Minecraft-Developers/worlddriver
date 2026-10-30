@@ -28,6 +28,8 @@ public final class TickCtx {
      * Produced by {@link PreludePhase}: the resolved bot + anchor cells every later phase keys off. {@code foot} is
      * re-derived by phases that move the bot.
      */
+    // The short public field names are read by every phase as cx.frame.p; renaming them churns about 25 reads.
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public static final class Frame {
         public LivingEntity p;
 
@@ -37,8 +39,10 @@ public final class TickCtx {
     }
 
     /** Produced by {@link StallDetectPhase}: the stall/deviation verdict consumed by the repath/search stages. */
+    // The short public field name is read by the stall phases as cx.stall.d (goal.estimate(foot) this tick).
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public static final class StallVerdict {
-        public double d; // goal.estimate(foot) this tick
+        public double d;
 
         public boolean offPath;
 

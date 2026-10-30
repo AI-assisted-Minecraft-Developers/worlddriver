@@ -50,8 +50,12 @@ public final class Pillar implements Controller {
     private Move.Edge edge;
 
     /** The planned pillar: the path index of its edge, and ticks since its jump (-1 = grounded). */
+    // Read and written as nav.pillar.edgeStep from this class; PMD does not follow that qualified access.
+    @SuppressWarnings("PMD.UnusedPrivateField")
     private int edgeStep = -1;
 
+    // Read and written as nav.pillar.sinceJump from this class; PMD does not follow that qualified access.
+    @SuppressWarnings("PMD.UnusedPrivateField")
     private int sinceJump = -1;
 
     // ---- the recovery pillar ----
@@ -214,12 +218,15 @@ public final class Pillar implements Controller {
             case NONE -> {
                 return false;
             }
+            default -> throw new IllegalStateException("unhandled pillar mode " + mode);
         }
         return true;
     }
 
     @Override
-    public void stop(String why) {}
+    public void stop(String why) {
+        // No state of its own to clear on stop.
+    }
 
     /** The recovery's cell, peak and stall count are re-based whenever it is armed, so only the latch goes. */
     @Override
@@ -234,6 +241,8 @@ public final class Pillar implements Controller {
      * apex. Distinct from the route's general place because it owns the airborne timing (a block cannot go into the
      * cell the bot is standing in).
      */
+    // The planned pillar is one ordered sequence of guards and actions; splitting it would spread that order out.
+    @SuppressWarnings("checkstyle:javancss")
     private void planned(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
         // Off-column guard (pillarUp-off-column wedge, see PILLAR_ALIGN_SQ): the pillar is
         // placed below the bot and it jumps in place, so it only lands the bot a level up

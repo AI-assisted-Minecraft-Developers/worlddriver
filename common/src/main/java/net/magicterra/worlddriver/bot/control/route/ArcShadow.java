@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.control.route;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 
+/** Places the bot along its route by arc length, through one reusable {@link PathProjection}. */
 public final class ArcShadow {
     public final PathProjection proj =
             new PathProjection(); // reusable arc-length projector (the carved-out, fully-readable core; the executor

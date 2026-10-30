@@ -22,6 +22,7 @@ public record NavigatorSettings(String owner, SearchProfile profile, int searchM
     public static final NavigatorSettings DEFAULT =
             new NavigatorSettings("navigator.unnamed", SearchProfile.NONE, -1, -1);
 
+    /** Replaces a blank owner with the unnamed default, and a null profile with {@link SearchProfile#NONE}. */
     public NavigatorSettings {
         if (owner == null || owner.isEmpty()) {
             owner = DEFAULT.owner();
@@ -36,6 +37,7 @@ public record NavigatorSettings(String owner, SearchProfile profile, int searchM
         return new NavigatorSettings(owner, SearchProfile.NONE, -1, -1);
     }
 
+    /** A copy of these settings with {@code profile} in place of the current one. */
     public NavigatorSettings withProfile(SearchProfile profile) {
         return new NavigatorSettings(owner, profile, searchMaxNodes, searchMaxMs);
     }

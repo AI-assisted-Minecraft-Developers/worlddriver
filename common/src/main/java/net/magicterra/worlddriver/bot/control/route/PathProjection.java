@@ -30,6 +30,7 @@ public final class PathProjection {
     public double segFrac;
 
     /** Cumulative XZ arc-length (blocks) from {@code path[0]} to the projection point. */
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname") // public field; the name is read by the route code
     public double s;
 
     /** Horizontal perpendicular distance (blocks) from the position to the projection point. */
@@ -70,6 +71,9 @@ public final class PathProjection {
      *
      * @param footY the bot's foot block Y (for the submerged-below dive-barrier test)
      */
+    // One projection pass: the arc-length walk, the perpendicular test and the dive barrier read in sequence over the
+    // same locals, so the pass stays in one method.
+    @SuppressWarnings("checkstyle:javancss")
     public void compute(
             List<BlockPos> path,
             List<Move.Edge> edges,
@@ -229,6 +233,6 @@ public final class PathProjection {
 
     /** MC yaw of the direction a-&gt;b: 0=+z(S), 90=-x(W), 180=-z(N), -90=+x(E); atan2(-dx,dz). */
     private static float yawOf(BlockPos a, BlockPos b) {
-        return (float) Math.toDegrees(Math.atan2(-(double) (b.getX() - a.getX()), (double) (b.getZ() - a.getZ())));
+        return (float) Math.toDegrees(Math.atan2(-(b.getX() - a.getX()), b.getZ() - a.getZ()));
     }
 }

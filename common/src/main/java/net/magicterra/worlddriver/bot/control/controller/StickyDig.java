@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.control.controller;
 
 import net.minecraft.core.BlockPos;
 
+/** The cell a controller is mining under a planned break, and a watchdog counting the ticks spent on it. */
 public final class StickyDig {
     public BlockPos pos; // planned-break cell being mined
 

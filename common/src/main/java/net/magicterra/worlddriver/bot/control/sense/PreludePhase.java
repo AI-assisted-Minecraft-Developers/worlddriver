@@ -124,7 +124,7 @@ public final class PreludePhase {
      * for byte: stall-only there would release at 60 ticks and be TIGHTER than what it has today, which is a regression
      * dressed as a fix.
      */
-    private void expireDigClaim(Navigator nav, Body a, WorldView world, LivingEntity p) {
+    private void expireDigClaim(Navigator nav, WorldView world, LivingEntity p) {
         if (!ControlConfig.navigatorDigAimPriority || stickyDig.pos == null) {
             return;
         }
@@ -167,7 +167,12 @@ public final class PreludePhase {
         }
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The prelude runs its checks in one fixed order ahead of the other phases, so it stays in one method.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -355,7 +360,7 @@ public final class PreludePhase {
             }
         }
 
-        expireDigClaim(nav, a, world, p);
+        expireDigClaim(nav, world, p);
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.frame.p = p;
         cx.frame.foot = foot;

@@ -197,7 +197,9 @@ public final class NavigatorTelemetry {
     }
 
     /** A sink for a navigator that has not ticked a body yet; nobody can read it. */
-    NavigatorTelemetry() {}
+    NavigatorTelemetry() {
+        // Intentionally empty: every field starts at its default.
+    }
 
     /** The most recent deep-search result any navigator on this body finished. */
     public record PathStats(
@@ -208,6 +210,7 @@ public final class NavigatorTelemetry {
             int pathLen,
             boolean sightBudgetExhausted,
             boolean snapshotTruncated) {
+        /** A result without the sight-budget and snapshot-truncation flags, which both start false. */
         public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
             this(expanded, ms, goalReached, finalCost, pathLen, false, false);
         }

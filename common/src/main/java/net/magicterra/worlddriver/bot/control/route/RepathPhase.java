@@ -30,16 +30,20 @@ public final class RepathPhase {
 
     public int ticksSinceRepath;
 
+    /** Clears the ticks-since-repath counter. */
     public void reset(ResetScope scope) {
         ticksSinceRepath = 0;
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        BlockPos searchFoot = cx.frame.searchFoot;
+        final BlockPos searchFoot = cx.frame.searchFoot;
         boolean offPath = cx.stall.offPath;
         boolean breakingEdge = cx.stall.breakingEdge;
         boolean wedged = cx.stall.wedged;
@@ -65,7 +69,7 @@ public final class RepathPhase {
             bridgingNow =
                     (cbE != null && "bridgePlace".equals(cbE.move)) || (nbE != null && "bridgePlace".equals(nbE.move));
         }
-        boolean fullPeriodic = !nav.route.seg.pathBestEffort
+        final boolean fullPeriodic = !nav.route.seg.pathBestEffort
                 && nav.route.path() != null
                 && !bridgingNow
                 && ticksSinceRepath > ControlConfig.navigatorRepathEveryTicks;

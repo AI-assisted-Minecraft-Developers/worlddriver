@@ -19,6 +19,8 @@ public final class MovementContext {
      */
     public static volatile long ALLOC_COUNT = 0;
 
+    // Read by the controllers as ctx.p; the short name keeps every one of those reads readable.
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final LivingEntity p; // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
 
     public final WorldView world; // isSolid/isPassable/isHazard for the BREAK phase (mirrors StairUpBreak.eval)
@@ -43,6 +45,11 @@ public final class MovementContext {
             digging; // Navigator's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog
     // exemption, #66: bare-hand stone is 150t+/block)
 
+    /** Snapshots one tick's inputs for the controllers. Each argument becomes one public field, in the order given. */
+    // The context is a plain snapshot, one argument per field; a builder would only add a second list of the same
+    // names.
+    // ALLOC_COUNT is a debug counter that gametests read, so it stays a mutable static.
+    @SuppressWarnings({"checkstyle:parameternumber", "PMD.AssignmentToNonFinalStatic"})
     public MovementContext(
             LivingEntity p,
             WorldView world,

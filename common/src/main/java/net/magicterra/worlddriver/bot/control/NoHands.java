@@ -39,10 +39,14 @@ final class NoHands implements Equipment, BlockInteraction {
     }
 
     @Override
-    public void selectTool(BlockPos cell) {}
+    public void selectTool(BlockPos cell) {
+        // No hands, so nothing to select.
+    }
 
     @Override
-    public void setSelectedSlot(int slot) {}
+    public void setSelectedSlot(int slot) {
+        // No hands, so no slot to set.
+    }
 
     @Override
     public boolean holdItem(Item item) {
@@ -50,16 +54,24 @@ final class NoHands implements Equipment, BlockInteraction {
     }
 
     @Override
-    public void place(Predicate<BlockPos> solid, BlockPos cell) {}
+    public void place(Predicate<BlockPos> solid, BlockPos cell) {
+        // No hands, so nothing is placed.
+    }
 
     @Override
-    public void placeOn(BlockPos cell, Direction face) {}
+    public void placeOn(BlockPos cell, Direction face) {
+        // No hands, so nothing is placed.
+    }
 
     @Override
-    public void useBlock(BlockPos cell, Direction face) {}
+    public void useBlock(BlockPos cell, Direction face) {
+        // No hands, so no block is used.
+    }
 
     @Override
-    public void breakHold(boolean v) {}
+    public void breakHold(boolean v) {
+        // No hands, so nothing is held.
+    }
 
     @Override
     public boolean breakHeld() {
@@ -72,7 +84,9 @@ final class NoHands implements Equipment, BlockInteraction {
     }
 
     @Override
-    public void commandUseItem(boolean hold) {}
+    public void commandUseItem(boolean hold) {
+        // No hands, so no item is used.
+    }
 
     @Override
     public InteractionResult useItemInHand() {

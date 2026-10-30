@@ -124,6 +124,7 @@ public final class Safety {
      */
     public boolean guardParkourTick;
 
+    /** The safety guards of {@code nav}; they edit the tick's input and may re-plan its route. */
     public Safety(Navigator nav) {
         this.nav = nav;
     }
@@ -235,7 +236,7 @@ public final class Safety {
      *
      * <h2>Why here and not in the drive</h2>
      *
-     * The lethal-edge gate in {@code DrivePhase} is the natural home and it cannot do this job, for two measured
+     * <p>The lethal-edge gate in {@code DrivePhase} is the natural home and it cannot do this job, for two measured
      * reasons. It probes FORWARD — the cell 0.6 blocks toward the waypoint — so a bot that has drifted off its floor
      * sideways, or that is being steered at a node behind it, reads perfectly clean: on the tick before an eleven-block
      * drop into a nether lava lake, {@code gapAhead} was false (the cell toward the waypoint was netherrack),
@@ -246,14 +247,14 @@ public final class Safety {
      *
      * <h2>What it asks, in the order that makes it cheap</h2>
      *
-     * The sole first ({@link NavigatorGeometry#soleOnSolid}, four block reads, and on ordinary ground it answers 0.36
-     * immediately), and only for a bot already down to half a sole does it pay for
+     * <p>The sole first ({@link NavigatorGeometry#soleOnSolid}, four block reads, and on ordinary ground it answers
+     * 0.36 immediately), and only for a bot already down to half a sole does it pay for
      * {@link NavigatorGeometry#lethalDropAdjacent}'s eight columns. So a walk over solid ground costs four reads a tick
      * and nothing else.
      *
      * <h2>What the pin is, and what it is not</h2>
      *
-     * Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take a shift-held bot
+     * <p>Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take a shift-held bot
      * off its floor. It is a REFUSAL to step further out, not a rescue — a bot already over the void falls whatever
      * this does, which is why the sole threshold is half a sole and not zero. Jump is cancelled with it, because sneak
      * has never clamped a jump and the nether crossing's first fatal launch was exactly that: sneak held,
@@ -330,7 +331,7 @@ public final class Safety {
                     foot.getZ());
         }
         footingPinned = true;
-        widenFooting(a, world, p, foot);
+        widenFooting(world, p, foot);
         return true;
     }
 
@@ -401,7 +402,9 @@ public final class Safety {
      * a thin sole is a graze the bot walks off, and spending blocks on every ridge walk is how a bridging contract gets
      * eaten. Over the void it is the difference between continuing and falling forever.
      */
-    private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
+    // One block per tick is the intent, so the loops exit on the first placement by design.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
+    private void widenFooting(WorldView world, LivingEntity p, BlockPos foot) {
         if (!WorldConfig.allowPlace || nav.blocks.breakHeld() || !nav.equipment.holdPlaceable()) {
             return;
         }
@@ -442,18 +445,18 @@ public final class Safety {
      *
      * <h2>Why this was worth a method</h2>
      *
-     * The two call sites were identical two-line expressions and the event they perform — a plan silently discarded —
-     * <b>was the only thing the navigator does that left no trace at all</b>. The 2026-08-20 ladder ended rung 14 in a
-     * shuttle: four hops of 900 ticks each, 61-76 walk edges apiece, net −8 to −28 blocks, over a lava sea the bot had
-     * bridged itself. The stride guard fired 491 times in that crossing on 184 distinct cells, and with
+     * <p>The two call sites were identical two-line expressions and the event they perform — a plan silently discarded
+     * — <b>was the only thing the navigator does that left no trace at all</b>. The 2026-08-20 ladder ended rung 14 in
+     * a shuttle: four hops of 900 ticks each, 61-76 walk edges apiece, net −8 to −28 blocks, over a lava sea the bot
+     * had bridged itself. The stride guard fired 491 times in that crossing on 184 distinct cells, and with
      * {@link #GUARD_PIN_HOLD} = 8 a fire every eight ticks keeps this streak alive — so "the plan keeps being thrown
      * away" and "the plan is bad" were both consistent with every row the run produced, and nothing in the log or the
      * evidence map could separate them.
      *
      * <h2>The measurement that separated them</h2>
      *
-     * The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two waypoints 45 blocks apart
-     * the bot was pinned to the threshold three times, and every discarded plan was <b>complete</b>:
+     * <p>The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two waypoints 45 blocks
+     * apart the bot was pinned to the threshold three times, and every discarded plan was <b>complete</b>:
      *
      * <pre>
      * #43: pinned 30 ticks, 4 distinct cells; the discarded plan had 134 nodes left, last node 132,43,165; bot at 103,41,135
@@ -485,6 +488,8 @@ public final class Safety {
      * second threshold here ("enough progress") would be a free parameter with no measurement behind it.
      */
     // Package-private, not private: SafetyGuardRepathTest drives the streak through it a tick at a time.
+    // guardStreakCell carries across calls: the test at the top of the next call reads what this assignment wrote.
+    @SuppressWarnings("PMD.UnusedAssignment")
     void forcedRepathIfPinnedTooLong(Body a) {
         if (guardPinStreak == 0) {
             guardStreakPath = nav.route.path();
@@ -629,6 +634,8 @@ public final class Safety {
      * reading of how far the plan points backwards. Do not tune the plug on the strength of this paragraph; it is a
      * measurement, not a verdict.
      */
+    // The guard is one ordered list of conditions; splitting it would spread that order over helpers.
+    @SuppressWarnings("checkstyle:javancss")
     boolean strideFloorGuard(Body a, WorldView world) {
         if (!ControlConfig.navigatorStrideFloorGuard || guardParkourTick) {
             return skipStride(0);
@@ -792,7 +799,7 @@ public final class Safety {
                 String.format(java.util.Locale.ROOT, "%.2f", dm.z),
                 plugged
                         ? " + plug " + strideCell.below()
-                        : !canPlug ? "" : !held ? " (no placeable held)" : " (plug FAILED " + strideCell.below() + ")");
+                        : canPlug ? (held ? " (plug FAILED " + strideCell.below() + ")" : " (no placeable held)") : "");
         return true;
     }
 }

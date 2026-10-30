@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+/** Counts the grounded ticks the bot spends ramming a riser above its node. */
 public final class RamFold {
     public int stepRamStuckTicks; // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) →
 

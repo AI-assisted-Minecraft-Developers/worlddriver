@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+/** Sprint-brake latches for a descent and for deep-water drift; {@link #reset} clears the two brake latches. */
 public final class DriveLatches {
     public int deepWaterDriftLatch =
             0; // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF
@@ -43,6 +44,7 @@ public final class DriveLatches {
     // tick. Not cleared by reset() — it is a log latch, not a drive latch, and a repath
     // mid-passage should not re-announce the same creep
 
+    /** Clears the two sprint-brake latches. */
     public void reset() {
         deepWaterDriftLatch = 0;
         steepDescentLatch = 0;

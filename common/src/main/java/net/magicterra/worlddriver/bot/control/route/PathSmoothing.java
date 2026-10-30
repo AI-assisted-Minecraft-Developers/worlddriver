@@ -28,6 +28,9 @@ public final class PathSmoothing {
 
     private static volatile int unwalkableEmits;
 
+    /** The move name of a flat one-cell step. */
+    private static final String WALK = "walk";
+
     private static volatile String lastUnwalkableEmit;
 
     /**
@@ -57,6 +60,7 @@ public final class PathSmoothing {
             return path;
         }
 
+        /** The edges the smoothed path was built from. */
         public List<Move.Edge> edges() {
             return edges;
         }
@@ -73,7 +77,7 @@ public final class PathSmoothing {
         if (!e.toBreak.isEmpty() || !e.toPlace.isEmpty()) {
             return false;
         }
-        return "walk".equals(e.move) || "diag".equals(e.move);
+        return WALK.equals(e.move) || "diag".equals(e.move);
     }
 
     private static boolean isLeap(Move.Edge e) {
@@ -175,7 +179,7 @@ public final class PathSmoothing {
             } else {
                 auditEmit(w, path.get(i), path.get(j));
                 np.add(path.get(j));
-                ne.add(new Move.Edge(path.get(j), 0, List.of(), List.of(), "walk"));
+                ne.add(new Move.Edge(path.get(j), 0, List.of(), List.of(), WALK));
             }
             i = j;
         }
@@ -189,7 +193,7 @@ public final class PathSmoothing {
      *
      * <h2>Why this is a QUESTION and not a fix</h2>
      *
-     * A rehearsal of rung 20 produced a smoothed segment {@code 98,49,0 → 95,49,0} whose middle two cells
+     * <p>A rehearsal of rung 20 produced a smoothed segment {@code 98,49,0 → 95,49,0} whose middle two cells
      * ({@code 97,49,0}, {@code 96,49,0}) have nothing under them, and the bot began falling at {@code 96,46,0}. The
      * natural reading — "the string-pull only checked its endpoints" — is <b>contradicted by this file</b>: the merge
      * loop above extends {@code j} only while {@link #losWalkable}{@code (w, path.get(i), path.get(j + 1))} holds, and
@@ -246,9 +250,9 @@ public final class PathSmoothing {
         int pz = a.getZ(); // previous sampled cell (corner check)
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
-            int x = c.getX();
-            int y = c.getY();
-            int z = c.getZ();
+            final int x = c.getX();
+            final int y = c.getY();
+            final int z = c.getZ();
             if (!w.isPassable(c) || w.isHazard(c)) {
                 return false;
             }
@@ -366,7 +370,7 @@ public final class PathSmoothing {
         for (int k = i + 1; k <= end; k++) {
             BlockPos from = path.get(k - 1);
             BlockPos to = path.get(k);
-            Move.Edge probe = new Move.Edge(to, 0, List.of(), List.of(), "walk");
+            Move.Edge probe = new Move.Edge(to, 0, List.of(), List.of(), WALK);
             for (CostModifier m : bias) {
                 sum += m.extraCost(from, to, probe, null, w);
             }
@@ -387,7 +391,7 @@ public final class PathSmoothing {
         BlockPos prev = a;
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
-            Move.Edge probe = new Move.Edge(c, 0, List.of(), List.of(), "walk");
+            Move.Edge probe = new Move.Edge(c, 0, List.of(), List.of(), WALK);
             for (CostModifier m : bias) {
                 sum += m.extraCost(prev, c, probe, null, w);
             }
@@ -451,6 +455,8 @@ public final class PathSmoothing {
      * @return the result unchanged, a shorter best-effort result, or an empty one when even the first edge is gone —
      *     the caller then keeps what it has and searches again from here.
      */
+    // The loop returns at the first stale edge it finds; that edge decides where the path is cut, so the return stays.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     public static PathFinder.Result dropStalePrefix(WorldView w, PathFinder.Result res) {
         List<BlockPos> path = res.path();
         List<Move.Edge> edges = res.edges();

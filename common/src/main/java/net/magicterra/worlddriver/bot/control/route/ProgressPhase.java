@@ -72,6 +72,18 @@ public final class ProgressPhase {
      */
     public static final int STEP_ADV_EVENTS = 64;
 
+    /** Three-decimal number format for log lines. */
+    private static final String FMT3 = "%.3f";
+
+    /** Two-decimal number format for log lines. */
+    private static final String FMT2 = "%.2f";
+
+    /** The prefix every fall move's name starts with. */
+    private static final String MOVE_FALL = "fall";
+
+    /** Move name of a one-block step down. */
+    private static final String MOVE_STEP_DOWN = "stepDown";
+
     /**
      * Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward path progress. A
      * normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05 flags a true wall-ram
@@ -231,11 +243,11 @@ public final class ProgressPhase {
                 nx == null ? "none(last node)" : nx.toShortString(),
                 foot == null ? "none" : foot.toShortString(),
                 String.format(Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
-                String.format(Locale.ROOT, "%.3f", cur2),
-                String.format(Locale.ROOT, "%.3f", nd2),
+                String.format(Locale.ROOT, FMT3, cur2),
+                String.format(Locale.ROOT, FMT3, nd2),
                 overshot,
-                w == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(w.getY() - p.getY())),
-                nx == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(nx.getY() - p.getY())),
+                w == null ? "?" : String.format(Locale.ROOT, FMT3, Math.abs(w.getY() - p.getY())),
+                nx == null ? "?" : String.format(Locale.ROOT, FMT3, Math.abs(nx.getY() - p.getY())),
                 p.onGround(),
                 world == null ? "?" : String.format(Locale.ROOT, "%.4f", soleOnSolid(world, p)),
                 String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y));
@@ -264,7 +276,7 @@ public final class ProgressPhase {
             double pz,
             float liveYaw,
             boolean inW,
-            boolean hCol) {
+            boolean headClear) {
         arc.proj.compute(nav.route.path(), nav.route.edges(), world, nav.route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
         boolean reset = nav.route.path() != arc.shadowPath;
@@ -281,26 +293,26 @@ public final class ProgressPhase {
         // 7× arc-wedge at step 1 in water, dYaw stuck 95°, repeated turning back and side-to-side swerving). The
         // targeted ram is the DRY mountain
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
-        if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) {
+        if (reset || inW || arc.proj.barrierHit || !headClear || Math.abs(ds) > ARC_WEDGE_DS) {
             arc.wedgeTicks = 0;
         } else {
             arc.wedgeTicks++;
         }
         arc.shadowPath = nav.route.path();
         arc.shadowS = arc.proj.s;
-        float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw); // the camera-vs-tangent gap
+        float yawGap = angleDiff(arc.proj.tangentYaw, liveYaw); // the camera-vs-tangent gap
         if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
                     nav.route.step(),
                     arc.proj.segIdx,
-                    String.format("%.2f", arc.proj.segFrac),
-                    String.format("%.2f", arc.proj.s),
-                    String.format("%.2f", ds),
-                    String.format("%.2f", arc.proj.perp),
+                    String.format(FMT2, arc.proj.segFrac),
+                    String.format(FMT2, arc.proj.s),
+                    String.format(FMT2, ds),
+                    String.format(FMT2, arc.proj.perp),
                     String.format("%.1f", arc.proj.tangentYaw),
                     String.format("%.1f", liveYaw),
-                    String.format("%.1f", Math.abs(dYaw)),
+                    String.format("%.1f", Math.abs(yawGap)),
                     arc.monoViol,
                     inW);
         }
@@ -375,9 +387,9 @@ public final class ProgressPhase {
                 && nav.route.step() + 1 < nav.route.path().size())) {
             return;
         }
-        BlockPos dN = nav.route.path().get(nav.route.step() + 1);
-        double dsegx = dN.getX() - w.getX();
-        double dsegz = dN.getZ() - w.getZ();
+        BlockPos nextNode = nav.route.path().get(nav.route.step() + 1);
+        double dsegx = nextNode.getX() - w.getX();
+        double dsegz = nextNode.getZ() - w.getZ();
         double doffx = p.getX() - (w.getX() + 0.5);
         double doffz = p.getZ() - (w.getZ() + 0.5);
         LOG.info(
@@ -385,18 +397,18 @@ public final class ProgressPhase {
                 nav.route.step(),
                 nav.route.path().size(),
                 w,
-                String.format("%.2f", cur2),
+                String.format(FMT2, cur2),
                 foot.getY() - w.getY(),
                 se != null && se.move != null ? se.move : "null",
-                se != null && se.move != null && (se.move.startsWith("fall") || "stepDown".equals(se.move)),
+                se != null && se.move != null && (se.move.startsWith(MOVE_FALL) || MOVE_STEP_DOWN.equals(se.move)),
                 passed,
                 crossedDescendNode,
                 crossedWalkNode,
-                dN,
-                dN.getY(),
-                String.format("%.2f", p.getY()),
-                String.format("%.2f", doffx * dsegx + doffz * dsegz),
-                Math.abs(dN.getY() - p.getY()) < 1.2);
+                nextNode,
+                nextNode.getY(),
+                String.format(FMT2, p.getY()),
+                String.format(FMT2, doffx * dsegx + doffz * dsegz),
+                Math.abs(nextNode.getY() - p.getY()) < 1.2);
     }
 
     /**
@@ -461,9 +473,9 @@ public final class ProgressPhase {
      *      |w.y-p.y|=0.252 |nx.y-p.y|=0.748 onGround=false soleOnSolid=0.0000
      * </pre>
      *
-     * The bot landed at y=222 and spent the rest of the scene jumping at a node it tops out one block under. Note the
-     * cause: {@code within}, whose vertical clause is {@code |dyNode| < 1.2} and which has no ground test of any kind.
-     * Refuse at the ONE {@code step++} instead of inside each gate, so
+     * <p>The bot landed at y=222 and spent the rest of the scene jumping at a node it tops out one block under. Note
+     * the cause: {@code within}, whose vertical clause is {@code |dyNode| < 1.2} and which has no ground test of any
+     * kind. Refuse at the ONE {@code step++} instead of inside each gate, so
      * {@code within}/{@code passed}/{@code tail}/{@code arc} are all covered by one predicate that cannot fall out of
      * step with them.
      *
@@ -527,8 +539,8 @@ public final class ProgressPhase {
      *      cur2=0.442 |w.y-p.y|=0.549 onGround=false soleOnSolid=0.0000 fallSpeed=0.1012
      * </pre>
      *
-     * and the walk ended {@code path-consumed} with the bot hanging over the water's edge, which is the shape TODO J47
-     * describes. {@link #airborneClimbConsume} cannot see it: that guard is scoped to a RISING continuation and
+     * <p>and the walk ended {@code path-consumed} with the bot hanging over the water's edge, which is the shape TODO
+     * J47 describes. {@link #airborneClimbConsume} cannot see it: that guard is scoped to a RISING continuation and
      * excludes water. This one is scoped the way {@link #unwalkedDescentConsume}'s final-node arm is — only when
      * spending the node would report an arrival ({@code goal.reached(w) && !goal.reached(foot)}) — so a best-effort
      * tail and a bot already in its goal are untouched, and a water final node keeps the floating arrival it has always
@@ -572,7 +584,7 @@ public final class ProgressPhase {
      * step advance: seq=2/8 cause=within oldStep=2 newStep=3 w=159,52,187 nx=159,51,188 foot=(159.092,53.000,187.700) cur2=0.207 |w.y-p.y|=1.000
      * }</pre>
      *
-     * The second line prints {@code |w.y-p.y|=1.000} and advances on it. The pointer descended, the bot did not, and
+     * <p>The second line prints {@code |w.y-p.y|=1.000} and advances on it. The pointer descended, the bot did not, and
      * the plan was gone. What follows is all downstream: {@code path == null} makes every tick a safety repath, so A*
      * is re-asked from the same cell ~3,500 times over four hops (20 searches a second in {@code latest.log}), and
      * 3,517 of the run's 3,551 no-plan ticks are those four hops standing at that one coordinate.
@@ -756,7 +768,7 @@ public final class ProgressPhase {
                     || n.getY() < foot.getY()
                     || e == null
                     || e.move == null
-                    || !("walk".equals(e.move) || "stepDown".equals(e.move) || "diagDown".equals(e.move))
+                    || !("walk".equals(e.move) || MOVE_STEP_DOWN.equals(e.move) || "diagDown".equals(e.move))
                     || !e.toBreak.isEmpty()
                     || !e.toPlace.isEmpty()) {
                 return -1;
@@ -856,7 +868,12 @@ public final class ProgressPhase {
         return finalNodeHold++ < FINAL_NODE_HOLD_TICKS;
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
@@ -1357,10 +1374,12 @@ public final class ProgressPhase {
             // pillarUp/climb tail (bot legitimately below it) is never aborted.
             boolean descendTail = se != null
                     && se.move != null
-                    && (se.move.startsWith("fall") || se.move.startsWith("diagDown") || "stepDown".equals(se.move));
+                    && (se.move.startsWith(MOVE_FALL)
+                            || se.move.startsWith("diagDown")
+                            || MOVE_STEP_DOWN.equals(se.move));
             boolean tailDroppedPast = !p.isInWater() && descendTail && p.getY() < w.getY() - 2.0;
             boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(nav, p, w);
-            boolean tailConsumed = !within
+            final boolean tailConsumed = !within
                     && nav.route.step() + 1 == nav.route.path().size()
                     && nav.route.seg.pathBestEffort
                     && (tailOvershot || tailDroppedPast || tailReady(nav, p, foot, w, cur2));
@@ -1382,7 +1401,7 @@ public final class ProgressPhase {
             // eagerly there over-leans the descent into MORE back-correction (descentYawArena
             // backSteps 42→71). A discrete drop has one clean overshoot to consume.
             boolean discreteDescend =
-                    se != null && se.move != null && (se.move.startsWith("fall") || "stepDown".equals(se.move));
+                    se != null && se.move != null && (se.move.startsWith(MOVE_FALL) || MOVE_STEP_DOWN.equals(se.move));
             boolean crossedDescendNode = false;
             if (!within
                     && !passed
@@ -1443,7 +1462,9 @@ public final class ProgressPhase {
                     && !crossedWalkNode
                     && se != null
                     && se.move != null
-                    && ("stepDown".equals(se.move) || se.move.startsWith("fall") || se.move.startsWith("diagDown"))
+                    && (MOVE_STEP_DOWN.equals(se.move)
+                            || se.move.startsWith(MOVE_FALL)
+                            || se.move.startsWith("diagDown"))
                     && (p.isInWater() || nav.aim.surfaceWaterLatch > 0)
                     && stepProg.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
                     && cur2 < WATER_STEPDOWN_REACH_SQ
@@ -1459,8 +1480,8 @@ public final class ProgressPhase {
                             nav.route.path().size(),
                             w,
                             se.move,
-                            String.format(Locale.ROOT, "%.3f", cur2),
-                            String.format(Locale.ROOT, "%.2f", dyNode),
+                            String.format(Locale.ROOT, FMT3, cur2),
+                            String.format(Locale.ROOT, FMT2, dyNode),
                             stepProg.noStepProgressTicks);
                 }
             }
@@ -1500,7 +1521,7 @@ public final class ProgressPhase {
                             nav.route.step(),
                             nav.route.path().size(),
                             w,
-                            String.format(Locale.ROOT, "%.3f", cur2),
+                            String.format(Locale.ROOT, FMT3, cur2),
                             stepProg.noStepProgressTicks);
                 }
             }

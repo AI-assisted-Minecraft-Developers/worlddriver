@@ -18,9 +18,10 @@ import net.minecraft.world.entity.LivingEntity;
 public final class StandToWork {
     private StandToWork() {}
 
+    /** Runs one tick of the stand-still behaviour while {@code work} is being carried out. */
     public static TickStep run(Navigator nav, TickCtx cx, Body a, RouteDig.Work work) {
         LivingEntity p = cx.frame.p;
-        BlockPos foot = cx.frame.foot;
+        final BlockPos foot = cx.frame.foot;
         Keys.forward(a, false);
         nav.keys.jump(a, false);
         p.setSprinting(false);

@@ -71,8 +71,17 @@ final class InputFrame {
         jump = v;
     }
 
+    /** Null when no one commanded the channel this tick, which leaves the body's own input alone. */
+    Boolean jump() {
+        return jump;
+    }
+
     void sneak(boolean v) {
         sneak = v;
+    }
+
+    Boolean sneak() {
+        return sneak;
     }
 
     boolean hasPush() {
@@ -89,15 +98,6 @@ final class InputFrame {
 
     float rawForward() {
         return rawForward;
-    }
-
-    /** Null when no one commanded the channel this tick, which leaves the body's own input alone. */
-    Boolean jump() {
-        return jump;
-    }
-
-    Boolean sneak() {
-        return sneak;
     }
 
     /** True when either move command this tick asks the body to move at all. */

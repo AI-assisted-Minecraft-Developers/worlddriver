@@ -32,7 +32,9 @@ interface Controller {
      * anything, so the counters a controller keeps about its situation (how long it has been stalled, whether it was in
      * water lately) advance on every tick, not only on ticks it runs.
      */
-    default void sense(Navigator nav, TickCtx cx, WorldView world) {}
+    default void sense(Navigator nav, TickCtx cx, WorldView world) {
+        // Nothing to sense by default; a controller that watches the world overrides this.
+    }
 
     /** Null when it may start this tick, otherwise the condition that does not hold, for the snapshot. */
     String whyNot(Navigator nav, TickCtx cx, WorldView world);
@@ -58,5 +60,7 @@ interface Controller {
      * {@link #sense} keeps. Called on every controller, running or not, when the walk gets a new goal or drops its
      * plan; a running one is stopped first only for a new goal.
      */
-    default void reset(ResetScope scope) {}
+    default void reset(ResetScope scope) {
+        // Nothing to clear by default; a controller that keeps state across ticks overrides this.
+    }
 }

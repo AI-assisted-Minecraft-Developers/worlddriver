@@ -120,7 +120,7 @@ public final class DrownEscape implements Controller {
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
-        BlockPos foot = cx.frame.foot;
+        final BlockPos foot = cx.frame.foot;
         nav.keys.jump(a, true);
         nav.blocks.breakHold(false);
         p.setSprinting(false);

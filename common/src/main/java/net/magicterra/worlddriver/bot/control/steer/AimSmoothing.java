@@ -61,6 +61,7 @@ public final class AimSmoothing {
 
     boolean orbitBreaking = false; // the break is active (logged once on entry)
 
+    /** Clears the smoothed target and the orbit counter, so the next aim starts from scratch. */
     public void reset() {
         smoothTargetYaw = Float.NaN;
         orbitTicks = 0;

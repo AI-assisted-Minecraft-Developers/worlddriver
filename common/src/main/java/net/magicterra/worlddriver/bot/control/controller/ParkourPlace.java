@@ -34,7 +34,7 @@ import net.minecraft.world.entity.LivingEntity;
  *       carry it off the far edge into a gap beyond.
  * </ul>
  *
- * Once placed AND grounded it lets the regular walk and the arrival check have the tick.
+ * <p>Once placed AND grounded it lets the regular walk and the arrival check have the tick.
  */
 public final class ParkourPlace implements Controller {
 
@@ -83,9 +83,9 @@ public final class ParkourPlace implements Controller {
         LivingEntity p = cx.frame.p;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         BlockPos dest = nav.route.path().get(nav.route.step());
-        BlockPos floor = edge.toPlace.get(0);
-        boolean placed = !hasPendingEdge(world, edge); // landing block is down
-        boolean grounded = p.onGround();
+        final BlockPos floor = edge.toPlace.get(0);
+        final boolean placed = !hasPendingEdge(world, edge); // landing block is down
+        final boolean grounded = p.onGround();
         nav.totalTicks = 0;
         nav.stuckTicks = 0; // owns this cell while leaping — not "stuck"
         if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
@@ -127,5 +127,7 @@ public final class ParkourPlace implements Controller {
     }
 
     @Override
-    public void stop(String why) {}
+    public void stop(String why) {
+        // No state of its own to clear on stop.
+    }
 }

@@ -95,7 +95,7 @@ public final class StallDetectPhase {
      * that got nearer the goal than ever before ({@code nearer}) is no cycle: a pocket's loop stops doing that after
      * its first lap.
      */
-    private void trackWindow(Navigator nav, LivingEntity p, BlockPos foot, boolean nearer) {
+    private void trackWindow(LivingEntity p, BlockPos foot, boolean nearer) {
         if (p.horizontalCollision) {
             churn.hColRamTicks++;
         } else {
@@ -120,7 +120,13 @@ public final class StallDetectPhase {
         }
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The stall verdict is one ordered chain of checks over the same locals. The mining branch is empty on purpose:
+    // it holds the no-progress give-up, which is the reason the branch exists.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.EmptyControlStatement"})
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
@@ -169,7 +175,7 @@ public final class StallDetectPhase {
         //     the walk and the result is ready to splice the instant we arrive.
         //     Adoption is DEFERRED to the segment end (see below) so the new path
         //     always starts where the bot will be — no backward yaw flip.
-        boolean offPath = offPath(nav, foot, p);
+        final boolean offPath = offPath(nav, foot, p);
         // Jitter-immune wedge: stuck on a node the Navigator can't complete (e.g. a
         // ground-blocked fallN). An edge that's legitimately BREAKING blocks gets a
         // far longer leash: bare-handed stone takes ~150 ticks/block — well past
@@ -201,7 +207,7 @@ public final class StallDetectPhase {
                 (wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && nav.blocks.breakHeld()) || cx.stall.dugLastTick;
         nav.waterClimb.digging = false; // re-armed below only if the block-less dig actuator runs this tick
         int wedgeLimit = breakingEdge ? WEDGE_TICKS + ControlConfig.breakTimeoutTicks : WEDGE_TICKS;
-        boolean wedged = nav.progress.stepProg.noStepProgressTicks > wedgeLimit;
+        final boolean wedged = nav.progress.stepProg.noStepProgressTicks > wedgeLimit;
         // Fell off the committed climb path VERTICALLY (the current node is more than a jump
         // above/below the feet — a fumbled pillar/parkour dropped the bot below the route, or
         // it slid down). A CONTINUATION search (launched from commitEnd, not the foot) can
@@ -401,7 +407,7 @@ public final class StallDetectPhase {
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
         // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
         // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
-        trackWindow(nav, p, foot, nearer);
+        trackWindow(p, foot, nearer);
         int effChurnWindow = ControlConfig.navigatorFasterChurnRepath ? 240 : CHURN_WINDOW;
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate

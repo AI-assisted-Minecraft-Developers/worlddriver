@@ -49,6 +49,10 @@ import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
+/**
+ * The movement driver for one bot: plans a route with {@link PathFinder}, then steers the body along it one tick at a
+ * time through the {@code *Phase} classes in its sub-packages.
+ */
 public final class Navigator implements Locomotor {
     // Water-bucket (MLG) fall handling lives in the always-on {@link
     // ClutchController} the bot ticks, so an unplanned fall self-rescues
@@ -209,10 +213,12 @@ public final class Navigator implements Locomotor {
         return inspector;
     }
 
+    /** A navigator with the default settings, which name no owner. */
     public Navigator() {
         this(NavigatorSettings.DEFAULT);
     }
 
+    /** A navigator with the given settings; the owner and the search limits are read once, here. */
     public Navigator(NavigatorSettings settings) {
         this.owner = settings.owner();
         this.searchMaxNodes = settings.searchMaxNodes();
@@ -278,14 +284,14 @@ public final class Navigator implements Locomotor {
      */
     @Override
     public void retarget(Goal g) {
-        double bestDist = search.gov.futileBestDist;
-        BlockPos bestFoot = search.gov.futileFoot;
-        Goal yardstick = search.gov.futileGoal;
-        BlockPos latchFoot = search.gov.futileLatchFoot;
-        int searches = search.gov.futileSearches;
-        int backoff = search.gov.searchBackoffTicks;
-        PathFinder.Search running = route.seg.searchFromEnd ? null : route.seg.activeSearch;
-        boolean placeSuppressed = route.seg.searchSuppressedPlace;
+        final double bestDist = search.gov.futileBestDist;
+        final BlockPos bestFoot = search.gov.futileFoot;
+        final Goal yardstick = search.gov.futileGoal;
+        final BlockPos latchFoot = search.gov.futileLatchFoot;
+        final int searches = search.gov.futileSearches;
+        final int backoff = search.gov.searchBackoffTicks;
+        final PathFinder.Search running = route.seg.searchFromEnd ? null : route.seg.activeSearch;
+        final boolean placeSuppressed = route.seg.searchSuppressedPlace;
         start(g);
         search.gov.futileBestDist = bestDist;
         search.gov.futileFoot = bestFoot;
@@ -397,16 +403,16 @@ public final class Navigator implements Locomotor {
                     if (!world.canStandAt(c)) {
                         continue;
                     }
-                    long dT = (long) c.distSqr(t);
-                    if (dT > bestToTarget) {
+                    long distTarget = (long) c.distSqr(t);
+                    if (distTarget > bestToTarget) {
                         continue;
                     }
-                    long dF = (long) c.distSqr(foot);
+                    long distFoot = (long) c.distSqr(foot);
                     // Nearest to the target wins; ties broken toward the bot so the snap
                     // doesn't pick a standable cell on the far side of the obstruction.
-                    if (dT < bestToTarget || dF < bestToFoot) {
-                        bestToTarget = dT;
-                        bestToFoot = dF;
+                    if (distTarget < bestToTarget || distFoot < bestToFoot) {
+                        bestToTarget = distTarget;
+                        bestToFoot = distFoot;
                         best = c;
                     }
                 }

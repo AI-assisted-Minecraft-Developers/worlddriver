@@ -27,6 +27,7 @@ public final class Keys {
      */
     private boolean lastJumpAsk;
 
+    /** The key channel of {@code nav}. */
     public Keys(Navigator nav) {
         this.nav = nav;
     }
@@ -137,6 +138,7 @@ public final class Keys {
                 p.level().getBlockState(foot.above()).getBlock().toString());
     }
 
+    /** Commands the body's sneak key to {@code v} for this tick. */
     public static void sneak(Body a, boolean v) {
         a.commandSneak(v);
     }

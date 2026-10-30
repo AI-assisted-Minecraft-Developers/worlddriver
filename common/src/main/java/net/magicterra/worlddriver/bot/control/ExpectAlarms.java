@@ -98,6 +98,11 @@ public final class ExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
+    /**
+     * Checks the expectation alarms for this tick and logs any divergence with its cause. Purely observational: it
+     * reads the bot's state and never drives it.
+     */
+    @SuppressWarnings("checkstyle:javancss") // one check per alarm, each a few statements; they read as a list
     public void tick(
             BlockInteraction blocks,
             Body a,
@@ -290,10 +295,10 @@ public final class ExpectAlarms {
                 List.of(net.minecraft.world.item.Items.WATER_BUCKET);
 
         /**
-         * @return the missing-gear description ("water_bucket(slot 12) ", …) or null if OK / not a player. The slot is
-         *     printed because this alarm names a cause, and a reader who wants to refute it needs the cell to look in —
-         *     an alarm that asserts "crowded out" without saying out of WHERE is asking to be believed rather than
-         *     checked.
+         * Names the missing gear, such as {@code water_bucket(slot 12) }, or null when nothing is missing or the entity
+         * is not a player. The slot is printed because this alarm names a cause, and a reader who wants to refute it
+         * needs the cell to look in — an alarm that asserts "crowded out" without saying out of WHERE is asking to be
+         * believed rather than checked.
          */
         static String missing(LivingEntity p) {
             if (!(p instanceof Player lp)) {

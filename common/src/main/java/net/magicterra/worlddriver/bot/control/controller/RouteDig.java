@@ -38,6 +38,7 @@ public final class RouteDig implements Controller {
 
     private boolean breakInReach;
 
+    /** What the route-dig controller is doing this tick: breaking, placing, settling, or dropped. */
     public enum Kind {
         /** Breaking {@link Work#cell}. */
         DIG,
@@ -79,6 +80,8 @@ public final class RouteDig implements Controller {
     }
 
     @Override
+    // Only the first solid cell on the edge becomes the work item, so the loop stops at it by design.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
         work = null;
         LivingEntity p = cx.frame.p;
@@ -134,8 +137,8 @@ public final class RouteDig implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
-        BlockPos foot = cx.frame.foot;
+        final LivingEntity p = cx.frame.p;
+        final BlockPos foot = cx.frame.foot;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         nav.totalTicks = 0; // breaking/placing IS progress
         nav.stuckTicks = 0; // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)

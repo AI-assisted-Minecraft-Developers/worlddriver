@@ -128,6 +128,8 @@ public final class ClutchController {
      * current column as target. Gates on {@code allowWaterBucketFall} here rather than at the caller, so a dangerous
      * fall with the flag off still raises the CLUTCH-noArm alarm instead of vanishing.
      */
+    // The if-chain names each reason in the order it is checked, so the negated first guard reads as the reason itself.
+    @SuppressWarnings("PMD.ConfusingTernary")
     private void armReactive(Body body, LivingEntity p, WorldView world) {
         if (noArmThrottle > 0) {
             noArmThrottle--;
@@ -207,6 +209,9 @@ public final class ClutchController {
      * else and yield the keys); false when not armed, or armed-but-still-on-the-launch-lip (let the navigator step
      * off), or just disarmed this tick.
      */
+    // It sequences the clutch phases in one place, and the phase order is what the method is for; splitting it would
+    // scatter that order over helpers.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"})
     public boolean tick(Body body, WorldView world) {
         LivingEntity p = body.entity();
         if (p == null) {
@@ -322,11 +327,11 @@ public final class ClutchController {
     }
 
     /**
-     * First solid block at or below {@code (x, yStart, z)}, scanning down up to {@code maxDepth} blocks — the impact
+     * First solid block at or below {@code (x, startY, z)}, scanning down up to {@code maxDepth} blocks — the impact
      * floor under a falling column. Null if only air/void within range.
      */
-    private static BlockPos floorBelow(WorldView w, int x, int yStart, int z, int maxDepth) {
-        for (int y = yStart; y >= yStart - maxDepth; y--) {
+    private static BlockPos floorBelow(WorldView w, int x, int startY, int z, int maxDepth) {
+        for (int y = startY; y >= startY - maxDepth; y--) {
             BlockPos b = new BlockPos(x, y, z);
             if (w.isSolid(b)) {
                 return b;

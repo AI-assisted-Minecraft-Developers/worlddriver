@@ -25,15 +25,25 @@ import net.minecraft.world.entity.LivingEntity;
  * (this file is state-machine surgery).
  */
 public final class EdgeGuardsPhase {
+    /** Two-decimal number format for log lines. */
+    private static final String FMT2 = "%.2f";
+
+    /** Zero-decimal number format for log lines. */
+    private static final String FMT0 = "%.0f";
+
     public int dbgPrevStep = -1; // navigatorDebug: detect step changes for per-step timing
 
     public int dbgTicksOnStep = 0; // navigatorDebug: ticks spent on the current step
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
-        BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
@@ -50,14 +60,14 @@ public final class EdgeGuardsPhase {
         // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
         // the bridge frontier instead of being yanked back to the horizon between place
         // ticks. The sneak/sprint gating that also reads this lives further down.
-        boolean bridging = (edge != null && "bridgePlace".equals(edge.move))
+        final boolean bridging = (edge != null && "bridgePlace".equals(edge.move))
                 || (nextEdge != null && "bridgePlace".equals(nextEdge.move));
         // ANY block-placing edge (pillarUp / parkourPlace / stair scaffolds), current or
         // next: the place-tick aimAtBlockSnap pitches the camera down exactly like a
         // bridge place does, so the pitch-hold below must cover these too — a steep
         // dirt-ladder ascent showed the same down-snap ↔ horizon-pull sawtooth the
         // bridge fix (#30) solved, just via pillarUp edges instead of bridgePlace.
-        boolean placingEdge =
+        final boolean placingEdge =
                 (edge != null && !edge.toPlace.isEmpty()) || (nextEdge != null && !nextEdge.toPlace.isEmpty());
         // Stepping off into an MLG fall: walk off at WALK speed (no sprint) so
         // the bot drops near-vertically and lands in the water we place under
@@ -74,7 +84,7 @@ public final class EdgeGuardsPhase {
         // water column and onto dry land beyond. But there's no source to
         // place or scoop here, so it must NOT arm the mlg latch (that latch
         // drives water placement and would strand an empty hand mid-fall).
-        boolean steppingOffWaterFall = (edge != null && edge.move != null && edge.move.startsWith("fallWater"))
+        final boolean steppingOffWaterFall = (edge != null && edge.move != null && edge.move.startsWith("fallWater"))
                 || (nextEdge != null && nextEdge.move != null && nextEdge.move.startsWith("fallWater"));
         // Commit to the MLG fall while still on the launch lip: the latch at
         // the top of tick() then owns the entire descent (placing/scooping the
@@ -120,8 +130,8 @@ public final class EdgeGuardsPhase {
         double ddx = nd.getX() + 0.5 - p.getX();
         double ddz = nd.getZ() + 0.5 - p.getZ();
         double cur2 = ddx * ddx + ddz * ddz;
-        double dY = nd.getY() - p.getY();
-        boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
+        double deltaY = nd.getY() - p.getY();
+        boolean within = cur2 < REACH_DIST_SQ && Math.abs(deltaY) < 1.2;
         BlockPos br0 = edge != null && !edge.toBreak.isEmpty() ? edge.toBreak.get(0) : null;
         // bearing TO the node (MC yaw: 0=+z south, atan2(-dx,dz)); yawErr = how far the bot's body
         // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (stuck against a wall) from
@@ -138,18 +148,18 @@ public final class EdgeGuardsPhase {
                 nd.getX(),
                 nd.getY(),
                 nd.getZ(),
-                String.format(Locale.ROOT, "%.2f", p.getX()),
-                String.format(Locale.ROOT, "%.2f", p.getY()),
-                String.format(Locale.ROOT, "%.2f", p.getZ()),
-                String.format(Locale.ROOT, "%.0f", p.getXRot()),
-                String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                String.format(Locale.ROOT, "%.0f", bearing),
-                String.format(Locale.ROOT, "%.0f", yawErr),
+                String.format(Locale.ROOT, FMT2, p.getX()),
+                String.format(Locale.ROOT, FMT2, p.getY()),
+                String.format(Locale.ROOT, FMT2, p.getZ()),
+                String.format(Locale.ROOT, FMT0, p.getXRot()),
+                String.format(Locale.ROOT, FMT0, p.getYRot()),
+                String.format(Locale.ROOT, FMT0, bearing),
+                String.format(Locale.ROOT, FMT0, yawErr),
                 p.horizontalCollision,
-                String.format(Locale.ROOT, "%.0f", nav.aim.aimSmooth.lastAimYaw),
+                String.format(Locale.ROOT, FMT0, nav.aim.aimSmooth.lastAimYaw),
                 String.format(Locale.ROOT, "%.3f", cur2),
                 REACH_DIST_SQ,
-                String.format(Locale.ROOT, "%.2f", Math.abs(dY)),
+                String.format(Locale.ROOT, FMT2, Math.abs(deltaY)),
                 within,
                 p.onGround(),
                 p.isInWater(),

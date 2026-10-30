@@ -38,7 +38,7 @@ public final class SearchPhase {
     /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
     private static final int REFUSALS_LOGGED = 8;
 
-    /** @see SearchGovernors */
+    /** The rations and latches that stop a search from repeating itself; see {@link SearchGovernors}. */
     public final SearchGovernors gov = new SearchGovernors();
 
     /**
@@ -105,7 +105,7 @@ public final class SearchPhase {
      * the gate does; the only reason this is one method and not an expression is {@code run()}'s per-method budget.
      */
     private boolean futileGateExcluded(
-            PathFinder.Result res, Body a, Navigator nav, WorldView world, BlockPos foot, boolean dugLastTick) {
+            PathFinder.Result res, Navigator nav, WorldView world, BlockPos foot, boolean dugLastTick) {
         int bucket = -1;
         if (ControlConfig.navigatorFutileSearchCap <= 0) {
             bucket = 0;
@@ -148,14 +148,8 @@ public final class SearchPhase {
      * @return non-null Step to end the tick, or null to fall through.
      */
     private TickStep futileGateJudge(
-            PathFinder.Result res,
-            Body a,
-            Navigator nav,
-            WorldView world,
-            BlockPos foot,
-            LivingEntity p,
-            boolean dugLastTick) {
-        if (futileGateExcluded(res, a, nav, world, foot, dugLastTick)) {
+            PathFinder.Result res, Navigator nav, WorldView world, BlockPos foot, LivingEntity p, boolean dugLastTick) {
+        if (futileGateExcluded(res, nav, world, foot, dugLastTick)) {
             return null;
         }
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
@@ -168,7 +162,7 @@ public final class SearchPhase {
         // not — and this holds for every goal shape, with no per-shape arithmetic to get wrong.
         boolean gotCloser = seeded && gov.futileGoal.estimate(foot) < gov.futileBestDist - 0.5;
         boolean moved = gov.futileFoot != null && gov.futileFoot.distSqr(foot) > 4;
-        nav.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
+        nav.tel.futileGateBuckets.incrementAndGet(seeded ? (gotCloser ? 6 : moved ? 7 : 8) : 9);
         if (!seeded || gotCloser || moved) {
             if (seeded) {
                 gov.futileSearches = 0;
@@ -213,7 +207,12 @@ public final class SearchPhase {
         }
     }
 
-    /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
+     * through.
+     */
+    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
@@ -255,8 +254,8 @@ public final class SearchPhase {
         }
         if (searchDone) {
             nav.tallies.lastSearch = nav.route.seg.activeSearch;
-            boolean wasFromEnd = nav.route.seg.searchFromEnd;
-            boolean afterChange = nav.route.seg.afterBlockChange;
+            final boolean wasFromEnd = nav.route.seg.searchFromEnd;
+            final boolean afterChange = nav.route.seg.afterBlockChange;
             PathFinder.Result res = nav.route.takeSearchResult();
             nav.tallies.lastResult = res;
             nav.tel.lastStats = new NavigatorTelemetry.PathStats(
@@ -284,7 +283,7 @@ public final class SearchPhase {
                         res.expanded(),
                         res.ms());
             }
-            TickStep futile = futileGateJudge(res, a, nav, world, foot, p, cx.stall.dugLastTick);
+            TickStep futile = futileGateJudge(res, nav, world, foot, p, cx.stall.dugLastTick);
             if (futile != null) {
                 return futile;
             }
@@ -437,7 +436,7 @@ public final class SearchPhase {
                 // 200 ticks is the live signature of "A* alternates two near-equal routes"
                 // (the C16 dry-land churn that took three autopsies to see from raw logs).
                 boolean keepCurrent = false;
-                boolean uTurnLeg = false;
+                boolean reversedLeg = false;
                 if (nav.route.path() != null
                         && nav.route.step() < nav.route.path().size()
                         && res.path().size() > 3
@@ -450,11 +449,11 @@ public final class SearchPhase {
                     double caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX();
                     double naz = newAhead.getZ() + 0.5 - p.getZ();
-                    uTurnLeg = (cax * nax + caz * naz) < 0;
+                    reversedLeg = (cax * nax + caz * naz) < 0;
                     // Not after a block change: the plan being kept is the one the change cut, and turning
                     // back may be exactly what the new shape asks for.
                     keepCurrent = ControlConfig.navigatorRouteHysteresis
-                            && uTurnLeg
+                            && reversedLeg
                             && nav.progress.stepProg.noStepProgressTicks < 20
                             && !afterChange;
                     if (keepCurrent && GameConfig.navigatorDebug) {
@@ -485,7 +484,7 @@ public final class SearchPhase {
                     }
                 }
                 if (!keepCurrent) {
-                    if (ControlConfig.navigatorExpectAlarm && uTurnLeg) {
+                    if (ControlConfig.navigatorExpectAlarm && reversedLeg) {
                         nav.exAlarms.noteRepathFlip(nav.stallDetect.escal.tick, foot);
                     }
                     Route.Adoption adoption = RouteAdoption.adopt(nav, res, world, foot);

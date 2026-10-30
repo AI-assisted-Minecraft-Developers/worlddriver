@@ -83,6 +83,8 @@ public final class NavigatorInspector {
      * counters) for test-scene diagnostics — the package-private fields are invisible to testmod scene classes and the
      * log stream drops lines under load, so failures embed this in ctx.fail.
      */
+    // The '/' and ',' literals are the separators of this one telemetry line, read in place.
+    @SuppressWarnings("checkstyle:multiplestringliterals")
     public String progressProbe() {
         BlockPos wp =
                 nav.route.path() != null && nav.route.step() < nav.route.path().size()
@@ -304,6 +306,7 @@ public final class NavigatorInspector {
         return tallyOf(nav.route.path(), nav.route.edges()) + " reachesGoal=" + !nav.route.seg.pathBestEffort;
     }
 
+    /** Summarises a path as its node count, its last node, and how many edges use each move. */
     public static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
         if (nodes == null || nodes.isEmpty()) {
             return "no path";
@@ -335,16 +338,17 @@ public final class NavigatorInspector {
         return nav.rawPlan == null ? "none" : nav.rawPlan;
     }
 
+    /** True when the current route is a best-effort route that does not reach the goal. */
+    public boolean bestEffort() {
+        return nav.route.seg.pathBestEffort;
+    }
+
     /**
      * What the first parkour leap of this walk was launched with. {@code Parkour3} is costed as the <b>sprint-jump
      * maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted a leap the planner priced for a
      * run-up it was not allowed to take. Deliberately not read from {@code onGround}: this bot's is wrong in both
      * directions.
      */
-    public boolean bestEffort() {
-        return nav.route.seg.pathBestEffort;
-    }
-
     public String parkourTakeoff() {
         return nav.drive.parkourTakeoff == null ? "none" : nav.drive.parkourTakeoff;
     }
@@ -380,14 +384,14 @@ public final class NavigatorInspector {
         if (nav.route.path() == null || nav.route.path().size() < 2 || w == null) {
             return "no path";
         }
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(256);
         int last = Math.min(segments, nav.route.path().size() - 1);
         for (int i = 0; i < last; i++) {
             BlockPos a = nav.route.path().get(i);
             BlockPos b = nav.route.path().get(i + 1);
             int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
             StringBuilder holes = new StringBuilder();
-            int nHoles = 0;
+            int holeCount = 0;
             for (int s = 0; s <= steps; s++) {
                 double t = steps == 0 ? 0 : (double) s / steps;
                 BlockPos c = new BlockPos(
@@ -397,9 +401,9 @@ public final class NavigatorInspector {
                 if (w.isSolid(c.below())) {
                     continue;
                 }
-                nHoles++;
-                if (nHoles <= 6) {
-                    holes.append(nHoles == 1 ? "" : ",")
+                holeCount++;
+                if (holeCount <= 6) {
+                    holes.append(holeCount == 1 ? "" : ",")
                             .append(c.toShortString())
                             .append(w.isKnown(c.below()) ? "" : "(unloaded)");
                 }
@@ -411,7 +415,7 @@ public final class NavigatorInspector {
                     .append(i)
                     .append(' ')
                     .append(a.toShortString())
-                    .append("→")
+                    .append('→')
                     .append(b.toShortString())
                     .append(" move=")
                     .append(move)
@@ -419,9 +423,9 @@ public final class NavigatorInspector {
                     .append(steps + 1)
                     .append(' ')
                     .append(
-                            nHoles == 0
+                            holeCount == 0
                                     ? "gaps=none"
-                                    : "gaps=" + nHoles + "[" + holes + "]"
+                                    : "gaps=" + holeCount + "[" + holes + "]"
                                             // A jump is SUPPOSED to cross thin air. Saying so here, beside the count,
                                             // is
                                             // what keeps the row from naming a fault that does not exist.

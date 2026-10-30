@@ -15,8 +15,8 @@ public final class NavigatorConstants {
     public static final double CARROT_DIST = 4.0;
 
     /**
-     * navigatorTangentPursuit: cross-track distance (blocks) past which the tangent aim yields to the bearing of the
-     * path's point ahead. 0.6 = more than lane jitter, less than a whole cell.
+     * {@code navigatorTangentPursuit}: cross-track distance (blocks) past which the tangent aim yields to the bearing
+     * of the path's point ahead. 0.6 = more than lane jitter, less than a whole cell.
      */
     public static final double PURSUIT_PERP = 0.6;
 
@@ -31,15 +31,15 @@ public final class NavigatorConstants {
     public static final double YAW_DEADZONE_SQ = 0.25;
 
     /**
-     * navigatorDryReanchor: sustained stuck ticks before the dry repath-rechurn breaker anchors back to the last
-     * cleanly-passed node. ~50 = 2.5s, past safetyRepath's stuck>60? no — fire BEFORE the repath churn deepens, but
-     * well past any clean slow move (water creep is in-water-excluded).
+     * {@code navigatorDryReanchor}: sustained stuck ticks before the dry repath-rechurn breaker anchors back to the
+     * last cleanly-passed node. ~50 = 2.5s, past safetyRepath's stuck>60? no — fire BEFORE the repath churn deepens,
+     * but well past any clean slow move (water creep is in-water-excluded).
      */
     public static final int DRY_REANCHOR_STUCK = 50;
 
     /**
-     * navigatorDryReanchor: foot-to-current-node dist² (blocks²) above which the bot is "far off-path" and the anchor
-     * engages. 4 = OVERSHOOT_RESYNC_SQ (2 blocks) — a genuinely-approaching node stays under it, so a legit slow
+     * {@code navigatorDryReanchor}: foot-to-current-node dist² (blocks²) above which the bot is "far off-path" and the
+     * anchor engages. 4 = OVERSHOOT_RESYNC_SQ (2 blocks) — a genuinely-approaching node stays under it, so a legit slow
      * climb/creep that hugs its node never triggers; only a real off-path churn does.
      */
     public static final double DRY_REANCHOR_OFFPATH_SQ = 9.0;
@@ -437,7 +437,7 @@ public final class NavigatorConstants {
     public static final int STEPUP_FREEZE_TICKS = 24;
 
     /**
-     * task#82 dead-zone watchdog (AscendMovement, plan B1): delegated ascent-episode ticks with NO progress — no dy
+     * The task#82 dead-zone watchdog (AscendMovement, plan B1): delegated ascent-episode ticks with NO progress — no dy
      * high-water gain, no horizontal gap-close beyond the episode's best, no active dig — before the machine returns
      * UNREACHABLE and routes into the fellOffPath re-route. A healthy stepUp closes in well under STEPUP_FREEZE_TICKS
      * (~1.2 s); 3× gives slow approaches and jump arcs full margin, while the task#82 pose (cur2 wedged in (0.45,4.0),
@@ -514,16 +514,16 @@ public final class NavigatorConstants {
     public static final double PILLAR_ALIGN_SQ = 0.25;
 
     /**
-     * noStepProgressTicks before the WALK overshoot-advance (crossedWalkNode) nudges a bot that has crossed a flat walk
-     * node and is orbiting it in the step-advance dead-zone past the wedge — short enough to cut the ~5.5 s
-     * wedge-repath wait, long enough that a normal walk (which advances via within/passed in 1-2 ticks, resetting
-     * noStepProgressTicks) never trips it.
+     * The {@code noStepProgressTicks} limit before the WALK overshoot-advance (crossedWalkNode) nudges a bot that has
+     * crossed a flat walk node and is orbiting it in the step-advance dead-zone past the wedge — short enough to cut
+     * the ~5.5 s wedge-repath wait, long enough that a normal walk (which advances via within/passed in 1-2 ticks,
+     * resetting noStepProgressTicks) never trips it.
      */
     public static final int WALK_OVERSHOOT_STUCK_TICKS = 16;
 
     /**
-     * noStepProgressTicks a bot pinned at a SHALLOW WATER-SURFACE step-down foothold must be stalled before
-     * {@link ControlConfig#navigatorWaterStepDownFloat} advances the step at the relaxed reach. Same spirit as
+     * {@code noStepProgressTicks}: how long a bot pinned at a SHALLOW WATER-SURFACE step-down foothold must be stalled
+     * before {@link ControlConfig#navigatorWaterStepDownFloat} advances the step at the relaxed reach. Same spirit as
      * {@link #WALK_OVERSHOOT_STUCK_TICKS}: a clean approach advances via within/passed in 1-2 ticks (resetting
      * noStepProgressTicks) and never trips it, so this ONLY rescues a confirmed buoyant bob-ram at the water surface.
      */
@@ -540,12 +540,12 @@ public final class NavigatorConstants {
     public static final double WATER_STEPDOWN_REACH_SQ = 1.2;
 
     /**
-     * noStepProgressTicks a buoyant bot ORBITING/FROZEN at a flat {@code walk} WATER-SURFACE node must be stalled
-     * before {@link ControlConfig#navigatorWaterWalkReach} advances the step at the relaxed reach. Same spirit as
-     * {@link #WATER_STEPDOWN_STALL_TICKS}: a clean surface crossing advances each walk node via {@code passed} (forward
-     * momentum) in 1-2 ticks — noStepProgressTicks (HORIZONTAL-only in water, Navigator:~1666, so the bob can't
-     * fake-reset it) stays low — and never trips it; only a turn / terminal / WALL-CORNER freeze where neither
-     * {@code within} nor {@code passed} can fire accumulates it.
+     * {@code noStepProgressTicks}: how long a buoyant bot ORBITING/FROZEN at a flat {@code walk} WATER-SURFACE node
+     * must be stalled before {@link ControlConfig#navigatorWaterWalkReach} advances the step at the relaxed reach. Same
+     * spirit as {@link #WATER_STEPDOWN_STALL_TICKS}: a clean surface crossing advances each walk node via
+     * {@code passed} (forward momentum) in 1-2 ticks — noStepProgressTicks (HORIZONTAL-only in water, Navigator:~1666,
+     * so the bob can't fake-reset it) stays low — and never trips it; only a turn / terminal / WALL-CORNER freeze where
+     * neither {@code within} nor {@code passed} can fire accumulates it.
      */
     public static final int WATER_WALK_STALL_TICKS = 24;
 
@@ -570,10 +570,10 @@ public final class NavigatorConstants {
     public static final double PARKOUR_PLACE_REACH = 4.0;
 
     /**
-     * stuckTicks before a FLAT-node carrot-orbit falls back to aiming at the IMMEDIATE node instead of the look-ahead
-     * carrot. On a flat walk aimAtWaypoint is false (wp.y==foot.y), so the bot follows the carrot; at a turn/corner
-     * node the carrot points ~60° off the close node and the bot orbits it at ~0.75 b (cur2 just outside the
-     * within-gate), never closing — stuckTicks climbs (live 2026-06-24 FREEZE-DIAG at the -812/-813 pit approach:
+     * The {@code stuckTicks} limit before a FLAT-node carrot-orbit falls back to aiming at the IMMEDIATE node instead
+     * of the look-ahead carrot. On a flat walk aimAtWaypoint is false (wp.y==foot.y), so the bot follows the carrot; at
+     * a turn/corner node the carrot points ~60° off the close node and the bot orbits it at ~0.75 b (cur2 just outside
+     * the within-gate), never closing — stuckTicks climbs (live 2026-06-24 FREEZE-DIAG at the -812/-813 pit approach:
      * driveF=1, fwdComp>0, aimAtWp= false, ddeg≈-60, hSpd~0.07, cur2 frozen, 26-80 ticks). reCentre aims at the
      * PREVIOUS node and the strafe only centres the cross-axis — neither pulls onto the IMMEDIATE node, so neither
      * closes the orbit. Aiming straight at the fixed node centre closes the gap to the within-gate / a clean crossing →
