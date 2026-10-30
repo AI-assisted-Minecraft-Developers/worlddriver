@@ -1,8 +1,5 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-
 import java.util.List;
 import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;

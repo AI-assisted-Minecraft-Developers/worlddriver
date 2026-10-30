@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.aimAtSupportFace;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.stepToStandCentre;
 
 import java.util.HashSet;
 import java.util.List;

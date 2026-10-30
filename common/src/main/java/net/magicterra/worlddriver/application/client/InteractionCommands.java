@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.application.client;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
 
 import java.util.Optional;
 import net.magicterra.worlddriver.api.game.HandWords;

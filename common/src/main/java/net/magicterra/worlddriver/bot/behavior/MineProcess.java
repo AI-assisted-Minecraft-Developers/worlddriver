@@ -1,8 +1,10 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.aimAt;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
+import static net.magicterra.worlddriver.game.body.BotUtil.standingEye;
 
 import java.util.ArrayDeque;
 import java.util.Deque;

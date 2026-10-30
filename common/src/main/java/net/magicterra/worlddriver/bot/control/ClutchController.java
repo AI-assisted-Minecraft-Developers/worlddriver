@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.world.MoveSignals;

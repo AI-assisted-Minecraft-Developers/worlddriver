@@ -1,11 +1,10 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SURFACE_SEARCH_LIFT_MAX;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockReachToCentre;
+import static net.magicterra.worlddriver.game.body.BotUtil.eyeWithin;
 
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
 import net.magicterra.worlddriver.bot.control.Navigator;

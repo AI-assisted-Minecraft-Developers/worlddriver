@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.test;
 
-import java.util.*;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 

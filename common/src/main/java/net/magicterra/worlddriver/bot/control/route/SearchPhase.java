@@ -1,11 +1,13 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.BOXED_ESCALATE_STICKY_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CHURN_GIVEUP_CAP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CHURN_MAX_RESETS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.NO_PATH_WAIT_CAP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PINCH_MIN_PROGRESS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SEGMENT_END_SLICE_NODES;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.countPlaceEdges;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.Navigator;

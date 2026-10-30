@@ -1,11 +1,26 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CLIMB_PRESS_DEBOUNCE;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_AIR_LOW;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_AIR_OK;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_BANK_DIST_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_CONFIRM_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_COOLDOWN_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_DIP_MAX_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_LOOKAHEAD;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CRUISE_SINK_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.DEEP_WATER_DRIFT_LATCH;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.DIG_KEY_RELEASE_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FINAL_APPROACH_WALK_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STEEP_DESCENT_DRIFT_LATCH;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STEEP_DESCENT_LOOKAHEAD_NODES;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_DRIVE_MAX_REJECT;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_DRIVE_MAX_TURN;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.dropAdjacentExceeds;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.lethalDropAdjacent;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.AscendMovement;

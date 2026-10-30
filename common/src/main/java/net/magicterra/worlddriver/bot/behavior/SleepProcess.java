@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.aimAt;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.nearestMatching;
 
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;

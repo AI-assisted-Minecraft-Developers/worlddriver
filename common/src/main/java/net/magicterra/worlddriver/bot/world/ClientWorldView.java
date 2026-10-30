@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.HAZARD_BLOCKS;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.HashMap;

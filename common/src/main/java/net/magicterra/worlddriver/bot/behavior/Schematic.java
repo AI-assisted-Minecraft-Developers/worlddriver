@@ -1,8 +1,5 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.nbt.CompoundTag;

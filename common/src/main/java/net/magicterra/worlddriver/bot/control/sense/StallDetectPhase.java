@@ -1,11 +1,22 @@
 package net.magicterra.worlddriver.bot.control.sense;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.ASCENT_SLIDE_RECOVER_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.BEELINE_OVERSHOOT_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.BOXED_ESCALATE_STICKY_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CHURN_MIN_MOVE_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CHURN_MIN_Y;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.CHURN_WINDOW;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.DEEP_PIT_ESCAPE_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.HCOL_RAM_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_NORISE_GIVEUP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_RECOVER_MAX_DY;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_RECOVER_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STEPUP_FREEZE_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WALL_CHURN_WINDOW;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WEDGE_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isDescentEdge;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.plainFlatWalk;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.ResetScope;

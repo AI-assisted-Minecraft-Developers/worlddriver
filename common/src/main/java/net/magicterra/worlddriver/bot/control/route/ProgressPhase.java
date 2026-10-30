@@ -1,14 +1,31 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FINAL_NODE_HOLD_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FLOATOVER_NONDIVE_MAX_DROP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FOOTING_MIN;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.OVERSHOOT_RESYNC_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.REACH_DIST_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SKIRT_PASS_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STACKED_PASS_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STUCK_PROGRESS_EPS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.STUCK_PROGRESS_EPS_WATER;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WALK_OVERSHOOT_STUCK_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_DESCEND_GIVEUP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_STEPDOWN_REACH_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_STEPDOWN_STALL_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_WALK_REACH_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_WALK_STALL_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.floodedShaft;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.soleOnSolid;
 // Not in NavigatorGeometry: that class is pure functions of their arguments and reads no BotConfig.
 // This one consults navigatorPillarSurfacePlace, so it stays with the phase that owns the carve-out.
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.floodedShaft;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.beyondNode;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalkable;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalkableBody;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.plainFlatWalk;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.Navigator;

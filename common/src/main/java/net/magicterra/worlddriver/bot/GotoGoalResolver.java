@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot;
 
-import static net.magicterra.worlddriver.bot.GoalResolver.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.bot.GoalResolver.applyDirection;
+import static net.magicterra.worlddriver.bot.GoalResolver.findNearestStandForBlock;
+import static net.magicterra.worlddriver.bot.GoalResolver.snapped;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 import java.util.Map;
 import java.util.function.Function;

@@ -1,6 +1,10 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.HOP_RANGE;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.hopLandingRow;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.hopSuppressed;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.nearestLethalHopRing;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.EnumSet;

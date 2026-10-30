@@ -1,7 +1,12 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.DIAGUP_PILLAR_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.MAX_YAW_SLEW_DEG;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_ALIGN_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_PLACE_DELAY;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_RECOVER_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isDescentEdge;
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
 
 import java.util.EnumSet;

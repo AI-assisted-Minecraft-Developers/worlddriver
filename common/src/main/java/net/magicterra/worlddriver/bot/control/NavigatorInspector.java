@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FOOTING_MIN;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_FUTILE_TICKS;
 
 import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;

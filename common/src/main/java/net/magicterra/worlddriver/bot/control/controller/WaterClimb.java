@@ -1,6 +1,19 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FUTILE_BANK_DIG_COOLDOWN;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FUTILE_BANK_DIG_MIN_RISE;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FUTILE_BANK_DIG_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PENDING_RUNG_WAIT_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PILLAR_FUTILE_TICKS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SETTLED_SPEED_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SIDE_RUNG_CLEARANCE;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WANT_CLIMB_STICKY;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_CLIMB_DIG_COMMIT_CAP;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_CLIMB_DIG_DEEP_STALL;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_CLIMB_DIG_STALL;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_CLIMB_LATERAL_MAX;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_CLIMB_STALL;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_TOUCH_STICKY;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.EnumSet;

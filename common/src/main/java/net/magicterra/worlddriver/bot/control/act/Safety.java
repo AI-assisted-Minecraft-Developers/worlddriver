@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.control.act;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FOOTING_MIN;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.lethalDropAdjacent;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.soleOnSolid;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.List;

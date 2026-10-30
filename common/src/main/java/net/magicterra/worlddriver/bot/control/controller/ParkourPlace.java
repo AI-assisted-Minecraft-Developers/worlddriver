@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.PARKOUR_PLACE_REACH;
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.eyeWithin;

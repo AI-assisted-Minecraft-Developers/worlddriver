@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.control;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.lineCell;
 
 import java.util.ArrayList;

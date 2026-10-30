@@ -2,8 +2,9 @@ package net.magicterra.worlddriver.application.client;
 
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
+import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.game.body.BotUtil.onClient;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

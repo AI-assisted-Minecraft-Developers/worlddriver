@@ -1,8 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.smoothAngle;
 
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.world.WorldView;

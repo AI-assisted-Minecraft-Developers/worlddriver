@@ -1,8 +1,5 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-
 import java.util.HashSet;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;

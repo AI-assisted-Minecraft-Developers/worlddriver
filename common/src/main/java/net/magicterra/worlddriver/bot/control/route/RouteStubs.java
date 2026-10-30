@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.BEELINE_MAX_STEPS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.BEELINE_MIN_STEPS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.QUICK_MAX_MS;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.QUICK_RETRY_TICKS;
 import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isDryWalkable;
 import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isOpenSurfaceWater;
 import static net.magicterra.worlddriver.config.Mod.LOG;

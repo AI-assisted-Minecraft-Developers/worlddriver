@@ -1,7 +1,11 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.FREE_HANG_DRIVE;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.MAX_YAW_SLEW_DEG;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.OVERSHOOT_RESYNC_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.YAW_DEADZONE_SQ;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.vineWallYaw;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.smoothAngle;
 

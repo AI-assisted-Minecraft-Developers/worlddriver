@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.findStandAdjacent;
 
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
