@@ -59,8 +59,7 @@ public final class Screenshots {
         final int maxH = opts.maxHeight().orElse(0);
         final String fmt = opts.format() == ImageFormat.JPEG ? "jpeg" : "png";
         final int quality = opts.quality();
-        NativeImage img = cap.img();
-        try {
+        try (NativeImage img = cap.img()) {
             int srcW = img.getWidth();
             int srcH = img.getHeight();
             int dstW = srcW;
@@ -136,8 +135,6 @@ public final class Screenshots {
             return reply(mime, dstW, dstH, baos.toByteArray(), cap);
         } catch (IOException e) {
             throw new RuntimeException("screenshot encode failed", e);
-        } finally {
-            img.close();
         }
     }
 
