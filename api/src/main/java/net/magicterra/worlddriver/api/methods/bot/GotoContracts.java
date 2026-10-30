@@ -88,6 +88,7 @@ public final class GotoContracts {
         }
     }
 
+    /** What {@code plan} asks of a goto instead of walking. */
     @Named("PlanMode")
     public enum PlanMode implements WireName {
         /** Search the route without walking it or interrupting a walk; the action's result describes it. */
@@ -115,6 +116,7 @@ public final class GotoContracts {
     @Doc("Accept any cell within this Euclidean radius; 0 is exact.")
     public @interface EntityNear {}
 
+    /** Where a goto goes, one variant per kind of target. */
     @Tag("kind")
     @Named("GotoTarget")
     public sealed interface Target
@@ -129,15 +131,18 @@ public final class GotoContracts {
                     Waypoint,
                     Axis {}
 
+    /** A fixed cell. */
     @Variant("position")
     public record Position(
             BlockPosition pos,
             @Default("0") @Near int near,
             @Default("in") GoalMode goalMode) implements Target {}
 
+    /** The column at {@code x}, {@code z}, at any Y. */
     @Variant("column")
     public record Column(int x, int z, @Default("0") @Near int near) implements Target {}
 
+    /** Any cell whose Y is {@code y}. */
     @Variant("level")
     public record Level(
             @Doc("Alone it drowns in sideways branches: add a hard column leash to dig straight.")
@@ -158,6 +163,7 @@ public final class GotoContracts {
             @Default("3") @EntityNear int near,
             @Default("in") GoalMode goalMode) implements Target {}
 
+    /** The entity with this id. */
     @Variant("entity")
     public record EntityTarget(
             @Doc("The id mc.query entities reports.") @Range(min = 0)
@@ -167,6 +173,10 @@ public final class GotoContracts {
             @Default("in") GoalMode goalMode)
             implements Target {}
 
+    /**
+     * The cell {@code distance} blocks away in {@code direction}. With {@code near} 0 a horizontal direction accepts
+     * any Y in that column, and up or down accepts any cell at that Y.
+     */
     @Variant("direction")
     public record DirectionTarget(
             @Doc("A turning word follows the body's exact heading, diagonals included.")
@@ -203,6 +213,7 @@ public final class GotoContracts {
     @Variant("axis")
     public record Axis() implements Target {}
 
+    /** Parameters of {@code mc.bot.goto}; which fields may be combined is checked on decode. */
     @Named("GotoParams")
     public record Params(
             @Default("self") @BotRef String bot,
@@ -361,6 +372,7 @@ public final class GotoContracts {
             @Doc("false: the walk searched again instead.") boolean adopted,
             @Doc("Why the preview's route was not taken.") Optional<String> reason) {}
 
+    /** The result of a goto: a finished trip, or a preview of one. */
     @Tag("kind")
     @Named("GotoResult")
     public sealed interface Result permits Trip, Preview {}
@@ -378,10 +390,15 @@ public final class GotoContracts {
             Optional<Adoption> plan)
             implements Result {}
 
+    /** A mob that sees a segment: its entity id, its type, and the segment's length in cells. */
     @Named("Exposure")
     public record Exposure(
             int id, String type, @Range(min = 0) int cells) {}
 
+    /**
+     * The risk along one segment: the mobs that see it, the distance to the nearest mob when there is one, and the
+     * names of the route regions it lies in.
+     */
     @Named("SegmentRisk")
     public record SegmentRisk(List<Exposure> exposedTo, Optional<Double> nearestMob, List<String> regions) {}
 
@@ -416,6 +433,8 @@ public final class GotoContracts {
             implements Result {}
 
     /** Whether the target resolves to one cell, which a flight needs. */
+    // An exhaustive type switch needs a binding per case until unnamed patterns (`_`) leave preview in Java 22.
+    @SuppressWarnings("PMD.UnusedLocalVariable")
     private static boolean hasCell(Target t) {
         return switch (t) {
             case Position x -> true;

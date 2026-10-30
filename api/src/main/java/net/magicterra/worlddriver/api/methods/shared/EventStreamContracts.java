@@ -34,6 +34,7 @@ public final class EventStreamContracts {
             @Doc("Event types to receive; omit or [] for every type.")
             Optional<@Length(max = 256) List<@Length(min = 1, max = 128) String>> types) {}
 
+    /** The answer to {@code mc.events.subscribe}: the event types this socket is now pushed. */
     @Named("Subscription")
     public record Subscription(
             @OnlyTrue boolean subscribed,
@@ -42,6 +43,7 @@ public final class EventStreamContracts {
             @Doc("True when types is empty: every type is pushed, not none.")
             boolean allTypes) {}
 
+    /** The answer to {@code mc.events.unsubscribe}; {@code subscribed} is always false. */
     @Named("Unsubscribed")
     public record Unsubscribed(boolean subscribed) {}
 }

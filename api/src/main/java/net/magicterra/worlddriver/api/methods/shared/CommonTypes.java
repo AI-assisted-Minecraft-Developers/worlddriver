@@ -62,6 +62,7 @@ public final class CommonTypes {
             return name().toLowerCase(Locale.ROOT);
         }
 
+        /** Whether this is {@code up} or {@code down}. */
         public boolean vertical() {
             return this == UP || this == DOWN;
         }

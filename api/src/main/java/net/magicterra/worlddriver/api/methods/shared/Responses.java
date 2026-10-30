@@ -116,6 +116,7 @@ public final class Responses {
         }
     }
 
+    /** Why an action ended as failed; {@code message} on the failed state says what went wrong. */
     @Named("FailureReason")
     public enum FailureReason implements WireName {
         PROCESS_FAILED("process_failed");
@@ -132,6 +133,7 @@ public final class Responses {
         }
     }
 
+    /** Why an action ended as cancelled. */
     @Named("CancelReason")
     public enum CancelReason implements WireName {
         /** {@code mc.bot.cancel}, or the script run that started it was stopped. */
@@ -156,32 +158,40 @@ public final class Responses {
 
     /** One action at one moment. {@code bot} is the ref it was started on, never re-resolved. */
     public sealed interface ActionSnapshot<R> permits Running, Succeeded, Failed, Cancelled, Superseded {
+        /** The action's id, as {@code mc.wait.result} and {@code mc.bot.cancel} take it. */
         String actionId();
 
+        /** The bot ref the action was started on. */
         String bot();
 
+        /** Whether the action has ended: every state but running is terminal. */
         default boolean terminal() {
             return !(this instanceof Running<R>);
         }
     }
 
+    /** The action is still running. */
     @Variant("running")
     public record Running<R>(
             @ActionId String actionId, @BotRef String bot) implements ActionSnapshot<R> {}
 
+    /** The action ended well; {@code result} is the method's own result. */
     @Variant("succeeded")
     public record Succeeded<R>(
             @ActionId String actionId, @BotRef String bot, R result) implements ActionSnapshot<R> {}
 
+    /** The action ended without doing what it was asked; {@code message} says why. */
     @Variant("failed")
     public record Failed<R>(
             @ActionId String actionId, @BotRef String bot, FailureReason reason, String message)
             implements ActionSnapshot<R> {}
 
+    /** The action was stopped before it ended, for {@code reason}. */
     @Variant("cancelled")
     public record Cancelled<R>(
             @ActionId String actionId, @BotRef String bot, CancelReason reason) implements ActionSnapshot<R> {}
 
+    /** The action was replaced by a later action on the same bot, {@code replacementActionId}. */
     @Variant("superseded")
     public record Superseded<R>(
             @ActionId String actionId,
@@ -211,6 +221,7 @@ public final class Responses {
             boolean waitTimedOut)
             implements ActionResponse<R> {}
 
+    /** Nothing was started or done: a valid request the bot could not take up, for {@code reason}. */
     @Variant("refused")
     public record Refused<R>(
             RefusalReason reason,
@@ -219,6 +230,7 @@ public final class Responses {
             @Doc("With bot_unavailable: what stops the bot from acting now, when the driver can tell.")
             Optional<Unready> unready)
             implements ActionResponse<R>, ImmediateResponse {
+        /** A refusal with no {@code unready} word. */
         public Refused(RefusalReason reason, String message) {
             this(reason, message, Optional.empty());
         }
@@ -241,11 +253,13 @@ public final class Responses {
     @Variant("done")
     public record Turned(double yaw, double pitch) implements ActionResponse<InteractContracts.Looked> {}
 
+    /** {@code mc.bot.holdItem}'s answer: the item now in the main hand. */
     @Variant("done")
     public record Held(
             @Doc("The item now in the main hand.") @ResourceId
             String held) implements ImmediateResponse {}
 
+    /** {@code mc.bot.useItem}'s answer: the hand used, what the game made of the click, and what it was made on. */
     @Variant("done")
     public record Used(
             InteractContracts.Hand hand,
@@ -254,11 +268,16 @@ public final class Responses {
             InteractContracts.UsedOn on)
             implements ImmediateResponse {}
 
+    /**
+     * {@code mc.bot.attackEntity}'s answer: the entity swung at, whether it is still alive, and its distance; a target
+     * out of reach is ignored by the server, so check both.
+     */
     @Variant("done")
     public record Attacked(
             @EntityId int entityId, @ResourceId String type, boolean alive, double distance)
             implements ImmediateResponse {}
 
+    /** {@code mc.bot.equip}'s answer: what was put on, and what is left to repair or craft. */
     @Variant("done")
     public record Equipped(
             InteractContracts.Profile profile,
@@ -314,6 +333,7 @@ public final class Responses {
             + " takes over that mob on its first order.")
     public @interface BotRef {}
 
+    /** An action's id, as an accepted answer reports it: opaque, 1 to 64 characters. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
     @Length(min = 1, max = 64)

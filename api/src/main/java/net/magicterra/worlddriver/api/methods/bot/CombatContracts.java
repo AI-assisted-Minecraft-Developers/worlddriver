@@ -51,6 +51,7 @@ public final class CombatContracts {
 
     private CombatContracts() {}
 
+    /** Which hostiles the fight picks. */
     @Named("CombatMode")
     public enum Mode implements WireName {
         /** Clear every hostile in range. */
@@ -66,10 +67,12 @@ public final class CombatContracts {
         }
     }
 
+    /** The one target of a {@code kill} fight: a specific entity, or the nearest of a type. */
     @Tag("kind")
     @Named("CombatTarget")
     public sealed interface Foe permits FoeEntity, FoeType {}
 
+    /** The entity with this id. */
     @Variant("entity")
     public record FoeEntity(@EntityId int entityId) implements Foe {}
 
@@ -77,6 +80,7 @@ public final class CombatContracts {
     @Variant("entityType")
     public record FoeType(@ResourceId String type) implements Foe {}
 
+    /** Parameters of {@code mc.bot.combat}; {@code target} is required for {@code kill} and refused otherwise. */
     @Named("CombatParams")
     public record Params(
             @Default("self") @BotRef String bot,
@@ -101,6 +105,7 @@ public final class CombatContracts {
         }
     }
 
+    /** The result of a finished fight: the mode it ran in and the target it was given, if any. */
     @Variant("combat")
     public record Fought(Mode mode, Optional<Foe> target) {}
 }

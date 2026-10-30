@@ -76,6 +76,7 @@ public final class ClearAreaContracts {
         }
     }
 
+    /** The cells an order covers: a fixed box, or a tunnel measured from the body. */
     @Tag("kind")
     @Named("Region")
     public sealed interface Region permits Box, Tunnel {}
@@ -116,16 +117,20 @@ public final class ClearAreaContracts {
         }
     }
 
+    /** What is done to each covered cell. */
     @Tag("kind")
     @Named("Edit")
     public sealed interface Edit permits Clear, Fill, Replace {}
 
+    /** Clear each cell and leave it empty. */
     @Variant("clear")
     public record Clear() implements Edit {}
 
+    /** Clear each cell and place {@code block} in it. */
     @Variant("fill")
     public record Fill(@ResourceId String block) implements Edit {}
 
+    /** Work only the cells holding {@code from}, placing {@code to} in each. */
     @Variant("replace")
     public record Replace(
             @Doc("Only cells holding this block are worked.") @ResourceId
@@ -133,6 +138,7 @@ public final class ClearAreaContracts {
 
             @ResourceId String to) implements Edit {}
 
+    /** Parameters of {@code mc.bot.clearArea}; {@code edit} defaults to a plain clear. */
     @Named("ClearAreaParams")
     public record Params(
             @Default("self") @BotRef String bot,

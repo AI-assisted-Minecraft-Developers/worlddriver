@@ -105,6 +105,7 @@ public final class BuildContracts {
 
     private BuildContracts() {}
 
+    /** The blocks {@code mc.bot.build} places, either as inline rows or as a Sponge schematic file. */
     @Tag("kind")
     @Named("Schematic")
     public sealed interface Schematic permits Blocks, Sponge {}
@@ -155,6 +156,7 @@ public final class BuildContracts {
             @Pattern(value = "[A-Za-z0-9+/=\\s]+", expected = "base64") @Length(max = 8_000_000)
             String base64) implements Schematic {}
 
+    /** Parameters of {@code mc.bot.build}: the schematic and the world position its offset 0,0,0 lands on. */
     @Named("BuildParams")
     public record BuildParams(
             @Default("self") @BotRef String bot,
@@ -162,6 +164,7 @@ public final class BuildContracts {
             Schematic schematic,
             @Default("0") @AwaitMs int awaitMs) {}
 
+    /** The X, Y and Z extent of a built schematic. */
     @Named("SchematicSize")
     public record Size(
             @Range(min = 1) int w,
@@ -182,7 +185,10 @@ public final class BuildContracts {
 
     // ------------------------------------------------------------------ construct
 
-    /** forward/back/left/right turn with the body's facing, snapped to the nearest compass direction. */
+    /**
+     * The way a bridge advances. The relative values forward/back/left/right turn with the body's facing, snapped to
+     * the nearest compass direction.
+     */
     @Named("BridgeDirection")
     public enum BridgeDirection implements WireName {
         FORWARD,
@@ -200,6 +206,7 @@ public final class BuildContracts {
         }
     }
 
+    /** A horizontal compass direction. */
     @Named("Compass")
     public enum Compass implements WireName {
         NORTH,
@@ -213,6 +220,7 @@ public final class BuildContracts {
         }
     }
 
+    /** What {@code mc.bot.construct} builds: a tower straight up or a bridge forward. */
     @Tag("kind")
     @Named("Construction")
     public sealed interface Construction permits Tower, Bridge {}
@@ -235,6 +243,7 @@ public final class BuildContracts {
             @Doc("With block: fetch it from the backpack too, not only the hotbar.") @Default("false")
             boolean fromBag)
             implements Construction, SelfChecked {
+        /** A tower that takes {@code block} from the hotbar only ({@code fromBag} false). */
         public Tower(Optional<Integer> height, Optional<Integer> targetY, Optional<String> block) {
             this(height, targetY, block, false);
         }
@@ -254,6 +263,7 @@ public final class BuildContracts {
         }
     }
 
+    /** A bridge: sneak {@code distance} cells in {@code direction}, placing a block under each step. */
     @Variant("bridge")
     public record Bridge(
             @Default("forward") BridgeDirection direction,
@@ -265,6 +275,7 @@ public final class BuildContracts {
             Optional<@ResourceId String> block)
             implements Construction {}
 
+    /** Parameters of {@code mc.bot.construct}. */
     @Named("ConstructParams")
     public record ConstructParams(
             @Default("self") @BotRef String bot,
@@ -274,10 +285,12 @@ public final class BuildContracts {
 
             @Default("0") @AwaitMs int awaitMs) {}
 
+    /** The result of {@code mc.bot.construct}, one variant per kind of construction. */
     @Tag("kind")
     @Named("ConstructResult")
     public sealed interface Constructed permits Towered, Bridged {}
 
+    /** A finished tower: the feet Y it started from and reached, and how many blocks it placed. */
     @Variant("tower")
     public record Towered(
             int startY,
@@ -285,6 +298,7 @@ public final class BuildContracts {
             Optional<@ResourceId String> block,
             @Range(min = 0) int placed) implements Constructed {}
 
+    /** A finished bridge: the direction asked for, the compass direction it resolved to, and blocks placed. */
     @Variant("bridge")
     public record Bridged(
             BridgeDirection direction,
@@ -299,6 +313,7 @@ public final class BuildContracts {
 
     // ------------------------------------------------------------------ bunker
 
+    /** Parameters of {@code mc.bot.bunker}. */
     @Named("BunkerParams")
     public record BunkerParams(
             @Default("self") @BotRef String bot,
@@ -314,6 +329,7 @@ public final class BuildContracts {
 
     // ------------------------------------------------------------------ escape
 
+    /** Which way an escape stair went: up to a higher feet Y, or down to a lower one. */
     @Named("Vertical")
     public enum Vertical implements WireName {
         UP,
@@ -325,6 +341,7 @@ public final class BuildContracts {
         }
     }
 
+    /** Parameters of {@code mc.bot.escape}. */
     @Named("EscapeParams")
     public record EscapeParams(
             @Default("self") @BotRef String bot,

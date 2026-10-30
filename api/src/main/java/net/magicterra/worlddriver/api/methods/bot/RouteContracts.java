@@ -57,6 +57,7 @@ public final class RouteContracts {
 
     private RouteContracts() {}
 
+    /** A way of moving a route may use; {@link Route#mode()} says how they combine. */
     @Named("TravelMode")
     public enum TravelMode implements WireName {
         WALK,
@@ -70,6 +71,9 @@ public final class RouteContracts {
         }
     }
 
+    /**
+     * Whether the route may break blocks: never, as the allowBreak setting says, or preferring tunnels when costs tie.
+     */
     @Named("BreakPolicy")
     public enum BreakPolicy implements WireName {
         NEVER,
@@ -82,6 +86,7 @@ public final class RouteContracts {
         }
     }
 
+    /** Whether the route may place blocks; {@code never} forbids every placing move. */
     @Named("PlacePolicy")
     public enum PlacePolicy implements WireName {
         NEVER,
@@ -93,6 +98,10 @@ public final class RouteContracts {
         }
     }
 
+    /**
+     * A preset for keeping away from mobs. {@code safe}: mob berth, crowds impassable, ranged sight costs.
+     * {@code normal}: the berth only when avoidMobs is on. {@code bold}: neither.
+     */
     @Named("Risk")
     public enum Risk implements WireName {
         SAFE,
@@ -105,7 +114,7 @@ public final class RouteContracts {
         }
     }
 
-    /** forbid prunes the cells a condition covers; avoid charges for them. */
+    /** How a condition treats the cells it covers: {@code forbid} prunes them, {@code avoid} charges for them. */
     @Named("Enforcement")
     public enum Enforcement implements WireName {
         FORBID,
@@ -117,6 +126,7 @@ public final class RouteContracts {
         }
     }
 
+    /** What a {@link Hug} keeps the route beside; only the shoreline so far. */
     public enum HugWhat implements WireName {
         SHORE;
 
@@ -126,6 +136,7 @@ public final class RouteContracts {
         }
     }
 
+    /** Which kind of observer a {@link Sight} condition hides from when no {@code observers} are named. */
     @Named("SightOf")
     public enum SightOf implements WireName {
         RANGED,
@@ -138,6 +149,9 @@ public final class RouteContracts {
         }
     }
 
+    /** Bounds on the Y of the route's cells, at least one of {@code min} and {@code max}. */
+    // The type name is public API and matches its schema name; renaming it would break callers.
+    @SuppressWarnings("checkstyle:abbreviationaswordinname")
     @Named("YRange")
     public record YRange(
             Optional<@Range(min = -4096, max = 4096) Integer> min,
@@ -156,6 +170,7 @@ public final class RouteContracts {
         }
     }
 
+    /** Keep the route beside water by charging {@code weight} for each cell with no adjacent water. */
     @Named("Hug")
     public record Hug(
             @Default("shore") HugWhat what,
@@ -165,10 +180,12 @@ public final class RouteContracts {
             @Range(min = 0, max = 1_000_000)
             double weight) {}
 
+    /** What a {@link Leash} is measured from: a point, a column, or a moving entity. */
     @Tag("kind")
     @Named("LeashAnchor")
     public sealed interface LeashAnchor permits PointAnchor, ColumnAnchor, EntityAnchor {}
 
+    /** A fixed cell. */
     @Variant("point")
     public record PointAnchor(BlockPosition pos) implements LeashAnchor {}
 
@@ -182,6 +199,7 @@ public final class RouteContracts {
             @Doc("A player name, an entity type id or an entity id.") @Length(min = 1, max = 128)
             String entity) implements LeashAnchor {}
 
+    /** Keep the route within {@code radius} blocks of an anchor, strictly or by a cost per block beyond it. */
     @Named("Leash")
     public record Leash(
             LeashAnchor anchor,
@@ -193,10 +211,12 @@ public final class RouteContracts {
             @Doc("Cost per block beyond the radius when not hard.") @Default("20") @Range(min = 0, max = 1_000_000)
             double weight) {}
 
+    /** A region the route forbids or charges for, by shape: a box, a sphere, or a list of cells. */
     @Tag("shape")
     @Named("RouteRegion")
     public sealed interface RegionSpec permits BoxRegion, SphereRegion, CellsRegion {}
 
+    /** The cells between {@code min} and {@code max}. */
     @Variant("box")
     public record BoxRegion(
             BlockPosition min,
@@ -205,6 +225,7 @@ public final class RouteContracts {
             @Default("250") @Range(min = 0, max = 1_000_000) double penalty)
             implements RegionSpec {}
 
+    /** The cells within {@code radius} of {@code center}. */
     @Variant("sphere")
     public record SphereRegion(
             BlockPosition center,
@@ -215,6 +236,7 @@ public final class RouteContracts {
             double penalty)
             implements RegionSpec {}
 
+    /** Exactly the listed cells. */
     @Variant("cells")
     public record CellsRegion(
             @Length(min = 1, max = 4096) List<BlockPosition> cells,
@@ -232,6 +254,7 @@ public final class RouteContracts {
 
             @Default("300") @Range(min = 0, max = 1_000_000) double penalty) {}
 
+    /** A crowd of mobs: a cell with {@code count} or more mobs within {@code radius} is pruned or charged. */
     @Named("MobCluster")
     public record Cluster(
             @Default("3") @Range(min = 1, max = 64) int count,
@@ -282,6 +305,7 @@ public final class RouteContracts {
         }
     }
 
+    /** Keep the route within {@code radius} of the polyline through {@code points}. */
     @Named("Corridor")
     public record Corridor(
             @Length(min = 1, max = 256) List<BlockPosition> points,
@@ -291,6 +315,7 @@ public final class RouteContracts {
             @Doc("Cost per block beyond the radius when avoiding.") @Default("20") @Range(min = 0, max = 1_000_000)
             double penalty) {}
 
+    /** The conditions a walk is planned under; every field left out keeps plain walking's behaviour. */
     @Named("Route")
     public record Route(
             @Doc("Cells reached in order, within one block each, before the goal.") @Default("[]") @Length(max = 64)
@@ -313,7 +338,10 @@ public final class RouteContracts {
             @Default("normal")
             Risk risk,
 
+            // The component name is the wire key; renaming it would change the JSON.
+            @SuppressWarnings("checkstyle:recordcomponentname")
             Optional<YRange> yRange,
+
             @Doc("Follow the shoreline.") Optional<Hug> hug,
 
             @Doc("Stay near an anchor. A column anchor with a vertical goal pins a straight shaft: the reliable way "
@@ -351,6 +379,7 @@ public final class RouteContracts {
                 Optional.empty(),
                 Optional.empty());
 
+        /** Whether {@code mode} includes {@code fly}, which hands the trip to the elytra. */
         public boolean fly() {
             return mode.map(m -> m.contains(TravelMode.FLY)).orElse(false);
         }

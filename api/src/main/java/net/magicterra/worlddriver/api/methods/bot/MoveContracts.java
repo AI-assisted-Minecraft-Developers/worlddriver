@@ -31,12 +31,15 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  */
 public final class MoveContracts {
 
+    /** The tag field every result union here is discriminated on. */
+    private static final String KIND = "kind";
+
     public static final UnionType<Quarry> QUARRY = ApiTypes.union(Quarry.class);
 
     public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record(FollowParams.class);
 
     public static final UnionType<Followed> FOLLOW_RESULT =
-            ApiTypes.union("FollowResult", "kind", ApiTypes.record(Followed.class));
+            ApiTypes.union("FollowResult", KIND, ApiTypes.record(Followed.class));
 
     public static final MethodSpec<FollowParams, ActionResponse<Followed>> FOLLOW = MethodSpec.of(
                     "mc.bot.follow",
@@ -51,7 +54,7 @@ public final class MoveContracts {
     public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record(ExploreParams.class);
 
     public static final UnionType<Explored> EXPLORE_RESULT =
-            ApiTypes.union("ExploreResult", "kind", ApiTypes.record(Explored.class));
+            ApiTypes.union("ExploreResult", KIND, ApiTypes.record(Explored.class));
 
     public static final MethodSpec<ExploreParams, ActionResponse<Explored>> EXPLORE = MethodSpec.of(
                     "mc.bot.explore",
@@ -65,7 +68,7 @@ public final class MoveContracts {
     public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record(RunAwayParams.class);
 
     public static final UnionType<RanAway> RUN_AWAY_RESULT =
-            ApiTypes.union("RunAwayResult", "kind", ApiTypes.record(RanAway.class));
+            ApiTypes.union("RunAwayResult", KIND, ApiTypes.record(RanAway.class));
 
     public static final MethodSpec<RunAwayParams, ActionResponse<RanAway>> RUN_AWAY = MethodSpec.of(
                     "mc.bot.runAway",
@@ -78,7 +81,7 @@ public final class MoveContracts {
     public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record(SleepParams.class);
 
     public static final UnionType<Slept> SLEEP_RESULT =
-            ApiTypes.union("SleepResult", "kind", ApiTypes.record(Slept.class));
+            ApiTypes.union("SleepResult", KIND, ApiTypes.record(Slept.class));
 
     public static final MethodSpec<SleepParams, ActionResponse<Slept>> SLEEP = MethodSpec.of(
                     "mc.bot.sleep",
@@ -92,7 +95,7 @@ public final class MoveContracts {
     public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record(ElytraParams.class);
 
     public static final UnionType<Flown> ELYTRA_RESULT =
-            ApiTypes.union("ElytraFlyResult", "kind", ApiTypes.record(Flown.class));
+            ApiTypes.union("ElytraFlyResult", KIND, ApiTypes.record(Flown.class));
 
     public static final MethodSpec<ElytraParams, ActionResponse<Flown>> ELYTRA_FLY = MethodSpec.of(
                     "mc.bot.elytraFly",
@@ -108,6 +111,7 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ follow
 
+    /** What {@code mc.bot.follow} follows: the nearest entity of a type, or a named player. */
     @Tag("kind")
     @Named("FollowTarget")
     public sealed interface Quarry permits QuarryType, QuarryPlayer {}
@@ -120,6 +124,7 @@ public final class MoveContracts {
     @Variant("player")
     public record QuarryPlayer(@Length(min = 1, max = 64) String name) implements Quarry {}
 
+    /** Parameters of {@code mc.bot.follow}. */
     @Named("FollowParams")
     public record FollowParams(
             @Default("self") @BotRef String bot,
@@ -167,12 +172,14 @@ public final class MoveContracts {
         }
     }
 
+    /** The result of {@code mc.bot.follow}: the target and standoff radius it was given. */
     @Variant("follow")
     public record Followed(
             Quarry target, @Range(min = 1, max = 16) int radius) {}
 
     // ------------------------------------------------------------------ explore
 
+    /** Parameters of {@code mc.bot.explore}: the spiral's centre in block X and Z, and how many chunks to visit. */
     @Named("ExploreParams")
     public record ExploreParams(
             @Default("self") @BotRef String bot,
@@ -184,6 +191,7 @@ public final class MoveContracts {
 
             @Default("0") @AwaitMs int awaitMs) {}
 
+    /** The result of {@code mc.bot.explore}: the request echoed, with how many chunks were visited. */
     @Variant("explore")
     public record Explored(
             int centerX,
@@ -193,6 +201,7 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ runAway
 
+    /** Parameters of {@code mc.bot.runAway}: the point to flee and how many blocks to put between it and the body. */
     @Named("RunAwayParams")
     public record RunAwayParams(
             @Default("self") @BotRef String bot,
@@ -207,6 +216,7 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ sleep
 
+    /** Parameters of {@code mc.bot.sleep}: a bed to use, or the radius to search for one. */
     @Named("SleepParams")
     public record SleepParams(
             @Default("self") @BotRef String bot,
@@ -217,11 +227,13 @@ public final class MoveContracts {
 
             @Default("0") @AwaitMs int awaitMs) {}
 
+    /** The result of {@code mc.bot.sleep}: the bed the body slept in. */
     @Variant("sleep")
     public record Slept(BlockPosition bed) {}
 
     // ------------------------------------------------------------------ elytraFly
 
+    /** How an elytra flight was flown. */
     @Named("FlightMode")
     public enum FlightMode implements WireName {
         /** Steered toward pos by a lookahead controller. */
@@ -239,6 +251,7 @@ public final class MoveContracts {
         }
     }
 
+    /** Parameters of {@code mc.bot.elytraFly}; several defaults depend on whether the flight steers toward pos. */
     @Named("ElytraFlyParams")
     public record ElytraParams(
             @Default("self") @BotRef String bot,
@@ -263,7 +276,11 @@ public final class MoveContracts {
             @Doc("Flight budget. Omitted: 2000 when steering, 200 otherwise.")
             Optional<@Range(min = 1, max = 20_000) Integer> ticks,
 
-            @Doc("Succeed within this horizontal distance of pos.") @Default("3") @Range(min = 0, max = 1024)
+            // The component name is the wire key; renaming it would change the JSON.
+            @SuppressWarnings("checkstyle:abbreviationaswordinname")
+            @Doc("Succeed within this horizontal distance of pos.")
+            @Default("3")
+            @Range(min = 0, max = 1024)
             double stopXZDist,
 
             @Doc("With no usable elytra, walk to pos instead of failing.") @Default("false")
@@ -285,6 +302,7 @@ public final class MoveContracts {
         }
     }
 
+    /** The result of {@code mc.bot.elytraFly}: how the flight was flown and whether it boosted with rockets. */
     @Variant("elytraFly")
     public record Flown(FlightMode mode, boolean fireworks) {}
 }

@@ -29,10 +29,12 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  */
 public final class GatherContracts {
 
+    /** The tag field every result union here is discriminated on. */
+    private static final String KIND = "kind";
+
     public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class);
 
-    public static final UnionType<Mined> MINE_RESULT =
-            ApiTypes.union("MineResult", "kind", ApiTypes.record(Mined.class));
+    public static final UnionType<Mined> MINE_RESULT = ApiTypes.union("MineResult", KIND, ApiTypes.record(Mined.class));
 
     public static final MethodSpec<MineParams, ActionResponse<Mined>> MINE = MethodSpec.of(
                     "mc.bot.mine",
@@ -48,7 +50,7 @@ public final class GatherContracts {
     public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class);
 
     public static final UnionType<Crafted> CRAFT_RESULT =
-            ApiTypes.union("CraftResult", "kind", ApiTypes.record(Crafted.class));
+            ApiTypes.union("CraftResult", KIND, ApiTypes.record(Crafted.class));
 
     public static final MethodSpec<CraftParams, ActionResponse<Crafted>> CRAFT = MethodSpec.of(
                     "mc.bot.craft",
@@ -64,7 +66,7 @@ public final class GatherContracts {
     public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class);
 
     public static final UnionType<Smelted> SMELT_RESULT =
-            ApiTypes.union("SmeltResult", "kind", ApiTypes.record(Smelted.class));
+            ApiTypes.union("SmeltResult", KIND, ApiTypes.record(Smelted.class));
 
     public static final MethodSpec<SmeltParams, ActionResponse<Smelted>> SMELT = MethodSpec.of(
                     "mc.bot.smelt",
@@ -86,7 +88,7 @@ public final class GatherContracts {
     public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class);
 
     public static final UnionType<Farmed> FARM_RESULT =
-            ApiTypes.union("FarmResult", "kind", ApiTypes.record(Farmed.class));
+            ApiTypes.union("FarmResult", KIND, ApiTypes.record(Farmed.class));
 
     public static final MethodSpec<FarmParams, ActionResponse<Farmed>> FARM = MethodSpec.of(
                     "mc.bot.farm",
@@ -125,6 +127,7 @@ public final class GatherContracts {
 
             @Default("0") @AwaitMs int awaitMs)
             implements SelfChecked {
+        /** A one-cell mine of {@code pos} by {@code bot}, answered on acceptance ({@code awaitMs} 0). */
         public static MineParams cell(String bot, BlockPosition pos) {
             return new MineParams(bot, List.of(), Optional.of(pos), 1, 16, 0);
         }
@@ -151,6 +154,7 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ craft
 
+    /** Parameters of {@code mc.bot.craft}: the item and how many of it to craft. */
     @Named("CraftParams")
     public record CraftParams(
             @Default("self") @BotRef String bot,
@@ -170,6 +174,7 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ smelt
 
+    /** Parameters of {@code mc.bot.smelt}: the ingredient, how many, and optionally the fuel. */
     @Named("SmeltParams")
     public record SmeltParams(
             @Default("self") @BotRef String bot,
@@ -192,6 +197,7 @@ public final class GatherContracts {
             @Range(min = 1, max = 256) int count,
             Optional<@Length(min = 1, max = 256) String> fuel) {}
 
+    /** A crop {@code mc.bot.farm} harvests; its wire name is the crop block's id. */
     @Named("Crop")
     public enum Crop implements WireName {
         WHEAT("minecraft:wheat"),
@@ -211,6 +217,7 @@ public final class GatherContracts {
         }
     }
 
+    /** Parameters of {@code mc.bot.farm}: the box to work, corners included, and the crops to harvest in it. */
     @Named("FarmParams")
     public record FarmParams(
             @Default("self") @BotRef String bot,
@@ -239,6 +246,7 @@ public final class GatherContracts {
         }
     }
 
+    /** The result of {@code mc.bot.farm}: the request echoed, with how many crops were harvested and replanted. */
     @Variant("farm")
     public record Farmed(
             BlockPosition from,
