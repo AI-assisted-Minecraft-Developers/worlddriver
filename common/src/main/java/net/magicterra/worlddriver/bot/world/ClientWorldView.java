@@ -46,6 +46,7 @@ public final class ClientWorldView implements StateWorldView {
     // the old `10 * ticks` made the planner ~4.6× too reluctant to dig, taking
     // absurd detours around a single thin wall it could have tunnelled.
     private static final double COST_PER_TICK = CellRules.COST_PER_TICK;
+
     /**
      * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
      * swim-escape break moves let A* mine through ANY bank, which — applied to every water cell of an open ocean —
@@ -55,8 +56,10 @@ public final class ClientWorldView implements StateWorldView {
      * pathing uses only swim/walk/normal moves.
      */
     private static final int ESCAPE_RADIUS = 6;
+
     /** Cardinal offsets for {@link #risesFromWater}'s open-face probe. */
     private static final int[][] ESCAPE_FACE_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
     // Cells checked for lava/fire around a candidate stand position: the 4
     // horizontal neighbours at foot, head, and foot-below levels. Diagonals
     // and the cell itself are skipped — the cell + the block directly below
@@ -92,14 +95,20 @@ public final class ClientWorldView implements StateWorldView {
         {-1, 1, 1},
         {-1, 1, -1}, // head diagonals
     };
+
     // The 4 cardinal horizontal neighbours, for the cliff-edge probe below.
     private static final int[][] HORIZONTAL_4 = {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1},
     };
+
     private static final long STUCK_AVOID_MS = 15_000; // entries decay after 15s
+
     private static final double STUCK_AVOID_PENALTY = 600; // soft, finite — a sole route is still taken
+
     private static final double STUCK_AVOID_RADIUS = 2.5; // blocks; smooth bump around the failed node
+
     private static final int STUCK_AVOID_MAX_STRENGTH = 6; // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
+
     /**
      * Read afresh on every call: either may be null (title screen, a world being torn down) and both change across a
      * dimension hop or a reconnect.
@@ -107,21 +116,26 @@ public final class ClientWorldView implements StateWorldView {
     private final Supplier<? extends Level> level;
 
     private final Supplier<? extends Player> player;
+
     // Player-global dig modifiers (Haste / Mining Fatigue, the Efficiency holder), taken once
     // per search like bucketFallReady/mobXyz so pricing does not re-read them per candidate.
     private volatile CellRules.DigSnapshot dig = CellRules.DigSnapshot.BARE;
+
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
+
     /**
      * The bot's WorldModel, injected by the client wiring so dangerCost can query the per-tick HazardField; null until
      * wired (headless / unit tests).
      */
     private WorldModel worldModel;
+
     /**
      * HazardField snapshotted at the start of each search (beginSearch) so dangerCost queries are consistent across the
      * whole A* run and don't race the per-tick WorldModel update.
      */
     private HazardField hazardSnapshot;
+
     /**
      * Flee-context, snapshotted at beginSearch: when true (a RunAwayProcess is driving this search) water/ledge danger
      * is boosted so the flee won't dive into water or off a cliff. Consistent for the whole A* run.
@@ -129,6 +143,7 @@ public final class ClientWorldView implements StateWorldView {
     private volatile boolean fleeSearch;
 
     private final MoveSignals signals = new MoveSignals();
+
     /**
      * Survivable fall depth (blocks) for the controlled entity's CURRENT health, snapshotted per search. The ledge
      * penalty fires only for drops DEEPER than this (a genuinely lethal lip) — a healthy bot descends hillsides freely;
@@ -155,30 +170,38 @@ public final class ClientWorldView implements StateWorldView {
     // very getBlockState saving the cache exists to buy. fastutil hashes the long
     // directly.
     private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
+
     private boolean cacheActive = false;
+
     /**
      * Search origin (the bot's block pos when this findPath began), snapshotted in {@link #beginSearch}. Water-escape
      * breaks are only priced finite within {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}.
      */
     private volatile BlockPos escapeOrigin = null;
+
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
     // wasteful. Refreshed every repath (the bucket may have been used/refilled).
     private volatile boolean bucketFallReady = false;
+
     // Navigator failure blacklist (Baritone-style): nodes where the Navigator couldn't
     // execute a move, mapped to their expiry time (ms). penalizeStuckNode adds an
     // entry; beginSearch prunes expired ones and snapshots the rest into
     // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
     private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
+
     private final Map<BlockPos, Integer> stuckStrength = new HashMap<>(); // accumulated wedge count per node
+
     private float[] stuckAvoidXyz = new float[0]; // flat [x,y,z,strength, ...] (stride-4), snapshot per search
 
     // Controlled-entity movement attributes, snapshotted once per search so the
     // whole A* run sees a consistent capability (and the Navigator reads the same).
     // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
     private volatile int stepUpBlocks = 0; // floor(STEP_HEIGHT): full blocks walkable-up without a jump
+
     private volatile int jumpUpBlocks = 1; // floor(jump apex): full blocks reachable WITH a jump
+
     private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
 
     public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
@@ -204,6 +227,7 @@ public final class ClientWorldView implements StateWorldView {
     public void setWorldModel(WorldModel wm) {
         this.worldModel = wm;
     }
+
     /**
      * Toggled true by the time-sliced search around its node-expansion work, false otherwise (Navigator per-tick
      * reads). When false, {@link #state} bypasses the cache entirely so live reads stay fresh.
@@ -219,6 +243,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         this.cacheActive = on;
     }
+
     /**
      * No level yet (title screen, or a world being torn down) means no tick to group by, and the default sentinel
      * disables the accounting rather than folding every search into one imaginary tick.
@@ -228,6 +253,7 @@ public final class ClientWorldView implements StateWorldView {
         Level lvl = level.get();
         return lvl == null ? Long.MIN_VALUE : lvl.getGameTime();
     }
+
     /**
      * Single funnel for every world blockstate read in this class. Cached only while {@link #cacheActive} (a search
      * slice) AND {@link WorldConfig#pathfinderCacheEnabled}; otherwise reads straight through. Returns AIR when the
@@ -354,6 +380,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         return rawBreakCost(p);
     }
+
     /**
      * Vanilla's underwater mining multiplier (no Aqua Affinity): eyes in water while digging = ÷5 destroy speed.
      * Applied when the move's from-node has its EYE cell (from+1) in water — then the dig genuinely happens submerged
@@ -450,6 +477,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         return false;
     }
+
     /**
      * Tool-aware mining cost, independent of which break-gate authorised it (general allowBreak vs the water-escape
      * allowSwimEscapeBreak).
@@ -472,6 +500,7 @@ public final class ClientWorldView implements StateWorldView {
     public boolean canParkourPlace() {
         return WorldConfig.allowParkourPlace && hasPlaceableBlock();
     }
+
     /**
      * A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull from anywhere). Falling blocks
      * (sand/gravel/concrete_powder) are excluded: a BRIDGE or PARKOUR place sets a block over air/water, where a
@@ -520,6 +549,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         return false;
     }
+
     /**
      * Total count of placeable, non-falling blocks on the hotbar — the placement budget (see
      * {@link WorldView#placeableBlockCount}). Creative = unbounded.
@@ -535,6 +565,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         return BuildBlocks.placeableCount(pl.getInventory().items.subList(0, 9));
     }
+
     /**
      * Blacklist a node the Navigator couldn't execute a move at. Penalty ACCUMULATES: a flat one-shot bump (the
      * original behaviour) doesn't route around a wedge whose only forward move (e.g. a parkour leap the bot rams

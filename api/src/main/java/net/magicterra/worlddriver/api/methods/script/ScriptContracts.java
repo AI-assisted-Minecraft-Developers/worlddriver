@@ -37,19 +37,27 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
 public final class ScriptContracts {
 
     public static final int MAX_SOURCE_CHARS = 64 * 1024;
+
     public static final int DEFAULT_TIMEOUT_MS = 3000;
+
     public static final int MAX_TIMEOUT_MS = 30_000;
+
     public static final int DEFAULT_PLAYBOOK_BUDGET_MS = 10 * 60_000;
+
     public static final int MAX_PLAYBOOK_BUDGET_MS = 20 * 60_000;
 
     public static final String SCRIPT_ERROR = "script_error";
+
     public static final String SCRIPT_TIMEOUT = "script_timeout";
+
     public static final String SCRIPT_STOPPED = "script_stopped";
 
     // Spelled from the enums they mirror, so a new API error code is a script error code too; declared before
     // the records that use them are built.
     private static final ApiType<String> ERROR_CODE = errorCode();
+
     private static final ApiType<String> ISSUE_CODE = issueCode();
+
     private static final ApiType<String> EXECUTION = executionWord();
 
     public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class);

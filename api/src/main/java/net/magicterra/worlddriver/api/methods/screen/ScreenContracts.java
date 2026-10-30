@@ -98,6 +98,7 @@ public final class ScreenContracts {
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     private static final String PLAYER_PREFIX = "player:";
+
     private static final String PLAYER_ONLY = "bot names a player on this server as player:<name>";
 
     public static final MethodSpec<SlotClickParams, ClientReply> SLOT_CLICK = MethodSpec.of(

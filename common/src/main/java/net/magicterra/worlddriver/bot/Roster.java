@@ -17,6 +17,7 @@ public final class Roster {
     public sealed interface Outcome permits Done, Refusal {}
 
     public record Done(String bot) implements Outcome {}
+
     /** {@code unknown} when the ref names no bot; otherwise the request names something that cannot be a bot. */
     public record Refusal(String message, boolean unknown) implements Outcome {}
 

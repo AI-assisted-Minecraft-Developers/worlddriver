@@ -32,11 +32,14 @@ public final class NodePhysics {
 
     // Player pose bounding boxes (width × height); see EntityType.PLAYER dimensions.
     private static final EntityDimensions STAND = EntityDimensions.scalable(0.6f, 1.8f);
+
     private static final EntityDimensions CROUCH = EntityDimensions.scalable(0.6f, 1.5f);
+
     private static final EntityDimensions CRAWL = EntityDimensions.scalable(0.6f, 0.6f);
 
     /** Largest vertical step the player can walk up without jumping. */
     private static final double MAX_UP_STEP = 0.6;
+
     /** Approximate peak height of a vanilla jump (blocks above foot). */
     private static final double JUMP_APEX = 1.25;
 

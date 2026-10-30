@@ -26,20 +26,32 @@ import org.slf4j.LoggerFactory;
 public final class LookController {
 
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
+
     private static float prevYaw;
+
     private static float prevPitch;
+
     private static boolean havePrev;
+
     private static boolean snapThisTick;
+
     // WINDING ground truth: is the RENDERED camera spinning in circles (smoothly, no snap)?
     private static double windCumAbs;
+
     private static double windUnwrapped;
+
     private static double windMin;
+
     private static double windMax;
+
     private static float windPrev;
+
     private static boolean windHavePrev;
+
     private static int windTick;
 
     private LookController() {}
+
     /**
      * Reset the winding accumulators.
      *

@@ -28,30 +28,43 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class FarmProcess implements BotProcess, Navigating {
 
     private static final int PLACE_TIMEOUT_TICKS = 40;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final BlockPos minP;
+
     private final BlockPos maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
+
     private final Set<String> crops;
+
     private final boolean replant;
+
     private final Navigator navigator = new Navigator(NavigatorSettings.named("farm"));
 
     private final Set<BlockPos> blacklist = new HashSet<>();
+
     private final int totalEstimate;
 
     private BlockPos currentTarget;
+
     private String currentCropId;
+
     private int breakingTicks;
+
     private int placeTicks;
+
     /** {@code skipped} counts crops never harvested; {@code unplanted} those harvested whose replant failed. */
     private int harvested;
 
     private int replanted;
+
     private int skipped;
+
     private int unplanted;
+
     /**
      * Mature crops the latest scan found with no stand beside them. Not blacklisted, because a cleared neighbour can
      * open one; whatever the final scan still counts was never harvested.

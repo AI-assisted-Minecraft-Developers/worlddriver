@@ -45,6 +45,7 @@ public final class PathArchiveRecorder implements PathTrace {
     private static final Logger LOG = LoggerFactory.getLogger("agent-patharchive");
 
     private static final Path REPLAY_DIR = Path.of("config", "worlddriver", "replays");
+
     private static final AtomicInteger SEQ = new AtomicInteger();
 
     // ---- in-progress session state (all accessed on client thread only) ----
@@ -53,17 +54,24 @@ public final class PathArchiveRecorder implements PathTrace {
     private boolean sessionOpen;
 
     private long startMs;
+
     private String goalDesc;
+
     /** Best-effort goal position for the header {@code goal} field. May equal start. */
     private int[] goalCoords;
 
     private int[] startCoords;
+
     private Long seed; // null when world seed is unknown
+
     private String dimension;
 
     private int repathIndex;
+
     private final List<PathArchive.Segment> segments = new ArrayList<>();
+
     private final Long2ObjectOpenHashMap<PathArchive.EnvelopeCell> envelopeMap = new Long2ObjectOpenHashMap<>();
+
     private final List<PathArchive.Tick> ticks = new ArrayList<>();
 
     // ---- replay-capture state (mc.debug.replay) ----------------------------
@@ -73,6 +81,7 @@ public final class PathArchiveRecorder implements PathTrace {
      * clobber it and {@link #onTerminal} writes a {@code replay-run-*.json} (kind="replay") instead of a plan archive.
      */
     private boolean replayArmed;
+
     /**
      * Entity id the armed replay run belongs to (null = unpinned). The trace SINK is a GLOBAL static shared by every
      * Navigator on every thread — in the integrated (T1) topology the client bot's navigator ticks CONCURRENTLY with a
@@ -83,13 +92,16 @@ public final class PathArchiveRecorder implements PathTrace {
      * drops foreign-navigator samples at the source.
      */
     private Integer replayEntityId;
+
     /** Plan nodes the replay executes — used to compute per-tick deviation. */
     private List<BlockPos> replayPlan = List.of();
+
     /** Archive file the replay plan came from (header/segments live there). */
     private String replayPlanRef;
 
     /** Path of the last file written; readable via {@link #lastWrittenPath()}. */
     private volatile String lastWritten;
+
     /**
      * Path of the last {@code replay-run-*.json} written (kind="replay"); readable via {@link #lastReplayRunPath()}.
      * Distinct from {@link #lastWritten} so a test that records a plan archive THEN a replay run can find the replay

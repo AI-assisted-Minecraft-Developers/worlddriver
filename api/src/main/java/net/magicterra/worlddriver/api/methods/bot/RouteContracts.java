@@ -30,6 +30,7 @@ import net.magicterra.worlddriver.api.schema.annotation.Wire;
 public final class RouteContracts {
 
     public static final ApiType<TravelMode> TRAVEL_MODE = ApiTypes.of(TravelMode.class);
+
     public static final ApiType<Enforcement> ENFORCEMENT = ApiTypes.of(Enforcement.class);
 
     public static final RecordType<YRange> Y_RANGE = ApiTypes.record(YRange.class);
@@ -170,9 +171,11 @@ public final class RouteContracts {
 
     @Variant("point")
     public record PointAnchor(BlockPosition pos) implements LeashAnchor {}
+
     /** Measured horizontally only. */
     @Variant("column")
     public record ColumnAnchor(int x, int z) implements LeashAnchor {}
+
     /** A player name, an entity type id or an entity id, followed as it moves. */
     @Variant("entity")
     public record EntityAnchor(

@@ -28,11 +28,17 @@ public final class ReplayProcess implements BotProcess, Navigating {
     private final Navigator navigator;
 
     private final List<BlockPos> plan;
+
     private final List<Move.Edge> edges;
+
     private final Goal endGoal;
+
     private final BlockPos startFoot;
+
     private final boolean follow;
+
     private final boolean goalReached;
+
     private boolean begun;
 
     private String failure;

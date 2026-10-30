@@ -42,8 +42,11 @@ public final class Responses {
     public static final ApiType<Integer> AWAIT_MS = ApiTypes.of(Integer.class, AwaitMs.class);
 
     public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.of(RefusalReason.class);
+
     public static final ApiType<Unready> UNREADY = ApiTypes.of(Unready.class);
+
     public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.of(FailureReason.class);
+
     public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.of(CancelReason.class);
 
     private Responses() {}

@@ -31,6 +31,7 @@ import net.minecraft.world.entity.monster.RangedAttackMob;
 public final class RetreatChain implements Chain {
     /** Flee until this many blocks from where the retreat began. */
     private static final int FLEE_DIST = 16;
+
     /**
      * Hysteresis (the fix for fleeing in circles): once fleeing, KEEP fleeing until HP climbs this far ABOVE the
      * trigger. Without it, a single regen tick / a missed hit lifts HP a hair over the threshold, the channel snaps
@@ -38,18 +39,21 @@ public final class RetreatChain implements Chain {
      * that reads as the bot circling in place instead of escaping.
      */
     private static final float RELEASE_HP_MARGIN = 4f;
+
     /**
      * A scanned hostile within this radius counts as "still in danger". Used both to GATE the trigger (don't abandon
      * the task fleeing from nothing) and to RELEASE the latch once we've outrun everything — so a no-food bot that
      * can't regen still resumes its task when safe instead of fleeing forever.
      */
     private static final double CLEAR_RADIUS = 12.0;
+
     /**
      * Danger radius for RANGED hostiles. A skeleton engages from 15-16 blocks, so judging it by the melee-scale
      * {@link #CLEAR_RADIUS} left a low-HP bot under ACTIVE bow fire from 13+ "not in danger" — the reflex never bid
      * while HP went 20→0 (live death #6, gap#65).
      */
     private static final double RANGED_RADIUS = 18.0;
+
     /**
      * Guard B (gap#71, near-death #19): a connected hit is the strongest signal there is, but the scan's
      * {@code attackedMe} rides vanilla's ~40t last-damager window — shorter than a skeleton's 2-3s (40-60t) shot
@@ -60,6 +64,7 @@ public final class RetreatChain implements Chain {
      * {@code attackedMe} window, so this constant means literally "60 ticks after the hit landed", not ~100.)
      */
     private static final long HURT_RELEASE_COOLDOWN_TICKS = 60;
+
     /**
      * death#26 (07-20 live, open-terrain skeleton): how long a THREAT last seen in scan keeps a CRITICALLY-HURT
      * ({@code hp < thr}) bot from declaring itself "safe". gap#71's {@link #visibleRangedThreatWithin} only holds while
@@ -75,9 +80,12 @@ public final class RetreatChain implements Chain {
     private static final long THREAT_MEMORY_TICKS = 100;
 
     private final BotState state;
+
     private RunAwayProcess process;
+
     /** Latched true while a flee is committed — see {@link #RELEASE_HP_MARGIN}. */
     private boolean retreating;
+
     /**
      * gap#71: game-time of the RISING EDGE of a scanned threat's hit connecting ({@code attackedMe} false→true),
      * tracked independently of the scan's own decaying flag so release can enforce {@link #HURT_RELEASE_COOLDOWN_TICKS}
@@ -93,11 +101,13 @@ public final class RetreatChain implements Chain {
      * cooldown only has to (and now does) cover the gap AFTER that window clears.
      */
     private long lastHurtGameTime = Long.MIN_VALUE;
+
     /**
      * gap#71/final-review L1: last tick's {@code hurtByAnyone(scan)} value, so {@link #priority} can detect the
      * false→true rising edge instead of restamping {@link #lastHurtGameTime} on every tick the level stays true.
      */
     private boolean prevHurtByAnyone;
+
     /**
      * death#26: game-time a THREAT was last present in the (sealed-filtered) scan — any hostile in melee/bow range,
      * aiming, or firing. Level-stamped every tick the signal holds (see {@link #priority}); {@code Long.MIN_VALUE} =

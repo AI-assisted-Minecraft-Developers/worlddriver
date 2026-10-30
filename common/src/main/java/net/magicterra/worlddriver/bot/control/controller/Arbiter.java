@@ -25,8 +25,11 @@ import net.magicterra.worlddriver.game.body.Body;
 public final class Arbiter {
 
     private final List<Controller> controllers = new ArrayList<>();
+
     private final boolean[] running;
+
     private final int[] ranTicks;
+
     /** Why each idle controller did not start on the last tick, or why its last run stopped. */
     private final String[] idleWhy;
 

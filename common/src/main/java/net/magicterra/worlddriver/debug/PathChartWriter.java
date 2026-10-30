@@ -22,7 +22,9 @@ import javax.imageio.ImageIO;
 public final class PathChartWriter {
 
     private static final AtomicInteger SEQ = new AtomicInteger();
+
     private static final Path DIR = Path.of("config", "worlddriver", "debug");
+
     /** Keep at most this many chart PNGs; oldest are pruned so the dir can't grow unbounded. */
     private static final int MAX_FILES = 1000;
 

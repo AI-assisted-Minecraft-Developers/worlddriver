@@ -22,11 +22,15 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ScriptEvents {
     private static final List<Function> tickCallbacks = new CopyOnWriteArrayList<>();
+
     private static final List<Function> attachCallbacks = new CopyOnWriteArrayList<>();
 
     private static volatile ContextFactory factory;
+
     private static volatile Scriptable scope;
+
     private static final AtomicLong tickCount = new AtomicLong();
+
     private static volatile boolean attachFired = false;
 
     private ScriptEvents() {}

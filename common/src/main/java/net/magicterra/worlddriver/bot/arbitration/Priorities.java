@@ -13,30 +13,37 @@ public final class Priorities {
 
     /** Sprint clear of a creeper about to blow / MLG water-bucket clutch. */
     public static final float PANIC = 1000f;
+
     /** Sidestep an incoming projectile / step out of a damaging cloud. */
     public static final float DODGE = 900f;
+
     /**
      * Drowning under an ACTIVE process (DrownEscapeChain, gap#76): float straight up before the air runs out. Above
      * BUNKER — the bunker reflex digs DOWN, which while drowning is precisely lethal — and below PANIC/DODGE so a
      * creeper-blast sprint or projectile sidestep still wins the tick.
      */
     public static final float DROWN_ESCAPE = 500f;
+
     /**
      * An ordered "dig three, fill one" dig-in ({@code mc.bot.bunker}, bid by UserTaskChain for a BunkerProcess) —
      * outranks a plain low-HP retreat, because fleeing into more mobs is worse than finishing a sealed hole. Below
      * DODGE so a creeper/projectile reflex still wins.
      */
     public static final float BUNKER = 300f;
+
     /** Low-HP disengage (RetreatChain). Ramps up as HP falls below threshold. */
     public static final float SURVIVAL = 100f;
+
     /**
      * DuskSecureChain escalated tier (gap#68-⑨): exposed at night with no shelter, self-preservation MUST outrank the
      * user task (same philosophy as SURVIVAL>USER) but stay below SURVIVAL so an active flee still wins, and above
      * COMBAT so the bot digs in rather than picking fights at dusk.
      */
     public static final float DUSK_URGENT = 90f;
+
     /** Active combat (CombatChain — Phase C). */
     public static final float COMBAT = 60f;
+
     /** User foreground task (goto/mine/craft/...) via UserTaskChain. */
     public static final float USER = 50f;
 

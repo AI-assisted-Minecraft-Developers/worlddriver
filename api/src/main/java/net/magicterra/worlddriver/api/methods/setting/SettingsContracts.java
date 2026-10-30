@@ -89,6 +89,7 @@ public final class SettingsContracts {
 
     /** Written with {@code apply} only. */
     public static final Set<String> CONTROLS = Set.of("paused", "debugFly");
+
     /** Controls with nothing to read back. */
     public static final Set<String> WRITE_ONLY = Set.of("debugFly");
 

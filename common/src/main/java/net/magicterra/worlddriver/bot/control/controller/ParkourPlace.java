@@ -54,6 +54,7 @@ public final class ParkourPlace implements Controller {
     public int priority() {
         return 5;
     }
+
     /** Bounded by the action timeout. */
     @Override
     public int maxTicks() {

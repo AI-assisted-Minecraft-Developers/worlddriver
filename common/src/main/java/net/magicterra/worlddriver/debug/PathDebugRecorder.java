@@ -28,16 +28,25 @@ public final class PathDebugRecorder implements PathTrace {
     private final Object lock = new Object();
 
     private BlockPos start;
+
     private BlockPos goalMarker;
+
     private String goalDesc = "";
+
     private String goalKey = "";
+
     private int repathCount;
+
     private long expandedSinceBegin; // total expansions this search (for reservoir scaling)
 
     private final List<PathSession.Candidate> candidates = new ArrayList<>();
+
     private final List<PathSession.PlannedRoute> plannedRoutes = new ArrayList<>();
+
     private final ArrayDeque<NavigatorSample> trajectory = new ArrayDeque<>();
+
     private Outcome outcome;
+
     private String reason;
 
     @Override

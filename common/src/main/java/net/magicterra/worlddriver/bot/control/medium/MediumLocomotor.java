@@ -41,37 +41,53 @@ public final class MediumLocomotor implements Locomotor {
 
     /** A node's cell counts as reached with the body's middle this close to the cell's, on each horizontal axis. */
     private static final double REACH_XZ = 0.4;
+
     /**
      * Vertical offset beyond which the body rises or sinks toward the node; under the feet's lift off the floor
      * ({@link MediumMove#feetLift}), or a body resting at the edge of the band stays in the cell below.
      */
     private static final double VERTICAL_DEADBAND = 0.05;
+
     /** Horizontal distance under which a node straight above or below is moved to vertically alone. */
     private static final double VERTICAL_ONLY_XZ = 0.25;
+
     /** How far a swimmer's vertical speed coasts, in ticks of itself: the sum of 0.9^n. */
     private static final double SWIM_COAST_TICKS = 10;
+
     /** Ticks out of the medium before the walk fails: a leap or a bob above the surface falls back in. */
     private static final int OUT_TICKS = 40;
+
     /** Ticks without getting closer to the next node before a repath. */
     private static final int STALL_TICKS = 60;
+
     /** Repaths with no node reached in between before the walk fails. */
     private static final int MAX_STALLS = 3;
 
     private final Navigator nav;
+
     private final MediumMove.Medium medium;
+
     /** "swim" or "fly": the drive tag, the trace's first word, and how failures name the medium. */
     private final String verb;
 
     private final String through;
 
     private final Route route = new Route();
+
     private Goal goal;
+
     private volatile WalkResult result = WalkResult.NONE;
+
     private List<BlockPos> followed;
+
     private double bestNodeDist = Double.POSITIVE_INFINITY;
+
     private int noProgressTicks;
+
     private int stalls;
+
     private int outTicks;
+
     /** The nearest to the goal, by its estimate, that this walk has been when it planned. */
     private double bestGoalDist = Double.POSITIVE_INFINITY;
 

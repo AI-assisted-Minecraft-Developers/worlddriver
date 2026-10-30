@@ -25,19 +25,23 @@ public interface Menus {
      * unavailable (no server/connection).
      */
     RecipeManager recipeManager();
+
     /**
      * Recipe-book placement into the open menu's grid — client: {@code gameMode.handlePlaceRecipe} (→ packet); server:
      * {@code RecipeBookMenu.handlePlacement} directly (works for the always-present 2×2 inventory grid even on a
      * FakePlayer).
      */
     void placeRecipe(int containerId, RecipeHolder<?> recipe, boolean placeAll);
+
     /**
      * A container-slot click — client: {@code gameMode.handleInventoryMouseClick} (→ packet); server:
      * {@code menu.clicked} directly.
      */
     void containerClick(int containerId, int slot, int button, ClickType type);
+
     /** Close the open container back to the inventory menu. */
     void closeContainer();
+
     /**
      * Whether something other than the inventory menu is open, so an inventory click now would race it. The client
      * player counts any screen, chat and pause included.
@@ -45,6 +49,7 @@ public interface Menus {
     default boolean menuOpen() {
         return entity() instanceof Player p && p.containerMenu != p.inventoryMenu;
     }
+
     /**
      * Return any material stranded in the 2×2 crafting grid (InventoryMenu slots 1-4) to the main inventory via
      * QUICK_MOVE, leaving the grid empty. {@code placeRecipe} fills the grid straight from the inventory, and a craft

@@ -78,6 +78,7 @@ public final class ProgressPhase {
      * (literally pinned) without misfiring on slow-but-moving travel.
      */
     private static final double ARC_WEDGE_DS = 0.05;
+
     /**
      * Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath. 30 ticks
      * (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit stepUp/diagUp
@@ -126,6 +127,7 @@ public final class ProgressPhase {
     public int finalNodeHold;
 
     public Object finalNodeHoldPath;
+
     public int finalNodeHoldStep = -1;
 
     /**
@@ -151,6 +153,7 @@ public final class ProgressPhase {
      * inside ProgressPhase.
      */
     public final StepProgress stepProg = new StepProgress();
+
     /**
      * Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick} (called per tick from
      * ProgressPhase); the wedge/stall verdicts are consumed by StallDetect/Drive, the projection by Aim/Progress. NO
@@ -158,6 +161,7 @@ public final class ProgressPhase {
      * windows on a no-projection tick.
      */
     public final ArcShadow arc = new ArcShadow();
+
     /**
      * One line per STEP ADVANCE — which gate consumed the node, and whether the bot was standing on anything when it
      * did.

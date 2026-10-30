@@ -26,6 +26,7 @@ public final class TowerProcess implements BotProcess {
     private static final int PLACE_DELAY_TICKS = 3;
 
     private static final int STUCK_TICKS = 60;
+
     /**
      * Horizontal speed (blocks/tick) below which a course may start.
      *
@@ -41,18 +42,22 @@ public final class TowerProcess implements BotProcess {
      * backstop for a bot something else is pushing.
      */
     private static final double SETTLE_SPEED = 0.05;
+
     /**
      * How long a course waits for the bot to stop before starting anyway. Generous next to the four ticks friction
      * needs: expiry means something is actively moving the bot, which the stuck message reports rather than hiding.
      */
     private static final int SETTLE_TICKS = 20;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final int targetY;
+
     private final String preferredBlockId;
+
     /**
      * Whether {@link #preferredBlockId} may be fetched out of the BAG, not just the hotbar.
      *
@@ -67,14 +72,20 @@ public final class TowerProcess implements BotProcess {
     private final boolean reachIntoBag;
 
     private int placed;
+
     private int stuckTicks;
+
     /** "not needed" is a success: the bot already stands at the height the caller asked for. */
     private String failure;
 
     private int startFeetY = Integer.MIN_VALUE;
+
     private int lastApexFloorY;
+
     private int sinceJump;
+
     private int jumpFromY; // feet cell at the moment of the jump press
+
     /**
      * The column the current course jumped from, latched with {@link #jumpFromY}.
      *
@@ -85,8 +96,11 @@ public final class TowerProcess implements BotProcess {
     private int jumpFromX;
 
     private int jumpFromZ;
+
     private int settling;
+
     private boolean startedWhileMoving;
+
     /**
      * Courses whose jump never lifted the bot a whole block. Counted rather than merely survived: a bot that is being
      * shoved off its own arc and one under a lid it cannot see produce the same zero height, and only this number

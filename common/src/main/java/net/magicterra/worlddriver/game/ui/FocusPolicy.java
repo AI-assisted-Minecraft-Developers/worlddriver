@@ -34,8 +34,10 @@ public final class FocusPolicy {
 
     /** Whether the override is currently installed (i.e. we are holding the human's value). */
     private static boolean overriding;
+
     /** The human's own setting, captured on the rising edge. Meaningful only while overriding. */
     private static boolean savedPauseOnLostFocus;
+
     /**
      * {@link #applyStartupProperty} has run (it needs {@code mc.options}, which the Fabric client entrypoint runs
      * before; the first tick is the earliest safe moment).

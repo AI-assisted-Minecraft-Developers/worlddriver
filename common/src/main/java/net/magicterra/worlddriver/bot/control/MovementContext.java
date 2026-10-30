@@ -20,15 +20,25 @@ public final class MovementContext {
     public static volatile long ALLOC_COUNT = 0;
 
     public final LivingEntity p; // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
+
     public final WorldView world; // isSolid/isPassable/isHazard for the BREAK phase (mirrors StairUpBreak.eval)
+
     public final Body avatar; // selectTool/aimAtBlock/breakHold/placeOn/holdPillarBlock + commandForward/Jump/Sneak
+
     public final Move.Edge edge; // current edge: to (stand cell), toBreak, toPlace, move name
+
     public final BlockPos foot; // grounded foot cell this tick
+
     public final BlockPos node; // path.get(step) — the stand-cell node (== edge.to for an ascent)
+
     public final int maxJumpUp; // world.maxJumpUpBlocks()
+
     public final int maxStepUp; // world.maxStepUpBlocks()
+
     public final BlockPos prevNode; // path.get(step-1) or null — chainAscend peek
+
     public final BlockPos prevNode2; // path.get(step-2) or null — chainAscend peek
+
     public final boolean
             digging; // Navigator's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog
     // exemption, #66: bare-hand stone is 150t+/block)

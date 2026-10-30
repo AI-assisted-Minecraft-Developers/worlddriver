@@ -78,6 +78,7 @@ public final class DrownEscapeChain implements Chain {
      * few blocks is enough — the overhang shelf that drowned the bot (live death #27) sat one block above its head.
      */
     private static final int SURFACE_SCAN_UP = 4;
+
     /**
      * Chebyshev-ring radius scanned for a neighbouring column the bot can surface in. Bounded by one breath of
      * underwater swim (~5 s ≈ a handful of blocks); beyond that no lateral escape completes anyway.
@@ -99,15 +100,19 @@ public final class DrownEscapeChain implements Chain {
 
     /** The hysteresis latch — non-false IS the episode (see class doc). */
     private boolean latched;
+
     /**
      * Air supply seen on the previous evaluation, for the head-out-and- recovering release condition. Sentinel -1 = no
      * previous reading.
      */
     private int prevAir = -1;
+
     /** True while OUR tick() is holding the body's jump or dig, so interrupt/cancel release exactly our hold. */
     private boolean keysHeld;
+
     /** Throttle counter for the capped-lateral-escape debug line. */
     private int dbg;
+
     /**
      * Throttle counter for {@link #verticalRow}. Deliberately NOT shared with {@link #dbg}: one counter across two
      * mutually-exclusive arms lets a run of lateral ticks advance the vertical arm's phase, so the vertical rows would

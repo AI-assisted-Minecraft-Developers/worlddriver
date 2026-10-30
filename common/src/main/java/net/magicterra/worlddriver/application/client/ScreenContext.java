@@ -22,6 +22,7 @@ public final class ScreenContext {
     private static final String EPOCH = Long.toString(new SecureRandom().nextLong() & Long.MAX_VALUE, 36);
 
     private static long generation;
+
     private static Screen seen;
 
     private ScreenContext() {}

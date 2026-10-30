@@ -23,13 +23,19 @@ import net.minecraft.core.BlockPos;
  */
 public final class NavigatorTallies {
     public volatile int searches;
+
     public volatile int recoveryHops;
+
     public volatile int digs;
+
     private volatile BlockPos lastDigCell;
+
     /** The result of the deep search {@link #searches} last counted, before any navigator post-processing. */
     public volatile PathFinder.Result lastResult;
+
     /** The finished search that produced {@link #lastResult}. */
     public volatile PathFinder.Search lastSearch;
+
     /**
      * Search results the adoption refused, and why it refused the last one; a refused result leaves the old plan in
      * place, so without these a refusal looks exactly like a search that kept the route.
@@ -37,6 +43,7 @@ public final class NavigatorTallies {
     public volatile int refusals;
 
     public volatile String lastRefusal;
+
     /** Replans started because a block on the plan ahead changed shape. */
     public volatile int blockReplans;
 

@@ -60,12 +60,19 @@ public final class DriverApplication implements DriverHost {
     private static final long SERVER_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
 
     private final ApiRegistry registry = new ApiRegistry();
+
     public final SystemService system = new SystemService(this);
+
     public final ObserveService observe = new ObserveService(this);
+
     public final ActionService action = new ActionService(this);
+
     public final WaitService wait = new WaitService(this);
+
     public final WorldService world = new WorldService(this);
+
     public final RecipeService recipe = new RecipeService(this);
+
     public final EventService eventService = new EventService(this);
 
     // The command allow-list has been removed: {@code mc.action.runCommand} runs
@@ -74,9 +81,13 @@ public final class DriverApplication implements DriverHost {
     // here if exposing the transports beyond the loopback interface.
 
     volatile MinecraftServer server;
+
     final ArrayDeque<DriverEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
+
     final Object eventsLock = new Object();
+
     final AtomicLong eventSeq = new AtomicLong();
+
     final long startNanos = System.nanoTime();
 
     /**
@@ -88,6 +99,7 @@ public final class DriverApplication implements DriverHost {
 
     private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().name("agent-event-dispatch").daemon().factory());
+
     private volatile ScriptHost scriptHost;
 
     /** The core methods, published once; a retry would hand over this same object. */

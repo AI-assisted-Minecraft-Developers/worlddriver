@@ -39,6 +39,7 @@ import net.magicterra.worlddriver.api.thread.GameThreads;
  */
 public final class ApiRegistry {
     public static final String CORE_OWNER = "worlddriver";
+
     public static final String TEST_OWNER = "stagewright";
 
     /**
@@ -54,6 +55,7 @@ public final class ApiRegistry {
             Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
 
     private final Published state;
+
     /** What {@link #withThreadWait} gave this view, or 0 for the registry itself: each hop's own limit. */
     private final long threadWaitMs;
 
@@ -72,6 +74,7 @@ public final class ApiRegistry {
     /** What is published, shared by a registry and every {@link #withThreadWait} view of it. */
     private static final class Published {
         volatile Snapshot snapshot = new Snapshot(0, Map.of(), Map.of(), Map.of());
+
         final List<Consumer<Snapshot>> listeners = new CopyOnWriteArrayList<>();
     }
 

@@ -22,6 +22,7 @@ public final class ThreatWatch {
     private final Map<Integer, Vec3> lastProjPos = new HashMap<>();
 
     private volatile Map<Integer, Vec3> velocities = Map.of();
+
     private volatile ThreatScanner.Scan latest = ThreatScanner.EMPTY;
 
     /**

@@ -51,7 +51,9 @@ public final class EventService implements EventApi {
     private static final long WATCH_POLL_BUDGET_MS = 2_000;
 
     private final DriverApplication api;
+
     private final Map<Integer, Watcher> watchers = new ConcurrentHashMap<>();
+
     private final AtomicInteger seq = new AtomicInteger();
 
     EventService(DriverApplication api) {
@@ -152,11 +154,17 @@ public final class EventService implements EventApi {
 
     private final class Watcher {
         final int id;
+
         final Watch spec;
+
         final Polling.Target target;
+
         volatile boolean lastOk;
+
         volatile int fired;
+
         volatile boolean stopped;
+
         volatile ScheduledFuture<?> next;
 
         Watcher(int id, Watch spec, Polling.Target target) {

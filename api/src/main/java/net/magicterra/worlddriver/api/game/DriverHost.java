@@ -19,6 +19,7 @@ public interface DriverHost extends EventFeed {
     void detachServer();
 
     void clearEvents();
+
     /**
      * Append an event by name; {@code data} is its payload as a value tree, {@link JsonValue#NULL} for none. For the
      * layers that may not name the catalog: a catalogued type is still held to its payload contract.
@@ -29,6 +30,7 @@ public interface DriverHost extends EventFeed {
     default <T> void emitExternal(EventCatalog.Entry<T> entry, BlockPos pos, T payload) {
         emitExternal(entry.type(), pos, entry.encode(payload));
     }
+
     /** Writes {@code cells} on the server thread; completes with how many, holding no thread meanwhile. */
     CompletionStage<Integer> restoreCellsOnServer(List<WorldCell> cells, CallContext ctx);
 }

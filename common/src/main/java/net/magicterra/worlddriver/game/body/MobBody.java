@@ -70,56 +70,81 @@ public final class MobBody implements Body {
 
     /** Ticks of held input that must move the mob before it counts as not listening. */
     static final int UNRESPONSIVE_TICKS = 40;
+
     /** Below this much horizontal travel over {@link #UNRESPONSIVE_TICKS}, held input moved it nowhere. */
     private static final double UNRESPONSIVE_DISTANCE = 0.25;
+
     /** A squid's speed at full input, in blocks per tick: about its own stroke's average. */
     private static final double SQUID_SPEED = 0.1;
+
     /** The largest speed modifiers an axolotl's own brain uses, out of water and in it. */
     private static final float AXOLOTL_LAND_MODIFIER = 0.15f;
 
     private static final float AXOLOTL_WATER_MODIFIER = 0.6f;
+
     /** Ticks a flyer takes to reach its cruising speed from rest, or to stop from it. */
     private static final int FLIGHT_ACCEL_TICKS = 5;
+
     /**
      * How far a flyer's vertical speed carries it once the input lets go, in ticks of that speed: it slows evenly to
      * rest over {@link #FLIGHT_ACCEL_TICKS} ticks.
      */
     public static final double FLIGHT_COAST_TICKS = (FLIGHT_ACCEL_TICKS + 1) / 2.0;
+
     /** A hovering flyer's speed back toward its spot, per block it has drifted from it. */
     private static final double HOVER_GAIN = 0.2;
+
     /** A travel longer than this since the last tick was a teleport, not flight. */
     private static final double FLIGHT_JUMP = 2.0;
 
     private final Mob mob;
+
     private final List<Held> held = new ArrayList<>();
+
     /** The control's speed factors when it is a smooth swimmer's; 1 otherwise. */
     private final float inWaterFactor;
 
     private final float outOfWaterFactor;
+
     /** No walking mode: it rises in water by its vertical input alone. */
     private final boolean swimsOnly;
+
     /** It flies: moved by its velocity, at {@link #flightSpeed} blocks a tick at full input. */
     private final boolean flies;
 
     private final double flightSpeed;
+
     /** Where the flyer was at its last AI step, and the spot it holds while it has no input. */
     private Vec3 flightLast;
 
     private Vec3 hoverAt;
 
     private float left;
+
     private float forward;
+
     private boolean jump;
+
     private boolean sneak;
+
     private float heading;
+
     private float magnitude;
+
     private boolean aimed;
+
     private float aimYaw;
+
     private float aimPitch;
+
     private boolean released;
+
     private Vec3 pushStart;
+
     private int pushTicks;
+
     private boolean pushBlocked;
+
     private boolean unresponsive;
 
     /** Implemented on every {@link Mob} by {@code MobMixin}: the body driving it, or null. */

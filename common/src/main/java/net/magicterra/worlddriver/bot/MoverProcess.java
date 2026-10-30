@@ -15,8 +15,11 @@ import net.minecraft.core.BlockPos;
  */
 final class MoverProcess implements BotProcess {
     private final Mover mover;
+
     private final List<Goal> targets;
+
     private int next;
+
     private String failure;
 
     /** {@code targets} each have a cell ({@link Goal#targetPos()}); {@link #covers} says whether they do. */

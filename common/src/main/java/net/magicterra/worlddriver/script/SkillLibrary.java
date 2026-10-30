@@ -36,6 +36,7 @@ import net.magicterra.worlddriver.api.schema.ApiIssue;
  */
 public final class SkillLibrary {
     private final ScriptEvaluator evaluator;
+
     private final Path dir;
 
     public SkillLibrary(ScriptEvaluator evaluator, Path dir) {

@@ -85,6 +85,7 @@ public interface Body {
      * for 7 800 ticks with zero horizontal displacement, because the navigator's own command overwrote it every tick.
      */
     void commandMove(float left, float forward);
+
     /**
      * Raw forward (0..1) along the camera, as a held W key; also zeroes strafe. Loses to a same-tick
      * {@link #commandMove} — see there.
@@ -94,6 +95,7 @@ public interface Body {
     void commandJump(boolean v);
 
     void commandSneak(boolean v);
+
     /**
      * Sprint intent. Sticky, unlike the per-tick channels above: it stays until something flips it back, which is what
      * every "…and definitely do not sprint into the lava" caller wants. On a client player this sets the sprint flag
@@ -101,6 +103,7 @@ public interface Body {
      * emits STOP_SPRINTING from the flag alone, so the flag is both the shorter path and the one that also stops.
      */
     void commandSprint(boolean v);
+
     /**
      * Drive toward a world point WITHOUT turning the camera.
      *
@@ -130,8 +133,10 @@ public interface Body {
         double d = Math.toRadians(Mth.degreesDifference(p.getYRot(), bearing));
         commandMove((float) (-Math.sin(d) * scale), (float) (Math.cos(d) * scale));
     }
+
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */
     void requestLookSnap();
+
     /**
      * Release all commanded locomotion (forward/sneak/jump) + the logical sneak flag — the {@code Body} equivalent of
      * the old client {@code releaseKeys()}, but it drives only THIS player's own input (never the shared human
@@ -146,6 +151,7 @@ public interface Body {
             e.setShiftKeyDown(false);
         }
     }
+
     /**
      * The idle release a reflex chain does when it loses the bot or its episode is cancelled: every held movement input
      * and a held dig. Not the use intent — the hand reflexes arbitrate that one themselves. The client player overrides
@@ -155,6 +161,7 @@ public interface Body {
         releaseInputs();
         blockInteraction().ifPresent(b -> b.breakHold(false));
     }
+
     /**
      * The cells this body's own digs broke since the last call, oldest first; taking them empties the record. Feeds the
      * backfill queue, which puts back only what the bot broke.
@@ -166,6 +173,7 @@ public interface Body {
     // --- look ---
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */
     void aimAtBlock(BlockPos cell);
+
     /**
      * The block the player's crosshair/look currently points at, or {@code null}. Client reads {@code mc.hitResult};
      * server raycasts from the eye along the view vector. Used by processes that gate an action on what they're aiming

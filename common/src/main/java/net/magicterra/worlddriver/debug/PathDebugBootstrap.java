@@ -33,11 +33,15 @@ import org.slf4j.LoggerFactory;
  */
 public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
+
     private static boolean recordersInstalled;
 
     private static Supplier<ServerThreadHop> serverHop = () -> null;
+
     private static Supplier<MinecraftServer> serverOf = () -> null;
+
     private static ApiRegistry batchApi;
+
     private static ApiBatch batch;
 
     private PathDebugBootstrap() {}

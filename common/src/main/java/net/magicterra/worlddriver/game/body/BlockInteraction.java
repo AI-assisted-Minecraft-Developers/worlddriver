@@ -17,8 +17,10 @@ public interface BlockInteraction {
     // --- placing ---
     /** Place a support block into {@code cell}, clicking a face of the first neighbour {@code solid} accepts. */
     void place(Predicate<BlockPos> solid, BlockPos cell);
+
     /** Place against the given face of {@code cell} directly. */
     void placeOn(BlockPos cell, Direction face);
+
     /**
      * Right-click a block face to USE it (open a crafting table / furnace) — the raw {@code useItemOn} with no
      * place-a-block gate. The block's own use opens the menu through vanilla's {@code openMenu} on either side:
@@ -53,6 +55,7 @@ public interface BlockInteraction {
      * went unnoticed for so long — every dig scene in the suite was a {@code wd.server*} scene.
      */
     void breakHold(boolean v);
+
     /** Whether the break action is currently held (debug). */
     boolean breakHeld();
 
@@ -84,6 +87,7 @@ public interface BlockInteraction {
      * call — AntiSuffocate gap#69 pattern). At most once per cell per tick. No-op on a body that cannot break blocks.
      */
     default void continueDestroy(BlockPos cell) {}
+
     /**
      * Abandon the break in progress, so its progress is lost; a reflex that drove one with {@link #continueDestroy}
      * ends it here.

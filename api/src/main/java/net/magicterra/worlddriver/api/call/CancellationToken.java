@@ -32,6 +32,7 @@ public interface CancellationToken {
     /** A token whose owner can {@link #cancel} it. */
     final class Source implements CancellationToken {
         private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+
         private volatile boolean cancelled;
 
         @Override

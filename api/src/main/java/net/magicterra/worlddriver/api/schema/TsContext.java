@@ -11,7 +11,9 @@ import java.util.function.Supplier;
  */
 public final class TsContext {
     private final Map<String, String> declarations = new LinkedHashMap<>();
+
     private final Map<String, Object> owners = new LinkedHashMap<>();
+
     private final Map<Object, String> inProgress = new IdentityHashMap<>();
 
     /**

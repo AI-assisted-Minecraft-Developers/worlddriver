@@ -31,21 +31,37 @@ public final class ExpectAlarms {
             new java.util.concurrent.atomic.AtomicInteger();
 
     private boolean exPrevBreakHeld; // was the break action held last tick (DIG-dropped edge)
+
     private BlockPos exPrevAimBlock; // block the crosshair pointed at last tick
+
     private int exDigHoldTicks; // consecutive held ticks on the SAME aim block (DIG-slow)
+
     private int exJumpTicksLeft; // ticks left watching a jump's arc (JUMP-noRise)
+
     private double exJumpBaseY; // Y at the launch tick
+
     private double exJumpPeakY; // highest Y seen during the watched arc
+
     private boolean exPrevOnGround; // grounded last tick (jump launch edge)
+
     private int exFwdNoMoveTicks; // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
+
     private double exPrevX;
+
     private double exPrevZ; // last tick's position for the displacement check
+
     private int exThrottle; // global alarm throttle (one line per 40t)
+
     private long exRepathFlipTick; // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
+
     private int exRepathFlipCount; // consecutive U-turn adoptions inside the window — the oscillation depth
+
     private int exDriveTearTicks; // consecutive pinned ticks with the heading >90° off the committed node (DRIVE-tear)
+
     private int exGearCheckTicks; // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
+
     private BlockPos exPlacePos; // cell a placement expects to fill (PLACE-noBlock)
+
     private int exPlaceTicksLeft; // ticks left for the placed block to appear
 
     /**

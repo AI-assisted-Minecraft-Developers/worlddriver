@@ -38,6 +38,7 @@ public final class EventCatalog {
             CommonTypes.RESOURCE_ID,
             Level.INFO,
             "A block was broken or set to air; the payload is the block that was there.");
+
     public static final Entry<String> BLOCK_PLACE =
             entry("block.place", CommonTypes.RESOURCE_ID, Level.INFO, "A block was placed; the payload is its id.");
 
@@ -46,11 +47,13 @@ public final class EventCatalog {
 
     public static final Entry<String> ENTITY_DEATH = entry(
             "entity.death", CommonTypes.RESOURCE_ID, Level.NOTICE, "A living entity died; the payload is its type.");
+
     public static final Entry<String> PLAYER_JOIN = entry(
             "player.join",
             ApiTypes.of(String.class),
             Level.INFO,
             "A player joined the server; the payload is their name.");
+
     public static final Entry<String> PLAYER_LEAVE = entry(
             "player.leave",
             ApiTypes.of(String.class),
@@ -138,6 +141,7 @@ public final class EventCatalog {
 
     public static final Entry<At> DUSK_EXPOSED =
             entry("duskExposed", AT, Level.INFO, "The bot is out in the open at night.");
+
     public static final Entry<At> CORNERED =
             entry("cornered", AT, Level.INFO, "The bot has hostiles around it and nowhere to step away to.");
 

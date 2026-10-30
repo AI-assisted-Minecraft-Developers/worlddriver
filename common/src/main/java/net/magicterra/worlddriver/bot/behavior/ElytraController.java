@@ -14,9 +14,13 @@ public final class ElytraController {
     private static final float[] PITCHES = {-45, -35, -25, -18, -12, -8, -4, 0, 4, 8, 15, 25, 40};
 
     private static final int HORIZON = 30; // ticks simulated ahead (~45 blocks at cruise)
+
     private static final int BOOST_LIFE = 20; // assumed live-rocket ticks (duration-1 ≈ 20–32)
+
     private static final int FIRE_COOLDOWN = 12; // hard floor between rockets (subsumed by the no-overlap gate)
+
     private static final double MIN_CRUISE = 0.45; // h-speed (b/t) below which we boost to keep moving
+
     /**
      * Climb-band hysteresis for fuel economy. A new boost-climb episode only STARTS once the bot has sagged more than
      * {@link #CLIMB_DEADBAND} below the target altitude, and ENDS once back within {@link #CLIMB_MARGIN}. Between, the
@@ -26,9 +30,13 @@ public final class ElytraController {
     private static final double CLIMB_MARGIN = 2.0; // climb satisfied within this of target ⇒ stop boosting
 
     private static final double CLIMB_DEADBAND = 12.0; // sag this far below target before a boost-climb starts
+
     private static final double STEP = 0.5; // terrain-raytrace sample spacing (blocks)
+
     private static final int CLEAR_MARGIN = 2; // blocks of buffer we prefer to keep off terrain
+
     private static final double CLEAR_WEIGHT = 1.2; // per-tick penalty for skimming within the margin
+
     /**
      * Anti-jitter: penalise picking a pitch far from the one we're holding, so the discrete fan doesn't flip between
      * neighbours every tick (which reads as the camera bobbing up and down). This is hysteresis, NOT a rate limit —
@@ -36,6 +44,7 @@ public final class ElytraController {
      * switch fully in one tick, so obstacle avoidance is never slowed.
      */
     private static final double TURN_WEIGHT = 0.18;
+
     /**
      * Landing-mode bias: among collision-safe trajectories prefer the one that ends slowest, so the flare bleeds speed
      * — but still terrain-aware (it never bypasses the crash/clearance check the way a blind fixed flare pitch did,
@@ -44,9 +53,13 @@ public final class ElytraController {
     private static final double LAND_BLEED_WEIGHT = 3.0;
 
     private int boostRemaining; // ticks of firework boost still assumed live
+
     private boolean climbing; // in a boost-climb episode (hysteresis; see CLIMB_DEADBAND)
+
     private int sinceFire = Integer.MAX_VALUE;
+
     private float lastPitch; // pitch held last tick (hysteresis reference)
+
     private boolean pitchInit; // seed from the live look on first tick
 
     record Decision(float pitch, boolean fire) {}

@@ -23,14 +23,23 @@ import net.minecraft.world.phys.Vec3;
  */
 final class DriverBody implements Body {
     private final Mob mob;
+
     private final EntityDriver driver;
+
     private float left;
+
     private float forward;
+
     private boolean jump;
+
     private boolean sneak;
+
     private boolean sprint;
+
     private boolean aimed;
+
     private float aimYaw;
+
     private float aimPitch;
 
     DriverBody(Mob mob, EntityDriver driver) {

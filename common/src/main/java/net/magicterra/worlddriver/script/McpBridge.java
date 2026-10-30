@@ -28,8 +28,11 @@ import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
  */
 public final class McpBridge {
     private final URI endpoint;
+
     private final HttpClient client;
+
     private final AtomicInteger seq = new AtomicInteger();
+
     private final Function<String, MethodSpec.ImageHint> images;
 
     public McpBridge(String host, int port) {

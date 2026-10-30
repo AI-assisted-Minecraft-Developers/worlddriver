@@ -170,6 +170,7 @@ public final class JoinedPlayers {
     public static final class JoinedBody extends ServerPlayer {
 
         private final SilentConnection wire = new SilentConnection();
+
         private boolean leaving;
 
         /**

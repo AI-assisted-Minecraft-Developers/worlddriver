@@ -41,11 +41,17 @@ public final class PathArchive {
     // Top-level fields
     // -----------------------------------------------------------------------
     private final int version;
+
     private final String kind;
+
     private final Header header;
+
     private final List<Segment> segments;
+
     private final List<EnvelopeCell> envelope;
+
     private final List<Tick> trajectory;
+
     private final String planRef; // nullable
 
     // -----------------------------------------------------------------------

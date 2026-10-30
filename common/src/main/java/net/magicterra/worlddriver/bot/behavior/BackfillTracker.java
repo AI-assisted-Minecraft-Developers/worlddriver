@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 
 public final class BackfillTracker {
     private static final int CAPACITY = 512;
+
     private final LinkedHashSet<BlockPos> recent = new LinkedHashSet<>();
 
     public synchronized void record(BlockPos cell) {

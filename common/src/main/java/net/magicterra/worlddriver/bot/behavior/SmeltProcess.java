@@ -39,19 +39,23 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class SmeltProcess implements BotProcess {
     private static final int OPEN_TIMEOUT = 40;
+
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
     private static final int PER_ITEM_TIMEOUT = 260;
+
     /**
      * Ticks to wait for the client inventory to reflect a just-issued give/pickup before declaring the ingredient
      * missing (see CraftProcess.PLAN_GRACE).
      */
     private static final int INPUT_GRACE = 20;
+
     /**
      * Vanilla cook time per item, for saying what a batch COSTS in fuel next to what was loaded. Every furnace recipe
      * in vanilla is 200; a modded shorter one only makes this estimate conservative, which is the right direction for a
      * diagnostic.
      */
     private static final int COOK_TICKS_PER_ITEM = 200;
+
     /**
      * How long a LOADED furnace may stay cold before that is a finding rather than latency. Vanilla lights on the first
      * block-entity tick after fuel and input are both in, so a furnace still dark two seconds later is not slow: either
@@ -61,36 +65,51 @@ public final class SmeltProcess implements BotProcess {
      * NOT what happened.
      */
     private static final int LIGHT_GRACE = 40;
+
     /**
      * Ticks to let LOAD's QUICK_MOVE round-trip show up in the ingredient slot. Past this, an empty ingredient slot
      * with an empty result means the ore never went in at all.
      */
     private static final int INTAKE_GRACE = 20;
+
     /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
+
     private Menus menus;
 
     private final String input;
+
     private final int count;
+
     private final String fuelId; // optional explicit fuel item id (else auto)
 
     private St st = St.INIT;
+
     private BlockPos furnacePos;
+
     private int targetOut;
+
     private int inputTries;
+
     private int fuelTries;
+
     private int waited;
+
     private int smeltWaitBudget;
+
     private String error;
+
     /**
      * Set when SMELT_WAIT moves to COLLECT short of {@link #targetOut}: the parenthesised cause, empty for a timeout.
      * Null when the batch reached its target.
      */
     private String shortCause;
+
     /** Consecutive WORLD ticks with BOTH input and fuel in the furnace and the fire still out. */
     private int coldTicks;
+
     /**
      * Game time of the last tick counted into {@link #coldTicks}. The cold check has to count world ticks and not
      * process ticks, because most of this repo's rigs drive hundreds of avatar ticks inside ONE server tick — a furnace
@@ -98,6 +117,7 @@ public final class SmeltProcess implements BotProcess {
      * game's.
      */
     private long coldAtGameTime = Long.MIN_VALUE;
+
     /**
      * What LOAD fed the furnace and what that was worth in burn ticks — the two numbers that turn "not enough fuel?"
      * from a question into a statement.
@@ -105,6 +125,7 @@ public final class SmeltProcess implements BotProcess {
     private String fuelChosen;
 
     private int fuelBurnLoaded;
+
     /**
      * Resuming a furnace that already holds the ingredient/result (a prior smelt was interrupted after loading — a
      * preempted smelt left 3 raw iron inside and the retry then failed with raw_iron missing while the loaded furnace

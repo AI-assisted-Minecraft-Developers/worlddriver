@@ -9,6 +9,7 @@ import java.util.function.BooleanSupplier;
  */
 public final class GameThreads {
     private static final BooleanSupplier NONE = () -> false;
+
     private static volatile BooleanSupplier onClientThread = NONE;
 
     private GameThreads() {}

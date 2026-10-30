@@ -13,7 +13,9 @@ public final class RunContext {
     private static final AtomicLong SEQ = new AtomicLong();
 
     private final String runId;
+
     private final CancellationToken.Source stopped = new CancellationToken.Source();
+
     private final CancellationToken.Source ended = new CancellationToken.Source();
 
     public RunContext(String runId) {

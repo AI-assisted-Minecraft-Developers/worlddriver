@@ -15,7 +15,9 @@ import net.magicterra.worlddriver.application.ScriptHost;
 /** The script engine behind {@code mc.script.eval}, {@code mc.skill} and {@code mc.bot.playbook}. */
 public final class ScriptEngine implements ScriptHost {
     private final ScriptEvaluator evaluator;
+
     private final SkillLibrary skills;
+
     private final PlaybookRunner playbooks;
 
     /** {@code skillsDir}: where saved skills live. */

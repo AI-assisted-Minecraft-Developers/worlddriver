@@ -96,16 +96,25 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      */
 
     private float pendingLeft;
+
     private float pendingForward;
+
     private boolean pendingJump;
+
     private boolean pendingSneak;
+
     private final JumpRelease jumpRelease = new JumpRelease();
+
     private BlockPos aimTarget;
+
     private boolean breakHeld;
+
     private boolean useHeld;
 
     private BlockPos breakProgPos;
+
     private float breakProg;
+
     /**
      * The cell a break last advanced on and the player tick it did — the pair that keeps {@link #continueDestroy} from
      * advancing a cell {@link #breakHold} already advanced this tick, which under {@code GameConfig.faithfulBreak}
@@ -129,10 +138,15 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     // are dominated by the aftermath; the first call, and the first refusal, are the only samples
     // taken while there was still ground under the question.
     private int placeCalls;
+
     private int placeNoFace;
+
     private int placeNoBlock;
+
     private String firstCallAt;
+
     private String firstNoFaceAt;
+
     private String firstNoBlockAt;
 
     private boolean loggedDugOwnFloor;
@@ -239,6 +253,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public ServerPlayer entity() {
         return fp;
     }
+
     /** A player has every capability; this class is all of them. */
     @Override
     public Optional<Equipment> equipment() {
@@ -291,6 +306,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public void commandSneak(boolean v) {
         pendingSneak = v;
     }
+
     /**
      * The flag itself, as the client player sets it. The pump's stop rules can clear it again within the same step, as
      * {@code LocalPlayer.aiStep} does on the client.
@@ -894,6 +910,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public boolean dbgSneak() {
         return pendingSneak;
     }
+
     /** When vanilla's jump gate last let a press through — see {@code JoinedBody.jumpFromGround}. */
     @Override
     public long dbgLastJumpTick() {

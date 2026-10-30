@@ -9,6 +9,7 @@ import java.util.Map;
 /** An object whose keys are data and whose values share one type; see {@link ApiTypes#map}. */
 final class MapType<T> extends ApiType<Map<String, T>> {
     private final ApiType<T> value;
+
     private final int maxEntries;
 
     MapType(ApiType<T> value, int maxEntries) {

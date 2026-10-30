@@ -23,14 +23,19 @@ public final class AscendMovement implements Movement {
     public static final int DEADZONE_GIVEUP = NavigatorConstants.ASCEND_DEADZONE_GIVEUP;
 
     private static final double PROGRESS_EPS_Y = 0.01; // dy high-water must beat this to count (float-jitter guard)
+
     private static final double PROGRESS_EPS_GAP = 0.01; // cur2 low-water must improve by this to count
 
     // Episode = consecutive delegated ticks on the same stand-cell node + move name. A node or move
     // change (legacy advanced the step, or a repath swapped the edge) starts a fresh episode.
     private BlockPos episodeNode;
+
     private String episodeMove;
+
     private double episodeBestY; // dy-progress high-water mark for this episode
+
     private double episodeBestCur2; // horizontal gap-close low-water (squared dist to node center)
+
     private int ticksSinceProgress; // dead-zone clock: ticks with no high-water gain and no active dig
 
     @Override

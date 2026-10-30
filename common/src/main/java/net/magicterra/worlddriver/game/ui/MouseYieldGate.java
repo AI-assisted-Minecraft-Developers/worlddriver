@@ -32,11 +32,14 @@ public final class MouseYieldGate {
     public static final int DEFAULT_LINGER_TICKS = 20;
 
     private final int lingerTicks;
+
     /** Ticks since the last {@link #markDriving}; {@link Integer#MAX_VALUE} = never driven. */
     private int sinceDrive = Integer.MAX_VALUE;
 
     private boolean yielded;
+
     private boolean reclaimed;
+
     /** What the caller should do to the real {@code MouseHandler} this tick. */
     public enum Action {
         /** Leave the cursor exactly as it is. */

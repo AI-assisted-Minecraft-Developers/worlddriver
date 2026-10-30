@@ -26,8 +26,10 @@ final class KeyTypedJavaMap extends NativeJavaMap {
 
     /** The same object without the map behaviour: where a name that cannot be a key is looked up. */
     private final NativeJavaObject members;
+
     /** The primitive the map's own {@code put} takes for a key, or null when it takes an object. */
     private final TypeInfo primitiveKey;
+
     /** The type a written value is converted to: the map's primitive, or else what Rhino read off its type. */
     private final TypeInfo valueType;
 

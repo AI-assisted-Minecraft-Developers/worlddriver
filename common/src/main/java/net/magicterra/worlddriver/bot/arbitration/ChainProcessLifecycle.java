@@ -23,6 +23,7 @@ public final class ChainProcessLifecycle {
 
     /** endReason for a preemption by a higher-priority chain ({@code onInterrupt}). */
     public static final String INTERRUPTED = "INTERRUPTED";
+
     /** endReason for an explicit episode cancel ({@code cancelEpisode}). */
     public static final String CANCELLED = "CANCELLED";
 

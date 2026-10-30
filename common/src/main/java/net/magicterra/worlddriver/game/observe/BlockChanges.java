@@ -27,6 +27,7 @@ public final class BlockChanges {
     private static final Map<Level, BlockChanges> LOGS = Collections.synchronizedMap(new WeakHashMap<>());
 
     private final long[] cells = new long[CAPACITY];
+
     /** Sequence number the next change gets; the count of changes ever recorded. */
     private long next;
 

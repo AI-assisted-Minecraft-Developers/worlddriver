@@ -38,10 +38,12 @@ public final class VineClimb implements Controller {
     // ±180° flips that would circle the bot off a narrow column — self-resyncing (no journey reset)
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
+
     private float freeHangDriveYaw =
             Float.NaN; // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter
 
     private boolean onVine;
+
     private boolean parkourEdge;
 
     @Override
@@ -58,6 +60,7 @@ public final class VineClimb implements Controller {
     public int priority() {
         return 6;
     }
+
     /** As long as the bot hangs on the vine. */
     @Override
     public int maxTicks() {

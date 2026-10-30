@@ -38,10 +38,12 @@ public final class Recovery implements Controller {
     private static final int BACKOFF_TICKS = 12;
 
     private static final int BACKOFF_COOLDOWN = 60;
+
     /** A burst out of a wedge (repeated safety repaths at one spot) and out of a churn pocket. */
     public static final int WEDGE_BURST_TICKS = 14;
 
     public static final int CHURN_BURST_TICKS = 16;
+
     /** A back-off, a burst, and one burst asked for again while the first ran: no run is longer. */
     private static final int MAX_TICKS = BACKOFF_TICKS + WEDGE_BURST_TICKS + CHURN_BURST_TICKS;
 
@@ -49,7 +51,9 @@ public final class Recovery implements Controller {
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
     private int backOffLeft;
+
     private float backOffYaw;
+
     /**
      * The navigator tick ({@link EscalationClock#tick}) from which another back-off may be asked for. Outlives a run on
      * purpose — it is the memory that stops a retreat loop — and goes with the goal.
@@ -57,12 +61,15 @@ public final class Recovery implements Controller {
     private long backOffReadyAt;
 
     private int burstLeft;
+
     private float burstYaw;
 
     // ---- the wedge count Repath keeps to decide when a burst is due ----
     // Kept across a replan on purpose: a resume loop at the same wedge must still escalate to the burst.
     public BlockPos lastWedgeFoot; // where the last wedge/stuck repath fired
+
     public int wedgeRepathsHere; // consecutive wedge repaths from (about) the same foot
+
     public int countCooldown; // min ticks between counted repath events (debounce)
 
     /** Forget the wedge: the bot got away from it, or a new route makes it moot. */

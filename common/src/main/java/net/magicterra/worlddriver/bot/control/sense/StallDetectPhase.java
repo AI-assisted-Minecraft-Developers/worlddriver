@@ -47,6 +47,7 @@ public final class StallDetectPhase {
     private static final int CHURN_CYCLE_LEAVE_SQ = 16;
 
     private static final int CHURN_CYCLE_RETURN_SQ = 4;
+
     public boolean
             forceFellOffPath; // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into the
     // next tick's fellOffPath so the proven re-route fires

@@ -20,23 +20,33 @@ import net.minecraft.core.BlockPos;
  */
 public final class GridWorldView implements WorldView {
     public static final byte AIR = 0;
+
     public static final byte SOLID = 1;
+
     public static final byte WATER = 2;
 
     private final MoveSignals signals = new MoveSignals();
 
     private final int x0;
+
     private final int y0;
+
     private final int z0;
+
     private final int sx;
+
     private final int sy;
+
     private final int sz;
+
     private final byte[] cells;
+
     private boolean place = true; // pillar/bridge enabled by default so vertical-escape can be staged
 
     private Set<Locomotion.Mode> modes = Locomotion.WALK_AND_SWIM;
 
     private double width = 0.6;
+
     private double height = 1.8;
 
     @Override

@@ -16,14 +16,23 @@ import java.util.Set;
 public final class MethodSpec<P, R> {
 
     private final String name;
+
     private final String description;
+
     private final ApiType<P> input;
+
     private final ApiType<R> output;
+
     private final boolean listed;
+
     private final Set<Effect> effects;
+
     private final ExecutionClass executionClass;
+
     private final Blocking blocking;
+
     private final boolean pollable;
+
     private final ImageHint image;
 
     /** What a call may touch. A method lists every effect any of its variants can have. */
@@ -131,6 +140,7 @@ public final class MethodSpec<P, R> {
     public ApiType<R> output() {
         return output;
     }
+
     /** Whether MCP {@code tools/list} shows it. Hidden is not unreachable: every entry point can still call it. */
     public boolean listedInMcp() {
         return listed;
@@ -147,6 +157,7 @@ public final class MethodSpec<P, R> {
     public Blocking blocking() {
         return blocking;
     }
+
     /** Whether {@code mc.wait.condition} and event watchers may call it repeatedly. */
     public boolean pollable() {
         return pollable;
@@ -155,6 +166,7 @@ public final class MethodSpec<P, R> {
     public ImageHint image() {
         return image;
     }
+
     /** No effect beyond reading a snapshot. */
     public boolean readOnly() {
         return effects.equals(Set.of(Effect.SNAPSHOT_READ));

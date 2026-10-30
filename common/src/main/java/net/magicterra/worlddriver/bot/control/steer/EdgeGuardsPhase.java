@@ -26,6 +26,7 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class EdgeGuardsPhase {
     public int dbgPrevStep = -1; // navigatorDebug: detect step changes for per-step timing
+
     public int dbgTicksOnStep = 0; // navigatorDebug: ticks spent on the current step
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */

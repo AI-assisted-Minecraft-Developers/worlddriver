@@ -56,9 +56,12 @@ public final class Pillar implements Controller {
 
     // ---- the recovery pillar ----
     public int recoverLatch; // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond
+
     // jump reach) — latched across the jump's airborne phase so a place can land
     public BlockPos recoverCell; // the (grounded) feet cell the recovery is filling this rung
+
     public int recoverPeakY; // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
+
     public int recoverStallTicks; // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
 
     private enum Mode {
@@ -82,6 +85,7 @@ public final class Pillar implements Controller {
     public int priority() {
         return 4;
     }
+
     /** Bounded by the action timeout (planned) and the latch (recovery). */
     @Override
     public int maxTicks() {

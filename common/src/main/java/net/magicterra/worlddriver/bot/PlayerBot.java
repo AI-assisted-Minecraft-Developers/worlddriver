@@ -43,8 +43,10 @@ public class PlayerBot extends ServerBot {
     public static final String KIND = "player";
 
     private final ServerPlayerBody avatar;
+
     /** The name it is addressed by, or null until {@link #named} gives it one. */
     private volatile String name;
+
     /** The navigator the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
     private final Navigator navigator = new Navigator(NavigatorSettings.named("server"));
 
@@ -161,6 +163,7 @@ public class PlayerBot extends ServerBot {
      */
     private final class NavigatorTask implements BotProcess {
         private final String kind;
+
         /** Non-null for a mine: navigate near, then break it. */
         private final BlockPos target;
 

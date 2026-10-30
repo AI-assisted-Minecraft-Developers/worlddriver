@@ -31,6 +31,7 @@ public interface BotApi {
     void engage(
             net.magicterra.worlddriver.api.methods.bot.CombatContracts.Params params,
             net.magicterra.worlddriver.api.action.ActionHandle action);
+
     /** {@code mc.bot.equip}: the best armour, and unless armour only the best weapon. Client thread. */
     net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse equip(
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.EquipParams params);
@@ -58,6 +59,7 @@ public interface BotApi {
      */
     net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse attackEntity(
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.AttackParams params);
+
     /**
      * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain. Answers
      * what it stopped; all answers {@code [all]}, a best-effort broadcast.
@@ -81,6 +83,7 @@ public interface BotApi {
 
     /** Drop the cells the auto-backfill was going to refill. */
     void forgetBackfill();
+
     /**
      * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the client thread and brings the entry back
      * to a neutral state between pooled reuse runs: releases held movement keys, closes any open screen
@@ -91,6 +94,7 @@ public interface BotApi {
      * registered).
      */
     List<String> resetClientEntry();
+
     /**
      * {@code mc.test.input.heldKeys} — instrument-grade held-key readback (task#90). Reads
      * {@link net.minecraft.client.KeyMapping#isDown()} on the client thread for exactly the eight movement/action
@@ -101,6 +105,7 @@ public interface BotApi {
      * Client-only — the verb throws loudly on a dedicated server.
      */
     TestInputContracts.HeldKeys heldKeys();
+
     /**
      * {@code mc.test.input.useOnBlock} — instrument-grade world right-click (task#90). Synthesizes a
      * {@link net.minecraft.world.phys.BlockHitResult} at the given block coords (face nearest the player's eye, hit at
@@ -111,6 +116,7 @@ public interface BotApi {
      * throws loudly on a dedicated server.
      */
     TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params);
+
     /**
      * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint target. A
      * save without {@code pos} takes the player's block. Client thread.

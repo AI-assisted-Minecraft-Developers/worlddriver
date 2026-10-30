@@ -23,6 +23,7 @@ import net.minecraft.world.entity.LivingEntity;
 public final class BodyTasks {
 
     private static final Map<String, Entry<?, ?>> TASKS = new LinkedHashMap<>();
+
     private static final List<Consumer<Entry<?, ?>>> LISTENERS = new ArrayList<>();
 
     private BodyTasks() {}
@@ -31,6 +32,7 @@ public final class BodyTasks {
     public interface Params {
         /** A bot ref; declare it with {@link Responses#BOT_REF}, defaulted to {@code self}. */
         String bot();
+
         /** Declare it with {@link Responses#AWAIT_MS}, defaulted to 0. */
         int awaitMs();
     }

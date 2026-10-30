@@ -13,14 +13,21 @@ import net.minecraft.world.entity.LivingEntity;
 
 public final class ExploreProcess implements BotProcess, Navigating {
     private final int centerChunkX;
+
     private final int centerChunkZ;
+
     private final int maxChunks;
+
     private final Set<Long> visited = new HashSet<>();
+
     private final Navigator navigator = new Navigator(NavigatorSettings.named("explore"));
 
     private int visitedCount;
+
     private BlockPos currentChunkCenter;
+
     private int currentChunkX;
+
     private int currentChunkZ;
 
     /** Chunks tried whose walk fell short of the centre column; {@link #visitedCount} counts every try. */

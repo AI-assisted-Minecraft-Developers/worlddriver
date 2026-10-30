@@ -27,6 +27,7 @@ import net.minecraft.world.entity.LivingEntity;
 public final class RepathPhase {
 
     private static final int BLOCK_REPLANS_LOGGED = 8;
+
     public int ticksSinceRepath;
 
     public void reset(ResetScope scope) {

@@ -142,6 +142,7 @@ public final class CellRules {
         public static final DigSnapshot BARE = new DigSnapshot(1f, null);
 
         final float digSpeedMul;
+
         final Holder<Enchantment> efficiency;
 
         private DigSnapshot(float digSpeedMul, Holder<Enchantment> efficiency) {

@@ -29,11 +29,13 @@ public final class Route {
      * is 4.5; the margin keeps a stretch of arm out of the question.
      */
     private static final double OWN_REACH_SQ = 6.0 * 6.0;
+
     /**
      * How close, across, a changed cell's middle must be to a leg of the plan to be in the body's way: a cell's
      * half-width plus a player's, so a block beside the corridor is not one in it.
      */
     private static final double IN_THE_WAY = 0.8;
+
     /**
      * Ticks between two replans for block changes: water spreading or a farm cycling beside a route would otherwise
      * start a search every tick.
@@ -41,10 +43,14 @@ public final class Route {
     private static final int CHANGE_REPLAN_GAP = 20;
 
     private List<BlockPos> path;
+
     private List<Move.Edge> edges; // aligned with path; edges.get(i) enters path.get(i)
+
     private int step;
+
     /** Following a fixed archived plan: nothing searches, and a drop ends the walk instead of replanning. */
     private boolean replay;
+
     /** Why the plan was last dropped; null until a drop, cleared with the goal. */
     private String lastDrop;
 
@@ -54,10 +60,12 @@ public final class Route {
     private Level changesLevel;
 
     private long changesRead;
+
     /** A change on the plan ahead waiting for its replan, and how many nodes ahead of the body it was. */
     private BlockPos changedAt;
 
     private int changedAhead;
+
     private int changeReplanCooldown;
 
     /** What an adoption did with a search result. A refusal leaves the plan exactly as it was. */
@@ -77,19 +85,26 @@ public final class Route {
      */
     public static final class SegmentCommit {
         public PathFinder.Search activeSearch; // in-flight time-sliced A* (null = none)
+
         public boolean pathBestEffort; // current path is a best-effort partial (goal NOT reached) → commit to it before
+
         // re-searching
         public BlockPos
                 commitEnd; // last node of the current best-effort segment (null for a full path) → where continuation
+
         // searches launch from
         public boolean searchFromEnd; // activeSearch is a continuation launched from commitEnd (deferred splice) vs a
+
         // foot-search (splice immediately)
         PathFinder.Result
                 pendingSegment; // a finished continuation segment awaiting splice at the current segment's end
+
         public boolean
                 searchSuppressedPlace; // the in-flight search dropped placing moves (block-budget reroute) → adopt its
+
         // result without re-checking
         boolean afterBlockChange; // the in-flight foot-search was started because a block on the plan changed → its
+
         // result replaces the plan even if it turns back
         private int frontierWaitTicks; // bounded retries re-searching at a loaded-chunk frontier before giving up
         // (pathfinderFrontierCommit)
@@ -116,6 +131,7 @@ public final class Route {
     public List<Move.Edge> edges() {
         return edges;
     }
+
     /** Index of the node the body is heading for. */
     public int step() {
         return step;

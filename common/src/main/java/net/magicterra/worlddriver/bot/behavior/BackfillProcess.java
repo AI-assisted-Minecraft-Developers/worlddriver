@@ -28,28 +28,36 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public final class BackfillProcess implements BotProcess, Navigating {
     private static final int PLACE_TIMEOUT_TICKS = 60;
+
     /**
      * A stand reached by digging reopens a cell this process filled, and that dig is recorded as the bot's own break:
      * the two would trade the same cells for as long as the bot stays idle.
      */
     private static final SearchProfile NO_DIG =
             new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final BackfillTracker tracker;
+
     private final Navigator navigator =
             new Navigator(NavigatorSettings.named("backfill").withProfile(NO_DIG));
 
     private final Set<BlockPos> failed = new HashSet<>();
+
     private String failure;
 
     private Phase phase = Phase.NEXT;
+
     private BlockPos currentBlock;
+
     private BlockPos currentStand;
+
     private Direction currentFace;
+
     private int placeTicks;
 
     @Override

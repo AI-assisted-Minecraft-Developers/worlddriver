@@ -78,6 +78,7 @@ public final class RouteParams {
      * {@code sight.eye} default, so {@code risk: safe} and an explicit sight agree.
      */
     public static final double SIGHT_EYE = 1.62;
+
     /** {@code risk: safe}'s cluster: three mobs within six blocks make a cell impassable. */
     public static final MobCluster.Cluster SAFE_CLUSTER = new MobCluster.Cluster(3, 6, true, 0);
 

@@ -293,6 +293,7 @@ public final class WorldConfig {
      * freshly spawned and unarmed, take the long way around the monster tunnel". Empty = none.
      */
     public static volatile double[][] avoidZones = new double[0][];
+
     /**
      * Peak cost (at a zone's centre) of an {@link #avoidZones} region; ramps to 0 at the zone's radius. High (default
      * 250) so the planner really does detour around a marked tunnel rather than thread it — the Agent scales/marks more
@@ -311,6 +312,7 @@ public final class WorldConfig {
      * any surface detour. Set 0 to disable. Read in {@code ClientWorldView.dangerCost} (gated on {@link #avoidDanger}).
      */
     public static volatile double deepDarkPenalty = WorldSettings.DEFAULTS.deepDarkPenalty();
+
     /**
      * Min blocks below the surface heightmap before {@link #deepDarkPenalty} applies — so a normal valley/river dip, a
      * 1–2 block step-down, or a short dig for surface stone isn't penalized, only a genuine descent toward a deep cave.

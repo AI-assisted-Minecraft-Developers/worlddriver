@@ -31,37 +31,52 @@ final class ClientEventDetector {
     // player's health/death across ticks so we emit a one-shot event on each
     // transition rather than every tick.
     private float evtLastHealth = Float.NaN;
+
     private boolean evtDeathScreenSeen = false;
+
     // Day-phase transition (day/sunset/night/sunrise) — emit on change so the Agent
     // gets a sunset alert to bunker/return before dark, and a sunrise cue to resume.
     private String evtLastPhase = null;
+
     // Item-pickup detection: per-item inventory counts last tick; an increase = a
     // pickup (or craft/give) → emit the gained id + delta. evtInvInit gates the
     // first poll so the existing inventory isn't reported as a pickup.
     private final Map<String, Integer> evtInvCounts = new HashMap<>();
+
     private boolean evtInvInit = false;
+
     // Tool-broke detection: the mainhand tool seen last tick (id + damage). A tool
     // that was within 2 uses of max damage and whose inventory COUNT drops this
     // tick has broken — the count check keeps hotbar swaps / slot moves silent.
     private String evtMainhandId = null;
+
     private int evtMainhandDamage;
+
     private int evtMainhandMax;
+
     // Advancement-earned detection (client-side, best-effort): completed advancement
     // ids seen so far; new ones emit. evtAdvInit seeds the first poll silently.
     private final Set<String> evtDoneAdv = new HashSet<>();
+
     private boolean evtAdvInit = false;
+
     private int evtAdvThrottle = 0;
+
     // Fluid-entry detection: emit a one-shot on the rising edge of entering water /
     // lava (the fell-into-water / fell-into-lava warnings — the bot fell in and may be drowning/burning).
     private boolean evtInWater = false;
+
     private boolean evtInLava = false;
+
     // Client message surfaces (chat / action-bar / title). No server is attached in
     // client-MCP mode, so the server-side chat hook never fires; chat lines drain
     // from ClientChatLog (fed at the packet layer by the platform entrypoints),
     // action-bar / title still poll the Gui's display fields via reflection.
     // Captures system messages, command results and server broadcasts too.
     private long evtChatSeq = -1;
+
     private String evtLastActionBar = null;
+
     // Only the TITLE is edge-tracked. The subtitle rides along in the payload when the title
     // changes and is never compared, so a subtitle that changes under a steady title emits
     // nothing — there was a field here suggesting otherwise that nothing ever read or wrote.

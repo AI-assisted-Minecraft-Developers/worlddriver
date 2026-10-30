@@ -110,6 +110,7 @@ public final class ControlConfig {
      * {@code NavigatorConstants.DESCENT_CAM_FAR_DIST}.
      */
     public static volatile boolean descentCameraDecouple = ControlSettings.DEFAULTS.descentCameraDecouple();
+
     /** The dry trend centroid steers only while the body has room along it; see {@code AimPhase.headingClear}. */
     public static volatile boolean navigatorTrendNeedsRoom = ControlSettings.DEFAULTS.navigatorTrendNeedsRoom();
 
@@ -204,49 +205,60 @@ public final class ControlConfig {
      * still rendering between slices.
      */
     public static volatile long pathfinderIdleSliceMs = ControlSettings.DEFAULTS.pathfinderIdleSliceMs();
+
     /**
      * Dry-descent heading EMA; the tangent-aim drive follows it, and 0.08 walked a one-wide stair off
      * (1512.7,76,-240.5).
      */
     public static volatile double navigatorDescentYawAlpha = ControlSettings.DEFAULTS.navigatorDescentYawAlpha();
+
     /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */
     public static volatile double navigatorCarrotBodyHalfWidth =
             ControlSettings.DEFAULTS.navigatorCarrotBodyHalfWidth();
+
     /** Half-width {@code AimPhase.trendWithRoom} sweeps a heading at; 0.3 = the body's own, no margin. */
     public static volatile double navigatorHeadingClearHalfWidth =
             ControlSettings.DEFAULTS.navigatorHeadingClearHalfWidth();
+
     /**
      * The path projection also scans the leg the bot is on, not only the ones past its node; see
      * {@code PathProjection.compute}.
      */
     public static volatile boolean navigatorProjectCurrentLeg = ControlSettings.DEFAULTS.navigatorProjectCurrentLeg();
+
     /**
      * Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its
      * node until it lands.
      */
     public static volatile boolean navigatorCarrotStopAtRise = ControlSettings.DEFAULTS.navigatorCarrotStopAtRise();
+
     /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */
     public static volatile boolean navigatorPreDigNextBreak = ControlSettings.DEFAULTS.navigatorPreDigNextBreak();
+
     /**
      * Grounded a row below the node on a descent, skip ahead to the later node on the foot's row; see
      * {@code ProgressPhase.dropAheadTarget}.
      */
     public static volatile boolean navigatorDropAheadResync = ControlSettings.DEFAULTS.navigatorDropAheadResync();
+
     /**
      * A bot grounded on its node's row counts as standing for the climb-consume guard even on a thin corner; see
      * {@code ProgressPhase.airborneClimbConsume}.
      */
     public static volatile boolean navigatorCornerFootingConsume =
             ControlSettings.DEFAULTS.navigatorCornerFootingConsume();
+
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
     public static volatile boolean navigatorDiagAscentSprint = ControlSettings.DEFAULTS.navigatorDiagAscentSprint();
+
     /**
      * Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code AimPhase.jumpedRises}.
      */
     public static volatile boolean navigatorAvoidLoneRisers = ControlSettings.DEFAULTS.navigatorAvoidLoneRisers();
+
     /**
      * Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see
      * {@code RepathPhase}.
@@ -539,6 +551,7 @@ public final class ControlConfig {
      * ON.
      */
     public static volatile boolean navigatorTangentAim = ControlSettings.DEFAULTS.navigatorTangentAim();
+
     /**
      * With {@link #navigatorTangentAim}: past {@code PURSUIT_PERP} off the path, aim at the path's point ahead
      * ({@code PathProjection.pursuitYaw}) so the bot rejoins instead of walking parallel. Default ON.
@@ -648,21 +661,26 @@ public final class ControlConfig {
      * Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face).
      */
     public static volatile boolean navigatorRiserLeadJump = ControlSettings.DEFAULTS.navigatorRiserLeadJump();
+
     /**
      * Run {@link #navigatorRiserLeadJump} keeps beyond two airborne ticks' travel; see {@code DrivePhase.riserLead}.
      */
     public static volatile double navigatorRiserLeadMargin = ControlSettings.DEFAULTS.navigatorRiserLeadMargin();
+
     /**
      * Hold a one-block step-down on its planned segment with the lane-keep strafe (see
      * {@code DrivePhase.segmentLaneOffset}).
      */
     public static volatile boolean navigatorDescentLaneKeep = ControlSettings.DEFAULTS.navigatorDescentLaneKeep();
+
     /** {@link #navigatorRiserLeadJump} only for the riser under the node itself, not one beside it. */
     public static volatile boolean navigatorRiserLeadExact = ControlSettings.DEFAULTS.navigatorRiserLeadExact();
+
     /**
      * Judge a dry step-up's heading against the raw aim too, not only the lagging smoothed one; see {@code AimPhase}.
      */
     public static volatile boolean navigatorStepUpRawHeading = ControlSettings.DEFAULTS.navigatorStepUpRawHeading();
+
     /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code PreludePhase}). */
     public static volatile boolean navigatorSearchFromLanding = ControlSettings.DEFAULTS.navigatorSearchFromLanding();
 
@@ -1148,6 +1166,7 @@ public final class ControlConfig {
      * (empty) session exists. Default off — debug only.
      */
     public static volatile boolean pathDebug = ControlSettings.DEFAULTS.pathDebug();
+
     /**
      * Master gate for path-archive recording (trajectory export/replay). When true the per-tick NavigatorSample is
      * captured even if pathDebug is off. Default off.

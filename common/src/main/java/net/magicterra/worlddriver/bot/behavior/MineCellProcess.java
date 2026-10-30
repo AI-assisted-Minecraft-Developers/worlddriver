@@ -25,12 +25,17 @@ public final class MineCellProcess implements BotProcess, Navigating {
     static final int DIG_BUDGET_TICKS = 200;
 
     private final BlockPos target;
+
     private final Navigator navigator = new Navigator(NavigatorSettings.named("mineCell"));
 
     private Block initial;
+
     private boolean walking;
+
     private int digTicks;
+
     private boolean broken;
+
     private String failure;
 
     @Override

@@ -38,8 +38,11 @@ public final class MobBot extends ServerBot {
             "unresponsive: this mob does not move on the bot's input; " + "its own movement code ignores it";
 
     private final Body body;
+
     private final MobBody own;
+
     private final DriverBody registered;
+
     private final String id;
 
     private MobBot(Mob mob, MobBody own, DriverBody registered, String id) {

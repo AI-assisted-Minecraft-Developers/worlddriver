@@ -56,40 +56,57 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /** Re-acquire window: a locked target out of sight this many ticks is dropped. */
     private static final int LOCK_GRACE = 20;
+
     /** A hostile counts as "pressing" (DEFEND) within this distance. */
     private static final double DEFEND_RANGE = 9.0;
+
     /** Level scan radius for KILL-by-type. */
     private static final double SCAN_RADIUS = 32.0;
+
     /** Ticks between melee strafe direction flips when orbiting a swarm. */
     private static final int STRAFE_FLIP = 16;
+
     /** Full bow draw (vanilla): 20 ticks of use = max power. */
     private static final int BOW_FULL_DRAW = 20;
+
     /** Post-kill drop sweep: item scan radius around the last kill position. */
     private static final double COLLECT_RADIUS = 8.0;
+
     /**
      * Post-kill drop sweep: hard tick budget so an unreachable drop can't wedge the process open (the suspended user
      * task must resume).
      */
     private static final int COLLECT_BUDGET_TICKS = 100;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private Attack attack;
 
     private final Mode mode;
+
     private final Integer targetId; // KILL by entity id (nullable)
+
     private final String targetType; // KILL by entity type id (nullable)
 
     private final Navigator navigator = new Navigator(NavigatorSettings.named("combat"));
 
     private Integer lockedId;
+
     private boolean lockWasAlive; // last-seen liveness of the locked target
+
     private int lostTicks; // consecutive ticks the locked target was unseen
+
     private BlockPos lastGoalBlock;
+
     private int lastQuarryId = -1; // entity the navigator is currently pursuing; -1 = none
+
     private int ticks;
+
     private boolean approaching; // currently driving the Navigator
+
     private BlockPos lastTargetPos; // last seen position of a locked target
+
     private int collectTicks; // post-kill drop-sweep tick counter
 
     /** A target that is gone is the fight won or the area clear; only losing the player fails it. */

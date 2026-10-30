@@ -23,7 +23,9 @@ public final class AutoTotem {
     static final int FIRST_BACKPACK = 9;
 
     static final int FIRST_HOTBAR = 36;
+
     static final int LAST_HOTBAR = 44;
+
     /** SWAP button that exchanges the clicked slot with the offhand. */
     static final int OFFHAND_BUTTON = 40;
 

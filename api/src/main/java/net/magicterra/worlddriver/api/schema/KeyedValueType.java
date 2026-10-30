@@ -23,10 +23,15 @@ import java.util.function.Function;
 public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
     private final String name;
+
     private final Map<String, ApiType<?>> types;
+
     private final Map<String, String> docs;
+
     private final Function<String, Object> defaults;
+
     private final int minEntries;
+
     /** Shared with {@link #atLeast} copies: the TypeScript declaration is the same one. */
     private final Object tsOwner;
 

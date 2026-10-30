@@ -20,9 +20,13 @@ public final class HazardField {
     private static final int DROP_PROBE = 24;
 
     public final BlockPos center;
+
     public final int radius;
+
     public final int survivableFall;
+
     public final int deepWaterMax;
+
     private final Map<Long, HazardCell> cells;
 
     private HazardField(

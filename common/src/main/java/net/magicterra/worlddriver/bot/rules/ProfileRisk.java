@@ -15,7 +15,9 @@ import net.minecraft.core.BlockPos;
  */
 public final class ProfileRisk implements RiskAt {
     private final List<SightExposure> sight = new ArrayList<>();
+
     private final List<MobCluster> mobs = new ArrayList<>();
+
     private final List<Map.Entry<String, Region>> regions = new ArrayList<>();
 
     public ProfileRisk(SearchProfile profile) {

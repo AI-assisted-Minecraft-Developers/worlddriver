@@ -20,16 +20,27 @@ import net.minecraft.util.Mth;
 public final class PathChartRenderer {
 
     private static final Color BG = new Color(18, 18, 22);
+
     private static final Color PANEL = new Color(28, 28, 34);
+
     private static final Color GRID = new Color(60, 60, 70);
+
     private static final Color TEXT = new Color(220, 220, 225);
+
     private static final Color PLAN_LATEST = new Color(90, 170, 255);
+
     private static final Color PLAN_OLD = new Color(90, 170, 255, 70);
+
     private static final Color PLAN_FAILED = new Color(255, 140, 60);
+
     private static final Color START = new Color(80, 220, 120);
+
     private static final Color GOAL = new Color(240, 80, 80);
+
     private static final Color CUR = new Color(80, 230, 230);
+
     private static final Color YAW_ACTUAL = new Color(120, 220, 140);
+
     private static final Color YAW_TARGET = new Color(230, 200, 90);
 
     private PathChartRenderer() {}

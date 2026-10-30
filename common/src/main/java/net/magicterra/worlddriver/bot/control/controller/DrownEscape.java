@@ -36,12 +36,15 @@ public final class DrownEscape implements Controller {
 
     /** Whether the world has water where the bot is, this tick. */
     private boolean reallyInWater;
+
     /** Surface for air until the air recovers; set and cleared in {@link #sense}. */
     private boolean latch;
+
     /** Ticks left holding the current escape heading, and that heading in degrees. */
     private int turnTicks;
 
     private float heading;
+
     /**
      * Where the next heading probe starts, rotated each pick so a falsely open direction is not picked forever; kept
      * across goals for the same reason.
@@ -62,6 +65,7 @@ public final class DrownEscape implements Controller {
     public int priority() {
         return 1;
     }
+
     /** As long as the air takes to come back; the latch, not a count, ends it. */
     @Override
     public int maxTicks() {

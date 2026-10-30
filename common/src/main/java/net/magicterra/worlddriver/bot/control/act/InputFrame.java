@@ -21,17 +21,24 @@ final class InputFrame {
     private boolean push;
 
     private boolean forward;
+
     private boolean pushLast;
+
     /** The push as commanded, the camera yaw it was relative to, and the same push in the world frame. */
     private float left;
 
     private float fwd;
+
     private float pushYaw;
 
     private double worldX;
+
     private double worldZ;
+
     private float rawForward;
+
     private Boolean jump;
+
     private Boolean sneak;
 
     void clear() {
@@ -83,6 +90,7 @@ final class InputFrame {
     float rawForward() {
         return rawForward;
     }
+
     /** Null when no one commanded the channel this tick, which leaves the body's own input alone. */
     Boolean jump() {
         return jump;

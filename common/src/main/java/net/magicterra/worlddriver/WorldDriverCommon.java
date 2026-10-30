@@ -36,10 +36,13 @@ import org.slf4j.Logger;
  */
 public final class WorldDriverCommon {
     public static final String MOD_ID = Mod.ID;
+
     public static final Logger LOG = Mod.LOG;
 
     private static volatile DriverApplication api;
+
     private static RpcServer rpcServer;
+
     private static McpServer mcpServer;
 
     /** Set by the test run tasks to a millisecond budget; unset (and inert) in production. */

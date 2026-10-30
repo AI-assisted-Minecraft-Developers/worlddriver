@@ -23,13 +23,21 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
 public final class ActionHandle {
 
     private final ActionRegistry registry;
+
     private final String id;
+
     private final String bot;
+
     private final Scope scope;
+
     private final String runId;
+
     private final Supplier<?> result;
+
     private final AtomicReference<ActionSnapshot<Object>> state;
+
     private final CompletableFuture<ActionSnapshot<Object>> ended = new CompletableFuture<>();
+
     private volatile long endedAtMs;
 
     private volatile java.util.function.Consumer<CancelReason> stopper;

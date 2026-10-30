@@ -112,14 +112,18 @@ public abstract class Move {
     // Declared before ALL so the ALL initializer (which calls build()) sees them populated.
     // Java initializes static fields in source order; an inverted order silently yields null.
     private static final int[][] CARDINAL = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
     private static final int[][] DIAGONAL = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
     /** All moves the pathfinder considers from a given position. Order doesn't matter — A* sorts by f. */
     public static final List<Move> ALL = build();
 
     public final int dx;
+
     public final int dy;
+
     public final int dz;
+
     public final int cost;
 
     protected Move(int dx, int dy, int dz, int cost) {
@@ -207,9 +211,13 @@ public abstract class Move {
      */
     public static final class Edge {
         public final BlockPos to;
+
         public final double cost;
+
         public final List<BlockPos> toBreak;
+
         public final List<BlockPos> toPlace;
+
         public final String move;
 
         public Edge(BlockPos to, double cost, List<BlockPos> toBreak, List<BlockPos> toPlace, String move) {

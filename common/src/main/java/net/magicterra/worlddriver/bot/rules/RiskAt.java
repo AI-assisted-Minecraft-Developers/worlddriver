@@ -7,8 +7,10 @@ import net.minecraft.core.BlockPos;
 public interface RiskAt {
     /** The observers seeing the cell, as (id, type). */
     List<ThreatSnapshot.Threat> seeing(BlockPos cell);
+
     /** Distance to the nearest mob of the mob condition; +∞ without one. */
     double nearestMob(BlockPos cell);
+
     /** The regions the cell is inside, as {@code avoid#1} / {@code forbid#2}. */
     List<String> regions(BlockPos cell);
 }

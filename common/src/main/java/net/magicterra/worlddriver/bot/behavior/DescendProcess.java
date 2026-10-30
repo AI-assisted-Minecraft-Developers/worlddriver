@@ -36,12 +36,15 @@ import net.minecraft.world.level.Level;
 public final class DescendProcess implements BotProcess {
 
     private static final int MAX_STEPS = 96;
+
     private static final int FUTILE_LIMIT = 4;
+
     /**
      * HP lost since start that aborts the dig (mob in a breached cave, drip damage...) — mirrors MineProcess's
      * cumulative-damage abort.
      */
     private static final float MAX_HP_DROP = 6f;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
@@ -51,13 +54,21 @@ public final class DescendProcess implements BotProcess {
     private final int targetY;
 
     private Phase phase = Phase.PICK;
+
     private Direction dir = null;
+
     private BlockPos base = null; // foot cell this stride starts from
+
     private BlockPos actTarget = null;
+
     private int actTicks = 0;
+
     private int steps = 0;
+
     private int futileCycles = 0;
+
     private int stepsAtLastPick = -1;
+
     private float startHp = -1f;
 
     private String failure;

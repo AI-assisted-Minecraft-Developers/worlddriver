@@ -29,6 +29,7 @@ import net.magicterra.worlddriver.api.registry.Scripting;
  */
 public final class HostedScripts implements Scripting {
     private final ApiRegistry api;
+
     private final ContextFactory factory = new ScriptContextFactory();
 
     public HostedScripts(ApiRegistry api) {
@@ -219,6 +220,7 @@ public final class HostedScripts implements Scripting {
     /** A script's function, held for Java to call. */
     private final class ScriptFunction implements Scripting.Function {
         final dev.latvian.mods.rhino.Function target;
+
         private final Scriptable scope;
 
         ScriptFunction(dev.latvian.mods.rhino.Function target, Scriptable scope) {

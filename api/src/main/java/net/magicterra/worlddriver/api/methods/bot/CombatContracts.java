@@ -72,6 +72,7 @@ public final class CombatContracts {
 
     @Variant("entity")
     public record FoeEntity(@EntityId int entityId) implements Foe {}
+
     /** The nearest entity of this type. */
     @Variant("entityType")
     public record FoeType(@ResourceId String type) implements Foe {}

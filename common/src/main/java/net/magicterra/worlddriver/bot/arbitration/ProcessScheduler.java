@@ -25,19 +25,24 @@ import net.magicterra.worlddriver.game.body.Body;
  */
 public final class ProcessScheduler {
     private final List<Chain> chains = new ArrayList<>();
+
     private Chain current;
+
     /** Ticks this scheduler has run: the clock {@link #bail} cooldowns are measured on. */
     private volatile long ticks;
+
     /**
      * Chains sitting out after a {@link #bail}, with the last tick their bid is still forced to 0. Concurrent because
      * {@link #bailOf} answers status reads off the tick thread.
      */
     private final Map<Chain, Hold> held = new ConcurrentHashMap<>();
+
     /**
      * Name of {@link #current}, published volatile each tick so status reporting (which may run on an RPC handler
      * thread) sees it without racing.
      */
     private volatile String currentName;
+
     /**
      * Immutable snapshot of the priority each chain bid on the most recent {@link #tick}, rebuilt and republished each
      * tick. Volatile reference so an off-thread reader always sees a complete, internally-consistent map rather than

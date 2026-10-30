@@ -69,12 +69,14 @@ public final class Navigator implements Locomotor {
     public final String owner;
 
     public Goal goal;
+
     /**
      * Per-intent search profile (bias + capability + constraints) forwarded to every PathFinder this Navigator builds
      * (A4a bias-only; A2a full profile). {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the
      * Intent.
      */
     public SearchProfile profile = SearchProfile.NONE;
+
     /**
      * Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a {@link NoBreak} (a per-goto
      * {@code forbidDig})? Cached so the execution-layer dig gate ({@link #mayBreak}) is a field read, not a per-tick
@@ -103,52 +105,73 @@ public final class Navigator implements Locomotor {
 
     public boolean
             goalSnapChecked; // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell
+
     // (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at
     // start
     /** The plan and the searches for it; the only writer of either. */
     public final Route route = new Route();
+
     /** The guards that get the last word on a walking tick's input. */
     public final Safety safety = new Safety(this);
+
     /** The jump, sneak and forward keys, with the log of where each jump came from. */
     public final Keys keys = new Keys(this);
+
     /** The tick's phases in pipeline order ({@link #tickInner}); each holds what it keeps from one tick to the next. */
     public final PreludePhase prelude = new PreludePhase();
 
     public final StallDetectPhase stallDetect = new StallDetectPhase();
+
     public final RepathPhase repath = new RepathPhase();
+
     public final SearchPhase search = new SearchPhase();
+
     public final ProgressPhase progress = new ProgressPhase();
+
     public final EdgeGuardsPhase edgeGuards = new EdgeGuardsPhase();
+
     public final AimPhase aim = new AimPhase();
+
     public final DrivePhase drive = new DrivePhase();
+
     /** The A* result before stringPull, as a tally — see {@link NavigatorInspector#rawPlanTally()}. */
     public String rawPlan;
 
     public int stuckTicks;
+
     public int totalTicks;
+
     public int actionTicks; // ticks spent on the current break/place edge
+
     /** The controllers, each holding its own state; the phases read some of it through these fields. */
     public final WaterClimb waterClimb = new WaterClimb();
 
     public final Pillar pillar = new Pillar();
+
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
     public final Recovery recovery = new Recovery();
+
     /** Breaking and placing the route's own blocks; its work this tick tells the walk how to stand. */
     final RouteDig routeDig = new RouteDig();
+
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
     public final Arbiter arbiter = new Arbiter(
             List.of(new DrownEscape(), recovery, waterClimb, pillar, new ParkourPlace(), new VineClimb(), routeDig));
+
     // --- expectation alarms (navigatorExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to ExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
     public final ExpectAlarms exAlarms = new ExpectAlarms();
+
     /**
      * Why the walk failed, or why a branch last threw the route away; the failing branch's text is what
      * {@link #result()} reports.
      */
     public String error;
+
     /** How the last walk ended, written once by {@link #terminalReport}. Volatile: status threads read. */
     private volatile WalkResult result = WalkResult.NONE;
+
     /**
      * True once snapGoalToStandable() rewrote the requested Goal.Block to a nearby standable cell — arrival then means
      * "arrived NEAR", not "arrived AT".
@@ -177,8 +200,10 @@ public final class Navigator implements Locomotor {
      * prelude.
      */
     public String driveTag;
+
     /** The walk of a body living in water or air, which takes every order and tick while it exists. */
     private MediumLocomotor medium;
+
     /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
     public NavigatorInspector inspect() {
         return inspector;

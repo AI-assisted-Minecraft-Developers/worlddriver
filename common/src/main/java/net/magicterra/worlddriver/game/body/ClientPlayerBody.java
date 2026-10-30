@@ -17,6 +17,7 @@ import net.minecraft.core.Direction;
 public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
 
     private final Minecraft mc;
+
     private final LocalPlayer p;
 
     /**
@@ -54,6 +55,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     public LocalPlayer entity() {
         return p;
     }
+
     /**
      * The client this player lives on — what the reflex layer reaches for after the scheduler hands it this
      * {@code Body}, since the chains read the local player, the client level and the client-only helpers through it.
@@ -61,6 +63,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     public Minecraft mc() {
         return mc;
     }
+
     /** A player has every capability; this class is all of them. */
     @Override
     public Optional<Equipment> equipment() {

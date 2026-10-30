@@ -50,10 +50,13 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
  */
 public final class ScriptEvaluator {
     private static final int INSTRUCTION_THRESHOLD = 10_000;
+
     /** How long past its budget a run blocked outside the engine is given before it is answered for. */
     private static final long WATCHDOG_GRACE_MS = 250;
+
     /** Encoding a result can run the script's own getters, so it is budgeted too. */
     private static final long ENVELOPE_BUDGET_MS = 1000;
+
     /**
      * Runs alive at once, across the JVM, nested ones included. Each holds a thread of its own until it returns, and a
      * run answers its caller before that, so no request quota bounds them: without this, one connection sending eval
@@ -62,7 +65,9 @@ public final class ScriptEvaluator {
     public static final int MAX_RUNS = 32;
 
     private final ApiRegistry api;
+
     private final ExecutorService executor;
+
     private final Semaphore runs = new Semaphore(MAX_RUNS);
 
     public ScriptEvaluator(ApiRegistry api) {
@@ -328,6 +333,7 @@ public final class ScriptEvaluator {
      */
     private static final class ObservedContext extends ScriptContextFactory.ScriptContext {
         private long deadlineNanos;
+
         private BooleanSupplier stopped;
 
         ObservedContext(ContextFactory factory, long deadlineNanos, BooleanSupplier stopped) {

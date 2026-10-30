@@ -13,11 +13,17 @@ import net.minecraft.core.BlockPos;
  */
 public final class BotState {
     public final ProcessSlot mc_goto = new ProcessSlot("goto");
+
     public final ProcessSlot mine = new ProcessSlot("mine");
+
     public final ProcessSlot builder = new ProcessSlot("builder");
+
     public final ProcessSlot follow = new ProcessSlot("follow");
+
     public final ProcessSlot explore = new ProcessSlot("explore");
+
     public final ProcessSlot runAway = new ProcessSlot("runAway");
+
     /**
      * Dedicated slot for the AUTO-retreat reflex (RetreatChain), kept SEPARATE from {@link #runAway} (the user-invoked
      * mc.bot.runAway verb). They used to share one slot, so the reflex's flee status stomped a user flee's status and —
@@ -27,16 +33,22 @@ public final class BotState {
     public final ProcessSlot retreat = new ProcessSlot("retreat");
 
     public final ProcessSlot look = new ProcessSlot("look");
+
     public final ProcessSlot elytra = new ProcessSlot("elytra");
+
     public final ProcessSlot craft = new ProcessSlot("craft");
+
     public final ProcessSlot smelt = new ProcessSlot("smelt");
+
     public final ProcessSlot combat = new ProcessSlot("combat");
+
     /**
      * mc.bot.escape (EscapeProcess). Escape used to be slot-less, so its four silent-stall modes (weak canWalkOut gate,
      * sealed-roof STEP_UP ping-pong) ended with active:false and NO lastError — indistinguishable from success.
      * EscapeProcess now reports goal/target/lastError here every tick.
      */
     public final ProcessSlot escape = new ProcessSlot("escape");
+
     /**
      * mc.bot.bunker (BunkerProcess). gap#68-⑩: the verb used to be a bare start ack with no slot at all — a zero-action
      * bail (water at the dig site, dig timeout, …) reported ok:true indistinguishable from a real shelter. Now
@@ -44,12 +56,14 @@ public final class BotState {
      * ground truth, NOT hazardSummary.cornered).
      */
     public final ProcessSlot bunker = new ProcessSlot("bunker");
+
     /**
      * A route preview ({@code mc.bot.goto} with {@code plan: true}, {@code PreviewSearch}). Not a process: it drives
      * nothing and is not in {@link #activeName()}. Exists so a status poll sees the search running: a missing slot
      * reads as finished.
      */
     public final ProcessSlot plan = new ProcessSlot("plan");
+
     /** The latest preview's result, merged into the {@code plan} slot's snapshot. */
     public volatile Map<String, Object> planResult;
 
@@ -61,7 +75,9 @@ public final class BotState {
     public volatile int combatSwings;
 
     public volatile int combatWellTimed;
+
     public volatile int combatCrits;
+
     public volatile int combatKills;
 
     /**
@@ -200,9 +216,13 @@ public final class BotState {
     /** Per-process slot. All fields read+written under {@link BotState}'s monitor. */
     public static final class ProcessSlot {
         public final String name;
+
         public volatile boolean active;
+
         public volatile String goal; // human-readable
+
         public volatile BlockPos target; // current goal target if any
+
         /**
          * Progress through whatever this slot's process is doing — <b>and the unit is the process's, not a fixed
          * one</b>. These said "remaining nodes" / "current node index" until it was measured; ten writers disagreed.
@@ -234,6 +254,7 @@ public final class BotState {
         public volatile int pathLen;
 
         public volatile int pathStep;
+
         /**
          * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the edge that enters it
          * ({@code walk} / {@code stepDown} / {@code fall7} / …).
@@ -251,6 +272,7 @@ public final class BotState {
         public volatile BlockPos pathNode;
 
         public volatile String pathMove;
+
         /**
          * WHICH BRANCH of the navigator's tick actuated this one, and who commanded its jump.
          *
@@ -268,8 +290,11 @@ public final class BotState {
         public volatile String driveTag;
 
         public volatile String jumpTag;
+
         public volatile long startedAtMs;
+
         public volatile String lastError; // null if last run ok or in-progress
+
         /**
          * gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends. Kept across reset() (like
          * lastError) so a status read or wait.condition can read it.
@@ -277,7 +302,9 @@ public final class BotState {
         public volatile Boolean goalReached;
 
         public volatile String endReason;
+
         public volatile double finalDist = -1;
+
         /**
          * The FIRST plan this run ever held, latched once and never overwritten — where the bot was standing, how long
          * the path was, and which move entered its first node.
@@ -293,6 +320,7 @@ public final class BotState {
          * describes has ended.
          */
         public volatile String firstPlan;
+
         /**
          * The first parkour leap's takeoff state — see NavigatorInspector.parkourTakeoff(). Kept across reset() like
          * lastError: it is read after the run it describes has ended.

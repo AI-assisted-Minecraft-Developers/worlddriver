@@ -18,8 +18,11 @@ import java.util.function.Function;
  */
 public final class RecordType<O> extends ApiType<O> {
     private final Class<O> type;
+
     private final String name;
+
     private final List<ApiField<O, ?>> fields;
+
     private final Function<Object[], O> constructor;
 
     private BiConsumer<O, DecodeContext> check;

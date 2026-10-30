@@ -72,8 +72,11 @@ public final class WaitService implements WaitApi {
     private static final long POLL_BUDGET_MS = 10_000;
 
     private static final WaitPermits BACKGROUND = WaitPermits.bounded(MAX_BACKGROUND);
+
     private static final AtomicLong WAIT_SEQ = new AtomicLong();
+
     private static final int MAX_RESULTS = 64;
+
     /**
      * waitId → how it ended. Bounded and insertion-ordered so the genuinely oldest is evicted: a hash order could drop
      * a result the agent has not fetched yet.
@@ -84,6 +87,7 @@ public final class WaitService implements WaitApi {
             return size() > MAX_RESULTS;
         }
     });
+
     /** waitIds still running: without it an id missing from RESULTS could be running or gone. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 

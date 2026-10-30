@@ -32,9 +32,13 @@ public final class HorizonArena {
 
     public static final class Result {
         public final int firstExpanded; // nodes the FIRST search expanded (≈ freeze cost)
+
         public final int firstEndX; // x of the first committed segment's end (≈ segment length)
+
         public final int chainEndX; // x reached after chaining segments (forward coverage)
+
         public final int segments;
+
         public final boolean firstGoalReached;
 
         Result(int firstExpanded, int firstEndX, int chainEndX, int segments, boolean firstGoalReached) {

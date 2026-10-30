@@ -53,6 +53,7 @@ public final class PreludePhase {
     public final StickyDig stickyDig = new StickyDig();
 
     public boolean descending; // ending creative flight; wait to land before pathing
+
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
     public void sampleTick(Navigator nav, LivingEntity p) {
         // Cheap gate: skip the per-tick NavigatorSample allocation entirely unless capture is on.

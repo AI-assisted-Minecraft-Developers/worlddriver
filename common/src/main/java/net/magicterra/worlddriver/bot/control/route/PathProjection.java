@@ -25,14 +25,19 @@ import net.minecraft.core.BlockPos;
 public final class PathProjection {
     /** Projection lies on segment {@code path[segIdx] -> path[segIdx+1]}. */
     public int segIdx;
+
     /** Position {@code 0..1} along that segment. */
     public double segFrac;
+
     /** Cumulative XZ arc-length (blocks) from {@code path[0]} to the projection point. */
     public double s;
+
     /** Horizontal perpendicular distance (blocks) from the position to the projection point. */
     public double perp;
+
     /** MC yaw of the path tangent {@code lookahead} blocks of arc-length ahead of the projection. */
     public float tangentYaw;
+
     /**
      * MC yaw from the position to the POINT of the path {@code lookahead} blocks ahead of the projection: the tangent
      * with a cross-track term. A bot driven at the bare tangent from {@code perp} blocks off the path walks PARALLEL to
@@ -41,6 +46,7 @@ public final class PathProjection {
      * path ends at the bot).
      */
     public float pursuitYaw;
+
     /**
      * The point {@code lookahead} blocks ahead that {@link #pursuitYaw} bears on, and the index of the node that ends
      * its segment.
@@ -50,6 +56,7 @@ public final class PathProjection {
     public double aheadZ;
 
     public int aheadNode;
+
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
     public boolean barrierHit;
 

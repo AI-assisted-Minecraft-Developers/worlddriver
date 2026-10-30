@@ -21,20 +21,30 @@ import net.minecraft.world.phys.Vec3;
 public final class FollowProcess implements BotProcess, Navigating {
     /** Consecutive Navigator.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
+
     /** Ticks without progress before the follow ends as unreachable; 0 = never. */
     public static final int DEFAULT_GIVE_UP_TICKS = 600;
 
     private final String entityType;
+
     private final String name;
+
     private final int radius;
+
     private final int maxIdleTicks;
 
     private final int giveUpTicks;
+
     private final Chase chase;
+
     private final Navigator navigator;
+
     private int idleTicks;
+
     private int consecutiveFails;
+
     private BlockPos lastTargetBlock;
+
     private int lastTargetId = -1;
 
     private String failure;
@@ -185,7 +195,9 @@ public final class FollowProcess implements BotProcess, Navigating {
      */
     static final class Chase {
         private final int giveUpTicks;
+
         private double closest = Double.POSITIVE_INFINITY;
+
         private int sinceGain;
 
         Chase(int giveUpTicks) {

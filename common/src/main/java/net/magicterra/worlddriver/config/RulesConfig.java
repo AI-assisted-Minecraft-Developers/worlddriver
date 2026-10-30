@@ -19,6 +19,7 @@ public final class RulesConfig {
      * jump.
      */
     public static volatile double pathfinderDiagAscendPenalty = RulesSettings.DEFAULTS.pathfinderDiagAscendPenalty();
+
     /**
      * Extra g-cost on a step down with a block at launch head height past it (R1: 6 took 148.8 s to 142.1 s); see
      * {@code StepDown}.

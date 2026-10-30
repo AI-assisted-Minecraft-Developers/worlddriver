@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.api.thread.GameThreads;
  */
 public final class ScriptCalls {
     private final ApiRegistry api;
+
     private final Supplier<CallContext> context;
 
     ScriptCalls(ApiRegistry api, Supplier<CallContext> context) {

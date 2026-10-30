@@ -98,9 +98,13 @@ public final class ClientChat {
      */
     private static final class Replies implements ChatReplies {
         private static final long SETTLE_MS = 150;
+
         private final long baseline;
+
         private final long started = System.currentTimeMillis();
+
         private long scanned; // advances past seen lines so polls stay O(1)
+
         private long settleUntil = -1; // set by the first reply; collected once it passes
 
         Replies(long baseline) {

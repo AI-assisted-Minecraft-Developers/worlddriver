@@ -38,17 +38,26 @@ import net.minecraft.world.phys.Vec3;
 public final class SightExposure implements Constraint, CostModifier, SearchAware {
 
     private final Of of;
+
     private final List<String> listed;
+
     private final double rangeOverride; // <= 0 → each observer's default
+
     private final boolean hard;
+
     private final double penalty;
+
     private final double eye;
+
     private final int rayBudget;
 
     // Per-search state.
     private List<ThreatSnapshot.Threat> observers = List.of();
+
     private double[] ranges = new double[0];
+
     private SearchScope.LineOfSight los = SearchScope.ALWAYS_CLEAR;
+
     /** (cell, observer index) → seen. Keyed by the cell's packed long and the index. */
     private final Map<Long, boolean[]> cache = new HashMap<>();
 
@@ -122,10 +131,12 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     public int rayBudget() {
         return rayBudget;
     }
+
     /** How many rays the current search has fired. */
     public int raysFired() {
         return raysFired;
     }
+
     /** The observers this search hides from, after the {@code of} filter. */
     public List<ThreatSnapshot.Threat> observers() {
         return observers;

@@ -38,6 +38,7 @@ public final class AutoSwim {
 
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
+
     /**
      * How far above the bot's foot a climbable bank may sit. Capped at 1: the IDLE beach step has no foothold-placer
      * (only an active-process Navigator does, via the waterClimb actuator), so a swimming bot can only mount a single
@@ -45,8 +46,10 @@ public final class AutoSwim {
      * grind/bob there (drowning risk). Matches the [by-1, by+1] range documented on {@link #nearestShore}.
      */
     private static final int SHORE_UP = 1;
+
     /** How far below (a shallow/beach exit). */
     private static final int SHORE_DOWN = 1;
+
     /**
      * Air ticks kept in reserve above the drownEscape threshold while yielding to an active dig (~1 s): the backstop
      * resumes lifting BEFORE the escape chain preempts, so a dig that runs the lungs down hands over smoothly instead
@@ -59,6 +62,7 @@ public final class AutoSwim {
      * recovers/surfaces, without clobbering a jump some other actuator set.
      */
     private boolean floatHeld;
+
     /** Throttle counter for navigatorDebug shore logging. */
     private int dbg = 0;
 

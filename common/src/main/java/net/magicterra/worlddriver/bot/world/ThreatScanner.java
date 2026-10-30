@@ -34,7 +34,9 @@ import net.minecraft.world.phys.Vec3;
 public final class ThreatScanner {
 
     static final Scan EMPTY = new Scan(List.of(), List.of());
+
     static final int DEFAULT_RADIUS = 24;
+
     private static final int PROJECTILE_LOOKAHEAD = 30;
 
     private ThreatScanner() {}

@@ -49,20 +49,25 @@ public final class IntentProcess implements BotProcess, Navigating {
     public static final String DIMENSION_CHANGED = "dimension-changed";
 
     private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
+
     private static final double ANCHOR_DIRTY_DIST_SQ = 2 * 2;
 
     private final Intent intent;
+
     private final Navigator navigator;
+
     /**
      * Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come first; arriving at
      * one moves to the next, and only the last one ends the process.
      */
     private int leg;
+
     /**
      * The dimension the goal's coordinates belong to, latched on the first tick that has a player. Not taken in
      * {@link #attach} because that is handed a {@link BotState} and no {@code Body}.
      */
     private ResourceKey<Level> plannedIn;
+
     /**
      * The route events of this intent (null when the route declared nothing to report on), judged once per finished
      * deep search: {@link #searchesJudged} is the navigator's count the last judgement saw. Dies with the intent, as
@@ -71,11 +76,15 @@ public final class IntentProcess implements BotProcess, Navigating {
     private final RouteEvents events;
 
     private final RiskAt risk;
+
     private int searchesJudged;
+
     private BlockPos lastAnchor; // last solved anchor block (null = not yet solved)
+
     private int ticksSinceAnchorSolve; // rate limiter
 
     private String failure;
+
     /**
      * The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the process
      * reads the counts of the player it handed the process to, on either helm.

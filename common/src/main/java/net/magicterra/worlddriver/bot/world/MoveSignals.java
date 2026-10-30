@@ -30,7 +30,9 @@ public final class MoveSignals {
     public boolean cruising;
 
     private boolean clutchPlanned;
+
     private int clutchX;
+
     private int clutchZ;
 
     /**

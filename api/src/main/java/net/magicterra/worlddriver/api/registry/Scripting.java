@@ -37,6 +37,7 @@ public interface Scripting {
         private static final long serialVersionUID = 1L;
 
         private final String script;
+
         private final int line;
 
         public ScriptFailure(String message, String script, int line, String scriptStack) {

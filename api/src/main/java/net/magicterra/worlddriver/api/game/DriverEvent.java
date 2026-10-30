@@ -5,8 +5,11 @@ import net.minecraft.core.BlockPos;
 
 public final class DriverEvent {
     public final long seq;
+
     public final long timestamp;
+
     public final String type;
+
     public final BlockPos pos;
 
     /**

@@ -40,8 +40,11 @@ public final class PlaybookRunner {
 
     private static final class Playbook {
         final String name;
+
         final RunContext run;
+
         final long startedAtMs = System.currentTimeMillis();
+
         /** Set once, when the run ends. */
         volatile Outcome outcome;
 

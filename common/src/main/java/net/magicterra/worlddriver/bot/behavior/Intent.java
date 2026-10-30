@@ -17,9 +17,13 @@ import net.magicterra.worlddriver.bot.rules.SearchProfile;
  */
 public final class Intent {
     private final List<Goal> targets;
+
     private final List<CostModifier> bias;
+
     private final CapabilityProfile capability;
+
     private final List<Constraint> constraints;
+
     private final EntityLeash entityLeash;
 
     public Intent(Goal target) {

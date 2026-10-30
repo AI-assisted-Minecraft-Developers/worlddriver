@@ -55,6 +55,7 @@ public final class BuildContracts {
             .mayWait();
 
     public static final ApiType<BridgeDirection> BRIDGE_DIRECTION = ApiTypes.of(BridgeDirection.class);
+
     public static final ApiType<Compass> COMPASS = ApiTypes.of(Compass.class);
 
     public static final UnionType<Construction> CONSTRUCTION = ApiTypes.union(Construction.class);

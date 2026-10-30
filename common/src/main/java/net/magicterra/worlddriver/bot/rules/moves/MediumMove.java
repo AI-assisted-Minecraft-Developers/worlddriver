@@ -25,6 +25,7 @@ public final class MediumMove extends Move {
 
     /** Every stroke through water, to each of the 26 neighbours. */
     public static final List<Move> SWIM = build(Medium.WATER);
+
     /** Every stroke through air, to each of the 26 neighbours. */
     public static final List<Move> FLY = build(Medium.AIR);
 
@@ -43,6 +44,7 @@ public final class MediumMove extends Move {
         AIR("airFly", Locomotion.Mode.FLY);
 
         private final String move;
+
         private final Locomotion.Mode mode;
 
         Medium(String move, Locomotion.Mode mode) {

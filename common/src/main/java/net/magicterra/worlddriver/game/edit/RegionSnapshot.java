@@ -23,17 +23,29 @@ import net.minecraft.world.phys.AABB;
  */
 public final class RegionSnapshot {
     public final int minX;
+
     public final int minY;
+
     public final int minZ;
+
     public final int sx;
+
     public final int sy;
+
     public final int sz;
+
     private final BlockState[] states;
+
     private final CompoundTag[] beTags; // null entry == no block entity at that cell
+
     private final ResourceKey<Level> dimension;
+
     private final List<CompoundTag> entityTags = new ArrayList<>();
+
     private boolean withEntities;
+
     private int nonAir;
+
     private int blockEntities;
 
     /** What a restore did to the box's entities. */

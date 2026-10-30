@@ -56,6 +56,7 @@ final class BodyTaskStarter {
     private static final long REPLY_MARGIN_MS = 250;
 
     private final DriverApplication app;
+
     private final ActionRegistry actions;
 
     /** Reads the body on its game thread and decides what to start. */

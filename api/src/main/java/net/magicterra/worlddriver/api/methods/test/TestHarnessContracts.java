@@ -125,6 +125,7 @@ public final class TestHarnessContracts {
     @Tag("op")
     @Named("TestSettingsParams")
     public sealed interface SettingsOp permits Pin, Unpin, Write, Read {}
+
     /**
      * {@code untimed} also lifts the planner's wall-clock budgets ({@code pathfinder.maxMs} and
      * {@code pathfinder.sliceMs}) past what a user may set, so a search ends on its node budget alone and a scene plans
@@ -285,12 +286,15 @@ public final class TestHarnessContracts {
 
     @Variant("count")
     public record Count() implements BotsOp {}
+
     /** Remove every bot but {@code self}: off the tick list and out of the roster, a player one discarded. */
     @Variant("clear")
     public record Clear() implements BotsOp {}
+
     /** Take {@code bot} off the tick list; it stays addressable, and only a {@code tick} naming it moves it. */
     @Variant("park")
     public record Park(@BotRef String bot) implements BotsOp {}
+
     /** Put a parked {@code bot} back on the tick list. */
     @Variant("unpark")
     public record Unpark(@BotRef String bot) implements BotsOp {}
@@ -298,10 +302,12 @@ public final class TestHarnessContracts {
     @Tag("op")
     @Named("TestBotsReply")
     public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked {}
+
     /** {@code ticks} it advanced; {@code busy}, the bots still on a task after it. */
     @Variant("tick")
     public record Ticked(
             @Range(min = 0) int ticks, @Range(min = 0) int busy) implements BotsReply {}
+
     /** {@code ticking}: the bots on the tick list; {@code busy}: those on a task. */
     @Variant("count")
     public record Counted(
@@ -309,6 +315,7 @@ public final class TestHarnessContracts {
 
     @Variant("clear")
     public record Cleared(@Range(min = 0) int removed) implements BotsReply {}
+
     /** Whether {@code bot} is now off the tick list. */
     @Variant("park")
     public record Parked(@BotRef String bot, boolean parked) implements BotsReply {}
@@ -400,6 +407,7 @@ public final class TestHarnessContracts {
             return new Press(
                     bot, forward, left, jump, sneak, sprint, attack, use, aimAt, toolFor, Optional.of(entityId));
         }
+
         /** Every key let go. */
         public Press release() {
             return new Press(

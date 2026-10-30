@@ -52,6 +52,7 @@ final class ControlService implements ControlApi {
 
     private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
             + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
+
     private final DriverApplication app;
 
     ControlService(DriverApplication app) {

@@ -15,8 +15,11 @@ import net.minecraft.core.BlockPos;
 final class PerceptionEvents {
 
     private final RouteEvents.Emitter events;
+
     private boolean prevExposedAtNight;
+
     private boolean prevCornered;
+
     private int lastThreatId = -1;
 
     PerceptionEvents(RouteEvents.Emitter events) {

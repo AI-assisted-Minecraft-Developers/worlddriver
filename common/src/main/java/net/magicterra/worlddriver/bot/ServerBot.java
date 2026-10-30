@@ -35,6 +35,7 @@ public abstract class ServerBot implements Bot {
      * an ordinary failure to arrive. See {@link #world()}, which rebuilds when the bot has moved on.
      */
     private volatile LevelWorldView world;
+
     /**
      * Events go nowhere yet: the agent's stream carries no bot id, so a server bot's {@code threat.appeared} would read
      * as the client player's.
@@ -42,7 +43,9 @@ public abstract class ServerBot implements Bot {
     protected final BotBrain brain;
 
     protected volatile Locomotor.Status last = Locomotor.Status.MOVING;
+
     private volatile boolean finished;
+
     /**
      * Whether an entry point has given the bot a task. A bot is registered before any order, and it ticks from then on;
      * that is not a task, whatever the navigator makes of having no goal, so {@link #activeKind()} must not report one.
@@ -202,6 +205,7 @@ public abstract class ServerBot implements Bot {
     public Locomotor.Status lastStatus() {
         return last;
     }
+
     /**
      * The last ending of a process this bot ran, with its own verdict. {@link #lastStatus()} says REACHED for any
      * process that stopped by itself, so this is what says whether it did the job.

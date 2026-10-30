@@ -14,10 +14,15 @@ import net.minecraft.world.phys.Vec3;
 
 public final class LookProcess implements BotProcess {
     private static final int MAX_TICKS = 200; // ~10 s @ 20 tps
+
     private static final float ALIGN_EPS = 0.5f;
+
     private final BlockPos track; // null → fixed yaw/pitch
+
     private final float fixedYaw;
+
     private final float fixedPitch;
+
     private int ticks;
 
     private String failure;

@@ -163,10 +163,15 @@ public final class PathFinder {
             ThreadLocal.withInitial(() -> new long[] {Long.MIN_VALUE, 0L, 0L, 0L, 0L, 0L});
 
     private static final int TS_MARKER = 0;
+
     private static final int TS_NANOS = 1;
+
     private static final int TS_SEARCHES = 2;
+
     private static final int TS_NEXT_REPORT = 3;
+
     private static final int TS_TRIPPED = 4;
+
     private static final int TS_SUPPRESSED = 5;
 
     /**
@@ -235,13 +240,17 @@ public final class PathFinder {
     private static final long TICK_REPORT_LIMIT = 20;
 
     private final WorldView world;
+
     private final int maxNodes;
+
     private final long maxMs;
+
     /**
      * Per-intent inputs to every Search launched from this PathFinder (A2a: bundles the A4a bias channel with the
      * capability gate and edge constraints). {@link SearchProfile#NONE} for a plain search — byte-identical to pre-A2a.
      */
     private final SearchProfile profile;
+
     /**
      * gap#72-④: which chain/verb owns the goal every Search from this PathFinder serves (e.g. "mine", "retreat",
      * "goto") — telemetry only, never read by the search itself. "?" = an untagged caller (direct
@@ -276,6 +285,7 @@ public final class PathFinder {
     public PathFinder(WorldView world, SearchProfile profile) {
         this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, profile);
     }
+
     /** Back-compat: bias-only convenience ctor for callers that just want a cost bias without a full profile. */
     public PathFinder(WorldView world, List<CostModifier> bias) {
         this(
@@ -402,25 +412,32 @@ public final class PathFinder {
         private static final int RUNAWAY_LOG_CAP = 8;
 
         private final BlockPos start;
+
         private final Goal goal;
+
         private final boolean suppressPlace;
+
         /**
          * THIS search's profile — the finder's, or the finder's minus {@code route.sight} for the rerun after a spent
          * ray budget. Everything below reads this, never the finder's.
          */
         private final SearchProfile profile;
+
         /**
          * The entity snapshot and line of sight this search ran with; {@link SearchScope#EMPTY} with no scope source. A
          * rerun reuses its predecessor's scope: same search, same world.
          */
         private final SearchScope scope;
+
         /** True on a rerun that dropped {@code route.sight}; reported in the result. */
         private final boolean sightDropped;
+
         /**
          * The rerun that replaced this search after {@link SightExposure.RayBudgetExhausted}; once set, every public
          * method delegates to it.
          */
         private Search retry;
+
         /**
          * Prunes per constraint (same index as {@code constraints}), for {@link Result#prunedBy()} — what a
          * {@code route.blocked} event names.
@@ -428,6 +445,7 @@ public final class PathFinder {
         private final int[] pruneCounts;
 
         private final Map<BlockPos, Node> nodes = new HashMap<>();
+
         // Total-order comparator: equal-f ties broken by a STABLE key (packed block
         // position). Open water (and any flat region) produces vast plateaus of
         // equal-f nodes; comparing on f alone leaves their pop order to PriorityQueue
@@ -441,8 +459,11 @@ public final class PathFinder {
             int c = Double.compare(a.f, b.f);
             return c != 0 ? c : Long.compare(a.pos.asLong(), b.pos.asLong());
         });
+
         private final double[] bestHeuristic = new double[COEFFICIENTS.length];
+
         private final Node[] bestSoFar = new Node[COEFFICIENTS.length];
+
         /**
          * Reachable node nearest the goal (min raw h) that borders an unloaded chunk — the goal-ward edge of known
          * terrain. Drives segmented planning to the loaded-chunk frontier (see
@@ -451,17 +472,22 @@ public final class PathFinder {
         private Node bestFrontier;
 
         private double bestFrontierH = Double.POSITIVE_INFINITY;
+
         // Water-escape best-effort: when the search STARTS in water, track the
         // reachable dry-ground (ashore) node nearest the goal, so an unreachable
         // goal commits to climbing ASHORE rather than a fake in-water segment.
         private Node bestAshore;
+
         private double bestAshoreH = Double.POSITIVE_INFINITY;
+
         // Vertical-escape best-effort: when boxed at the foot of a tall obstacle, the
         // node that climbed ABOVE the start and got nearest the goal (pillar-up / dig-up).
         // Committed by chooseSegment only when selectSegment is null (no horizontal escape),
         // so the bot scales the obstacle instead of deadlocking — see MIN_CLIMB_ESCAPE.
         private Node bestClimb;
+
         private double bestClimbScore = Double.POSITIVE_INFINITY;
+
         // Last-resort escape: the expanded node FARTHEST from the start, regardless
         // of goal direction. Committed only when every other selector is null at the
         // hard cap — a pocket whose free exits all head AWAY from the goal (cave
@@ -469,7 +495,9 @@ public final class PathFinder {
         // even though the terrain is escapable (live 2026-06-09: 60k nodes spread
         // across a NE cave web, goal SW, hDelta=0 → goto FAILED in a cave pocket).
         private Node bestEscape;
+
         private double bestEscapeD2;
+
         // Ground-holding escape: farthest walkable node whose heuristic is no more than
         // ESCAPE_H_SLACK worse than the start's — "leave the pocket WITHOUT losing ground
         // toward the goal". This is the only escape a BUDGET-stopped search may commit
@@ -478,7 +506,9 @@ public final class PathFinder {
         // bot 75 blocks the wrong way per repath (drift churn). The unrestricted
         // bestEscape stays reserved for a genuinely exhausted graph (open set empty).
         private Node bestEscapeSafe;
+
         private double bestEscapeSafeD2;
+
         // Ground-holding ruler for bestEscapeSafe. The heuristic is the WRONG ruler
         // for "did this node lose ground": Goal.Block's Chebyshev makes any lateral
         // drift within the goal's Y-span h-free (dy=40 → ~40 blocks of sideways
@@ -488,21 +518,26 @@ public final class PathFinder {
         // Open goals (XZ / YLevel / RunAway — targetPos null) keep the h ruler,
         // where their own estimate IS the ground metric. -1 = use the h fallback.
         private final BlockPos escapeTarget;
+
         private final double escapeSafeMaxD2;
+
         /**
          * A start in water that the search must get out of. Never for a body that lives in water or air: the ashore
          * triage, the surface-only commits and the depth bias are a navigator's.
          */
         private final boolean startInWater;
+
         /**
          * The body moves freely through one medium, water or air ({@link MoveCatalog#medium}), so going down is no dive
          * into a valley.
          */
         private final boolean livesInMedium;
+
         /** That medium is water. */
         private final boolean livesInWater;
 
         private final Node startNode;
+
         /**
          * Move-set pruned to the catalog entries that can fire under this search's world/config constants (see
          * {@link Move#availableInSearch}). Built once here so the per-node neighbour loop skips, e.g., all ~68
@@ -510,11 +545,13 @@ public final class PathFinder {
          * dispatch-and-reject per expansion in the default config.
          */
         private final Move[] activeMoves;
+
         /**
          * Per-intent move-type gate (A2a) — checked in the move-filter loop below, set early (before that loop runs)
          * from {@code PathFinder.this.profile}.
          */
         private final CapabilityProfile capability;
+
         /**
          * Per-intent hard edge prunes (A2a) — checked in the neighbor loop. Empty for a plain search (the whole prune
          * block is then skipped).
@@ -527,11 +564,13 @@ public final class PathFinder {
          * add/remove modifiers per intent.
          */
         private final List<CostModifier> costModifiers = new ArrayList<>();
+
         /**
          * Display name per entry of {@link #costModifiers}, same index. Written only through {@link #tax}, so the two
          * lists cannot drift apart.
          */
         private final List<String> costModifierNames = new ArrayList<>();
+
         /**
          * Tax charged during EXPANSION, per modifier — only populated under TAX_LOG. Sized on first use, once the
          * modifier list is complete. This is the number that answers "did this tax do anything": an avoidance tax that
@@ -542,7 +581,9 @@ public final class PathFinder {
         private double[] expandTax;
 
         private int[] expandHits;
+
         private int expanded;
+
         /**
          * Every {@code open.poll()}, including the ones discarded as already-closed. Counted separately from
          * {@link #expanded} because the two budgets that bound this loop sit on OPPOSITE SIDES of the {@code if
@@ -554,8 +595,11 @@ public final class PathFinder {
         private long polled;
 
         private long elapsedNanos; // cumulative compute time across slices
+
         private Result result; // null until done
+
         private String segmentReason = "none"; // A5 diagnostics: which chooseSegment branch fired
+
         /**
          * A5: this search's intent opted into DIVE — water is a legitimate MEDIUM, so the water-avoidance taxes are
          * skipped (ctor) and the water-start ASHORE-forcing segment policy ({@link #chooseSegment} /
@@ -805,6 +849,7 @@ public final class PathFinder {
         public int expanded() {
             return retry != null ? retry.expanded() : expanded;
         }
+
         /** The scope this search ran with — what a preview reports and the route events read. */
         public SearchScope scope() {
             return retry != null ? retry.scope() : scope;
@@ -2266,12 +2311,19 @@ public final class PathFinder {
 
     private static final class Node {
         final BlockPos pos;
+
         Node parent;
+
         Move.Edge edge; // the edge used to reach this node (null for start)
+
         double g;
+
         double h;
+
         double f;
+
         boolean closed;
+
         /**
          * True when ANY edge on the path to this node breaks a block. The last-resort escape-farthest commit only
          * considers {@code !dug} nodes: "leave the dead pocket" means a WALKABLE (walk/swim/pillar) exit — with break

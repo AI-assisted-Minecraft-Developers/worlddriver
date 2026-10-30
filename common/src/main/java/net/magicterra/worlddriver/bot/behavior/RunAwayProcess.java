@@ -11,7 +11,9 @@ import net.minecraft.core.BlockPos;
 
 public final class RunAwayProcess implements BotProcess, Navigating {
     private final BlockPos from;
+
     private final int minDist;
+
     /**
      * Status slot to report into. Lets the AUTO-retreat reflex (RetreatChain) use its own slot ({@code state.retreat})
      * instead of the user mc.bot.runAway verb's slot ({@code state.runAway}) — the two used to share one, so a reflex

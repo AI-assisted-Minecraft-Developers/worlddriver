@@ -19,6 +19,7 @@ public final class TickClock {
     private static final TickClock SERVER = new TickClock();
 
     private final long[] nanos = new long[SIZE];
+
     private long count;
 
     TickClock() {}

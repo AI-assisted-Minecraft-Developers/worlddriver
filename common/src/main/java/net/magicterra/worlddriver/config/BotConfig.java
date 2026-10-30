@@ -42,6 +42,7 @@ public final class BotConfig {
     public static volatile boolean autoTotem = BotSettings.DEFAULTS.autoTotem(); // keep a totem in the offhand
 
     public static volatile boolean autoShield = BotSettings.DEFAULTS.autoShield(); // raise shield vs incoming
+
     public static volatile boolean autoHeal = BotSettings.DEFAULTS.autoHeal(); // drink/eat to heal when low
 
     /**
@@ -61,11 +62,13 @@ public final class BotConfig {
      * head is in air. Yields to active processes that own keyJump (mine/build BREAKING/PLACING).
      */
     public static volatile boolean autoSwim = BotSettings.DEFAULTS.autoSwim();
+
     /**
      * Per-tick slice (ms) of a route PREVIEW ({@code PreviewSearch}): it runs beside a walk and must not steal its
      * frames.
      */
     public static volatile long pathfinderPreviewSliceMs = BotSettings.DEFAULTS.pathfinderPreviewSliceMs();
+
     /**
      * Most sight rays one search may fire for {@code route.sight}; past it the search reruns without sight rather than
      * pricing the rest as exposed — {@code SightExposure} says why.
@@ -105,6 +108,7 @@ public final class BotConfig {
      * owns the keys. Seals mine tunnels behind a {@code mc.bot.mine} pass. Off by default.
      */
     public static volatile boolean autoBackfill = BotSettings.DEFAULTS.autoBackfill();
+
     /** Side of the travel direction an even-width tunnel puts its extra column on: left or right. */
     public static volatile String tunnelWidthBias = BotSettings.DEFAULTS.tunnelWidthBias();
 
@@ -121,22 +125,28 @@ public final class BotConfig {
      * expands it, so both bots price mobs once, the same way). Off by default: it changes pathing noticeably.
      */
     public static volatile boolean avoidMobs = BotSettings.DEFAULTS.avoidMobs();
+
     /**
      * Default {@code route.mobs.radius}: a melee mob's berth; cost ramps from {@link #mobAvoidPenalty} at the mob to 0
      * at the edge.
      */
     public static volatile double mobAvoidRadius = BotSettings.DEFAULTS.mobAvoidRadius();
+
     /** Default {@code route.mobs.penalty}: one mob's peak cost, at zero distance. */
     public static volatile double mobAvoidPenalty = BotSettings.DEFAULTS.mobAvoidPenalty();
+
     /**
      * Default {@code route.mobs.rangedRadius}: the wider berth of a mob that shoots (skeleton/witch), AltoClef's ranged
      * split.
      */
     public static volatile int rangedAvoidRadius = BotSettings.DEFAULTS.rangedAvoidRadius();
+
     /** Cap on stored A* candidate nodes per search (reservoir-downsampled above this). */
     public static volatile int pathDebugMaxNodes = BotSettings.DEFAULTS.pathDebugMaxNodes();
+
     /** Cap on stored per-tick trajectory samples (ring buffer; oldest dropped). */
     public static volatile int pathDebugMaxSamples = BotSettings.DEFAULTS.pathDebugMaxSamples();
+
     /** When true, auto-write a chart on every goto terminal outcome (success and failure). */
     public static volatile boolean pathChartAutoDump = BotSettings.DEFAULTS.pathChartAutoDump();
 

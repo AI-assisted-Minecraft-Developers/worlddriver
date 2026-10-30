@@ -18,7 +18,9 @@ import net.minecraft.world.level.Level;
  */
 public final class WorldModel {
     private volatile Snapshot snapshot = Snapshot.absent();
+
     private HazardField hazard; // raw grid kept in-process for reflexes
+
     private int tick;
 
     public Snapshot snapshot() {

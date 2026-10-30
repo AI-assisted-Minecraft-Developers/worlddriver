@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class FrameClock {
 
     private static final AtomicLong DRAWN = new AtomicLong();
+
     private static final Queue<CompletableFuture<Long>> WAITERS = new ConcurrentLinkedQueue<>();
 
     private FrameClock() {}

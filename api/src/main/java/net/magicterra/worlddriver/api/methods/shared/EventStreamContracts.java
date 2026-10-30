@@ -17,10 +17,13 @@ import net.magicterra.worlddriver.api.schema.annotation.OnlyTrue;
 public final class EventStreamContracts {
 
     public static final String SUBSCRIBE = "mc.events.subscribe";
+
     public static final String UNSUBSCRIBE = "mc.events.unsubscribe";
 
     public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record(SubscribeParams.class);
+
     public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record(Subscription.class);
+
     public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record(Unsubscribed.class);
 
     private EventStreamContracts() {}

@@ -60,6 +60,7 @@ import net.minecraft.world.phys.BlockHitResult;
 public final class ClientBot implements BotApi {
 
     private final BotBrain brain;
+
     /**
      * Consecutive ticks a stray container screen has been blocking input while a movement process is live — the gap #58
      * screen-watchdog counter.
@@ -93,6 +94,7 @@ public final class ClientBot implements BotApi {
         Minecraft mc = Minecraft.getInstance();
         return WorldReadings.threats(mc.level, mc.player, radius, brain.threatVelocities());
     }
+
     /**
      * The body this bot steers: the client's own player. A cancel or stand-down that arrives off the tick releases what
      * the chains held on it.

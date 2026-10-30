@@ -33,10 +33,12 @@ public final class ClutchController {
      * see the water and stop.
      */
     private static final double MLG_PLACE_HEIGHT = 3.0;
+
     /**
      * Give up scooping a placed source after this many ticks (leave it) so a stubborn scoop can't pin the bot forever.
      */
     private static final int MLG_SCOOP_MAX = 30;
+
     /**
      * Remaining drop (feet to landing surface) above which the reactive clutch arms an UNPLANNED fall. A fall this tall
      * deals real damage (vanilla starts hurting above 3) and still leaves room to place water in the final
@@ -53,11 +55,17 @@ public final class ClutchController {
     private static final int LIP_TIMEOUT_TICKS = 20;
 
     private boolean armed; // committed to a water-bucket fall → own the descent
+
     private boolean airborne; // have actually left the launch ground this fall
+
     private int scoopTicks; // ticks spent scooping the placed source
+
     private int lipTicks; // grounded ticks since a planned arm, before going airborne
+
     private int noArmThrottle; // CLUTCH-noArm alarm throttle (one line per fall, not per tick)
+
     private int landingX = Integer.MIN_VALUE; // target landing column X (MIN_VALUE = current column)
+
     private int landingZ = Integer.MIN_VALUE; // target landing column Z
 
     /**

@@ -68,6 +68,7 @@ public final class ClientChatLog {
      */
     public static final class Buffer {
         private final ArrayDeque<Entry> log = new ArrayDeque<>();
+
         private long nextSeq = 0;
 
         /**

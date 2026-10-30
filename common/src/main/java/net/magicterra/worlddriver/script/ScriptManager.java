@@ -24,8 +24,11 @@ import net.magicterra.worlddriver.test.ScriptTest;
  */
 public final class ScriptManager {
     private final ApiRegistry api;
+
     private final Path scriptsDir;
+
     private final RpcBridge bridge; // may be null if RPC server isn't up
+
     private final McpBridge mcpBridge; // may be null if MCP server isn't up
 
     public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge) {

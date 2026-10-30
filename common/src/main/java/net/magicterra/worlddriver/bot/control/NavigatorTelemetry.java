@@ -107,13 +107,17 @@ public final class NavigatorTelemetry {
     public volatile int guardForcedRepaths;
 
     public volatile String lastGuardRepath = "no forced repath yet";
+
     public volatile int guardKeptPlans;
+
     public volatile String lastGuardKeep = "no streak has reached the threshold while its plan was still advancing";
+
     /**
      * Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were evidence against a plan
      * that no longer exists. Neither a discard nor a keep.
      */
     public volatile int guardStreakRebases;
+
     /**
      * Streaks that hit the threshold with no plan in hand. Not a discard — there was nothing to discard — and counted
      * apart so it stops inflating {@link #guardForcedRepaths}.
@@ -127,13 +131,16 @@ public final class NavigatorTelemetry {
      * exercised, the second that it was and stayed in bounds.
      */
     public volatile int waterPillarEngages;
+
     /**
      * Times the climb-out actually clicked — the crest gate passed and the place was called. A cell that stayed water
      * means "clicked and vanilla refused" and "never clicked" equally well; this is the bit that separates them.
      */
     public volatile int waterPillarPlaceCalls;
+
     /** Times the pillar exceeded its engage-anchored ceiling and bailed to the fallback actuators. */
     public volatile int waterPillarCeilingBails;
+
     /** The greatest rise above the engage foot any pillar reached, in blocks. */
     public volatile int waterPillarTopRise;
 
@@ -144,6 +151,7 @@ public final class NavigatorTelemetry {
      * thread.
      */
     public final AtomicLongArray strideGuardSkips = new AtomicLongArray(STRIDE_SKIP_REASONS.length);
+
     /** Ticks the stride floor-guard actually pinned. Read beside the skips, never alone. */
     public volatile int strideGuardFires;
 

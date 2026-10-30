@@ -87,8 +87,10 @@ public final class BehaviorConfig {
      * walks out of contact. Default ON. Read only by the reflex — never the planner.
      */
     public static volatile boolean contactDamageEscape = BehaviorSettings.DEFAULTS.contactDamageEscape();
+
     /** Walk away from an adjacent FLOWING lava front (devil-bench deaths #27/#29/#30). */
     public static volatile boolean lavaProximityEscape = BehaviorSettings.DEFAULTS.lavaProximityEscape();
+
     /**
      * How far (blocks, horizontally) {@link #lavaProximityEscape} looks for water for a bot still burning once it is
      * clear of lava. Leaving lava does not put a bot out, and walking further from the lava does not either; 0 hands
@@ -123,8 +125,10 @@ public final class BehaviorConfig {
      * triggering earlier costs nothing and buys real margin at depth. gap#70.
      */
     public static volatile int drownFloatAirThreshold = BehaviorSettings.DEFAULTS.drownFloatAirThreshold();
+
     /** {@code route.detour} fires when a route is longer than this × the straight line ({@code RouteEvents}). */
     public static volatile double detourAlarmRatio = BehaviorSettings.DEFAULTS.detourAlarmRatio();
+
     /** Debounce of the route events: one per (event, culprit) within this many process ticks. */
     public static volatile int routeEventCooldownTicks = BehaviorSettings.DEFAULTS.routeEventCooldownTicks();
 

@@ -15,6 +15,7 @@ import java.util.function.BooleanSupplier;
  */
 public final class ServerThreadGuard {
     private static final BooleanSupplier NONE = () -> false;
+
     private static volatile BooleanSupplier onServerThread = NONE;
 
     private ServerThreadGuard() {}

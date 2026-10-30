@@ -67,6 +67,7 @@ public final class AntiSuffocate {
 
     /** True while we are the one driving the break, so we stop exactly our own break. */
     private boolean driving;
+
     /**
      * The head cell of the running episode; changes when the resolved target moves (new suffocation episode or the
      * fallback chain moved).

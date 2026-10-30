@@ -35,6 +35,7 @@ public final class RouteDig implements Controller {
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.LOOK, Channel.HANDS);
 
     private Work work;
+
     private boolean breakInReach;
 
     public enum Kind {
@@ -65,6 +66,7 @@ public final class RouteDig implements Controller {
     public int priority() {
         return 7;
     }
+
     /** Bounded by the action timeout. */
     @Override
     public int maxTicks() {

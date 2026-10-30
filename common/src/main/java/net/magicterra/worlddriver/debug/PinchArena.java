@@ -27,8 +27,11 @@ public final class PinchArena {
 
     public static final class Result {
         public final boolean reached;
+
         public final int segments;
+
         public final int maxY;
+
         public final String trail;
 
         Result(boolean reached, int segments, int maxY, String trail) {

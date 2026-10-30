@@ -60,6 +60,7 @@ public final class Actuate {
      */
     public static final class FrameBody implements Body {
         public final InputFrame frame = new InputFrame();
+
         private Body real;
 
         /** Drive {@code body} this tick, from an empty frame. */

@@ -23,7 +23,9 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class DuskSecureChain implements Chain {
     private static final int IDLE_DEBOUNCE_TICKS = 20; // ~1s at 20 tps (spec §3.4)
+
     private static final double THREAT_RADIUS = 12.0;
+
     /**
      * How long a failed shelter keeps this chain out of the bid: thirty seconds, so the user task gets a real stretch
      * of travel off the failed site before the next try, and a night still holds some twenty tries for when it has
@@ -32,12 +34,19 @@ public final class DuskSecureChain implements Chain {
     static final int BAIL_COOLDOWN_TICKS = 600;
 
     private final RouteEvents.Emitter emitter;
+
     private final BotState state;
+
     private final WorldModel worldModel;
+
     private BunkerProcess process;
+
     private ProcessScheduler scheduler;
+
     private int idleTicks;
+
     private float lastBidTier = Priorities.IDLE_SECURE;
+
     /**
      * gap#75-b: true while the last dig episode ended by PREEMPTION (onInterrupt) rather than by the process's own
      * verdict. The bot preempted mid-dig is left standing in its own half-dug 1×1 shaft, which reads

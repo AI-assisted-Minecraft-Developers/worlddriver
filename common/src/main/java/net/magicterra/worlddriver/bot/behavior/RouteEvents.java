@@ -41,11 +41,16 @@ public final class RouteEvents {
     public static final String TERRAIN = "terrain";
 
     private final List<String> declared;
+
     private final boolean hasConditions;
+
     private final boolean hasSight;
+
     private final Emitter emitter;
+
     /** (type|culprit) → tick it last fired. */
     private final Map<String, Integer> lastFired = new HashMap<>();
+
     /** Observer id → cells of the previous plan it saw; what "was not exposed last time" is judged against. */
     private Map<Integer, Integer> lastExposed = Map.of();
 

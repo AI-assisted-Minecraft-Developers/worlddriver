@@ -40,6 +40,7 @@ public final class ContactDamageEscape {
      * puts a full block between hull and hazard before handing back.
      */
     private static final int LINGER_TICKS = 15;
+
     /**
      * Hard episode cap. Contact damage that survives this long means we are wedged (pit walled by cacti); give the
      * channel back rather than grind — the gate re-triggers on the next hit, so a live episode restarts at worst 10
@@ -48,8 +49,11 @@ public final class ContactDamageEscape {
     private static final int MAX_EPISODE_TICKS = 100;
 
     private boolean active;
+
     private int linger;
+
     private int episodeTicks;
+
     private BlockPos lastHazard;
 
     /** @return true if it drove the escape this tick (keys are ours). */

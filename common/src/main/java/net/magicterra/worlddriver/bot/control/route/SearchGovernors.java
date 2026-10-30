@@ -14,7 +14,9 @@ import net.minecraft.core.BlockPos;
  */
 public final class SearchGovernors {
     public double futileBestDist = Double.POSITIVE_INFINITY; // goalSpin.bestDistToGoal snapshot at last counted search
+
     public BlockPos futileFoot; // foot snapshot at last counted search
+
     /**
      * The goal that was in force when {@link #futileBestDist} was taken — the yardstick, kept so a MOVING goal cannot
      * hand the bot progress it did not make.
@@ -29,7 +31,9 @@ public final class SearchGovernors {
     public Goal futileGoal;
 
     public int futileSearches; // consecutive futile completions
+
     public int searchBackoffTicks; // no new search kickoff while >0
+
     /**
      * The foot the futile cap latched on, or null when the cap has not been reached.
      *
@@ -42,7 +46,9 @@ public final class SearchGovernors {
     public BlockPos futileLatchFoot;
 
     public int quickCooldown; // ticks before the next quick-start stub attempt (a useless stub backs off)
+
     int noPathWaitTicks; // ticks spent holding a "no path" verdict while self-inflicted stuck-penalties decay
+
     /**
      * Consecutive ascent dead-zones reported from the SAME foot for the SAME node.
      *
@@ -56,6 +62,7 @@ public final class SearchGovernors {
     public int deadZoneRepeats;
 
     public BlockPos deadZoneFoot;
+
     public BlockPos deadZoneNode;
 
     /**

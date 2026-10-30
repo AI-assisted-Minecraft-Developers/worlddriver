@@ -44,8 +44,11 @@ public final class ScriptTest {
 
     public static final class Result {
         public final String name;
+
         public final boolean passed;
+
         public final long ms;
+
         public final Throwable error;
 
         private Result(String name, boolean passed, long ms, Throwable err) {

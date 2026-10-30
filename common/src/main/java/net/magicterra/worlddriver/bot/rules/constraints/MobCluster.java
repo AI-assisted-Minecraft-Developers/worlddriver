@@ -44,14 +44,19 @@ import net.minecraft.core.BlockPos;
 public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
     private final double radius;
+
     private final double rangedRadius;
+
     private final double penalty;
+
     private final Cluster cluster;
+
     private final Set<String> types;
 
     // Snapshot for this search: mobs as [x,y,z,r] stride-4 for the ramp, and the same mobs as
     // plain coordinates for the cluster count. Both rebuilt in beginSearch.
     private float[] mobXyzr = new float[0];
+
     private double[] mobs = new double[0];
 
     /**

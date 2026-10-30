@@ -12,6 +12,7 @@ public final class CapabilityProfile {
     public static final CapabilityProfile ALL = new CapabilityProfile(EnumSet.noneOf(Capability.class));
 
     private final Set<Capability> forbidden;
+
     /**
      * A5: OPT-IN categories (e.g. DIVE) — the complement of {@code forbidden}. A move tagged with an opt-in capability
      * is pruned from every search UNLESS its category is in this set; empty by default so {@link #ALL} (and any profile

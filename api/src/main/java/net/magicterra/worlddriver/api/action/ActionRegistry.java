@@ -29,18 +29,26 @@ import net.magicterra.worlddriver.api.schema.ApiException;
  */
 public final class ActionRegistry {
     public static final int MAX_ACTIVE = 256;
+
     public static final int KEEP_ENDED = 128;
+
     public static final long KEEP_ENDED_MS = 600_000L;
 
     /** The one registry the API and the executors share. */
     public static final ActionRegistry GLOBAL = new ActionRegistry();
 
     private final AtomicLong seq = new AtomicLong();
+
     private final String epoch = Long.toString(System.currentTimeMillis() & 0xFFFFFFFL, 36);
+
     private final Map<String, ActionHandle> active = new LinkedHashMap<>();
+
     private final ArrayDeque<ActionHandle> ended = new ArrayDeque<>();
+
     private final Map<String, ActionHandle> endedById = new HashMap<>();
+
     private final Map<String, RunContext> owners = new HashMap<>();
+
     private final Map<String, RunContext> watchedRuns = new HashMap<>();
 
     private final AtomicLong[] generations = {new AtomicLong(), new AtomicLong()};

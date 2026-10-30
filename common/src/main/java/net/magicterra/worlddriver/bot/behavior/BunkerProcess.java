@@ -33,21 +33,29 @@ import net.minecraft.world.phys.AABB;
  */
 public final class BunkerProcess implements BotProcess {
     private static final int MAX_EXTRA_DEPTH = 4;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final int depth;
+
     // Niche depth may grow past the requested `depth` when the niche head would
     // otherwise sit at/near the surface (open-sky roof) or be roofed by a falling
     // block — we dig deeper until the roof is a solid, non-falling block.
     private int effectiveDepth;
+
     private Phase phase = Phase.DIG_DOWN;
+
     private int startY = Integer.MIN_VALUE;
+
     private int lastDepth = 0;
+
     private int digTicks = 0;
+
     private int actTicks = 0;
+
     /**
      * Separate place-attempt timer for PLUG. Kept distinct from {@link #actTicks} (which the player-overlap shuffle
      * branch burns up to breakTimeoutTicks*2) so a long shuffle can't make the FIRST real placement instantly trip the
@@ -56,18 +64,22 @@ public final class BunkerProcess implements BotProcess {
     private int plugTicks = 0;
 
     private Direction nicheDir = null; // horizontal direction of the niche
+
     private BlockPos bottom = null; // shaft-bottom foot cell
+
     /**
      * gap#68-⑩: true once a real break or place has been attempted — distinguishes a zero-action bail (e.g. water at
      * the dig site, first tick) from a run that actually touched the world before failing. Not surfaced in the action's
      * result, but available on the instance for status/telemetry wiring.
      */
     private boolean acted;
+
     /**
      * True once {@link Phase#SEALED} has ever been reached this run — the ground truth for "did this bunker ever
      * actually finish sealing" independent of whatever phase it happens to be sitting in when finish() runs.
      */
     private boolean sealedOk;
+
     /**
      * True once the SEALED hold branch has stamped its verdict on the bunker slot. SEALED never returns true (it holds
      * the channel until an external cancel), so finish() is unreachable for the success case — instead the hold branch

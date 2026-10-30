@@ -18,8 +18,11 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
  */
 public final class HeldProcess {
     private final BotState state;
+
     private volatile BotProcess process;
+
     private volatile Ticket action;
+
     private SlotClaim claim = SlotClaim.NONE;
 
     private volatile End end;

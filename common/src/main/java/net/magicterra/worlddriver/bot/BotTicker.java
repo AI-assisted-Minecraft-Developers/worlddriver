@@ -42,10 +42,12 @@ public final class BotTicker {
     public static void unregister(Bot d) {
         ACTIVE.remove(d);
     }
+
     /** Whether {@code d} is on the tick list, idle or not. */
     public static boolean isRegistered(Bot d) {
         return ACTIVE.contains(d);
     }
+
     /**
      * How many registered bots are on a task. An idle bot is ticked but not counted, so a caller waiting for the tasks
      * it started reads zero when they have ended.
@@ -59,10 +61,12 @@ public final class BotTicker {
         }
         return n;
     }
+
     /** How many bots are on the tick list, idle or not. */
     public static int size() {
         return ACTIVE.size();
     }
+
     /** The bots on the tick list now. */
     public static java.util.List<Bot> all() {
         return java.util.List.copyOf(ACTIVE);

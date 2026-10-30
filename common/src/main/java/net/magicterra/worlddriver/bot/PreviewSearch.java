@@ -62,9 +62,13 @@ public final class PreviewSearch {
     public static final int KEEP = 8;
 
     private final BotState state;
+
     private final ArrayDeque<Pending> queue = new ArrayDeque<>();
+
     private Pending current;
+
     private final LinkedHashMap<String, Plan> plans = new LinkedHashMap<>();
+
     private final AtomicInteger seq = new AtomicInteger();
 
     /** One preview to run: the start cell, the goals in order (via first), the conditions. */
@@ -79,10 +83,15 @@ public final class PreviewSearch {
     /** A finished preview, kept for adoption. {@code legs} are the raw A* results, one per goal. */
     public static final class Plan {
         public final String id;
+
         public final long createdMs;
+
         public final List<Goal> goals;
+
         public final SearchProfile profile;
+
         public final List<PathFinder.Result> legs;
+
         public final Preview summary;
 
         Plan(
@@ -111,18 +120,31 @@ public final class PreviewSearch {
 
     private static final class Pending {
         final String id;
+
         final Request req;
+
         final ActionHandle action;
+
         final long submittedMs = System.currentTimeMillis();
+
         final List<PathFinder.Result> legs = new ArrayList<>();
+
         final List<Segment> segments = new ArrayList<>();
+
         final List<List<BlockPos>> shown = new ArrayList<>();
+
         PathFinder.Search search;
+
         int legIndex;
+
         boolean sightDropped;
+
         boolean truncated;
+
         int expanded;
+
         long ms;
+
         double cost;
 
         Pending(String id, Request req, ActionHandle action) {

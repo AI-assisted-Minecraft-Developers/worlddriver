@@ -119,10 +119,15 @@ final class Polling {
 
     private static final class Loop<R> {
         final CompletableFuture<R> out = new CompletableFuture<>();
+
         final long deadlineNanos;
+
         final long pollMs;
+
         final Supplier<CompletionStage<Optional<R>>> probe;
+
         final Supplier<R> timedOut;
+
         volatile ScheduledFuture<?> timer;
 
         Loop(long deadlineNanos, long pollMs, Supplier<CompletionStage<Optional<R>>> probe, Supplier<R> timedOut) {

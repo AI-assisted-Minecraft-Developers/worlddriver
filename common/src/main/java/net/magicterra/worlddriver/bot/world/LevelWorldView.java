@@ -30,19 +30,25 @@ public final class LevelWorldView implements StateWorldView {
     private final MoveSignals signals = new MoveSignals();
 
     private final Level level;
+
     /** The entity this view plans for; its step height is the planner's. */
     private final LivingEntity body;
+
     /** The same entity when it is a player, else null: tools, effects and inventory are a player's. */
     private final Player controller;
+
     /** See {@link #sprintJumps()}. */
     private final boolean sprintJumps;
+
     /** The ways of moving its driver declares, or null to read them off the entity. */
     private final Set<Locomotion.Mode> modes;
+
     /**
      * Refreshed per {@link #beginSearch}; the constructor takes one so a view asked to price a break before any search
      * (probes, scenes) prices with the bot's real effects.
      */
     private volatile CellRules.DigSnapshot dig;
+
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
 

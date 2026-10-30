@@ -4,7 +4,9 @@ import net.minecraft.core.BlockPos;
 
 public final class StickyDig {
     public BlockPos pos; // planned-break cell being mined
+
     public int ticks; // watchdog for pos
+
     // PROGRESS-AWARE release (2026-07-21, Mountains bank live + 23 RELEASE
     // loops): a fixed tick cap cannot work because vanilla stacks the x5 (eye in
     // water) and x5 (airborne) dig penalties MULTIPLICATIVELY — a swimAshoreClimb
@@ -13,7 +15,9 @@ public final class StickyDig {
     // navigator re-acquired the same cell forever. Tracking the actual destroy
     // progress holds while it climbs and releases only on a true stall.
     public float lastProgress; // last observed vanilla destroyProgress (0..1)
+
     public int stallTicks; // consecutive ticks with no progress increase
+
     // The drive is on the exact cell and vanilla's crosshair-driven attack pass stands
     // aside for it (ClientIntents), so progress is decoupled from where the eye raycast
     // lands — the bob-reset latch that used to live here is gone with the attack key.

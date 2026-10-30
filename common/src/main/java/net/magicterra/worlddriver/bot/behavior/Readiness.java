@@ -29,17 +29,24 @@ public final class Readiness {
     /** The fixed words a refusal carries in {@code reason}. */
     public static final class Reason {
         public static final String NO_PLAYER = "no_player";
+
         public static final String LOADING = "loading";
+
         public static final String DEAD = "dead";
+
         public static final String PAUSED = "paused";
+
         public static final String SLEEPING = "sleeping";
+
         public static final String CHUNK_UNLOADED = "chunk_unloaded";
+
         /**
          * The controlled entity lacks a capability the verb needs ({@code Equipment}, {@code BlockInteraction},
          * {@code Menus}, ...). Stamped by the process itself on its slot's {@code lastError}, since the controlled
          * player is only known at tick time.
          */
         public static final String NO_HANDS = "no_hands";
+
         /** A {@code body} param names no registered bot player. */
         public static final String UNKNOWN_BOT = "unknown_bot";
 

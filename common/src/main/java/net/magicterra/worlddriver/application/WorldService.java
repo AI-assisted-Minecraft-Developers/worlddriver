@@ -52,7 +52,9 @@ public final class WorldService implements WorldApi {
     private static final String OVERWORLD = "minecraft:overworld";
 
     private final DriverApplication api;
+
     private final Map<String, RegionSnapshot> store = new LinkedHashMap<>();
+
     private final AtomicLong autoId = new AtomicLong();
 
     WorldService(DriverApplication api) {

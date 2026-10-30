@@ -8,8 +8,11 @@ import net.minecraft.nbt.NbtIo;
 
 public final class Schematic {
     public final int w;
+
     public final int h;
+
     public final int d;
+
     public final List<Entry> entries;
 
     public Schematic(int w, int h, int d, List<Entry> entries) {
@@ -21,8 +24,11 @@ public final class Schematic {
 
     public static final class Entry {
         public final int dx;
+
         public final int dy;
+
         public final int dz;
+
         public final String blockId;
 
         public Entry(int dx, int dy, int dz, String blockId) {

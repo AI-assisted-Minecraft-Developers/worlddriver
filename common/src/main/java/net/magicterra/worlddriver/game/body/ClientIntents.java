@@ -55,9 +55,13 @@ public final class ClientIntents {
     static final int STAND_ASIDE_PASSES = 2;
 
     private static boolean digHeld;
+
     private static BlockPos digPos;
+
     private static int standAsidePasses;
+
     private static boolean useHeld;
+
     private static final List<BlockPos> ownBreaks = new ArrayList<>();
 
     private ClientIntents() {}

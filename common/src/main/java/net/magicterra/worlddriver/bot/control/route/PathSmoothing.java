@@ -25,7 +25,9 @@ import net.minecraft.world.entity.LivingEntity;
 public final class PathSmoothing {
 
     private static volatile int emits;
+
     private static volatile int unwalkableEmits;
+
     private static volatile String lastUnwalkableEmit;
 
     /**
@@ -42,12 +44,14 @@ public final class PathSmoothing {
     /** A smoothed (string-pulled) path and its aligned edges. */
     public static final class SmoothResult {
         final List<BlockPos> path;
+
         final List<Move.Edge> edges;
 
         SmoothResult(List<BlockPos> path, List<Move.Edge> edges) {
             this.path = path;
             this.edges = edges;
         }
+
         /** Public accessors for out-of-package callers (GameTest arenas). */
         public List<BlockPos> path() {
             return path;

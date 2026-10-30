@@ -29,7 +29,9 @@ public final class MouseYield {
     private static final MouseYieldGate GATE = new MouseYieldGate();
 
     private static boolean escDown;
+
     private static long lastEscMs;
+
     /**
      * Name of whatever drove last (chain or process slot) — HUD copy. Volatile: the HUD reads it from the render
      * thread, the bot tick writes it.

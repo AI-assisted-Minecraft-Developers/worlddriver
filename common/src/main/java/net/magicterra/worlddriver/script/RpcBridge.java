@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.rpc.RpcClient;
  */
 public final class RpcBridge {
     private final String host;
+
     private final int port;
 
     public RpcBridge(String host, int port) {

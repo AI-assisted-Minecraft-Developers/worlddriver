@@ -15,10 +15,15 @@ import net.magicterra.worlddriver.api.registry.Scripting;
 public final class WorldDriver {
 
     private static volatile ApiRegistry registry;
+
     private static volatile DriverHost host;
+
     private static volatile int rpcPort = -1;
+
     private static volatile int mcpPort = -1;
+
     private static volatile Scripting scripting;
+
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
 
     private WorldDriver() {}

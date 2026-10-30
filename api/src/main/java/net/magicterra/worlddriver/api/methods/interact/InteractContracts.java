@@ -37,7 +37,9 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
 public final class InteractContracts {
 
     public static final ApiType<Hand> HAND = ApiTypes.of(Hand.class);
+
     public static final ApiType<Face> FACE = ApiTypes.of(Face.class);
+
     public static final ApiType<Interaction> INTERACTION = ApiTypes.of(Interaction.class);
 
     public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record(LookParams.class);
@@ -236,6 +238,7 @@ public final class InteractContracts {
 
     @Variant("block")
     public record OnBlock(BlockPosition pos, Face face) implements UsedOn {}
+
     /**
      * {@code riding}: the vehicle afterwards. {@code screen}: the screen open afterwards on this client; {@code menu}:
      * the menu open afterwards on another bot, which has no screen.

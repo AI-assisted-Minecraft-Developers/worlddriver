@@ -29,9 +29,13 @@ import javax.tools.Diagnostic;
 final class BindingWriter {
 
     private static final ClassName REGISTRY = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiRegistry");
+
     private static final ClassName API_METHOD = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiMethod");
+
     private static final ClassName CALL_CONTEXT = ClassName.bestGuess(ApiProcessor.CALL_CONTEXT);
+
     private static final ClassName METHOD_SPEC = ClassName.bestGuess(ApiProcessor.METHOD_SPEC);
+
     private static final ClassName GENERATED = ClassName.get("javax.annotation.processing", "Generated");
 
     private BindingWriter() {}

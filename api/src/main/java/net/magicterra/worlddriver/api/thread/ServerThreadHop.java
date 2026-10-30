@@ -29,12 +29,17 @@ import net.magicterra.worlddriver.api.schema.ApiException;
  */
 public final class ServerThreadHop {
     private static final int QUEUED = 0;
+
     private static final int RUNNING = 1;
+
     private static final int ABANDONED = 2;
 
     private final Executor executor;
+
     private final BooleanSupplier onTargetThread;
+
     private final long timeoutMs;
+
     private final String threadName;
 
     public ServerThreadHop(Executor executor, BooleanSupplier onTargetThread, long timeoutMs) {

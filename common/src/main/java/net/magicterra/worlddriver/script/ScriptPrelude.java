@@ -13,10 +13,12 @@ import java.nio.charset.StandardCharsets;
  */
 final class ScriptPrelude {
     private static final String RESOURCE = "/data/worlddriver/scripts/prelude.js";
+
     /** Built from the method descriptions by {@code generateApiArtifacts}; see docs/dev/api-artifacts.md. */
     private static final String GENERATED = "/data/worlddriver/scripts/generated/driver-api.js";
 
     private static final String SOURCE = load(RESOURCE);
+
     private static final String WRAPPERS = load(GENERATED);
 
     private ScriptPrelude() {}

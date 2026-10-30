@@ -33,8 +33,11 @@ final class NumberTypes {
 
     static final class IntegerType<T extends Number> extends ApiType<T> {
         private final long min;
+
         private final long max;
+
         private final Function<Long, T> narrow;
+
         private final Function<T, Long> widen;
 
         IntegerType(long min, long max, Function<Long, T> narrow, Function<T, Long> widen) {
@@ -105,6 +108,7 @@ final class NumberTypes {
 
     static final class Int64StringType extends ApiType<Long> {
         private static final Pattern DIGITS = Pattern.compile("-?(0|[1-9][0-9]{0,18})");
+
         private final long min;
 
         Int64StringType(long min) {
@@ -158,6 +162,7 @@ final class NumberTypes {
 
     static final class NumberType extends ApiType<Double> {
         private final double min;
+
         private final double max;
 
         NumberType(double min, double max) {

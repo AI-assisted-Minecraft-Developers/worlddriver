@@ -22,6 +22,7 @@ import net.minecraft.core.BlockPos;
  */
 public final class ParkourDescend extends Move {
     private final int dist;
+
     private final int drop;
 
     public ParkourDescend(int dx, int dz, int dist, int drop) {

@@ -36,28 +36,42 @@ public final class BboxFillProcess implements BotProcess, Navigating {
      * {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.)
      */
     private static final double FILL_STAND_REACH = 4.0;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final BlockPos minP;
+
     private final BlockPos maxP;
+
     private final String fillId; // null = no placement
+
     private final String filterFromId; // null = any non-air; else only this id
+
     private final Navigator navigator = new Navigator(NavigatorSettings.named("fill"));
 
     private final Set<BlockPos> blacklist = new HashSet<>();
+
     private final Set<BlockPos> done = new HashSet<>();
+
     private final int totalEstimate;
 
     private BlockPos currentTarget;
+
     private int breakingTicks;
+
     private int placeTicks;
+
     private String breakStartId = "";
+
     private int broken;
+
     private int placed;
+
     private int skipped;
+
     /**
      * Cells the latest scan found work for but no stand to work from. Not blacklisted, because clearing a neighbour can
      * open a stand; whatever the final scan still counts was never done.

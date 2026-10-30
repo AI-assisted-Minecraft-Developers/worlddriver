@@ -33,8 +33,11 @@ public final class CombatChain implements Chain {
 
     // Explicit intent, set by mc.bot.combat (null mode = no explicit intent).
     private volatile CombatProcess.Mode intentMode;
+
     private volatile Integer intentId;
+
     private volatile String intentType;
+
     /**
      * gap#68-②: {@code force:true} on the mc.bot.combat verb overrides the frail-HP entry gate for THIS intent only
      * (the agent has explicitly accepted the risk).

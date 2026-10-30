@@ -61,6 +61,7 @@ final class Reflected {
             As.class);
 
     private static final Map<Object, ApiType<?>> CACHE = new ConcurrentHashMap<>();
+
     private static final ThreadLocal<Set<Class<?>>> BUILDING = ThreadLocal.withInitial(HashSet::new);
 
     private Reflected() {}
@@ -499,7 +500,9 @@ final class Reflected {
         static final Constraints NONE = new Constraints(List.of(), null);
 
         final List<Annotation> list;
+
         final String doc;
+
         private final Set<Class<? extends Annotation>> taken = new HashSet<>();
 
         private Constraints(List<Annotation> list, String doc) {

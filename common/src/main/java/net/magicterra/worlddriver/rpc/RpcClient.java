@@ -55,8 +55,11 @@ public final class RpcClient implements Closeable {
 
     private final EventLoopGroup group = new NioEventLoopGroup(
             1, Thread.ofPlatform().name("agent-rpc-client-io").daemon().factory());
+
     private final Channel channel;
+
     private final ClientHandler handler;
+
     private final AtomicLong nextId = new AtomicLong(1);
 
     public RpcClient(String host, int port) throws IOException {
@@ -209,8 +212,11 @@ public final class RpcClient implements Closeable {
 
     private static final class ClientHandler extends SimpleChannelInboundHandler<Object> {
         private final WebSocketClientHandshaker handshaker;
+
         final Map<Long, CompletableFuture<JsonObject>> pending = new ConcurrentHashMap<>();
+
         volatile Consumer<JsonObject> notifications;
+
         private ChannelPromise handshakeFuture;
 
         ClientHandler(WebSocketClientHandshaker handshaker) {

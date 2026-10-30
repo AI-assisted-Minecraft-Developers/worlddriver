@@ -37,10 +37,15 @@ import javax.tools.Diagnostic;
 @SupportedAnnotationTypes(ApiProcessor.SPEC)
 public final class ApiProcessor extends AbstractProcessor {
     static final String API_PACKAGE = "net.magicterra.worlddriver.api";
+
     static final String REGISTRY_PACKAGE = API_PACKAGE + ".registry";
+
     static final String SPEC = REGISTRY_PACKAGE + ".Spec";
+
     static final String CALL_CONTEXT = API_PACKAGE + ".call.CallContext";
+
     static final String METHOD_SPEC = API_PACKAGE + ".schema.MethodSpec";
+
     static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
 
     /** One checked method of an interface: the spec it calls, by holder and field. */

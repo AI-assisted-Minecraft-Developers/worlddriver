@@ -12,6 +12,7 @@ public final class RpcCallException extends IOException {
     private static final long serialVersionUID = 1L;
 
     private final int rpcCode;
+
     private final ApiError apiError;
 
     public RpcCallException(int rpcCode, String message, ApiError apiError) {

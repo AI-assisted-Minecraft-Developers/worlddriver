@@ -33,6 +33,7 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
         INTERNAL_ERROR("internal_error", -32_603, Execution.UNKNOWN);
 
         private final String wire;
+
         /** The JSON-RPC {@code error.code} this kind is reported under. */
         public final int rpcCode;
 

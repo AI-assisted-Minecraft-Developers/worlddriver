@@ -144,11 +144,13 @@ public final class GotoContracts {
             @Range(min = -4096, max = 4096)
             int y)
             implements Target {}
+
     /** The nearest cell of {@code block} (an id or a {@code #tag}) within {@code radius} that can be stood beside. */
     @Variant("block")
     public record BlockTarget(
             @BlockOrTag String block,
             @Default("32") @Range(min = 1, max = 64) int radius) implements Target {}
+
     /** The nearest entity of {@code type} the body can see. */
     @Variant("entityType")
     public record EntityType(
@@ -173,6 +175,7 @@ public final class GotoContracts {
             @Default("8") @Range(min = 1, max = 256) int distance,
             @Default("0") @Near int near)
             implements Target {}
+
     /** Keep going one horizontal way, with no endpoint. */
     @Variant("heading")
     public record Heading(
@@ -188,12 +191,14 @@ public final class GotoContracts {
             }
         }
     }
+
     /** A waypoint saved through {@code mc.bot.waypoint}; {@code self} only. */
     @Variant("waypoint")
     public record Waypoint(
             @Length(min = 1, max = 64) String name,
             @Default("0") @Near int near,
             @Default("in") GoalMode goalMode) implements Target {}
+
     /** The nearest world axis or diagonal at the axisHeight setting's Y. */
     @Variant("axis")
     public record Axis() implements Target {}

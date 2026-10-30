@@ -40,6 +40,7 @@ public final class SearchPhase {
 
     /** @see SearchGovernors */
     public final SearchGovernors gov = new SearchGovernors();
+
     /**
      * PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search commits a best-effort segment
      * that barely closed the goal distance, the planner is wedged at a pinch (deepwater→bank, boxed canyon, steep

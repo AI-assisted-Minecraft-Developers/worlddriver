@@ -45,6 +45,7 @@ import net.minecraft.world.level.block.Blocks;
 public final class CraftProcess implements BotProcess {
     /** Max ticks to wait for the server to fill the grid / open the table. */
     private static final int STEP_TIMEOUT = 40;
+
     /**
      * Ticks to keep re-planning before declaring materials missing — the client inventory lags a just-issued
      * pickup/give by a few ticks, so a one-shot plan can read a transient-empty inventory and wrongly report "missing".
@@ -57,28 +58,38 @@ public final class CraftProcess implements BotProcess {
      * cleanup.
      */
     private static final int RECLAIM_TIMEOUT = 200;
+
     /**
      * Ticks to stand still after the table breaks. Vanilla gives a dropped item a 10-tick pickup delay; leave without
      * waiting it out and the next process walks the bot away from its own table.
      */
     private static final int PICKUP_GRACE = 15;
+
     /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
+
     private Menus menus;
 
     private final String target;
+
     private final int count;
 
     private St st = St.INIT;
 
     private List<RecipeResolver.Job> jobs;
+
     private int jobIdx;
+
     private int craftsDone;
+
     private int planTries;
+
     private int waited;
+
     private BlockPos tablePos; // table currently in use (found OR placed)
+
     /**
      * The table THIS process placed, and the only block it may ever break (gap #276). Deliberately NOT
      * {@link #tablePos}: that one is also set from {@link Stations#table}, so reclaiming it would demolish a village /
@@ -87,8 +98,11 @@ public final class CraftProcess implements BotProcess {
     private BlockPos placedTable;
 
     private boolean reclaimTried; // reclaim runs at most once, on the way out
+
     private int reclaimTicks;
+
     private int pickupTicks;
+
     private String error;
 
     private int crafted; // total items produced (for the result summary)

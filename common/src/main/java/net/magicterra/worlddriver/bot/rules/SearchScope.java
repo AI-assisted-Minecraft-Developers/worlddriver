@@ -46,9 +46,13 @@ public final class SearchScope {
             "minecraft:evoker");
 
     private final BlockPos start;
+
     private final Goal goal;
+
     private final ThreatSnapshot threats;
+
     private final LineOfSight los;
+
     private final boolean truncated;
 
     /** Whether the straight line between two points is free of colliding blocks. */
@@ -85,6 +89,7 @@ public final class SearchScope {
     public LineOfSight los() {
         return los;
     }
+
     /**
      * True when the scan box was cut down to {@link RulesConfig#snapshotBoxMax} on some axis, so entities in the
      * cut-off part are not in the snapshot.

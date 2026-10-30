@@ -34,18 +34,22 @@ public final class ElytraPathfinder {
 
     /** Coarse grid spacing (blocks). Bigger = cheaper search, rougher route. */
     public static final int GRID = 4;
+
     /**
      * A node is free only if no solid block lies within this many blocks of its centre (a clear box → corridors keep a
      * margin off walls).
      */
     private static final int NODE_CLEAR = 1;
+
     /** Half-extent of the clearance box swept along a string-pull LOS segment. */
     private static final int LOS_CLEAR = 1;
+
     /**
      * Hard node-expansion cap — degrade to a direct goal (let the reactive controller cope) rather than hitch the
      * client thread on a huge search.
      */
     private static final int MAX_NODES = 12_000;
+
     /**
      * Search is confined to the start↔goal AABB grown by this many blocks, so a blocked goal can't make A* flood the
      * whole world.

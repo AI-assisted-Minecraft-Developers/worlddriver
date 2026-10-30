@@ -74,6 +74,7 @@ import net.minecraft.world.level.Level;
  */
 final class BotTaskService implements BotTaskApi {
     private final DriverApplication app;
+
     private final BodyTaskStarter actions;
 
     BotTaskService(DriverApplication app) {

@@ -33,6 +33,7 @@ public final class StepUp extends Move {
         // Need air above current head (jump clearance, foot.y + 2).
         return w.isPassable(from.offset(0, 2, 0));
     }
+
     /** The bot floats in the top water cell and the step lands on dry ground with dry head room. */
     private static boolean surfaceBankExit(WorldView w, BlockPos from, BlockPos to) {
         return !w.isWater(from.above()) && !w.isWater(to) && !w.isWater(to.above());

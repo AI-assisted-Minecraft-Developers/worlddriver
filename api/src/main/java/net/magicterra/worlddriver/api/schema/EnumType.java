@@ -12,7 +12,9 @@ import java.util.function.Function;
 /** A closed set of values, each spelled as a string; see {@link ApiTypes#enumOf} and {@link ApiTypes#stringEnum}. */
 final class EnumType<E> extends ApiType<E> {
     private final String name;
+
     private final Map<String, E> byWire = new LinkedHashMap<>();
+
     private final Map<E, String> toWire = new LinkedHashMap<>();
 
     EnumType(String name, List<E> values, Function<E, String> wire) {

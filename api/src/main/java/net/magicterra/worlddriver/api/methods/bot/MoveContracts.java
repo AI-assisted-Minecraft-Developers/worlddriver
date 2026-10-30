@@ -111,9 +111,11 @@ public final class MoveContracts {
     @Tag("kind")
     @Named("FollowTarget")
     public sealed interface Quarry permits QuarryType, QuarryPlayer {}
+
     /** The nearest entity of this type, re-chosen whenever it is lost. */
     @Variant("entityType")
     public record QuarryType(@ResourceId String type) implements Quarry {}
+
     /** A player by name, case-sensitive. */
     @Variant("player")
     public record QuarryPlayer(@Length(min = 1, max = 64) String name) implements Quarry {}

@@ -15,7 +15,9 @@ import java.util.StringJoiner;
  */
 public final class UnionType<T> extends ApiType<T> {
     private final String name;
+
     private final String tagName;
+
     private final List<Variant<T, ?>> variants;
 
     UnionType(String name, String tagName, List<Variant<T, ?>> variants) {

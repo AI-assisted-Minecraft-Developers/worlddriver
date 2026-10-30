@@ -116,7 +116,9 @@ public final class RpcServer implements Closeable {
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
+
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
+
     /**
      * A virtual thread per request: a worker spends most of its life parked on a game-thread hop, and a parked virtual
      * thread holds no OS thread. Nothing it blocks on sits inside a monitor — the hops park on a future, and a Netty
@@ -126,6 +128,7 @@ public final class RpcServer implements Closeable {
             Thread.ofVirtual().name("agent-rpc-handler-", 1).factory());
 
     private final Semaphore routeSlots = new Semaphore(TransportLimits.RPC_MAX_WORKERS);
+
     /**
      * No queue: a request either gets a worker now or is refused with a busy error, which a client can act on; a queued
      * one would just time out later.
@@ -149,6 +152,7 @@ public final class RpcServer implements Closeable {
     };
 
     private final Channel serverChannel;
+
     private final int port;
 
     /**
@@ -330,8 +334,11 @@ public final class RpcServer implements Closeable {
      */
     private static final class PeerLiveness extends ChannelInboundHandlerAdapter {
         private final long pingIntervalMs;
+
         private final long idleCloseMs;
+
         private boolean upgraded;
+
         private long quietMs;
 
         PeerLiveness(long pingIntervalMs, long idleCloseMs) {
@@ -362,7 +369,9 @@ public final class RpcServer implements Closeable {
         private static final WaitPermits GLOBAL_WAITS = WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS);
 
         private final ApiRegistry api;
+
         private final Executor routeExec;
+
         private final ChannelGroup subscribers;
 
         /**
@@ -371,6 +380,7 @@ public final class RpcServer implements Closeable {
          * outstanding can still observe and cancel.
          */
         private final AtomicInteger inFlight = new AtomicInteger();
+
         /** Cancelled when the socket closes: every wait it left suspended ends then, nothing it started does. */
         private final CancellationToken.Source gone = new CancellationToken.Source();
 

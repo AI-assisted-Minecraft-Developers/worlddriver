@@ -9,10 +9,15 @@ import java.util.regex.Pattern;
 /** A string type; immutable, so the narrowing methods return new instances. */
 final class StringType extends ApiType<String> {
     private final int minLength;
+
     private final int maxLength;
+
     private final Pattern pattern;
+
     private final String meaning;
+
     private String tsName;
+
     private String tsType;
 
     StringType(int minLength, int maxLength, Pattern pattern, String meaning) {

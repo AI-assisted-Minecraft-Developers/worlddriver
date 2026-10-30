@@ -288,6 +288,7 @@ public final class ScreenIntrospection {
      */
     private static final class Nodes {
         private final List<Node> all = new ArrayList<>();
+
         private final Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Nodes(Screen screen) {
@@ -315,19 +316,33 @@ public final class ScreenIntrospection {
 
     private static final class Node {
         final int ref;
+
         final Integer parent;
+
         final int depth;
+
         final String type;
+
         Integer index;
+
         Box box;
+
         Boolean visible;
+
         Boolean active;
+
         Boolean focused;
+
         Boolean selected;
+
         String message;
+
         String key;
+
         String value;
+
         String error;
+
         SlotItem item;
 
         Node(int ref, Integer parent, int depth, String type) {

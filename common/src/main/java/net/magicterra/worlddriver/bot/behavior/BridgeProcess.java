@@ -15,6 +15,7 @@ import net.minecraft.world.phys.AABB;
 
 public final class BridgeProcess implements BotProcess {
     private static final int STUCK_TICKS = 80;
+
     /**
      * Max |player yaw − bridge yaw| before the forward key is allowed: the raw forward impulse walks along the CAMERA
      * yaw, and on the client the LookController re-clamps the camera to ~30°/tick AFTER this process writes it — so the
@@ -22,17 +23,24 @@ public final class BridgeProcess implements BotProcess {
      * void. Gate on the PRE-write yaw (the rendered truth).
      */
     private static final float YAW_ALIGN_DEG = 20f;
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
 
     private final Direction face;
+
     private final int distance;
+
     private final String preferredBlockId;
+
     private BlockPos startFoot;
+
     private int placed;
+
     private String failure;
+
     /**
      * Cell our last placeOn click targeted, pending world confirmation — `placed` counts only cells OBSERVED solid
      * afterwards (gap #75-a family audit: a blind placed++ on a silently no-op'd click decouples the counter from the
@@ -41,7 +49,9 @@ public final class BridgeProcess implements BotProcess {
     private BlockPos pendingPlaceCell;
 
     private int stuckTicks;
+
     private int lastProgress;
+
     private Phase phase = Phase.WALKING;
 
     @Override

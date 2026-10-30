@@ -102,6 +102,7 @@ public final class AimPhase {
 
     /** Aim/heading smoothing state — see {@link AimSmoothing}. */
     public final AimSmoothing aimSmooth = new AimSmoothing();
+
     /**
      * A continuously-sliding aim point {@code CARROT_DIST} blocks ahead along the path (interpolated between nodes),
      * capped by line-of-sight — the pure-pursuit "carrot". Because it's interpolated (not snapped to a discrete node),

@@ -24,14 +24,23 @@ import net.minecraft.client.player.LocalPlayer;
  */
 public final class AvatarInput extends KeyboardInput {
     private boolean moveCommanded;
+
     private float cmdForward;
+
     private float cmdLeft;
+
     private boolean rawMoveCommanded;
+
     private float rawForward;
+
     private boolean jumpCommanded;
+
     private boolean cmdJump;
+
     private boolean sneakCommanded;
+
     private boolean cmdSneak;
+
     private final JumpRelease jumpRelease = new JumpRelease();
 
     public AvatarInput(Options options) {

@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.control.steer;
 
 public final class DiveLatches {
     public int latch; // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through
+
     // the sink so it doesn't flip-flop)
     public int
             hold; // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the

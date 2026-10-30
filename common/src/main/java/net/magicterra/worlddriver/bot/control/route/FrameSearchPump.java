@@ -21,13 +21,18 @@ public final class FrameSearchPump {
 
     /** Left unspent before the limiter's deadline, for the swap and the limiter's own wakeup. */
     private static final long MARGIN_NANOS = 700_000L;
+
     /** How long a registration stays current. */
     private static final long STALE_NANOS = 100_000_000L;
 
     private static volatile Thread frameThread;
+
     private static Navigator navigator;
+
     private static long offeredAt;
+
     private static long frameStart;
+
     private static long spentNanos;
 
     private FrameSearchPump() {}

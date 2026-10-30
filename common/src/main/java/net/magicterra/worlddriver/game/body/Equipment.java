@@ -27,6 +27,7 @@ public interface Equipment {
     // --- holding ---
     /** Ensure a solid-support BlockItem is in the main hand; false if none. */
     boolean holdPlaceable();
+
     /**
      * Like {@link #holdPlaceable()} but also accepts supported FallingBlocks (sand/gravel) for a strictly VERTICAL
      * pillar-up (the placed block rests on the rung below, so it never falls). Defaults to {@link #holdPlaceable()} so
@@ -35,6 +36,7 @@ public interface Equipment {
     default boolean holdPillarBlock() {
         return holdPlaceable();
     }
+
     /**
      * Like {@link #holdPlaceable()} but avoids spending gathered-wood resources (logs/planks) as disposable filler
      * (gap#81) — for the ROUTINE pillar/scaffold actuator only; life-safety escape/recovery paths keep using
@@ -44,14 +46,17 @@ public interface Equipment {
     default boolean holdThrowawayPlaceable() {
         return holdPlaceable();
     }
+
     /** Swap to the best tool for breaking the block at {@code cell}. */
     void selectTool(BlockPos cell);
+
     /**
      * Select hotbar {@code slot} (0..8) as the held item. Client syncs the carried-slot to the server; server sets it
      * directly. Used by builders to hold a SPECIFIC block (vs {@link #holdPlaceable()} which holds ANY support block,
      * and {@link #selectTool(BlockPos)} which holds the best break tool).
      */
     void setSelectedSlot(int slot);
+
     /**
      * Ensure a SPECIFIC item occupies the main hand; false if none in the inventory. (Unlike {@link #holdPlaceable()}
      * which holds ANY support block, this holds the exact item — used to hold a crafting table / furnace before placing
@@ -97,11 +102,13 @@ public interface Equipment {
      * bow).
      */
     void commandUseItem(boolean hold);
+
     /**
      * Use the held item in the air (no block target) — e.g. light a firework rocket. Client: {@code gameMode.useItem};
      * server: {@code gameMode.useItem}. Returns the vanilla result so callers can swing only on a consumed action.
      */
     InteractionResult useItemInHand();
+
     /**
      * Begin elytra fall-flying (must be airborne with a usable elytra). Client: {@code tryToStartFallFlying} + the
      * START_FALL_FLYING command packet so the server agrees; server: {@code tryToStartFallFlying} (the flag is

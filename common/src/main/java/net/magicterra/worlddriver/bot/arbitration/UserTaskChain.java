@@ -19,11 +19,13 @@ import net.magicterra.worlddriver.game.body.Body;
  */
 public final class UserTaskChain implements Chain {
     private final BotState state;
+
     /**
      * Volatile: written on the client tick thread, read by status() which may run on an RPC handler thread (mirrors the
      * old volatile {@code current}).
      */
     private volatile BotProcess process;
+
     /** The slots {@link #process} switched on when it attached; switched off at every ending. */
     private SlotClaim claim = SlotClaim.NONE;
 

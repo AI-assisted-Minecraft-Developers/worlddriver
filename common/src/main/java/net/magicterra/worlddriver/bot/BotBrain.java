@@ -87,28 +87,35 @@ import net.minecraft.world.phys.Vec3;
 public final class BotBrain {
 
     final BotState state = new BotState();
+
     /**
      * Per-tick derived-facts blackboard. Updated each tick; snapshotted for off-thread reads by
      * {@code mc.client.scene}.
      */
     private final WorldModel worldModel = new WorldModel();
+
     /** The foreground user task (goto/mine/build/...) lives in this chain. */
     private final UserTaskChain userTask;
+
     /**
      * Phase C active-combat chain (priority 60). Holds the combat intent set by {@code mc.bot.combat} and the
      * CombatProcess that executes it.
      */
     private final CombatChain combatChain;
+
     /**
      * Movement-channel scheduler: each tick runs the highest-priority chain, letting survival/combat chains preempt the
      * user task and hand it back.
      */
     private final ProcessScheduler scheduler = new ProcessScheduler();
+
     /** This bot's water-bucket clutch, ticked before the scheduler. */
     private final ClutchController clutch = new ClutchController();
 
     private final RouteEvents.Emitter events;
+
     private final PerceptionEvents perceptionEvents;
+
     /**
      * The view this bot plans and moves over. A supplier, because a server bot's view is rebuilt when it changes
      * dimension.
@@ -127,6 +134,7 @@ public final class BotBrain {
      * process takes over.
      */
     private final AutoEat autoEat = new AutoEat();
+
     /**
      * Phase B ambient hand reflexes (concurrent with movement). AutoShield/AutoHeal contend for the use key with
      * autoEat — arbitrated in {@link #act}; AutoTotem owns the offhand slot independently.
@@ -134,13 +142,18 @@ public final class BotBrain {
     private final AutoShield autoShield = new AutoShield();
 
     private final AutoHeal autoHeal = new AutoHeal();
+
     private final AutoTotem autoTotem = new AutoTotem();
+
     private final AutoTool autoTool = new AutoTool();
+
     /** The body-safety reflexes run after the scheduler; each keeps its own episode state. */
     private final AutoSwim autoSwim = new AutoSwim();
 
     private final AntiSuffocate antiSuffocate = new AntiSuffocate();
+
     private final ContactDamageEscape contactEscape = new ContactDamageEscape();
+
     private final LavaProximityEscape lavaEscape = new LavaProximityEscape();
 
     /**
@@ -175,6 +188,7 @@ public final class BotBrain {
     private volatile NavigatorTelemetry navigatorTelemetry;
 
     private volatile Leg leg = new Leg(0L, false, null, null);
+
     private final AtomicLong legSeq = new AtomicLong();
 
     /**

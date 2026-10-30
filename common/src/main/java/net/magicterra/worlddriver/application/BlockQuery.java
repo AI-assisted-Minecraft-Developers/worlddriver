@@ -32,7 +32,9 @@ final class BlockQuery {
     static final int MAX_RADIUS = QueryContracts.MAX_BLOCK_RADIUS;
 
     private final int radius;
+
     private final Predicate<BlockState> match;
+
     private final Optional<List<BlockField>> select;
 
     private BlockQuery(int radius, Predicate<BlockState> match, Optional<List<BlockField>> select) {

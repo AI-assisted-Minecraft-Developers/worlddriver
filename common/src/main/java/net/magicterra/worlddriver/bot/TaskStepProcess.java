@@ -15,7 +15,9 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class TaskStepProcess implements BotProcess {
     private final String kind;
+
     private final TaskStep<?> step;
+
     private String failure;
 
     TaskStepProcess(String kind, TaskStep<?> step) {

@@ -38,6 +38,7 @@ public final class Digging {
      * reprices it.
      */
     static final long BREATH_POISON_TTL_MS = 60_000;
+
     /**
      * Effort ceiling for a single executor dig (~30 s of continuous mining): past this a visible detour always wins,
      * and in water the drift-release + progress zeroing make the true cost effectively unbounded (live: bare-hand

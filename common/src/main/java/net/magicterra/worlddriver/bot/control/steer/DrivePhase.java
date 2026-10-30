@@ -122,9 +122,11 @@ public final class DrivePhase {
     private static final int WIGGLE_EVENTS = 16;
 
     private static final double LANE_KP = 3.0;
+
     private static final double LANE_KD = 8.0;
 
     private static final double BACKOFF_RUNWAY = 1.8; // how far 12 ticks of walking back carries the bot, with margin
+
     private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
 
     private static final String[] SPRINT_VETO_NAMES = {
@@ -169,7 +171,9 @@ public final class DrivePhase {
     public String parkourTakeoff;
 
     public boolean digDrivenThisTick;
+
     public boolean digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
+
     // DIG_KEY_RELEASE_TICKS)
     public int digIdleTicks; // consecutive tick-ends with the latch owned and no dig driven
 
@@ -184,6 +188,7 @@ public final class DrivePhase {
     public final DriveLatches driveLatch = new DriveLatches();
 
     private int parkourSamples;
+
     private StringBuilder parkourTakeoffBuf;
 
     /**

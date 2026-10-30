@@ -11,6 +11,7 @@ import java.util.List;
  */
 public final class DecodeContext {
     private final String path;
+
     private final List<ApiIssue> issues;
 
     private DecodeContext(String path, List<ApiIssue> issues) {

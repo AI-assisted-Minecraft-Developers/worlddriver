@@ -78,6 +78,7 @@ public final class McpServer implements Closeable {
     static final String PROTOCOL_VERSION = "2025-06-18";
 
     private static final String SERVER_NAME = "worlddriver";
+
     /**
      * Maximum inbound POST body — shared with the WebSocket transport's frame limit so the two cannot disagree about
      * what a request may weigh. See {@link RequestLimits}.
@@ -88,10 +89,15 @@ public final class McpServer implements Closeable {
     private static final WaitPermits WAITS = WaitPermits.bounded(McpLimits.MCP_MAX_WAITS);
 
     private final ApiRegistry api;
+
     private final HttpServer http;
+
     private final ThreadPoolExecutor executor;
+
     private final Semaphore postSlots = new Semaphore(McpLimits.MCP_MAX_IN_FLIGHT);
+
     private final Semaphore streamSlots = new Semaphore(McpLimits.MCP_MAX_EVENT_STREAMS);
+
     /**
      * Open server→client SSE streams (clients that issued {@code GET /mcp}). {@link #onEvent} fans each driver event
      * out to all of them.
@@ -489,8 +495,11 @@ public final class McpServer implements Closeable {
         static final int OUTBOX_CAP = 256;
 
         private final OutputStream os;
+
         final BlockingQueue<String> outbox = new ArrayBlockingQueue<>(OUTBOX_CAP);
+
         volatile boolean alive = true;
+
         final CountDownLatch done = new CountDownLatch(1);
 
         SseSubscriber(OutputStream os) {

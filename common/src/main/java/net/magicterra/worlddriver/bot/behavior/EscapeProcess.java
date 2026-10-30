@@ -45,6 +45,7 @@ import net.minecraft.world.level.Level;
 public final class EscapeProcess implements BotProcess {
 
     private static final int MAX_STEPS = 48;
+
     /**
      * Consecutive PICKs with no step progress before we call the climb futile. Each futile cycle already burned a full
      * STEP_UP/VERT_RISE stall (~5s), so 4 ≈ 20s of confirmed zero-progress ping-pong — long enough to survive a
@@ -53,6 +54,7 @@ public final class EscapeProcess implements BotProcess {
     private static final int FUTILE_LIMIT = 4;
 
     private static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
+
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
@@ -62,12 +64,19 @@ public final class EscapeProcess implements BotProcess {
     private final int targetY;
 
     private Phase phase = Phase.PICK;
+
     private Direction dir = null;
+
     private BlockPos base = null; // the foot cell we're climbing FROM this step
+
     private BlockPos actTarget = null; // block currently being broken; actTicks is PER-target
+
     private int actTicks = 0;
+
     private int steps = 0;
+
     private int futileCycles = 0;
+
     private int stepsAtLastPick = -1;
 
     private String failure;

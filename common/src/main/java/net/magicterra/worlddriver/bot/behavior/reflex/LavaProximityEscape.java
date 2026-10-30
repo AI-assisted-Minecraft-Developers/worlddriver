@@ -48,14 +48,20 @@ import net.minecraft.world.phys.Vec3;
 public final class LavaProximityEscape {
 
     private static final int LINGER_TICKS = 12;
+
     private static final int MAX_EPISODE_TICKS = 80;
+
     /** A walk to water within the largest radius takes about a hundred ticks; past this it is not getting there. */
     private static final int MAX_QUENCH_TICKS = 200;
 
     private boolean active;
+
     private int linger;
+
     private int episodeTicks;
+
     private BlockPos lastLava;
+
     /** Clear of the lava, still burning, walking into water ({@link #quench}). */
     private boolean quenching;
 
