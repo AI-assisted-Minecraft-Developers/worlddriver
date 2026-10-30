@@ -25,7 +25,6 @@ import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
-import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import java.io.Closeable;
 import java.io.EOFException;
@@ -62,6 +61,10 @@ public final class RpcClient implements Closeable {
 
     private final AtomicLong nextId = new AtomicLong(1);
 
+    /**
+     * Connects to {@code ws://host:port/rpc} and completes the WebSocket handshake, waiting at most ten seconds for it.
+     * Must not be called on the server thread, which it would block.
+     */
     public RpcClient(String host, int port) throws IOException {
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
         URI uri = URI.create("ws://" + host + ":" + port + "/rpc");
@@ -96,11 +99,11 @@ public final class RpcClient implements Closeable {
             Thread.currentThread().interrupt();
             shutdown();
             throw new IOException("interrupted during ws connect", e);
+        } catch (IOException e) {
+            shutdown();
+            throw e;
         } catch (Throwable e) {
             shutdown();
-            if (e instanceof IOException io) {
-                throw io;
-            }
             throw new IOException("ws connect failed", e);
         }
     }
@@ -110,6 +113,7 @@ public final class RpcClient implements Closeable {
         handler.notifications = listener;
     }
 
+    /** One call with the {@link #DEFAULT_CALL_TIMEOUT_MS} budget; see {@link #call(String, JsonElement, long)}. */
     public JsonElement call(String method, JsonObject params) throws IOException {
         return call(method, params, DEFAULT_CALL_TIMEOUT_MS);
     }
@@ -159,6 +163,8 @@ public final class RpcClient implements Closeable {
         return f.whenComplete((r, t) -> handler.pending.remove(id));
     }
 
+    // ExecutionException is only a wrapper: callers act on its cause, and a timeout has no stack worth keeping.
+    @SuppressWarnings("PMD.PreserveStackTrace")
     private static JsonObject await(CompletableFuture<JsonObject> f, long budgetMs) throws IOException {
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
         try {
@@ -266,9 +272,8 @@ public final class RpcClient implements Closeable {
                 // The server closes a peer that stays silent past its liveness window, and
                 // one call may be pending for longer than that.
                 ch.writeAndFlush(new PongWebSocketFrame(ping.content().retain()));
-            } else if (msg instanceof WebSocketFrame) {
-                // Ignore Pong/Binary for this minimal client.
             }
+            // Any other frame (pong, binary) is ignored by this minimal client.
         }
 
         /**

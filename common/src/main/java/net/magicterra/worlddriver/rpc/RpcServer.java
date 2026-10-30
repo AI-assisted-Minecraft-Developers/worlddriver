@@ -83,7 +83,7 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
  *
  * <h2>Event push channel (driver→agent)</h2>
  *
- * This WebSocket is JSON-RPC over a custom transport (the spec permits custom transports that preserve the JSON-RPC
+ * <p>This WebSocket is JSON-RPC over a custom transport (the spec permits custom transports that preserve the JSON-RPC
  * message format), so the driver→agent event push rides it as standard server→client
  * <b>{@code notifications/message}</b> (the MCP logging notification) — the same shape an MCP-aware agent loop already
  * knows how to consume. A connection opts in with a control frame
@@ -161,10 +161,20 @@ public final class RpcServer implements Closeable {
      */
     private final ChannelGroup subscribers = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
+    /**
+     * Starts serving on the loopback interface only; a {@code requestedPort} of 0 takes any free port, which
+     * {@link #port()} then reports. A bind failure is thrown unchecked.
+     */
+    // The loopback literal is the security boundary itself: the server must never bind anything else by default.
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     public RpcServer(ApiRegistry api, EventFeed events, int requestedPort) {
         this(api, events, "127.0.0.1", requestedPort);
     }
 
+    /**
+     * Starts serving on {@code bindHost} with the default liveness timings and subscribes to {@code events} for the
+     * push channel. Binding anything but loopback exposes every method to that network.
+     */
     public RpcServer(ApiRegistry api, EventFeed events, String bindHost, int requestedPort) {
         this(
                 api,
@@ -176,6 +186,8 @@ public final class RpcServer implements Closeable {
     }
 
     /** Liveness timings as parameters so a test can run them in seconds. */
+    // Callers and tests expect a bind failure as an unchecked RuntimeException; a narrower type would change that.
+    @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
     RpcServer(
             ApiRegistry api,
             EventFeed events,
@@ -216,13 +228,13 @@ public final class RpcServer implements Closeable {
             Thread.currentThread().interrupt();
             shutdown();
             throw new RuntimeException("interrupted while binding RPC server", e);
+        } catch (RuntimeException | Error e) {
+            shutdown();
+            throw e;
         } catch (Throwable e) {
             // Throwable, not RuntimeException: sync() rethrows the checked BindException
             // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
-            if (e instanceof RuntimeException || e instanceof Error) {
-                throw e;
-            }
             throw new RuntimeException(
                     "could not bind RPC server to " + bindHost + ":" + requestedPort + ": " + e.getMessage(), e);
         }
@@ -230,6 +242,7 @@ public final class RpcServer implements Closeable {
         events.addEventListener(this::onEvent);
     }
 
+    /** The port actually bound, which differs from the one asked for when that was 0. */
     public int port() {
         return port;
     }

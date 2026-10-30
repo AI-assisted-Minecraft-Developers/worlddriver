@@ -14,10 +14,16 @@ import java.util.Set;
  */
 public final class OriginPolicy {
 
+    // The loopback addresses are the policy itself, not configuration that could live elsewhere.
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "::1", "[::1]");
 
     private OriginPolicy() {}
 
+    /**
+     * True for an absent origin or an {@code http}/{@code https} origin whose host is loopback; false for everything
+     * else, including the literal {@code null} and an origin that does not parse.
+     */
     public static boolean isAllowed(String origin) {
         if (origin == null) {
             return true;

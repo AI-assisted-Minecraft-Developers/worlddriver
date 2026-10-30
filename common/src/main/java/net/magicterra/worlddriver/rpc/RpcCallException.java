@@ -15,12 +15,14 @@ public final class RpcCallException extends IOException {
 
     private final ApiError apiError;
 
+    /** An error response with its JSON-RPC code and message; {@code apiError} may be null. */
     public RpcCallException(int rpcCode, String message, ApiError apiError) {
         super(message);
         this.rpcCode = rpcCode;
         this.apiError = apiError;
     }
 
+    /** The JSON-RPC {@code error.code}, or 0 when the error frame carried none. */
     public int rpcCode() {
         return rpcCode;
     }
