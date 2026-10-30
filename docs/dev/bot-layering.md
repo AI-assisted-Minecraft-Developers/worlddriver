@@ -296,17 +296,15 @@ set while changing nothing, and the caller gets every signal that it worked.
 key is never read outside the settings pipeline. **Deleting a behaviour means deleting its
 flag in the same change.**
 
-## The source budget
+## Method and file size
 
-`scripts/check_source_budget.py` caps two things, and both apply here: no hand-written
-Java file may exceed the file limit, and no method may exceed the method limit unless it
-is on the script's grandfather list, in which case it may shrink but never grow. Lines that
-hold only a comment do not count, so explaining code costs nothing against either limit.
-Read the script for the current numbers.
+Checkstyle's JavaNCSS check caps how many statements a method, a class and a file may hold
+([`code-style.md`](code-style.md)). It counts statements, not lines, so explaining code costs
+nothing against it.
 
 The `*Phase` classes are the reference pattern for carving up a large
-sequential method. Four of them are on the grandfather list precisely because that split
-moved text without decomposing the method — which is why the method budget exists at all.
+sequential method, though several of their `run` methods are still over the method limit:
+that split moved text without decomposing the method.
 
 `FocusPolicy` and `MouseYield` (in `game/ui/`) govern how the bot shares keyboard and mouse
 with a human at the same client; read [`input-sharing.md`](input-sharing.md) before changing

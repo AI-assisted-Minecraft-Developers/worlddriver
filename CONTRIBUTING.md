@@ -60,11 +60,12 @@ Each starts the games each test's scene file asks for and reports like any Gradl
 `--tests '<class>'` runs one Java test class (script tests still run with it), and
 `-PstagewrightServerPort=<port>` lets two checkouts run their suites at once.
 
-**Source checks** under `scripts/` are run by hand; nothing in the build invokes them, and CI runs
-`check_source_budget.py` as well.
+**Code style**: `./gradlew check` runs Spotless, Checkstyle and PMD; `./gradlew spotlessApply` lays the
+code out. See [docs/dev/code-style.md](docs/dev/code-style.md).
+
+**Source checks** under `scripts/` are run by hand; nothing in the build invokes them.
 
 ```bash
-python3 scripts/check_source_budget.py   # no Java source file over 3000 lines, comment-only lines not counted
 python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
 python3 scripts/check_packaging.py       # what the published jars and POMs carry; repository fences
 ```

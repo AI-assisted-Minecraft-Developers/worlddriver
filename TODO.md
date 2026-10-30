@@ -257,13 +257,12 @@ is a gap: a test that drops the crafted item out of pickup reach would settle it
 
 ## Test harness, ledger and instrumentation
 
-### The stacked-javadoc checker cannot see the worse form of the defect
+### Nothing sees a javadoc block adopted by the wrong member
 
 An abandoned documentation block that lands above an undocumented member is not discarded — javac
 silently adopts it, and that member now ships someone else's contract. The missing reading is a
 mismatch between a block and the declaration it is attached to: a `@param` naming a parameter that
-does not exist, a `@return` on a void member. It does not need natural language. The script records
-this in its own header.
+does not exist, a `@return` on a void member. It does not need natural language.
 
 ### The mob cap has no reading
 
@@ -311,12 +310,10 @@ went unexplained for want of one.
 
 ---
 
-## Source-size budget
+## Code style
 
-`scripts/check_source_budget.py` caps Java files at 3000 non-comment lines and methods at 200 (three
-grandfathered `*Phase.run` methods). It passes and no file is near the cap. Run it for current
-numbers. Split, do not strip comments. `scripts/check_stacked_javadoc.py` fails on exactly the eight
-blocks listed under Porting.
+Checkstyle and PMD only report (`ignoreFailures` in `build-logic`'s `worlddriver.lint`). Fix their
+findings on main sources, JavaNCSS's oversized methods among them, then make them fail the build.
 
 ### Two things in this area that must not be tidied
 

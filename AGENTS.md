@@ -44,8 +44,8 @@ links to; read that page before arguing with the rule.
 6. **Prefer extending an existing method over adding one.** Every method's schema and
    description go into every prompt of every connected model. Keep descriptions tight.
 7. **No fully-qualified names where there is no conflict.** Import and use the simple name.
-8. **No Java file over 3000 lines, no method over 200 unless grandfathered.** Lines that hold
-   only a comment do not count. Check: `python3 scripts/check_source_budget.py`.
+8. **No method, class or file over Checkstyle's JavaNCSS limits.** They count statements, so
+   comments cost nothing. Check: `./gradlew checkstyleMain` (`docs/dev/code-style.md`).
 9. **No new reflection on a Mojang-mapped Minecraft member.** Open members through both
    `common/src/main/resources/worlddriver.accesswidener` and
    `neoforge/src/main/resources/META-INF/accesstransformer.cfg`.

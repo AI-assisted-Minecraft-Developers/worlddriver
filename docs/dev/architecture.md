@@ -223,8 +223,8 @@ and the full posture are in [`../guide/transports.md`](../guide/transports.md).
 ## Before pushing a change here
 
 The checks that shape code in this layer, and how to run them, are in
-[`testing.md`](testing.md). The one that bites most often: no Java file may exceed the
-source budget, and passing the in-game tests does not mean passing it.
+[`testing.md`](testing.md) and [`code-style.md`](code-style.md). Passing the in-game tests does
+not mean passing `./gradlew check`.
 
 ## Dependency guards
 

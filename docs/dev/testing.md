@@ -8,10 +8,11 @@ There are three layers:
 - **In-game tests** in `common/src/testmod`, run inside real games by
   [StageWright](https://github.com/AI-assisted-Minecraft-Developers/stagewright), the test framework, which this
   repository consumes as published Maven artifacts.
-- **Source checks**, Python scripts under `scripts/` that read the source or the built jars.
+- **Source checks**: Python scripts under `scripts/` that read the source or the built jars, and the code-style
+  checks of [`code-style.md`](code-style.md).
 
 Prefer the JVM layer wherever the subject allows it. An in-game test costs a game boot and can only observe what the
-game exposes. CI runs the JVM tests, `check_source_budget.py` and the NeoForge in-game suite
+game exposes. CI runs the JVM tests, Checkstyle ([`code-style.md`](code-style.md)) and the NeoForge in-game suite
 (`.github/workflows/ci.yml`); everything else below is something a contributor runs by hand.
 
 ## JVM tests
@@ -176,32 +177,17 @@ violation; this table is the full list. The remap check's reasoning is in
 
 | Script | What it verifies |
 |---|---|
-| `scripts/check_source_budget.py` | No hand-written Java file over the file limit, no method over the method limit unless grandfathered. |
 | `scripts/check_remap_safety.py` | No reflective member lookup uses a Mojang-mapped name against a class the shipped jar remaps. Development runs and the in-game suites see Mojang names; the published Fabric jar does not, and a string constant is not rewritten with the reference around it. |
-| `scripts/check_stacked_javadoc.py` | No javadoc block is discarded by `javac` because a second one follows it. |
 | `scripts/check_packaging.py` | Every `maven.latvian.dev` repository the build declares is fenced to `dev.latvian.mods`. Gradle takes the first repository that answers, so an unfenced one whose domain starts answering 200 to every path shadows every repository declared after it. Every published jar carries `META-INF/COPYING` and `META-INF/COPYING.LESSER`, and every POM declares the licence, url and scm. The loader jars' mod metadata carries the licence, description, authors and dependency ranges `gradle.properties` gives, and both templates expand them rather than repeating a literal. Each loader's `-sources` jar holds every source file of `:common`'s, which its binary bundles. All but the repository check read built artifacts; the script's docstring names the tasks to run first. |
 
 No tool parses the game log. The `[navigator]` and `[expect]` lines are for a person reading it; a program that needs
 the bot's state reads it through the API, whose shapes are checked.
 
-### The source budget
+### Size and javadoc placement
 
-```bash
-python3 scripts/check_source_budget.py
-```
-
-It caps two units. A hand-written Java file may not exceed the file limit. A method may not exceed the method limit
-either, unless it is on the script's grandfather list, in which case the recorded length is a ceiling it may shrink
-below but never rise above. Lines holding only a comment do not count. Read the script for the current numbers.
-
-The method cap exists because the file cap alone measured the wrong unit: splitting a huge class satisfied it by moving
-text while the huge method survived intact. An entry deleted from the grandfather list is progress that cannot
-silently regress; adding or raising one should be a deliberate reviewed change, not a reflex to quiet the check.
-
-The check reports, without failing, when a grandfathered entry names a method that no longer exists. Delete those
-entries.
-
-Passing the in-game suites does not imply passing this one. Run it before committing.
+Method, class and file size, and a javadoc block that does not sit on a declaration, are Checkstyle's to judge
+(JavaNCSS and InvalidJavadocPosition), with the rest of the code style: `./gradlew checkstyleMain`, described in
+[`code-style.md`](code-style.md). Passing the in-game suites does not imply passing it. Run it before committing.
 
 ## Where to read more
 

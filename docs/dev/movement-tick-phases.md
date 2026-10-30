@@ -25,17 +25,12 @@ the navigator's place in the wider subsystem is not already familiar.
 
 ## Why the decomposition exists
 
-`scripts/check_source_budget.py` caps two units of hand-written Java. A file may not
-exceed its line limit, and a method may not exceed its line limit unless it appears on the
-script's grandfather list, in which case the recorded length is a ceiling it may shrink
-below but never rise above. Both count every line except one that holds only a comment. Read
-the script for the current numbers rather than trusting a figure quoted anywhere else.
+Checkstyle's JavaNCSS check caps how many statements a method, a class and a file may hold
+([`code-style.md`](code-style.md)). Comments do not count.
 
-The file cap came first and measured the wrong unit. Splitting the navigator satisfied it by
-moving text: the enormous method survived, redistributed across new files. The method cap
-exists because of that, and the `*Phase` entries on the grandfather list are the
-backlog it was written to shrink. Deleting an entry from that list is progress that cannot
-silently regress; adding one, or raising one, should be a deliberate reviewed change.
+A cap on file size alone measured the wrong unit. Splitting the navigator satisfied it by
+moving text: the enormous method survived, redistributed across new files. The method limit
+is why; the `*Phase.run` methods it still reports are the backlog it is there to shrink.
 
 The pipeline is also the reference pattern for carving up any other large sequential
 method in this repository. Follow it rather than inventing a new shape.

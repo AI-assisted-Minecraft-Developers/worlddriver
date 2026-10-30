@@ -46,7 +46,11 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 `config/checkstyle/checkstyle.xml` is Google's checks without the ones about layout, plus:
 
-- JavaNCSS, with its default limits: a method, class or file with too many statements is reported;
+- JavaNCSS, with its default limits: a method, class or file with too many statements is reported
+  (this replaced `scripts/check_source_budget.py`);
+- InvalidJavadocPosition, from Google's checks: a `/** */` block that does not sit directly on a
+  declaration, such as the first of two stacked blocks, is reported (this replaced
+  `scripts/check_stacked_javadoc.py`);
 - DeclarationOrder (fields before constructors and methods), ParameterNumber (at most 10) and
   MultipleStringLiterals (the same string written four or more times in one file).
 
