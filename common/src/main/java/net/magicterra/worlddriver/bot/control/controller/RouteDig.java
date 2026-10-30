@@ -34,6 +34,9 @@ public final class RouteDig implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.LOOK, Channel.HANDS);
 
+    private Work work;
+    private boolean breakInReach;
+
     public enum Kind {
         /** Breaking {@link Work#cell}. */
         DIG,
@@ -47,9 +50,6 @@ public final class RouteDig implements Controller {
 
     /** What was worked on this tick: {@code move} is the edge's move. */
     public record Work(Kind kind, BlockPos cell, String move) {}
-
-    private Work work;
-    private boolean breakInReach;
 
     @Override
     public String name() {

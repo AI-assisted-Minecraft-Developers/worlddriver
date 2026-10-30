@@ -23,30 +23,20 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class BuildProcess implements BotProcess, Navigating {
+    private static final int PLACE_TIMEOUT_TICKS = 60;
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
-    private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos origin;
     private final Schematic schematic;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("build"));
 
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
-
     private int idx;
     private int placed;
     private int skipped;
     private String failure;
-
-    @Override
-    public String failure() {
-        return failure;
-    }
 
     private final Set<Integer> failedIdx = new HashSet<>();
     private Phase phase = Phase.NEXT;
@@ -54,6 +44,16 @@ public final class BuildProcess implements BotProcess, Navigating {
     private BlockPos currentStand;
     private Direction currentFace;
     private int placeTicks;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     private enum Phase {
         NEXT,

@@ -34,6 +34,84 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * {@code mc.observe.map}.
  */
 public final class ObserveContracts {
+
+    public static final ApiType<Effect> EFFECT = ApiTypes.record(Effect.class);
+
+    public static final ApiType<Item> ITEM = ApiTypes.record(Item.class);
+
+    public static final UnionType<Crosshair> CROSSHAIR = ApiTypes.union(Crosshair.class);
+
+    public static final ApiType<PlayerState> PLAYER_STATE = ApiTypes.record(PlayerState.class);
+
+    public static final ApiType<PlayerParams> PLAYER_PARAMS = ApiTypes.record(PlayerParams.class);
+
+    public static final ApiType<PlayerReading> PLAYER_REPLY = ApiTypes.record(PlayerReading.class);
+
+    // Pollable: one player's fields, copied on the game thread in one task; it never waits for a tick.
+    public static final MethodSpec<PlayerParams, PlayerReading> PLAYER = MethodSpec.of(
+                    "mc.observe.player",
+                    PLAYER_PARAMS,
+                    PLAYER_REPLY,
+                    "One player's state: position, look, body, vitals and effects, the world's time, melee readiness, "
+                            + "equipment, the whole inventory and an item-count map. On a client with no server attached it "
+                            + "reads this client's own player, adds view (crosshair hit, fps), and a name that is not that "
+                            + "player's reads as nobody.")
+            .asPollable();
+
+    public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class);
+
+    public static final ApiType<Threats> THREATS_REPLY = ApiTypes.record(Threats.class);
+
+    // Pollable: one bounded scan of the client's own entity set, on the client thread.
+    public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of(
+                    "mc.observe.threats",
+                    THREATS_PARAMS,
+                    THREATS_REPLY,
+                    "Scored hostiles and incoming projectiles around this client's player, or a named server bot, "
+                            + "player or mob, as that bot's own reflexes see them. For self, empty lists without a client.")
+            .asPollable();
+
+    public static final ApiType<BossParams> BOSS_PARAMS = ApiTypes.record(BossParams.class);
+
+    public static final ApiType<BossReading> BOSS_REPLY = ApiTypes.record(BossReading.class);
+
+    // Pollable: one bounded scan of the client's own entity set, on the client thread.
+    public static final MethodSpec<BossParams, BossReading> BOSS_SPEC = MethodSpec.of(
+                    "mc.observe.boss",
+                    BOSS_PARAMS,
+                    BOSS_REPLY,
+                    "The nearest ender dragon or wither in range, with its phase and health, and the End crystals. "
+                            + "Client only: no boss and no crystals without a client.")
+            .asPollable();
+
+    public static final ApiType<SceneParams> SCENE_PARAMS = ApiTypes.record(SceneParams.class);
+
+    public static final ApiType<Scene> SCENE_REPLY = ApiTypes.record(Scene.class);
+
+    // Bulk: a hazard field up to sceneQueryMaxRadius plus a ray per cell for sight, in one server task.
+    public static final MethodSpec<SceneParams, Scene> SCENE = MethodSpec.of(
+                    "mc.observe.scene",
+                    SCENE_PARAMS,
+                    SCENE_REPLY,
+                    "The server's hazard grid around a center: lethal cells, whether the center is cornered, the safest "
+                            + "step away; optionally an ASCII hazard map and the height, sight and mobDensity overlays the "
+                            + "goto route planner judges by. Works with no client.")
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    public static final ApiType<MapParams> MAP_PARAMS = ApiTypes.record(MapParams.class);
+
+    public static final ApiType<AsciiMap> MAP_REPLY = ApiTypes.record(AsciiMap.class);
+
+    // Bulk: up to 49 × 49 columns walked top-down in one server task.
+    public static final MethodSpec<MapParams, AsciiMap> MAP = MethodSpec.of(
+                    "mc.observe.map",
+                    MAP_PARAMS,
+                    MAP_REPLY,
+                    "A compact ASCII map for fast tactical reads: a top-down surface heightmap (# wall, v drop, . walk, "
+                            + "~ water, ! lava) or a vertical slice, with hostiles drawn by initial and @ at the center. "
+                            + "Works with no client; with no player a center is required.")
+            .execution(MethodSpec.ExecutionClass.BULK);
+
     private ObserveContracts() {}
 
     // ------------------------------------------------------------------ player
@@ -223,29 +301,6 @@ public final class ObserveContracts {
             @Doc("What the camera aims at.") Crosshair hit,
             @Range(min = 0) int fps) {}
 
-    public static final ApiType<Effect> EFFECT = ApiTypes.record(Effect.class);
-
-    public static final ApiType<Item> ITEM = ApiTypes.record(Item.class);
-
-    public static final UnionType<Crosshair> CROSSHAIR = ApiTypes.union(Crosshair.class);
-
-    public static final ApiType<PlayerState> PLAYER_STATE = ApiTypes.record(PlayerState.class);
-
-    public static final ApiType<PlayerParams> PLAYER_PARAMS = ApiTypes.record(PlayerParams.class);
-
-    public static final ApiType<PlayerReading> PLAYER_REPLY = ApiTypes.record(PlayerReading.class);
-
-    // Pollable: one player's fields, copied on the game thread in one task; it never waits for a tick.
-    public static final MethodSpec<PlayerParams, PlayerReading> PLAYER = MethodSpec.of(
-                    "mc.observe.player",
-                    PLAYER_PARAMS,
-                    PLAYER_REPLY,
-                    "One player's state: position, look, body, vitals and effects, the world's time, melee readiness, "
-                            + "equipment, the whole inventory and an item-count map. On a client with no server attached it "
-                            + "reads this client's own player, adds view (crosshair hit, fps), and a name that is not that "
-                            + "player's reads as nobody.")
-            .asPollable();
-
     // ------------------------------------------------------------------ threats
 
     /** {@code bot}: whose threats; omitted or {@code self}, the client's player. */
@@ -292,19 +347,6 @@ public final class ObserveContracts {
             List<Threat> threats,
 
             @Length(max = 1024) List<Projectile> incomingProjectiles) {}
-
-    public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class);
-
-    public static final ApiType<Threats> THREATS_REPLY = ApiTypes.record(Threats.class);
-
-    // Pollable: one bounded scan of the client's own entity set, on the client thread.
-    public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of(
-                    "mc.observe.threats",
-                    THREATS_PARAMS,
-                    THREATS_REPLY,
-                    "Scored hostiles and incoming projectiles around this client's player, or a named server bot, "
-                            + "player or mob, as that bot's own reflexes see them. For self, empty lists without a client.")
-            .asPollable();
 
     // ------------------------------------------------------------------ boss
 
@@ -411,19 +453,6 @@ public final class ObserveContracts {
             List<Crystal> crystals,
 
             Optional<Boss> boss) {}
-
-    public static final ApiType<BossParams> BOSS_PARAMS = ApiTypes.record(BossParams.class);
-
-    public static final ApiType<BossReading> BOSS_REPLY = ApiTypes.record(BossReading.class);
-
-    // Pollable: one bounded scan of the client's own entity set, on the client thread.
-    public static final MethodSpec<BossParams, BossReading> BOSS_SPEC = MethodSpec.of(
-                    "mc.observe.boss",
-                    BOSS_PARAMS,
-                    BOSS_REPLY,
-                    "The nearest ender dragon or wither in range, with its phase and health, and the End crystals. "
-                            + "Client only: no boss and no crystals without a client.")
-            .asPollable();
 
     // ------------------------------------------------------------------ scene
 
@@ -560,20 +589,6 @@ public final class ObserveContracts {
             Optional<SightOverlay> sight,
             Optional<DensityOverlay> mobDensity) {}
 
-    public static final ApiType<SceneParams> SCENE_PARAMS = ApiTypes.record(SceneParams.class);
-
-    public static final ApiType<Scene> SCENE_REPLY = ApiTypes.record(Scene.class);
-
-    // Bulk: a hazard field up to sceneQueryMaxRadius plus a ray per cell for sight, in one server task.
-    public static final MethodSpec<SceneParams, Scene> SCENE = MethodSpec.of(
-                    "mc.observe.scene",
-                    SCENE_PARAMS,
-                    SCENE_REPLY,
-                    "The server's hazard grid around a center: lethal cells, whether the center is cornered, the safest "
-                            + "step away; optionally an ASCII hazard map and the height, sight and mobDensity overlays the "
-                            + "goto route planner judges by. Works with no client.")
-            .execution(MethodSpec.ExecutionClass.BULK);
-
     // ------------------------------------------------------------------ map
 
     @Named("MapPlane")
@@ -622,18 +637,4 @@ public final class ObserveContracts {
 
             @Doc("The grid, lines joined by newlines; north or +y on top.")
             String map) {}
-
-    public static final ApiType<MapParams> MAP_PARAMS = ApiTypes.record(MapParams.class);
-
-    public static final ApiType<AsciiMap> MAP_REPLY = ApiTypes.record(AsciiMap.class);
-
-    // Bulk: up to 49 × 49 columns walked top-down in one server task.
-    public static final MethodSpec<MapParams, AsciiMap> MAP = MethodSpec.of(
-                    "mc.observe.map",
-                    MAP_PARAMS,
-                    MAP_REPLY,
-                    "A compact ASCII map for fast tactical reads: a top-down surface heightmap (# wall, v drop, . walk, "
-                            + "~ water, ! lava) or a vertical slice, with hostiles drawn by initial and @ at the center. "
-                            + "Works with no client; with no player a center is required.")
-            .execution(MethodSpec.ExecutionClass.BULK);
 }

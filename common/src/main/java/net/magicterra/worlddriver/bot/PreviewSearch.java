@@ -61,6 +61,12 @@ public final class PreviewSearch {
 
     public static final int KEEP = 8;
 
+    private final BotState state;
+    private final ArrayDeque<Pending> queue = new ArrayDeque<>();
+    private Pending current;
+    private final LinkedHashMap<String, Plan> plans = new LinkedHashMap<>();
+    private final AtomicInteger seq = new AtomicInteger();
+
     /** One preview to run: the start cell, the goals in order (via first), the conditions. */
     public record Request(
             BlockPos start,
@@ -125,12 +131,6 @@ public final class PreviewSearch {
             this.action = action;
         }
     }
-
-    private final BotState state;
-    private final ArrayDeque<Pending> queue = new ArrayDeque<>();
-    private Pending current;
-    private final LinkedHashMap<String, Plan> plans = new LinkedHashMap<>();
-    private final AtomicInteger seq = new AtomicInteger();
 
     public PreviewSearch(BotState state) {
         this.state = state;

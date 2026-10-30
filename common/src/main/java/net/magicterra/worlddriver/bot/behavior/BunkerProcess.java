@@ -32,26 +32,17 @@ import net.minecraft.world.phys.AABB;
  * LocalPlayer or a server FakePlayer alike.
  */
 public final class BunkerProcess implements BotProcess {
+    private static final int MAX_EXTRA_DEPTH = 4;
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
-
-    private enum Phase {
-        DIG_DOWN,
-        CARVE,
-        STEP_IN,
-        PLUG,
-        SEALED,
-        DONE
-    }
 
     private final int depth;
     // Niche depth may grow past the requested `depth` when the niche head would
     // otherwise sit at/near the surface (open-sky roof) or be roofed by a falling
     // block — we dig deeper until the roof is a solid, non-falling block.
     private int effectiveDepth;
-    private static final int MAX_EXTRA_DEPTH = 4;
     private Phase phase = Phase.DIG_DOWN;
     private int startY = Integer.MIN_VALUE;
     private int lastDepth = 0;
@@ -86,6 +77,17 @@ public final class BunkerProcess implements BotProcess {
      * action.
      */
     private boolean sealedVerdictStamped;
+
+    private String failure;
+
+    private enum Phase {
+        DIG_DOWN,
+        CARVE,
+        STEP_IN,
+        PLUG,
+        SEALED,
+        DONE
+    }
 
     public BunkerProcess(int depth) {
         this.depth = Math.max(1, Math.min(5, depth));
@@ -261,8 +263,6 @@ public final class BunkerProcess implements BotProcess {
                 : Boolean.TRUE.equals(st.bunker.goalReached) ? null : "not enclosed (ended in " + endReason + ")";
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

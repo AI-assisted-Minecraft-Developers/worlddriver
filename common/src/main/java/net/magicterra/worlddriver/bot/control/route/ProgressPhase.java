@@ -38,6 +38,109 @@ import net.minecraft.world.entity.LivingEntity;
  * (this file is state-machine surgery).
  */
 public final class ProgressPhase {
+
+    /**
+     * Step-advance lines emitted per WALK before the latch goes quiet.
+     *
+     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per navigator</b>, and a navigator
+     * outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first seconds of a 5 209-tick
+     * crossing, so the four wedged hops that are the entire question — 900 ticks each, 61 to 76 walk edges apiece —
+     * produced not one advance line between them. The reading those hops need is whether the pointer advanced through
+     * nodes the bot never walked, and that is exactly what an exhausted latch cannot say. 64 covers the 61 edges the
+     * worst measured hop walked, so a wedge can be read end to end instead of only its opening.
+     *
+     * <p><b>Still bounded, and per walk rather than unbounded</b>: 24 hops x 64 lines of ~300 chars is about 460 KB for
+     * a whole crossing, which is a log a human opens. An uncapped advance log over a wedged hop is how a 40-minute run
+     * becomes an unreadable one.
+     */
+    public static final int STEP_ADV_EVENTS = 64;
+
+    /**
+     * Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward path progress. A
+     * normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05 flags a true wall-ram
+     * (literally pinned) without misfiring on slow-but-moving travel.
+     */
+    private static final double ARC_WEDGE_DS = 0.05;
+    /**
+     * Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath. 30 ticks
+     * (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit stepUp/diagUp
+     * jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps).
+     */
+    public static final int ARC_WEDGE_TICKS = 30;
+
+    /**
+     * Reach (squared) for a grounded bot level with a node a climb enters or leaves: the centre may sit 0.85 out, i.e.
+     * the 0.3-half-width box still over the node cell.
+     */
+    private static final double LEVEL_CLIMB_REACH_SQ = 0.72;
+
+    /** The step-advance gates, in the order {@link #advanceCause} is handed their flags. */
+    private static final String[] ADVANCE_NAMES = {
+        "within", "passed", "tail", "crossDesc", "crossWalk", "waterStepDown", "waterWalk", "arc", "dropAhead"
+    };
+
+    /**
+     * Ticks of stalled step progress after which a far-ahead best-effort tail stops being held
+     * (navigatorTailConsumeDirectional) and the legacy distance-consume applies — a wedge-scale window: long enough to
+     * ride out a slow but real approach, short enough that walled pockets re-enter the repath/churn machinery promptly.
+     */
+    private static final int TAIL_HOLD_STALL_TICKS = 30;
+
+    /** Horizontal reach (squared) at which a best-effort tail counts as reached once its continuation waits. */
+    private static final double TAIL_READY_SQ = 1.0;
+
+    /** How many nodes past the current one {@link #dropAheadTarget} may skip to. */
+    private static final int DROP_AHEAD_NODES = 4;
+
+    private static final double LEG_HALF_WIDTH = 0.8;
+
+    private int stepAdvEvents;
+
+    /** The walk this navigator last refreshed its advance budget for — see {@link NavigatorTelemetry#newLeg}. */
+    private int seenLegEpoch = -1;
+
+    /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
+    private boolean stepAdvCapped;
+
+    /**
+     * Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet in it
+     * (navigatorHoldLastNodeUntilStanding); keyed to the path and step it counts for.
+     */
+    public int finalNodeHold;
+
+    public Object finalNodeHoldPath;
+    public int finalNodeHoldStep = -1;
+
+    /**
+     * Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully DECOUPLED from path/step/repath — the
+     * acceptance rig's "worst movement stall" metric mirrored into the executor. WHY: a safety-repath loop swaps the
+     * path every ~3s and each swap fires stepWindowFresh → stuckTicks=0, so a physically frozen bot never accumulates
+     * past the stuckT>40 gates and every stuck-gated recovery (wall-dig, ram-release) starves — the canopy jump-ram pin
+     * (C97-J1 replay: 1200t frozen, leaves one instabreak punch away, attack=false the whole time) is the third
+     * occurrence of this class (§71 wall-pin, §80 pin were the first two, masked there because the path happened to be
+     * stable). Anchor resets on >1.5 XZ blocks moved; vertical bob (jump-ram) deliberately does not count as movement.
+     *
+     * <p>Physical-stall anchor (task#96 step B7), owned by ProgressPhase; the stall verdict is read by the aim/drive
+     * gates. Self-managing (re-anchors on real motion) — no journey reset ever touched it.
+     */
+    public final PhysicalStall physStall = new PhysicalStall();
+
+    /**
+     * Per-step progress clocks (task#96 step B6), owned by ProgressPhase (the per-tick updater); their verdicts feed
+     * StallDetect's wedge/ram folds and the aim/drive stall gates, and PreludePhase forwards noStepProgressTicks to the
+     * expectation alarms. {@link StepProgress#restartWindows()} is the journey reset (start + replan — exactly the five
+     * fields both cleared); adoption and beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
+     * (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters self-manage on step/path change
+     * inside ProgressPhase.
+     */
+    public final StepProgress stepProg = new StepProgress();
+    /**
+     * Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick} (called per tick from
+     * ProgressPhase); the wedge/stall verdicts are consumed by StallDetect/Drive, the projection by Aim/Progress. NO
+     * journey reset — everything self-resets on a path-identity change (shadowPath != path), and Progress clears the
+     * windows on a no-projection tick.
+     */
+    public final ArcShadow arc = new ArcShadow();
     /**
      * One line per STEP ADVANCE — which gate consumed the node, and whether the bot was standing on anything when it
      * did.
@@ -117,83 +220,6 @@ public final class ProgressPhase {
                 String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y));
     }
 
-    /**
-     * Step-advance lines emitted per WALK before the latch goes quiet.
-     *
-     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per navigator</b>, and a navigator
-     * outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first seconds of a 5 209-tick
-     * crossing, so the four wedged hops that are the entire question — 900 ticks each, 61 to 76 walk edges apiece —
-     * produced not one advance line between them. The reading those hops need is whether the pointer advanced through
-     * nodes the bot never walked, and that is exactly what an exhausted latch cannot say. 64 covers the 61 edges the
-     * worst measured hop walked, so a wedge can be read end to end instead of only its opening.
-     *
-     * <p><b>Still bounded, and per walk rather than unbounded</b>: 24 hops x 64 lines of ~300 chars is about 460 KB for
-     * a whole crossing, which is a log a human opens. An uncapped advance log over a wedged hop is how a 40-minute run
-     * becomes an unreadable one.
-     */
-    public static final int STEP_ADV_EVENTS = 64;
-
-    private int stepAdvEvents;
-
-    /** The walk this navigator last refreshed its advance budget for — see {@link NavigatorTelemetry#newLeg}. */
-    private int seenLegEpoch = -1;
-
-    /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
-    private boolean stepAdvCapped;
-
-    /**
-     * Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet in it
-     * (navigatorHoldLastNodeUntilStanding); keyed to the path and step it counts for.
-     */
-    public int finalNodeHold;
-
-    public Object finalNodeHoldPath;
-    public int finalNodeHoldStep = -1;
-
-    /**
-     * Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully DECOUPLED from path/step/repath — the
-     * acceptance rig's "worst movement stall" metric mirrored into the executor. WHY: a safety-repath loop swaps the
-     * path every ~3s and each swap fires stepWindowFresh → stuckTicks=0, so a physically frozen bot never accumulates
-     * past the stuckT>40 gates and every stuck-gated recovery (wall-dig, ram-release) starves — the canopy jump-ram pin
-     * (C97-J1 replay: 1200t frozen, leaves one instabreak punch away, attack=false the whole time) is the third
-     * occurrence of this class (§71 wall-pin, §80 pin were the first two, masked there because the path happened to be
-     * stable). Anchor resets on >1.5 XZ blocks moved; vertical bob (jump-ram) deliberately does not count as movement.
-     *
-     * <p>Physical-stall anchor (task#96 step B7), owned by ProgressPhase; the stall verdict is read by the aim/drive
-     * gates. Self-managing (re-anchors on real motion) — no journey reset ever touched it.
-     */
-    public final PhysicalStall physStall = new PhysicalStall();
-
-    /**
-     * Per-step progress clocks (task#96 step B6), owned by ProgressPhase (the per-tick updater); their verdicts feed
-     * StallDetect's wedge/ram folds and the aim/drive stall gates, and PreludePhase forwards noStepProgressTicks to the
-     * expectation alarms. {@link StepProgress#restartWindows()} is the journey reset (start + replan — exactly the five
-     * fields both cleared); adoption and beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
-     * (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters self-manage on step/path change
-     * inside ProgressPhase.
-     */
-    public final StepProgress stepProg = new StepProgress();
-
-    /**
-     * Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward path progress. A
-     * normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05 flags a true wall-ram
-     * (literally pinned) without misfiring on slow-but-moving travel.
-     */
-    private static final double ARC_WEDGE_DS = 0.05;
-    /**
-     * Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath. 30 ticks
-     * (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit stepUp/diagUp
-     * jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps).
-     */
-    public static final int ARC_WEDGE_TICKS = 30;
-    /**
-     * Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick} (called per tick from
-     * ProgressPhase); the wedge/stall verdicts are consumed by StallDetect/Drive, the projection by Aim/Progress. NO
-     * journey reset — everything self-resets on a path-identity change (shadowPath != path), and Progress clears the
-     * windows on a no-projection tick.
-     */
-    public final ArcShadow arc = new ArcShadow();
-
     /** Restart the per-step windows; the stall anchor and the arc shadow re-base themselves. */
     public void reset(ResetScope scope) {
         stepProg.restartWindows();
@@ -260,12 +286,6 @@ public final class ProgressPhase {
     }
 
     /**
-     * Reach (squared) for a grounded bot level with a node a climb enters or leaves: the centre may sit 0.85 out, i.e.
-     * the 0.3-half-width box still over the node cell.
-     */
-    private static final double LEVEL_CLIMB_REACH_SQ = 0.72;
-
-    /**
      * Grounded and level with the node, its box still over the node cell, with a climb out of it, or a climb into it
      * and a long flat leg out: reached. A diagUp that lands 0.08 past the cell edge (live 1544.92,71,-158.15 at node
      * 1545,71,-159, cur2 0.455) read unreached, took the next riser's jump from beside it and walked back, ~1 s per
@@ -309,11 +329,6 @@ public final class ProgressPhase {
         double along = ((p.getX() - (w.getX() + 0.5)) * ax + (p.getZ() - (w.getZ() + 0.5)) * az) / len;
         return along < -Math.sqrt(REACH_DIST_SQ);
     }
-
-    /** The step-advance gates, in the order {@link #advanceCause} is handed their flags. */
-    private static final String[] ADVANCE_NAMES = {
-        "within", "passed", "tail", "crossDesc", "crossWalk", "waterStepDown", "waterWalk", "arc", "dropAhead"
-    };
 
     /**
      * [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't advance (-823 dimple
@@ -386,13 +401,6 @@ public final class ProgressPhase {
         }
         return sb.length() == 0 ? "other" : sb.toString();
     }
-
-    /**
-     * Ticks of stalled step progress after which a far-ahead best-effort tail stops being held
-     * (navigatorTailConsumeDirectional) and the legacy distance-consume applies — a wedge-scale window: long enough to
-     * ride out a slow but real approach, short enough that walled pockets re-enter the repath/churn machinery promptly.
-     */
-    private static final int TAIL_HOLD_STALL_TICKS = 30;
 
     /**
      * Distance alone reads a tail still far ahead as blown past, so hold it until the foot is beyond it along the
@@ -684,9 +692,6 @@ public final class ProgressPhase {
         return held;
     }
 
-    /** Horizontal reach (squared) at which a best-effort tail counts as reached once its continuation waits. */
-    private static final double TAIL_READY_SQ = 1.0;
-
     /**
      * A best-effort tail whose continuation has already landed is a splice point, not a target: standing on its row
      * within a block of it is reach enough. Held to the 0.45 gate, a bot that landed a diagUp 0.7 past R1's
@@ -701,9 +706,6 @@ public final class ProgressPhase {
                 && foot.getY() == w.getY()
                 && cur2 < TAIL_READY_SQ;
     }
-
-    /** How many nodes past the current one {@link #dropAheadTarget} may skip to. */
-    private static final int DROP_AHEAD_NODES = 4;
 
     /**
      * A descent the body took a row early. A body carrying momentum down a turning staircase steps off the upper tread
@@ -800,8 +802,6 @@ public final class ProgressPhase {
         double pz = p.getZ() - (w.getZ() + 0.5);
         return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
     }
-
-    private static final double LEG_HALF_WIDTH = 0.8;
 
     /**
      * Hold the pointer on the LAST node instead of spending it while the foot is still short of the goal. Disk goals:

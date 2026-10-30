@@ -23,6 +23,18 @@ import net.minecraft.core.BlockPos;
  */
 public final class MediumMove extends Move {
 
+    /** Every stroke through water, to each of the 26 neighbours. */
+    public static final List<Move> SWIM = build(Medium.WATER);
+    /** Every stroke through air, to each of the 26 neighbours. */
+    public static final List<Move> FLY = build(Medium.AIR);
+
+    /** The lowest a body's feet are kept above its node's floor. */
+    private static final double MIN_FEET_LIFT = 0.1;
+
+    private static final double EPS = 1e-6;
+
+    private final Medium medium;
+
     /** What a {@link MediumMove} moves through. */
     public enum Medium {
         /** Water that blocks no motion: not air, and not a waterlogged block with a shape. */
@@ -46,18 +58,6 @@ public final class MediumMove extends Move {
             };
         }
     }
-
-    /** Every stroke through water, to each of the 26 neighbours. */
-    public static final List<Move> SWIM = build(Medium.WATER);
-    /** Every stroke through air, to each of the 26 neighbours. */
-    public static final List<Move> FLY = build(Medium.AIR);
-
-    /** The lowest a body's feet are kept above its node's floor. */
-    private static final double MIN_FEET_LIFT = 0.1;
-
-    private static final double EPS = 1e-6;
-
-    private final Medium medium;
 
     private MediumMove(Medium medium, int dx, int dy, int dz) {
         super(dx, dy, dz, cost(dx, dy, dz));

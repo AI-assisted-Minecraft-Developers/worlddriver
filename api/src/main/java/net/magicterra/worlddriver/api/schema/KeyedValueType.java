@@ -22,14 +22,6 @@ import java.util.function.Function;
  */
 public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
-    /** One member; {@code value} is what the key's type decodes to. */
-    public record Entry(String key, Object value) {
-        public Entry {
-            Objects.requireNonNull(key);
-            Objects.requireNonNull(value);
-        }
-    }
-
     private final String name;
     private final Map<String, ApiType<?>> types;
     private final Map<String, String> docs;
@@ -37,6 +29,14 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     private final int minEntries;
     /** Shared with {@link #atLeast} copies: the TypeScript declaration is the same one. */
     private final Object tsOwner;
+
+    /** One member; {@code value} is what the key's type decodes to. */
+    public record Entry(String key, Object value) {
+        public Entry {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(value);
+        }
+    }
 
     KeyedValueType(
             String name, Map<String, ApiType<?>> types, Map<String, String> docs, Function<String, Object> defaults) {

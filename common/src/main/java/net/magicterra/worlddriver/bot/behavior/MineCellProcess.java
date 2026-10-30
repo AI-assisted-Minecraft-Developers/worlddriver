@@ -27,16 +27,16 @@ public final class MineCellProcess implements BotProcess, Navigating {
     private final BlockPos target;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("mineCell"));
 
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
-
     private Block initial;
     private boolean walking;
     private int digTicks;
     private boolean broken;
     private String failure;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     public MineCellProcess(BlockPos target) {
         this.target = target.immutable();

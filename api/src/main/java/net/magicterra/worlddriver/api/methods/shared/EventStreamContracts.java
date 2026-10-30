@@ -15,10 +15,15 @@ import net.magicterra.worlddriver.api.schema.annotation.OnlyTrue;
  * them itself and they are not business methods; their shapes are still contracts.
  */
 public final class EventStreamContracts {
-    private EventStreamContracts() {}
 
     public static final String SUBSCRIBE = "mc.events.subscribe";
     public static final String UNSUBSCRIBE = "mc.events.unsubscribe";
+
+    public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record(SubscribeParams.class);
+    public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record(Subscription.class);
+    public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record(Unsubscribed.class);
+
+    private EventStreamContracts() {}
 
     /** {@code types} omitted or empty: every type. Event types are open-world, so any non-blank name is allowed. */
     @Named("SubscribeParams")
@@ -36,8 +41,4 @@ public final class EventStreamContracts {
 
     @Named("Unsubscribed")
     public record Unsubscribed(boolean subscribed) {}
-
-    public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record(SubscribeParams.class);
-    public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record(Subscription.class);
-    public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record(Unsubscribed.class);
 }

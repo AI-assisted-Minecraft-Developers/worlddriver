@@ -84,11 +84,6 @@ public final class JoinedPlayers {
      */
     public static final JoinedPlayers BOTS = new JoinedPlayers();
 
-    /** Whether {@code connection} is a bot's, which has no client and throws every packet away. */
-    public static boolean isSilent(Connection connection) {
-        return connection instanceof SilentConnection;
-    }
-
     /**
      * The joined players by name, whatever level each is in. Not by level: the level a player is asked for is only
      * where a new one starts. The join moves a returning player to the dimension its save names, and a portal or a
@@ -96,6 +91,11 @@ public final class JoinedPlayers {
      * under a dimension it was not in, and the next ask for its real one joined a second player with its name.
      */
     private final Map<String, JoinedBody> byName = new ConcurrentHashMap<>();
+
+    /** Whether {@code connection} is a bot's, which has no client and throws every packet away. */
+    public static boolean isSilent(Connection connection) {
+        return connection instanceof SilentConnection;
+    }
 
     /**
      * The player for {@code profile} on {@code level}'s server: the one already joined under that name, in whatever
@@ -172,6 +172,27 @@ public final class JoinedPlayers {
         private final SilentConnection wire = new SilentConnection();
         private boolean leaving;
 
+        /**
+         * Set by the level's entity loop, read and cleared by {@link #pump}.
+         *
+         * <p>{@code ServerLevel.tickNonPassenger} does {@code setOldPosAndRot()} and {@code tickCount++} itself and
+         * then calls {@link #tick()}; neither is in {@code ServerPlayer.tick()} or {@code doTick()}. A player pumped
+         * once per server tick gets both from the loop, but scenes pump one player hundreds of times inside a single
+         * server tick, and each of those steps needs its own: {@code xo}/{@code zo} feed the body yaw and the walk
+         * animation, and every {@code tickCount % N} rule would otherwise fire on all of them or on none. A flag rather
+         * than a game-time comparison, because a scene may re-enter {@code level.tick} between steps and a portal scene
+         * moves the player to another level mid-loop; the flag answers "did a loop tick this player since the last
+         * step" for whichever loop it was.
+         */
+        private boolean levelTicked;
+
+        /** This step's movement input, as a client's {@code Input} holds it before any scaling. */
+        private float moveLeft;
+
+        private float moveForward;
+
+        private long lastJumpGameTime = -1;
+
         JoinedBody(ServerLevel level, GameProfile profile) {
             super(level.getServer(), level, profile, ClientInformation.createDefault());
         }
@@ -227,27 +248,6 @@ public final class JoinedPlayers {
             }
             super.remove(reason);
         }
-
-        /**
-         * Set by the level's entity loop, read and cleared by {@link #pump}.
-         *
-         * <p>{@code ServerLevel.tickNonPassenger} does {@code setOldPosAndRot()} and {@code tickCount++} itself and
-         * then calls {@link #tick()}; neither is in {@code ServerPlayer.tick()} or {@code doTick()}. A player pumped
-         * once per server tick gets both from the loop, but scenes pump one player hundreds of times inside a single
-         * server tick, and each of those steps needs its own: {@code xo}/{@code zo} feed the body yaw and the walk
-         * animation, and every {@code tickCount % N} rule would otherwise fire on all of them or on none. A flag rather
-         * than a game-time comparison, because a scene may re-enter {@code level.tick} between steps and a portal scene
-         * moves the player to another level mid-loop; the flag answers "did a loop tick this player since the last
-         * step" for whichever loop it was.
-         */
-        private boolean levelTicked;
-
-        /** This step's movement input, as a client's {@code Input} holds it before any scaling. */
-        private float moveLeft;
-
-        private float moveForward;
-
-        private long lastJumpGameTime = -1;
 
         /**
          * The level's entity loop. Records that it came and does nothing else: the player moves when its driver pumps
@@ -498,6 +498,8 @@ public final class JoinedPlayers {
         @SuppressWarnings("unused") // held so the channel is not collected out from under us
         private final EmbeddedChannel wire;
 
+        private PacketListener inbound;
+
         SilentConnection() {
             super(PacketFlow.SERVERBOUND);
             // Registering fires channelActive through the pipeline, and Connection.channelActive is
@@ -583,7 +585,5 @@ public final class JoinedPlayers {
         public PacketListener getPacketListener() {
             return inbound;
         }
-
-        private PacketListener inbound;
     }
 }

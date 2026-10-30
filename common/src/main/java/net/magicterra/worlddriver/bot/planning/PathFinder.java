@@ -386,6 +386,21 @@ public final class PathFinder {
      * removed.
      */
     public final class Search {
+        /**
+         * Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
+         * ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding navigatorDebug — which scenes flip off to
+         * silence the per-TICK navigator spam. Eight of the ten WaterCross scenes do exactly that, i.e. the runs most
+         * likely to exercise the water taxes are the ones that would have silenced their own attribution.
+         * navigatorDebug still enables it, so nothing that used to print stops printing.
+         */
+        private static final boolean TAX_LOG = Boolean.getBoolean("worlddriver.pathfinderTaxLog");
+
+        /**
+         * How many runaway expansions one search may report before it stops repeating itself. Enough to see whether it
+         * is one bad cell or a whole region.
+         */
+        private static final int RUNAWAY_LOG_CAP = 8;
+
         private final BlockPos start;
         private final Goal goal;
         private final boolean suppressPlace;
@@ -505,14 +520,6 @@ public final class PathFinder {
          * block is then skipped).
          */
         private final List<Constraint> constraints;
-        /**
-         * Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
-         * ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding navigatorDebug — which scenes flip off to
-         * silence the per-TICK navigator spam. Eight of the ten WaterCross scenes do exactly that, i.e. the runs most
-         * likely to exercise the water taxes are the ones that would have silenced their own attribution.
-         * navigatorDebug still enables it, so nothing that used to print stops printing.
-         */
-        private static final boolean TAX_LOG = Boolean.getBoolean("worlddriver.pathfinderTaxLog");
 
         /**
          * Ordered stack of per-edge cost taxes, summed in the neighbor loop. A0 seeds it with the eight legacy taxes IN
@@ -555,6 +562,8 @@ public final class PathFinder {
          * {@link #hasCommittableSegment}) is bypassed in favor of the standard goal-ward selection.
          */
         private final boolean diveRelief;
+
+        private int runawayLogged;
 
         private Search(
                 BlockPos start,
@@ -1333,14 +1342,6 @@ public final class PathFinder {
             }
             return 0;
         }
-
-        /**
-         * How many runaway expansions one search may report before it stops repeating itself. Enough to see whether it
-         * is one bad cell or a whole region.
-         */
-        private static final int RUNAWAY_LOG_CAP = 8;
-
-        private int runawayLogged;
 
         /**
          * Expand nodes until {@code sliceMs} of wall-clock elapses this call (or the search finishes / hits its total

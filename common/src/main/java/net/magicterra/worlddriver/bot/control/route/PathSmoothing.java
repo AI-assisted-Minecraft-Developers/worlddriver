@@ -24,6 +24,19 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class PathSmoothing {
 
+    private static volatile int emits;
+    private static volatile int unwalkableEmits;
+    private static volatile String lastUnwalkableEmit;
+
+    /**
+     * How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the bot executes before the
+     * next periodic search could correct it.
+     */
+    private static final int STALE_CHECK_EDGES = 12;
+
+    /** How far a best-effort tail may sink below the segment's high point before it is cut back. */
+    public static final int SUNK_TAIL_DROP = 4;
+
     private PathSmoothing() {}
 
     /** A smoothed (string-pulled) path and its aligned edges. */
@@ -205,10 +218,6 @@ public final class PathSmoothing {
         unwalkableEmits++;
         lastUnwalkableEmit = a.toShortString() + "→" + b.toShortString();
     }
-
-    private static volatile int emits;
-    private static volatile int unwalkableEmits;
-    private static volatile String lastUnwalkableEmit;
 
     /**
      * What {@link #auditEmit} has seen. A count of zero unwalkable emits is the load-bearing half: it says the smoother
@@ -423,12 +432,6 @@ public final class PathSmoothing {
     }
 
     /**
-     * How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the bot executes before the
-     * next periodic search could correct it.
-     */
-    private static final int STALE_CHECK_EDGES = 12;
-
-    /**
      * Cut a fresh search result at the first leading edge the CURRENT world no longer admits.
      *
      * <p>A sliced search runs for seconds of wall-clock while the bot keeps executing the plan it already has, and
@@ -516,9 +519,6 @@ public final class PathSmoothing {
         }
         return ax * (p.getX() - (w.getX() + 0.5)) + az * (p.getZ() - (w.getZ() + 0.5)) > 0;
     }
-
-    /** How far a best-effort tail may sink below the segment's high point before it is cut back. */
-    public static final int SUNK_TAIL_DROP = 4;
 
     /**
      * Where to cut a best-effort segment whose tail sinks into a dip: the last node at the segment's highest Y, when

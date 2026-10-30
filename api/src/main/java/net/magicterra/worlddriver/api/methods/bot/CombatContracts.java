@@ -28,6 +28,27 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * task.
  */
 public final class CombatContracts {
+
+    public static final ApiType<Mode> MODE = ApiTypes.of(Mode.class);
+
+    public static final UnionType<Foe> FOE = ApiTypes.union(Foe.class);
+
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
+
+    public static final UnionType<Fought> RESULT =
+            ApiTypes.union("CombatResult", "kind", ApiTypes.record(Fought.class));
+
+    public static final MethodSpec<Params, ActionResponse<Fought>> SPEC = MethodSpec.of(
+                    "mc.bot.combat",
+                    PARAMS,
+                    Responses.response("Combat", RESULT),
+                    "Fight hostiles until the target dies or the area is clear: close to weapon range and swing only "
+                            + "at full attack strength, jumping for crits; with a bow or crossbow in hand keep the "
+                            + "kiteDistance setting and fire at full draw. On self it outranks goto and mine, which "
+                            + "resume afterwards; the autoFight setting does this unasked.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
     private CombatContracts() {}
 
     @Named("CombatMode")
@@ -81,24 +102,4 @@ public final class CombatContracts {
 
     @Variant("combat")
     public record Fought(Mode mode, Optional<Foe> target) {}
-
-    public static final ApiType<Mode> MODE = ApiTypes.of(Mode.class);
-
-    public static final UnionType<Foe> FOE = ApiTypes.union(Foe.class);
-
-    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
-
-    public static final UnionType<Fought> RESULT =
-            ApiTypes.union("CombatResult", "kind", ApiTypes.record(Fought.class));
-
-    public static final MethodSpec<Params, ActionResponse<Fought>> SPEC = MethodSpec.of(
-                    "mc.bot.combat",
-                    PARAMS,
-                    Responses.response("Combat", RESULT),
-                    "Fight hostiles until the target dies or the area is clear: close to weapon range and swing only "
-                            + "at full attack strength, jumping for crits; with a bow or crossbow in hand keep the "
-                            + "kiteDistance setting and fire at full draw. On self it outranks goto and mine, which "
-                            + "resume afterwards; the autoFight setting does this unasked.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 }

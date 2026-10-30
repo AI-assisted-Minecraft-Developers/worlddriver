@@ -23,22 +23,27 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class BboxFillProcess implements BotProcess, Navigating {
+    private static final int PLACE_TIMEOUT_TICKS = 60;
+
+    /**
+     * Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
+     * {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole block of margin on
+     * purpose: it picks a cell to WALK TO, and the bot will not be standing exactly on that centre when it gets there.
+     * Choosing a stand the actuator can only just reach is how a fill reports a cell placed from a stand it then cannot
+     * place from. (Sneaking would cost another 0.35 of eye height — this process does not sneak, but
+     * {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.)
+     */
+    private static final double FILL_STAND_REACH = 4.0;
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
-    private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos minP;
     private final BlockPos maxP;
     private final String fillId; // null = no placement
     private final String filterFromId; // null = any non-air; else only this id
     private final Navigator navigator = new Navigator(NavigatorSettings.named("fill"));
-
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
 
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final Set<BlockPos> done = new HashSet<>();
@@ -59,12 +64,17 @@ public final class BboxFillProcess implements BotProcess, Navigating {
 
     private String failure;
 
+    private Phase phase = Phase.SEARCH;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     @Override
     public String failure() {
         return failure;
     }
-
-    private Phase phase = Phase.SEARCH;
 
     private enum Phase {
         SEARCH,
@@ -365,16 +375,6 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         }
         return null;
     }
-
-    /**
-     * Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
-     * {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole block of margin on
-     * purpose: it picks a cell to WALK TO, and the bot will not be standing exactly on that centre when it gets there.
-     * Choosing a stand the actuator can only just reach is how a fill reports a cell placed from a stand it then cannot
-     * place from. (Sneaking would cost another 0.35 of eye height — this process does not sneak, but
-     * {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.)
-     */
-    private static final double FILL_STAND_REACH = 4.0;
 
     private static boolean withinReach(BlockPos stand, BlockPos block) {
         return eyeWithin(standingEye(stand), block, FILL_STAND_REACH);

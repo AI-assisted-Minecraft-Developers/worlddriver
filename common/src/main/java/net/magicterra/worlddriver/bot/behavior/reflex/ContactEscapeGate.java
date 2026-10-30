@@ -15,7 +15,6 @@ import java.util.Set;
  * M1).
  */
 public final class ContactEscapeGate {
-    private ContactEscapeGate() {}
 
     /**
      * Damage-type msgIds dealt by touching/standing on a damaging BLOCK, where stepping out of contact stops the bleed.
@@ -26,6 +25,8 @@ public final class ContactEscapeGate {
      */
     public static final Set<String> CONTACT_MSG_IDS =
             Set.of("cactus", "sweetBerryBush", "inFire", "hotFloor", "stalagmite");
+
+    private ContactEscapeGate() {}
 
     /**
      * @param lastDamageMsgId {@code getLastDamageSource().getMsgId()}, null if none

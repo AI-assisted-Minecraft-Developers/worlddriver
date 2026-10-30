@@ -31,6 +31,21 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * wait an {@code awaitMs} asked for is reported beside it, never as a state of its own.
  */
 public final class Responses {
+
+    /** The bot ref of this client's own player, every bot parameter's default. */
+    public static final String SELF = "self";
+
+    public static final ApiType<String> BOT_REF = ApiTypes.of(String.class, BotRef.class);
+
+    public static final ApiType<String> ACTION_ID = ApiTypes.of(String.class, ActionId.class);
+
+    public static final ApiType<Integer> AWAIT_MS = ApiTypes.of(Integer.class, AwaitMs.class);
+
+    public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.of(RefusalReason.class);
+    public static final ApiType<Unready> UNREADY = ApiTypes.of(Unready.class);
+    public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.of(FailureReason.class);
+    public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.of(CancelReason.class);
+
     private Responses() {}
 
     /** Why a valid request started nothing. */
@@ -280,9 +295,6 @@ public final class Responses {
     @Variant("done")
     public record Rostered(@BotRef String bot) implements ImmediateResponse {}
 
-    /** The bot ref of this client's own player, every bot parameter's default. */
-    public static final String SELF = "self";
-
     /** {@code self}, {@code player:<name>}, {@code mob:<name>}, {@code npc:<name>} or {@code entity:<uuid>}. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
@@ -299,15 +311,11 @@ public final class Responses {
             + " takes over that mob on its first order.")
     public @interface BotRef {}
 
-    public static final ApiType<String> BOT_REF = ApiTypes.of(String.class, BotRef.class);
-
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
     @Length(min = 1, max = 64)
     @Doc("Opaque; do not take it apart.")
     public @interface ActionId {}
-
-    public static final ApiType<String> ACTION_ID = ApiTypes.of(String.class, ActionId.class);
 
     /** {@code awaitMs}: how long this call may wait for the action to end; 0 returns at once. */
     @Retention(RetentionPolicy.RUNTIME)
@@ -316,13 +324,6 @@ public final class Responses {
     @Doc("Wait at most this many ms for the action to end; 0 returns at once. The action keeps "
             + "running when the wait runs out.")
     public @interface AwaitMs {}
-
-    public static final ApiType<Integer> AWAIT_MS = ApiTypes.of(Integer.class, AwaitMs.class);
-
-    public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.of(RefusalReason.class);
-    public static final ApiType<Unready> UNREADY = ApiTypes.of(Unready.class);
-    public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.of(FailureReason.class);
-    public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.of(CancelReason.class);
 
     /**
      * The snapshot union for actions whose result is {@code result}, declared to TypeScript as {@code <name>Action}.

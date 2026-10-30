@@ -31,6 +31,9 @@ import net.magicterra.worlddriver.bot.BotHooks;
  * hold a wait permit until they finish, but no thread, and are refused on a game thread.
  */
 final class ClientService implements ClientApi {
+
+    private static final long CHAT_POLL_MS = 50;
+
     ClientService() {}
 
     List<ApiMethod<?, ?>> methods() {
@@ -72,8 +75,6 @@ final class ClientService implements ClientApi {
                     .thenApply(later -> new ClientContracts.ChatSent(sent.kind(), sent.length(), Optional.of(later)));
         });
     }
-
-    private static final long CHAT_POLL_MS = 50;
 
     @Override
     public CompletionStage<ClientContracts.ChatHistory> chatHistory(

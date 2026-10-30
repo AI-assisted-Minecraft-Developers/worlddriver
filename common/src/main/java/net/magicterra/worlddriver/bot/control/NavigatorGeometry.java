@@ -26,6 +26,53 @@ import net.minecraft.world.entity.LivingEntity;
  * {@link BodyGeometry}'s, below the navigator, because a body's actuators ask it too.
  */
 public final class NavigatorGeometry {
+
+    /** The 4 horizontal unit offsets, scanned when locating a vine's backing wall. */
+    public static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
+
+    /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
+    public static final int[][] EDGE_NEIGHBOURS = Drops.EDGE_NEIGHBOURS;
+
+    /**
+     * The Chebyshev radius the recovery-hop gate USED to scan around the foot, kept because the rows that judged it
+     * print it and a reader comparing two runs needs the old number in view.
+     *
+     * <p><b>Retired as a gate on 2026-08-26</b> in favour of {@link #hopSuppressed}. The reasoning it was built on is
+     * still correct and is why the replacement exists: those hops launch a full sprint-jump arc along whatever the
+     * current (often mid-slew) heading is — the bridge-battery sheds launched from one cell INSIDE a safe pad rim,
+     * every neighbour floored, and sailed clean over the deck edge (t0 2026-07-20, breach@t=81/609) — so a
+     * foot-ADJACENT scan is blind to them. What was wrong was the SHAPE of the answer: a guard whose reach is 2 against
+     * a throw measured at 3.47 has a hole exactly one ring wide, and on a 5-wide platform the centre cell is the single
+     * cell that sits in it. Widening it was measured and rejected (it relocates the hole into a three-minute stall);
+     * re-centring the probe on where the arc lands closed both.
+     *
+     * <p>{@code lethalDropWithinHopRange}, the boolean over this radius, is gone with it — the ring and the CELL that
+     * replaced it live in {@link #nearestLethalHopRing} and {@link #nearestLethalHopCell}, which the rows still print.
+     */
+    public static final int HOP_RANGE = 2;
+
+    /**
+     * The radii, in blocks along the drive bearing, that {@link #hopSuppressed} probes for a lethal landing column —
+     * and that {@link #hopLandingRow} prints. <b>ONE array</b>, consumed through one {@link #hopLandingCells}, because
+     * a gate and the row that judges the gate must not be able to disagree about which cells they mean (the same
+     * argument that made the ring and the cell share a scan).
+     *
+     * <p><b>Why the far end is 4 and not one point at 3.</b> The arc length is a MEASUREMENT with spread, not a
+     * constant. Measured 2026-08-26 off the ladder's rung 12: a hop logged at {@code (-4.854,66,22.577)} put the bot at
+     * {@code (-8.257,66,23.234)} twelve ticks later — <b>3.47 blocks</b>, against the "~3" that the retired gate's
+     * javadoc had carried in prose. A bot that launches slowed lands short, one that launches sprinting lands past, so
+     * a single point probe would be a coin flip on the one decision that costs a life.
+     *
+     * <p><b>Why the near end is 1.</b> A hop that barely leaves the ground lands one block out — back inside the ring
+     * the old gate covered. Dropping r=1 would trade the old gate's whole purpose for the new one's reach.
+     *
+     * <p><b>Why half-block steps.</b> Whole-block steps along a diagonal bearing SKIP cells: the ray clips a corner and
+     * the two samples either side of it both land in neighbours. Harmless against rung 12's 72-source lava lake, blind
+     * against a one-cell shaft — and the cost of closing it is four more array entries, which is sampling density, not
+     * a tuned parameter.
+     */
+    private static final double[] HOP_ARC_SAMPLES = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
+
     private NavigatorGeometry() {}
 
     /**
@@ -76,9 +123,6 @@ public final class NavigatorGeometry {
     public static boolean feetClearOf(LivingEntity p, BlockPos cell) {
         return p.getY() >= cell.getY() + 1.0;
     }
-
-    /** The 4 horizontal unit offsets, scanned when locating a vine's backing wall. */
-    public static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
 
     /**
      * Yaw to face the SOLID wall a vine column hangs on, so a vine-climb press drives the bot INTO that wall and
@@ -161,9 +205,6 @@ public final class NavigatorGeometry {
         return BodyGeometry.soleRow(w::isSolid, p);
     }
 
-    /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
-    public static final int[][] EDGE_NEIGHBOURS = Drops.EDGE_NEIGHBOURS;
-
     /**
      * True if a LETHAL drop borders the cell the bot is standing on — any horizontal neighbour that is an open
      * foot-cell with no floor, falling to the next solid/ water surface deeper than {@link SurvivalMath#survivableFall}
@@ -187,24 +228,6 @@ public final class NavigatorGeometry {
     public static boolean dropAdjacentExceeds(WorldView world, BlockPos foot, int threshold) {
         return Drops.adjacentExceeds(world, foot, threshold);
     }
-
-    /**
-     * The Chebyshev radius the recovery-hop gate USED to scan around the foot, kept because the rows that judged it
-     * print it and a reader comparing two runs needs the old number in view.
-     *
-     * <p><b>Retired as a gate on 2026-08-26</b> in favour of {@link #hopSuppressed}. The reasoning it was built on is
-     * still correct and is why the replacement exists: those hops launch a full sprint-jump arc along whatever the
-     * current (often mid-slew) heading is — the bridge-battery sheds launched from one cell INSIDE a safe pad rim,
-     * every neighbour floored, and sailed clean over the deck edge (t0 2026-07-20, breach@t=81/609) — so a
-     * foot-ADJACENT scan is blind to them. What was wrong was the SHAPE of the answer: a guard whose reach is 2 against
-     * a throw measured at 3.47 has a hole exactly one ring wide, and on a 5-wide platform the centre cell is the single
-     * cell that sits in it. Widening it was measured and rejected (it relocates the hole into a three-minute stall);
-     * re-centring the probe on where the arc lands closed both.
-     *
-     * <p>{@code lethalDropWithinHopRange}, the boolean over this radius, is gone with it — the ring and the CELL that
-     * replaced it live in {@link #nearestLethalHopRing} and {@link #nearestLethalHopCell}, which the rows still print.
-     */
-    public static final int HOP_RANGE = 2;
 
     /**
      * The Chebyshev RING of the nearest lethal drop column around {@code foot}, scanning outward ring by ring to
@@ -297,28 +320,6 @@ public final class NavigatorGeometry {
                 delta,
                 delta <= 90 ? "facing it" : "facing away");
     }
-
-    /**
-     * The radii, in blocks along the drive bearing, that {@link #hopSuppressed} probes for a lethal landing column —
-     * and that {@link #hopLandingRow} prints. <b>ONE array</b>, consumed through one {@link #hopLandingCells}, because
-     * a gate and the row that judges the gate must not be able to disagree about which cells they mean (the same
-     * argument that made the ring and the cell share a scan).
-     *
-     * <p><b>Why the far end is 4 and not one point at 3.</b> The arc length is a MEASUREMENT with spread, not a
-     * constant. Measured 2026-08-26 off the ladder's rung 12: a hop logged at {@code (-4.854,66,22.577)} put the bot at
-     * {@code (-8.257,66,23.234)} twelve ticks later — <b>3.47 blocks</b>, against the "~3" that the retired gate's
-     * javadoc had carried in prose. A bot that launches slowed lands short, one that launches sprinting lands past, so
-     * a single point probe would be a coin flip on the one decision that costs a life.
-     *
-     * <p><b>Why the near end is 1.</b> A hop that barely leaves the ground lands one block out — back inside the ring
-     * the old gate covered. Dropping r=1 would trade the old gate's whole purpose for the new one's reach.
-     *
-     * <p><b>Why half-block steps.</b> Whole-block steps along a diagonal bearing SKIP cells: the ray clips a corner and
-     * the two samples either side of it both land in neighbours. Harmless against rung 12's 72-source lava lake, blind
-     * against a one-cell shaft — and the cost of closing it is four more array entries, which is sampling density, not
-     * a tuned parameter.
-     */
-    private static final double[] HOP_ARC_SAMPLES = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
 
     /**
      * The columns {@link #HOP_ARC_SAMPLES} names along {@code driveYaw}, in order and with duplicates kept (half-block

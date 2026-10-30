@@ -34,7 +34,6 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
  * (diamond ← smelt diamond_ore), hiding what the agent must actually gather, so they fall through to {@code missing}.
  */
 public final class RecipeResolver {
-    private RecipeResolver() {}
 
     private static final int MAX_DEPTH = 64;
 
@@ -47,6 +46,8 @@ public final class RecipeResolver {
     private static final String STATION_CRAFTING_TABLE = "crafting_table";
 
     private static final String ITEM_CRAFTING_TABLE = "minecraft:crafting_table";
+
+    private RecipeResolver() {}
 
     /**
      * One crafting action in the plan: craft {@code result} {@code crafts}× (each yielding {@code yield}) via

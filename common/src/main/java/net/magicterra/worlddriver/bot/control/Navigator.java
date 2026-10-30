@@ -65,27 +65,12 @@ public final class Navigator implements Locomotor {
     public final NavigatorTallies tallies = new NavigatorTallies();
 
     private final NavigatorInspector inspector = new NavigatorInspector(this);
-    /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
-    public NavigatorInspector inspect() {
-        return inspector;
-    }
 
     /** The telemetry of the body this navigator last ticked; a private sink until the first tick. */
     public NavigatorTelemetry tel = new NavigatorTelemetry();
 
     /** The chain or verb this navigator moves for — see {@link NavigatorSettings#owner}. */
     public final String owner;
-
-    public Navigator() {
-        this(NavigatorSettings.DEFAULT);
-    }
-
-    public Navigator(NavigatorSettings settings) {
-        this.owner = settings.owner();
-        this.searchMaxNodes = settings.searchMaxNodes();
-        this.searchMaxMs = settings.searchMaxMs();
-        useProfile(settings.profile());
-    }
 
     public Goal goal;
     /**
@@ -107,15 +92,6 @@ public final class Navigator implements Locomotor {
     final long searchMaxMs;
 
     /**
-     * Single construction point for this Navigator's deep-search PathFinders so the per-Navigator budget override,
-     * tuning and scope source apply to every search launch site alike (foot repath, commit-end continuation,
-     * place-suppressed re-plan). See {@link NavigatorFinders}.
-     */
-    public PathFinder newPathFinder(WorldView world) {
-        return NavigatorFinders.deep(this, world);
-    }
-
-    /**
      * The bot the last {@link #tick(Body, WorldView)} drove, for the finders' scope source. Null until the first tick,
      * which is also the first time a search can start.
      */
@@ -128,34 +104,6 @@ public final class Navigator implements Locomotor {
     public Equipment equipment = NoHands.INSTANCE;
 
     public BlockInteraction blocks = NoHands.INSTANCE;
-
-    /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
-    private void useProfile(SearchProfile p) {
-        this.profile = p == null ? SearchProfile.NONE : p;
-        boolean forbids = false;
-        for (Constraint c : this.profile.constraints()) {
-            if (c instanceof NoBreak) {
-                forbids = true;
-                break;
-            }
-        }
-        this.profileForbidsBreak = forbids;
-    }
-
-    /**
-     * True when the executor MAY mutate the world to recover (the discretionary dig FALLBACKS: wallDig, the swim/bank
-     * climb-out riser, the lily-pad ram). Honors BOTH the global {@link WorldConfig#allowBreak} master switch AND the
-     * per-intent {@link NoBreak} constraint (a per-goto {@code forbidDig}): an executor recovery must never exceed the
-     * world-mutation authority the planner was given. Before this, the fallbacks checked only the global switch, so a
-     * {@code forbidDig} bot pinned against terrain still tunnelled (survival day6: a leashed {@code goto entityId
-     * forbidDig:true} carved back underground; the live workaround was to kill global {@code allowBreak}, which also
-     * killed legitimate planned digs). Planned break edges are NOT gated here — {@code NoBreak} already prunes them at
-     * the planner. The single-head-cell anti-suffocation dig (pillarRecover) is DELIBERATELY exempt and stays on
-     * {@code allowBreak} only: suffocation is death, {@code forbidDig} is a navigation preference — safety wins.
-     */
-    public boolean mayBreak() {
-        return WorldConfig.allowBreak && !profileForbidsBreak;
-    }
 
     public boolean
             goalSnapChecked; // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell
@@ -210,6 +158,83 @@ public final class Navigator implements Locomotor {
      * "arrived NEAR", not "arrived AT".
      */
     public boolean goalSnapped;
+
+    /** The body the tick drives, recording movement into this tick's frame; see {@link Actuate}. */
+    private final Actuate.FrameBody frameBody = new Actuate.FrameBody();
+
+    /**
+     * Which branch commanded THIS tick's jump (null = no jump commanded). Pure telemetry, reset each tick in the
+     * prelude: fall post-mortems keep needing "who launched the fatal arc?" (bridge battery: three different launchers
+     * over three rounds), and the aggregated drive jump erases the answer by the time the bot is airborne.
+     */
+    public String jumpTag;
+
+    /**
+     * This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as {@link NavigatorInspector#jumpTag}: wedge
+     * post-mortems need "who owned the heading".
+     */
+    public String aimTag;
+
+    /**
+     * This tick's drive command (target yaw + impulse) as a compact string; null when the tick never reached the drive
+     * tail (early-return branch) — which is itself the answer a pinned-bot autopsy is after. Reset each tick in the
+     * prelude.
+     */
+    public String driveTag;
+    /** The walk of a body living in water or air, which takes every order and tick while it exists. */
+    private MediumLocomotor medium;
+    /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
+    public NavigatorInspector inspect() {
+        return inspector;
+    }
+
+    public Navigator() {
+        this(NavigatorSettings.DEFAULT);
+    }
+
+    public Navigator(NavigatorSettings settings) {
+        this.owner = settings.owner();
+        this.searchMaxNodes = settings.searchMaxNodes();
+        this.searchMaxMs = settings.searchMaxMs();
+        useProfile(settings.profile());
+    }
+
+    /**
+     * Single construction point for this Navigator's deep-search PathFinders so the per-Navigator budget override,
+     * tuning and scope source apply to every search launch site alike (foot repath, commit-end continuation,
+     * place-suppressed re-plan). See {@link NavigatorFinders}.
+     */
+    public PathFinder newPathFinder(WorldView world) {
+        return NavigatorFinders.deep(this, world);
+    }
+
+    /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
+    private void useProfile(SearchProfile p) {
+        this.profile = p == null ? SearchProfile.NONE : p;
+        boolean forbids = false;
+        for (Constraint c : this.profile.constraints()) {
+            if (c instanceof NoBreak) {
+                forbids = true;
+                break;
+            }
+        }
+        this.profileForbidsBreak = forbids;
+    }
+
+    /**
+     * True when the executor MAY mutate the world to recover (the discretionary dig FALLBACKS: wallDig, the swim/bank
+     * climb-out riser, the lily-pad ram). Honors BOTH the global {@link WorldConfig#allowBreak} master switch AND the
+     * per-intent {@link NoBreak} constraint (a per-goto {@code forbidDig}): an executor recovery must never exceed the
+     * world-mutation authority the planner was given. Before this, the fallbacks checked only the global switch, so a
+     * {@code forbidDig} bot pinned against terrain still tunnelled (survival day6: a leashed {@code goto entityId
+     * forbidDig:true} carved back underground; the live workaround was to kill global {@code allowBreak}, which also
+     * killed legitimate planned digs). Planned break edges are NOT gated here — {@code NoBreak} already prunes them at
+     * the planner. The single-head-cell anti-suffocation dig (pillarRecover) is DELIBERATELY exempt and stays on
+     * {@code allowBreak} only: suffocation is death, {@code forbidDig} is a navigation preference — safety wins.
+     */
+    public boolean mayBreak() {
+        return WorldConfig.allowBreak && !profileForbidsBreak;
+    }
 
     @Override
     public WalkResult result() {
@@ -503,9 +528,6 @@ public final class Navigator implements Locomotor {
         return RouteAdoption.adopt(this, raw, world, foot).adopted();
     }
 
-    /** The body the tick drives, recording movement into this tick's frame; see {@link Actuate}. */
-    private final Actuate.FrameBody frameBody = new Actuate.FrameBody();
-
     /** Decide the tick against a recording body, then hand what it decided to the real one. */
     @Override
     public Status tick(Body body, WorldView world) {
@@ -578,28 +600,6 @@ public final class Navigator implements Locomotor {
         }
         return s;
     }
-
-    /**
-     * Which branch commanded THIS tick's jump (null = no jump commanded). Pure telemetry, reset each tick in the
-     * prelude: fall post-mortems keep needing "who launched the fatal arc?" (bridge battery: three different launchers
-     * over three rounds), and the aggregated drive jump erases the answer by the time the bot is airborne.
-     */
-    public String jumpTag;
-
-    /**
-     * This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as {@link NavigatorInspector#jumpTag}: wedge
-     * post-mortems need "who owned the heading".
-     */
-    public String aimTag;
-
-    /**
-     * This tick's drive command (target yaw + impulse) as a compact string; null when the tick never reached the drive
-     * tail (early-return branch) — which is itself the answer a pinned-bot autopsy is after. Reset each tick in the
-     * prelude.
-     */
-    public String driveTag;
-    /** The walk of a body living in water or air, which takes every order and tick while it exists. */
-    private MediumLocomotor medium;
 
     private TickStep tickInner(Body a, WorldView world) {
         TickCtx c = new TickCtx();

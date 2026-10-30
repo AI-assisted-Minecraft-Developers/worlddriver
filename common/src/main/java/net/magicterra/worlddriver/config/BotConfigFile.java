@@ -28,6 +28,15 @@ import java.util.TreeSet;
  * {@link BotConfig#restoreAll}.
  */
 public final class BotConfigFile {
+
+    /**
+     * Suffix of the SHADOW-DEFAULT companion line written next to every persisted key: {@code <key>.default=<compiled
+     * default when the file was saved>}. A '.' can never collide with a field name (Java identifiers have no dots), so
+     * a {@code .default} line is never mistaken for an unknown field — and legacy code (which only ever looks up keys
+     * by field name) simply ignores it, so a new-format file stays readable by an older build.
+     */
+    private static final String SHADOW_SUFFIX = ".default";
+
     private BotConfigFile() {}
 
     static Path persistPath() {
@@ -41,14 +50,6 @@ public final class BotConfigFile {
     private static boolean persistEnabled() {
         return Boolean.getBoolean("worlddriver.persistConfig");
     }
-
-    /**
-     * Suffix of the SHADOW-DEFAULT companion line written next to every persisted key: {@code <key>.default=<compiled
-     * default when the file was saved>}. A '.' can never collide with a field name (Java identifiers have no dots), so
-     * a {@code .default} line is never mistaken for an unknown field — and legacy code (which only ever looks up keys
-     * by field name) simply ignores it, so a new-format file stays readable by an older build.
-     */
-    private static final String SHADOW_SUFFIX = ".default";
 
     /**
      * Write every persistable field to disk in SHADOW-DEFAULT format. Called after a successful {@code mc.bot.setting}

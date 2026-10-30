@@ -53,6 +53,9 @@ import org.jetbrains.annotations.Nullable;
  */
 public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
 
+    private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     private final ServerPlayer fp;
 
     /* Three LivingEntity members this avatar must touch, all opened by
@@ -113,6 +116,34 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     private int advancedTick = -1;
 
+    // HOW OFTEN THE NAVIGATOR ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
+    //
+    // Both early returns below used to be invisible: no log, no counter, no return value. A caller
+    // that watched its own inventory could see that no block had been spent and could not see WHY —
+    // and the two causes want opposite fixes. Measured 2026-08-17 on the End arrival platform: a
+    // 7-node `bridgePlace` plan, 1024 cobblestone carried, and zero blocks placed while the bot
+    // fell 23 000 blocks into the void.
+    //
+    // The FIRSTs matter more than the totals and are kept separately for that reason. A bot that
+    // falls keeps asking for thousands of ticks with nothing solid anywhere near it, so the totals
+    // are dominated by the aftermath; the first call, and the first refusal, are the only samples
+    // taken while there was still ground under the question.
+    private int placeCalls;
+    private int placeNoFace;
+    private int placeNoBlock;
+    private String firstCallAt;
+    private String firstNoFaceAt;
+    private String firstNoBlockAt;
+
+    private boolean loggedDugOwnFloor;
+
+    /**
+     * Why the last swing was declined by {@code Attack.attackEntity}'s footing guard, or null. Unlike the client's,
+     * this object outlives the tick — so a stale reading here would be a lie the next tick; {@code attackEntity}
+     * therefore writes it on EVERY call, pass or refuse.
+     */
+    private String lastAttackRefusal;
+
     public ServerPlayerBody(ServerPlayer fp) {
         this.fp = fp;
         // Attach vanilla's own inventory-menu listener. A real player gets this from
@@ -126,9 +157,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // a connection that discards what it is given, which is what made this look skippable.
         fp.initInventoryMenu();
     }
-
-    private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
-            new java.util.concurrent.atomic.AtomicInteger();
 
     /**
      * A bot player at {@code (x, y, z)} in {@code level}, ready to drive, with a player of its OWN — a fresh unique
@@ -524,25 +552,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit.getBlockPos() : null;
     }
 
-    // HOW OFTEN THE NAVIGATOR ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
-    //
-    // Both early returns below used to be invisible: no log, no counter, no return value. A caller
-    // that watched its own inventory could see that no block had been spent and could not see WHY —
-    // and the two causes want opposite fixes. Measured 2026-08-17 on the End arrival platform: a
-    // 7-node `bridgePlace` plan, 1024 cobblestone carried, and zero blocks placed while the bot
-    // fell 23 000 blocks into the void.
-    //
-    // The FIRSTs matter more than the totals and are kept separately for that reason. A bot that
-    // falls keeps asking for thousands of ticks with nothing solid anywhere near it, so the totals
-    // are dominated by the aftermath; the first call, and the first refusal, are the only samples
-    // taken while there was still ground under the question.
-    private int placeCalls;
-    private int placeNoFace;
-    private int placeNoBlock;
-    private String firstCallAt;
-    private String firstNoFaceAt;
-    private String firstNoBlockAt;
-
     /** Where this bot was and what it was aiming at, for the place tally's first-sample rows. */
     private String placeSample(BlockPos cell) {
         return "bot at " + fp.blockPosition().toShortString() + " → target " + cell.toShortString();
@@ -724,8 +733,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 fp.blockPosition().toShortString());
     }
 
-    private boolean loggedDugOwnFloor;
-
     /**
      * Can a player standing here actually break that block?
      *
@@ -853,13 +860,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
         fp.attack(target); // server-authoritative: applies damage/knockback/crit directly
     }
-
-    /**
-     * Why the last swing was declined by {@code Attack.attackEntity}'s footing guard, or null. Unlike the client's,
-     * this object outlives the tick — so a stale reading here would be a lie the next tick; {@code attackEntity}
-     * therefore writes it on EVERY call, pass or refuse.
-     */
-    private String lastAttackRefusal;
 
     @Override
     public void noteAttackRefusal(String why) {

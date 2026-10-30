@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.ArbitrationSettings;
  * {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class ArbitrationConfig {
-    private ArbitrationConfig() {}
 
     /**
      * Survival reflex (ROADMAP Phase B, scheduler RetreatChain) — when on, the bot disengages and flees once its health
@@ -105,4 +104,6 @@ public final class ArbitrationConfig {
     static {
         BotConfig.initialize();
     }
+
+    private ArbitrationConfig() {}
 }

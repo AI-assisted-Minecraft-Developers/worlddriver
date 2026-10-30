@@ -37,21 +37,6 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class SightExposure implements Constraint, CostModifier, SearchAware {
 
-    /** Thrown from inside the neighbour loop when the search's ray budget is spent. */
-    public static final class RayBudgetExhausted extends RuntimeException {
-        public RayBudgetExhausted(int budget) {
-            super("sight: ray budget of " + budget + " spent", null, false, false);
-        }
-    }
-
-    /** Who to hide from. */
-    public enum Of {
-        RANGED,
-        HOSTILE,
-        PLAYERS,
-        LISTED
-    }
-
     private final Of of;
     private final List<String> listed;
     private final double rangeOverride; // <= 0 → each observer's default
@@ -68,6 +53,21 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     private final Map<Long, boolean[]> cache = new HashMap<>();
 
     private int raysFired;
+
+    /** Thrown from inside the neighbour loop when the search's ray budget is spent. */
+    public static final class RayBudgetExhausted extends RuntimeException {
+        public RayBudgetExhausted(int budget) {
+            super("sight: ray budget of " + budget + " spent", null, false, false);
+        }
+    }
+
+    /** Who to hide from. */
+    public enum Of {
+        RANGED,
+        HOSTILE,
+        PLAYERS,
+        LISTED
+    }
 
     /**
      * @param of which observers

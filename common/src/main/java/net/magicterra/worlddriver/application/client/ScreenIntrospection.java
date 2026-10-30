@@ -38,7 +38,6 @@ import net.minecraft.world.item.ItemStack;
  * tree it read earlier.
  */
 public final class ScreenIntrospection {
-    private ScreenIntrospection() {}
 
     /**
      * Each widget, list row and slot object's ref, handed out the first time a walk meets it. A node id is only a place
@@ -49,6 +48,8 @@ public final class ScreenIntrospection {
     private static final Map<Object, Integer> REFS = new MapMaker().weakKeys().makeMap();
 
     private static int nextRef = 1;
+
+    private ScreenIntrospection() {}
 
     private static int refOf(Object o) {
         return REFS.computeIfAbsent(o, k -> nextRef++);

@@ -35,13 +35,77 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * not the API's.
  */
 public final class ScriptContracts {
-    private ScriptContracts() {}
 
     public static final int MAX_SOURCE_CHARS = 64 * 1024;
     public static final int DEFAULT_TIMEOUT_MS = 3000;
     public static final int MAX_TIMEOUT_MS = 30_000;
     public static final int DEFAULT_PLAYBOOK_BUDGET_MS = 10 * 60_000;
     public static final int MAX_PLAYBOOK_BUDGET_MS = 20 * 60_000;
+
+    public static final String SCRIPT_ERROR = "script_error";
+    public static final String SCRIPT_TIMEOUT = "script_timeout";
+    public static final String SCRIPT_STOPPED = "script_stopped";
+
+    // Spelled from the enums they mirror, so a new API error code is a script error code too; declared before
+    // the records that use them are built.
+    private static final ApiType<String> ERROR_CODE = errorCode();
+    private static final ApiType<String> ISSUE_CODE = issueCode();
+    private static final ApiType<String> EXECUTION = executionWord();
+
+    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class);
+
+    public static final ApiType<Outcome> OUTCOME = ApiTypes.record(Outcome.class);
+
+    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record(EvalParams.class);
+
+    // The sandbox sentence is negative on purpose: the filter is off by default, and this text reaches every
+    // client's prompt, so claiming a sandbox would invite untrusted source.
+    public static final MethodSpec<EvalParams, Outcome> EVAL = MethodSpec.of(
+                    "mc.script.eval",
+                    EVAL_PARAMS,
+                    OUTCOME,
+                    "Prefer this when a task would otherwise need three or more calls (observe, decide, act). Runs "
+                            + "JavaScript against the in-process API in a fresh scope: Driver.invoke(method, params) calls "
+                            + "any method, Driver.bot / Driver.observe / Driver.client / … wrap them, console.log appends "
+                            + "to log. A failed Driver call throws a DriverApiError with code, issues and execution. The "
+                            + "script's own failure is in error, not a failed call: the call failed only when the script "
+                            + "could not be run. Not sandboxed unless the server runs with -Dworlddriver.sandbox=on.")
+            .effects(MethodSpec.Effect.SCRIPT_RUN)
+            .execution(MethodSpec.ExecutionClass.SCRIPT)
+            .mayWait();
+
+    public static final UnionType<SkillOp> SKILL_PARAMS = ApiTypes.union(SkillOp.class);
+
+    public static final UnionType<SkillReply> SKILL_REPLY = ApiTypes.union(SkillReply.class);
+
+    public static final MethodSpec<SkillOp, SkillReply> SKILL = MethodSpec.of(
+                    "mc.skill",
+                    SKILL_PARAMS,
+                    SKILL_REPLY,
+                    "A library of saved scripts, kept across sessions under config/worlddriver/scripts/skills/. save "
+                            + "checks the syntax before writing; run evaluates the skill as mc.script.eval does, with its "
+                            + "args in the SKILL global, and answers the run's outcome. A name that is not saved is "
+                            + "invalid_params at /name.")
+            .effects(MethodSpec.Effect.SCRIPT_RUN, MethodSpec.Effect.CONFIG_WRITE)
+            .execution(MethodSpec.ExecutionClass.SCRIPT)
+            .mayWait();
+
+    public static final UnionType<PlaybookOp> PLAYBOOK_PARAMS = ApiTypes.union(PlaybookOp.class);
+
+    public static final UnionType<PlaybookReply> PLAYBOOK_REPLY = ApiTypes.union(PlaybookReply.class);
+
+    public static final MethodSpec<PlaybookOp, PlaybookReply> PLAYBOOK = MethodSpec.of(
+                    "mc.bot.playbook",
+                    PLAYBOOK_PARAMS,
+                    PLAYBOOK_REPLY,
+                    "A boss fight run by a script on a background thread, so it outlives mc.script.eval's budget. start "
+                            + "answers at once with the run's id; status reports it and, once it has ended, its outcome; "
+                            + "cancel stops it, which cancels the actions it started. One playbook at a time: starting a "
+                            + "second is capability_unavailable. dragon clears the End crystals, then fights the dragon "
+                            + "at its perch; wither checks the gear, summons the boss and fights both phases.")
+            .effects(MethodSpec.Effect.SCRIPT_RUN);
+
+    private ScriptContracts() {}
 
     // ------------------------------------------------------------------ the outcome of a run
 
@@ -92,16 +156,6 @@ public final class ScriptContracts {
 
             @Range(min = 0) long ms) {}
 
-    public static final String SCRIPT_ERROR = "script_error";
-    public static final String SCRIPT_TIMEOUT = "script_timeout";
-    public static final String SCRIPT_STOPPED = "script_stopped";
-
-    // Spelled from the enums they mirror, so a new API error code is a script error code too; declared before
-    // the records that use them are built.
-    private static final ApiType<String> ERROR_CODE = errorCode();
-    private static final ApiType<String> ISSUE_CODE = issueCode();
-    private static final ApiType<String> EXECUTION = executionWord();
-
     private static ApiType<String> errorCode() {
         List<String> codes = new ArrayList<>();
         for (ApiError.Code c : ApiError.Code.values()) {
@@ -129,10 +183,6 @@ public final class ScriptContracts {
         return ApiTypes.stringEnum("ScriptExecution", words.toArray(String[]::new));
     }
 
-    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class);
-
-    public static final ApiType<Outcome> OUTCOME = ApiTypes.record(Outcome.class);
-
     // ------------------------------------------------------------------ mc.script.eval
 
     @Named("EvalParams")
@@ -142,24 +192,6 @@ public final class ScriptContracts {
 
             @Doc("The run's budget; when it runs out the run is stopped.") @Default("3000") @Range(min = 1, max = 30000)
             int timeoutMs) {}
-
-    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record(EvalParams.class);
-
-    // The sandbox sentence is negative on purpose: the filter is off by default, and this text reaches every
-    // client's prompt, so claiming a sandbox would invite untrusted source.
-    public static final MethodSpec<EvalParams, Outcome> EVAL = MethodSpec.of(
-                    "mc.script.eval",
-                    EVAL_PARAMS,
-                    OUTCOME,
-                    "Prefer this when a task would otherwise need three or more calls (observe, decide, act). Runs "
-                            + "JavaScript against the in-process API in a fresh scope: Driver.invoke(method, params) calls "
-                            + "any method, Driver.bot / Driver.observe / Driver.client / … wrap them, console.log appends "
-                            + "to log. A failed Driver call throws a DriverApiError with code, issues and execution. The "
-                            + "script's own failure is in error, not a failed call: the call failed only when the script "
-                            + "could not be run. Not sandboxed unless the server runs with -Dworlddriver.sandbox=on.")
-            .effects(MethodSpec.Effect.SCRIPT_RUN)
-            .execution(MethodSpec.ExecutionClass.SCRIPT)
-            .mayWait();
 
     // ------------------------------------------------------------------ mc.skill
 
@@ -199,8 +231,6 @@ public final class ScriptContracts {
     @Variant("delete")
     public record DeleteSkill(@SkillName String name) implements SkillOp {}
 
-    public static final UnionType<SkillOp> SKILL_PARAMS = ApiTypes.union(SkillOp.class);
-
     @Tag("op")
     @Named("SkillReply")
     public sealed interface SkillReply permits SkillSaved, SkillList, SkillSource, SkillRan, SkillDeleted {}
@@ -224,20 +254,6 @@ public final class ScriptContracts {
 
     @Variant("delete")
     public record SkillDeleted(@SkillName String name, boolean existed) implements SkillReply {}
-
-    public static final UnionType<SkillReply> SKILL_REPLY = ApiTypes.union(SkillReply.class);
-
-    public static final MethodSpec<SkillOp, SkillReply> SKILL = MethodSpec.of(
-                    "mc.skill",
-                    SKILL_PARAMS,
-                    SKILL_REPLY,
-                    "A library of saved scripts, kept across sessions under config/worlddriver/scripts/skills/. save "
-                            + "checks the syntax before writing; run evaluates the skill as mc.script.eval does, with its "
-                            + "args in the SKILL global, and answers the run's outcome. A name that is not saved is "
-                            + "invalid_params at /name.")
-            .effects(MethodSpec.Effect.SCRIPT_RUN, MethodSpec.Effect.CONFIG_WRITE)
-            .execution(MethodSpec.ExecutionClass.SCRIPT)
-            .mayWait();
 
     // ------------------------------------------------------------------ mc.bot.playbook
 
@@ -270,8 +286,6 @@ public final class ScriptContracts {
     @Variant("cancel")
     public record CancelPlaybook() implements PlaybookOp {}
 
-    public static final UnionType<PlaybookOp> PLAYBOOK_PARAMS = ApiTypes.union(PlaybookOp.class);
-
     @Tag("op")
     @Named("PlaybookReply")
     public sealed interface PlaybookReply permits PlaybookStarted, PlaybookState, PlaybookCancelled {}
@@ -298,17 +312,4 @@ public final class ScriptContracts {
     /** {@code stopped}: the run that was asked to stop, absent when none was running. */
     @Variant("cancel")
     public record PlaybookCancelled(Optional<@Length(min = 1, max = 64) String> stopped) implements PlaybookReply {}
-
-    public static final UnionType<PlaybookReply> PLAYBOOK_REPLY = ApiTypes.union(PlaybookReply.class);
-
-    public static final MethodSpec<PlaybookOp, PlaybookReply> PLAYBOOK = MethodSpec.of(
-                    "mc.bot.playbook",
-                    PLAYBOOK_PARAMS,
-                    PLAYBOOK_REPLY,
-                    "A boss fight run by a script on a background thread, so it outlives mc.script.eval's budget. start "
-                            + "answers at once with the run's id; status reports it and, once it has ended, its outcome; "
-                            + "cancel stops it, which cancels the actions it started. One playbook at a time: starting a "
-                            + "second is capability_unavailable. dragon clears the End crystals, then fights the dragon "
-                            + "at its perch; wither checks the gear, summons the boss and fights both phases.")
-            .effects(MethodSpec.Effect.SCRIPT_RUN);
 }

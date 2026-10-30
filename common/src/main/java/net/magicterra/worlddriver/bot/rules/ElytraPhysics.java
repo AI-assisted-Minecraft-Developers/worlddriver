@@ -23,7 +23,6 @@ import net.minecraft.world.phys.Vec3;
  * against the live speeds: pitch +30 ≈ 30 b/s dive, level glide ≈ 18 b/s, level + fireworks ≈ 30 b/s.
  */
 public final class ElytraPhysics {
-    private ElytraPhysics() {}
 
     /**
      * Player base gravity ({@code LivingEntity.DEFAULT_BASE_GRAVITY}). Clamped to {@link #GRAVITY_SLOW_FALLING} only
@@ -32,6 +31,8 @@ public final class ElytraPhysics {
     public static final double GRAVITY = 0.08;
 
     public static final double GRAVITY_SLOW_FALLING = 0.01;
+
+    private ElytraPhysics() {}
 
     /** Position + velocity (deltaMovement) of a gliding player. Immutable. */
     public record State(Vec3 pos, Vec3 vel) {}

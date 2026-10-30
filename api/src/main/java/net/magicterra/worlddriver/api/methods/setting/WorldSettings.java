@@ -162,6 +162,9 @@ public record WorldSettings(
         @Default("25.0") double deepDarkPenalty,
         @Default("8") int deepDarkMinDepth) {
 
+    public static final WorldSettings DEFAULTS =
+            ApiTypes.record(WorldSettings.class).decode(new JsonObject());
+
     /** A point the pathfinder keeps away from, by {@code radius} blocks. */
     @Named("AvoidPoint")
     public record AvoidPoint(
@@ -169,7 +172,4 @@ public record WorldSettings(
             double y,
             double z,
             @Default("8.0") @Range(min = 1, max = 64) double radius) {}
-
-    public static final WorldSettings DEFAULTS =
-            ApiTypes.record(WorldSettings.class).decode(new JsonObject());
 }

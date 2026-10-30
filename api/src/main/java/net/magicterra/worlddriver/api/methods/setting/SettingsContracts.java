@@ -44,26 +44,6 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * written one at a time with {@code op: 'apply'} and never mixed into a patch.
  */
 public final class SettingsContracts {
-    private SettingsContracts() {}
-
-    /** A block id in a setting. */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE_USE)
-    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "a block id such as minecraft:cobblestone")
-    public @interface BlockId {}
-
-    /** An entity type id in a setting. */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE_USE)
-    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "an entity type id such as minecraft:squid")
-    public @interface EntityTypeId {}
-
-    /** A key of {@code mc.bot.setting}. */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE_USE)
-    @Length(min = 1, max = 64)
-    @TsAlias(name = "SettingKey", type = "keyof SettingValues")
-    public @interface SettingKey {}
 
     /** Every layer's settings, the facade's first and then each layer down: the order a read without keys answers. */
     public static final List<Class<? extends Record>> LAYERS = List.of(
@@ -107,22 +87,10 @@ public final class SettingsContracts {
         DEFAULTS = Collections.unmodifiableMap(defaults);
     }
 
-    public static boolean isKnown(String key) {
-        return TYPES.containsKey(key);
-    }
-
     /** Written with {@code apply} only. */
     public static final Set<String> CONTROLS = Set.of("paused", "debugFly");
     /** Controls with nothing to read back. */
     public static final Set<String> WRITE_ONLY = Set.of("debugFly");
-
-    public static boolean readable(String key) {
-        return isKnown(key) && !WRITE_ONLY.contains(key);
-    }
-
-    public static boolean patchable(String key) {
-        return isKnown(key) && !CONTROLS.contains(key);
-    }
 
     public static final KeyedValueType SETTING_VALUES =
             ApiTypes.keyedValues("SettingValues", TYPES, DOCS, DEFAULTS::get);
@@ -131,6 +99,55 @@ public final class SettingsContracts {
 
     private static final ApiType<List<String>> KEY_LIST =
             ApiTypes.list(ApiTypes.of(String.class, SettingKey.class), TYPES.size());
+
+    public static final UnionType<SettingsOp> PARAMS = ApiTypes.union(SettingsOp.class);
+
+    public static final UnionType<SettingsReply> REPLY = ApiTypes.union(SettingsReply.class);
+
+    public static final MethodSpec<SettingsOp, SettingsReply> SPEC = MethodSpec.of(
+                    "mc.bot.setting",
+                    PARAMS,
+                    REPLY,
+                    "The bot's tuning surface. op 'read' answers {key: value} for the keys asked for, or every readable one. "
+                            + "op 'patch' takes values {key: value}, validates them all, then commits them together and saves "
+                            + "them; a failed save answers persisted: false with the values still committed. op 'apply' "
+                            + "runs one control, {control, value}: paused "
+                            + "stops this client's bot and releases its keys, debugFly toggles creative flight. Values "
+                            + "are shared by every bot in this game; paused and debugFly act on this client's player.")
+            .effects(MethodSpec.Effect.CONFIG_WRITE);
+
+    private SettingsContracts() {}
+
+    /** A block id in a setting. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "a block id such as minecraft:cobblestone")
+    public @interface BlockId {}
+
+    /** An entity type id in a setting. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "an entity type id such as minecraft:squid")
+    public @interface EntityTypeId {}
+
+    /** A key of {@code mc.bot.setting}. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE_USE)
+    @Length(min = 1, max = 64)
+    @TsAlias(name = "SettingKey", type = "keyof SettingValues")
+    public @interface SettingKey {}
+
+    public static boolean isKnown(String key) {
+        return TYPES.containsKey(key);
+    }
+
+    public static boolean readable(String key) {
+        return isKnown(key) && !WRITE_ONLY.contains(key);
+    }
+
+    public static boolean patchable(String key) {
+        return isKnown(key) && !CONTROLS.contains(key);
+    }
 
     @Tag("op")
     @Named("SettingsParams")
@@ -256,20 +273,4 @@ public final class SettingsContracts {
 
             boolean value)
             implements SettingsReply {}
-
-    public static final UnionType<SettingsOp> PARAMS = ApiTypes.union(SettingsOp.class);
-
-    public static final UnionType<SettingsReply> REPLY = ApiTypes.union(SettingsReply.class);
-
-    public static final MethodSpec<SettingsOp, SettingsReply> SPEC = MethodSpec.of(
-                    "mc.bot.setting",
-                    PARAMS,
-                    REPLY,
-                    "The bot's tuning surface. op 'read' answers {key: value} for the keys asked for, or every readable one. "
-                            + "op 'patch' takes values {key: value}, validates them all, then commits them together and saves "
-                            + "them; a failed save answers persisted: false with the values still committed. op 'apply' "
-                            + "runs one control, {control, value}: paused "
-                            + "stops this client's bot and releases its keys, debugFly toggles creative flight. Values "
-                            + "are shared by every bot in this game; paused and debugFly act on this client's player.")
-            .effects(MethodSpec.Effect.CONFIG_WRITE);
 }

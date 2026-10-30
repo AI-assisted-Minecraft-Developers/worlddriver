@@ -23,6 +23,14 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * passes its {@code WorldView}'s, a body passes the block's own {@code blocksMotion()}.
  */
 public final class BodyGeometry {
+
+    /**
+     * How far a pillar-up has to lift the bot before the cell it jumped from can be filled: one whole block, because
+     * that cell is where the block goes and vanilla refuses a placement that intersects the placer's own box.
+     * {@code TowerProcess} gates PLACING on exactly this rise.
+     */
+    public static final double PILLAR_RISE = 1.0;
+
     private BodyGeometry() {}
 
     /**
@@ -51,13 +59,6 @@ public final class BodyGeometry {
         });
         return area[0];
     }
-
-    /**
-     * How far a pillar-up has to lift the bot before the cell it jumped from can be filled: one whole block, because
-     * that cell is where the block goes and vanilla refuses a placement that intersects the placer's own box.
-     * {@code TowerProcess} gates PLACING on exactly this rise.
-     */
-    public static final double PILLAR_RISE = 1.0;
 
     /**
      * Every cell that would stop this bot from rising {@link #PILLAR_RISE} — empty when nothing does.

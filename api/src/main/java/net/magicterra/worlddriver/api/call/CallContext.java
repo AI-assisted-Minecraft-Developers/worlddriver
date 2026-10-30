@@ -30,6 +30,12 @@ public record CallContext(
         boolean blockingAllowed,
         long threadWaitMs) {
 
+    /** The longest any call may be kept waiting by this server: the awaitMs ceiling. */
+    public static final long SERVER_CAP_MS = 600_000L;
+
+    /** Shared by callers that bring no quota of their own; transports bring theirs. */
+    public static final WaitPermits SHARED_WAITS = WaitPermits.bounded(64);
+
     /** A context with the hop's own thread wait. */
     public CallContext(
             long deadlineNanos,
@@ -39,12 +45,6 @@ public record CallContext(
             boolean blockingAllowed) {
         this(deadlineNanos, requestCancelled, run, waits, blockingAllowed, 0);
     }
-
-    /** The longest any call may be kept waiting by this server: the awaitMs ceiling. */
-    public static final long SERVER_CAP_MS = 600_000L;
-
-    /** Shared by callers that bring no quota of their own; transports bring theirs. */
-    public static final WaitPermits SHARED_WAITS = WaitPermits.bounded(64);
 
     public CallContext {
         Objects.requireNonNull(requestCancelled, "requestCancelled");

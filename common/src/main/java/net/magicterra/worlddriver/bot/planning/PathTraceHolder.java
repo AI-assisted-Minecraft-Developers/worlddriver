@@ -6,7 +6,8 @@ package net.magicterra.worlddriver.bot.planning;
  * (client init thread) and readers (Navigator / pathfinder thread) differ.
  */
 public final class PathTraceHolder {
-    private PathTraceHolder() {}
 
     public static volatile PathTrace SINK = PathTrace.NOOP;
+
+    private PathTraceHolder() {}
 }

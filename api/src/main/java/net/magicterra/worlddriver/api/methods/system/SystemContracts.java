@@ -16,6 +16,44 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
 
 /** {@code mc.system.version}, {@code mc.system.testOrigin} and {@code mc.system.waitTicks}. */
 public final class SystemContracts {
+
+    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record(Version.class);
+
+    // Pollable: a constant plus a clock read, no world access.
+    public static final MethodSpec<NoParams, Version> VERSION = MethodSpec.of(
+                    "mc.system.version",
+                    NO_PARAMS,
+                    VERSION_REPLY,
+                    "Probe the driver: call it first to confirm it answers. version is pinned; loadedFrom, builtAt and "
+                            + "sizeBytes name the file the running code was loaded from, which is what tells two builds "
+                            + "apart.")
+            .asPollable();
+
+    // ------------------------------------------------------------------ testOrigin
+
+    // Pollable: a constant.
+    public static final MethodSpec<NoParams, BlockPosition> TEST_ORIGIN = MethodSpec.of(
+                    "mc.system.testOrigin",
+                    NO_PARAMS,
+                    CommonTypes.BLOCK_POSITION,
+                    "The origin cell of the area the validation scripts are written against. mc.query and mc.observe.scene search around it when given no center.")
+            .asPollable();
+
+    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class);
+
+    public static final ApiType<Waited> WAITED = ApiTypes.record(Waited.class);
+
+    public static final MethodSpec<WaitTicksParams, Waited> WAIT_TICKS = MethodSpec.of(
+                    "mc.system.waitTicks",
+                    WAIT_TICKS_PARAMS,
+                    WAITED,
+                    "Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To "
+                            + "wait for something to happen rather than for time to pass, use mc.wait.*. The reply times "
+                            + "the server ticks that ran meanwhile (work per tick, not counting the wait for the next).")
+            .effects(MethodSpec.Effect.WAIT)
+            .execution(MethodSpec.ExecutionClass.WAIT)
+            .mayWait();
+
     private SystemContracts() {}
 
     // ------------------------------------------------------------------ version
@@ -47,28 +85,6 @@ public final class SystemContracts {
             Optional<@Range(min = 0) Long> sizeBytes,
             @Doc("Why the file could not be read.") Optional<String> stampError) {}
 
-    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record(Version.class);
-
-    // Pollable: a constant plus a clock read, no world access.
-    public static final MethodSpec<NoParams, Version> VERSION = MethodSpec.of(
-                    "mc.system.version",
-                    NO_PARAMS,
-                    VERSION_REPLY,
-                    "Probe the driver: call it first to confirm it answers. version is pinned; loadedFrom, builtAt and "
-                            + "sizeBytes name the file the running code was loaded from, which is what tells two builds "
-                            + "apart.")
-            .asPollable();
-
-    // ------------------------------------------------------------------ testOrigin
-
-    // Pollable: a constant.
-    public static final MethodSpec<NoParams, BlockPosition> TEST_ORIGIN = MethodSpec.of(
-                    "mc.system.testOrigin",
-                    NO_PARAMS,
-                    CommonTypes.BLOCK_POSITION,
-                    "The origin cell of the area the validation scripts are written against. mc.query and mc.observe.scene search around it when given no center.")
-            .asPollable();
-
     // ------------------------------------------------------------------ waitTicks
 
     @Named("WaitTicksParams")
@@ -97,19 +113,4 @@ public final class SystemContracts {
             @Doc("Mean milliseconds of work per tick.") double meanMs,
             double medianMs,
             double maxMs) {}
-
-    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class);
-
-    public static final ApiType<Waited> WAITED = ApiTypes.record(Waited.class);
-
-    public static final MethodSpec<WaitTicksParams, Waited> WAIT_TICKS = MethodSpec.of(
-                    "mc.system.waitTicks",
-                    WAIT_TICKS_PARAMS,
-                    WAITED,
-                    "Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To "
-                            + "wait for something to happen rather than for time to pass, use mc.wait.*. The reply times "
-                            + "the server ticks that ran meanwhile (work per tick, not counting the wait for the next).")
-            .effects(MethodSpec.Effect.WAIT)
-            .execution(MethodSpec.ExecutionClass.WAIT)
-            .mayWait();
 }

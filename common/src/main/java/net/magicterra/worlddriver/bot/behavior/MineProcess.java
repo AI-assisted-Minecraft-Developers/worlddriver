@@ -46,6 +46,65 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
 public final class MineProcess implements BotProcess, Navigating {
+    private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
+    private static final double GOING_PROGRESS_EPS = 0.5; // blocks closer = real progress
+    private static final float MINE_DAMAGE_ABORT = 8f; // net HP lost from peak → abort
+    private static final float MINE_HP_CRITICAL = 4f; // absolute floor backstop
+
+    private static final int COLLECT_MAX_REPATHS = 3;
+    /**
+     * How long "arrived" may coexist with "the item is still on the ground" before the drop is written off. A handful
+     * of ticks, because vanilla's magnet fires on the very next tick when the bot really is on top of the item —
+     * anything longer is the bot being somewhere it cannot reach from.
+     */
+    private static final int COLLECT_STUCK_TICKS = 10;
+
+    private static final int MAX_COLLECT_TICKS = 240; // ~12 s @ 20 tps — long enough to walk to all 8 break spots
+    private static final int COLLECT_SCAN_RADIUS = 8; // matches vanilla item lifetime drift
+    /**
+     * How long COLLECT will stand still for a drop that is already at its feet but is still counting down the 10-tick
+     * pickup delay every freshly-broken block gives its item. Twice the delay, so the wait is over long before the cap
+     * — the cap only bounds the pathological case where the delay never expires because nothing is ticking the entity.
+     */
+    private static final int PICKUP_DELAY_WAIT_TICKS = 20;
+    /**
+     * Blocks. Wide enough to cover vanilla's pickup box (bounding box inflated 1.0/0.5/1.0), narrow enough that a
+     * delayed drop we would have to WALK to is not mistaken for one that will fall into our hands — that one is
+     * findCollectGoal's job once it becomes pickable.
+     */
+    private static final double PICKUP_WAIT_RADIUS = 2.0;
+    // gap#67-⑤: real safety cap on cells visited per scanForTarget call. Applied
+    // to NearestFirstScan's nearest-first order (see below), so a cutoff drops
+    // the FARTHEST cells, never an entire dy layer — unlike the old dy-outer
+    // loop, radius alone no longer determines which height band goes blind.
+    private static final int SCAN_BUDGET = 50_000;
+
+    /**
+     * Per-axis radius around an unreachable target searched for an occluding leaf we can stand-and-break. Small so we
+     * chip the canopy around the log instead of stripping a forest; one leaf per SEARCH, re-scanning after each break.
+     */
+    private static final int LEAF_CLEAR_RADIUS = 3;
+
+    /**
+     * How many blocks above the bot's own feet a pillar-up stand may sit. The bot climbs a trunk one log at a time
+     * (each break re-SEARCHes from the new, higher pillar top), so this only bounds the FIRST reach — keeping A* from
+     * committing to one giant floating goal up a whole 6+ tall canopy in a single edge.
+     */
+    private static final int MAX_PILLAR_RISE = 4;
+
+    /**
+     * Eye-to-block-CENTRE budget for a reach-across stand — not the vanilla 4.5.
+     *
+     * <p>Vanilla measures to the block's nearest SURFACE: {@code canInteractWithBlock} tests {@code new
+     * AABB(pos).distanceToSqr(eye)} against {@code blockInteractionRange() + padding}. This scan measures to {@code pos
+     * + 0.5} (see {@code findReachStand}), which is up to ~0.87 further for the same block, so 4.4-to-centre is roughly
+     * 3.9-to-face: about 0.6 TIGHTER than vanilla, not "a hair inside" it. Kept deliberately conservative — a stand
+     * that only just reaches works until the player's own bob moves the eye — but do not raise it toward 4.5 believing
+     * that merely restores parity; the two numbers measure different distances.
+     */
+    private static final double MAX_REACH = 4.4;
+    /** Horizontal disk radius scanned for a dry reach-across stand. */
+    private static final int REACH_SCAN_H = 4;
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
@@ -65,13 +124,6 @@ public final class MineProcess implements BotProcess, Navigating {
     // blacklist — see NavigatorSettings.withSearchBudget.
     private final Navigator navigator =
             new Navigator(NavigatorSettings.named("mine").withSearchBudget(8_000, 400));
-    /**
-     * The approach navigator, for its {@link NavigatorInspector#tallies()} (the collect navigator's are not summed).
-     */
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
 
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
@@ -95,6 +147,76 @@ public final class MineProcess implements BotProcess, Navigating {
 
     private BlockPos currentStand;
     private Direction currentFace;
+    // True when currentTarget is a leaf being cleared to open access to a real
+    // target (not itself a quota block) — see findClearingTarget.
+    private boolean currentTargetClearing;
+    // death#26-followup (07-20 live): per-target no-progress watchdog. The navigator
+    // never returns FAILED for a log up a sheer DRY face — arc-wedge→fellOffPath just
+    // repaths (the known-UNSOLVED steep-dry-climb execution churn, see
+    // reference_steep_mountain_limit_cycle_revisit_detection). It rams the wall and
+    // takes fall damage forever, and MINE — which blacklists ONLY on FAILED — pins on
+    // that one log draining HP (live: HP 20→5.3, 0 logs harvested). Bound it here: if
+    // the bot makes no net progress TOWARD the stand for GOING_STALL_TICKS, treat the
+    // target as unreachable-in-practice (blacklist + re-scan for a reachable log).
+    // Tracks the closest the foot has ever gotten to the stand; a real walk keeps
+    // improving that (watchdog never fires), only a churn plateaus it.
+    private double goingBestDist = Double.MAX_VALUE;
+    private int goingStallTicks;
+    // death#26-followup: cumulative-damage abort. The per-target watchdog bounds ONE
+    // unreachable log, but a hillside/cliff forest offers MANY high logs (dy 6-8); the
+    // bot cycles through them, each dry-steep-climb attempt costing fall damage, and
+    // dies CUMULATIVELY (live repro: HP 20→9→dead over 135 s, only 2 logs harvested).
+    // A bot must not DIE trying to mine: if HP falls MINE_DAMAGE_ABORT below its peak
+    // this command (or reaches MINE_HP_CRITICAL), abort ALIVE — the strategy layer
+    // then relocates to flatter terrain. Reachable mining takes no fall damage, so a
+    // steady-HP flat mine never trips this (full-HP scenes stay at peak == current).
+    private float minePeakHp; // max HP seen this command (0 → set on first tick)
+    private int breakingTicks;
+    private String breakStartId = "";
+    private Phase phase = Phase.SEARCH;
+    // Last few break positions — used as goal hints during COLLECT so the
+    // bot walks back through where it just mined and lets vanilla's pickup
+    // magnet vacuum the drops. Capped to avoid backtracking forever.
+    private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
+    private int collectTicks;
+    private final Navigator collectNavigator = // drops are even nearer
+            new Navigator(NavigatorSettings.named("mine.collect").withSearchBudget(8_000, 400));
+    private BlockPos currentCollectGoal;
+    /**
+     * Drop cells the collect navigator reported FAILED on. findCollectGoal returns the NEAREST drop, so without a skip
+     * list a single unreachable one is handed back every tick and shadows every other drop until the collect cap
+     * expires.
+     */
+    private final Set<BlockPos> unreachableDrops = new HashSet<>();
+    /**
+     * What the collect navigator last said. Read only by {@link #finish} — a terminal verdict that cannot name the
+     * sweep's own behaviour makes the reader guess between three bugs.
+     */
+    private Locomotor.Status lastCollectStep;
+    /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
+    private int collectRepaths;
+    /** Retirement causes, split. See the COLLECT stuck-handler for why the split matters. */
+    private int retiredUnpathable;
+
+    private int retiredArrivedShort;
+    /**
+     * Mining targets blacklisted this sweep — see {@link #retireTarget}. A different ledger from the two above, which
+     * count DROPS the collect navigator gave up on.
+     */
+    private int retiredTargets;
+
+    private int pickupWaitTicks;
+    /** Ticks spent standing on an ARRIVED collect goal whose item is still there. */
+    private int collectStuckTicks;
+
+    private String failure;
+    /**
+     * The approach navigator, for its {@link NavigatorInspector#tallies()} (the collect navigator's are not summed).
+     */
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     /**
      * The one place {@link #currentTarget} changes, so the {@link LogWaiver} is DERIVED from the goal rather than
@@ -131,37 +253,6 @@ public final class MineProcess implements BotProcess, Navigating {
     public void onCancelled(String reason) {
         LogWaiver.release(this);
     }
-    // True when currentTarget is a leaf being cleared to open access to a real
-    // target (not itself a quota block) — see findClearingTarget.
-    private boolean currentTargetClearing;
-    // death#26-followup (07-20 live): per-target no-progress watchdog. The navigator
-    // never returns FAILED for a log up a sheer DRY face — arc-wedge→fellOffPath just
-    // repaths (the known-UNSOLVED steep-dry-climb execution churn, see
-    // reference_steep_mountain_limit_cycle_revisit_detection). It rams the wall and
-    // takes fall damage forever, and MINE — which blacklists ONLY on FAILED — pins on
-    // that one log draining HP (live: HP 20→5.3, 0 logs harvested). Bound it here: if
-    // the bot makes no net progress TOWARD the stand for GOING_STALL_TICKS, treat the
-    // target as unreachable-in-practice (blacklist + re-scan for a reachable log).
-    // Tracks the closest the foot has ever gotten to the stand; a real walk keeps
-    // improving that (watchdog never fires), only a churn plateaus it.
-    private double goingBestDist = Double.MAX_VALUE;
-    private int goingStallTicks;
-    private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
-    private static final double GOING_PROGRESS_EPS = 0.5; // blocks closer = real progress
-    // death#26-followup: cumulative-damage abort. The per-target watchdog bounds ONE
-    // unreachable log, but a hillside/cliff forest offers MANY high logs (dy 6-8); the
-    // bot cycles through them, each dry-steep-climb attempt costing fall damage, and
-    // dies CUMULATIVELY (live repro: HP 20→9→dead over 135 s, only 2 logs harvested).
-    // A bot must not DIE trying to mine: if HP falls MINE_DAMAGE_ABORT below its peak
-    // this command (or reaches MINE_HP_CRITICAL), abort ALIVE — the strategy layer
-    // then relocates to flatter terrain. Reachable mining takes no fall damage, so a
-    // steady-HP flat mine never trips this (full-HP scenes stay at peak == current).
-    private float minePeakHp; // max HP seen this command (0 → set on first tick)
-    private static final float MINE_DAMAGE_ABORT = 8f; // net HP lost from peak → abort
-    private static final float MINE_HP_CRITICAL = 4f; // absolute floor backstop
-    private int breakingTicks;
-    private String breakStartId = "";
-    private Phase phase = Phase.SEARCH;
 
     private enum Phase {
         SEARCH,
@@ -169,68 +260,6 @@ public final class MineProcess implements BotProcess, Navigating {
         BREAKING,
         COLLECT
     }
-    // Last few break positions — used as goal hints during COLLECT so the
-    // bot walks back through where it just mined and lets vanilla's pickup
-    // magnet vacuum the drops. Capped to avoid backtracking forever.
-    private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
-    private int collectTicks;
-    private final Navigator collectNavigator = // drops are even nearer
-            new Navigator(NavigatorSettings.named("mine.collect").withSearchBudget(8_000, 400));
-    private BlockPos currentCollectGoal;
-    /**
-     * Drop cells the collect navigator reported FAILED on. findCollectGoal returns the NEAREST drop, so without a skip
-     * list a single unreachable one is handed back every tick and shadows every other drop until the collect cap
-     * expires.
-     */
-    private final Set<BlockPos> unreachableDrops = new HashSet<>();
-    /**
-     * What the collect navigator last said. Read only by {@link #finish} — a terminal verdict that cannot name the
-     * sweep's own behaviour makes the reader guess between three bugs.
-     */
-    private Locomotor.Status lastCollectStep;
-    /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
-    private int collectRepaths;
-
-    private static final int COLLECT_MAX_REPATHS = 3;
-    /** Retirement causes, split. See the COLLECT stuck-handler for why the split matters. */
-    private int retiredUnpathable;
-
-    private int retiredArrivedShort;
-    /**
-     * Mining targets blacklisted this sweep — see {@link #retireTarget}. A different ledger from the two above, which
-     * count DROPS the collect navigator gave up on.
-     */
-    private int retiredTargets;
-
-    private int pickupWaitTicks;
-    /** Ticks spent standing on an ARRIVED collect goal whose item is still there. */
-    private int collectStuckTicks;
-    /**
-     * How long "arrived" may coexist with "the item is still on the ground" before the drop is written off. A handful
-     * of ticks, because vanilla's magnet fires on the very next tick when the bot really is on top of the item —
-     * anything longer is the bot being somewhere it cannot reach from.
-     */
-    private static final int COLLECT_STUCK_TICKS = 10;
-
-    private static final int MAX_COLLECT_TICKS = 240; // ~12 s @ 20 tps — long enough to walk to all 8 break spots
-    private static final int COLLECT_SCAN_RADIUS = 8; // matches vanilla item lifetime drift
-    /**
-     * How long COLLECT will stand still for a drop that is already at its feet but is still counting down the 10-tick
-     * pickup delay every freshly-broken block gives its item. Twice the delay, so the wait is over long before the cap
-     * — the cap only bounds the pathological case where the delay never expires because nothing is ticking the entity.
-     */
-    private static final int PICKUP_DELAY_WAIT_TICKS = 20;
-    /**
-     * Blocks. Wide enough to cover vanilla's pickup box (bounding box inflated 1.0/0.5/1.0), narrow enough that a
-     * delayed drop we would have to WALK to is not mistaken for one that will fall into our hands — that one is
-     * findCollectGoal's job once it becomes pickable.
-     */
-    private static final double PICKUP_WAIT_RADIUS = 2.0;
-    // gap#67-⑤: real safety cap on cells visited per scanForTarget call. Applied
-    // to NearestFirstScan's nearest-first order (see below), so a cutoff drops
-    // the FARTHEST cells, never an entire dy layer — unlike the old dy-outer
-    // loop, radius alone no longer determines which height band goes blind.
-    private static final int SCAN_BUDGET = 50_000;
 
     public MineProcess(List<String> ids, int qty, int radius) {
         this.targetIds = new HashSet<>(ids);
@@ -782,8 +811,6 @@ public final class MineProcess implements BotProcess, Navigating {
         failure = st.mine.goalReached ? null : st.mine.lastError != null ? st.mine.lastError : st.mine.endReason;
     }
 
-    private String failure;
-
     @Override
     public String failure() {
         return failure;
@@ -1075,12 +1102,6 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Per-axis radius around an unreachable target searched for an occluding leaf we can stand-and-break. Small so we
-     * chip the canopy around the log instead of stripping a forest; one leaf per SEARCH, re-scanning after each break.
-     */
-    private static final int LEAF_CLEAR_RADIUS = 3;
-
-    /**
      * The leaf-encased floating-canopy case (badlands azalea oak): the target log has no reachable stand because leaves
      * wall it in AND occlude the reach line of sight (leaves have full collision, so the reach raycast stops on them).
      * Find the reachable leaf NEAREST the log (Chebyshev rings outward) and return it as a non-counting "clearing"
@@ -1153,13 +1174,6 @@ public final class MineProcess implements BotProcess, Navigating {
         }
         return new Target(block, best, faceFromStandToBlock(best, block), false);
     }
-
-    /**
-     * How many blocks above the bot's own feet a pillar-up stand may sit. The bot climbs a trunk one log at a time
-     * (each break re-SEARCHes from the new, higher pillar top), so this only bounds the FIRST reach — keeping A* from
-     * committing to one giant floating goal up a whole 6+ tall canopy in a single edge.
-     */
-    private static final int MAX_PILLAR_RISE = 4;
 
     private BlockPos findStandableAdjacent(Level lvl, BlockPos block, int footY) {
         // OVERHEAD log (well above our feet): a ground-level reach stand directly
@@ -1271,20 +1285,6 @@ public final class MineProcess implements BotProcess, Navigating {
         // `currentFace` is cosmetic here and the non-unit offset mines fine.
         return findReachStand(lvl, block);
     }
-
-    /**
-     * Eye-to-block-CENTRE budget for a reach-across stand — not the vanilla 4.5.
-     *
-     * <p>Vanilla measures to the block's nearest SURFACE: {@code canInteractWithBlock} tests {@code new
-     * AABB(pos).distanceToSqr(eye)} against {@code blockInteractionRange() + padding}. This scan measures to {@code pos
-     * + 0.5} (see {@code findReachStand}), which is up to ~0.87 further for the same block, so 4.4-to-centre is roughly
-     * 3.9-to-face: about 0.6 TIGHTER than vanilla, not "a hair inside" it. Kept deliberately conservative — a stand
-     * that only just reaches works until the player's own bob moves the eye — but do not raise it toward 4.5 believing
-     * that merely restores parity; the two numbers measure different distances.
-     */
-    private static final double MAX_REACH = 4.4;
-    /** Horizontal disk radius scanned for a dry reach-across stand. */
-    private static final int REACH_SCAN_H = 4;
 
     /**
      * Find a DRY, solid, standable cell within vanilla block reach of {@code block} with a clear collider line of sight

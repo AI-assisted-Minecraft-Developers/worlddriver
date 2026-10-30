@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.PlanningSettings;
  * enumerates, persists and pins them all.
  */
 public final class PlanningConfig {
-    private PlanningConfig() {}
 
     /** A* node cap surfaced as a tunable knob — Baritone's {@code pathTimeoutMS} analogue. */
     public static volatile int pathfinderMaxNodes = PlanningSettings.DEFAULTS.pathfinderMaxNodes();
@@ -332,4 +331,6 @@ public final class PlanningConfig {
     static {
         BotConfig.initialize();
     }
+
+    private PlanningConfig() {}
 }

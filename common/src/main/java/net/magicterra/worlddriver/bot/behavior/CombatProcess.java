@@ -53,16 +53,6 @@ import net.minecraft.world.phys.Vec3;
  * (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance}, drawing and releasing at full charge.
  */
 public final class CombatProcess implements BotProcess, Navigating {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private Attack attack;
-
-    public enum Mode {
-        KILL,
-        ENGAGE,
-        DEFEND
-    }
 
     /** Re-acquire window: a locked target out of sight this many ticks is dropped. */
     private static final int LOCK_GRACE = 20;
@@ -81,17 +71,16 @@ public final class CombatProcess implements BotProcess, Navigating {
      * task must resume).
      */
     private static final int COLLECT_BUDGET_TICKS = 100;
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Equipment equipment;
+
+    private Attack attack;
 
     private final Mode mode;
     private final Integer targetId; // KILL by entity id (nullable)
     private final String targetType; // KILL by entity type id (nullable)
 
     private final Navigator navigator = new Navigator(NavigatorSettings.named("combat"));
-
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
 
     private Integer lockedId;
     private boolean lockWasAlive; // last-seen liveness of the locked target
@@ -102,6 +91,23 @@ public final class CombatProcess implements BotProcess, Navigating {
     private boolean approaching; // currently driving the Navigator
     private BlockPos lastTargetPos; // last seen position of a locked target
     private int collectTicks; // post-kill drop-sweep tick counter
+
+    /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
+    private String failure;
+
+    /** The ticking bot's threat picture, taken from the state each tick hands in. */
+    private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
+
+    public enum Mode {
+        KILL,
+        ENGAGE,
+        DEFEND
+    }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     public CombatProcess(Mode mode, Integer targetId, String targetType) {
         this.mode = mode;
@@ -114,16 +120,10 @@ public final class CombatProcess implements BotProcess, Navigating {
         return "combat";
     }
 
-    /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
-    private String failure;
-
     @Override
     public String failure() {
         return failure;
     }
-
-    /** The ticking bot's threat picture, taken from the state each tick hands in. */
-    private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
 
     @Override
     public void attach(BotState s) {

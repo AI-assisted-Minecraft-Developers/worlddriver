@@ -42,6 +42,9 @@ public record Locomotion(
         double flySpeed,
         Set<Mode> modes) {
 
+    /** An on-foot player's modes. */
+    public static final Set<Mode> WALK_AND_SWIM = Collections.unmodifiableSet(EnumSet.of(Mode.WALK, Mode.SWIM));
+
     /** A way of moving; each has its own move catalog. */
     public enum Mode {
         WALK,
@@ -49,9 +52,6 @@ public record Locomotion(
         FLY,
         RIDE
     }
-
-    /** An on-foot player's modes. */
-    public static final Set<Mode> WALK_AND_SWIM = Collections.unmodifiableSet(EnumSet.of(Mode.WALK, Mode.SWIM));
 
     public Locomotion {
         modes = Collections.unmodifiableSet(modes.isEmpty() ? EnumSet.noneOf(Mode.class) : EnumSet.copyOf(modes));

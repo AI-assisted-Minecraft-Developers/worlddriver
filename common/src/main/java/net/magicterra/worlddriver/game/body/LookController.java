@@ -24,7 +24,6 @@ import org.slf4j.LoggerFactory;
  * which has no client tick / LocalPlayer.
  */
 public final class LookController {
-    private LookController() {}
 
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
     private static float prevYaw;
@@ -39,6 +38,8 @@ public final class LookController {
     private static float windPrev;
     private static boolean windHavePrev;
     private static int windTick;
+
+    private LookController() {}
     /**
      * Reset the winding accumulators.
      *

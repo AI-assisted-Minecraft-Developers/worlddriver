@@ -39,9 +39,38 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * action; {@code plan: 'score'} answers at once with {@code scored}.
  */
 public final class GotoContracts {
-    private GotoContracts() {}
 
     public static final String METHOD = "mc.bot.goto";
+
+    public static final UnionType<Target> TARGET = ApiTypes.union(Target.class);
+
+    public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.of(PlanMode.class);
+
+    public static final RecordType<Params> PARAMS = ApiTypes.record(Params.class);
+
+    public static final RecordType<Adoption> ADOPTION = ApiTypes.record(Adoption.class);
+
+    public static final RecordType<Segment> SEGMENT = ApiTypes.record(Segment.class);
+
+    public static final UnionType<Result> RESULT = ApiTypes.union(Result.class);
+
+    public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT, Scored.class);
+
+    public static final MethodSpec<Params, ActionResponse<Result>> SPEC = MethodSpec.of(
+                    METHOD,
+                    PARAMS,
+                    RESPONSE,
+                    "Walk the body to a target under the route's conditions, replacing whatever it was doing. "
+                            + "plan: 'preview' searches the route without walking and without interrupting a walk; "
+                            + "its result is the route's risk in segments and a planId that a later goto walks "
+                            + "exactly. plan: 'score' prices route.corridor.points at once, with no search. "
+                            + "route.mode ['fly'] hands the trip to the elytra, walking if none is worn; for long "
+                            + "airborne trips prefer it to walking. An underwater target needs route.mode ['dive'], "
+                            + "without which water is an obstacle.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    private GotoContracts() {}
 
     /** How a positional target is satisfied; ignored when {@code near} is above 0. */
     @Named("GoalMode")
@@ -381,12 +410,6 @@ public final class GotoContracts {
             Optional<List<BlockPosition>> path)
             implements Result {}
 
-    public static final UnionType<Target> TARGET = ApiTypes.union(Target.class);
-
-    public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.of(PlanMode.class);
-
-    public static final RecordType<Params> PARAMS = ApiTypes.record(Params.class);
-
     /** Whether the target resolves to one cell, which a flight needs. */
     private static boolean hasCell(Target t) {
         return switch (t) {
@@ -402,26 +425,4 @@ public final class GotoContracts {
             case Axis x -> false;
         };
     }
-
-    public static final RecordType<Adoption> ADOPTION = ApiTypes.record(Adoption.class);
-
-    public static final RecordType<Segment> SEGMENT = ApiTypes.record(Segment.class);
-
-    public static final UnionType<Result> RESULT = ApiTypes.union(Result.class);
-
-    public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT, Scored.class);
-
-    public static final MethodSpec<Params, ActionResponse<Result>> SPEC = MethodSpec.of(
-                    METHOD,
-                    PARAMS,
-                    RESPONSE,
-                    "Walk the body to a target under the route's conditions, replacing whatever it was doing. "
-                            + "plan: 'preview' searches the route without walking and without interrupting a walk; "
-                            + "its result is the route's risk in segments and a planId that a later goto walks "
-                            + "exactly. plan: 'score' prices route.corridor.points at once, with no search. "
-                            + "route.mode ['fly'] hands the trip to the elytra, walking if none is worn; for long "
-                            + "airborne trips prefer it to walking. An underwater target needs route.mode ['dive'], "
-                            + "without which water is an obstacle.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 }

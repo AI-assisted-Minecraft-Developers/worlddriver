@@ -68,13 +68,6 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class MobBody implements Body {
 
-    /** Implemented on every {@link Mob} by {@code MobMixin}: the body driving it, or null. */
-    public interface Driven {
-        MobBody worlddriver$body();
-
-        void worlddriver$body(MobBody body);
-    }
-
     /** Ticks of held input that must move the mob before it counts as not listening. */
     static final int UNRESPONSIVE_TICKS = 40;
     /** Below this much horizontal travel over {@link #UNRESPONSIVE_TICKS}, held input moved it nowhere. */
@@ -96,8 +89,6 @@ public final class MobBody implements Body {
     private static final double HOVER_GAIN = 0.2;
     /** A travel longer than this since the last tick was a teleport, not flight. */
     private static final double FLIGHT_JUMP = 2.0;
-
-    private record Held(GoalSelector from, int priority, Goal goal) {}
 
     private final Mob mob;
     private final List<Held> held = new ArrayList<>();
@@ -130,6 +121,15 @@ public final class MobBody implements Body {
     private int pushTicks;
     private boolean pushBlocked;
     private boolean unresponsive;
+
+    /** Implemented on every {@link Mob} by {@code MobMixin}: the body driving it, or null. */
+    public interface Driven {
+        MobBody worlddriver$body();
+
+        void worlddriver$body(MobBody body);
+    }
+
+    private record Held(GoalSelector from, int priority, Goal goal) {}
 
     private MobBody(Mob mob) {
         this.mob = mob;

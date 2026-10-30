@@ -27,15 +27,6 @@ package net.magicterra.worlddriver.game.ui;
  * Minecraft-side I/O: sampling ESC / {@code isMouseGrabbed()} / {@code screen != null}, and performing the action.
  */
 public final class MouseYieldGate {
-    /** What the caller should do to the real {@code MouseHandler} this tick. */
-    public enum Action {
-        /** Leave the cursor exactly as it is. */
-        NONE,
-        /** Release the cursor to the OS ({@code MouseHandler.releaseMouse()}). */
-        RELEASE,
-        /** Give the cursor back to the game ({@code MouseHandler.grabMouse()}). */
-        GRAB
-    }
 
     /** Default linger: 20 ticks (1 s) bridges chain handovers and search stalls. */
     public static final int DEFAULT_LINGER_TICKS = 20;
@@ -46,6 +37,15 @@ public final class MouseYieldGate {
 
     private boolean yielded;
     private boolean reclaimed;
+    /** What the caller should do to the real {@code MouseHandler} this tick. */
+    public enum Action {
+        /** Leave the cursor exactly as it is. */
+        NONE,
+        /** Release the cursor to the OS ({@code MouseHandler.releaseMouse()}). */
+        RELEASE,
+        /** Give the cursor back to the game ({@code MouseHandler.grabMouse()}). */
+        GRAB
+    }
 
     public MouseYieldGate() {
         this(DEFAULT_LINGER_TICKS);

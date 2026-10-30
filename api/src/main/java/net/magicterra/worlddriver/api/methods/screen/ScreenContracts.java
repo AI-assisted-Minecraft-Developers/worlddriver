@@ -45,6 +45,163 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * opened since. Without one, a write acts on whatever is open. A read followed by a write is never one atomic step.
  */
 public final class ScreenContracts {
+
+    public static final RecordType<ScreenInfo> SCREEN_INFO = ApiTypes.record(ScreenInfo.class);
+
+    public static final MethodSpec<NoParams, ScreenInfo> INFO = MethodSpec.of(
+                    "mc.client.screen.info",
+                    CommonTypes.NO_PARAMS,
+                    SCREEN_INFO,
+                    "The open screen in brief, and whether a world and a player are there: the cheap probe to make "
+                            + "before any other mc.client.* call, and the contextId a screen write can be held to. "
+                            + "windowActive and mouseGrabbed are what a mod's key handler usually demands before it "
+                            + "acts; read them when a keystroke seems to vanish.")
+            .asPollable();
+
+    public static final RecordType<ScreenTree> SCREEN_TREE = ApiTypes.record(ScreenTree.class);
+
+    public static final MethodSpec<NoParams, ScreenTree> TREE = MethodSpec.of(
+                    "mc.client.screen.tree",
+                    CommonTypes.NO_PARAMS,
+                    SCREEN_TREE,
+                    "Every widget, list row and menu slot on the open screen, with its box in GUI coordinates: what "
+                            + "to pick a click target from without a screenshot, and right for modded, self-drawn "
+                            + "screens too. The tree is flattened into nodes, each naming its parent. A container "
+                            + "screen adds a ContainerSlots node whose Slot nodes carry the menu index and stack. "
+                            + "STRUCTURE, NOT PAINT: a widget that draws its own selection reads the same before and "
+                            + "after the click that chose it; read that with a screenshot.")
+            .asPollable();
+
+    public static final MethodSpec<CloseParams, Closed> CLOSE = MethodSpec.of(
+                    "mc.client.screen.close",
+                    ApiTypes.record(CloseParams.class),
+                    ApiTypes.record(Closed.class),
+                    "Close the open screen, as setScreen(null) does. Succeeds with nothing open too.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<ClickParams, ClientReply> CLICK = MethodSpec.of(
+                    "mc.client.input.click",
+                    ApiTypes.record(ClickParams.class),
+                    ClientContracts.reply("Click", Clicked.class),
+                    "Click the open screen: hover, press, release, all on one frame. Name the target by a ref from "
+                            + "screen.tree, which clicks where that widget is now, or by GUI coordinates. Refused as "
+                            + "no_screen when none is open, and as no_target when the ref is no longer on the screen, "
+                            + "is hidden, or lies outside the visible part of what holds it.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<MoveParams, Moved> MOUSE_MOVE = MethodSpec.of(
+                    "mc.client.input.mouseMove",
+                    ApiTypes.record(MoveParams.class),
+                    ApiTypes.record(Moved.class),
+                    "Move the cursor to GUI coordinates without clicking, hover effects included: park it before a "
+                            + "screenshot so no tooltip covers the screen. With scroll, then turn the mouse wheel there.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    private static final String PLAYER_PREFIX = "player:";
+    private static final String PLAYER_ONLY = "bot names a player on this server as player:<name>";
+
+    public static final MethodSpec<SlotClickParams, ClientReply> SLOT_CLICK = MethodSpec.of(
+                    "mc.client.input.slotClick",
+                    ApiTypes.record(SlotClickParams.class),
+                    ClientContracts.reply("SlotClick", SlotClicked.class),
+                    "Click a slot of the open container menu with an explicit click type, sent to the server as a "
+                            + "real container click: pickup (button 0 takes or places the stack, 1 half or one), "
+                            + "quickMove (shift-click), throw (button 0 drops one, 1 the stack), swap (with hotbar slot "
+                            + "button), clone (creative middle-click), pickupAll (double-click), quickCraft (drag). "
+                            + "Refused as no_container, no_player, or no_target for a slot past the menu's end. "
+                            + "With bot, a server player's open menu is clicked on the server instead.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.INVENTORY_WRITE);
+
+    public static final MethodSpec<HotbarParams, ClientReply> SET_HOTBAR_SLOT = MethodSpec.of(
+                    "mc.client.input.setHotbarSlot",
+                    ApiTypes.record(HotbarParams.class),
+                    ClientContracts.reply("SetHotbarSlot", HotbarSelected.class),
+                    "Select the held hotbar slot and tell the server, so the next attack or use takes that item. "
+                            + "mc.client.player's inventory says which slot holds what. Refused as no_player.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.INVENTORY_WRITE);
+
+    public static final MethodSpec<TypeParams, ClientReply> TYPE_TEXT = MethodSpec.of(
+                    "mc.client.input.typeText",
+                    ApiTypes.record(TypeParams.class),
+                    ClientContracts.reply("TypeText", Typed.class),
+                    "Type text into the focused widget of the open screen, one character event per code point, "
+                            + "appending at the cursor; name the box by a ref from screen.tree to focus it first. To "
+                            + "overwrite a field use input.replaceText. Refused as no_screen, and as no_target when "
+                            + "the ref is not on the screen or is not a text box.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<ReplaceParams, ClientReply> REPLACE_TEXT = MethodSpec.of(
+                    "mc.client.input.replaceText",
+                    ApiTypes.record(ReplaceParams.class),
+                    ClientContracts.reply("ReplaceText", Replaced.class),
+                    "Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the "
+                            + "box match names, else the focused one, else the only one. Refused as no_screen, "
+                            + "no_target (the ref is gone or not a text box, or nothing matches) or ambiguous "
+                            + "(several boxes, none focused, no match).")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<SliderParams, ClientReply> SLIDER = MethodSpec.of(
+                    "mc.client.input.slider",
+                    ApiTypes.record(SliderParams.class),
+                    ApiTypes.<ClientReply>union(
+                            "SliderResponse",
+                            "outcome",
+                            ApiTypes.record(SlidersRead.class),
+                            ApiTypes.record(SliderSet.class),
+                            ApiTypes.record(ClientContracts.Refused.class)),
+                    "Read or set a GUI slider: render distance, FOV, volume. Without fraction it reads every slider's "
+                            + "label and 0-1 value, which only the shown slider can tell. With fraction it sets the "
+                            + "slider named by a ref from screen.tree, else match, else index, else the only one, and "
+                            + "commits it as dragging would. Refused as no_screen, no_target or ambiguous.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<KeyParams, ClientReply> KEY = MethodSpec.of(
+                    "mc.client.input.key",
+                    ApiTypes.record(KeyParams.class),
+                    ClientContracts.reply("Key", KeySent.class),
+                    "Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, "
+                            + "routed again from whatever the press left open. route auto sends it where vanilla "
+                            + "would: the open screen, else the key bindings (E inventory, ESCAPE pause, T chat); "
+                            + "keybind reaches the bindings under an open screen; screen only the screen; raw is a real "
+                            + "key event through vanilla's keyboard handler, which mods listening for input events see "
+                            + "too, and answers no handled. For walking "
+                            + "use mc.bot.*. Refused as no_screen (route screen with none open) or no_player (no "
+                            + "screen and no player to take it). An unknown key name is invalid_params.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT)
+            .mayWait();
+
+    public static final MethodSpec<KeybindParams, ClientReply> KEYBIND = MethodSpec.of(
+                    "mc.client.input.keybind",
+                    ApiTypes.record(KeybindParams.class),
+                    ApiTypes.<ClientReply>union(
+                            "KeybindResponse",
+                            "outcome",
+                            ApiTypes.record(KeybindsListed.class),
+                            ApiTypes.record(KeybindDriven.class),
+                            ApiTypes.record(ClientContracts.Refused.class)),
+                    "Drive a key mapping BY NAME. Use it rather than input.key when the binding carries a modifier "
+                            + "(ALT+Y, common in mod packs): that match reads the real keyboard, where a synthesized ALT "
+                            + "never appears. It also reaches a binding the player rebound. It marks the mapping down "
+                            + "and counts a click, and sends the key as a raw event too, with the binding's modifier "
+                            + "cleared for that event, for the mods that listen to key events. A mod's handler usually "
+                            + "refuses keys unless windowActive and mouseGrabbed. Without a name it lists every "
+                            + "mapping. Refused as no_target or ambiguous.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT)
+            .mayWait();
+
+    public static final UnionType<ContainerView> CONTAINER_VIEW = ApiTypes.union(ContainerView.class);
+
+    public static final MethodSpec<ContainerParams, ContainerView> CONTAINER = MethodSpec.of(
+                    "mc.observe.container",
+                    ApiTypes.record(ContainerParams.class),
+                    CONTAINER_VIEW,
+                    "Read a container's slots. With pos, the block entity there, read on the server (source block). "
+                            + "Without, whatever container menu is open on this client: the inventory, a crafting "
+                            + "table, a chest the server opened (source menu), with the contextId a slotClick can be "
+                            + "held to. Without pos and without a client it is capability_unavailable. "
+                            + "With bot, the menu open on that server player (source player).")
+            .asPollable();
+
     private ScreenContracts() {}
 
     // ------------------------------------------------------------------ screen.info
@@ -79,18 +236,6 @@ public final class ScreenContracts {
 
             @Doc("On the death screen: what killed the player.")
             Optional<String> causeOfDeath) {}
-
-    public static final RecordType<ScreenInfo> SCREEN_INFO = ApiTypes.record(ScreenInfo.class);
-
-    public static final MethodSpec<NoParams, ScreenInfo> INFO = MethodSpec.of(
-                    "mc.client.screen.info",
-                    CommonTypes.NO_PARAMS,
-                    SCREEN_INFO,
-                    "The open screen in brief, and whether a world and a player are there: the cheap probe to make "
-                            + "before any other mc.client.* call, and the contextId a screen write can be held to. "
-                            + "windowActive and mouseGrabbed are what a mod's key handler usually demands before it "
-                            + "acts; read them when a keystroke seems to vanish.")
-            .asPollable();
 
     // ------------------------------------------------------------------ screen.tree
 
@@ -160,20 +305,6 @@ public final class ScreenContracts {
             @Doc("Every node, depth first: a node comes right before the nodes it holds.") @Length(max = 65536)
             List<WidgetNode> nodes) {}
 
-    public static final RecordType<ScreenTree> SCREEN_TREE = ApiTypes.record(ScreenTree.class);
-
-    public static final MethodSpec<NoParams, ScreenTree> TREE = MethodSpec.of(
-                    "mc.client.screen.tree",
-                    CommonTypes.NO_PARAMS,
-                    SCREEN_TREE,
-                    "Every widget, list row and menu slot on the open screen, with its box in GUI coordinates: what "
-                            + "to pick a click target from without a screenshot, and right for modded, self-drawn "
-                            + "screens too. The tree is flattened into nodes, each naming its parent. A container "
-                            + "screen adds a ContainerSlots node whose Slot nodes carry the menu index and stack. "
-                            + "STRUCTURE, NOT PAINT: a widget that draws its own selection reads the same before and "
-                            + "after the click that chose it; read that with a screenshot.")
-            .asPollable();
-
     // ------------------------------------------------------------------ screen.close
 
     @Named("ScreenCloseParams")
@@ -187,13 +318,6 @@ public final class ScreenContracts {
 
             @Doc("The screen context after this call.") @ContextId
             String contextId) {}
-
-    public static final MethodSpec<CloseParams, Closed> CLOSE = MethodSpec.of(
-                    "mc.client.screen.close",
-                    ApiTypes.record(CloseParams.class),
-                    ApiTypes.record(Closed.class),
-                    "Close the open screen, as setScreen(null) does. Succeeds with nothing open too.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.click / mouseMove
 
@@ -250,16 +374,6 @@ public final class ScreenContracts {
         }
     }
 
-    public static final MethodSpec<ClickParams, ClientReply> CLICK = MethodSpec.of(
-                    "mc.client.input.click",
-                    ApiTypes.record(ClickParams.class),
-                    ClientContracts.reply("Click", Clicked.class),
-                    "Click the open screen: hover, press, release, all on one frame. Name the target by a ref from "
-                            + "screen.tree, which clicks where that widget is now, or by GUI coordinates. Refused as "
-                            + "no_screen when none is open, and as no_target when the ref is no longer on the screen, "
-                            + "is hidden, or lies outside the visible part of what holds it.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
-
     @Named("MouseMoveParams")
     public record MoveParams(
             @Doc("GUI coordinates. Without them the cursor stays put: in the world a moved cursor turns the camera.")
@@ -289,14 +403,6 @@ public final class ScreenContracts {
     @Named("MouseMoved")
     public record Moved(
             double wx, double wy, @Doc("The GUI scale.") double scale) {}
-
-    public static final MethodSpec<MoveParams, Moved> MOUSE_MOVE = MethodSpec.of(
-                    "mc.client.input.mouseMove",
-                    ApiTypes.record(MoveParams.class),
-                    ApiTypes.record(Moved.class),
-                    "Move the cursor to GUI coordinates without clicking, hover effects included: park it before a "
-                            + "screenshot so no tooltip covers the screen. With scroll, then turn the mouse wheel there.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.slotClick
 
@@ -365,34 +471,11 @@ public final class ScreenContracts {
         }
     }
 
-    private static final String PLAYER_PREFIX = "player:";
-    private static final String PLAYER_ONLY = "bot names a player on this server as player:<name>";
-
-    public static final MethodSpec<SlotClickParams, ClientReply> SLOT_CLICK = MethodSpec.of(
-                    "mc.client.input.slotClick",
-                    ApiTypes.record(SlotClickParams.class),
-                    ClientContracts.reply("SlotClick", SlotClicked.class),
-                    "Click a slot of the open container menu with an explicit click type, sent to the server as a "
-                            + "real container click: pickup (button 0 takes or places the stack, 1 half or one), "
-                            + "quickMove (shift-click), throw (button 0 drops one, 1 the stack), swap (with hotbar slot "
-                            + "button), clone (creative middle-click), pickupAll (double-click), quickCraft (drag). "
-                            + "Refused as no_container, no_player, or no_target for a slot past the menu's end. "
-                            + "With bot, a server player's open menu is clicked on the server instead.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.INVENTORY_WRITE);
-
     // ------------------------------------------------------------------ input.setHotbarSlot
 
     @Named("SetHotbarSlotParams")
     public record HotbarParams(
             @Doc("0 is leftmost.") @Range(min = 0, max = 8) int slot, Optional<@ContextId String> contextId) {}
-
-    public static final MethodSpec<HotbarParams, ClientReply> SET_HOTBAR_SLOT = MethodSpec.of(
-                    "mc.client.input.setHotbarSlot",
-                    ApiTypes.record(HotbarParams.class),
-                    ClientContracts.reply("SetHotbarSlot", HotbarSelected.class),
-                    "Select the held hotbar slot and tell the server, so the next attack or use takes that item. "
-                            + "mc.client.player's inventory says which slot holds what. Refused as no_player.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.INVENTORY_WRITE);
 
     // ------------------------------------------------------------------ input.typeText / replaceText
 
@@ -415,16 +498,6 @@ public final class ScreenContracts {
             boolean returnTree,
 
             Optional<@ContextId String> contextId) {}
-
-    public static final MethodSpec<TypeParams, ClientReply> TYPE_TEXT = MethodSpec.of(
-                    "mc.client.input.typeText",
-                    ApiTypes.record(TypeParams.class),
-                    ClientContracts.reply("TypeText", Typed.class),
-                    "Type text into the focused widget of the open screen, one character event per code point, "
-                            + "appending at the cursor; name the box by a ref from screen.tree to focus it first. To "
-                            + "overwrite a field use input.replaceText. Refused as no_screen, and as no_target when "
-                            + "the ref is not on the screen or is not a text box.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     @Named("ReplaceTextParams")
     public record ReplaceParams(
@@ -452,16 +525,6 @@ public final class ScreenContracts {
             }
         }
     }
-
-    public static final MethodSpec<ReplaceParams, ClientReply> REPLACE_TEXT = MethodSpec.of(
-                    "mc.client.input.replaceText",
-                    ApiTypes.record(ReplaceParams.class),
-                    ClientContracts.reply("ReplaceText", Replaced.class),
-                    "Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the "
-                            + "box match names, else the focused one, else the only one. Refused as no_screen, "
-                            + "no_target (the ref is gone or not a text box, or nothing matches) or ambiguous "
-                            + "(several boxes, none focused, no match).")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.slider
 
@@ -501,21 +564,6 @@ public final class ScreenContracts {
             @Range(min = 0) int index,
             String label,
             @Range(min = 0, max = 1) double value) {}
-
-    public static final MethodSpec<SliderParams, ClientReply> SLIDER = MethodSpec.of(
-                    "mc.client.input.slider",
-                    ApiTypes.record(SliderParams.class),
-                    ApiTypes.<ClientReply>union(
-                            "SliderResponse",
-                            "outcome",
-                            ApiTypes.record(SlidersRead.class),
-                            ApiTypes.record(SliderSet.class),
-                            ApiTypes.record(ClientContracts.Refused.class)),
-                    "Read or set a GUI slider: render distance, FOV, volume. Without fraction it reads every slider's "
-                            + "label and 0-1 value, which only the shown slider can tell. With fraction it sets the "
-                            + "slider named by a ref from screen.tree, else match, else index, else the only one, and "
-                            + "commits it as dragging would. Refused as no_screen, no_target or ambiguous.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ input.key / keybind
 
@@ -607,21 +655,6 @@ public final class ScreenContracts {
 
             Optional<@ContextId String> contextId) {}
 
-    public static final MethodSpec<KeyParams, ClientReply> KEY = MethodSpec.of(
-                    "mc.client.input.key",
-                    ApiTypes.record(KeyParams.class),
-                    ClientContracts.reply("Key", KeySent.class),
-                    "Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, "
-                            + "routed again from whatever the press left open. route auto sends it where vanilla "
-                            + "would: the open screen, else the key bindings (E inventory, ESCAPE pause, T chat); "
-                            + "keybind reaches the bindings under an open screen; screen only the screen; raw is a real "
-                            + "key event through vanilla's keyboard handler, which mods listening for input events see "
-                            + "too, and answers no handled. For walking "
-                            + "use mc.bot.*. Refused as no_screen (route screen with none open) or no_player (no "
-                            + "screen and no player to take it). An unknown key name is invalid_params.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT)
-            .mayWait();
-
     @Named("KeybindParams")
     public record KeybindParams(
             @Doc("A mapping id (key.inventory) or part of an id or title. Omitted: list every mapping.")
@@ -640,25 +673,6 @@ public final class ScreenContracts {
     @Named("Keybinding")
     public record Keybinding(
             String name, String title, String key, String boundTo, boolean bound, String category, boolean down) {}
-
-    public static final MethodSpec<KeybindParams, ClientReply> KEYBIND = MethodSpec.of(
-                    "mc.client.input.keybind",
-                    ApiTypes.record(KeybindParams.class),
-                    ApiTypes.<ClientReply>union(
-                            "KeybindResponse",
-                            "outcome",
-                            ApiTypes.record(KeybindsListed.class),
-                            ApiTypes.record(KeybindDriven.class),
-                            ApiTypes.record(ClientContracts.Refused.class)),
-                    "Drive a key mapping BY NAME. Use it rather than input.key when the binding carries a modifier "
-                            + "(ALT+Y, common in mod packs): that match reads the real keyboard, where a synthesized ALT "
-                            + "never appears. It also reaches a binding the player rebound. It marks the mapping down "
-                            + "and counts a click, and sends the key as a raw event too, with the binding's modifier "
-                            + "cleared for that event, for the mods that listen to key events. A mod's handler usually "
-                            + "refuses keys unless windowActive and mouseGrabbed. Without a name it lists every "
-                            + "mapping. Refused as no_target or ambiguous.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT)
-            .mayWait();
 
     // ------------------------------------------------------------------ observe.container
 
@@ -747,17 +761,4 @@ public final class ScreenContracts {
             @Doc("The stack on the cursor; absent when empty.")
             Optional<SlotRow> carried)
             implements ContainerView {}
-
-    public static final UnionType<ContainerView> CONTAINER_VIEW = ApiTypes.union(ContainerView.class);
-
-    public static final MethodSpec<ContainerParams, ContainerView> CONTAINER = MethodSpec.of(
-                    "mc.observe.container",
-                    ApiTypes.record(ContainerParams.class),
-                    CONTAINER_VIEW,
-                    "Read a container's slots. With pos, the block entity there, read on the server (source block). "
-                            + "Without, whatever container menu is open on this client: the inventory, a crafting "
-                            + "table, a chest the server opened (source menu), with the contextId a slotClick can be "
-                            + "held to. Without pos and without a client it is capability_unavailable. "
-                            + "With bot, the menu open on that server player (source player).")
-            .asPollable();
 }

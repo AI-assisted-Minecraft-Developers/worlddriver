@@ -11,10 +11,11 @@ import java.util.function.Supplier;
  * {@link net.magicterra.worlddriver.game.ClientHop}, which withdraws it when it times out.
  */
 public final class ClientThread {
-    private ClientThread() {}
 
     /** Tasks waiting for a tick boundary; drained by {@link #drainNextTick()}. */
     private static final Queue<Runnable> NEXT_TICK = new ConcurrentLinkedQueue<>();
+
+    private ClientThread() {}
 
     /**
      * Runs {@code task} on the client thread at the next client TICK rather than the next render task.

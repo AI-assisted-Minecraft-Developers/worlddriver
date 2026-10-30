@@ -45,7 +45,6 @@ import net.minecraft.core.BlockPos;
  * scenes, and this class must load there. Client thread only — the bot tick and vanilla's key pass both run on it.
  */
 public final class ClientIntents {
-    private ClientIntents() {}
 
     /**
      * Vanilla attack passes one drive keeps at bay. Two: one for the pass that follows the drive, one for a tick the
@@ -60,6 +59,8 @@ public final class ClientIntents {
     private static int standAsidePasses;
     private static boolean useHeld;
     private static final List<BlockPos> ownBreaks = new ArrayList<>();
+
+    private ClientIntents() {}
 
     /**
      * The {@code breakHold} latch. Releasing also drops any pending stand-aside, so vanilla's next pass aborts the

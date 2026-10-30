@@ -31,11 +31,11 @@ import net.minecraft.world.entity.LivingEntity;
  * <p>Hands are not claimed: climbing holds nothing.
  */
 public final class VineClimb implements Controller {
-    private float freeHangDriveYaw =
-            Float.NaN; // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter
     // ±180° flips that would circle the bot off a narrow column — self-resyncing (no journey reset)
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
+    private float freeHangDriveYaw =
+            Float.NaN; // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter
 
     private boolean onVine;
     private boolean parkourEdge;

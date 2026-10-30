@@ -21,6 +21,14 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class PanicChain implements Chain {
 
+    /**
+     * Candidate flee headings, in degrees offset from "straight away", tried nearest-to-straight-away first. Lets the
+     * bot peel along a shore/ledge instead of sprinting off it.
+     */
+    private static final double[] FLEE_OFFSETS = {
+        0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180
+    };
+
     @Override
     public String name() {
         return "panic";
@@ -33,14 +41,6 @@ public final class PanicChain implements Chain {
         }
         return nearestCreeper(st) != null ? Priorities.PANIC : 0f;
     }
-
-    /**
-     * Candidate flee headings, in degrees offset from "straight away", tried nearest-to-straight-away first. Lets the
-     * bot peel along a shore/ledge instead of sprinting off it.
-     */
-    private static final double[] FLEE_OFFSETS = {
-        0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180
-    };
 
     @Override
     public void tick(Body body, WorldView w, BotState st) {

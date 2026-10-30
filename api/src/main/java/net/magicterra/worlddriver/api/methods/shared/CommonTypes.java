@@ -17,13 +17,26 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
 
 /** Shapes many methods share. Pure: nothing here reads a world or a registry. */
 public final class CommonTypes {
+
+    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record(NoParams.class);
+
+    public static final ApiType<Direction> DIRECTION = ApiTypes.of(Direction.class);
+
+    public static final RecordType<BlockPosition> BLOCK_POSITION = ApiTypes.record(BlockPosition.class);
+
+    public static final ApiType<String> RESOURCE_ID = ApiTypes.of(String.class, ResourceId.class);
+
+    public static final ApiType<String> BLOCK_OR_TAG = ApiTypes.of(String.class, BlockOrTag.class);
+
+    public static final ApiType<Integer> ENTITY_ID = ApiTypes.of(Integer.class, EntityId.class);
+
+    public static final RecordType<Point> POINT = ApiTypes.record(Point.class);
+
     private CommonTypes() {}
 
     /** The parameters of a method that takes none. */
     @Named("NoParams")
     public record NoParams() {}
-
-    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record(NoParams.class);
 
     /** Which way a body faces, in degrees. */
     @Named("Look")
@@ -90,13 +103,9 @@ public final class CommonTypes {
         }
     }
 
-    public static final ApiType<Direction> DIRECTION = ApiTypes.of(Direction.class);
-
     /** A block cell; each axis is any int, and whether the world holds it is checked where the world is known. */
     @Named("BlockPosition")
     public record BlockPosition(int x, int y, int z) {}
-
-    public static final RecordType<BlockPosition> BLOCK_POSITION = ApiTypes.record(BlockPosition.class);
 
     /** A namespaced id, {@code minecraft:stone}; whether it names something is the registry's to say. */
     @Retention(RetentionPolicy.RUNTIME)
@@ -104,8 +113,6 @@ public final class CommonTypes {
     @Pattern(value = "[a-z0-9_.-]+:[a-z0-9/._-]+", expected = "a namespaced id such as minecraft:stone")
     @Length(max = 256)
     public @interface ResourceId {}
-
-    public static final ApiType<String> RESOURCE_ID = ApiTypes.of(String.class, ResourceId.class);
 
     /** A block id, or a {@code #tag} standing for every block in it. */
     @Retention(RetentionPolicy.RUNTIME)
@@ -116,8 +123,6 @@ public final class CommonTypes {
     @Length(max = 256)
     public @interface BlockOrTag {}
 
-    public static final ApiType<String> BLOCK_OR_TAG = ApiTypes.of(String.class, BlockOrTag.class);
-
     /** An entity's id in its level, as {@code mc.query} entities reports it; good until the entity is gone. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
@@ -125,11 +130,7 @@ public final class CommonTypes {
     @Doc("The id mc.query entities reports.")
     public @interface EntityId {}
 
-    public static final ApiType<Integer> ENTITY_ID = ApiTypes.of(Integer.class, EntityId.class);
-
     /** A point anywhere, not snapped to a cell. */
     @Named("Point")
     public record Point(double x, double y, double z) {}
-
-    public static final RecordType<Point> POINT = ApiTypes.record(Point.class);
 }

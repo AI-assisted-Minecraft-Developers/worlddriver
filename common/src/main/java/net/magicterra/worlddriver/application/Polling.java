@@ -28,7 +28,6 @@ import net.magicterra.worlddriver.api.schema.MethodSpec;
  * from being nested inside one.
  */
 final class Polling {
-    private Polling() {}
 
     /** Every poll is a short read; a slow one queues the next rather than starting another thread. */
     private static final ExecutorService POLLS = new ThreadPoolExecutor(
@@ -42,6 +41,8 @@ final class Polling {
     static {
         ((ThreadPoolExecutor) POLLS).allowCoreThreadTimeOut(true);
     }
+
+    private Polling() {}
 
     /** A pollable method and the params it was checked with. */
     record Target(String method, JsonElement params) {

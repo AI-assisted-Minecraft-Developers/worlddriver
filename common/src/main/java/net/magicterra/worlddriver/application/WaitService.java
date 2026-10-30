@@ -59,11 +59,6 @@ import net.magicterra.worlddriver.application.client.ClientDriverApi;
  * its reply is (a) kept for {@code mc.wait.result} and (b) pushed as a {@code wait.done} event.
  */
 public final class WaitService implements WaitApi {
-    private final DriverApplication api;
-
-    WaitService(DriverApplication api) {
-        this.api = api;
-    }
 
     public static final int MAX_BACKGROUND = WaitContracts.MAX_BACKGROUND;
 
@@ -91,6 +86,12 @@ public final class WaitService implements WaitApi {
     });
     /** waitIds still running: without it an id missing from RESULTS could be running or gone. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
+
+    private final DriverApplication api;
+
+    WaitService(DriverApplication api) {
+        this.api = api;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return WaitApiBinding.methods(this);

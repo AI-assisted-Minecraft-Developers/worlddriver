@@ -24,7 +24,6 @@ import net.minecraft.world.entity.LivingEntity;
  * player rides the same tick and the same crash guard.
  */
 public final class BotTicker {
-    private BotTicker() {}
 
     private static final CopyOnWriteArrayList<Bot> ACTIVE = new CopyOnWriteArrayList<>();
 
@@ -33,6 +32,8 @@ public final class BotTicker {
     static {
         PathFinder.driverCount = BotTicker::activeCount;
     }
+
+    private BotTicker() {}
 
     public static void register(Bot d) {
         ACTIVE.addIfAbsent(d);

@@ -9,15 +9,16 @@ import java.util.stream.Collectors;
  * {@code mc.bot.farm}'s {@code Crop} enum names the same blocks; {@code CropsTest} keeps the two equal.
  */
 public final class Crops {
-    private Crops() {}
-
-    public record Crop(String block, String seed, String harvest) {}
 
     public static final List<Crop> ALL = List.of(
             new Crop("minecraft:wheat", "minecraft:wheat_seeds", "minecraft:wheat"),
             new Crop("minecraft:carrots", "minecraft:carrot", "minecraft:carrot"),
             new Crop("minecraft:potatoes", "minecraft:potato", "minecraft:potato"),
             new Crop("minecraft:beetroots", "minecraft:beetroot_seeds", "minecraft:beetroot"));
+
+    private Crops() {}
+
+    public record Crop(String block, String seed, String harvest) {}
 
     /** The item that replants {@code block}, or null when it is not a crop. */
     public static String seedFor(String block) {

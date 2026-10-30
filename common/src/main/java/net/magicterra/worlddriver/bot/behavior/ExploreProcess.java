@@ -21,15 +21,20 @@ public final class ExploreProcess implements BotProcess, Navigating {
     private final Set<Long> visited = new HashSet<>();
     private final Navigator navigator = new Navigator(NavigatorSettings.named("explore"));
 
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
-
     private int visitedCount;
     private BlockPos currentChunkCenter;
     private int currentChunkX;
     private int currentChunkZ;
+
+    /** Chunks tried whose walk fell short of the centre column; {@link #visitedCount} counts every try. */
+    private int missed;
+
+    private String failure;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     public ExploreProcess(int centerBlockX, int centerBlockZ, int maxChunks) {
         this.centerChunkX = centerBlockX >> 4;
@@ -100,9 +105,6 @@ public final class ExploreProcess implements BotProcess, Navigating {
         return false;
     }
 
-    /** Chunks tried whose walk fell short of the centre column; {@link #visitedCount} counts every try. */
-    private int missed;
-
     /**
      * Running out of chunks ends an exploration like the budget does; either is short only by the chunks it tried and
      * did not reach.
@@ -110,8 +112,6 @@ public final class ExploreProcess implements BotProcess, Navigating {
     private String incomplete() {
         return missed == 0 ? null : "incomplete: " + missed + " of " + visitedCount + " chunks not reached";
     }
-
-    private String failure;
 
     @Override
     public String failure() {

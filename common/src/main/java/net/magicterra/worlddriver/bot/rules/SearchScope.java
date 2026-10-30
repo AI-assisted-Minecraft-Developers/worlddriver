@@ -31,22 +31,31 @@ import net.minecraft.world.phys.shapes.CollisionContext;
  */
 public final class SearchScope {
 
-    /** Whether the straight line between two points is free of colliding blocks. */
-    @FunctionalInterface
-    public interface LineOfSight {
-        boolean clear(Vec3 from, Vec3 to);
-    }
-
     public static final LineOfSight ALWAYS_CLEAR = (a, b) -> true;
 
     /** No threats, every ray clear, nothing truncated. */
     public static final SearchScope EMPTY = new SearchScope(null, null, ThreatSnapshot.EMPTY, ALWAYS_CLEAR, false);
+
+    /** Hostiles that shoot without implementing {@code RangedAttackMob}. */
+    private static final java.util.Set<String> RANGED_TYPES = java.util.Set.of(
+            "minecraft:ghast",
+            "minecraft:blaze",
+            "minecraft:shulker",
+            "minecraft:breeze",
+            "minecraft:wither",
+            "minecraft:evoker");
 
     private final BlockPos start;
     private final Goal goal;
     private final ThreatSnapshot threats;
     private final LineOfSight los;
     private final boolean truncated;
+
+    /** Whether the straight line between two points is free of colliding blocks. */
+    @FunctionalInterface
+    public interface LineOfSight {
+        boolean clear(Vec3 from, Vec3 to);
+    }
 
     private SearchScope(BlockPos start, Goal goal, ThreatSnapshot threats, LineOfSight los, boolean truncated) {
         this.start = start;
@@ -167,15 +176,6 @@ public final class SearchScope {
         }
         return new SearchScope(start, goal, new ThreatSnapshot(out), losOf(level), truncated);
     }
-
-    /** Hostiles that shoot without implementing {@code RangedAttackMob}. */
-    private static final java.util.Set<String> RANGED_TYPES = java.util.Set.of(
-            "minecraft:ghast",
-            "minecraft:blaze",
-            "minecraft:shulker",
-            "minecraft:breeze",
-            "minecraft:wither",
-            "minecraft:evoker");
 
     /**
      * A line of sight over a level: a {@code Level.clip} with {@code Block.COLLIDER} and {@code Fluid.NONE}, the same

@@ -31,11 +31,6 @@ import net.minecraft.core.BlockPos;
  */
 public final class RouteEvents {
 
-    /** Where events go; production passes {@code DriverHost.emitExternal}. */
-    public interface Emitter {
-        void emit(String type, BlockPos pos, JsonObject data);
-    }
-
     /**
      * {@code route.blocked} reasons besides {@code constraint:<name>}: the node or time budget ran out, or nothing the
      * caller declared pruned anything and the budget held — the terrain (or a built-in filter such as {@code NoWater})
@@ -55,6 +50,11 @@ public final class RouteEvents {
     private Map<Integer, Integer> lastExposed = Map.of();
 
     private int tick;
+
+    /** Where events go; production passes {@code DriverHost.emitExternal}. */
+    public interface Emitter {
+        void emit(String type, BlockPos pos, JsonObject data);
+    }
 
     /**
      * @param declared the intent's {@link Intent#constraintNames()}

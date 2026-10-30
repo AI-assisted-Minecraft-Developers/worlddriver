@@ -49,6 +49,15 @@ import net.minecraft.world.entity.LivingEntity;
  */
 final class BodyTaskStarter {
 
+    private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
+            + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
+
+    /** Margin kept off the caller's deadline so the answer is written before the caller gives up. */
+    private static final long REPLY_MARGIN_MS = 250;
+
+    private final DriverApplication app;
+    private final ActionRegistry actions;
+
     /** Reads the body on its game thread and decides what to start. */
     @FunctionalInterface
     interface Planner<R> {
@@ -77,15 +86,6 @@ final class BodyTaskStarter {
 
     /** Start nothing: a valid request this body cannot take now. */
     record Refuse<R>(RefusalReason reason, String message) implements Plan<R> {}
-
-    private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
-            + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
-
-    /** Margin kept off the caller's deadline so the answer is written before the caller gives up. */
-    private static final long REPLY_MARGIN_MS = 250;
-
-    private final DriverApplication app;
-    private final ActionRegistry actions;
 
     BodyTaskStarter(DriverApplication app, ActionRegistry actions) {
         this.app = app;

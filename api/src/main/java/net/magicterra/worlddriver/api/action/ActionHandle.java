@@ -22,14 +22,6 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
  */
 public final class ActionHandle {
 
-    /** Where the action's bot lives, which decides which ending closes it. */
-    public enum Scope {
-        /** This client's own player: ends with the client's connection. */
-        CLIENT,
-        /** A bot of the local server: ends with that server. */
-        SERVER
-    }
-
     private final ActionRegistry registry;
     private final String id;
     private final String bot;
@@ -39,6 +31,16 @@ public final class ActionHandle {
     private final AtomicReference<ActionSnapshot<Object>> state;
     private final CompletableFuture<ActionSnapshot<Object>> ended = new CompletableFuture<>();
     private volatile long endedAtMs;
+
+    private volatile java.util.function.Consumer<CancelReason> stopper;
+
+    /** Where the action's bot lives, which decides which ending closes it. */
+    public enum Scope {
+        /** This client's own player: ends with the client's connection. */
+        CLIENT,
+        /** A bot of the local server: ends with that server. */
+        SERVER
+    }
 
     ActionHandle(ActionRegistry registry, String id, String bot, Scope scope, String runId, Supplier<?> result) {
         this.registry = registry;
@@ -137,8 +139,6 @@ public final class ActionHandle {
         }
         return true;
     }
-
-    private volatile java.util.function.Consumer<CancelReason> stopper;
 
     /**
      * How {@link #requestCancel} stops the process: called at most once, on the requesting thread, so it must hop to

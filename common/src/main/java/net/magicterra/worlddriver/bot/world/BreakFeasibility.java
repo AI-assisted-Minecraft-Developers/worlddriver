@@ -19,9 +19,10 @@ import net.minecraft.core.BlockPos;
  * at all, so MC-always-escapable is unaffected.
  */
 public final class BreakFeasibility {
-    private BreakFeasibility() {}
 
     private static final ConcurrentHashMap<BlockPos, Long> POISON = new ConcurrentHashMap<>();
+
+    private BreakFeasibility() {}
 
     public static void poison(BlockPos p, long ttlMs) {
         POISON.put(p.immutable(), System.currentTimeMillis() + ttlMs);

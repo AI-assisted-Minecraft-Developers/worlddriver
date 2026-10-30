@@ -26,6 +26,45 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
  * with it.
  */
 public final class BotDebugContracts {
+
+    public static final RecordType<NavigatorParams> NAVIGATOR_PARAMS = ApiTypes.record(NavigatorParams.class);
+
+    public static final RecordType<NavigatorReading> NAVIGATOR_READING = ApiTypes.record(NavigatorReading.class);
+
+    public static final MethodSpec<NavigatorParams, NavigatorReading> NAVIGATOR = MethodSpec.of(
+                    "mc.debug.navigator",
+                    NAVIGATOR_PARAMS,
+                    NAVIGATOR_READING,
+                    "A server-side bot's navigator as it stands: the plan cursor, the last search, and every tally, "
+                            + "telemetry counter and trace by name. Read on the server thread.")
+            .hidden();
+
+    public static final RecordType<BodyParams> BODY_PARAMS = ApiTypes.record(BodyParams.class);
+
+    public static final RecordType<BodyReading> BODY_READING = ApiTypes.record(BodyReading.class);
+
+    public static final MethodSpec<BodyParams, BodyReading> BODY = MethodSpec.of(
+                    "mc.debug.body",
+                    BODY_PARAMS,
+                    BODY_READING,
+                    "A bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on "
+                            + "request whether a block is in reach, a swing is blast-safe or its box can rise. A "
+                            + "server-side bot's on the server thread; self's on the client thread, from its own body.")
+            .hidden();
+
+    public static final RecordType<CellsParams> CELLS_PARAMS = ApiTypes.record(CellsParams.class);
+
+    public static final RecordType<CellsReading> CELLS_READING = ApiTypes.record(CellsReading.class);
+
+    public static final MethodSpec<CellsParams, CellsReading> CELLS = MethodSpec.of(
+                    "mc.debug.cells",
+                    CELLS_PARAMS,
+                    CELLS_READING,
+                    "Cells as the planner's world view classifies them, a bot's or the server level's, and on request "
+                            + "the pose and fall facts of standing at one. Read on the server thread; self's client view "
+                            + "on the client thread.")
+            .hidden();
+
     private BotDebugContracts() {}
 
     // ------------------------------------------------------------------ mc.debug.navigator
@@ -105,18 +144,6 @@ public final class BotDebugContracts {
             return v;
         }
     }
-
-    public static final RecordType<NavigatorParams> NAVIGATOR_PARAMS = ApiTypes.record(NavigatorParams.class);
-
-    public static final RecordType<NavigatorReading> NAVIGATOR_READING = ApiTypes.record(NavigatorReading.class);
-
-    public static final MethodSpec<NavigatorParams, NavigatorReading> NAVIGATOR = MethodSpec.of(
-                    "mc.debug.navigator",
-                    NAVIGATOR_PARAMS,
-                    NAVIGATOR_READING,
-                    "A server-side bot's navigator as it stands: the plan cursor, the last search, and every tally, "
-                            + "telemetry counter and trace by name. Read on the server thread.")
-            .hidden();
 
     // ------------------------------------------------------------------ mc.debug.body
 
@@ -198,19 +225,6 @@ public final class BotDebugContracts {
             Optional<Reach> reach,
             Optional<Blast> blast,
             Optional<@Length(max = 64) List<BlockPosition>> riseBlockers) {}
-
-    public static final RecordType<BodyParams> BODY_PARAMS = ApiTypes.record(BodyParams.class);
-
-    public static final RecordType<BodyReading> BODY_READING = ApiTypes.record(BodyReading.class);
-
-    public static final MethodSpec<BodyParams, BodyReading> BODY = MethodSpec.of(
-                    "mc.debug.body",
-                    BODY_PARAMS,
-                    BODY_READING,
-                    "A bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on "
-                            + "request whether a block is in reach, a swing is blast-safe or its box can rise. A "
-                            + "server-side bot's on the server thread; self's on the client thread, from its own body.")
-            .hidden();
 
     // ------------------------------------------------------------------ mc.debug.cells
 
@@ -324,17 +338,4 @@ public final class BotDebugContracts {
             String dimension,
             @Length(max = 4096) List<Cell> cells,
             Optional<NodeFacts> node) {}
-
-    public static final RecordType<CellsParams> CELLS_PARAMS = ApiTypes.record(CellsParams.class);
-
-    public static final RecordType<CellsReading> CELLS_READING = ApiTypes.record(CellsReading.class);
-
-    public static final MethodSpec<CellsParams, CellsReading> CELLS = MethodSpec.of(
-                    "mc.debug.cells",
-                    CELLS_PARAMS,
-                    CELLS_READING,
-                    "Cells as the planner's world view classifies them, a bot's or the server level's, and on request "
-                            + "the pose and fall facts of standing at one. Read on the server thread; self's client view "
-                            + "on the client thread.")
-            .hidden();
 }

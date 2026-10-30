@@ -10,7 +10,6 @@ package net.magicterra.worlddriver.bot.arbitration;
  * concurrently in {@code bot/auto/}, not as chains. See design doc 00 §6.
  */
 public final class Priorities {
-    private Priorities() {}
 
     /** Sprint clear of a creeper about to blow / MLG water-bucket clutch. */
     public static final float PANIC = 1000f;
@@ -53,4 +52,6 @@ public final class Priorities {
      * {@code cachedLastPriority} hysteresis (see {@code MobDefenseChain}).
      */
     public static final float HYSTERESIS = 5f;
+
+    private Priorities() {}
 }

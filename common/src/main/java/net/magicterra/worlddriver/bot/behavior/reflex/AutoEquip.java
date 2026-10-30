@@ -35,7 +35,6 @@ import net.minecraft.world.item.TridentItem;
  * </ul>
  */
 public final class AutoEquip {
-    private AutoEquip() {}
 
     /** InventoryMenu armor slot ids (head/chest/legs/feet), per AutoTotem's map. */
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -54,6 +53,8 @@ public final class AutoEquip {
      * AutoTool's hysteresis).
      */
     private static final double EPS = 0.5;
+
+    private AutoEquip() {}
 
     public record Result(
             List<String> equipped, Map<String, Object> loadout, List<String> lowDurability, List<String> missing) {}

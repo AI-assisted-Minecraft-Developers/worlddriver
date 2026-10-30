@@ -22,6 +22,8 @@ public final class HeldProcess {
     private volatile Ticket action;
     private SlotClaim claim = SlotClaim.NONE;
 
+    private volatile End end;
+
     public HeldProcess(BotState state) {
         this.state = state;
     }
@@ -151,8 +153,6 @@ public final class HeldProcess {
     // One immutable value, for the same reason as UserTaskChain's: a status read may run on
     // another thread, and must not pair one ending's kind with another's error.
     private record End(String kind, String error) {}
-
-    private volatile End end;
 
     /**
      * {@code {kind, error}} of the last ending, the shape of {@code UserTaskChain.lastEnd()}, or null if nothing has

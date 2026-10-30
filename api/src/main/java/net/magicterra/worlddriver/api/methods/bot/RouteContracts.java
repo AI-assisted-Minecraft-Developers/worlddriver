@@ -28,6 +28,32 @@ import net.magicterra.worlddriver.api.schema.annotation.Wire;
  * settings a route leaves to them (the mob berth's radii, the sight-ray budget), which this class cannot see.
  */
 public final class RouteContracts {
+
+    public static final ApiType<TravelMode> TRAVEL_MODE = ApiTypes.of(TravelMode.class);
+    public static final ApiType<Enforcement> ENFORCEMENT = ApiTypes.of(Enforcement.class);
+
+    public static final RecordType<YRange> Y_RANGE = ApiTypes.record(YRange.class);
+
+    public static final RecordType<Hug> HUG = ApiTypes.record(Hug.class);
+
+    public static final UnionType<LeashAnchor> LEASH_ANCHOR = ApiTypes.union(LeashAnchor.class);
+
+    public static final RecordType<Leash> LEASH = ApiTypes.record(Leash.class);
+
+    public static final UnionType<RegionSpec> REGION = ApiTypes.union(RegionSpec.class);
+
+    public static final RecordType<Ledge> LEDGE = ApiTypes.record(Ledge.class);
+
+    public static final RecordType<Cluster> CLUSTER = ApiTypes.record(Cluster.class);
+
+    public static final RecordType<Mobs> MOBS = ApiTypes.record(Mobs.class);
+
+    public static final RecordType<Sight> SIGHT = ApiTypes.record(Sight.class);
+
+    public static final RecordType<Corridor> CORRIDOR = ApiTypes.record(Corridor.class);
+
+    public static final RecordType<Route> ROUTE = ApiTypes.record(Route.class);
+
     private RouteContracts() {}
 
     @Named("TravelMode")
@@ -339,29 +365,4 @@ public final class RouteContracts {
             }
         }
     }
-
-    public static final ApiType<TravelMode> TRAVEL_MODE = ApiTypes.of(TravelMode.class);
-    public static final ApiType<Enforcement> ENFORCEMENT = ApiTypes.of(Enforcement.class);
-
-    public static final RecordType<YRange> Y_RANGE = ApiTypes.record(YRange.class);
-
-    public static final RecordType<Hug> HUG = ApiTypes.record(Hug.class);
-
-    public static final UnionType<LeashAnchor> LEASH_ANCHOR = ApiTypes.union(LeashAnchor.class);
-
-    public static final RecordType<Leash> LEASH = ApiTypes.record(Leash.class);
-
-    public static final UnionType<RegionSpec> REGION = ApiTypes.union(RegionSpec.class);
-
-    public static final RecordType<Ledge> LEDGE = ApiTypes.record(Ledge.class);
-
-    public static final RecordType<Cluster> CLUSTER = ApiTypes.record(Cluster.class);
-
-    public static final RecordType<Mobs> MOBS = ApiTypes.record(Mobs.class);
-
-    public static final RecordType<Sight> SIGHT = ApiTypes.record(Sight.class);
-
-    public static final RecordType<Corridor> CORRIDOR = ApiTypes.record(Corridor.class);
-
-    public static final RecordType<Route> ROUTE = ApiTypes.record(Route.class);
 }

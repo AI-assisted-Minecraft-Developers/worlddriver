@@ -25,9 +25,10 @@ package net.magicterra.worlddriver.bot.world;
  * writes it.
  */
 public final class LogWaiver {
-    private LogWaiver() {}
 
     private static volatile Object owner;
+
+    private LogWaiver() {}
 
     /** True while an owner holds the waiver. */
     public static boolean active() {

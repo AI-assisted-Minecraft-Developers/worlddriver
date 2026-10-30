@@ -42,6 +42,11 @@ public final class WorldDriverCommon {
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
 
+    /** Set by the test run tasks to a millisecond budget; unset (and inert) in production. */
+    public static final String STARTUP_WATCHDOG = "worlddriver.startupWatchdogMs";
+
+    private static volatile boolean serverEverStarted;
+
     private WorldDriverCommon() {}
 
     /**
@@ -172,11 +177,6 @@ public final class WorldDriverCommon {
             LOG.warn("[{}] could not write {}: {}", MOD_ID, name, e.getMessage());
         }
     }
-
-    /** Set by the test run tasks to a millisecond budget; unset (and inert) in production. */
-    public static final String STARTUP_WATCHDOG = "worlddriver.startupWatchdogMs";
-
-    private static volatile boolean serverEverStarted;
 
     /**
      * Halt the JVM if the server never finishes starting.

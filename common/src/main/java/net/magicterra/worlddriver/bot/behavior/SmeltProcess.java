@@ -38,11 +38,6 @@ import net.minecraft.world.phys.Vec3;
  * item or auto-picked from the inventory via the vanilla {@link AbstractFurnaceBlockEntity#isFuel} table.
  */
 public final class SmeltProcess implements BotProcess {
-    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
-    private Menus menus;
     private static final int OPEN_TIMEOUT = 40;
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
     private static final int PER_ITEM_TIMEOUT = 260;
@@ -71,20 +66,15 @@ public final class SmeltProcess implements BotProcess {
      * with an empty result means the ore never went in at all.
      */
     private static final int INTAKE_GRACE = 20;
+    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
+    private Equipment equipment;
+
+    private BlockInteraction blocks;
+    private Menus menus;
 
     private final String input;
     private final int count;
     private final String fuelId; // optional explicit fuel item id (else auto)
-
-    private enum St {
-        INIT,
-        OPEN_WAIT,
-        LOAD,
-        SMELT_WAIT,
-        COLLECT,
-        DONE,
-        FAIL
-    }
 
     private St st = St.INIT;
     private BlockPos furnacePos;
@@ -99,12 +89,6 @@ public final class SmeltProcess implements BotProcess {
      * Null when the batch reached its target.
      */
     private String shortCause;
-
-    /** A partial smelt ends in DONE with {@link #error} set, and it is still short of what was asked. */
-    @Override
-    public String failure() {
-        return error;
-    }
     /** Consecutive WORLD ticks with BOTH input and fuel in the furnace and the fire still out. */
     private int coldTicks;
     /**
@@ -127,6 +111,22 @@ public final class SmeltProcess implements BotProcess {
      * sat within reach). Skip LOAD's shift-clicks and adopt.
      */
     private boolean adopt;
+
+    private enum St {
+        INIT,
+        OPEN_WAIT,
+        LOAD,
+        SMELT_WAIT,
+        COLLECT,
+        DONE,
+        FAIL
+    }
+
+    /** A partial smelt ends in DONE with {@link #error} set, and it is still short of what was asked. */
+    @Override
+    public String failure() {
+        return error;
+    }
 
     public SmeltProcess(String input, int count, String fuelId) {
         this.input = input;

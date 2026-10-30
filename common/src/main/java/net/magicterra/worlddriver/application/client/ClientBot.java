@@ -65,6 +65,12 @@ public final class ClientBot implements BotApi {
      */
     private int screenBlockTicks = 0;
 
+    /**
+     * Driver→agent client-tick push-event detection (hurt/death, fluid entry, day-phase, item pickup, advancements,
+     * chat/title). Owns its own cross-tick edge state; {@link #clientTick()} drives it.
+     */
+    private final ClientEventDetector eventDetector;
+
     /** {@code brain} plans over the client's world view; the wiring builds both. */
     public ClientBot(BotBrain brain) {
         this.brain = brain;
@@ -363,12 +369,6 @@ public final class ClientBot implements BotApi {
                     InteractContracts.Face.valueOf(face.name()));
         });
     }
-
-    /**
-     * Driver→agent client-tick push-event detection (hurt/death, fluid entry, day-phase, item pickup, advancements,
-     * chat/title). Owns its own cross-tick edge state; {@link #clientTick()} drives it.
-     */
-    private final ClientEventDetector eventDetector;
 
     /**
      * The two policies that key off "is the bot currently driving", applied at the very top of every client tick —

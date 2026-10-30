@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.BehaviorSettings;
  * layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class BehaviorConfig {
-    private BehaviorConfig() {}
 
     /**
      * Break back a crafting table {@code mc.bot.craft} placed itself, once the craft ends (gap #276). Without this the
@@ -163,4 +162,6 @@ public final class BehaviorConfig {
     static {
         BotConfig.initialize();
     }
+
+    private BehaviorConfig() {}
 }

@@ -35,8 +35,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  */
 public final class CellRules {
 
-    private CellRules() {}
-
     /**
      * A* cost units: one cardinal walk cell is 10, vanilla ground speed 4.317 b/s is 20/4.317 ≈ 4.63 ticks per cell, so
      * one mining tick prices at 10 / 4.63.
@@ -55,6 +53,8 @@ public final class CellRules {
      * planner can see should win.
      */
     private static final double WRONG_TOOL_TAX = 3.0;
+
+    private CellRules() {}
 
     /**
      * Passable: air, water, and — under {@code collisionAwarePathing} — a colliding block whose real shape misses the

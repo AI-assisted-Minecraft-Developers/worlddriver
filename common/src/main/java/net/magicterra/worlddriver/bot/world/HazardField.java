@@ -15,6 +15,10 @@ import net.minecraft.core.BlockPos;
  * foot.
  */
 public final class HazardField {
+
+    /** How far down we probe for a drop before calling it "void/large". */
+    private static final int DROP_PROBE = 24;
+
     public final BlockPos center;
     public final int radius;
     public final int survivableFall;
@@ -37,9 +41,6 @@ public final class HazardField {
     public HazardCell at(int dx, int dz) {
         return cells.getOrDefault(key(dx, dz), HazardCell.unknown());
     }
-
-    /** How far down we probe for a drop before calling it "void/large". */
-    private static final int DROP_PROBE = 24;
 
     public static HazardField compute(WorldView w, BlockPos center, int radius, int survivableFall, int deepWaterMax) {
         Map<Long, HazardCell> cells = new HashMap<>();

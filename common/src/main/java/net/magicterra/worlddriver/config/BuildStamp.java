@@ -28,12 +28,16 @@ import java.util.Map;
  * instead of the build.
  */
 public final class BuildStamp {
-    private BuildStamp() {}
 
     /** What {@link #version()} answers before a loader has named the version, as in a unit test. */
     public static final String UNKNOWN_VERSION = "unknown";
 
     private static volatile String version = UNKNOWN_VERSION;
+
+    /** Unmodifiable but ordered — the key order is the order the fields were measured in. */
+    private static final Map<String, Object> STAMP = Collections.unmodifiableMap(measure());
+
+    private BuildStamp() {}
 
     /**
      * The mod's version as the loader read it from the mod's metadata ({@code fabric.mod.json},
@@ -50,9 +54,6 @@ public final class BuildStamp {
             version = loaderVersion;
         }
     }
-
-    /** Unmodifiable but ordered — the key order is the order the fields were measured in. */
-    private static final Map<String, Object> STAMP = Collections.unmodifiableMap(measure());
 
     /**
      * {@code loadedFrom} + {@code loadedKind} ({@code classes} for a loose class file, {@code jar} for an archive), and

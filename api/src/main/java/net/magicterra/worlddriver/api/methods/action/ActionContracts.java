@@ -26,6 +26,47 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
  * by the server before anything is written.
  */
 public final class ActionContracts {
+
+    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record(CommandParams.class);
+
+    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record(CommandResult.class);
+
+    // One command is budgeted as one short server task; what it does is opaque, so it counts as a world write.
+    public static final MethodSpec<CommandParams, CommandResult> RUN_COMMAND = MethodSpec.of(
+                    "mc.action.runCommand",
+                    COMMAND_PARAMS,
+                    COMMAND_RESULT,
+                    "Run any server command at operator level as the server, at the overworld spawn, or as the player "
+                            + "named by as. Emits command.result. There is no allow-list: the transports listen on "
+                            + "loopback only.")
+            .effects(MethodSpec.Effect.WORLD_WRITE);
+
+    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record(FillParams.class);
+
+    public static final ApiType<Filled> FILLED = ApiTypes.record(Filled.class);
+
+    public static final MethodSpec<FillParams, Filled> FILL = MethodSpec.of(
+                    "mc.action.fill",
+                    FILL_PARAMS,
+                    FILLED,
+                    "Fill a box with one block in a single server task: at most 32768 cells, refused rather than cut "
+                            + "short. Emits one block.fill event for the box, not one per cell.")
+            .effects(MethodSpec.Effect.WORLD_WRITE)
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record(PlaceManyParams.class);
+
+    public static final ApiType<Placed> PLACED = ApiTypes.record(Placed.class);
+
+    public static final MethodSpec<PlaceManyParams, Placed> PLACE_MANY = MethodSpec.of(
+                    "mc.action.placeMany",
+                    PLACE_MANY_PARAMS,
+                    PLACED,
+                    "Set up to 4096 cells, each to its own block, in one server task; one block.place event per cell. "
+                            + "Every id is checked first, so an unknown one writes nothing.")
+            .effects(MethodSpec.Effect.WORLD_WRITE)
+            .execution(MethodSpec.ExecutionClass.BULK);
+
     private ActionContracts() {}
 
     // ------------------------------------------------------------------ runCommand
@@ -87,20 +128,6 @@ public final class ActionContracts {
             @Length(max = 4096) List<String> feedback,
             Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record(CommandParams.class);
-
-    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record(CommandResult.class);
-
-    // One command is budgeted as one short server task; what it does is opaque, so it counts as a world write.
-    public static final MethodSpec<CommandParams, CommandResult> RUN_COMMAND = MethodSpec.of(
-                    "mc.action.runCommand",
-                    COMMAND_PARAMS,
-                    COMMAND_RESULT,
-                    "Run any server command at operator level as the server, at the overworld spawn, or as the player "
-                            + "named by as. Emits command.result. There is no allow-list: the transports listen on "
-                            + "loopback only.")
-            .effects(MethodSpec.Effect.WORLD_WRITE);
-
     // ------------------------------------------------------------------ fill
 
     @Named("FillParams")
@@ -121,19 +148,6 @@ public final class ActionContracts {
     @Named("Filled")
     public record Filled(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
-    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record(FillParams.class);
-
-    public static final ApiType<Filled> FILLED = ApiTypes.record(Filled.class);
-
-    public static final MethodSpec<FillParams, Filled> FILL = MethodSpec.of(
-                    "mc.action.fill",
-                    FILL_PARAMS,
-                    FILLED,
-                    "Fill a box with one block in a single server task: at most 32768 cells, refused rather than cut "
-                            + "short. Emits one block.fill event for the box, not one per cell.")
-            .effects(MethodSpec.Effect.WORLD_WRITE)
-            .execution(MethodSpec.ExecutionClass.BULK);
-
     // ------------------------------------------------------------------ placeMany
 
     @Named("Placement")
@@ -151,17 +165,4 @@ public final class ActionContracts {
 
     @Named("Placed")
     public record Placed(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
-
-    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record(PlaceManyParams.class);
-
-    public static final ApiType<Placed> PLACED = ApiTypes.record(Placed.class);
-
-    public static final MethodSpec<PlaceManyParams, Placed> PLACE_MANY = MethodSpec.of(
-                    "mc.action.placeMany",
-                    PLACE_MANY_PARAMS,
-                    PLACED,
-                    "Set up to 4096 cells, each to its own block, in one server task; one block.place event per cell. "
-                            + "Every id is checked first, so an unknown one writes nothing.")
-            .effects(MethodSpec.Effect.WORLD_WRITE)
-            .execution(MethodSpec.ExecutionClass.BULK);
 }

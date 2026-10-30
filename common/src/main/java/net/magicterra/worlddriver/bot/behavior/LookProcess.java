@@ -21,6 +21,8 @@ public final class LookProcess implements BotProcess {
     private final float fixedPitch;
     private int ticks;
 
+    private String failure;
+
     public LookProcess(BlockPos track, float yaw, float pitch) {
         this.track = track;
         this.fixedYaw = yaw;
@@ -113,8 +115,6 @@ public final class LookProcess implements BotProcess {
         }
         return false;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

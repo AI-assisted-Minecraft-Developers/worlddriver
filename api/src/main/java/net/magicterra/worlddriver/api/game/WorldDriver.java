@@ -13,7 +13,6 @@ import net.magicterra.worlddriver.api.registry.Scripting;
  * {@link #whenReady}.
  */
 public final class WorldDriver {
-    private WorldDriver() {}
 
     private static volatile ApiRegistry registry;
     private static volatile DriverHost host;
@@ -21,6 +20,8 @@ public final class WorldDriver {
     private static volatile int mcpPort = -1;
     private static volatile Scripting scripting;
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
+
+    private WorldDriver() {}
 
     /** Every method the driver answers; null until the driver is up. */
     public static ApiRegistry registry() {

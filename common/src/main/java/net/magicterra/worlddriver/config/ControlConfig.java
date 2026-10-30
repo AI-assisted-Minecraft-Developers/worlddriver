@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.ControlSettings;
  * that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class ControlConfig {
-    private ControlConfig() {}
 
     /** Navigator repath cadence. Lower = more responsive to obstacles, higher = less CPU. */
     public static volatile int navigatorRepathEveryTicks = ControlSettings.DEFAULTS.navigatorRepathEveryTicks();
@@ -1159,4 +1158,6 @@ public final class ControlConfig {
     static {
         BotConfig.initialize();
     }
+
+    private ControlConfig() {}
 }

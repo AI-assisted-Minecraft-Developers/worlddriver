@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.mcp;
 
 /** HTTP request and event-stream concurrency limits. */
 public final class McpLimits {
-    private McpLimits() {}
 
     /**
      * POSTs the MCP server runs at once; past it a request gets 503 with the {@code server_busy} code, for the same
@@ -19,4 +18,6 @@ public final class McpLimits {
      * cancelling.
      */
     public static final int MCP_MAX_WAITS = 64;
+
+    private McpLimits() {}
 }

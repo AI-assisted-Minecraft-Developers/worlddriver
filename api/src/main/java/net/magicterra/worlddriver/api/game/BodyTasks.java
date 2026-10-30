@@ -21,6 +21,10 @@ import net.minecraft.world.entity.LivingEntity;
  * registers during its own setup, before the driver exists; the driver publishes each one as a method once it does.
  */
 public final class BodyTasks {
+
+    private static final Map<String, Entry<?, ?>> TASKS = new LinkedHashMap<>();
+    private static final List<Consumer<Entry<?, ?>>> LISTENERS = new ArrayList<>();
+
     private BodyTasks() {}
 
     /** What a task's parameter record must have: the bot it runs on and how long the call waits for it to end. */
@@ -53,9 +57,6 @@ public final class BodyTasks {
 
     /** One registered task: its method and what starts it. */
     public record Entry<P extends Params, R>(MethodSpec<P, ActionResponse<R>> spec, Factory<P, R> factory) {}
-
-    private static final Map<String, Entry<?, ?>> TASKS = new LinkedHashMap<>();
-    private static final List<Consumer<Entry<?, ?>>> LISTENERS = new ArrayList<>();
 
     /**
      * Register the method {@code name} ({@code <modid>.<verb>}, never {@code mc.}). Its answer is the usual

@@ -34,6 +34,43 @@ import net.minecraft.world.entity.LivingEntity;
  * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class AimPhase {
+
+    /** How far past a lone +1 step node the aim point sits, along the planned approach. */
+    private static final double LOOK_THROUGH = 1.5;
+
+    /** The player's half-width: a heading swept at it can only be walked flush. */
+    private static final double BODY_HALF_WIDTH = 0.3;
+
+    /** Squared distance inside which the body counts as standing on a node for {@link #nextNodeHeading}. */
+    private static final double ON_NODE_SQ = 0.25;
+
+    /** How far along the heading {@link #unplannedDrop} looks for a missing floor. */
+    private static final double DROP_LOOK = 1.5;
+
+    /** Sampling pitch along the path when {@link #reachableAim} walks back from the pursuit point. */
+    private static final double REACH_BACK_STEP = 0.25;
+
+    /** How far along the trend heading {@link #headingClear} sweeps the body. */
+    private static final double HEADING_CLEAR_DIST = 2.0;
+
+    /**
+     * Submerged-descent dive latches (task#96 step B), owned by AimPhase; both cleared on every journey reset via
+     * {@link DiveLatches#reset()}.
+     */
+    public final DiveLatches dive = new DiveLatches();
+
+    /**
+     * Riser-ram fold counters (task#96 step B7): the three stepUpFreeze feeders, counted by AimPhase. All self-zero on
+     * their own disengage conditions — no journey reset ever touched them.
+     */
+    public final RamFold ramFold = new RamFold();
+
+    public int surfaceWaterLatch =
+            0; // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out
+    // the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
+
+    /** Aim/heading smoothing state — see {@link AimSmoothing}. */
+    public final AimSmoothing aimSmooth = new AimSmoothing();
     /**
      * A continuously-sliding aim point {@code CARROT_DIST} blocks ahead along the path (interpolated between nodes),
      * capped by line-of-sight — the pure-pursuit "carrot". Because it's interpolated (not snapped to a discrete node),
@@ -98,25 +135,6 @@ public final class AimPhase {
         }
         return new double[] {tx, tz};
     }
-
-    /**
-     * Submerged-descent dive latches (task#96 step B), owned by AimPhase; both cleared on every journey reset via
-     * {@link DiveLatches#reset()}.
-     */
-    public final DiveLatches dive = new DiveLatches();
-
-    /**
-     * Riser-ram fold counters (task#96 step B7): the three stepUpFreeze feeders, counted by AimPhase. All self-zero on
-     * their own disengage conditions — no journey reset ever touched them.
-     */
-    public final RamFold ramFold = new RamFold();
-
-    public int surfaceWaterLatch =
-            0; // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out
-    // the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
-
-    /** Aim/heading smoothing state — see {@link AimSmoothing}. */
-    public final AimSmoothing aimSmooth = new AimSmoothing();
 
     /** Drop the dive latches and the heading smoothing; the ram folds and the surface latch self-zero. */
     public void reset(ResetScope scope) {
@@ -196,9 +214,6 @@ public final class AimPhase {
         a.orbitBreaking = true;
         return YAW_SMOOTH_ALPHA;
     }
-
-    /** How far past a lone +1 step node the aim point sits, along the planned approach. */
-    private static final double LOOK_THROUGH = 1.5;
 
     /**
      * Aim vector at a point {@link #LOOK_THROUGH} past the step node {@code wp} along the direction the plan approaches
@@ -304,9 +319,6 @@ public final class AimPhase {
         return false;
     }
 
-    /** The player's half-width: a heading swept at it can only be walked flush. */
-    private static final double BODY_HALF_WIDTH = 0.3;
-
     /**
      * The bearing to the first of the current node (unless the body is on or past it: a node behind turned the camera a
      * full circle down the R1 steps at 1439,67,-352) and the two after it that {@link #openHeading} lets through, else
@@ -334,12 +346,6 @@ public final class AimPhase {
         }
         return yaw;
     }
-
-    /** Squared distance inside which the body counts as standing on a node for {@link #nextNodeHeading}. */
-    private static final double ON_NODE_SQ = 0.25;
-
-    /** How far along the heading {@link #unplannedDrop} looks for a missing floor. */
-    private static final double DROP_LOOK = 1.5;
 
     /**
      * Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few nodes
@@ -384,9 +390,6 @@ public final class AimPhase {
         }
         return false;
     }
-
-    /** Sampling pitch along the path when {@link #reachableAim} walks back from the pursuit point. */
-    private static final double REACH_BACK_STEP = 0.25;
 
     /**
      * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point back
@@ -433,9 +436,6 @@ public final class AimPhase {
         }
         return null;
     }
-
-    /** How far along the trend heading {@link #headingClear} sweeps the body. */
-    private static final double HEADING_CLEAR_DIST = 2.0;
 
     /**
      * The dry trend heading, or the bearing to the node when only the latter has room for the body (under

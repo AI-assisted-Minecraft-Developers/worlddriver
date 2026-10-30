@@ -73,6 +73,30 @@ public final class DrownEscapeChain implements Chain {
      */
     public static final String NAME = "drownEscape";
 
+    /**
+     * How far UP a column is scanned to decide "solid cap vs open surface" and to find an air surface in a neighbour. A
+     * few blocks is enough — the overhang shelf that drowned the bot (live death #27) sat one block above its head.
+     */
+    private static final int SURFACE_SCAN_UP = 4;
+    /**
+     * Chebyshev-ring radius scanned for a neighbouring column the bot can surface in. Bounded by one breath of
+     * underwater swim (~5 s ≈ a handful of blocks); beyond that no lateral escape completes anyway.
+     */
+    private static final int LATERAL_SCAN_R = 5;
+
+    /**
+     * How far up the bot's own box is swept to ask "will this rise hit something". Half a block: far enough to see the
+     * face a rising player is about to meet (terminal rise in water is ~0.175 per tick), short enough that it never
+     * nominates something the player would have drifted clear of. A lid a whole block higher is not in the way YET, and
+     * this arm re-asks every tick.
+     */
+    private static final double RISE_PROBE = 0.5;
+
+    private static final LateralEscape NO_LATERAL = new LateralEscape(null, null);
+
+    /** Four-way steps. See {@link LateralEscape#step} for why no diagonals. */
+    private static final int[][] STEPS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
     /** The hysteresis latch — non-false IS the episode (see class doc). */
     private boolean latched;
     /**
@@ -90,17 +114,6 @@ public final class DrownEscapeChain implements Chain {
      * land on an arbitrary subset of ticks instead of every tenth of its own. Two arms, two clocks.
      */
     private int dbgV;
-
-    /**
-     * How far UP a column is scanned to decide "solid cap vs open surface" and to find an air surface in a neighbour. A
-     * few blocks is enough — the overhang shelf that drowned the bot (live death #27) sat one block above its head.
-     */
-    private static final int SURFACE_SCAN_UP = 4;
-    /**
-     * Chebyshev-ring radius scanned for a neighbouring column the bot can surface in. Bounded by one breath of
-     * underwater swim (~5 s ≈ a handful of blocks); beyond that no lateral escape completes anyway.
-     */
-    private static final int LATERAL_SCAN_R = 5;
 
     /**
      * Headless-test sensor override ({@code null} in production): lets the dedicated-server arena feed the REAL
@@ -360,14 +373,6 @@ public final class DrownEscapeChain implements Chain {
     }
 
     /**
-     * How far up the bot's own box is swept to ask "will this rise hit something". Half a block: far enough to see the
-     * face a rising player is about to meet (terminal rise in water is ~0.175 per tick), short enough that it never
-     * nominates something the player would have drifted clear of. A lid a whole block higher is not in the way YET, and
-     * this arm re-asks every tick.
-     */
-    private static final double RISE_PROBE = 0.5;
-
-    /**
      * The cell that stops this player from rising, or null if nothing does.
      *
      * <p>The question every column scan in this class approximates, asked exactly: sweep the player's OWN bounding box
@@ -529,11 +534,6 @@ public final class DrownEscapeChain implements Chain {
      *     them apart, and until 2026-08-26 could not: the answer had to be dug out of the saved region file.
      */
     public record LateralEscape(int[] step, BlockPos unreachable) {}
-
-    private static final LateralEscape NO_LATERAL = new LateralEscape(null, null);
-
-    /** Four-way steps. See {@link LateralEscape#step} for why no diagonals. */
-    private static final int[][] STEPS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
     /**
      * The capped-column lateral decision, in full.

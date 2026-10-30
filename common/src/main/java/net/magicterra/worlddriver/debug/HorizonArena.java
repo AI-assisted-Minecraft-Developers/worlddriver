@@ -24,10 +24,11 @@ import net.minecraft.core.BlockPos;
  * <p>Release strip: {@code bot.debug} package, deletable with the other probes.
  */
 public final class HorizonArena {
-    private HorizonArena() {}
 
     /** Corridor spans x[0..CORRIDOR_LEN] at y=60 (bot walks y=61), 3 wide in z. */
     public static final int CORRIDOR_LEN = 210;
+
+    private HorizonArena() {}
 
     public static final class Result {
         public final int firstExpanded; // nodes the FIRST search expanded (≈ freeze cost)

@@ -36,10 +36,11 @@ import net.minecraft.client.resources.language.I18n;
  * <p>With no name it lists every mapping, which is how a caller finds the one it wants.
  */
 public final class ClientKeybinds {
-    private ClientKeybinds() {}
 
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
+
+    private ClientKeybinds() {}
 
     /**
      * What a press or a release left: the reply, and for a click's press the mapping its release lets go of and the

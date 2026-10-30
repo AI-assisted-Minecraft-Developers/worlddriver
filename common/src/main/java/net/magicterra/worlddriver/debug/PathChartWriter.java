@@ -20,12 +20,13 @@ import javax.imageio.ImageIO;
  * class; no Minecraft refs.
  */
 public final class PathChartWriter {
-    private PathChartWriter() {}
 
     private static final AtomicInteger SEQ = new AtomicInteger();
     private static final Path DIR = Path.of("config", "worlddriver", "debug");
     /** Keep at most this many chart PNGs; oldest are pruned so the dir can't grow unbounded. */
     private static final int MAX_FILES = 1000;
+
+    private PathChartWriter() {}
 
     /** Write the image. {@code nameOverride} optional (without extension); else pathchart-NNNN. */
     public static Map<String, Object> write(BufferedImage img, String nameOverride) throws Exception {

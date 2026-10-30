@@ -46,10 +46,10 @@ import net.minecraft.world.phys.Vec3;
  */
 final class BodyInteractions {
 
-    private BodyInteractions() {}
-
     /** The slack the server's use and attack handlers add to the interaction range. */
     private static final double REACH_SLACK = 1.0;
+
+    private BodyInteractions() {}
 
     /** Yaw and pitch from {@code self}'s eyes to {@code p}'s block or angles. */
     static float[] aim(LivingEntity self, InteractContracts.LookParams p) {

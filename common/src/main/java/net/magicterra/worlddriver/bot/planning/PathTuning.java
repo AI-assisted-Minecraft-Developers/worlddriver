@@ -26,12 +26,6 @@ import net.magicterra.worlddriver.config.PlanningConfig;
  */
 public interface PathTuning {
 
-    int horizonBlocks();
-
-    int softCommitNodes();
-
-    double depthPenalty();
-
     /**
      * The configured settings, never escalated, for finders with no bot behind them (tools, arenas that genuinely want
      * ambient settings, direct API callers). Live, so a retuned setting reaches a search already running. Anything that
@@ -58,6 +52,12 @@ public interface PathTuning {
             return "global";
         }
     };
+
+    int horizonBlocks();
+
+    int softCommitNodes();
+
+    double depthPenalty();
 
     /**
      * A bot's own tuning: configured defaults, escalated while THAT bot's boxed-churn clock is armed. Live on both

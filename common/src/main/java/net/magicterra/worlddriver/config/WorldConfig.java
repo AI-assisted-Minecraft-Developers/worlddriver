@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.WorldSettings;
  * the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class WorldConfig {
-    private WorldConfig() {}
 
     /**
      * Collision-SHAPE-aware solidity/passability (vs the coarse {@code blocksMotion()} boolean). When true the
@@ -341,4 +340,6 @@ public final class WorldConfig {
     static {
         BotConfig.initialize();
     }
+
+    private WorldConfig() {}
 }

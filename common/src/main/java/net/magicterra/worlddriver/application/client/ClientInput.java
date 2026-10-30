@@ -58,6 +58,10 @@ import net.minecraft.world.inventory.ClickType;
  * on the client thread as its first step, so a refused one has done nothing.
  */
 public final class ClientInput {
+
+    /** How long a click waits for the tick that carries its release before reporting it undelivered. */
+    private static final long CLICK_RELEASE_MS = 2_000;
+
     private ClientInput() {}
 
     public static Closed closeScreen(CloseParams p) {
@@ -481,9 +485,6 @@ public final class ClientInput {
             }
         }
     }
-
-    /** How long a click waits for the tick that carries its release before reporting it undelivered. */
-    private static final long CLICK_RELEASE_MS = 2_000;
 
     /**
      * One half of a key event: where it went, whether it was handed over at all, and — only when the recipient is a

@@ -9,7 +9,23 @@ import net.minecraft.world.entity.LivingEntity;
 
 /** The jump, sneak and forward keys the walk presses on its body, and the log of where each jump came from. */
 public final class Keys {
+
+    /** Jump-source lines emitted per navigator before the latch goes quiet. */
+    private static final int JUMP_SRC_EVENTS = 6;
+
     private final Navigator nav;
+
+    private int jumpSrcEvents;
+
+    /** One-shot latch for the "the cap swallowed an event" line — see {@link #noteJumpSource}. */
+    private boolean jumpSrcCapped;
+
+    /**
+     * Whether the PREVIOUS {@link #jump} call asked for a jump — the clock-free "entry to a held run" latch. See that
+     * method's javadoc for why a game-time delta cannot do this job in a scene that runs its whole body inside one
+     * server tick.
+     */
+    private boolean lastJumpAsk;
 
     public Keys(Navigator nav) {
         this.nav = nav;
@@ -120,21 +136,6 @@ public final class Keys {
                 p.level().getBlockState(foot).getBlock().toString(),
                 p.level().getBlockState(foot.above()).getBlock().toString());
     }
-
-    /** Jump-source lines emitted per navigator before the latch goes quiet. */
-    private static final int JUMP_SRC_EVENTS = 6;
-
-    private int jumpSrcEvents;
-
-    /** One-shot latch for the "the cap swallowed an event" line — see {@link #noteJumpSource}. */
-    private boolean jumpSrcCapped;
-
-    /**
-     * Whether the PREVIOUS {@link #jump} call asked for a jump — the clock-free "entry to a held run" latch. See that
-     * method's javadoc for why a game-time delta cannot do this job in a scene that runs its whole body inside one
-     * server tick.
-     */
-    private boolean lastJumpAsk;
 
     public static void sneak(Body a, boolean v) {
         a.commandSneak(v);

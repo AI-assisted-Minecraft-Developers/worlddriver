@@ -27,6 +27,63 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * {@code method_not_found}. {@code plan} and {@code replay} read the client's world.
  */
 public final class DebugContracts {
+
+    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record(ChartParams.class);
+
+    public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class);
+
+    public static final MethodSpec<ChartParams, Chart> PATH_CHART = MethodSpec.of(
+                    "mc.debug.pathChart",
+                    CHART_PARAMS,
+                    CHART,
+                    "Render the current goto's pathfinding chart to a PNG under config/worlddriver/debug/ and answer its "
+                            + "path. Needs the pathDebug setting patched on BEFORE the goto, so the data is captured; "
+                            + "callable mid-walk or after it ends.")
+            .effects(MethodSpec.Effect.CONFIG_WRITE);
+
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class);
+
+    public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.union(PlanReply.class);
+
+    public static final MethodSpec<PlanParams, PlanReply> PLAN = MethodSpec.of(
+                    "mc.debug.plan",
+                    PLAN_PARAMS,
+                    PLAN_REPLY,
+                    "One read-only A* search from a fixed start to a goto target: no walking, no block edits. The measurement "
+                            + "backbone for pathfinding A/B: patch pathfinder.maxNodes to a node budget and pathfinder.maxMs "
+                            + "high so the search repeats exactly, then compare forward progress before and after a change. "
+                            + "chain:true answers the whole segment chain (mode chain) instead of one search (mode single).")
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    public static final ApiType<WalkPlanParams> WALK_PLAN_PARAMS = ApiTypes.record(WalkPlanParams.class);
+
+    public static final ApiType<WalkingPlan> WALKING_PLAN = ApiTypes.record(WalkingPlan.class);
+
+    public static final MethodSpec<WalkPlanParams, WalkingPlan> WALK_PLAN = MethodSpec.of(
+                    "mc.debug.walkPlan",
+                    WALK_PLAN_PARAMS,
+                    WALKING_PLAN,
+                    "Walk a given plan on a server-side bot as its task, through the same navigator a goto uses: verbatim "
+                            + "(replay) or adopted with the live recovery on (follow). Answers once the task is started, on "
+                            + "the server thread.")
+            .hidden()
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE);
+
+    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class);
+
+    public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.union(ReplayReply.class);
+
+    public static final MethodSpec<ReplayParams, ReplayReply> REPLAY = MethodSpec.of(
+                    "mc.debug.replay",
+                    REPLAY_PARAMS,
+                    REPLAY_REPLY,
+                    "Replay a recorded goto archive: restore its block envelope, put the bot at the "
+                            + "recorded start and run again, writing a replay-run-*.json with the trajectory and its "
+                            + "deviation per step. Answers once the run is installed; read its progress from mc.bot.status. "
+                            + "An unknown or unreadable file is invalid_params at /file.")
+            .effects(MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.BODY_TASK)
+            .mayWait();
+
     private DebugContracts() {}
 
     // ------------------------------------------------------------------ mc.debug.pathChart
@@ -106,19 +163,6 @@ public final class DebugContracts {
             @Range(min = 0) int height,
             @Doc("Absolute path of the PNG.") Optional<String> path,
             Optional<@Range(min = 0) Long> bytes) {}
-
-    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record(ChartParams.class);
-
-    public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class);
-
-    public static final MethodSpec<ChartParams, Chart> PATH_CHART = MethodSpec.of(
-                    "mc.debug.pathChart",
-                    CHART_PARAMS,
-                    CHART,
-                    "Render the current goto's pathfinding chart to a PNG under config/worlddriver/debug/ and answer its "
-                            + "path. Needs the pathDebug setting patched on BEFORE the goto, so the data is captured; "
-                            + "callable mid-walk or after it ends.")
-            .effects(MethodSpec.Effect.CONFIG_WRITE);
 
     // ------------------------------------------------------------------ mc.debug.plan
 
@@ -301,20 +345,6 @@ public final class DebugContracts {
             @Length(max = 200) List<Segment> trail)
             implements PlanReply {}
 
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class);
-
-    public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.union(PlanReply.class);
-
-    public static final MethodSpec<PlanParams, PlanReply> PLAN = MethodSpec.of(
-                    "mc.debug.plan",
-                    PLAN_PARAMS,
-                    PLAN_REPLY,
-                    "One read-only A* search from a fixed start to a goto target: no walking, no block edits. The measurement "
-                            + "backbone for pathfinding A/B: patch pathfinder.maxNodes to a node budget and pathfinder.maxMs "
-                            + "high so the search repeats exactly, then compare forward progress before and after a change. "
-                            + "chain:true answers the whole segment chain (mode chain) instead of one search (mode single).")
-            .execution(MethodSpec.ExecutionClass.BULK);
-
     // ------------------------------------------------------------------ mc.debug.walkPlan
 
     /** How a given plan is walked: verbatim with no search, or adopted with the live recovery and repath left on. */
@@ -388,20 +418,6 @@ public final class DebugContracts {
     public record WalkingPlan(
             @BotRef String bot, @Range(min = 0) int nodes) {}
 
-    public static final ApiType<WalkPlanParams> WALK_PLAN_PARAMS = ApiTypes.record(WalkPlanParams.class);
-
-    public static final ApiType<WalkingPlan> WALKING_PLAN = ApiTypes.record(WalkingPlan.class);
-
-    public static final MethodSpec<WalkPlanParams, WalkingPlan> WALK_PLAN = MethodSpec.of(
-                    "mc.debug.walkPlan",
-                    WALK_PLAN_PARAMS,
-                    WALKING_PLAN,
-                    "Walk a given plan on a server-side bot as its task, through the same navigator a goto uses: verbatim "
-                            + "(replay) or adopted with the live recovery on (follow). Answers once the task is started, on "
-                            + "the server thread.")
-            .hidden()
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE);
-
     // ------------------------------------------------------------------ mc.debug.replay
 
     @Named("ReplayParams")
@@ -450,19 +466,4 @@ public final class DebugContracts {
             @Range(min = 0) int restoredBlocks,
             String fidelity)
             implements ReplayReply {}
-
-    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class);
-
-    public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.union(ReplayReply.class);
-
-    public static final MethodSpec<ReplayParams, ReplayReply> REPLAY = MethodSpec.of(
-                    "mc.debug.replay",
-                    REPLAY_PARAMS,
-                    REPLAY_REPLY,
-                    "Replay a recorded goto archive: restore its block envelope, put the bot at the "
-                            + "recorded start and run again, writing a replay-run-*.json with the trajectory and its "
-                            + "deviation per step. Answers once the run is installed; read its progress from mc.bot.status. "
-                            + "An unknown or unreadable file is invalid_params at /file.")
-            .effects(MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.BODY_TASK)
-            .mayWait();
 }

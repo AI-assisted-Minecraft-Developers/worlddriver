@@ -7,7 +7,8 @@ import net.minecraft.world.level.Level;
  * PathTrace sinks (PathArchiveRecorder) read blocks without referencing the client-only Minecraft class.
  */
 public final class BotLevelHolder {
-    private BotLevelHolder() {}
 
     public static volatile Level current;
+
+    private BotLevelHolder() {}
 }

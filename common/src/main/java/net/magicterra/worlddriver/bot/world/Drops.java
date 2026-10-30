@@ -4,11 +4,12 @@ import net.minecraft.core.BlockPos;
 
 /** Drops beside a cell, read off a {@link WorldView}: what the navigator's edge guards and a route's ledge tax ask. */
 public final class Drops {
-    private Drops() {}
 
     /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
     public static final int[][] EDGE_NEIGHBOURS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
     };
+
+    private Drops() {}
 
     /**
      * Whether a neighbour of {@code foot} opens onto a fall deeper than {@code threshold}, or onto a hazard at any

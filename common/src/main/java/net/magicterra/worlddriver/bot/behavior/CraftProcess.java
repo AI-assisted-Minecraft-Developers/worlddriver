@@ -43,11 +43,6 @@ import net.minecraft.world.level.block.Blocks;
  * recipes open a crafting table (an existing one within reach, or one placed from the hotbar).
  */
 public final class CraftProcess implements BotProcess {
-    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
-    private Menus menus;
     /** Max ticks to wait for the server to fill the grid / open the table. */
     private static final int STEP_TIMEOUT = 40;
     /**
@@ -55,9 +50,6 @@ public final class CraftProcess implements BotProcess {
      * pickup/give by a few ticks, so a one-shot plan can read a transient-empty inventory and wrongly report "missing".
      */
     private static final int PLAN_GRACE = 20;
-
-    private final String target;
-    private final int count;
 
     /**
      * Max ticks to spend breaking our own table back (gap #276). A crafting table is wood (hardness 2.5): ~75 ticks
@@ -70,18 +62,14 @@ public final class CraftProcess implements BotProcess {
      * waiting it out and the next process walks the bot away from its own table.
      */
     private static final int PICKUP_GRACE = 15;
+    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
+    private Equipment equipment;
 
-    private enum St {
-        INIT,
-        STATION,
-        OPEN_WAIT,
-        PLACE,
-        AWAIT_RESULT,
-        AWAIT_TAKE,
-        RECLAIM,
-        DONE,
-        FAIL
-    }
+    private BlockInteraction blocks;
+    private Menus menus;
+
+    private final String target;
+    private final int count;
 
     private St st = St.INIT;
 
@@ -103,12 +91,24 @@ public final class CraftProcess implements BotProcess {
     private int pickupTicks;
     private String error;
 
+    private int crafted; // total items produced (for the result summary)
+
+    private enum St {
+        INIT,
+        STATION,
+        OPEN_WAIT,
+        PLACE,
+        AWAIT_RESULT,
+        AWAIT_TAKE,
+        RECLAIM,
+        DONE,
+        FAIL
+    }
+
     @Override
     public String failure() {
         return error;
     }
-
-    private int crafted; // total items produced (for the result summary)
 
     public CraftProcess(String target, int count) {
         this.target = target;

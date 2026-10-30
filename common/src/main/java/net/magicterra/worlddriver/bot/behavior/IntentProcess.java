@@ -48,16 +48,11 @@ public final class IntentProcess implements BotProcess, Navigating {
      */
     public static final String DIMENSION_CHANGED = "dimension-changed";
 
+    private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
+    private static final double ANCHOR_DIRTY_DIST_SQ = 2 * 2;
+
     private final Intent intent;
     private final Navigator navigator;
-    /**
-     * The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the process
-     * reads the counts of the player it handed the process to, on either helm.
-     */
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
     /**
      * Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come first; arriving at
      * one moves to the next, and only the last one ends the process.
@@ -79,8 +74,16 @@ public final class IntentProcess implements BotProcess, Navigating {
     private int searchesJudged;
     private BlockPos lastAnchor; // last solved anchor block (null = not yet solved)
     private int ticksSinceAnchorSolve; // rate limiter
-    private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
-    private static final double ANCHOR_DIRTY_DIST_SQ = 2 * 2;
+
+    private String failure;
+    /**
+     * The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the process
+     * reads the counts of the player it handed the process to, on either helm.
+     */
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     public IntentProcess(Intent intent) {
         this(intent, (type, pos, data) -> {});
@@ -251,8 +254,6 @@ public final class IntentProcess implements BotProcess, Navigating {
                 : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

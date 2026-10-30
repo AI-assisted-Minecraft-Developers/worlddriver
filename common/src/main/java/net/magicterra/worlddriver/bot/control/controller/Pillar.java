@@ -39,13 +39,6 @@ public final class Pillar implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.allOf(Channel.class);
 
-    private enum Mode {
-        NONE,
-        PLANNED,
-        SETTLE,
-        RECOVER
-    }
-
     /** What this tick asks for, from {@link #sense}. */
     private Mode mode = Mode.NONE;
 
@@ -62,6 +55,13 @@ public final class Pillar implements Controller {
     public BlockPos recoverCell; // the (grounded) feet cell the recovery is filling this rung
     public int recoverPeakY; // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
     public int recoverStallTicks; // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
+
+    private enum Mode {
+        NONE,
+        PLANNED,
+        SETTLE,
+        RECOVER
+    }
 
     @Override
     public String name() {

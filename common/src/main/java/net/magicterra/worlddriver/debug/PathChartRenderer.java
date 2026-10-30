@@ -18,13 +18,6 @@ import net.minecraft.util.Mth;
  * Headless-safe (AWT, like Screenshots.java).
  */
 public final class PathChartRenderer {
-    private PathChartRenderer() {}
-
-    public record Opts(int width, int height, double blocksPerPixel, boolean includeCandidates) {
-        public static Opts defaults() {
-            return new Opts(1280, 960, 0, true);
-        } // bpp 0 = auto-fit
-    }
 
     private static final Color BG = new Color(18, 18, 22);
     private static final Color PANEL = new Color(28, 28, 34);
@@ -38,6 +31,14 @@ public final class PathChartRenderer {
     private static final Color CUR = new Color(80, 230, 230);
     private static final Color YAW_ACTUAL = new Color(120, 220, 140);
     private static final Color YAW_TARGET = new Color(230, 200, 90);
+
+    private PathChartRenderer() {}
+
+    public record Opts(int width, int height, double blocksPerPixel, boolean includeCandidates) {
+        public static Opts defaults() {
+            return new Opts(1280, 960, 0, true);
+        } // bpp 0 = auto-fit
+    }
 
     public static BufferedImage render(PathSession s, Opts opts) {
         int W = opts.width();

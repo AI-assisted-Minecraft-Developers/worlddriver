@@ -29,7 +29,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * record that the analysis layer can inspect without re-querying the world.
  */
 public final class NodePhysics {
-    private NodePhysics() {}
 
     // Player pose bounding boxes (width × height); see EntityType.PLAYER dimensions.
     private static final EntityDimensions STAND = EntityDimensions.scalable(0.6f, 1.8f);
@@ -40,6 +39,8 @@ public final class NodePhysics {
     private static final double MAX_UP_STEP = 0.6;
     /** Approximate peak height of a vanilla jump (blocks above foot). */
     private static final double JUMP_APEX = 1.25;
+
+    private NodePhysics() {}
 
     /**
      * Immutable snapshot of physics facts for one planned path node.

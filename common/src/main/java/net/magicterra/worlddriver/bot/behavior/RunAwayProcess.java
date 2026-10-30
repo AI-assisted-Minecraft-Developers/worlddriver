@@ -25,6 +25,8 @@ public final class RunAwayProcess implements BotProcess, Navigating {
 
     private final Navigator navigator;
 
+    private String failure;
+
     @Override
     public Navigator navigator() {
         return navigator;
@@ -82,8 +84,6 @@ public final class RunAwayProcess implements BotProcess, Navigating {
         failure = navigator.result().reason();
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

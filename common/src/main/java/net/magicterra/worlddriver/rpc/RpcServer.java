@@ -109,6 +109,12 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
  * dev runs put on the game's classpath with {@code additionalRuntimeClasspath}. See docs/dev/build.md.
  */
 public final class RpcServer implements Closeable {
+    /**
+     * Per-channel event-type filter; {@code null}/empty means "all types". Stored as a channel attribute so it's GC'd
+     * with the connection.
+     */
+    private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
+
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
     /**
@@ -150,11 +156,6 @@ public final class RpcServer implements Closeable {
      * closes, so there's no inactive-cleanup to do.
      */
     private final ChannelGroup subscribers = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-    /**
-     * Per-channel event-type filter; {@code null}/empty means "all types". Stored as a channel attribute so it's GC'd
-     * with the connection.
-     */
-    private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
     public RpcServer(ApiRegistry api, EventFeed events, int requestedPort) {
         this(api, events, "127.0.0.1", requestedPort);
@@ -357,15 +358,12 @@ public final class RpcServer implements Closeable {
     }
 
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
+        /** Suspended waits across every connection of this JVM's RPC servers. */
+        private static final WaitPermits GLOBAL_WAITS = WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS);
+
         private final ApiRegistry api;
         private final Executor routeExec;
         private final ChannelGroup subscribers;
-
-        FrameHandler(ApiRegistry api, Executor routeExec, ChannelGroup subscribers) {
-            this.api = api;
-            this.routeExec = routeExec;
-            this.subscribers = subscribers;
-        }
 
         /**
          * Requests of THIS connection that hold a worker; one handler per channel. A request that suspends (an awaited
@@ -373,13 +371,17 @@ public final class RpcServer implements Closeable {
          * outstanding can still observe and cancel.
          */
         private final AtomicInteger inFlight = new AtomicInteger();
-        /** Suspended waits across every connection of this JVM's RPC servers. */
-        private static final WaitPermits GLOBAL_WAITS = WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS);
         /** Cancelled when the socket closes: every wait it left suspended ends then, nothing it started does. */
         private final CancellationToken.Source gone = new CancellationToken.Source();
 
         private final WaitPermits waits =
                 WaitPermits.both(GLOBAL_WAITS, WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS_PER_CONNECTION));
+
+        FrameHandler(ApiRegistry api, Executor routeExec, ChannelGroup subscribers) {
+            this.api = api;
+            this.routeExec = routeExec;
+            this.subscribers = subscribers;
+        }
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {

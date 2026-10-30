@@ -27,10 +27,6 @@ final class ClientEventDetector {
 
     private final BotBrain brain;
 
-    ClientEventDetector(BotBrain brain) {
-        this.brain = brain;
-    }
-
     // Client-tick event detectors (driver→agent push channel). Track the local
     // player's health/death across ticks so we emit a one-shot event on each
     // transition rather than every tick.
@@ -70,6 +66,10 @@ final class ClientEventDetector {
     // changes and is never compared, so a subtitle that changes under a steady title emits
     // nothing — there was a field here suggesting otherwise that nothing ever read or wrote.
     private String evtLastTitle = null;
+
+    ClientEventDetector(BotBrain brain) {
+        this.brain = brain;
+    }
 
     /**
      * Fire player.death off the DeathScreen rising edge, carrying the screen's SPECIFIC cause (combat-kill message).

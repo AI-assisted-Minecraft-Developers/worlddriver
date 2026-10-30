@@ -13,7 +13,6 @@ import net.minecraft.client.Minecraft;
  * {@code BotUtil}'s static initialiser reads block registries, which a JVM test cannot load.
  */
 public final class ClientHop {
-    private ClientHop() {}
 
     /**
      * Default budget for waiting on a client-tick hop. Mirrors {@code DriverApplication.SERVER_THREAD_TIMEOUT_MS} — the
@@ -21,6 +20,8 @@ public final class ClientHop {
      * RPC/MCP thread forever. Override with {@code -Dworlddriver.clientThreadTimeoutMs=N}.
      */
     private static final long CLIENT_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.clientThreadTimeoutMs", 8_000L);
+
+    private ClientHop() {}
 
     /** Run {@code body} on the client thread and return its value; see {@link BotUtil#onClient}. */
     public static <T> T call(Supplier<T> body) {

@@ -20,7 +20,6 @@ import net.magicterra.worlddriver.api.schema.UnionType;
  * another mod registers adds its own through {@link #add}.
  */
 public final class ActionResults {
-    private ActionResults() {}
 
     private static final List<UnionType<?>> PER_METHOD = List.of(
             ClearAreaContracts.SUMMARY,
@@ -42,6 +41,8 @@ public final class ActionResults {
             InteractContracts.LOOK_RESULT);
 
     public static final OpenUnion<Object> UNION = ApiTypes.openUnion(union());
+
+    private ActionResults() {}
 
     /** Make {@code result}'s variants answerable too. Throws, adding nothing, on a kind already taken. */
     @SuppressWarnings({"unchecked", "rawtypes"})

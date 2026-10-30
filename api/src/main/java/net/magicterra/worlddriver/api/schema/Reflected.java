@@ -47,7 +47,6 @@ import net.magicterra.worlddriver.api.schema.annotation.Wire;
  * annotations is an {@link IllegalArgumentException} naming the component, thrown when the type is first built.
  */
 final class Reflected {
-    private Reflected() {}
 
     /** The annotations a type use may carry; any other annotation is looked through for these. */
     private static final Set<Class<? extends Annotation>> CONSTRAINTS = Set.of(
@@ -63,6 +62,8 @@ final class Reflected {
 
     private static final Map<Object, ApiType<?>> CACHE = new ConcurrentHashMap<>();
     private static final ThreadLocal<Set<Class<?>>> BUILDING = ThreadLocal.withInitial(HashSet::new);
+
+    private Reflected() {}
 
     @SuppressWarnings("unchecked")
     static <T> ApiType<T> of(Class<T> type) {

@@ -18,12 +18,13 @@ import net.minecraft.client.gui.screens.Screen;
  * matches. Client thread only.
  */
 public final class ScreenContext {
-    private ScreenContext() {}
 
     private static final String EPOCH = Long.toString(new SecureRandom().nextLong() & Long.MAX_VALUE, 36);
 
     private static long generation;
     private static Screen seen;
+
+    private ScreenContext() {}
 
     /** A screen was set: a new context, whatever the screen is. */
     public static void opened(Screen now) {

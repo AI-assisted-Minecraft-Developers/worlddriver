@@ -9,7 +9,6 @@ import net.magicterra.worlddriver.config.ControlConfig;
  * ({@code import static NavigatorConstants.*}). No behaviour change.
  */
 public final class NavigatorConstants {
-    private NavigatorConstants() {}
 
     public static final int CARROT_MAX_NODES = 10;
     public static final double CARROT_DIST = 4.0;
@@ -801,4 +800,6 @@ public final class NavigatorConstants {
      * cell (matches TowerProcess).
      */
     public static final int PILLAR_PLACE_DELAY = 3;
+
+    private NavigatorConstants() {}
 }

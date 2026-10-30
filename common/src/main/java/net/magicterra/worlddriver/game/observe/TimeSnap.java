@@ -38,10 +38,11 @@ import java.util.Map;
  * behaviour change smuggled into a de-duplication.
  */
 public final class TimeSnap {
-    private TimeSnap() {}
 
     /** Ticks in a Minecraft day. */
     public static final long DAY_TICKS = 24000L;
+
+    private TimeSnap() {}
 
     /** {@code dayTime} folded into {@code [0, DAY_TICKS)} — negative input included. */
     public static long timeOfDay(long dayTime) {

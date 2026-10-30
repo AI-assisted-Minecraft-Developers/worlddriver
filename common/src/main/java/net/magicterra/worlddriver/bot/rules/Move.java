@@ -21,6 +21,70 @@ import net.minecraft.core.BlockPos;
  * {@link #ALL} catalog that {@link #build()} assembles from those subclasses.
  */
 public abstract class Move {
+
+    /**
+     * Cost of a single block placement (place action + the careful sneak/aim overhead). Tuned so bridging is only
+     * chosen over a real walkable detour of more than ~2 blocks.
+     */
+    public static final double PLACE_COST = 20;
+
+    /**
+     * Cost of pillaring up one block: a jump + a place-beneath-at-apex. A touch dearer than {@link #PLACE_COST} (the
+     * jump-time + a few ticks of settle) so A* prefers a real walkable stair when one exists.
+     */
+    public static final double PILLAR_COST = 30;
+
+    /**
+     * Fixed overhead of a water-bucket (MLG) fall: aim straight down, place the water source to break the fall, then
+     * scoop the bucket back. Picked so a real stepped descent (10/block) wins for short, walkable drops yet the MLG
+     * fall beats climbing down a sheer cliff (where no StepDown is valid).
+     */
+    public static final int WATER_BUCKET_COST = 40;
+
+    /**
+     * Per-block time component of a water-bucket fall — free-fall is fast, so this is well under the {@code 10}/block
+     * of a StepDown.
+     */
+    public static final int WATER_FALL_PER_BLOCK = 4;
+
+    /**
+     * Highest water-bucket fall enumerated in {@link #ALL}; the live {@link WorldView#maxWaterBucketFall()} caps the
+     * drop at search time.
+     */
+    private static final int MAX_BUCKET_FALL = 20;
+
+    /**
+     * Highest fall-into-existing-water drop enumerated in {@link #ALL}. Vanilla negates all fall damage on entering
+     * water at any height, so this is a search-bound (more drops = more candidates per node), not a safety cap.
+     * {@link FallIntoWater#valid} short-circuits on a single {@code isWater} read, so dry columns pay almost nothing
+     * for the extra enumeration.
+     */
+    private static final int MAX_WATER_FALL = 20;
+
+    /**
+     * Cells of standable ground the bot needs BEHIND a launch to reach sprint speed. Two, because vanilla sprint takes
+     * a couple of ticks of ground contact to engage and the leap is priced at the sprint-jump maximum.
+     */
+    public static final int RUNUP_CELLS = 2;
+
+    /**
+     * How far down a gap must be clear before it counts as bottomless rather than as a pit the bot would merely fall
+     * into. Matches the navigator's own {@code BOTTOMLESS_SCAN_FLOOR}: the two must agree, or the planner routes over a
+     * gap the executor's guards then refuse to cross.
+     */
+    public static final int VOID_SCAN_FLOOR = -70;
+
+    /** The 4 cardinal horizontal offsets, for {@link #bankClimbContext}'s face probe. */
+    private static final int[][] CARDINAL_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    // Declared before ALL so the ALL initializer (which calls build()) sees them populated.
+    // Java initializes static fields in source order; an inverted order silently yields null.
+    private static final int[][] CARDINAL = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    private static final int[][] DIAGONAL = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    /** All moves the pathfinder considers from a given position. Order doesn't matter — A* sorts by f. */
+    public static final List<Move> ALL = build();
+
     public final int dx;
     public final int dy;
     public final int dz;
@@ -125,45 +189,6 @@ public abstract class Move {
         }
     }
 
-    /**
-     * Cost of a single block placement (place action + the careful sneak/aim overhead). Tuned so bridging is only
-     * chosen over a real walkable detour of more than ~2 blocks.
-     */
-    public static final double PLACE_COST = 20;
-
-    /**
-     * Cost of pillaring up one block: a jump + a place-beneath-at-apex. A touch dearer than {@link #PLACE_COST} (the
-     * jump-time + a few ticks of settle) so A* prefers a real walkable stair when one exists.
-     */
-    public static final double PILLAR_COST = 30;
-
-    /**
-     * Fixed overhead of a water-bucket (MLG) fall: aim straight down, place the water source to break the fall, then
-     * scoop the bucket back. Picked so a real stepped descent (10/block) wins for short, walkable drops yet the MLG
-     * fall beats climbing down a sheer cliff (where no StepDown is valid).
-     */
-    public static final int WATER_BUCKET_COST = 40;
-
-    /**
-     * Per-block time component of a water-bucket fall — free-fall is fast, so this is well under the {@code 10}/block
-     * of a StepDown.
-     */
-    public static final int WATER_FALL_PER_BLOCK = 4;
-
-    /**
-     * Highest water-bucket fall enumerated in {@link #ALL}; the live {@link WorldView#maxWaterBucketFall()} caps the
-     * drop at search time.
-     */
-    private static final int MAX_BUCKET_FALL = 20;
-
-    /**
-     * Highest fall-into-existing-water drop enumerated in {@link #ALL}. Vanilla negates all fall damage on entering
-     * water at any height, so this is a search-bound (more drops = more candidates per node), not a safety cap.
-     * {@link FallIntoWater#valid} short-circuits on a single {@code isWater} read, so dry columns pay almost nothing
-     * for the extra enumeration.
-     */
-    private static final int MAX_WATER_FALL = 20;
-
     public BlockPos apply(BlockPos from) {
         return from.offset(dx, dy, dz);
     }
@@ -178,19 +203,6 @@ public abstract class Move {
     public static boolean hasRunway(WorldView w, BlockPos from) {
         return w.isSolid(from.offset(0, -1, 0));
     }
-
-    /**
-     * Cells of standable ground the bot needs BEHIND a launch to reach sprint speed. Two, because vanilla sprint takes
-     * a couple of ticks of ground contact to engage and the leap is priced at the sprint-jump maximum.
-     */
-    public static final int RUNUP_CELLS = 2;
-
-    /**
-     * How far down a gap must be clear before it counts as bottomless rather than as a pit the bot would merely fall
-     * into. Matches the navigator's own {@code BOTTOMLESS_SCAN_FLOOR}: the two must agree, or the planner routes over a
-     * gap the executor's guards then refuse to cross.
-     */
-    public static final int VOID_SCAN_FLOOR = -70;
 
     /**
      * A corner cell a flat crossing sweeps with a drop of two or more under it (water breaks the fall, so it does not
@@ -424,9 +436,6 @@ public abstract class Move {
         return false;
     }
 
-    /** The 4 cardinal horizontal offsets, for {@link #bankClimbContext}'s face probe. */
-    private static final int[][] CARDINAL_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-
     /**
      * True if scanning straight DOWN the column at {@code face} (an open neighbour of a bank cell) reaches water within
      * {@code maxDepth} blocks while every cell above the water on that column is water-or-air — i.e. {@code face} is
@@ -453,14 +462,6 @@ public abstract class Move {
     public String toString() {
         return name() + "(" + dx + "," + dy + "," + dz + ")";
     }
-
-    // Declared before ALL so the ALL initializer (which calls build()) sees them populated.
-    // Java initializes static fields in source order; an inverted order silently yields null.
-    private static final int[][] CARDINAL = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    private static final int[][] DIAGONAL = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-
-    /** All moves the pathfinder considers from a given position. Order doesn't matter — A* sorts by f. */
-    public static final List<Move> ALL = build();
 
     private static List<Move> build() {
         List<Move> ms = new ArrayList<>();

@@ -24,28 +24,12 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 public final class ElytraProcess implements BotProcess {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
     /** Give up arming flight after this many ticks (~3 s) — no elytra, stuck on the ground, or in water. */
     private static final int TAKEOFF_TIMEOUT = 60;
-
-    private final BlockPos target; // optional horizontal goal; null → heading hold
-    private final Float fixedYaw; // hold this yaw; null → aim at target / keep current
-    private final float pitch; // cruise/test pitch, MC sign (+down dives)
-    private final boolean useFireworks;
-    private final int fireworkEveryTicks;
-    private final int maxTicks;
-    private final double stopXZDist;
-    private final boolean reactive; // milestone-B sim-lookahead control toward a 3D target
-    private final boolean validate; // sample sim error (only meaningful glide-only)
-    private final ElytraController controller = new ElytraController();
 
     // --- reactive waypoint following (milestone C) ---
     private static final int REPLAN_TICKS = 40; // re-plan cadence (newly loaded terrain refines route)
     private static final double WAYPOINT_REACH = 6.0;
-    private List<Vec3> waypoints; // corridor to the goal; last == goal
-    private int wpIndex;
-    private int sinceReplan;
 
     // --- landing + failsafes (milestone D) ---
     /** Horizontal distance to the final goal at which the flare begins. */
@@ -60,12 +44,6 @@ public final class ElytraProcess implements BotProcess {
      */
     private static final int STUCK_TICKS = 120;
 
-    private boolean landing; // in the final flare / controlled descent
-    private boolean aborting; // failsafe descent (durability / stall) — heads down, no boost
-    private double landMinDist = Double.POSITIVE_INFINITY; // closest 3D approach to goal while landing
-    private double bestGoalDist = Double.POSITIVE_INFINITY; // best 3D dist (for stall detection)
-    private int sinceImprove;
-
     // --- long-distance plan-as-you-fly (milestone E; NO chunk cache) ---
     /**
      * Known (loaded) blocks required ahead per block/tick of speed before a firework boost is allowed — so the bot
@@ -76,6 +54,28 @@ public final class ElytraProcess implements BotProcess {
     private static final int FRONTIER_SCAN = 256;
     /** Keep the flight sub-goal this far back inside loaded terrain (blocks). */
     private static final int FRONTIER_BACKOFF = 24;
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Equipment equipment;
+
+    private final BlockPos target; // optional horizontal goal; null → heading hold
+    private final Float fixedYaw; // hold this yaw; null → aim at target / keep current
+    private final float pitch; // cruise/test pitch, MC sign (+down dives)
+    private final boolean useFireworks;
+    private final int fireworkEveryTicks;
+    private final int maxTicks;
+    private final double stopXZDist;
+    private final boolean reactive; // milestone-B sim-lookahead control toward a 3D target
+    private final boolean validate; // sample sim error (only meaningful glide-only)
+    private final ElytraController controller = new ElytraController();
+    private List<Vec3> waypoints; // corridor to the goal; last == goal
+    private int wpIndex;
+    private int sinceReplan;
+
+    private boolean landing; // in the final flare / controlled descent
+    private boolean aborting; // failsafe descent (durability / stall) — heads down, no boost
+    private double landMinDist = Double.POSITIVE_INFINITY; // closest 3D approach to goal while landing
+    private double bestGoalDist = Double.POSITIVE_INFINITY; // best 3D dist (for stall detection)
+    private int sinceImprove;
     /**
      * Cruise altitude held while heading to a far (still-unloaded) goal: seeded from the launch altitude on the first
      * flying tick. The frontier sub-goal sits at this Y so the controller boosts to hold height instead of slowly
@@ -84,11 +84,6 @@ public final class ElytraProcess implements BotProcess {
     private double cruiseY = Double.NaN;
 
     private boolean frontierMode; // last tick aimed at the loaded frontier, not the real goal
-
-    private enum Phase {
-        TAKEOFF,
-        FLYING
-    }
 
     private Phase phase = Phase.TAKEOFF;
     private int ticks;
@@ -104,6 +99,14 @@ public final class ElytraProcess implements BotProcess {
     private double sumErr;
     private double maxErr;
     private int samples;
+
+    /** Every elytra stamp is a failure (arrivals stamp nothing), so the slot answers directly. */
+    private BotState.ProcessSlot slot;
+
+    private enum Phase {
+        TAKEOFF,
+        FLYING
+    }
 
     public ElytraProcess(
             BlockPos target,
@@ -141,9 +144,6 @@ public final class ElytraProcess implements BotProcess {
                 target);
         slot = st.elytra;
     }
-
-    /** Every elytra stamp is a failure (arrivals stamp nothing), so the slot answers directly. */
-    private BotState.ProcessSlot slot;
 
     @Override
     public String failure() {

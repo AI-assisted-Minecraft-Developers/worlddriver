@@ -171,6 +171,20 @@ public final class BotBrain {
 
     volatile boolean paused;
 
+    /** What the navigators driving this bot's body have done; null until the first tick with a body. */
+    private volatile NavigatorTelemetry navigatorTelemetry;
+
+    private volatile Leg leg = new Leg(0L, false, null, null);
+    private final AtomicLong legSeq = new AtomicLong();
+
+    /**
+     * The process {@link #installLeg} handed to the chain, once it is really in it. <b>Tick thread only</b> — written
+     * by the installer, read by {@link #settleLeg}.
+     */
+    private BotProcess installedLeg;
+
+    private long installedLegSeq;
+
     public BotBrain(RouteEvents.Emitter events, Supplier<? extends WorldView> world) {
         this.events = events;
         this.perceptionEvents = new PerceptionEvents(events);
@@ -223,9 +237,6 @@ public final class BotBrain {
         }
         to.emit(entry.type(), pos, tree);
     }
-
-    /** What the navigators driving this bot's body have done; null until the first tick with a body. */
-    private volatile NavigatorTelemetry navigatorTelemetry;
 
     /** The last deep search a navigator on this bot finished, or null. */
     private NavigatorTelemetry.PathStats lastPathStats() {
@@ -948,17 +959,6 @@ public final class BotBrain {
      * cleanly. One reference, one read, one consistent answer.
      */
     private record Leg(long seq, boolean busy, String kind, String error) {}
-
-    private volatile Leg leg = new Leg(0L, false, null, null);
-    private final AtomicLong legSeq = new AtomicLong();
-
-    /**
-     * The process {@link #installLeg} handed to the chain, once it is really in it. <b>Tick thread only</b> — written
-     * by the installer, read by {@link #settleLeg}.
-     */
-    private BotProcess installedLeg;
-
-    private long installedLegSeq;
 
     /**
      * Publish {@code process} as the running task, from the CALLER's thread, before its install is even enqueued. This

@@ -20,10 +20,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 public final class TowerProcess implements BotProcess {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
     /**
      * Minimum ticks between jump-press and the place attempt — a lower bound only. The block fills the cell we jumped
      * FROM, so vanilla's entity collision (Level#isUnobstructed) rejects it until the feet have actually risen clear of
@@ -53,6 +49,10 @@ public final class TowerProcess implements BotProcess {
      * needs: expiry means something is actively moving the bot, which the stuck message reports rather than hiding.
      */
     private static final int SETTLE_TICKS = 20;
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Equipment equipment;
+
+    private BlockInteraction blocks;
 
     private final int targetY;
     private final String preferredBlockId;
@@ -73,11 +73,6 @@ public final class TowerProcess implements BotProcess {
     private int stuckTicks;
     /** "not needed" is a success: the bot already stands at the height the caller asked for. */
     private String failure;
-
-    @Override
-    public String failure() {
-        return failure;
-    }
 
     private int startFeetY = Integer.MIN_VALUE;
     private int lastApexFloorY;
@@ -103,6 +98,11 @@ public final class TowerProcess implements BotProcess {
     private int shortJumps;
 
     private Phase phase = Phase.READY;
+
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     private enum Phase {
         READY,

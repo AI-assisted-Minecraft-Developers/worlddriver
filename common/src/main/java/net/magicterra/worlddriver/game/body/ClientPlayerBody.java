@@ -19,6 +19,20 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     private final Minecraft mc;
     private final LocalPlayer p;
 
+    /**
+     * Within-tick only: Navigator.tick builds a fresh ClientPlayerBody every tick, so this field never outlives the
+     * call its caller is reading it for — which is the only window anyone should be asking about anyway.
+     */
+    private String lastAttackRefusal;
+
+    /**
+     * The cell {@link #continueDestroy} already drove this client tick, and the tick it drove it on — the pair that
+     * keeps one block from being advanced twice in a tick.
+     */
+    private BlockPos destroyDrivenCell;
+
+    private int destroyDrivenTick = -1;
+
     public ClientPlayerBody(Minecraft mc) {
         this.mc = mc;
         this.p = mc.player;
@@ -200,12 +214,6 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         }
     }
 
-    /**
-     * Within-tick only: Navigator.tick builds a fresh ClientPlayerBody every tick, so this field never outlives the
-     * call its caller is reading it for — which is the only window anyone should be asking about anyway.
-     */
-    private String lastAttackRefusal;
-
     @Override
     public void noteAttackRefusal(String why) {
         this.lastAttackRefusal = why;
@@ -220,14 +228,6 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     public boolean breakHeld() {
         return ClientIntents.digHeld();
     }
-
-    /**
-     * The cell {@link #continueDestroy} already drove this client tick, and the tick it drove it on — the pair that
-     * keeps one block from being advanced twice in a tick.
-     */
-    private BlockPos destroyDrivenCell;
-
-    private int destroyDrivenTick = -1;
 
     @Override
     public void continueDestroy(BlockPos cell) {

@@ -33,10 +33,29 @@ import net.magicterra.worlddriver.api.schema.annotation.Wire;
  * every row field is optional.
  */
 public final class QueryContracts {
-    private QueryContracts() {}
 
     /** The largest block radius: a 31³ cube, inside the 32768-cell budget of mc.action.fill. */
     public static final int MAX_BLOCK_RADIUS = 15;
+
+    // ------------------------------------------------------------------ params
+
+    public static final UnionType<Query> PARAMS = ApiTypes.union(Query.class);
+
+    // ------------------------------------------------------------------ reply
+
+    public static final UnionType<Rows> REPLY = ApiTypes.union(Rows.class);
+
+    // Not pollable: a block query may read a 31³ cube in one tick, which is bulk work for a poller to repeat.
+    public static final MethodSpec<Query, Rows> SPEC = MethodSpec.of(
+                    "mc.query",
+                    PARAMS,
+                    REPLY,
+                    "The non-air blocks or the entities in a cube around a center. Blocks read only loaded chunks: a cube "
+                            + "touching an unloaded chunk is refused with the chunk named, never loaded. On a client with "
+                            + "no server attached it scans the client's world, under the same limits.")
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    private QueryContracts() {}
 
     @Named("BlockField")
     public enum BlockField implements WireName {
@@ -190,22 +209,4 @@ public final class QueryContracts {
             expected = "an entity id such as minecraft:zombie; a bare path means minecraft:")
     @Length(max = 256)
     public @interface EntityTypeId {}
-
-    // ------------------------------------------------------------------ params
-
-    public static final UnionType<Query> PARAMS = ApiTypes.union(Query.class);
-
-    // ------------------------------------------------------------------ reply
-
-    public static final UnionType<Rows> REPLY = ApiTypes.union(Rows.class);
-
-    // Not pollable: a block query may read a 31³ cube in one tick, which is bulk work for a poller to repeat.
-    public static final MethodSpec<Query, Rows> SPEC = MethodSpec.of(
-                    "mc.query",
-                    PARAMS,
-                    REPLY,
-                    "The non-air blocks or the entities in a cube around a center. Blocks read only loaded chunks: a cube "
-                            + "touching an unloaded chunk is refused with the chunk named, never loaded. On a client with "
-                            + "no server attached it scans the client's world, under the same limits.")
-            .execution(MethodSpec.ExecutionClass.BULK);
 }

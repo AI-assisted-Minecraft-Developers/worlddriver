@@ -15,6 +15,13 @@ import net.magicterra.worlddriver.api.schema.annotation.Named;
  * {@code mc.test.*} contracts on these records and types, so the shapes live here, where it can import them.
  */
 public final class TestInputContracts {
+
+    public static final RecordType<HeldKeys> HELD_KEYS = ApiTypes.record(HeldKeys.class);
+
+    public static final RecordType<UseOnBlock> USE_ON_BLOCK = ApiTypes.record(UseOnBlock.class);
+
+    public static final RecordType<UsedOnBlock> USED_ON_BLOCK = ApiTypes.record(UsedOnBlock.class);
+
     private TestInputContracts() {}
 
     /**
@@ -32,8 +39,6 @@ public final class TestInputContracts {
             boolean attack,
             boolean shift) {}
 
-    public static final RecordType<HeldKeys> HELD_KEYS = ApiTypes.record(HeldKeys.class);
-
     /** One right-click on a block, with no aiming, moving or sneaking around it. */
     @Named("UseOnBlock")
     public record UseOnBlock(
@@ -42,8 +47,4 @@ public final class TestInputContracts {
     /** What the game made of it, which hand clicked, and the face clicked: the one nearest the player's eye. */
     @Named("UsedOnBlock")
     public record UsedOnBlock(Interaction result, boolean consumed, Hand hand, Face face) {}
-
-    public static final RecordType<UseOnBlock> USE_ON_BLOCK = ApiTypes.record(UseOnBlock.class);
-
-    public static final RecordType<UsedOnBlock> USED_ON_BLOCK = ApiTypes.record(UsedOnBlock.class);
 }

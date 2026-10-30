@@ -21,29 +21,6 @@ import java.util.Map;
  * outside the settings plumbing.
  */
 public final class SettingsRegistry {
-    private SettingsRegistry() {}
-
-    /** How {@code SettingsCommand} reads and writes a key's live value. */
-    public enum Read {
-        CONFIG_FIELD,
-        BOT_PAUSED,
-        HAZARD_LIST,
-        WHITELIST_LIST,
-        MUTED_LIST,
-        UNDRIVABLE_LIST,
-        AVOID_POINTS
-    }
-
-    /** A key bound some other way than to the field of its own name; {@code field} is null for no field. */
-    record Hand(String key, Read read, String field) {}
-
-    private static Hand field(String key, String field) {
-        return new Hand(key, Read.CONFIG_FIELD, field);
-    }
-
-    private static Hand hand(String key, Read read, String field) {
-        return new Hand(key, read, field);
-    }
 
     static final List<Hand> HAND = List.of(
             field("navigator.repathEveryTicks", "navigatorRepathEveryTicks"),
@@ -89,6 +66,30 @@ public final class SettingsRegistry {
                 }
             }
         }
+    }
+
+    private SettingsRegistry() {}
+
+    /** How {@code SettingsCommand} reads and writes a key's live value. */
+    public enum Read {
+        CONFIG_FIELD,
+        BOT_PAUSED,
+        HAZARD_LIST,
+        WHITELIST_LIST,
+        MUTED_LIST,
+        UNDRIVABLE_LIST,
+        AVOID_POINTS
+    }
+
+    /** A key bound some other way than to the field of its own name; {@code field} is null for no field. */
+    record Hand(String key, Read read, String field) {}
+
+    private static Hand field(String key, String field) {
+        return new Hand(key, Read.CONFIG_FIELD, field);
+    }
+
+    private static Hand hand(String key, Read read, String field) {
+        return new Hand(key, read, field);
     }
 
     /**

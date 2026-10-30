@@ -24,6 +24,28 @@ import net.minecraft.world.entity.player.Player;
  * and the gate that refuses a dig that cannot finish ({@link #breathInfeasibleDig}).
  */
 public final class Digging {
+
+    /**
+     * Yaw off the body's heading past which a pre-dig would turn the jump rather than tilt the head. Diagonal stair
+     * cells sit 27-45° off (live 1388,92,-527 and 1388,100,-534), and air control is too weak for that turn to move the
+     * landing off its cell.
+     */
+    private static final float PRE_DIG_MAX_YAW = 50f;
+
+    /**
+     * TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set (~60 s): long enough that repeated
+     * repaths within the episode route around it, short enough that a later revisit with tools / from dry ground
+     * reprices it.
+     */
+    static final long BREATH_POISON_TTL_MS = 60_000;
+    /**
+     * Effort ceiling for a single executor dig (~30 s of continuous mining): past this a visible detour always wins,
+     * and in water the drift-release + progress zeroing make the true cost effectively unbounded (live: bare-hand
+     * floating stone ≈3750t estimated, 0.05 progress per 65-155t drift-released lap). Chosen so a floating bare-hand
+     * DIRT climb-out (≈375t) stays allowed while any bare-hand stone-family dig in/over water (≥750t) is refused.
+     */
+    private static final int HOPELESS_DIG_TICKS = 600;
+
     private Digging() {}
 
     /**
@@ -67,13 +89,6 @@ public final class Digging {
         }
         return target;
     }
-
-    /**
-     * Yaw off the body's heading past which a pre-dig would turn the jump rather than tilt the head. Diagonal stair
-     * cells sit 27-45° off (live 1388,92,-527 and 1388,100,-534), and air control is too weak for that turn to move the
-     * landing off its cell.
-     */
-    private static final float PRE_DIG_MAX_YAW = 50f;
 
     /**
      * Start the next stairUpBreak's dig while still airborne on the step before it. Every finished break leaves
@@ -135,20 +150,6 @@ public final class Digging {
         }
         return avatarDig(nav, a, cell, selectTool);
     }
-
-    /**
-     * TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set (~60 s): long enough that repeated
-     * repaths within the episode route around it, short enough that a later revisit with tools / from dry ground
-     * reprices it.
-     */
-    static final long BREATH_POISON_TTL_MS = 60_000;
-    /**
-     * Effort ceiling for a single executor dig (~30 s of continuous mining): past this a visible detour always wins,
-     * and in water the drift-release + progress zeroing make the true cost effectively unbounded (live: bare-hand
-     * floating stone ≈3750t estimated, 0.05 progress per 65-155t drift-released lap). Chosen so a floating bare-hand
-     * DIRT climb-out (≈375t) stays allowed while any bare-hand stone-family dig in/over water (≥750t) is refused.
-     */
-    private static final int HOPELESS_DIG_TICKS = 600;
 
     /**
      * The breath gate on a break cell, and what to do when it fails: drop the hold, poison the cell so the next search

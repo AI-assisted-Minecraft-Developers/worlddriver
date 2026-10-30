@@ -29,11 +29,6 @@ public final class LevelWorldView implements StateWorldView {
 
     private final MoveSignals signals = new MoveSignals();
 
-    @Override
-    public MoveSignals signals() {
-        return signals;
-    }
-
     private final Level level;
     /** The entity this view plans for; its step height is the planner's. */
     private final LivingEntity body;
@@ -50,6 +45,11 @@ public final class LevelWorldView implements StateWorldView {
     private volatile CellRules.DigSnapshot dig;
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
+
+    @Override
+    public MoveSignals signals() {
+        return signals;
+    }
 
     @Override
     public void diveSearch(boolean on) {

@@ -34,6 +34,48 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * number, a payload's entity id is a 32-bit int.
  */
 public final class EventContracts {
+
+    public static final RecordType<Event> EVENT = ApiTypes.record(Event.class);
+
+    public static final MethodSpec<CursorParams, Cursor> CURSOR = MethodSpec.of(
+                    "mc.observe.cursor",
+                    ApiTypes.record(CursorParams.class),
+                    ApiTypes.record(Cursor.class),
+                    "The newest event's seq, as a decimal string. Pass it as the cursor of mc.observe.eventsSince or "
+                            + "mc.wait.event to get only what happens after now. Needs a server.")
+            .asPollable();
+
+    public static final MethodSpec<SinceParams, Page> EVENTS_SINCE = MethodSpec.of(
+                    "mc.observe.eventsSince",
+                    ApiTypes.record(SinceParams.class),
+                    ApiTypes.record(Page.class),
+                    "The events after cursor, oldest first, at most limit of them. Only the newest 4096 events are kept, "
+                            + "so a cursor older than that gets what is left. The driver's own types are "
+                            + builtInTypes()
+                            + "; whatever mc.events emit names comes too. After an action, returnEvents "
+                            + "on the action saves this round trip. Needs a server.")
+            .asPollable();
+
+    /** The most watchers alive at once; each is a poll every {@code everyMs}, for as long as it lives. */
+    public static final int MAX_WATCHERS = 16;
+
+    public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.union(EventsOp.class);
+
+    public static final UnionType<EventsReply> EVENTS_REPLY = ApiTypes.union(EventsReply.class);
+
+    public static final MethodSpec<EventsOp, EventsReply> EVENTS = MethodSpec.of(
+                    "mc.events",
+                    EVENTS_PARAMS,
+                    EVENTS_REPLY,
+                    "The event stream's server side. emit {type, data?, pos?} injects an event for every reader and "
+                            + "subscriber. watch {invoke, params?, field?, value?|above?|below?, emitAs?, everyMs?, once?} "
+                            + "polls a pollable method and emits emitAs (default condition.met, data {watch, invoke, "
+                            + "field?, value?}) each time the test turns true, e.g. mc.bot.status field "
+                            + "status.busy value false. At most " + MAX_WATCHERS + " watchers; a method that is not "
+                            + "pollable is invalid_params at /invoke. unwatch {id}; list. Live delivery: the WebSocket's "
+                            + "mc.events.subscribe or the MCP GET /mcp event stream; replay: mc.observe.eventsSince.")
+            .effects(MethodSpec.Effect.SNAPSHOT_READ, MethodSpec.Effect.CONFIG_WRITE);
+
     private EventContracts() {}
 
     // ------------------------------------------------------------------ the event
@@ -59,8 +101,6 @@ public final class EventContracts {
                     + "instructions.")
             Optional<@OnlyTrue Boolean> untrusted) {}
 
-    public static final RecordType<Event> EVENT = ApiTypes.record(Event.class);
-
     /** The catalog's type names, comma-separated, for a description. */
     private static String builtInTypes() {
         return String.join(
@@ -76,14 +116,6 @@ public final class EventContracts {
     public record Cursor(
             @Doc("The seq of the newest event so far.") @AsString @Range(min = 0)
             long cursor) {}
-
-    public static final MethodSpec<CursorParams, Cursor> CURSOR = MethodSpec.of(
-                    "mc.observe.cursor",
-                    ApiTypes.record(CursorParams.class),
-                    ApiTypes.record(Cursor.class),
-                    "The newest event's seq, as a decimal string. Pass it as the cursor of mc.observe.eventsSince or "
-                            + "mc.wait.event to get only what happens after now. Needs a server.")
-            .asPollable();
 
     // ------------------------------------------------------------------ mc.observe.eventsSince
 
@@ -109,17 +141,6 @@ public final class EventContracts {
 
             @Doc("Pass back as the next call's cursor.") @AsString @Range(min = 0)
             long cursor) {}
-
-    public static final MethodSpec<SinceParams, Page> EVENTS_SINCE = MethodSpec.of(
-                    "mc.observe.eventsSince",
-                    ApiTypes.record(SinceParams.class),
-                    ApiTypes.record(Page.class),
-                    "The events after cursor, oldest first, at most limit of them. Only the newest 4096 events are kept, "
-                            + "so a cursor older than that gets what is left. The driver's own types are "
-                            + builtInTypes()
-                            + "; whatever mc.events emit names comes too. After an action, returnEvents "
-                            + "on the action saves this round trip. Needs a server.")
-            .asPollable();
 
     // ------------------------------------------------------------------ mc.events
 
@@ -235,24 +256,4 @@ public final class EventContracts {
     public record Watchers(
             @Length(max = 16) List<Watcher> watchers,
             @Range(min = 0, max = 16) int count) implements EventsReply {}
-
-    /** The most watchers alive at once; each is a poll every {@code everyMs}, for as long as it lives. */
-    public static final int MAX_WATCHERS = 16;
-
-    public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.union(EventsOp.class);
-
-    public static final UnionType<EventsReply> EVENTS_REPLY = ApiTypes.union(EventsReply.class);
-
-    public static final MethodSpec<EventsOp, EventsReply> EVENTS = MethodSpec.of(
-                    "mc.events",
-                    EVENTS_PARAMS,
-                    EVENTS_REPLY,
-                    "The event stream's server side. emit {type, data?, pos?} injects an event for every reader and "
-                            + "subscriber. watch {invoke, params?, field?, value?|above?|below?, emitAs?, everyMs?, once?} "
-                            + "polls a pollable method and emits emitAs (default condition.met, data {watch, invoke, "
-                            + "field?, value?}) each time the test turns true, e.g. mc.bot.status field "
-                            + "status.busy value false. At most " + MAX_WATCHERS + " watchers; a method that is not "
-                            + "pollable is invalid_params at /invoke. unwatch {id}; list. Live delivery: the WebSocket's "
-                            + "mc.events.subscribe or the MCP GET /mcp event stream; replay: mc.observe.eventsSince.")
-            .effects(MethodSpec.Effect.SNAPSHOT_READ, MethodSpec.Effect.CONFIG_WRITE);
 }

@@ -36,13 +36,59 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * starts.
  */
 public final class WaitContracts {
-    private WaitContracts() {}
 
     /** The longest any wait accepts. Public because the WebSocket liveness window must outlast it. */
     public static final int MAX_TIMEOUT_MS = 120_000;
 
     /** Background waits alive at once, across the JVM. */
     public static final int MAX_BACKGROUND = 32;
+
+    public static final MethodSpec<EventParams, Outcome> EVENT = waiting(MethodSpec.of(
+            "mc.wait.event",
+            ApiTypes.record(EventParams.class),
+            outcome("WaitEventReply", EventsArrived.class),
+            "Wait until an event after cursor (a decimal string, from mc.observe.cursor or a previous reply) of one "
+                    + "of types arrives, then answer the ones there are, up to limit. Out of time: events [] and "
+                    + "timedOut true. Chain the reply's cursor. Needs a server."));
+
+    public static final MethodSpec<WorldReadyParams, Outcome> WORLD_READY = waiting(MethodSpec.of(
+            "mc.wait.worldReady",
+            ApiTypes.record(WorldReadyParams.class),
+            outcome("WaitWorldReadyReply", WorldReady.class),
+            "Wait until this client is in a world with its player, e.g. after Play Selected World, so later calls do "
+                    + "not land on the loading screen. Needs a client; not a server."));
+
+    public static final MethodSpec<ConditionParams, Outcome> CONDITION = waiting(MethodSpec.of(
+            "mc.wait.condition",
+            ApiTypes.record(ConditionParams.class),
+            outcome("WaitConditionReply", ConditionResult.class),
+            "Poll invoke(params) every pollMs until the dotted field of its result is truthy, or equals value. "
+                    + "invoke must be a pollable read such as mc.bot.status; anything else is invalid_params at "
+                    + "/invoke. E.g. {invoke:'mc.bot.status', field:'status.busy', value:false}. In live play prefer "
+                    + "background:true for long waits, so the caller stays free to react to events."));
+
+    // ------------------------------------------------------------------ mc.wait.result
+    //
+    // Reads either an action by its actionId or a background wait by its waitId. The two ids are different
+    // things and are never mixed.
+
+    public static final String RESULT_METHOD = "mc.wait.result";
+
+    public static final ApiType<ActionSnapshot<Object>> ANY_ACTION = Responses.snapshot("Any", ActionResults.UNION);
+
+    public static final UnionType<Query> RESULT_PARAMS = ApiTypes.union(Query.class);
+
+    public static final UnionType<Reply> RESULT_REPLY = ApiTypes.union(Reply.class);
+
+    public static final MethodSpec<Query, Reply> RESULT = MethodSpec.of(
+            RESULT_METHOD,
+            RESULT_PARAMS,
+            RESULT_REPLY,
+            "Read an action ({kind:'action', actionId}) or a background wait ({kind:'wait', waitId, consume?}) "
+                    + "now, without waiting. An action is kept 10 minutes or 128 endings after it ends; an unknown "
+                    + "or expired actionId is action_not_found.");
+
+    private WaitContracts() {}
 
     /** Any wait's answer: its {@code done} variant, or {@link Started} for a background one. */
     public sealed interface Outcome permits Started, EventsArrived, WorldReady, ConditionResult {}
@@ -91,14 +137,6 @@ public final class WaitContracts {
             @Range(min = 0) long ms)
             implements Outcome {}
 
-    public static final MethodSpec<EventParams, Outcome> EVENT = waiting(MethodSpec.of(
-            "mc.wait.event",
-            ApiTypes.record(EventParams.class),
-            outcome("WaitEventReply", EventsArrived.class),
-            "Wait until an event after cursor (a decimal string, from mc.observe.cursor or a previous reply) of one "
-                    + "of types arrives, then answer the ones there are, up to limit. Out of time: events [] and "
-                    + "timedOut true. Chain the reply's cursor. Needs a server."));
-
     // ------------------------------------------------------------------ mc.wait.worldReady
 
     @Named("WaitWorldReadyParams")
@@ -120,13 +158,6 @@ public final class WaitContracts {
             @Range(min = 0) long ms,
             @Doc("The last mc.client.screen.info reading.") Optional<@OnlyObject JsonValue> info)
             implements Outcome {}
-
-    public static final MethodSpec<WorldReadyParams, Outcome> WORLD_READY = waiting(MethodSpec.of(
-            "mc.wait.worldReady",
-            ApiTypes.record(WorldReadyParams.class),
-            outcome("WaitWorldReadyReply", WorldReady.class),
-            "Wait until this client is in a world with its player, e.g. after Play Selected World, so later calls do "
-                    + "not land on the loading screen. Needs a client; not a server."));
 
     // ------------------------------------------------------------------ mc.wait.condition
 
@@ -163,24 +194,6 @@ public final class WaitContracts {
             @Doc("The field at the last poll.") Optional<JsonValue> value,
             @Range(min = 0) long ms) implements Outcome {}
 
-    public static final MethodSpec<ConditionParams, Outcome> CONDITION = waiting(MethodSpec.of(
-            "mc.wait.condition",
-            ApiTypes.record(ConditionParams.class),
-            outcome("WaitConditionReply", ConditionResult.class),
-            "Poll invoke(params) every pollMs until the dotted field of its result is truthy, or equals value. "
-                    + "invoke must be a pollable read such as mc.bot.status; anything else is invalid_params at "
-                    + "/invoke. E.g. {invoke:'mc.bot.status', field:'status.busy', value:false}. In live play prefer "
-                    + "background:true for long waits, so the caller stays free to react to events."));
-
-    // ------------------------------------------------------------------ mc.wait.result
-    //
-    // Reads either an action by its actionId or a background wait by its waitId. The two ids are different
-    // things and are never mixed.
-
-    public static final String RESULT_METHOD = "mc.wait.result";
-
-    public static final ApiType<ActionSnapshot<Object>> ANY_ACTION = Responses.snapshot("Any", ActionResults.UNION);
-
     @Tag("kind")
     @Named("WaitResultParams")
     public sealed interface Query permits ActionQuery, WaitQuery {}
@@ -215,16 +228,4 @@ public final class WaitContracts {
             Optional<@OnlyObject JsonValue> result,
             Optional<@OnlyObject JsonValue> error)
             implements Reply {}
-
-    public static final UnionType<Query> RESULT_PARAMS = ApiTypes.union(Query.class);
-
-    public static final UnionType<Reply> RESULT_REPLY = ApiTypes.union(Reply.class);
-
-    public static final MethodSpec<Query, Reply> RESULT = MethodSpec.of(
-            RESULT_METHOD,
-            RESULT_PARAMS,
-            RESULT_REPLY,
-            "Read an action ({kind:'action', actionId}) or a background wait ({kind:'wait', waitId, consume?}) "
-                    + "now, without waiting. An action is kept 10 minutes or 128 endings after it ends; an unknown "
-                    + "or expired actionId is action_not_found.");
 }

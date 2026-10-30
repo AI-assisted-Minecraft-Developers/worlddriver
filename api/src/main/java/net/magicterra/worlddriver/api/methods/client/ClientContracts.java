@@ -37,6 +37,95 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * input verbs are in {@link ScreenContracts}; the pieces both use, the refusal and the screen context, are here.
  */
 public final class ClientContracts {
+
+    public static final ApiType<String> CONTEXT_ID = ApiTypes.of(String.class, ContextId.class);
+
+    public static final ApiType<ClientPlayer> CLIENT_PLAYER = ApiTypes.record(ClientPlayer.class);
+
+    public static final MethodSpec<NoParams, ClientPlayer> PLAYER = MethodSpec.of(
+                    "mc.client.player",
+                    NO_PARAMS,
+                    CLIENT_PLAYER,
+                    "This client's own player as the CLIENT predicts it, read from the LocalPlayer and ClientLevel even "
+                            + "when a server is attached: position, look, vitals, time, attack readiness, inventory, the "
+                            + "crosshair, plus the client physics the server copy lacks (pose, eye position, inWall, "
+                            + "inWater, the blocks at eye and feet). Diff it against mc.observe.player to see a "
+                            + "client/server desync. present:false when no player is in a world.")
+            .asPollable();
+
+    public static final ApiType<ClientScene> CLIENT_SCENE = ApiTypes.record(ClientScene.class);
+
+    public static final MethodSpec<NoParams, ClientScene> SCENE = MethodSpec.of(
+                    "mc.client.scene",
+                    NO_PARAMS,
+                    CLIENT_SCENE,
+                    "The facts the client bot derives every tick from its hazard grid: day phase, sky exposure, "
+                            + "whether it is cornered, lethal-fall cells, and the grid as an ASCII map. present:false "
+                            + "when no player is in a world.")
+            .asPollable();
+
+    public static final ApiType<BlocksParams> BLOCKS_PARAMS = ApiTypes.record(BlocksParams.class);
+
+    public static final ApiType<BlockScan> BLOCK_SCAN = ApiTypes.record(BlockScan.class);
+
+    public static final MethodSpec<BlocksParams, BlockScan> BLOCKS = MethodSpec.of(
+                    "mc.client.blocks",
+                    BLOCKS_PARAMS,
+                    BLOCK_SCAN,
+                    "The blocks the CLIENT has loaded around center, to diff client against server state. Not for "
+                            + "reading terrain: it lists every non-air cell, so underground a radius of 5 or more "
+                            + "overflows a reply budget; mc.observe.map draws terrain as a compact ASCII grid. Use this "
+                            + "to confirm a few cells, with a type and the smallest radius. capability_unavailable when "
+                            + "no world is open.")
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    public static final ApiType<ChatSendParams> CHAT_SEND_PARAMS = ApiTypes.record(ChatSendParams.class);
+
+    public static final MethodSpec<ChatSendParams, ClientReply> CHAT_SEND = MethodSpec.of(
+                    "mc.client.chat.send",
+                    CHAT_SEND_PARAMS,
+                    reply("ChatSend", ChatSent.class),
+                    "Send a chat line, or a command when it starts with /, as this client's player: pressing T, typing "
+                            + "and pressing Enter. With awaitReplyMs it then waits for the chat lines that arrive after "
+                            + "the send, gives multi-line feedback 150 ms to settle, and returns them as later. Those are "
+                            + "a later chat observation, NOT the command's answer: an unrelated broadcast can arrive "
+                            + "first, and two waits at once see the same lines. Lines a client mod writes straight to the "
+                            + "chat HUD never cross the network and are not seen. For a server command's own feedback use "
+                            + "mc.action.runCommand. Refused as no_player when not connected.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<ChatHistoryParams> CHAT_HISTORY_PARAMS = ApiTypes.record(ChatHistoryParams.class);
+
+    public static final MethodSpec<ChatHistoryParams, ChatHistory> CHAT_HISTORY = MethodSpec.of(
+                    "mc.client.chat.history",
+                    CHAT_HISTORY_PARAMS,
+                    ApiTypes.record(ChatHistory.class),
+                    "The chat and system lines this client received, captured as they arrive from the server: player "
+                            + "chat, command feedback, /say, broadcasts; not the action bar, and not lines a client mod "
+                            + "writes straight to the chat HUD. seq is monotonic for the session and the last 512 lines "
+                            + "are kept.")
+            .asPollable();
+
+    public static final MethodSpec<OverlaysParams, OverlaysCleared> OVERLAYS = MethodSpec.of(
+                    "mc.client.overlays",
+                    ApiTypes.record(OverlaysParams.class),
+                    ApiTypes.record(OverlaysCleared.class),
+                    "Dismiss the HUD overlays that are not part of the world: the tutorial hints and the toasts. "
+                            + "Idempotent; {} clears both.")
+            .effects(MethodSpec.Effect.CLIENT_INPUT);
+
+    public static final MethodSpec<ScreenshotParams, Screenshot> SCREENSHOT = MethodSpec.of(
+                    "mc.client.screenshot",
+                    ApiTypes.record(ScreenshotParams.class),
+                    ApiTypes.record(Screenshot.class),
+                    "Capture the framebuffer as png (lossless) or jpeg (smaller), optionally shrunk. It waits for a "
+                            + "frame drawn after the request, so what was done just before is in the picture. Over MCP "
+                            + "the image is a native image block and the text holds the other fields.")
+            .execution(MethodSpec.ExecutionClass.BULK)
+            .mayWait()
+            .image("base64", "format");
+
     private ClientContracts() {}
 
     // ------------------------------------------------------------------ shared by the client verbs
@@ -279,8 +368,6 @@ public final class ClientContracts {
             + "context_changed, with nothing done, unless that same screen is still open.")
     public @interface ContextId {}
 
-    public static final ApiType<String> CONTEXT_ID = ApiTypes.of(String.class, ContextId.class);
-
     /** {@code <name>Response}, tagged on {@code outcome}: {@code done} as {@code done} describes it, or refused. */
     public static <D extends Record & ClientReply> UnionType<ClientReply> reply(String name, Class<D> done) {
         return ApiTypes.union(name + "Response", "outcome", ApiTypes.record(done), ApiTypes.record(Refused.class));
@@ -439,19 +526,6 @@ public final class ClientContracts {
 
             @Range(min = 0) int fps) {}
 
-    public static final ApiType<ClientPlayer> CLIENT_PLAYER = ApiTypes.record(ClientPlayer.class);
-
-    public static final MethodSpec<NoParams, ClientPlayer> PLAYER = MethodSpec.of(
-                    "mc.client.player",
-                    NO_PARAMS,
-                    CLIENT_PLAYER,
-                    "This client's own player as the CLIENT predicts it, read from the LocalPlayer and ClientLevel even "
-                            + "when a server is attached: position, look, vitals, time, attack readiness, inventory, the "
-                            + "crosshair, plus the client physics the server copy lacks (pose, eye position, inWall, "
-                            + "inWater, the blocks at eye and feet). Diff it against mc.observe.player to see a "
-                            + "client/server desync. present:false when no player is in a world.")
-            .asPollable();
-
     // ------------------------------------------------------------------ scene
 
     @Named("ClientScene")
@@ -480,17 +554,6 @@ public final class ClientContracts {
             Optional<@Range(min = 0) Integer> lethalCount,
 
             @Doc("The hazard field as an ASCII map.") Optional<@Length(max = 256) List<String>> rows) {}
-
-    public static final ApiType<ClientScene> CLIENT_SCENE = ApiTypes.record(ClientScene.class);
-
-    public static final MethodSpec<NoParams, ClientScene> SCENE = MethodSpec.of(
-                    "mc.client.scene",
-                    NO_PARAMS,
-                    CLIENT_SCENE,
-                    "The facts the client bot derives every tick from its hazard grid: day phase, sky exposure, "
-                            + "whether it is cornered, lethal-fall cells, and the grid as an ASCII map. present:false "
-                            + "when no player is in a world.")
-            .asPollable();
 
     // ------------------------------------------------------------------ blocks
 
@@ -536,21 +599,6 @@ public final class ClientContracts {
 
             @Doc("Chunks the client has not loaded, whose cells read as air.")
             Optional<@Length(max = 64) List<ChunkRef>> unloaded) {}
-
-    public static final ApiType<BlocksParams> BLOCKS_PARAMS = ApiTypes.record(BlocksParams.class);
-
-    public static final ApiType<BlockScan> BLOCK_SCAN = ApiTypes.record(BlockScan.class);
-
-    public static final MethodSpec<BlocksParams, BlockScan> BLOCKS = MethodSpec.of(
-                    "mc.client.blocks",
-                    BLOCKS_PARAMS,
-                    BLOCK_SCAN,
-                    "The blocks the CLIENT has loaded around center, to diff client against server state. Not for "
-                            + "reading terrain: it lists every non-air cell, so underground a radius of 5 or more "
-                            + "overflows a reply budget; mc.observe.map draws terrain as a compact ASCII grid. Use this "
-                            + "to confirm a few cells, with a type and the smallest radius. capability_unavailable when "
-                            + "no world is open.")
-            .execution(MethodSpec.ExecutionClass.BULK);
 
     // ------------------------------------------------------------------ chat
 
@@ -611,22 +659,6 @@ public final class ClientContracts {
             @Range(min = 0) int length,
             @Doc("With awaitReplyMs only.") Optional<LaterChat> later) implements ClientReply {}
 
-    public static final ApiType<ChatSendParams> CHAT_SEND_PARAMS = ApiTypes.record(ChatSendParams.class);
-
-    public static final MethodSpec<ChatSendParams, ClientReply> CHAT_SEND = MethodSpec.of(
-                    "mc.client.chat.send",
-                    CHAT_SEND_PARAMS,
-                    reply("ChatSend", ChatSent.class),
-                    "Send a chat line, or a command when it starts with /, as this client's player: pressing T, typing "
-                            + "and pressing Enter. With awaitReplyMs it then waits for the chat lines that arrive after "
-                            + "the send, gives multi-line feedback 150 ms to settle, and returns them as later. Those are "
-                            + "a later chat observation, NOT the command's answer: an unrelated broadcast can arrive "
-                            + "first, and two waits at once see the same lines. Lines a client mod writes straight to the "
-                            + "chat HUD never cross the network and are not seen. For a server command's own feedback use "
-                            + "mc.action.runCommand. Refused as no_player when not connected.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
-
     @Named("ChatHistoryParams")
     public record ChatHistoryParams(
             @Doc("The newest this many lines.") @Default("50") @Range(min = 1, max = 256)
@@ -651,18 +683,6 @@ public final class ClientContracts {
 
             @Doc("Newest first.") @Length(max = 256) List<HistoryLine> messages) {}
 
-    public static final ApiType<ChatHistoryParams> CHAT_HISTORY_PARAMS = ApiTypes.record(ChatHistoryParams.class);
-
-    public static final MethodSpec<ChatHistoryParams, ChatHistory> CHAT_HISTORY = MethodSpec.of(
-                    "mc.client.chat.history",
-                    CHAT_HISTORY_PARAMS,
-                    ApiTypes.record(ChatHistory.class),
-                    "The chat and system lines this client received, captured as they arrive from the server: player "
-                            + "chat, command feedback, /say, broadcasts; not the action bar, and not lines a client mod "
-                            + "writes straight to the chat HUD. seq is monotonic for the session and the last 512 lines "
-                            + "are kept.")
-            .asPollable();
-
     // ------------------------------------------------------------------ overlays
 
     @Named("OverlaysParams")
@@ -677,14 +697,6 @@ public final class ClientContracts {
     @Named("OverlaysCleared")
     public record OverlaysCleared(
             boolean tutorial, boolean toasts, Optional<String> tutorialError, Optional<String> toastsError) {}
-
-    public static final MethodSpec<OverlaysParams, OverlaysCleared> OVERLAYS = MethodSpec.of(
-                    "mc.client.overlays",
-                    ApiTypes.record(OverlaysParams.class),
-                    ApiTypes.record(OverlaysCleared.class),
-                    "Dismiss the HUD overlays that are not part of the world: the tutorial hints and the toasts. "
-                            + "Idempotent; {} clears both.")
-            .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     // ------------------------------------------------------------------ screenshot
 
@@ -727,15 +739,4 @@ public final class ClientContracts {
             boolean windowActive,
             @Range(min = 0) int fps,
             @Doc("The encoded image.") String base64) {}
-
-    public static final MethodSpec<ScreenshotParams, Screenshot> SCREENSHOT = MethodSpec.of(
-                    "mc.client.screenshot",
-                    ApiTypes.record(ScreenshotParams.class),
-                    ApiTypes.record(Screenshot.class),
-                    "Capture the framebuffer as png (lossless) or jpeg (smaller), optionally shrunk. It waits for a "
-                            + "frame drawn after the request, so what was done just before is in the picture. Over MCP "
-                            + "the image is a native image block and the text holds the other fields.")
-            .execution(MethodSpec.ExecutionClass.BULK)
-            .mayWait()
-            .image("base64", "format");
 }

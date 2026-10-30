@@ -43,12 +43,6 @@ import net.minecraft.core.BlockPos;
  */
 public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
-    /**
-     * @param count how many mobs make a cluster; @param radius within how many blocks of the cell; @param hard prune
-     *     (forbid) or charge (avoid); @param penalty the flat charge when soft
-     */
-    public record Cluster(int count, double radius, boolean hard, double penalty) {}
-
     private final double radius;
     private final double rangedRadius;
     private final double penalty;
@@ -59,6 +53,12 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
     // plain coordinates for the cluster count. Both rebuilt in beginSearch.
     private float[] mobXyzr = new float[0];
     private double[] mobs = new double[0];
+
+    /**
+     * @param count how many mobs make a cluster; @param radius within how many blocks of the cell; @param hard prune
+     *     (forbid) or charge (avoid); @param penalty the flat charge when soft
+     */
+    public record Cluster(int count, double radius, boolean hard, double penalty) {}
 
     public MobCluster(double radius, double rangedRadius, double penalty, Cluster cluster, Set<String> types) {
         this.radius = radius;

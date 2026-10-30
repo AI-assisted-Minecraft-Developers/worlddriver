@@ -30,6 +30,15 @@ import java.util.Map;
  * semantics on a private {@link Buffer} without touching the live session's log.
  */
 public final class ClientChatLog {
+
+    /**
+     * Eviction cap. Generous vs the GUI's 100 — awaitReply polls only ever look at the tail, history rarely wants more
+     * than a screenful.
+     */
+    private static final int CAP = 512;
+
+    private static final Buffer GLOBAL = new Buffer();
+
     private ClientChatLog() {}
 
     /**
@@ -52,12 +61,6 @@ public final class ClientChatLog {
             return row;
         }
     }
-
-    /**
-     * Eviction cap. Generous vs the GUI's 100 — awaitReply polls only ever look at the tail, history rarely wants more
-     * than a screenful.
-     */
-    private static final int CAP = 512;
 
     /**
      * Instance core so tests can exercise semantics in isolation; the live session goes through the static facade over
@@ -144,8 +147,6 @@ public final class ClientChatLog {
             return out;
         }
     }
-
-    private static final Buffer GLOBAL = new Buffer();
 
     public static void record(String kind, String text, long gameTime, boolean self) {
         GLOBAL.record(kind, text, gameTime, self);

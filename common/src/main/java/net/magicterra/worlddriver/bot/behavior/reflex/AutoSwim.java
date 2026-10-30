@@ -36,12 +36,6 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class AutoSwim {
 
-    /**
-     * True while {@link #drowningSentinel} is the one holding jump, so it releases its own hold exactly once when air
-     * recovers/surfaces, without clobbering a jump some other actuator set.
-     */
-    private boolean floatHeld;
-
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
     /**
@@ -59,6 +53,12 @@ public final class AutoSwim {
      * of at the wire.
      */
     private static final int DIG_AIR_RESERVE = 20;
+
+    /**
+     * True while {@link #drowningSentinel} is the one holding jump, so it releases its own hold exactly once when air
+     * recovers/surfaces, without clobbering a jump some other actuator set.
+     */
+    private boolean floatHeld;
     /** Throttle counter for navigatorDebug shore logging. */
     private int dbg = 0;
 

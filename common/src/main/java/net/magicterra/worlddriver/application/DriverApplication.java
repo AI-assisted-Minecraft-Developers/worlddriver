@@ -44,6 +44,18 @@ import net.minecraft.server.level.ServerLevel;
  * here and in {@link net.magicterra.worlddriver.api.methods.CoreMethods}, nowhere else.
  */
 public final class DriverApplication implements DriverHost {
+
+    static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
+
+    static final int EVENT_BUFFER_CAP = 4096;
+
+    /**
+     * Default budget for waiting on a server-tick hop. Lowered from 30s so a stuck tick surfaces as a clear error
+     * within ~8s instead of stalling every MCP / RPC call for half a minute. Override with
+     * {@code -Dworlddriver.serverThreadTimeoutMs=N}.
+     */
+    private static final long SERVER_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
+
     private final ApiRegistry registry = new ApiRegistry();
     public final SystemService system = new SystemService(this);
     public final ObserveService observe = new ObserveService(this);
@@ -52,10 +64,6 @@ public final class DriverApplication implements DriverHost {
     public final WorldService world = new WorldService(this);
     public final RecipeService recipe = new RecipeService(this);
     public final EventService eventService = new EventService(this);
-
-    static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
-
-    static final int EVENT_BUFFER_CAP = 4096;
 
     // The command allow-list has been removed: {@code mc.action.runCommand} runs
     // any Brigadier verb at operator level. The MCP/RPC transports bind to
@@ -79,6 +87,9 @@ public final class DriverApplication implements DriverHost {
             Thread.ofPlatform().name("agent-event-dispatch").daemon().factory());
     private volatile ScriptHost scriptHost;
 
+    /** The core methods, published once; a retry would hand over this same object. */
+    private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
+
     public DriverApplication() {
         registry.registerBatch(coreBatch);
         BotTaskService tasks = new BotTaskService(this);
@@ -95,9 +106,6 @@ public final class DriverApplication implements DriverHost {
     public ApiRegistry registry() {
         return registry;
     }
-
-    /** The core methods, published once; a retry would hand over this same object. */
-    private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
 
     private List<ApiMethod<?, ?>> coreMethods() {
         List<ApiMethod<?, ?>> all = new ArrayList<>(new BotTaskService(this).methods());
@@ -271,13 +279,6 @@ public final class DriverApplication implements DriverHost {
         }
         return s.overworld();
     }
-
-    /**
-     * Default budget for waiting on a server-tick hop. Lowered from 30s so a stuck tick surfaces as a clear error
-     * within ~8s instead of stalling every MCP / RPC call for half a minute. Override with
-     * {@code -Dworlddriver.serverThreadTimeoutMs=N}.
-     */
-    private static final long SERVER_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
 
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;

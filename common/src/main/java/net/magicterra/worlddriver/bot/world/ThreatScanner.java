@@ -32,6 +32,11 @@ import net.minecraft.world.phys.Vec3;
  * picture). The per-tick cache, and the projectile velocities it derives, are each bot's own {@link ThreatWatch}.
  */
 public final class ThreatScanner {
+
+    static final Scan EMPTY = new Scan(List.of(), List.of());
+    static final int DEFAULT_RADIUS = 24;
+    private static final int PROJECTILE_LOOKAHEAD = 30;
+
     private ThreatScanner() {}
 
     /**
@@ -86,10 +91,6 @@ public final class ThreatScanner {
             return false;
         }
     }
-
-    static final Scan EMPTY = new Scan(List.of(), List.of());
-    static final int DEFAULT_RADIUS = 24;
-    private static final int PROJECTILE_LOOKAHEAD = 30;
 
     /** Convenience overload at the default radius — the server combat loop path. */
     public static Scan compute(Level lvl, LivingEntity player) {

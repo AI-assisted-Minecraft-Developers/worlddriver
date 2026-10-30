@@ -8,7 +8,6 @@ import net.magicterra.worlddriver.api.methods.setting.GameSettings;
  * sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class GameConfig {
-    private GameConfig() {}
 
     /**
      * Camera smoothing for stream/demo scenarios. When on, the pathfinding Navigator and the {@code mc.bot.lookAt} verb
@@ -115,4 +114,6 @@ public final class GameConfig {
     static {
         BotConfig.initialize();
     }
+
+    private GameConfig() {}
 }

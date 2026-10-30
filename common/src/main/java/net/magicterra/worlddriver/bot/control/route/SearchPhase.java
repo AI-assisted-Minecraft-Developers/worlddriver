@@ -32,6 +32,12 @@ import net.minecraft.world.entity.LivingEntity;
  * (this file is state-machine surgery).
  */
 public final class SearchPhase {
+
+    /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
+    private static final int REFUSALS_LOGGED = 8;
+
+    /** @see SearchGovernors */
+    public final SearchGovernors gov = new SearchGovernors();
     /**
      * PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search commits a best-effort segment
      * that barely closed the goal distance, the planner is wedged at a pinch (deepwater→bank, boxed canyon, steep
@@ -75,9 +81,6 @@ public final class SearchPhase {
         return nav.terminalReport(
                 TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "frontier-giveup", p.blockPosition());
     }
-
-    /** @see SearchGovernors */
-    public final SearchGovernors gov = new SearchGovernors();
 
     /** A replan only lifts the quick cooldown; a new goal starts every governor afresh. */
     public void reset(ResetScope scope) {
@@ -206,9 +209,6 @@ public final class SearchPhase {
                     nav.route.path() == null ? "; no plan to keep, searching again" : "; keeping the current plan");
         }
     }
-
-    /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
-    private static final int REFUSALS_LOGGED = 8;
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {

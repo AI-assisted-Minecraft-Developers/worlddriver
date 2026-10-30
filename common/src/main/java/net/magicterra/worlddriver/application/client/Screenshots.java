@@ -20,10 +20,11 @@ import net.minecraft.client.Screenshot;
  * {@code ClientDriverApiImpl}.
  */
 public final class Screenshots {
-    private Screenshots() {}
 
     /** How long a capture waits for a frame of its own before reporting that none was drawn. */
     private static final long FRESH_FRAME_MS = 1_000;
+
+    private Screenshots() {}
 
     /**
      * Waits for a frame drawn AFTER this request arrived, so the capture cannot be the frame that predates whatever the

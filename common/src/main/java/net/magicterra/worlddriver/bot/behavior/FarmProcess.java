@@ -25,23 +25,18 @@ import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class FarmProcess implements BotProcess, Navigating {
+
+    private static final int PLACE_TIMEOUT_TICKS = 40;
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
 
     private BlockInteraction blocks;
-
-    private static final int PLACE_TIMEOUT_TICKS = 40;
 
     private final BlockPos minP;
     private final BlockPos maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
     private final Set<String> crops;
     private final boolean replant;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("farm"));
-
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
 
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final int totalEstimate;
@@ -64,12 +59,17 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     private String failure;
 
+    private Phase phase = Phase.SEARCH;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     @Override
     public String failure() {
         return failure;
     }
-
-    private Phase phase = Phase.SEARCH;
 
     private enum Phase {
         SEARCH,

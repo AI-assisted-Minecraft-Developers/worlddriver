@@ -18,7 +18,6 @@ import net.magicterra.worlddriver.bot.planning.PathFinder;
  * limiter (an uncapped client, a dedicated server) nothing pumps and the tick slices are unchanged.
  */
 public final class FrameSearchPump {
-    private FrameSearchPump() {}
 
     /** Left unspent before the limiter's deadline, for the swap and the limiter's own wakeup. */
     private static final long MARGIN_NANOS = 700_000L;
@@ -30,6 +29,8 @@ public final class FrameSearchPump {
     private static long offeredAt;
     private static long frameStart;
     private static long spentNanos;
+
+    private FrameSearchPump() {}
 
     /** Right after the limiter returns: the next frame's 1/cap starts now. */
     public static void frameStarted() {

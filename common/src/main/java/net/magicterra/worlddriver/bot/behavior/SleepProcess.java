@@ -19,25 +19,28 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 public final class SleepProcess implements BotProcess, Navigating {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private BlockInteraction blocks;
 
     private static final int USE_TIMEOUT_TICKS = 40; // ~2 s — bed reply is one tick after the click
     private static final int CLICK_INTERVAL_TICKS = 10; // re-click cadence within USE phase
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private BlockInteraction blocks;
 
     private final BlockPos explicit;
     private final int searchRadius;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("sleep"));
 
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
-
     private BlockPos bedPos;
     private int useTicks;
     private int sinceLastClick;
     private Phase phase = Phase.SEARCH;
+
+    private String failure;
+    private String approachShortfall;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     private enum Phase {
         SEARCH,
@@ -153,9 +156,6 @@ public final class SleepProcess implements BotProcess, Navigating {
         st.mc_goto.reset();
         return true;
     }
-
-    private String failure;
-    private String approachShortfall;
 
     @Override
     public String failure() {

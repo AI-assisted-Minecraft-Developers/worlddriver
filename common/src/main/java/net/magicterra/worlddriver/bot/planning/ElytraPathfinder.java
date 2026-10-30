@@ -31,7 +31,6 @@ import net.minecraft.world.phys.Vec3;
  * search.
  */
 public final class ElytraPathfinder {
-    private ElytraPathfinder() {}
 
     /** Coarse grid spacing (blocks). Bigger = cheaper search, rougher route. */
     public static final int GRID = 4;
@@ -52,6 +51,8 @@ public final class ElytraPathfinder {
      * whole world.
      */
     private static final int BOX_MARGIN = 96;
+
+    private ElytraPathfinder() {}
 
     /**
      * Plan a corridor of waypoints from {@code start} to {@code goal}. The returned list ends at {@code goal} and

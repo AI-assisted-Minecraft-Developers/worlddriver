@@ -29,6 +29,8 @@ import net.minecraft.world.entity.LivingEntity;
  * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class RepathPhase {
+
+    private static final int BLOCK_REPLANS_LOGGED = 8;
     public int ticksSinceRepath;
 
     public void reset(ResetScope scope) {
@@ -221,8 +223,6 @@ public final class RepathPhase {
                     nav.owner);
         }
     }
-
-    private static final int BLOCK_REPLANS_LOGGED = 8;
 
     /**
      * The foot-search kickoff's front door: names WHICH trigger fired (under navigatorDebug), then the wedge penalty. A

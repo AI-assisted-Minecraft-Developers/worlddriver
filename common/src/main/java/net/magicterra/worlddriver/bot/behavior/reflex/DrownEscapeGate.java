@@ -20,7 +20,6 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
  * is measurably recovering. Air jittering around the entry threshold must NOT flap the latch.
  */
 public final class DrownEscapeGate {
-    private DrownEscapeGate() {}
 
     /**
      * Vanilla max air supply (ticks). A configured {@code releaseAir} above this could otherwise latch forever (air can
@@ -36,6 +35,8 @@ public final class DrownEscapeGate {
      * submerged tick would re-latch anyway; demand a real breather first.
      */
     public static final int RECOVER_MARGIN = 40;
+
+    private DrownEscapeGate() {}
 
     /**
      * One latch transition: feed the previous latch state + this tick's readings, get the new latch state. Pure

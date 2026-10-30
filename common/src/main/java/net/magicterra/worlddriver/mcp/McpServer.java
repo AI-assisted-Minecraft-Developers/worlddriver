@@ -84,6 +84,9 @@ public final class McpServer implements Closeable {
      */
     private static final int MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
 
+    /** Suspended MCP waits across every client; past it a new wait is refused before it starts. */
+    private static final WaitPermits WAITS = WaitPermits.bounded(McpLimits.MCP_MAX_WAITS);
+
     private final ApiRegistry api;
     private final HttpServer http;
     private final ThreadPoolExecutor executor;
@@ -94,6 +97,9 @@ public final class McpServer implements Closeable {
      * out to all of them.
      */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
+
+    /** The tool names {@code tools/list} showed last; a publish that changes them is announced. */
+    private volatile Set<String> listed;
 
     public McpServer(ApiRegistry api, EventFeed events, int port) throws IOException {
         this(api, events, "127.0.0.1", port);
@@ -125,9 +131,6 @@ public final class McpServer implements Closeable {
         this.listed = listedNames();
         api.addListener(snapshot -> onRegistryChange());
     }
-
-    /** The tool names {@code tools/list} showed last; a publish that changes them is announced. */
-    private volatile Set<String> listed;
 
     private Set<String> listedNames() {
         Set<String> names = new java.util.LinkedHashSet<>();
@@ -560,9 +563,6 @@ public final class McpServer implements Closeable {
             // (a full outbox means the pump is stuck in write, not poll)
         }
     }
-
-    /** Suspended MCP waits across every client; past it a new wait is refused before it starts. */
-    private static final WaitPermits WAITS = WaitPermits.bounded(McpLimits.MCP_MAX_WAITS);
 
     /** The caller's remaining budget from {@code params._meta.budgetMs}, else the server's cap. */
     private static long budgetOf(JsonObject params) {

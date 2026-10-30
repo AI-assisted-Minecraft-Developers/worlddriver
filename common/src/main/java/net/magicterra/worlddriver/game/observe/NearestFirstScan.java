@@ -20,9 +20,10 @@ import net.minecraft.core.BlockPos;
  * geometry, independent of any world state.
  */
 public final class NearestFirstScan {
-    private NearestFirstScan() {}
 
     private static final Map<Long, BlockPos[]> CACHE = new ConcurrentHashMap<>();
+
+    private NearestFirstScan() {}
 
     /**
      * Every (dx,dy,dz) offset with |dx|,|dz| &lt;= radius and |dy| &lt;= vertRadius, sorted nearest-first by squared

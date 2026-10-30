@@ -31,6 +31,11 @@ import net.minecraft.world.entity.LivingEntity;
  * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class StallDetectPhase {
+
+    /** Blocks² from the churn window's base that count as having left it, and as being back. */
+    private static final int CHURN_CYCLE_LEAVE_SQ = 16;
+
+    private static final int CHURN_CYCLE_RETURN_SQ = 4;
     public boolean
             forceFellOffPath; // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into the
     // next tick's fellOffPath so the proven re-route fires
@@ -68,11 +73,6 @@ public final class StallDetectPhase {
         goalSpin.resetForNewGoal();
         churn.resetForNewGoal();
     }
-
-    /** Blocks² from the churn window's base that count as having left it, and as being back. */
-    private static final int CHURN_CYCLE_LEAVE_SQ = 16;
-
-    private static final int CHURN_CYCLE_RETURN_SQ = 4;
 
     /**
      * Per tick: the wall-corner ram count, and whether the body has left this churn window's base and come back to it

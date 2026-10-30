@@ -30,6 +30,80 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * {@code runAway}, {@code sleep} and {@code elytraFly}. A plain walk to a target is {@code mc.bot.goto}.
  */
 public final class MoveContracts {
+
+    public static final UnionType<Quarry> QUARRY = ApiTypes.union(Quarry.class);
+
+    public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record(FollowParams.class);
+
+    public static final UnionType<Followed> FOLLOW_RESULT =
+            ApiTypes.union("FollowResult", "kind", ApiTypes.record(Followed.class));
+
+    public static final MethodSpec<FollowParams, ActionResponse<Followed>> FOLLOW = MethodSpec.of(
+                    "mc.bot.follow",
+                    FOLLOW_PARAMS,
+                    Responses.response("Follow", FOLLOW_RESULT),
+                    "Follow an entity, re-aiming whenever it changes block. Fails as unreachable after 5 failed replans "
+                            + "in a row or giveUpTicks without progress (a quarry in a pen, or one that outruns it); "
+                            + "succeeds after maxIdleTicks with nothing to follow.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record(ExploreParams.class);
+
+    public static final UnionType<Explored> EXPLORE_RESULT =
+            ApiTypes.union("ExploreResult", "kind", ApiTypes.record(Explored.class));
+
+    public static final MethodSpec<ExploreParams, ActionResponse<Explored>> EXPLORE = MethodSpec.of(
+                    "mc.bot.explore",
+                    EXPLORE_PARAMS,
+                    Responses.response("Explore", EXPLORE_RESULT),
+                    "Walk to unvisited chunk centres in a spiral around (centerX, centerZ) until maxChunks are visited: "
+                            + "reveals terrain and spawns for later queries.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record(RunAwayParams.class);
+
+    public static final UnionType<RanAway> RUN_AWAY_RESULT =
+            ApiTypes.union("RunAwayResult", "kind", ApiTypes.record(RanAway.class));
+
+    public static final MethodSpec<RunAwayParams, ActionResponse<RanAway>> RUN_AWAY = MethodSpec.of(
+                    "mc.bot.runAway",
+                    RUN_AWAY_PARAMS,
+                    Responses.response("RunAway", RUN_AWAY_RESULT),
+                    "Walk to any reachable point at least minDist blocks from 'from': flee a mob or a hazard.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record(SleepParams.class);
+
+    public static final UnionType<Slept> SLEEP_RESULT =
+            ApiTypes.union("SleepResult", "kind", ApiTypes.record(Slept.class));
+
+    public static final MethodSpec<SleepParams, ActionResponse<Slept>> SLEEP = MethodSpec.of(
+                    "mc.bot.sleep",
+                    SLEEP_PARAMS,
+                    Responses.response("Sleep", SLEEP_RESULT),
+                    "Walk to the nearest bed and sleep in it. The game decides whether sleeping is allowed (night or "
+                            + "thunder, no mob near, bed free); a refusal fails the action with the game's reason.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record(ElytraParams.class);
+
+    public static final UnionType<Flown> ELYTRA_RESULT =
+            ApiTypes.union("ElytraFlyResult", "kind", ApiTypes.record(Flown.class));
+
+    public static final MethodSpec<ElytraParams, ActionResponse<Flown>> ELYTRA_FLY = MethodSpec.of(
+                    "mc.bot.elytraFly",
+                    ELYTRA_PARAMS,
+                    Responses.response("ElytraFly", ELYTRA_RESULT),
+                    "Glide with the elytra worn in the chest slot; the body must already be airborne. With pos and no "
+                            + "pitch a lookahead controller steers toward it and boosts with rockets; a pitch pins a "
+                            + "fixed glide instead. For a trip to a target, goto with route.mode ['fly'] also takes off.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
     private MoveContracts() {}
 
     // ------------------------------------------------------------------ follow
@@ -95,23 +169,6 @@ public final class MoveContracts {
     public record Followed(
             Quarry target, @Range(min = 1, max = 16) int radius) {}
 
-    public static final UnionType<Quarry> QUARRY = ApiTypes.union(Quarry.class);
-
-    public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record(FollowParams.class);
-
-    public static final UnionType<Followed> FOLLOW_RESULT =
-            ApiTypes.union("FollowResult", "kind", ApiTypes.record(Followed.class));
-
-    public static final MethodSpec<FollowParams, ActionResponse<Followed>> FOLLOW = MethodSpec.of(
-                    "mc.bot.follow",
-                    FOLLOW_PARAMS,
-                    Responses.response("Follow", FOLLOW_RESULT),
-                    "Follow an entity, re-aiming whenever it changes block. Fails as unreachable after 5 failed replans "
-                            + "in a row or giveUpTicks without progress (a quarry in a pen, or one that outruns it); "
-                            + "succeeds after maxIdleTicks with nothing to follow.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
-
     // ------------------------------------------------------------------ explore
 
     @Named("ExploreParams")
@@ -132,20 +189,6 @@ public final class MoveContracts {
             @Range(min = 1, max = 64) int maxChunks,
             @Range(min = 0) int visited) {}
 
-    public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record(ExploreParams.class);
-
-    public static final UnionType<Explored> EXPLORE_RESULT =
-            ApiTypes.union("ExploreResult", "kind", ApiTypes.record(Explored.class));
-
-    public static final MethodSpec<ExploreParams, ActionResponse<Explored>> EXPLORE = MethodSpec.of(
-                    "mc.bot.explore",
-                    EXPLORE_PARAMS,
-                    Responses.response("Explore", EXPLORE_RESULT),
-                    "Walk to unvisited chunk centres in a spiral around (centerX, centerZ) until maxChunks are visited: "
-                            + "reveals terrain and spawns for later queries.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
-
     // ------------------------------------------------------------------ runAway
 
     @Named("RunAwayParams")
@@ -159,19 +202,6 @@ public final class MoveContracts {
     @Variant("runAway")
     public record RanAway(
             BlockPosition from, @Range(min = 4, max = 64) int minDist, BlockPosition at) {}
-
-    public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record(RunAwayParams.class);
-
-    public static final UnionType<RanAway> RUN_AWAY_RESULT =
-            ApiTypes.union("RunAwayResult", "kind", ApiTypes.record(RanAway.class));
-
-    public static final MethodSpec<RunAwayParams, ActionResponse<RanAway>> RUN_AWAY = MethodSpec.of(
-                    "mc.bot.runAway",
-                    RUN_AWAY_PARAMS,
-                    Responses.response("RunAway", RUN_AWAY_RESULT),
-                    "Walk to any reachable point at least minDist blocks from 'from': flee a mob or a hazard.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 
     // ------------------------------------------------------------------ sleep
 
@@ -187,20 +217,6 @@ public final class MoveContracts {
 
     @Variant("sleep")
     public record Slept(BlockPosition bed) {}
-
-    public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record(SleepParams.class);
-
-    public static final UnionType<Slept> SLEEP_RESULT =
-            ApiTypes.union("SleepResult", "kind", ApiTypes.record(Slept.class));
-
-    public static final MethodSpec<SleepParams, ActionResponse<Slept>> SLEEP = MethodSpec.of(
-                    "mc.bot.sleep",
-                    SLEEP_PARAMS,
-                    Responses.response("Sleep", SLEEP_RESULT),
-                    "Walk to the nearest bed and sleep in it. The game decides whether sleeping is allowed (night or "
-                            + "thunder, no mob near, bed free); a refusal fails the action with the game's reason.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 
     // ------------------------------------------------------------------ elytraFly
 
@@ -269,19 +285,4 @@ public final class MoveContracts {
 
     @Variant("elytraFly")
     public record Flown(FlightMode mode, boolean fireworks) {}
-
-    public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record(ElytraParams.class);
-
-    public static final UnionType<Flown> ELYTRA_RESULT =
-            ApiTypes.union("ElytraFlyResult", "kind", ApiTypes.record(Flown.class));
-
-    public static final MethodSpec<ElytraParams, ActionResponse<Flown>> ELYTRA_FLY = MethodSpec.of(
-                    "mc.bot.elytraFly",
-                    ELYTRA_PARAMS,
-                    Responses.response("ElytraFly", ELYTRA_RESULT),
-                    "Glide with the elytra worn in the chest slot; the body must already be airborne. With pos and no "
-                            + "pitch a lookahead controller steers toward it and boosts with rockets; a pitch pins a "
-                            + "fixed glide instead. For a trip to a target, goto with route.mode ['fly'] also takes off.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
 }

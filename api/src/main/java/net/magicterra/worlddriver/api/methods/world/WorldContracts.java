@@ -23,7 +23,6 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
  * The box rule and the returned-events shape here are shared with the writes in {@code ActionContracts}.
  */
 public final class WorldContracts {
-    private WorldContracts() {}
 
     /** The cells one call may read or write, 32³; mc.query's block radius is held to it too. */
     public static final int MAX_VOLUME = 32_768;
@@ -33,6 +32,50 @@ public final class WorldContracts {
 
     /** How many retained snapshots the store holds; a new id past this is refused, never evicts silently. */
     public static final int MAX_SNAPSHOTS = 64;
+
+    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class);
+
+    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class);
+
+    // Pollable: one cell read in one server task.
+    public static final MethodSpec<BlockParams, BlockReading> BLOCK = MethodSpec.of(
+                    "mc.world.block",
+                    BLOCK_PARAMS,
+                    BLOCK_READING,
+                    "One cell as the server has it: the block id, its blockstate properties, block and sky light, and on "
+                            + "request the block entity's NBT. The verify half of build-then-verify.")
+            .asPollable();
+
+    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class);
+
+    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class);
+
+    // Reads the world and writes only this driver's in-memory store, which is not world state.
+    public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of(
+                    "mc.world.snapshot",
+                    SNAPSHOT_PARAMS,
+                    SNAPSHOTTED,
+                    "Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put "
+                            + "back: deterministic setup and teardown. In any dimension, and with entities the non-player ones "
+                            + "too. At most 262144 cells (64³); " + MAX_SNAPSHOTS
+                            + " snapshots are kept until the world closes, and a new id past that is refused.")
+            .effects(MethodSpec.Effect.SNAPSHOT_READ, MethodSpec.Effect.CONFIG_WRITE)
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class);
+
+    public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class);
+
+    public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of(
+                    "mc.world.restore",
+                    RESTORE_PARAMS,
+                    RESTORED,
+                    "Put a box mc.world.snapshot kept back exactly, block-entity contents included, in the dimension it was taken in; a snapshot with entities swaps the box's non-player "
+                            + "entities for the kept ones. Emits world.restore.")
+            .effects(MethodSpec.Effect.WORLD_WRITE)
+            .execution(MethodSpec.ExecutionClass.BULK);
+
+    private WorldContracts() {}
 
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b, int limit) {
@@ -87,19 +130,6 @@ public final class WorldContracts {
             @Doc("With nbt: the SNBT; absent when the cell has no block entity.")
             Optional<String> blockEntity) {}
 
-    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class);
-
-    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class);
-
-    // Pollable: one cell read in one server task.
-    public static final MethodSpec<BlockParams, BlockReading> BLOCK = MethodSpec.of(
-                    "mc.world.block",
-                    BLOCK_PARAMS,
-                    BLOCK_READING,
-                    "One cell as the server has it: the block id, its blockstate properties, block and sky light, and on "
-                            + "request the block entity's NBT. The verify half of build-then-verify.")
-            .asPollable();
-
     // ------------------------------------------------------------------ snapshot
 
     @Named("SnapshotParams")
@@ -139,22 +169,6 @@ public final class WorldContracts {
             @Doc("Non-player entities kept; 0 unless entities was asked for.") @Range(min = 0)
             int entities) {}
 
-    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class);
-
-    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class);
-
-    // Reads the world and writes only this driver's in-memory store, which is not world state.
-    public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of(
-                    "mc.world.snapshot",
-                    SNAPSHOT_PARAMS,
-                    SNAPSHOTTED,
-                    "Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put "
-                            + "back: deterministic setup and teardown. In any dimension, and with entities the non-player ones "
-                            + "too. At most 262144 cells (64³); " + MAX_SNAPSHOTS
-                            + " snapshots are kept until the world closes, and a new id past that is refused.")
-            .effects(MethodSpec.Effect.SNAPSHOT_READ, MethodSpec.Effect.CONFIG_WRITE)
-            .execution(MethodSpec.ExecutionClass.BULK);
-
     // ------------------------------------------------------------------ restore
 
     @Named("RestoreParams")
@@ -176,17 +190,4 @@ public final class WorldContracts {
             @Range(min = 0) int entitiesRemoved,
             @Range(min = 0) int entitiesRestored,
             Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
-
-    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class);
-
-    public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class);
-
-    public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of(
-                    "mc.world.restore",
-                    RESTORE_PARAMS,
-                    RESTORED,
-                    "Put a box mc.world.snapshot kept back exactly, block-entity contents included, in the dimension it was taken in; a snapshot with entities swaps the box's non-player "
-                            + "entities for the kept ones. Emits world.restore.")
-            .effects(MethodSpec.Effect.WORLD_WRITE)
-            .execution(MethodSpec.ExecutionClass.BULK);
 }

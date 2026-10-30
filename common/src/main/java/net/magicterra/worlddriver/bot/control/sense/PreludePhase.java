@@ -35,6 +35,25 @@ import net.minecraft.world.entity.player.Player;
  * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class PreludePhase {
+
+    /**
+     * Progress-aware sticky-dig watchdog (see the release block): a dig may legitimately need 450-3750 CONSECUTIVE
+     * ticks under vanilla's stacked x5 water x5 airborne penalties, so time is bounded only by a generous backstop; the
+     * real release signal is destroyProgress stalling.
+     */
+    private static final int STICKY_DIG_STALL_TICKS = 60;
+
+    private static final int STICKY_DIG_ABS_CAP_TICKS = 4000;
+
+    /**
+     * Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved travel tick can't release attack
+     * (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks
+     * interleaved with attack=false travel ticks never completed one block). Engaged by Climb/Drive, released by
+     * PreludePhase when the planned break is gone; deliberately NO journey reset (release is world-state-driven).
+     */
+    public final StickyDig stickyDig = new StickyDig();
+
+    public boolean descending; // ending creative flight; wait to land before pathing
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
     public void sampleTick(Navigator nav, LivingEntity p) {
         // Cheap gate: skip the per-tick NavigatorSample allocation entirely unless capture is on.
@@ -77,29 +96,10 @@ public final class PreludePhase {
                 p.getId()));
     }
 
-    /**
-     * Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved travel tick can't release attack
-     * (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks
-     * interleaved with attack=false travel ticks never completed one block). Engaged by Climb/Drive, released by
-     * PreludePhase when the planned break is gone; deliberately NO journey reset (release is world-state-driven).
-     */
-    public final StickyDig stickyDig = new StickyDig();
-
-    public boolean descending; // ending creative flight; wait to land before pathing
-
     /** Forget what this phase keeps for the walk, as far as {@code scope} reaches. */
     public void reset(ResetScope scope) {
         descending = false;
     }
-
-    /**
-     * Progress-aware sticky-dig watchdog (see the release block): a dig may legitimately need 450-3750 CONSECUTIVE
-     * ticks under vanilla's stacked x5 water x5 airborne penalties, so time is bounded only by a generous backstop; the
-     * real release signal is destroyProgress stalling.
-     */
-    private static final int STICKY_DIG_STALL_TICKS = 60;
-
-    private static final int STICKY_DIG_ABS_CAP_TICKS = 4000;
 
     /**
      * The dig claim's RELEASE POLICY, and the only place it lives.

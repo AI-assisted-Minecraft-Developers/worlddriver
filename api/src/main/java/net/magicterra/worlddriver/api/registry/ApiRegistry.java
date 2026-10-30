@@ -41,6 +41,22 @@ public final class ApiRegistry {
     public static final String CORE_OWNER = "worlddriver";
     public static final String TEST_OWNER = "stagewright";
 
+    /**
+     * Encoding a result that a game thread completed must not run on that game thread: an image or a long list is
+     * encoded here instead. Bounded; the work per task is one encode.
+     */
+    private static final ExecutorService ENCODE = new ThreadPoolExecutor(
+            1,
+            4,
+            30,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
+
+    private final Published state;
+    /** What {@link #withThreadWait} gave this view, or 0 for the registry itself: each hop's own limit. */
+    private final long threadWaitMs;
+
     /** One published state: methods by name in registration order, the batches behind them, and a version. */
     public record Snapshot(
             long version,
@@ -58,10 +74,6 @@ public final class ApiRegistry {
         volatile Snapshot snapshot = new Snapshot(0, Map.of(), Map.of(), Map.of());
         final List<Consumer<Snapshot>> listeners = new CopyOnWriteArrayList<>();
     }
-
-    private final Published state;
-    /** What {@link #withThreadWait} gave this view, or 0 for the registry itself: each hop's own limit. */
-    private final long threadWaitMs;
 
     public ApiRegistry() {
         this(new Published(), 0);
@@ -93,18 +105,6 @@ public final class ApiRegistry {
     private CallContext adjust(CallContext ctx) {
         return threadWaitMs > 0 && ctx.threadWaitMs() == 0 ? ctx.withThreadWait(threadWaitMs) : ctx;
     }
-
-    /**
-     * Encoding a result that a game thread completed must not run on that game thread: an image or a long list is
-     * encoded here instead. Bounded; the work per task is one encode.
-     */
-    private static final ExecutorService ENCODE = new ThreadPoolExecutor(
-            1,
-            4,
-            30,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(),
-            Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
 
     public Snapshot snapshot() {
         return state.snapshot;

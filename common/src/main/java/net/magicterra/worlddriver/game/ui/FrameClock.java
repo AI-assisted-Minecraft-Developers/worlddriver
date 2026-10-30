@@ -24,10 +24,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * swap, which vanilla runs even on a tick that drew nothing.
  */
 public final class FrameClock {
-    private FrameClock() {}
 
     private static final AtomicLong DRAWN = new AtomicLong();
     private static final Queue<CompletableFuture<Long>> WAITERS = new ConcurrentLinkedQueue<>();
+
+    private FrameClock() {}
 
     /** Called at the end of every rendered frame; see {@code GameRendererMixin}. */
     public static void frameDrawn() {

@@ -24,6 +24,39 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
  * {@code mc.recipe.lookup}, {@code mc.recipe.resolve} and {@code mc.plan.acquire}.
  */
 public final class RecipeContracts {
+
+    public static final ApiType<LookupParams> LOOKUP_PARAMS = ApiTypes.record(LookupParams.class);
+
+    public static final ApiType<Recipes> RECIPES = ApiTypes.record(Recipes.class);
+
+    public static final MethodSpec<LookupParams, Recipes> LOOKUP = MethodSpec.of(
+            "mc.recipe.lookup",
+            LOOKUP_PARAMS,
+            RECIPES,
+            "Find recipes in the game's recipe table by what they make or by what they consume; with neither, the "
+                    + "first limit recipes. Special recipes with no fixed result are left out.");
+
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class);
+
+    public static final ApiType<CraftPlan> CRAFT_PLAN = ApiTypes.record(CraftPlan.class);
+
+    public static final MethodSpec<PlanParams, CraftPlan> RESOLVE = MethodSpec.of(
+            "mc.recipe.resolve",
+            PLAN_PARAMS,
+            CRAFT_PLAN,
+            "Expand \"I want count of target\" into an ordered craft plan and the raw materials still missing: counts, "
+                    + "yields, tag substitution and cycles worked out, against the bag and the stations within reach. "
+                    + "Call it before crafting.");
+
+    public static final ApiType<AcquirePlan> ACQUIRE_PLAN = ApiTypes.record(AcquirePlan.class);
+
+    public static final MethodSpec<PlanParams, AcquirePlan> ACQUIRE = MethodSpec.of(
+            "mc.plan.acquire",
+            PLAN_PARAMS,
+            ACQUIRE_PLAN,
+            "mc.recipe.resolve plus how to get every missing leaf: smelt an ore whose input can be mined, farm a crop, "
+                    + "or mine a block that drops it. An ordered plan from scratch, to run with the matching mc.bot verbs.");
+
     private RecipeContracts() {}
 
     // ------------------------------------------------------------------ lookup
@@ -92,17 +125,6 @@ public final class RecipeContracts {
 
     @Named("Recipes")
     public record Recipes(@Length(max = 200) List<Recipe> recipes) {}
-
-    public static final ApiType<LookupParams> LOOKUP_PARAMS = ApiTypes.record(LookupParams.class);
-
-    public static final ApiType<Recipes> RECIPES = ApiTypes.record(Recipes.class);
-
-    public static final MethodSpec<LookupParams, Recipes> LOOKUP = MethodSpec.of(
-            "mc.recipe.lookup",
-            LOOKUP_PARAMS,
-            RECIPES,
-            "Find recipes in the game's recipe table by what they make or by what they consume; with neither, the "
-                    + "first limit recipes. Special recipes with no fixed result are left out.");
 
     // ------------------------------------------------------------------ resolve and acquire
 
@@ -247,25 +269,4 @@ public final class RecipeContracts {
 
             @Doc("Leaves that need mob drops, trading or structures.") @Length(max = 4096)
             List<ItemNeed> unobtainable) {}
-
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class);
-
-    public static final ApiType<CraftPlan> CRAFT_PLAN = ApiTypes.record(CraftPlan.class);
-
-    public static final MethodSpec<PlanParams, CraftPlan> RESOLVE = MethodSpec.of(
-            "mc.recipe.resolve",
-            PLAN_PARAMS,
-            CRAFT_PLAN,
-            "Expand \"I want count of target\" into an ordered craft plan and the raw materials still missing: counts, "
-                    + "yields, tag substitution and cycles worked out, against the bag and the stations within reach. "
-                    + "Call it before crafting.");
-
-    public static final ApiType<AcquirePlan> ACQUIRE_PLAN = ApiTypes.record(AcquirePlan.class);
-
-    public static final MethodSpec<PlanParams, AcquirePlan> ACQUIRE = MethodSpec.of(
-            "mc.plan.acquire",
-            PLAN_PARAMS,
-            ACQUIRE_PLAN,
-            "mc.recipe.resolve plus how to get every missing leaf: smelt an ore whose input can be mined, farm a crop, "
-                    + "or mine a block that drops it. An ordered plan from scratch, to run with the matching mc.bot verbs.");
 }

@@ -39,6 +39,34 @@ public final class UserTaskChain implements Chain {
      */
     private Body driven;
 
+    /** The last process a caller started, kept after it ends, so its navigator can still be read. */
+    private volatile BotProcess lastAsked;
+
+    /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
+    private volatile Ticket action;
+
+    /** Whether the held process was started by a caller, so that its ending is theirs to read. */
+    private boolean asked;
+
+    /**
+     * Whether the held process has been left running across a tick boundary, i.e. has driven the bot. One that ends on
+     * its first tick never did, and the keybinds it would release are the human's.
+     */
+    private boolean drove;
+
+    private volatile End end;
+
+    /**
+     * Set by {@link #onInterrupt}, cleared by {@link #onResume}: whether the channel was TAKEN from this chain, as
+     * opposed to never held. The scheduler calls {@code onResume()} on every handover, including {@code idle -> user}
+     * for a process that has never ticked, and forwarding that one reaches {@code IntentProcess.onResume} →
+     * {@code Navigator.replan}, which drops a route the process was handed before it started ({@code mc.bot.goto} with
+     * {@code planId}): the adopted lane was gone before its first tick and the navigator searched from the foot instead
+     * (client lane 2026-09-06, "foot-search kickoff: pathNull=true step=0/0"). A fresh process has no stale path to
+     * drop; only a suspension can make one stale.
+     */
+    private boolean interrupted;
+
     public UserTaskChain(BotState state) {
         this(state, b -> {
             if (b != null) {
@@ -94,16 +122,10 @@ public final class UserTaskChain implements Chain {
         }
     }
 
-    /** The last process a caller started, kept after it ends, so its navigator can still be read. */
-    private volatile BotProcess lastAsked;
-
     /** The held process if a caller started it, else the last one a caller started; null if none ever was. */
     public BotProcess lastAsked() {
         return lastAsked;
     }
-
-    /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
-    private volatile Ticket action;
 
     public Ticket action() {
         return action;
@@ -120,15 +142,6 @@ public final class UserTaskChain implements Chain {
         stop(reason, h -> {});
         return true;
     }
-
-    /** Whether the held process was started by a caller, so that its ending is theirs to read. */
-    private boolean asked;
-
-    /**
-     * Whether the held process has been left running across a tick boundary, i.e. has driven the bot. One that ends on
-     * its first tick never did, and the keybinds it would release are the human's.
-     */
-    private boolean drove;
 
     /**
      * Cancel the held process (if any) with a reason recorded on its slot. Mirrors the old
@@ -168,8 +181,6 @@ public final class UserTaskChain implements Chain {
     // One immutable value, because the reader is on an RPC thread: two volatiles written in turn
     // can be read as a new kind paired with the previous task's error.
     private record End(String kind, String error) {}
-
-    private volatile End end;
 
     private void recordEnd(String kind, String error) {
         if (asked) {
@@ -270,17 +281,6 @@ public final class UserTaskChain implements Chain {
             }
         }
     }
-
-    /**
-     * Set by {@link #onInterrupt}, cleared by {@link #onResume}: whether the channel was TAKEN from this chain, as
-     * opposed to never held. The scheduler calls {@code onResume()} on every handover, including {@code idle -> user}
-     * for a process that has never ticked, and forwarding that one reaches {@code IntentProcess.onResume} →
-     * {@code Navigator.replan}, which drops a route the process was handed before it started ({@code mc.bot.goto} with
-     * {@code planId}): the adopted lane was gone before its first tick and the navigator searched from the foot instead
-     * (client lane 2026-09-06, "foot-search kickoff: pathNull=true step=0/0"). A fresh process has no stale path to
-     * drop; only a suspension can make one stale.
-     */
-    private boolean interrupted;
 
     /**
      * Preempted by a higher-priority chain: stop in place, keep the process so it can resume. With no process held this

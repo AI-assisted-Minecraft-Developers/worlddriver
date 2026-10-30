@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.rpc;
 
 /** Inbound request budget shared by every transport. */
 public final class RequestLimits {
-    private RequestLimits() {}
 
     /**
      * Largest inbound request, in bytes: a POST body on MCP, a WebSocket message on the RPC socket (each frame, and a
@@ -12,4 +11,6 @@ public final class RequestLimits {
      * parameter takes; the MCP side widens it for its {@code Content-Length} comparison.
      */
     public static final int MAX_REQUEST_BYTES = Integer.getInteger("worlddriver.maxRequestBytes", 8 * 1024 * 1024);
+
+    private RequestLimits() {}
 }

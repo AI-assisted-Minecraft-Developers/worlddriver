@@ -9,14 +9,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public interface CancellationToken {
 
-    boolean isCancelled();
-
-    /**
-     * Run {@code listener} once when this is cancelled, at once if it already is. Closing the returned handle removes a
-     * listener that has not run, which is how a finished wait stops being told.
-     */
-    AutoCloseable onCancel(Runnable listener);
-
     CancellationToken NEVER = new CancellationToken() {
         @Override
         public boolean isCancelled() {
@@ -28,6 +20,14 @@ public interface CancellationToken {
             return () -> {};
         }
     };
+
+    boolean isCancelled();
+
+    /**
+     * Run {@code listener} once when this is cancelled, at once if it already is. Closing the returned handle removes a
+     * listener that has not run, which is how a finished wait stops being told.
+     */
+    AutoCloseable onCancel(Runnable listener);
 
     /** A token whose owner can {@link #cancel} it. */
     final class Source implements CancellationToken {

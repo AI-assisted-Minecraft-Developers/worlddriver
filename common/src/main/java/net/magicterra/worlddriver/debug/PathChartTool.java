@@ -15,9 +15,10 @@ import net.magicterra.worlddriver.api.schema.ApiException;
  * worker with no thread hop.
  */
 final class PathChartTool {
-    private PathChartTool() {}
 
     private static volatile PathDebugRecorder recorder;
+
+    private PathChartTool() {}
 
     static void bind(PathDebugRecorder r) {
         recorder = r;

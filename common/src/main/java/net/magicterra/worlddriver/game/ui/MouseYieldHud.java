@@ -15,7 +15,6 @@ import net.minecraft.network.chat.Component;
  * broken, or is the bot working?" — and advertises the way back in (double-tap ESC).
  */
 public final class MouseYieldHud {
-    private MouseYieldHud() {}
 
     private static final int COLOR_DRIVING = 0xFFFFB300; // amber: the bot is driving the player
     private static final int COLOR_YIELDED = 0xFFB0B0B0; // grey: informational
@@ -24,6 +23,8 @@ public final class MouseYieldHud {
 
     private static final int MARGIN = 4;
     private static final int LINE_H = 10;
+
+    private MouseYieldHud() {}
 
     /** Draw the badge if the bot is driving. No-op otherwise (and while the HUD is hidden). */
     public static void render(GuiGraphics gfx) {

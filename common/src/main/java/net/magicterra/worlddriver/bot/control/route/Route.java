@@ -21,14 +21,24 @@ import net.minecraft.world.level.Level;
  */
 public final class Route {
 
-    /** What an adoption did with a search result. A refusal leaves the plan exactly as it was. */
-    public record Adoption(boolean adopted, String refusal) {
-        static final Adoption ADOPTED = new Adoption(true, null);
+    // ---- block changes ----
 
-        static Adoption refused(String why) {
-            return new Adoption(false, why);
-        }
-    }
+    /**
+     * Squared distance from the body's eyes within which a changed block may be the body's own work — a dig, a placed
+     * rung, a plug — and is left to the follower, which made it on purpose or will bump into it. Survival block reach
+     * is 4.5; the margin keeps a stretch of arm out of the question.
+     */
+    private static final double OWN_REACH_SQ = 6.0 * 6.0;
+    /**
+     * How close, across, a changed cell's middle must be to a leg of the plan to be in the body's way: a cell's
+     * half-width plus a player's, so a block beside the corridor is not one in it.
+     */
+    private static final double IN_THE_WAY = 0.8;
+    /**
+     * Ticks between two replans for block changes: water spreading or a farm cycling beside a route would otherwise
+     * start a search every tick.
+     */
+    private static final int CHANGE_REPLAN_GAP = 20;
 
     private List<BlockPos> path;
     private List<Move.Edge> edges; // aligned with path; edges.get(i) enters path.get(i)
@@ -39,6 +49,25 @@ public final class Route {
     private String lastDrop;
 
     public final SegmentCommit seg = new SegmentCommit();
+
+    /** The level whose change log this plan reads, and the sequence number it has read up to. */
+    private Level changesLevel;
+
+    private long changesRead;
+    /** A change on the plan ahead waiting for its replan, and how many nodes ahead of the body it was. */
+    private BlockPos changedAt;
+
+    private int changedAhead;
+    private int changeReplanCooldown;
+
+    /** What an adoption did with a search result. A refusal leaves the plan exactly as it was. */
+    public record Adoption(boolean adopted, String refusal) {
+        static final Adoption ADOPTED = new Adoption(true, null);
+
+        static Adoption refused(String why) {
+            return new Adoption(false, why);
+        }
+    }
 
     /**
      * Async search + best-effort segment commit: the in-flight time-sliced A* and the partial-segment plumbing around
@@ -250,35 +279,6 @@ public final class Route {
         seg.pendingSegment = null;
         return next;
     }
-
-    // ---- block changes ----
-
-    /**
-     * Squared distance from the body's eyes within which a changed block may be the body's own work — a dig, a placed
-     * rung, a plug — and is left to the follower, which made it on purpose or will bump into it. Survival block reach
-     * is 4.5; the margin keeps a stretch of arm out of the question.
-     */
-    private static final double OWN_REACH_SQ = 6.0 * 6.0;
-    /**
-     * How close, across, a changed cell's middle must be to a leg of the plan to be in the body's way: a cell's
-     * half-width plus a player's, so a block beside the corridor is not one in it.
-     */
-    private static final double IN_THE_WAY = 0.8;
-    /**
-     * Ticks between two replans for block changes: water spreading or a farm cycling beside a route would otherwise
-     * start a search every tick.
-     */
-    private static final int CHANGE_REPLAN_GAP = 20;
-
-    /** The level whose change log this plan reads, and the sequence number it has read up to. */
-    private Level changesLevel;
-
-    private long changesRead;
-    /** A change on the plan ahead waiting for its replan, and how many nodes ahead of the body it was. */
-    private BlockPos changedAt;
-
-    private int changedAhead;
-    private int changeReplanCooldown;
 
     /** Changes from before a plan existed are what it was planned against. */
     private void watchFromNow() {

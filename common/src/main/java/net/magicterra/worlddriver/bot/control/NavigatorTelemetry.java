@@ -26,49 +26,42 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class NavigatorTelemetry {
 
-    /**
-     * A body as a reader means it: the same player across a respawn or a dimension change (both replace the entity
-     * object), and the client's copy apart from the server's.
-     */
-    private record Key(UUID id, boolean client) {}
-
     /** Every live bot's telemetry is touched every tick, so only finished scene avatars expire. */
     private static final Cache<Key, NavigatorTelemetry> BY_BODY =
             CacheBuilder.newBuilder().expireAfterAccess(Duration.ofMinutes(10)).build();
 
-    /** The telemetry of {@code body}, created on first use. Never null. */
-    public static NavigatorTelemetry of(LivingEntity body) {
-        return of(body.getUUID(), body.level().isClientSide());
-    }
+    /**
+     * Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and the code filling them
+     * cannot drift apart. The array below is sized from it.
+     */
+    public static final String[] STRIDE_SKIP_REASONS = {
+        "off/parkour tick",
+        "no player entity",
+        "in water",
+        "sole not on solid",
+        "not translating h<0.03",
+        "stride cell impassable (it is ground)",
+        "plan descends into that column",
+        "column floors out before the hazard"
+    };
 
     /**
-     * The telemetry of the player {@code id} on one side — how a server-thread scene reads the client bot of the same
-     * player, whose entity it cannot hold.
+     * Names for {@link #futileGateBuckets}, in bucket order — 0-5 are exclusions (the gate never ran), 6-9 are what it
+     * did when it did run. Bucket 9 is split out of 6: a first search after a reset has no baseline to beat, so
+     * counting it as "got closer" made a reset look like earned progress.
      */
-    public static NavigatorTelemetry of(UUID id, boolean clientSide) {
-        try {
-            return BY_BODY.get(new Key(id, clientSide), NavigatorTelemetry::new);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException(e); // the loader is a constructor; it does not throw
-        }
-    }
-
-    /** A sink for a navigator that has not ticked a body yet; nobody can read it. */
-    NavigatorTelemetry() {}
-
-    /** The most recent deep-search result any navigator on this body finished. */
-    public record PathStats(
-            int expanded,
-            long ms,
-            boolean goalReached,
-            double finalCost,
-            int pathLen,
-            boolean sightBudgetExhausted,
-            boolean snapshotTruncated) {
-        public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
-            this(expanded, ms, goalReached, finalCost, pathLen, false, false);
-        }
-    }
+    public static final String[] FUTILE_GATE_BUCKETS = {
+        "gate off(cap<=0)",
+        "search reached the goal",
+        "digging(breakHeld)",
+        "water climb digging",
+        "foot cell is water(left to the water reversal loop)",
+        "no path and blacklist not expired",
+        "reset:closer to goal",
+        "reset:bot moved>2 cells",
+        "counted",
+        "seeded after reset(not judged)"
+    };
 
     /** Surfaced under {@code status.lastPath}; null until a search lands. */
     public volatile PathStats lastStats;
@@ -94,25 +87,12 @@ public final class NavigatorTelemetry {
      */
     public volatile int legEpoch;
 
-    /** Start a new walk: the per-walk log budget of every navigator on this body refreshes on its next line. */
-    public void newLeg() {
-        legEpoch++;
-    }
-
     /**
      * Step-advance lines actually emitted, so a walk can report whether its own log is COMPLETE: "this hop advanced 61
      * times and all 61 are here" against "advanced 300 times and you are looking at the first 64".
      * {@code JourneyFlight} prints it as a per-walk delta against {@link #stepAdvanceBudget}.
      */
     public volatile int stepAdvancesLogged;
-
-    /**
-     * The per-walk advance budget, for the instrument that reports how much of it a walk spent. An accessor rather than
-     * a copied literal, so a row stays a report about this budget when it changes.
-     */
-    public static int stepAdvanceBudget() {
-        return ProgressPhase.STEP_ADV_EVENTS;
-    }
 
     /**
      * What the guard pin's forced-repath decision chose, and what the last decision of each kind looked like — see
@@ -158,21 +138,6 @@ public final class NavigatorTelemetry {
     public volatile int waterPillarTopRise;
 
     /**
-     * Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and the code filling them
-     * cannot drift apart. The array below is sized from it.
-     */
-    public static final String[] STRIDE_SKIP_REASONS = {
-        "off/parkour tick",
-        "no player entity",
-        "in water",
-        "sole not on solid",
-        "not translating h<0.03",
-        "stride cell impassable (it is ground)",
-        "plan descends into that column",
-        "column floors out before the hazard"
-    };
-
-    /**
      * Why the stride floor-guard said nothing this tick — one bucket per early return — so a silent guard can be told
      * apart from an absent one. Exactly one bucket moves per tick the guard runs, so the sum is the number of ticks it
      * ran over. An {@link AtomicLongArray} because plain array elements carry no visibility guarantee to the reading
@@ -181,24 +146,6 @@ public final class NavigatorTelemetry {
     public final AtomicLongArray strideGuardSkips = new AtomicLongArray(STRIDE_SKIP_REASONS.length);
     /** Ticks the stride floor-guard actually pinned. Read beside the skips, never alone. */
     public volatile int strideGuardFires;
-
-    /**
-     * Names for {@link #futileGateBuckets}, in bucket order — 0-5 are exclusions (the gate never ran), 6-9 are what it
-     * did when it did run. Bucket 9 is split out of 6: a first search after a reset has no baseline to beat, so
-     * counting it as "got closer" made a reset look like earned progress.
-     */
-    public static final String[] FUTILE_GATE_BUCKETS = {
-        "gate off(cap<=0)",
-        "search reached the goal",
-        "digging(breakHeld)",
-        "water climb digging",
-        "foot cell is water(left to the water reversal loop)",
-        "no path and blacklist not expired",
-        "reset:closer to goal",
-        "reset:bot moved>2 cells",
-        "counted",
-        "seeded after reset(not judged)"
-    };
 
     /**
      * Why the futile-search gate did not count a completed search, or what it did when it ran: exactly one bucket per
@@ -217,4 +164,57 @@ public final class NavigatorTelemetry {
      * {@link #lastTickTrace}, which is wherever the bot had got to by the time anyone looked.
      */
     public volatile String lastSupportedTrace = "no supported tick yet";
+
+    /**
+     * A body as a reader means it: the same player across a respawn or a dimension change (both replace the entity
+     * object), and the client's copy apart from the server's.
+     */
+    private record Key(UUID id, boolean client) {}
+
+    /** The telemetry of {@code body}, created on first use. Never null. */
+    public static NavigatorTelemetry of(LivingEntity body) {
+        return of(body.getUUID(), body.level().isClientSide());
+    }
+
+    /**
+     * The telemetry of the player {@code id} on one side — how a server-thread scene reads the client bot of the same
+     * player, whose entity it cannot hold.
+     */
+    public static NavigatorTelemetry of(UUID id, boolean clientSide) {
+        try {
+            return BY_BODY.get(new Key(id, clientSide), NavigatorTelemetry::new);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException(e); // the loader is a constructor; it does not throw
+        }
+    }
+
+    /** A sink for a navigator that has not ticked a body yet; nobody can read it. */
+    NavigatorTelemetry() {}
+
+    /** The most recent deep-search result any navigator on this body finished. */
+    public record PathStats(
+            int expanded,
+            long ms,
+            boolean goalReached,
+            double finalCost,
+            int pathLen,
+            boolean sightBudgetExhausted,
+            boolean snapshotTruncated) {
+        public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
+            this(expanded, ms, goalReached, finalCost, pathLen, false, false);
+        }
+    }
+
+    /** Start a new walk: the per-walk log budget of every navigator on this body refreshes on its next line. */
+    public void newLeg() {
+        legEpoch++;
+    }
+
+    /**
+     * The per-walk advance budget, for the instrument that reports how much of it a walk spent. An accessor rather than
+     * a copied literal, so a row stays a report about this budget when it changes.
+     */
+    public static int stepAdvanceBudget() {
+        return ProgressPhase.STEP_ADV_EVENTS;
+    }
 }

@@ -11,7 +11,6 @@ import com.google.gson.JsonPrimitive;
  * object when there is one.
  */
 public final class JsonRpcFrames {
-    private JsonRpcFrames() {}
 
     // JSON-RPC 2.0 §5.1 reserved codes.
     public static final int PARSE_ERROR = -32700;
@@ -19,6 +18,8 @@ public final class JsonRpcFrames {
     public static final int METHOD_NOT_FOUND = -32601;
     public static final int INVALID_PARAMS = -32602;
     public static final int INTERNAL_ERROR = -32603;
+
+    private JsonRpcFrames() {}
 
     /** A result. A request without an id is answered with {@code id:null}, never a made-up number. */
     public static JsonObject result(JsonElement id, JsonElement result) {

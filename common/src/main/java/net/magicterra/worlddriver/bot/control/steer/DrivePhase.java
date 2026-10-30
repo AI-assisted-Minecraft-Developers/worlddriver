@@ -92,6 +92,86 @@ public final class DrivePhase {
     private static final int WIGGLE_SCAN_MAX = 4;
 
     /**
+     * Recovery-hop events logged per navigator before the latch goes quiet.
+     *
+     * <p>Sixteen, not four. The budget is per NAVIGATOR INSTANCE — {@code wiggleEvents} is an instance field with no
+     * reset, and every process carries its own {@code new Navigator(…)} — so it is spent per settle, not per run. That
+     * is not as generous as it sounds, because a single stall episode burns it: on 2026-08-26 rung 12's bot stalled on
+     * a lava lake's rim, spent all four inside thirteen seconds, and printed seq=5+/4 for the hops that mattered — the
+     * ones between the last logged position and the bot's death in the lake. A cap that runs out inside the one stall
+     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded — the line is one
+     * per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line still says when even that was not enough.
+     * Measured: one rehearsal stall printed six consecutive suppressed hops (ring 2, gate=true, jump=false), of which a
+     * cap of four would have shown four.
+     */
+    private static final int WIGGLE_EVENTS = 16;
+
+    private static final double LANE_KP = 3.0;
+    private static final double LANE_KD = 8.0;
+
+    private static final double BACKOFF_RUNWAY = 1.8; // how far 12 ticks of walking back carries the bot, with margin
+    private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
+
+    private static final String[] SPRINT_VETO_NAMES = {
+        "bridge",
+        "offFall",
+        "offWaterFall",
+        "diagAscent",
+        "finalApproach",
+        "lowHp",
+        "hazard",
+        "descendBrake",
+        "lethalNear",
+        "steepDescent",
+        "deepWaterDrift",
+        "descentSkip",
+        "stepJump",
+        "water",
+        "dipLeap"
+    };
+
+    /**
+     * Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28; this is below a walk
+     * on purpose — the rule is meant to catch a standstill, not to referee how fast is fast enough, and a bar set at
+     * sprint speed would refuse leaps that work.
+     */
+    private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
+
+    private int wiggleEvents;
+
+    /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
+    private boolean wiggleCapped;
+
+    /**
+     * Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of the last call that
+     * was inside the stall window. See that method's javadoc.
+     */
+    private long wiggleCalls;
+
+    private long wiggleLastCall = Long.MIN_VALUE / 4;
+
+    /** The first parkour takeoff this walk ever made — see {@link #noteParkourTakeoff}. */
+    public String parkourTakeoff;
+
+    public boolean digDrivenThisTick;
+    public boolean digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
+    // DIG_KEY_RELEASE_TICKS)
+    public int digIdleTicks; // consecutive tick-ends with the latch owned and no dig driven
+
+    public final AscendMovement ascendMovement =
+            new AscendMovement(); // task#82 per-move machine (drives only when navigatorAscendMovement is ON)
+
+    /**
+     * Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by DrivePhase.
+     * {@link DriveLatches#reset()} clears only the two sprint-brake latches (exactly what both journey resets cleared);
+     * the debounce counters self-manage per tick.
+     */
+    public final DriveLatches driveLatch = new DriveLatches();
+
+    private int parkourSamples;
+    private StringBuilder parkourTakeoffBuf;
+
+    /**
      * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
      *
      * <p>Moved out of {@code DrivePhase}'s jump expression because the decision needed a number the expression threw
@@ -179,34 +259,6 @@ public final class DrivePhase {
     }
 
     /**
-     * Recovery-hop events logged per navigator before the latch goes quiet.
-     *
-     * <p>Sixteen, not four. The budget is per NAVIGATOR INSTANCE — {@code wiggleEvents} is an instance field with no
-     * reset, and every process carries its own {@code new Navigator(…)} — so it is spent per settle, not per run. That
-     * is not as generous as it sounds, because a single stall episode burns it: on 2026-08-26 rung 12's bot stalled on
-     * a lava lake's rim, spent all four inside thirteen seconds, and printed seq=5+/4 for the hops that mattered — the
-     * ones between the last logged position and the bot's death in the lake. A cap that runs out inside the one stall
-     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded — the line is one
-     * per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line still says when even that was not enough.
-     * Measured: one rehearsal stall printed six consecutive suppressed hops (ring 2, gate=true, jump=false), of which a
-     * cap of four would have shown four.
-     */
-    private static final int WIGGLE_EVENTS = 16;
-
-    private int wiggleEvents;
-
-    /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
-    private boolean wiggleCapped;
-
-    /**
-     * Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of the last call that
-     * was inside the stall window. See that method's javadoc.
-     */
-    private long wiggleCalls;
-
-    private long wiggleLastCall = Long.MIN_VALUE / 4;
-
-    /**
      * task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already test — a plain
      * stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp. stepUp2 (+2, horse) and parkourAscend*
      * are excluded (spec §10). Cheap string check so the OFF delegation short-circuit costs nothing.
@@ -214,24 +266,6 @@ public final class DrivePhase {
     public static boolean isMigratedAscent(String move) {
         return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
-
-    /** The first parkour takeoff this walk ever made — see {@link #noteParkourTakeoff}. */
-    public String parkourTakeoff;
-
-    public boolean digDrivenThisTick;
-    public boolean digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
-    // DIG_KEY_RELEASE_TICKS)
-    public int digIdleTicks; // consecutive tick-ends with the latch owned and no dig driven
-
-    public final AscendMovement ascendMovement =
-            new AscendMovement(); // task#82 per-move machine (drives only when navigatorAscendMovement is ON)
-
-    /**
-     * Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by DrivePhase.
-     * {@link DriveLatches#reset()} clears only the two sprint-brake latches (exactly what both journey resets cleared);
-     * the debounce counters self-manage per tick.
-     */
-    public final DriveLatches driveLatch = new DriveLatches();
 
     /** Release the two sprint brakes; the debouncers and the dig-key latch manage themselves. */
     public void reset(ResetScope scope) {
@@ -312,9 +346,6 @@ public final class DrivePhase {
         parkourSamples++;
         parkourTakeoff = parkourTakeoffBuf.toString();
     }
-
-    private int parkourSamples;
-    private StringBuilder parkourTakeoffBuf;
 
     /**
      * The below-node jump suppression <b>without a wall to ram</b>.
@@ -598,12 +629,6 @@ public final class DrivePhase {
         double velR = (latX != 0 ? v.x : 0) * rx + (latZ != 0 ? v.z : 0) * rz;
         return -Mth.clamp(LANE_KP * errR - LANE_KD * velR, -1.0, 1.0);
     }
-
-    private static final double LANE_KP = 3.0;
-    private static final double LANE_KD = 8.0;
-
-    private static final double BACKOFF_RUNWAY = 1.8; // how far 12 ticks of walking back carries the bot, with margin
-    private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
 
     /**
      * True when the runway the step-up backoff would retreat over has floor at the bot's level. On a one-wide cliff
@@ -1988,24 +2013,6 @@ public final class DrivePhase {
         return Double.NaN;
     }
 
-    private static final String[] SPRINT_VETO_NAMES = {
-        "bridge",
-        "offFall",
-        "offWaterFall",
-        "diagAscent",
-        "finalApproach",
-        "lowHp",
-        "hazard",
-        "descendBrake",
-        "lethalNear",
-        "steepDescent",
-        "deepWaterDrift",
-        "descentSkip",
-        "stepJump",
-        "water",
-        "dipLeap"
-    };
-
     /**
      * Every reason the walk drops sprint, one bit each in {@link #SPRINT_VETO_NAMES} order, so the walk-keys line can
      * say WHICH gate took sprint away. A bare {@code sprint=false} could not: a flat stretch walked 17% of its grounded
@@ -2189,13 +2196,6 @@ public final class DrivePhase {
         }
         return false;
     }
-
-    /**
-     * Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28; this is below a walk
-     * on purpose — the rule is meant to catch a standstill, not to referee how fast is fast enough, and a bar set at
-     * sprint speed would refuse leaps that work.
-     */
-    private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
 
     /**
      * Count an ascent dead-zone, and give up the walk once re-routing provably cannot help.

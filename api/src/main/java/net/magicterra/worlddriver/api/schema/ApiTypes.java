@@ -17,42 +17,6 @@ import java.util.regex.Pattern;
  * no integer from a fraction, no {@code null} for absent.
  */
 public final class ApiTypes {
-    private ApiTypes() {}
-
-    // ------------------------------------------------------------------ numbers
-
-    /** An integer in {@code [min,max]}; {@code 1} and {@code 1.0} are the same integer, {@code 1.2} is none. */
-    static ApiType<Integer> integer(int min, int max) {
-        return new NumberTypes.IntegerType<>(min, max, Long::intValue, Long::valueOf);
-    }
-
-    /** Any 32-bit integer. */
-    static ApiType<Integer> integer() {
-        return integer(Integer.MIN_VALUE, Integer.MAX_VALUE);
-    }
-
-    /** An integer in {@code [min,max]} held as a long; for counts and times that outgrow an int. */
-    static ApiType<Long> int64(long min, long max) {
-        return new NumberTypes.IntegerType<>(min, max, v -> v, v -> v);
-    }
-
-    /**
-     * A 64-bit integer written as a decimal string. JavaScript numbers hold 53 bits, so a sequence number or seed sent
-     * as a number arrives rounded; as a string it survives every client.
-     */
-    static ApiType<Long> int64String(long min) {
-        return new NumberTypes.Int64StringType(min);
-    }
-
-    /** A finite number in {@code [min,max]}. */
-    static ApiType<Double> number(double min, double max) {
-        return new NumberTypes.NumberType(min, max);
-    }
-
-    /** Any finite number. */
-    static ApiType<Double> number() {
-        return new NumberTypes.NumberType(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-    }
 
     // ------------------------------------------------------------------ booleans and strings
 
@@ -90,6 +54,43 @@ public final class ApiTypes {
             throw new UnsupportedOperationException("describe the field, not the shared boolean type");
         }
     };
+
+    private ApiTypes() {}
+
+    // ------------------------------------------------------------------ numbers
+
+    /** An integer in {@code [min,max]}; {@code 1} and {@code 1.0} are the same integer, {@code 1.2} is none. */
+    static ApiType<Integer> integer(int min, int max) {
+        return new NumberTypes.IntegerType<>(min, max, Long::intValue, Long::valueOf);
+    }
+
+    /** Any 32-bit integer. */
+    static ApiType<Integer> integer() {
+        return integer(Integer.MIN_VALUE, Integer.MAX_VALUE);
+    }
+
+    /** An integer in {@code [min,max]} held as a long; for counts and times that outgrow an int. */
+    static ApiType<Long> int64(long min, long max) {
+        return new NumberTypes.IntegerType<>(min, max, v -> v, v -> v);
+    }
+
+    /**
+     * A 64-bit integer written as a decimal string. JavaScript numbers hold 53 bits, so a sequence number or seed sent
+     * as a number arrives rounded; as a string it survives every client.
+     */
+    static ApiType<Long> int64String(long min) {
+        return new NumberTypes.Int64StringType(min);
+    }
+
+    /** A finite number in {@code [min,max]}. */
+    static ApiType<Double> number(double min, double max) {
+        return new NumberTypes.NumberType(min, max);
+    }
+
+    /** Any finite number. */
+    static ApiType<Double> number() {
+        return new NumberTypes.NumberType(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+    }
 
     static ApiType<Boolean> bool() {
         return BOOL;

@@ -25,11 +25,6 @@ public final class GridWorldView implements WorldView {
 
     private final MoveSignals signals = new MoveSignals();
 
-    @Override
-    public MoveSignals signals() {
-        return signals;
-    }
-
     private final int x0;
     private final int y0;
     private final int z0;
@@ -40,6 +35,14 @@ public final class GridWorldView implements WorldView {
     private boolean place = true; // pillar/bridge enabled by default so vertical-escape can be staged
 
     private Set<Locomotion.Mode> modes = Locomotion.WALK_AND_SWIM;
+
+    private double width = 0.6;
+    private double height = 1.8;
+
+    @Override
+    public MoveSignals signals() {
+        return signals;
+    }
 
     /** Enable/disable block placement (pillar-up / bridge). Returns this for chaining. */
     public GridWorldView withPlace(boolean on) {
@@ -52,9 +55,6 @@ public final class GridWorldView implements WorldView {
         this.modes = Set.copyOf(modes);
         return this;
     }
-
-    private double width = 0.6;
-    private double height = 1.8;
 
     /** Plan for a body this wide and tall; a player's by default. Returns this for chaining. */
     public GridWorldView withBody(double width, double height) {

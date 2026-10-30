@@ -29,12 +29,40 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * tunnel arithmetic lives in Java now, on the body that will dig it; scripts only name the tunnel.
  */
 public final class ClearAreaContracts {
-    private ClearAreaContracts() {}
 
     public static final String METHOD = "mc.bot.clearArea";
 
     /** Most cells one order may cover; every one is walked to and worked. */
     public static final int MAX_CELLS = 4096;
+
+    public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.of(WidthBias.class);
+
+    public static final RecordType<Box> BOX = ApiTypes.record(Box.class);
+
+    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record(Tunnel.class);
+
+    public static final UnionType<Region> REGION = ApiTypes.union(Region.class);
+
+    public static final UnionType<Edit> EDIT = ApiTypes.union(Edit.class);
+
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
+
+    public static final UnionType<Summary> SUMMARY =
+            ApiTypes.union("ClearAreaSummary", "kind", ApiTypes.record(Summary.class));
+
+    public static final ApiType<ActionResponse<Summary>> RESPONSE = Responses.response("ClearArea", SUMMARY);
+
+    public static final MethodSpec<Params, ActionResponse<Summary>> SPEC = MethodSpec.of(
+                    METHOD,
+                    PARAMS,
+                    RESPONSE,
+                    "Clear a box or a tunnel ahead of the body, optionally filling or replacing what it clears. "
+                            + "Up to " + MAX_CELLS
+                            + " cells; a tunnel starts in front of the body and never digs its own cell.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
+    private ClearAreaContracts() {}
 
     /** Which side of the travel direction an even width puts its extra column on. */
     @Named("WidthBias")
@@ -120,31 +148,4 @@ public final class ClearAreaContracts {
 
             @Doc("The bias a horizontal tunnel was cut with.")
             Optional<WidthBias> widthBias) {}
-
-    public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.of(WidthBias.class);
-
-    public static final RecordType<Box> BOX = ApiTypes.record(Box.class);
-
-    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record(Tunnel.class);
-
-    public static final UnionType<Region> REGION = ApiTypes.union(Region.class);
-
-    public static final UnionType<Edit> EDIT = ApiTypes.union(Edit.class);
-
-    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class);
-
-    public static final UnionType<Summary> SUMMARY =
-            ApiTypes.union("ClearAreaSummary", "kind", ApiTypes.record(Summary.class));
-
-    public static final ApiType<ActionResponse<Summary>> RESPONSE = Responses.response("ClearArea", SUMMARY);
-
-    public static final MethodSpec<Params, ActionResponse<Summary>> SPEC = MethodSpec.of(
-                    METHOD,
-                    PARAMS,
-                    RESPONSE,
-                    "Clear a box or a tunnel ahead of the body, optionally filling or replacing what it clears. "
-                            + "Up to " + MAX_CELLS
-                            + " cells; a tunnel starts in front of the body and never digs its own cell.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
 }

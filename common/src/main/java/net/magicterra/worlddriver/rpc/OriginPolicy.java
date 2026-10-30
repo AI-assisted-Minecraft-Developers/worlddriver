@@ -13,9 +13,10 @@ import java.util.Set;
  * {@code data:} page sends, so letting it through reopens exactly the browser path this check exists to close.
  */
 public final class OriginPolicy {
-    private OriginPolicy() {}
 
     private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "::1", "[::1]");
+
+    private OriginPolicy() {}
 
     public static boolean isAllowed(String origin) {
         if (origin == null) {

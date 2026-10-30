@@ -11,19 +11,19 @@ import java.util.function.Function;
  */
 public final class ApiField<O, F> {
 
-    /** How a missing key is handled. A present {@code null} is an error for all three. */
-    public enum Presence {
-        REQUIRED,
-        DEFAULTED,
-        OPTIONAL
-    }
-
     final String name;
     final ApiType<?> type;
     final Presence presence;
     final Object defaultValue;
     final Function<O, F> getter;
     final String description;
+
+    /** How a missing key is handled. A present {@code null} is an error for all three. */
+    public enum Presence {
+        REQUIRED,
+        DEFAULTED,
+        OPTIONAL
+    }
 
     private ApiField(
             String name,

@@ -88,8 +88,6 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class BlastFooting {
 
-    private BlastFooting() {}
-
     /** {@code EndCrystal.hurt} → {@code level.explode(…, 6.0F, false, ExplosionInteraction.BLOCK)}. */
     public static final float CRYSTAL_BLAST_POWER = 6.0F;
 
@@ -100,6 +98,8 @@ public final class BlastFooting {
      * message instead of being reported as "nothing nearby", which would send the reader looking for the wrong fix.
      */
     public static final int STAND_SURVEY_RADIUS = 4;
+
+    private BlastFooting() {}
 
     /**
      * The blast a hit on {@code target} sets off, or 0 for everything that does not explode when hurt. See the

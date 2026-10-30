@@ -37,6 +37,59 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * the same tick.
  */
 public final class TestHarnessContracts {
+
+    private static final KeyedValueType SETTING_VALUES = SettingsContracts.SETTING_VALUES;
+
+    private static final KeyedValueType WRITE_VALUES = SettingsContracts.SETTING_VALUES.atLeast(1);
+
+    private static final ApiType<List<String>> KEY_LIST =
+            ApiTypes.list(ApiTypes.of(String.class, Key.class), SettingsContracts.TYPES.size());
+
+    public static final UnionType<SettingsOp> SETTINGS_PARAMS = ApiTypes.union(SettingsOp.class);
+
+    public static final UnionType<SettingsReply> SETTINGS_REPLY = ApiTypes.union(SettingsReply.class);
+
+    public static final MethodSpec<SettingsOp, SettingsReply> SETTINGS = MethodSpec.of(
+                    "mc.test.settings",
+                    SETTINGS_PARAMS,
+                    SETTINGS_REPLY,
+                    "The settings for a scene, on the calling thread and never saved. pin saves every setting and puts "
+                            + "baseline in place, answering a pin that unpin restores the saved settings with; write sets "
+                            + "keys, checked as mc.bot.setting checks them; read answers keys.")
+            .hidden()
+            .effects(MethodSpec.Effect.CONFIG_WRITE);
+
+    public static final UnionType<BotsOp> BOTS_PARAMS = ApiTypes.union(BotsOp.class);
+
+    public static final UnionType<BotsReply> BOTS_REPLY = ApiTypes.union(BotsReply.class);
+
+    public static final MethodSpec<BotsOp, BotsReply> BOTS = MethodSpec.of(
+                    "mc.test.bots",
+                    BOTS_PARAMS,
+                    BOTS_REPLY,
+                    "The tick list every server-side bot is advanced from. tick advances them now, within the call, as "
+                            + "many times as asked, or one bot alone, or only its body or its brain; count answers how many are on it "
+                            + "and how many are busy; clear removes every bot but self; park takes a bot off the list "
+                            + "and unpark puts it back. Server thread only.")
+            .hidden()
+            .effects(MethodSpec.Effect.BODY_TASK);
+
+    public static final RecordType<Press> PRESS = ApiTypes.record(Press.class);
+
+    public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class);
+
+    public static final MethodSpec<Press, Pressed> PRESS_KEYS = MethodSpec.of(
+                    "mc.test.input.press",
+                    PRESS,
+                    PRESSED,
+                    "Hold or let go of a bot's keys, as a player at the keyboard would; each stays until the next press "
+                            + "changes it. Moves nothing by itself: the body moves when it is ticked. A server-side bot "
+                            + "on the server thread, answering within the call; self on the client thread, answering "
+                            + "once it has run there.")
+            .hidden()
+            .effects(MethodSpec.Effect.BODY_TASK)
+            .mayWait();
+
     private TestHarnessContracts() {}
 
     // ------------------------------------------------------------------ settings
@@ -63,18 +116,11 @@ public final class TestHarnessContracts {
         }
     }
 
-    private static final KeyedValueType SETTING_VALUES = SettingsContracts.SETTING_VALUES;
-
-    private static final KeyedValueType WRITE_VALUES = SettingsContracts.SETTING_VALUES.atLeast(1);
-
     /** A setting's key, checked against the key table by the request that names it. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
     @Length(min = 1, max = 64)
     public @interface Key {}
-
-    private static final ApiType<List<String>> KEY_LIST =
-            ApiTypes.list(ApiTypes.of(String.class, Key.class), SettingsContracts.TYPES.size());
 
     @Tag("op")
     @Named("TestSettingsParams")
@@ -168,20 +214,6 @@ public final class TestHarnessContracts {
             throw new IllegalArgumentException(key + " was not read");
         }
     }
-
-    public static final UnionType<SettingsOp> SETTINGS_PARAMS = ApiTypes.union(SettingsOp.class);
-
-    public static final UnionType<SettingsReply> SETTINGS_REPLY = ApiTypes.union(SettingsReply.class);
-
-    public static final MethodSpec<SettingsOp, SettingsReply> SETTINGS = MethodSpec.of(
-                    "mc.test.settings",
-                    SETTINGS_PARAMS,
-                    SETTINGS_REPLY,
-                    "The settings for a scene, on the calling thread and never saved. pin saves every setting and puts "
-                            + "baseline in place, answering a pin that unpin restores the saved settings with; write sets "
-                            + "keys, checked as mc.bot.setting checks them; read answers keys.")
-            .hidden()
-            .effects(MethodSpec.Effect.CONFIG_WRITE);
 
     // ------------------------------------------------------------------ bots
 
@@ -280,21 +312,6 @@ public final class TestHarnessContracts {
     /** Whether {@code bot} is now off the tick list. */
     @Variant("park")
     public record Parked(@BotRef String bot, boolean parked) implements BotsReply {}
-
-    public static final UnionType<BotsOp> BOTS_PARAMS = ApiTypes.union(BotsOp.class);
-
-    public static final UnionType<BotsReply> BOTS_REPLY = ApiTypes.union(BotsReply.class);
-
-    public static final MethodSpec<BotsOp, BotsReply> BOTS = MethodSpec.of(
-                    "mc.test.bots",
-                    BOTS_PARAMS,
-                    BOTS_REPLY,
-                    "The tick list every server-side bot is advanced from. tick advances them now, within the call, as "
-                            + "many times as asked, or one bot alone, or only its body or its brain; count answers how many are on it "
-                            + "and how many are busy; clear removes every bot but self; park takes a bot off the list "
-                            + "and unpark puts it back. Server thread only.")
-            .hidden()
-            .effects(MethodSpec.Effect.BODY_TASK);
 
     // ------------------------------------------------------------------ input
 
@@ -403,20 +420,4 @@ public final class TestHarnessContracts {
     /** What the bot's body reports holding after the press. */
     @Named("TestPressed")
     public record Pressed(@BotRef String bot, TestInputContracts.HeldKeys held) {}
-
-    public static final RecordType<Press> PRESS = ApiTypes.record(Press.class);
-
-    public static final RecordType<Pressed> PRESSED = ApiTypes.record(Pressed.class);
-
-    public static final MethodSpec<Press, Pressed> PRESS_KEYS = MethodSpec.of(
-                    "mc.test.input.press",
-                    PRESS,
-                    PRESSED,
-                    "Hold or let go of a bot's keys, as a player at the keyboard would; each stays until the next press "
-                            + "changes it. Moves nothing by itself: the body moves when it is ticked. A server-side bot "
-                            + "on the server thread, answering within the call; self on the client thread, answering "
-                            + "once it has run there.")
-            .hidden()
-            .effects(MethodSpec.Effect.BODY_TASK)
-            .mayWait();
 }

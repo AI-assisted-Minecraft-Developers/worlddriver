@@ -35,6 +35,11 @@ public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
     private static boolean recordersInstalled;
 
+    private static Supplier<ServerThreadHop> serverHop = () -> null;
+    private static Supplier<MinecraftServer> serverOf = () -> null;
+    private static ApiRegistry batchApi;
+    private static ApiBatch batch;
+
     private PathDebugBootstrap() {}
 
     /** Publish the methods on {@code api}, reaching the server through {@code server}; a repeat is ignored. */
@@ -68,11 +73,6 @@ public final class PathDebugBootstrap {
         PathChartTool.bind(recorder);
         recordersInstalled = true;
     }
-
-    private static Supplier<ServerThreadHop> serverHop = () -> null;
-    private static Supplier<MinecraftServer> serverOf = () -> null;
-    private static ApiRegistry batchApi;
-    private static ApiBatch batch;
 
     /** One batch object per API, so publishing it again is recognised as a retry. */
     private static ApiBatch batch(ApiRegistry api) {

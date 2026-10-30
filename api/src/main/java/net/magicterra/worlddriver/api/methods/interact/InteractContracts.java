@@ -35,6 +35,76 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * it, or {@code refused} with the reasons a task is refused for; only a smooth look runs long enough to be an action.
  */
 public final class InteractContracts {
+
+    public static final ApiType<Hand> HAND = ApiTypes.of(Hand.class);
+    public static final ApiType<Face> FACE = ApiTypes.of(Face.class);
+    public static final ApiType<Interaction> INTERACTION = ApiTypes.of(Interaction.class);
+
+    public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record(LookParams.class);
+
+    public static final UnionType<Looked> LOOK_RESULT =
+            ApiTypes.union("LookAtResult", "kind", ApiTypes.record(Looked.class));
+
+    public static final MethodSpec<LookParams, ActionResponse<Looked>> LOOK_AT = MethodSpec.of(
+                    "mc.bot.lookAt",
+                    LOOK_PARAMS,
+                    Responses.response("LookAt", LOOK_RESULT, Turned.class),
+                    "Aim the view at a block or at explicit angles. Answers done, already facing that way; with the "
+                            + "smoothLook setting on it instead pans over the next ticks as an action, which replaces the "
+                            + "body's task like any other. On self the server's copy of the player turns a tick later, so "
+                            + "mc.observe.player reads the old look until then.")
+            .effects(MethodSpec.Effect.BODY_TASK)
+            .mayWait();
+
+    public static final ApiType<HoldParams> HOLD_PARAMS = ApiTypes.record(HoldParams.class);
+
+    public static final MethodSpec<HoldParams, ImmediateResponse> HOLD_ITEM = MethodSpec.of(
+                    "mc.bot.holdItem",
+                    HOLD_PARAMS,
+                    Responses.immediate("HoldItem", ApiTypes.record(Held.class)),
+                    "Put an item in the main hand: select its hotbar slot, or swap it up from anywhere in the inventory. "
+                            + "minecraft:air empties the hand by selecting an empty hotbar slot. "
+                            + "Refused as invalid_world_target when the body has none.")
+            .effects(MethodSpec.Effect.INVENTORY_WRITE);
+
+    public static final ApiType<UseParams> USE_PARAMS = ApiTypes.record(UseParams.class);
+
+    public static final UnionType<UsedOn> USED_ON = ApiTypes.union(UsedOn.class);
+
+    public static final MethodSpec<UseParams, ImmediateResponse> USE_ITEM = MethodSpec.of(
+                    "mc.bot.useItem",
+                    USE_PARAMS,
+                    Responses.immediate("UseItem", ApiTypes.record(Used.class)),
+                    "Right-click with the held item: in the air (eat, throw, draw a bow), on a block face with pos (place, "
+                            + "pour, bone-meal), or on an entity with entityId (an empty hand mounts). A named bot "
+                            + "refuses a target out of reach as invalid_world_target; self clicks anyway and the server "
+                            + "ignores one out of reach, so read distance in the reply.")
+            .effects(MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE);
+
+    public static final ApiType<AttackParams> ATTACK_PARAMS = ApiTypes.record(AttackParams.class);
+
+    public static final MethodSpec<AttackParams, ImmediateResponse> ATTACK_ENTITY = MethodSpec.of(
+                    "mc.bot.attackEntity",
+                    ATTACK_PARAMS,
+                    Responses.immediate("AttackEntity", ApiTypes.record(Attacked.class)),
+                    "One left click on an entity, facing it. Read attack on the player snapshot first: a swing before "
+                            + "the weapon recharges lands for a fraction of its damage. A missing entity, or a blast that "
+                            + "would take the block underfoot, is refused as invalid_world_target, and so is one out of "
+                            + "reach for a named bot; self swings anyway and the server ignores a target out of reach, so "
+                            + "read distance and alive in the reply.")
+            .effects(MethodSpec.Effect.WORLD_WRITE);
+
+    public static final ApiType<EquipParams> EQUIP_PARAMS = ApiTypes.record(EquipParams.class);
+
+    public static final MethodSpec<EquipParams, ImmediateResponse> EQUIP = MethodSpec.of(
+                    "mc.bot.equip",
+                    EQUIP_PARAMS,
+                    Responses.immediate("Equip", ApiTypes.record(Equipped.class)),
+                    "Put on the best armour in every slot and, unless armour only, the best weapon in hand (a sword "
+                            + "over an axe), scoring material tier and then enchantments. lowDurability and missing are "
+                            + "what is left to repair or craft. This client's own player only.")
+            .effects(MethodSpec.Effect.INVENTORY_WRITE);
+
     private InteractContracts() {}
 
     @Named("Hand")
@@ -79,10 +149,6 @@ public final class InteractContracts {
         }
     }
 
-    public static final ApiType<Hand> HAND = ApiTypes.of(Hand.class);
-    public static final ApiType<Face> FACE = ApiTypes.of(Face.class);
-    public static final ApiType<Interaction> INTERACTION = ApiTypes.of(Interaction.class);
-
     // ------------------------------------------------------------------ lookAt
 
     @Named("LookAtParams")
@@ -117,38 +183,11 @@ public final class InteractContracts {
     @Variant("lookAt")
     public record Looked(double yaw, double pitch) {}
 
-    public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record(LookParams.class);
-
-    public static final UnionType<Looked> LOOK_RESULT =
-            ApiTypes.union("LookAtResult", "kind", ApiTypes.record(Looked.class));
-
-    public static final MethodSpec<LookParams, ActionResponse<Looked>> LOOK_AT = MethodSpec.of(
-                    "mc.bot.lookAt",
-                    LOOK_PARAMS,
-                    Responses.response("LookAt", LOOK_RESULT, Turned.class),
-                    "Aim the view at a block or at explicit angles. Answers done, already facing that way; with the "
-                            + "smoothLook setting on it instead pans over the next ticks as an action, which replaces the "
-                            + "body's task like any other. On self the server's copy of the player turns a tick later, so "
-                            + "mc.observe.player reads the old look until then.")
-            .effects(MethodSpec.Effect.BODY_TASK)
-            .mayWait();
-
     // ------------------------------------------------------------------ holdItem
 
     @Named("HoldItemParams")
     public record HoldParams(
             @Default("self") @BotRef String bot, @ResourceId String item) {}
-
-    public static final ApiType<HoldParams> HOLD_PARAMS = ApiTypes.record(HoldParams.class);
-
-    public static final MethodSpec<HoldParams, ImmediateResponse> HOLD_ITEM = MethodSpec.of(
-                    "mc.bot.holdItem",
-                    HOLD_PARAMS,
-                    Responses.immediate("HoldItem", ApiTypes.record(Held.class)),
-                    "Put an item in the main hand: select its hotbar slot, or swap it up from anywhere in the inventory. "
-                            + "minecraft:air empties the hand by selecting an empty hotbar slot. "
-                            + "Refused as invalid_world_target when the body has none.")
-            .effects(MethodSpec.Effect.INVENTORY_WRITE);
 
     // ------------------------------------------------------------------ useItem
 
@@ -211,38 +250,11 @@ public final class InteractContracts {
             Optional<String> menu)
             implements UsedOn {}
 
-    public static final ApiType<UseParams> USE_PARAMS = ApiTypes.record(UseParams.class);
-
-    public static final UnionType<UsedOn> USED_ON = ApiTypes.union(UsedOn.class);
-
-    public static final MethodSpec<UseParams, ImmediateResponse> USE_ITEM = MethodSpec.of(
-                    "mc.bot.useItem",
-                    USE_PARAMS,
-                    Responses.immediate("UseItem", ApiTypes.record(Used.class)),
-                    "Right-click with the held item: in the air (eat, throw, draw a bow), on a block face with pos (place, "
-                            + "pour, bone-meal), or on an entity with entityId (an empty hand mounts). A named bot "
-                            + "refuses a target out of reach as invalid_world_target; self clicks anyway and the server "
-                            + "ignores one out of reach, so read distance in the reply.")
-            .effects(MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE);
-
     // ------------------------------------------------------------------ attackEntity
 
     @Named("AttackEntityParams")
     public record AttackParams(
             @Default("self") @BotRef String bot, @EntityId int entityId) {}
-
-    public static final ApiType<AttackParams> ATTACK_PARAMS = ApiTypes.record(AttackParams.class);
-
-    public static final MethodSpec<AttackParams, ImmediateResponse> ATTACK_ENTITY = MethodSpec.of(
-                    "mc.bot.attackEntity",
-                    ATTACK_PARAMS,
-                    Responses.immediate("AttackEntity", ApiTypes.record(Attacked.class)),
-                    "One left click on an entity, facing it. Read attack on the player snapshot first: a swing before "
-                            + "the weapon recharges lands for a fraction of its damage. A missing entity, or a blast that "
-                            + "would take the block underfoot, is refused as invalid_world_target, and so is one out of "
-                            + "reach for a named bot; self swings anyway and the server ignores a target out of reach, so "
-                            + "read distance and alive in the reply.")
-            .effects(MethodSpec.Effect.WORLD_WRITE);
 
     // ------------------------------------------------------------------ equip
 
@@ -289,15 +301,4 @@ public final class InteractContracts {
             Optional<@ResourceId String> legs,
             Optional<@ResourceId String> feet,
             Optional<@ResourceId String> mainHand) {}
-
-    public static final ApiType<EquipParams> EQUIP_PARAMS = ApiTypes.record(EquipParams.class);
-
-    public static final MethodSpec<EquipParams, ImmediateResponse> EQUIP = MethodSpec.of(
-                    "mc.bot.equip",
-                    EQUIP_PARAMS,
-                    Responses.immediate("Equip", ApiTypes.record(Equipped.class)),
-                    "Put on the best armour in every slot and, unless armour only, the best weapon in hand (a sword "
-                            + "over an axe), scoring material tier and then enchantments. lowDurability and missing are "
-                            + "what is left to repair or craft. This client's own player only.")
-            .effects(MethodSpec.Effect.INVENTORY_WRITE);
 }

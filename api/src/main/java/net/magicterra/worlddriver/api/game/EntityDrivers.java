@@ -15,9 +15,10 @@ import net.minecraft.world.entity.Mob;
  * has started, and the registrations hold for every world after.
  */
 public final class EntityDrivers {
-    private EntityDrivers() {}
 
     private static final Map<EntityType<?>, Function<Mob, EntityDriver>> BY_TYPE = new ConcurrentHashMap<>();
+
+    private EntityDrivers() {}
 
     /**
      * Drive mobs of {@code type} with what {@code adopt} builds for each one when it is taken over. A second

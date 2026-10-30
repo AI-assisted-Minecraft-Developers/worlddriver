@@ -39,27 +39,6 @@ import net.minecraft.world.item.crafting.RecipeType;
  * exist before they're crafted. The craft jobs keep {@link RecipeResolver}'s dependency-first topological order.
  */
 public final class AcquireResolver {
-    private AcquireResolver() {}
-
-    public enum Action {
-        MINE,
-        FARM,
-        SMELT,
-        CRAFT
-    }
-
-    /**
-     * One executable step. {@code blocks} set for MINE (candidate ore/log blocks), {@code input} set for SMELT (what to
-     * feed the furnace), {@code station}+ {@code from} set for CRAFT (mirrors {@code mc.recipe.resolve}).
-     */
-    public record Step(
-            Action action, String item, int count, String station, List<String> blocks, String input, String from) {}
-
-    public record Plan(String target, int count, List<Step> steps, Map<String, Integer> unobtainable) {
-        public boolean feasible() {
-            return unobtainable.isEmpty();
-        }
-    }
 
     /**
      * Mineable items whose drop differs from any same-named block: ore → raw drop. Keyed by the dropped ITEM; value is
@@ -82,6 +61,28 @@ public final class AcquireResolver {
     private static final Set<String> FARM_OUTPUTS = Crops.harvests();
 
     private static final int GUARD = 4096;
+
+    private AcquireResolver() {}
+
+    public enum Action {
+        MINE,
+        FARM,
+        SMELT,
+        CRAFT
+    }
+
+    /**
+     * One executable step. {@code blocks} set for MINE (candidate ore/log blocks), {@code input} set for SMELT (what to
+     * feed the furnace), {@code station}+ {@code from} set for CRAFT (mirrors {@code mc.recipe.resolve}).
+     */
+    public record Step(
+            Action action, String item, int count, String station, List<String> blocks, String input, String from) {}
+
+    public record Plan(String target, int count, List<Step> steps, Map<String, Integer> unobtainable) {
+        public boolean feasible() {
+            return unobtainable.isEmpty();
+        }
+    }
 
     public static Plan plan(
             RecipeManager rm, HolderLookup.Provider ra, String target, int count, Map<String, Integer> have) {

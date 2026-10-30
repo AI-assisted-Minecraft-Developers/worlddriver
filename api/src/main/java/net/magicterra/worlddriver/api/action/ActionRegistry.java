@@ -43,6 +43,8 @@ public final class ActionRegistry {
     private final Map<String, RunContext> owners = new HashMap<>();
     private final Map<String, RunContext> watchedRuns = new HashMap<>();
 
+    private final AtomicLong[] generations = {new AtomicLong(), new AtomicLong()};
+
     /** The outcome of {@link #admit}: a handle, or why there is none. */
     public sealed interface Admission permits Admitted, Denied {}
 
@@ -237,8 +239,6 @@ public final class ActionRegistry {
             h.requestCancel(reason);
         }
     }
-
-    private final AtomicLong[] generations = {new AtomicLong(), new AtomicLong()};
 
     /**
      * Which world or connection {@code scope} is on, as a number that changes whenever it closes. A request reads it

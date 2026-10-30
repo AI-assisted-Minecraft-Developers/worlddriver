@@ -31,7 +31,97 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class Safety {
 
+    /**
+     * The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop. Not "be careful" as
+     * a number — it is the smallest reading that still leaves the bot a whole half-cell of margin on every axis, and
+     * the void gives no second attempt.
+     */
+    private static final double VOID_FOOTING_MIN = 0.30;
+
+    /**
+     * How many consecutive pinned ticks throw the plan away. Named rather than inlined twice: the two call sites are
+     * the fire path and the hold path and they must not be able to drift.
+     */
+    private static final int GUARD_PIN_REPATH = 30;
+
+    /** Per-body cap on how many kept/rebased streaks print in full; both keep counting past it. */
+    private static final int GUARD_STREAK_EVENTS = 8;
+
+    /**
+     * Hold-tail length: long enough to outlast the drive re-acceleration between fires (~3-5 ticks observed), short
+     * enough that a false pin costs under half a second.
+     */
+    static final int GUARD_PIN_HOLD = 8;
+
+    /**
+     * Fires on one stride cell before the plug placement arms. A genuine unplanned crossing (gap#53 well-mouth ON the
+     * corridor) re-fires the same cell across 2-3 pin cycles and passes this quickly; a transient diagonal edge-graze
+     * on a normal walk sweeps a NEW cell every few ticks and never arms (StepTwo bypass r28: six dirt spent on plugs
+     * during a clean detour walk, every event at a different position, st≈0 — the pin alone was the load-bearing
+     * safety, the grounded-sneak edge clamp holds without any block). The pin itself stays instant. 12, not 7: the
+     * guard-pin corridor recovery (Aim, guardPinClock) engages at ~6 pinned ticks and must decisively win the race
+     * against plug arming on a place-free plan (r32: 7 fires accumulated before the recovery steered off the cell — 2
+     * dirt). Construction plans (see canPlug) bypass this entirely.
+     */
+    private static final int GUARD_PLUG_ARM_FIRES = 12;
+
+    /**
+     * How far down "no floor at all" is checked before a drop counts as bottomless. Below every dimension's floor (the
+     * End starts at 0, the Overworld at -64), so a column clear to here is clear to the void. Scanned only on a tick
+     * the stride guard already fired — about 1% of them on the End island — so the cost is a rounding error next to
+     * being right about the void.
+     */
+    static final int BOTTOMLESS_SCAN_FLOOR = -70;
+
     private final Navigator nav;
+
+    /** True while {@link #footingGuard} is holding, so the log records the entry and not every tick. */
+    private boolean footingPinned;
+
+    /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
+    public int guardPinStreak;
+
+    /**
+     * The last stride cell this pin streak fired on, and how many times that cell has CHANGED during it. Not a
+     * distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why it is diagnostics and not the repath
+     * predicate — see {@link #forcedRepathIfPinnedTooLong}.
+     */
+    private BlockPos guardStreakCell;
+
+    private int guardStreakCells;
+
+    /**
+     * The plan this pin streak opened on, and the step index it was at. The repath predicate reads them; reference
+     * identity is the right comparison because every re-plan hands back a fresh list (smoothing included), so a changed
+     * reference IS a changed plan.
+     */
+    private List<BlockPos> guardStreakPath;
+
+    private int guardStreakStartStep;
+
+    /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
+    private int guardHoldTicks;
+
+    /**
+     * True while the stride floor-guard's sneak-pin is held; cleared (and the sneak released) on the first tick the
+     * hazard is gone.
+     */
+    public boolean guardSneakLatch;
+
+    /**
+     * Plug arming: the stride cell the guard last fired on + accumulated fires on it. Resets only when the fired-on
+     * CELL changes (not on quiet ticks — a pinned bot's velocity decays under 0.03 so fires on one cell arrive in
+     * bursts between pin cycles, and a consecutive-streak would never accumulate).
+     */
+    public BlockPos guardPlugCell;
+
+    public int guardPlugFires;
+
+    /**
+     * True while this tick's edge is a parkour launch — the guard must not sneak-pin or jump-cancel a deliberate leap
+     * over void (its landing is the plan). Set inside {@link Navigator#tickInner}; reset each tick.
+     */
+    public boolean guardParkourTick;
 
     public Safety(Navigator nav) {
         this.nav = nav;
@@ -265,13 +355,6 @@ public final class Safety {
     }
 
     /**
-     * The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop. Not "be careful" as
-     * a number — it is the smallest reading that still leaves the bot a whole half-cell of margin on every axis, and
-     * the void gives no second attempt.
-     */
-    private static final double VOID_FOOTING_MIN = 0.30;
-
-    /**
      * True when any column NEXT TO {@code at} runs out of the world.
      *
      * <p>Beside, not under — and the first cut got that backwards. A bot with a sole to measure is standing on
@@ -351,36 +434,6 @@ public final class Safety {
             }
         }
     }
-
-    /** True while {@link #footingGuard} is holding, so the log records the entry and not every tick. */
-    private boolean footingPinned;
-
-    /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
-    public int guardPinStreak;
-
-    /**
-     * How many consecutive pinned ticks throw the plan away. Named rather than inlined twice: the two call sites are
-     * the fire path and the hold path and they must not be able to drift.
-     */
-    private static final int GUARD_PIN_REPATH = 30;
-
-    /**
-     * The last stride cell this pin streak fired on, and how many times that cell has CHANGED during it. Not a
-     * distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why it is diagnostics and not the repath
-     * predicate — see {@link #forcedRepathIfPinnedTooLong}.
-     */
-    private BlockPos guardStreakCell;
-
-    private int guardStreakCells;
-
-    /**
-     * The plan this pin streak opened on, and the step index it was at. The repath predicate reads them; reference
-     * identity is the right comparison because every re-plan hands back a fresh list (smoothing included), so a changed
-     * reference IS a changed plan.
-     */
-    private List<BlockPos> guardStreakPath;
-
-    private int guardStreakStartStep;
 
     /**
      * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks — <b>unless the bot is consuming
@@ -537,9 +590,6 @@ public final class Safety {
         guardStreakCell = null;
     }
 
-    /** Per-body cap on how many kept/rebased streaks print in full; both keep counting past it. */
-    private static final int GUARD_STREAK_EVENTS = 8;
-
     /**
      * Tally one stride-guard skip bucket and report "the guard did not act" in a single expression, so every early
      * return in {@link #strideFloorGuard} stays a one-liner and none can be added without naming which bucket it
@@ -549,56 +599,6 @@ public final class Safety {
         nav.tel.strideGuardSkips.incrementAndGet(reason);
         return false;
     }
-
-    /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
-    private int guardHoldTicks;
-
-    /**
-     * Hold-tail length: long enough to outlast the drive re-acceleration between fires (~3-5 ticks observed), short
-     * enough that a false pin costs under half a second.
-     */
-    static final int GUARD_PIN_HOLD = 8;
-
-    /**
-     * True while the stride floor-guard's sneak-pin is held; cleared (and the sneak released) on the first tick the
-     * hazard is gone.
-     */
-    public boolean guardSneakLatch;
-
-    /**
-     * Plug arming: the stride cell the guard last fired on + accumulated fires on it. Resets only when the fired-on
-     * CELL changes (not on quiet ticks — a pinned bot's velocity decays under 0.03 so fires on one cell arrive in
-     * bursts between pin cycles, and a consecutive-streak would never accumulate).
-     */
-    public BlockPos guardPlugCell;
-
-    public int guardPlugFires;
-
-    /**
-     * Fires on one stride cell before the plug placement arms. A genuine unplanned crossing (gap#53 well-mouth ON the
-     * corridor) re-fires the same cell across 2-3 pin cycles and passes this quickly; a transient diagonal edge-graze
-     * on a normal walk sweeps a NEW cell every few ticks and never arms (StepTwo bypass r28: six dirt spent on plugs
-     * during a clean detour walk, every event at a different position, st≈0 — the pin alone was the load-bearing
-     * safety, the grounded-sneak edge clamp holds without any block). The pin itself stays instant. 12, not 7: the
-     * guard-pin corridor recovery (Aim, guardPinClock) engages at ~6 pinned ticks and must decisively win the race
-     * against plug arming on a place-free plan (r32: 7 fires accumulated before the recovery steered off the cell — 2
-     * dirt). Construction plans (see canPlug) bypass this entirely.
-     */
-    private static final int GUARD_PLUG_ARM_FIRES = 12;
-
-    /**
-     * How far down "no floor at all" is checked before a drop counts as bottomless. Below every dimension's floor (the
-     * End starts at 0, the Overworld at -64), so a column clear to here is clear to the void. Scanned only on a tick
-     * the stride guard already fired — about 1% of them on the End island — so the cost is a rounding error next to
-     * being right about the void.
-     */
-    static final int BOTTOMLESS_SCAN_FLOOR = -70;
-
-    /**
-     * True while this tick's edge is a parkour launch — the guard must not sneak-pin or jump-cancel a deliberate leap
-     * over void (its landing is the plan). Set inside {@link Navigator#tickInner}; reset each tick.
-     */
-    public boolean guardParkourTick;
 
     /**
      * Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is the same invariant): while

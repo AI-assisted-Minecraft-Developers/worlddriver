@@ -34,20 +34,6 @@ import net.minecraft.world.level.Level;
  * vertical-move slot, so {@code await_process('escape')} works unchanged for both directions).
  */
 public final class DescendProcess implements BotProcess {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
-
-    private enum Phase {
-        PICK,
-        CARVE,
-        STEP_DOWN,
-        DIG_OWN
-    }
-
-    /** Dig until foot Y is at or below this. */
-    private final int targetY;
 
     private static final int MAX_STEPS = 96;
     private static final int FUTILE_LIMIT = 4;
@@ -56,6 +42,13 @@ public final class DescendProcess implements BotProcess {
      * cumulative-damage abort.
      */
     private static final float MAX_HP_DROP = 6f;
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Equipment equipment;
+
+    private BlockInteraction blocks;
+
+    /** Dig until foot Y is at or below this. */
+    private final int targetY;
 
     private Phase phase = Phase.PICK;
     private Direction dir = null;
@@ -66,6 +59,15 @@ public final class DescendProcess implements BotProcess {
     private int futileCycles = 0;
     private int stepsAtLastPick = -1;
     private float startHp = -1f;
+
+    private String failure;
+
+    private enum Phase {
+        PICK,
+        CARVE,
+        STEP_DOWN,
+        DIG_OWN
+    }
 
     public DescendProcess(int targetY) {
         this.targetY = targetY;
@@ -108,8 +110,6 @@ public final class DescendProcess implements BotProcess {
         failure = error;
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

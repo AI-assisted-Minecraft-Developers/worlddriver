@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.rpc;
 
 /** WebSocket connection, liveness and worker limits. */
 public final class TransportLimits {
-    private TransportLimits() {}
 
     /**
      * Outbound bytes a WebSocket connection may have queued before it counts as unwritable, and the level it must drain
@@ -47,4 +46,6 @@ public final class TransportLimits {
 
     /** Suspended waits across all connections; past either bound a new wait is refused before it starts. */
     public static final int RPC_MAX_WAITS = 128;
+
+    private TransportLimits() {}
 }

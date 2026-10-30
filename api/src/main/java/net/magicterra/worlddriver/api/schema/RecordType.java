@@ -22,6 +22,8 @@ public final class RecordType<O> extends ApiType<O> {
     private final List<ApiField<O, ?>> fields;
     private final Function<Object[], O> constructor;
 
+    private BiConsumer<O, DecodeContext> check;
+
     RecordType(Class<O> type, String name, List<ApiField<O, ?>> fields, Function<Object[], O> constructor) {
         this.type = type;
         this.name = name;
@@ -115,8 +117,6 @@ public final class RecordType<O> extends ApiType<O> {
         }
         return value;
     }
-
-    private BiConsumer<O, DecodeContext> check;
 
     /**
      * The same record type with a rule spanning its fields, run once every field decoded: a {@link SelfChecked}

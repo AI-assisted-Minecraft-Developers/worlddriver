@@ -41,6 +41,54 @@ import net.magicterra.worlddriver.api.schema.annotation.Wire;
  * {@code mc.bot.waypoint} and {@code mc.bot.roster}.
  */
 public final class ControlContracts {
+
+    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class);
+
+    public static final MethodSpec<CancelParams, ImmediateResponse> CANCEL = MethodSpec.of(
+                    "mc.bot.cancel",
+                    CANCEL_PARAMS,
+                    Responses.immediate(
+                            "Cancel", ApiTypes.record(Stopped.class, Map.of("action", WaitContracts.ANY_ACTION))),
+                    "Stop an action by its actionId, which ends it cancelled with reason requested, or a bot's processes "
+                            + "by name; all also releases the held inputs and stands every reflex chain down. Works on a "
+                            + "bot that cannot act. An unknown or expired actionId is action_not_found.")
+            .effects(MethodSpec.Effect.BODY_TASK);
+
+    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class);
+
+    public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of(
+                    "mc.bot.status",
+                    STATUS_PARAMS,
+                    Responses.immediate("Status", ApiTypes.record(Status.class)),
+                    "Every process slot of one bot, with how its last task ended, plus the list of addressable bots. "
+                            + "Works where nothing else does: a dead or paused bot, and a dedicated server.")
+            .effects(MethodSpec.Effect.SNAPSHOT_READ)
+            .asPollable();
+
+    public static final UnionType<WaypointOp> WAYPOINT_PARAMS = ApiTypes.union(WaypointOp.class);
+
+    public static final UnionType<WaypointReply> WAYPOINT_REPLY = ApiTypes.union(WaypointReply.class);
+
+    public static final MethodSpec<WaypointOp, WaypointReply> WAYPOINT_SPEC = MethodSpec.of(
+                    "mc.bot.waypoint",
+                    WAYPOINT_PARAMS,
+                    WAYPOINT_REPLY,
+                    "Named positions this client keeps in memory, for goto's waypoint target; not saved to disk. A name "
+                            + "that was never saved is invalid_params at /name. This client's own player only.")
+            .effects(MethodSpec.Effect.CONFIG_WRITE);
+
+    public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.union(RosterOp.class);
+
+    public static final MethodSpec<RosterOp, ImmediateResponse> ROSTER = MethodSpec.of(
+                    "mc.bot.roster",
+                    ROSTER_PARAMS,
+                    Responses.immediate("Roster", ApiTypes.record(Rostered.class)),
+                    "Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until "
+                            + "it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI "
+                            + "back and takes a player out of the world. done names the bot. A taken name, or an entity "
+                            + "that is not a mob, a player or already a bot, is invalid_world_target.")
+            .effects(MethodSpec.Effect.WORLD_WRITE);
+
     private ControlContracts() {}
 
     // ------------------------------------------------------------------ cancel
@@ -129,18 +177,6 @@ public final class ControlContracts {
             }
         }
     }
-
-    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class);
-
-    public static final MethodSpec<CancelParams, ImmediateResponse> CANCEL = MethodSpec.of(
-                    "mc.bot.cancel",
-                    CANCEL_PARAMS,
-                    Responses.immediate(
-                            "Cancel", ApiTypes.record(Stopped.class, Map.of("action", WaitContracts.ANY_ACTION))),
-                    "Stop an action by its actionId, which ends it cancelled with reason requested, or a bot's processes "
-                            + "by name; all also releases the held inputs and stands every reflex chain down. Works on a "
-                            + "bot that cannot act. An unknown or expired actionId is action_not_found.")
-            .effects(MethodSpec.Effect.BODY_TASK);
 
     // ------------------------------------------------------------------ status
 
@@ -269,17 +305,6 @@ public final class ControlContracts {
             Optional<BlockPosition> pos,
             boolean busy) {}
 
-    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class);
-
-    public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of(
-                    "mc.bot.status",
-                    STATUS_PARAMS,
-                    Responses.immediate("Status", ApiTypes.record(Status.class)),
-                    "Every process slot of one bot, with how its last task ended, plus the list of addressable bots. "
-                            + "Works where nothing else does: a dead or paused bot, and a dedicated server.")
-            .effects(MethodSpec.Effect.SNAPSHOT_READ)
-            .asPollable();
-
     // ------------------------------------------------------------------ waypoint
 
     @Tag("op")
@@ -332,18 +357,6 @@ public final class ControlContracts {
     @Variant("clear")
     public record Cleared(@Range(min = 0) int cleared) implements WaypointReply {}
 
-    public static final UnionType<WaypointOp> WAYPOINT_PARAMS = ApiTypes.union(WaypointOp.class);
-
-    public static final UnionType<WaypointReply> WAYPOINT_REPLY = ApiTypes.union(WaypointReply.class);
-
-    public static final MethodSpec<WaypointOp, WaypointReply> WAYPOINT_SPEC = MethodSpec.of(
-                    "mc.bot.waypoint",
-                    WAYPOINT_PARAMS,
-                    WAYPOINT_REPLY,
-                    "Named positions this client keeps in memory, for goto's waypoint target; not saved to disk. A name "
-                            + "that was never saved is invalid_params at /name. This client's own player only.")
-            .effects(MethodSpec.Effect.CONFIG_WRITE);
-
     // ------------------------------------------------------------------ roster
 
     /** A bot's own name, held to what a player name may be. */
@@ -386,16 +399,4 @@ public final class ControlContracts {
             }
         }
     }
-
-    public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.union(RosterOp.class);
-
-    public static final MethodSpec<RosterOp, ImmediateResponse> ROSTER = MethodSpec.of(
-                    "mc.bot.roster",
-                    ROSTER_PARAMS,
-                    Responses.immediate("Roster", ApiTypes.record(Rostered.class)),
-                    "Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until "
-                            + "it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI "
-                            + "back and takes a player out of the world. done names the bot. A taken name, or an entity "
-                            + "that is not a mob, a player or already a bot, is invalid_world_target.")
-            .effects(MethodSpec.Effect.WORLD_WRITE);
 }

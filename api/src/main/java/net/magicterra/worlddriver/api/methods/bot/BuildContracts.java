@@ -31,12 +31,78 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * {@code escape}.
  */
 public final class BuildContracts {
-    private BuildContracts() {}
 
     // ------------------------------------------------------------------ build
 
     /** Most blocks one schematic may hold: each is walked to and placed. */
     public static final int MAX_SCHEMATIC_CELLS = 4096;
+
+    public static final UnionType<Schematic> SCHEMATIC = ApiTypes.union(Schematic.class);
+
+    public static final ApiType<BuildParams> BUILD_PARAMS = ApiTypes.record(BuildParams.class);
+
+    public static final UnionType<Built> BUILD_RESULT =
+            ApiTypes.union("BuildResult", "kind", ApiTypes.record(Built.class));
+
+    public static final MethodSpec<BuildParams, ActionResponse<Built>> BUILD = MethodSpec.of(
+                    "mc.bot.build",
+                    BUILD_PARAMS,
+                    Responses.response("Build", BUILD_RESULT),
+                    "Place a schematic's blocks bottom-up: walk beside each, take the block in hand (creative picks it; "
+                            + "survival needs it staged), face its support and place it. A block that cannot be placed "
+                            + "is skipped and counted. Up to " + MAX_SCHEMATIC_CELLS + " blocks.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
+    public static final ApiType<BridgeDirection> BRIDGE_DIRECTION = ApiTypes.of(BridgeDirection.class);
+    public static final ApiType<Compass> COMPASS = ApiTypes.of(Compass.class);
+
+    public static final UnionType<Construction> CONSTRUCTION = ApiTypes.union(Construction.class);
+
+    public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record(ConstructParams.class);
+
+    public static final UnionType<Constructed> CONSTRUCT_RESULT = ApiTypes.union(Constructed.class);
+
+    public static final MethodSpec<ConstructParams, ActionResponse<Constructed>> CONSTRUCT = MethodSpec.of(
+                    "mc.bot.construct",
+                    CONSTRUCT_PARAMS,
+                    Responses.response("Construct", CONSTRUCT_RESULT),
+                    "Pillar up or bridge forward with blocks from the inventory. Fails when the hand runs out of blocks "
+                            + "or no progress is made for 60–80 ticks.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
+    public static final ApiType<BunkerParams> BUNKER_PARAMS = ApiTypes.record(BunkerParams.class);
+
+    public static final UnionType<Bunkered> BUNKER_RESULT =
+            ApiTypes.union("BunkerResult", "kind", ApiTypes.record(Bunkered.class));
+
+    public static final MethodSpec<BunkerParams, ActionResponse<Bunkered>> BUNKER = MethodSpec.of(
+                    "mc.bot.bunker",
+                    BUNKER_PARAMS,
+                    Responses.response("Bunker", BUNKER_RESULT),
+                    "Dig three, fill one: dig straight down where the body stands and seal the roof with a dug block, "
+                            + "a 1x1 pocket no mob reaches. Needs hand-mineable dirt, sand or gravel below for the cap; "
+                            + "water, lava or bedrock below fails it. It outranks the combat and retreat reflexes.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
+    public static final ApiType<EscapeParams> ESCAPE_PARAMS = ApiTypes.record(EscapeParams.class);
+
+    public static final UnionType<Escaped> ESCAPE_RESULT =
+            ApiTypes.union("EscapeResult", "kind", ApiTypes.record(Escaped.class));
+
+    public static final MethodSpec<EscapeParams, ActionResponse<Escaped>> ESCAPE = MethodSpec.of(
+                    "mc.bot.escape",
+                    ESCAPE_PARAMS,
+                    Responses.response("Escape", ESCAPE_RESULT),
+                    "Carve a staircase up the dry walls of a pit or well and climb out, without pathfinding: the way "
+                            + "out of a shaft goto cannot solve. Needs the allowBreak setting on and a solid wall that "
+                            + "does not fall; fails when no direction can be carved.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    private BuildContracts() {}
 
     @Tag("kind")
     @Named("Schematic")
@@ -112,23 +178,6 @@ public final class BuildContracts {
 
             @Range(min = 0) int placed,
             @Range(min = 0) int skipped) {}
-
-    public static final UnionType<Schematic> SCHEMATIC = ApiTypes.union(Schematic.class);
-
-    public static final ApiType<BuildParams> BUILD_PARAMS = ApiTypes.record(BuildParams.class);
-
-    public static final UnionType<Built> BUILD_RESULT =
-            ApiTypes.union("BuildResult", "kind", ApiTypes.record(Built.class));
-
-    public static final MethodSpec<BuildParams, ActionResponse<Built>> BUILD = MethodSpec.of(
-                    "mc.bot.build",
-                    BUILD_PARAMS,
-                    Responses.response("Build", BUILD_RESULT),
-                    "Place a schematic's blocks bottom-up: walk beside each, take the block in hand (creative picks it; "
-                            + "survival needs it staged), face its support and place it. A block that cannot be placed "
-                            + "is skipped and counted. Up to " + MAX_SCHEMATIC_CELLS + " blocks.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
 
     // ------------------------------------------------------------------ construct
 
@@ -247,24 +296,6 @@ public final class BuildContracts {
             @Range(min = 0) int placed)
             implements Constructed {}
 
-    public static final ApiType<BridgeDirection> BRIDGE_DIRECTION = ApiTypes.of(BridgeDirection.class);
-    public static final ApiType<Compass> COMPASS = ApiTypes.of(Compass.class);
-
-    public static final UnionType<Construction> CONSTRUCTION = ApiTypes.union(Construction.class);
-
-    public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record(ConstructParams.class);
-
-    public static final UnionType<Constructed> CONSTRUCT_RESULT = ApiTypes.union(Constructed.class);
-
-    public static final MethodSpec<ConstructParams, ActionResponse<Constructed>> CONSTRUCT = MethodSpec.of(
-                    "mc.bot.construct",
-                    CONSTRUCT_PARAMS,
-                    Responses.response("Construct", CONSTRUCT_RESULT),
-                    "Pillar up or bridge forward with blocks from the inventory. Fails when the hand runs out of blocks "
-                            + "or no progress is made for 60–80 ticks.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
-
     // ------------------------------------------------------------------ bunker
 
     @Named("BunkerParams")
@@ -279,21 +310,6 @@ public final class BuildContracts {
     /** {@code sealed}: the roof was plugged; a bunker that dug but could not seal ends as failed. */
     @Variant("bunker")
     public record Bunkered(@Range(min = 1, max = 5) int depth, boolean sealed) {}
-
-    public static final ApiType<BunkerParams> BUNKER_PARAMS = ApiTypes.record(BunkerParams.class);
-
-    public static final UnionType<Bunkered> BUNKER_RESULT =
-            ApiTypes.union("BunkerResult", "kind", ApiTypes.record(Bunkered.class));
-
-    public static final MethodSpec<BunkerParams, ActionResponse<Bunkered>> BUNKER = MethodSpec.of(
-                    "mc.bot.bunker",
-                    BUNKER_PARAMS,
-                    Responses.response("Bunker", BUNKER_RESULT),
-                    "Dig three, fill one: dig straight down where the body stands and seal the roof with a dug block, "
-                            + "a 1x1 pocket no mob reaches. Needs hand-mineable dirt, sand or gravel below for the cap; "
-                            + "water, lava or bedrock below fails it. It outranks the combat and retreat reflexes.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
 
     // ------------------------------------------------------------------ escape
 
@@ -321,19 +337,4 @@ public final class BuildContracts {
     /** {@code y}: the feet Y it ended at. */
     @Variant("escape")
     public record Escaped(Vertical direction, int targetY, int y) {}
-
-    public static final ApiType<EscapeParams> ESCAPE_PARAMS = ApiTypes.record(EscapeParams.class);
-
-    public static final UnionType<Escaped> ESCAPE_RESULT =
-            ApiTypes.union("EscapeResult", "kind", ApiTypes.record(Escaped.class));
-
-    public static final MethodSpec<EscapeParams, ActionResponse<Escaped>> ESCAPE = MethodSpec.of(
-                    "mc.bot.escape",
-                    ESCAPE_PARAMS,
-                    Responses.response("Escape", ESCAPE_RESULT),
-                    "Carve a staircase up the dry walls of a pit or well and climb out, without pathfinding: the way "
-                            + "out of a shaft goto cannot solve. Needs the allowBreak setting on and a solid wall that "
-                            + "does not fall; fails when no direction can be carved.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 }

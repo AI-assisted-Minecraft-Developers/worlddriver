@@ -72,7 +72,6 @@ import net.minecraft.world.phys.Vec3;
  * </ul>
  */
 public final class RouteParams {
-    private RouteParams() {}
 
     /**
      * Default eye height a sight ray is aimed at: a standing player's, and the same number as {@code RouteContracts}'s
@@ -83,6 +82,8 @@ public final class RouteParams {
     public static final MobCluster.Cluster SAFE_CLUSTER = new MobCluster.Cluster(3, 6, true, 0);
 
     private static final double SIGHT_PENALTY = 120;
+
+    private RouteParams() {}
 
     /**
      * What a {@code route} parses to.

@@ -28,6 +28,76 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
  * The body tasks that turn the world into items: {@code mc.bot.mine}, {@code craft}, {@code smelt} and {@code farm}.
  */
 public final class GatherContracts {
+
+    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class);
+
+    public static final UnionType<Mined> MINE_RESULT =
+            ApiTypes.union("MineResult", "kind", ApiTypes.record(Mined.class));
+
+    public static final MethodSpec<MineParams, ActionResponse<Mined>> MINE = MethodSpec.of(
+                    "mc.bot.mine",
+                    MINE_PARAMS,
+                    Responses.response("Mine", MINE_RESULT),
+                    "Mine matching blocks until quantity are broken or none is reachable: walk beside each, swap to the "
+                            + "best tool, break it, then walk the break spots to collect the drops. A target that fails is "
+                            + "skipped. Pre-stage tools: broken counts blocks, not items gained. With pos, break that one "
+                            + "cell and collect nothing; it fails when the cell is out of reach where the walk ends.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
+    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class);
+
+    public static final UnionType<Crafted> CRAFT_RESULT =
+            ApiTypes.union("CraftResult", "kind", ApiTypes.record(Crafted.class));
+
+    public static final MethodSpec<CraftParams, ActionResponse<Crafted>> CRAFT = MethodSpec.of(
+                    "mc.bot.craft",
+                    CRAFT_PARAMS,
+                    Responses.response("Craft", CRAFT_RESULT),
+                    "Craft an item, resolving its whole recipe tree against the inventory. 2x2 recipes use the "
+                            + "inventory grid; 3x3 ones a crafting table within reach, or one placed from the hotbar. A "
+                            + "missing leaf material fails the action with 'missing N x X'. Smelting steps are not "
+                            + "followed: use mc.bot.smelt.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class);
+
+    public static final UnionType<Smelted> SMELT_RESULT =
+            ApiTypes.union("SmeltResult", "kind", ApiTypes.record(Smelted.class));
+
+    public static final MethodSpec<SmeltParams, ActionResponse<Smelted>> SMELT = MethodSpec.of(
+                    "mc.bot.smelt",
+                    SMELT_PARAMS,
+                    Responses.response("Smelt", SMELT_RESULT),
+                    "Smelt in a furnace within reach, or one placed from the hotbar: load the ingredient and fuel, wait "
+                            + "for the output (about 200 ticks an item) and take it back. A missing ingredient fails the "
+                            + "action with 'missing N x X'.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE)
+            .mayWait();
+
+    // ------------------------------------------------------------------ farm
+
+    /** Most cells a farm box may cover: every one is rescanned after each harvest. */
+    public static final int MAX_FARM_CELLS = 4096;
+
+    public static final ApiType<Crop> CROP = ApiTypes.of(Crop.class);
+
+    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class);
+
+    public static final UnionType<Farmed> FARM_RESULT =
+            ApiTypes.union("FarmResult", "kind", ApiTypes.record(Farmed.class));
+
+    public static final MethodSpec<FarmParams, ActionResponse<Farmed>> FARM = MethodSpec.of(
+                    "mc.bot.farm",
+                    FARM_PARAMS,
+                    Responses.response("Farm", FARM_RESULT),
+                    "Harvest the mature crops in a box and replant each from its own drop. A crop left unharvested or "
+                            + "unreplanted fails the action, naming how many. Up to " + MAX_FARM_CELLS
+                            + " cells, Y included.")
+            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
+            .mayWait();
+
     private GatherContracts() {}
 
     // ------------------------------------------------------------------ mine
@@ -79,22 +149,6 @@ public final class GatherContracts {
             @Range(min = 1, max = 64) int radius,
             @Range(min = 0) int broken) {}
 
-    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class);
-
-    public static final UnionType<Mined> MINE_RESULT =
-            ApiTypes.union("MineResult", "kind", ApiTypes.record(Mined.class));
-
-    public static final MethodSpec<MineParams, ActionResponse<Mined>> MINE = MethodSpec.of(
-                    "mc.bot.mine",
-                    MINE_PARAMS,
-                    Responses.response("Mine", MINE_RESULT),
-                    "Mine matching blocks until quantity are broken or none is reachable: walk beside each, swap to the "
-                            + "best tool, break it, then walk the break spots to collect the drops. A target that fails is "
-                            + "skipped. Pre-stage tools: broken counts blocks, not items gained. With pos, break that one "
-                            + "cell and collect nothing; it fails when the cell is out of reach where the walk ends.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
-
     // ------------------------------------------------------------------ craft
 
     @Named("CraftParams")
@@ -113,22 +167,6 @@ public final class GatherContracts {
             @ResourceId String item,
             @Range(min = 1, max = 256) int count,
             @Range(min = 0) int crafted) {}
-
-    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class);
-
-    public static final UnionType<Crafted> CRAFT_RESULT =
-            ApiTypes.union("CraftResult", "kind", ApiTypes.record(Crafted.class));
-
-    public static final MethodSpec<CraftParams, ActionResponse<Crafted>> CRAFT = MethodSpec.of(
-                    "mc.bot.craft",
-                    CRAFT_PARAMS,
-                    Responses.response("Craft", CRAFT_RESULT),
-                    "Craft an item, resolving its whole recipe tree against the inventory. 2x2 recipes use the "
-                            + "inventory grid; 3x3 ones a crafting table within reach, or one placed from the hotbar. A "
-                            + "missing leaf material fails the action with 'missing N x X'. Smelting steps are not "
-                            + "followed: use mc.bot.smelt.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
 
     // ------------------------------------------------------------------ smelt
 
@@ -153,26 +191,6 @@ public final class GatherContracts {
             @ResourceId String item,
             @Range(min = 1, max = 256) int count,
             Optional<@Length(min = 1, max = 256) String> fuel) {}
-
-    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class);
-
-    public static final UnionType<Smelted> SMELT_RESULT =
-            ApiTypes.union("SmeltResult", "kind", ApiTypes.record(Smelted.class));
-
-    public static final MethodSpec<SmeltParams, ActionResponse<Smelted>> SMELT = MethodSpec.of(
-                    "mc.bot.smelt",
-                    SMELT_PARAMS,
-                    Responses.response("Smelt", SMELT_RESULT),
-                    "Smelt in a furnace within reach, or one placed from the hotbar: load the ingredient and fuel, wait "
-                            + "for the output (about 200 ticks an item) and take it back. A missing ingredient fails the "
-                            + "action with 'missing N x X'.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE)
-            .mayWait();
-
-    // ------------------------------------------------------------------ farm
-
-    /** Most cells a farm box may cover: every one is rescanned after each harvest. */
-    public static final int MAX_FARM_CELLS = 4096;
 
     @Named("Crop")
     public enum Crop implements WireName {
@@ -229,23 +247,6 @@ public final class GatherContracts {
             boolean replant,
             @Range(min = 0) int harvested,
             @Range(min = 0) int replanted) {}
-
-    public static final ApiType<Crop> CROP = ApiTypes.of(Crop.class);
-
-    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class);
-
-    public static final UnionType<Farmed> FARM_RESULT =
-            ApiTypes.union("FarmResult", "kind", ApiTypes.record(Farmed.class));
-
-    public static final MethodSpec<FarmParams, ActionResponse<Farmed>> FARM = MethodSpec.of(
-                    "mc.bot.farm",
-                    FARM_PARAMS,
-                    Responses.response("Farm", FARM_RESULT),
-                    "Harvest the mature crops in a box and replant each from its own drop. A crop left unharvested or "
-                            + "unreplanted fails the action, naming how many. Up to " + MAX_FARM_CELLS
-                            + " cells, Y included.")
-            .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
-            .mayWait();
 
     /** Cells in the box spanned by {@code a} and {@code b}, as a long so no span can overflow it. */
     public static long cells(BlockPosition a, BlockPosition b) {

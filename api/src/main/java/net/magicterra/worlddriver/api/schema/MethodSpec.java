@@ -15,6 +15,17 @@ import java.util.Set;
  */
 public final class MethodSpec<P, R> {
 
+    private final String name;
+    private final String description;
+    private final ApiType<P> input;
+    private final ApiType<R> output;
+    private final boolean listed;
+    private final Set<Effect> effects;
+    private final ExecutionClass executionClass;
+    private final Blocking blocking;
+    private final boolean pollable;
+    private final ImageHint image;
+
     /** What a call may touch. A method lists every effect any of its variants can have. */
     public enum Effect {
         SNAPSHOT_READ,
@@ -46,17 +57,6 @@ public final class MethodSpec<P, R> {
 
     /** Where an image's bytes and format sit in the encoded result, so MCP can send a native image block. */
     public record ImageHint(String dataField, String formatField) {}
-
-    private final String name;
-    private final String description;
-    private final ApiType<P> input;
-    private final ApiType<R> output;
-    private final boolean listed;
-    private final Set<Effect> effects;
-    private final ExecutionClass executionClass;
-    private final Blocking blocking;
-    private final boolean pollable;
-    private final ImageHint image;
 
     private MethodSpec(
             String name,

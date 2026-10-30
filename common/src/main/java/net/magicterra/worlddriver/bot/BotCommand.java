@@ -34,10 +34,11 @@ import net.minecraft.world.phys.Vec3;
  * {@code /worlddriver mob release <bot>} gives it its own AI back. {@code clear} releases every adopted mob.
  */
 public final class BotCommand {
-    private BotCommand() {}
 
     /** The most recently spawned driver, the target of {@code goto}/{@code status}. */
     private static PlayerBot current;
+
+    private BotCommand() {}
 
     /**
      * Registers {@code /worlddriver server spawn|goto|mine|status|clear}. The {@code worlddriver} root is also

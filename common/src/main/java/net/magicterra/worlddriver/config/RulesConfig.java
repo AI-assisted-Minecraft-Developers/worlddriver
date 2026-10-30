@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.setting.RulesSettings;
  * that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class RulesConfig {
-    private RulesConfig() {}
 
     /**
      * Per-axis cap, blocks, on the box one search scans for entities ({@code SearchScope.gather});
@@ -183,4 +182,6 @@ public final class RulesConfig {
     static {
         BotConfig.initialize();
     }
+
+    private RulesConfig() {}
 }

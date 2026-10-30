@@ -31,6 +31,28 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class BotUtil {
 
+    /**
+     * Damage-on-contact blocks the pathfinder must route around. Lava is checked by fluid tag; fire variants by
+     * {@link net.minecraft.tags.BlockTags#FIRE} so datapack-added fire blocks are covered automatically. Remaining
+     * hazards are listed by {@link net.minecraft.world.level.block.Block} reference for O(1) lookup and so a
+     * modpack-added hazard can be added in a single line.
+     */
+    public static final Set<Block> HAZARD_BLOCKS = Set.of(
+            Blocks.MAGMA_BLOCK,
+            Blocks.CACTUS,
+            Blocks.SWEET_BERRY_BUSH,
+            Blocks.POWDER_SNOW,
+            Blocks.WITHER_ROSE,
+            // §88: "impaled on a stalagmite" (C102-J2 death). Fall damage onto an
+            // upward spike is DOUBLED and the executor drifts ±1 block during a
+            // committed fall, so the contact ring must tax the spike's neighbourhood
+            // — the block was simply missing from this list (same class as the
+            // FLOWING_LAVA FluidTags blind spot).
+            Blocks.POINTED_DRIPSTONE);
+
+    /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */
+    public static final double STATION_REACH = 4.3;
+
     private BotUtil() {}
 
     /**
@@ -127,25 +149,6 @@ public final class BotUtil {
         }
         return cur + Math.copySign(max, d);
     }
-
-    /**
-     * Damage-on-contact blocks the pathfinder must route around. Lava is checked by fluid tag; fire variants by
-     * {@link net.minecraft.tags.BlockTags#FIRE} so datapack-added fire blocks are covered automatically. Remaining
-     * hazards are listed by {@link net.minecraft.world.level.block.Block} reference for O(1) lookup and so a
-     * modpack-added hazard can be added in a single line.
-     */
-    public static final Set<Block> HAZARD_BLOCKS = Set.of(
-            Blocks.MAGMA_BLOCK,
-            Blocks.CACTUS,
-            Blocks.SWEET_BERRY_BUSH,
-            Blocks.POWDER_SNOW,
-            Blocks.WITHER_ROSE,
-            // §88: "impaled on a stalagmite" (C102-J2 death). Fall damage onto an
-            // upward spike is DOUBLED and the executor drifts ±1 block during a
-            // committed fall, so the contact ring must tax the spike's neighbourhood
-            // — the block was simply missing from this list (same class as the
-            // FLOWING_LAVA FluidTags blind spot).
-            Blocks.POINTED_DRIPSTONE);
 
     /**
      * Does this block state damage a bot that stands in it — the SINGLE author of that policy for every
@@ -318,9 +321,6 @@ public final class BotUtil {
     public static boolean isFalling(Level lvl, BlockPos pos) {
         return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
-
-    /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */
-    public static final double STATION_REACH = 4.3;
 
     /**
      * The nearest {@code block} this bot could use from where it stands: the closest one in a

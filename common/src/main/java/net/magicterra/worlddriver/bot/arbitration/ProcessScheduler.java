@@ -33,8 +33,6 @@ public final class ProcessScheduler {
      * {@link #bailOf} answers status reads off the tick thread.
      */
     private final Map<Chain, Hold> held = new ConcurrentHashMap<>();
-
-    private record Hold(String reason, long untilTick) {}
     /**
      * Name of {@link #current}, published volatile each tick so status reporting (which may run on an RPC handler
      * thread) sees it without racing.
@@ -46,6 +44,8 @@ public final class ProcessScheduler {
      * one mid-mutation.
      */
     private volatile Map<String, Float> lastPriorities = Map.of();
+
+    private record Hold(String reason, long untilTick) {}
 
     /** Register a chain. Order does not matter; the highest priority each tick wins. */
     public void register(Chain c) {

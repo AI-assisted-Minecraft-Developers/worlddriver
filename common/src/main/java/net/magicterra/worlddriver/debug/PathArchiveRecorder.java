@@ -42,14 +42,6 @@ import org.slf4j.LoggerFactory;
 public final class PathArchiveRecorder implements PathTrace {
     private static volatile PathArchiveRecorder active;
 
-    public static PathArchiveRecorder active() {
-        return active;
-    }
-
-    public static void activate(PathArchiveRecorder recorder) {
-        active = recorder;
-    }
-
     private static final Logger LOG = LoggerFactory.getLogger("agent-patharchive");
 
     private static final Path REPLAY_DIR = Path.of("config", "worlddriver", "replays");
@@ -104,6 +96,14 @@ public final class PathArchiveRecorder implements PathTrace {
      * file unambiguously. Set by the background write thread shortly after a replay {@link #onTerminal}.
      */
     private volatile String lastReplayRun;
+
+    public static PathArchiveRecorder active() {
+        return active;
+    }
+
+    public static void activate(PathArchiveRecorder recorder) {
+        active = recorder;
+    }
 
     // -----------------------------------------------------------------------
     // Public no-arg constructor required by the task spec

@@ -37,18 +37,6 @@ import net.minecraft.world.phys.Vec3;
  * client's own — so the view names no client class.
  */
 public final class ClientWorldView implements StateWorldView {
-    /**
-     * Read afresh on every call: either may be null (title screen, a world being torn down) and both change across a
-     * dimension hop or a reconnect.
-     */
-    private final Supplier<? extends Level> level;
-
-    private final Supplier<? extends Player> player;
-
-    public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
-        this.level = level;
-        this.player = player;
-    }
 
     // A* cost units are calibrated so one cardinal cell of walking (Move.Walk's
     // base cost, 10) ≈ the real time to traverse it: vanilla ground speed
@@ -58,21 +46,72 @@ public final class ClientWorldView implements StateWorldView {
     // the old `10 * ticks` made the planner ~4.6× too reluctant to dig, taking
     // absurd detours around a single thin wall it could have tunnelled.
     private static final double COST_PER_TICK = CellRules.COST_PER_TICK;
+    /**
+     * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
+     * swim-escape break moves let A* mine through ANY bank, which — applied to every water cell of an open ocean —
+     * explodes the branching factor (observed: 16k+ nodes, search never completes, bot drowns waiting for a path). The
+     * escape use-case is purely LOCAL ("I'm stuck HERE, dig out HERE"), so confining break candidates to a small bubble
+     * around the stuck bot keeps the search tractable while still digging out of a pit / high bank. Beyond it, water
+     * pathing uses only swim/walk/normal moves.
+     */
+    private static final int ESCAPE_RADIUS = 6;
+    /** Cardinal offsets for {@link #risesFromWater}'s open-face probe. */
+    private static final int[][] ESCAPE_FACE_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    // Cells checked for lava/fire around a candidate stand position: the 4
+    // horizontal neighbours at foot, head, and foot-below levels. Diagonals
+    // and the cell itself are skipped — the cell + the block directly below
+    // are already hard-rejected by isHazard/canStandAt, and 12 face reads
+    // keep the per-node cost cheap.
+    private static final int[][] DANGER_OFFSETS = {
+        {1, 0, 0},
+        {-1, 0, 0},
+        {0, 0, 1},
+        {0, 0, -1}, // foot ring
+        {1, 1, 0},
+        {-1, 1, 0},
+        {0, 1, 1},
+        {0, 1, -1}, // head ring
+        {1, -1, 0},
+        {-1, -1, 0},
+        {0, -1, 1},
+        {0, -1, -1}, // below-feet ring
+        // Diagonals + straight-up: a swim route hugging a lava shore kept its
+        // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide player
+        // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
+        // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
+        // res masked what would kill a naked bot). Charging the diagonal and
+        // overhead cells makes A* keep a 1-cell margin whenever any detour
+        // exists; a true single-file lava channel still prices in, not out.
+        {0, 1, 0},
+        {1, 0, 1},
+        {1, 0, -1},
+        {-1, 0, 1},
+        {-1, 0, -1}, // foot diagonals
+        {1, 1, 1},
+        {1, 1, -1},
+        {-1, 1, 1},
+        {-1, 1, -1}, // head diagonals
+    };
+    // The 4 cardinal horizontal neighbours, for the cliff-edge probe below.
+    private static final int[][] HORIZONTAL_4 = {
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+    };
+    private static final long STUCK_AVOID_MS = 15_000; // entries decay after 15s
+    private static final double STUCK_AVOID_PENALTY = 600; // soft, finite — a sole route is still taken
+    private static final double STUCK_AVOID_RADIUS = 2.5; // blocks; smooth bump around the failed node
+    private static final int STUCK_AVOID_MAX_STRENGTH = 6; // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
+    /**
+     * Read afresh on every call: either may be null (title screen, a world being torn down) and both change across a
+     * dimension hop or a reconnect.
+     */
+    private final Supplier<? extends Level> level;
+
+    private final Supplier<? extends Player> player;
     // Player-global dig modifiers (Haste / Mining Fatigue, the Efficiency holder), taken once
     // per search like bucketFallReady/mobXyz so pricing does not re-read them per candidate.
     private volatile CellRules.DigSnapshot dig = CellRules.DigSnapshot.BARE;
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
-
-    @Override
-    public void diveSearch(boolean on) {
-        diveSearch = on;
-    }
-
-    @Override
-    public boolean surfaceWaterNodes() {
-        return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch;
-    }
     /**
      * The bot's WorldModel, injected by the client wiring so dangerCost can query the per-tick HazardField; null until
      * wired (headless / unit tests).
@@ -90,21 +129,12 @@ public final class ClientWorldView implements StateWorldView {
     private volatile boolean fleeSearch;
 
     private final MoveSignals signals = new MoveSignals();
-
-    @Override
-    public MoveSignals signals() {
-        return signals;
-    }
     /**
      * Survivable fall depth (blocks) for the controlled entity's CURRENT health, snapshotted per search. The ledge
      * penalty fires only for drops DEEPER than this (a genuinely lethal lip) — a healthy bot descends hillsides freely;
      * a fragile one avoids dangerous drops. Default a full-HP value until snapshotted.
      */
     private volatile int ledgeSafeDepth = 22;
-
-    public void setWorldModel(WorldModel wm) {
-        this.worldModel = wm;
-    }
 
     // ── Per-search blockstate cache ──────────────────────────────────────────
     // Node expansion is the hot path: each candidate move re-reads the SAME cells
@@ -126,6 +156,54 @@ public final class ClientWorldView implements StateWorldView {
     // directly.
     private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
     private boolean cacheActive = false;
+    /**
+     * Search origin (the bot's block pos when this findPath began), snapshotted in {@link #beginSearch}. Water-escape
+     * breaks are only priced finite within {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}.
+     */
+    private volatile BlockPos escapeOrigin = null;
+    // Water-bucket (MLG) fall availability, snapshotted once per search:
+    // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
+    // the hotbar for a water bucket in every WaterBucketFall.valid would be
+    // wasteful. Refreshed every repath (the bucket may have been used/refilled).
+    private volatile boolean bucketFallReady = false;
+    // Navigator failure blacklist (Baritone-style): nodes where the Navigator couldn't
+    // execute a move, mapped to their expiry time (ms). penalizeStuckNode adds an
+    // entry; beginSearch prunes expired ones and snapshots the rest into
+    // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
+    private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
+    private final Map<BlockPos, Integer> stuckStrength = new HashMap<>(); // accumulated wedge count per node
+    private float[] stuckAvoidXyz = new float[0]; // flat [x,y,z,strength, ...] (stride-4), snapshot per search
+
+    // Controlled-entity movement attributes, snapshotted once per search so the
+    // whole A* run sees a consistent capability (and the Navigator reads the same).
+    // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
+    private volatile int stepUpBlocks = 0; // floor(STEP_HEIGHT): full blocks walkable-up without a jump
+    private volatile int jumpUpBlocks = 1; // floor(jump apex): full blocks reachable WITH a jump
+    private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
+
+    public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
+        this.level = level;
+        this.player = player;
+    }
+
+    @Override
+    public void diveSearch(boolean on) {
+        diveSearch = on;
+    }
+
+    @Override
+    public boolean surfaceWaterNodes() {
+        return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch;
+    }
+
+    @Override
+    public MoveSignals signals() {
+        return signals;
+    }
+
+    public void setWorldModel(WorldModel wm) {
+        this.worldModel = wm;
+    }
     /**
      * Toggled true by the time-sliced search around its node-expansion work, false otherwise (Navigator per-tick
      * reads). When false, {@link #state} bypasses the cache entirely so live reads stay fresh.
@@ -298,20 +376,6 @@ public final class ClientWorldView implements StateWorldView {
         }
         return c;
     }
-    /**
-     * Search origin (the bot's block pos when this findPath began), snapshotted in {@link #beginSearch}. Water-escape
-     * breaks are only priced finite within {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}.
-     */
-    private volatile BlockPos escapeOrigin = null;
-    /**
-     * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
-     * swim-escape break moves let A* mine through ANY bank, which — applied to every water cell of an open ocean —
-     * explodes the branching factor (observed: 16k+ nodes, search never completes, bot drowns waiting for a path). The
-     * escape use-case is purely LOCAL ("I'm stuck HERE, dig out HERE"), so confining break candidates to a small bubble
-     * around the stuck bot keeps the search tractable while still digging out of a pit / high bank. Beyond it, water
-     * pathing uses only swim/walk/normal moves.
-     */
-    private static final int ESCAPE_RADIUS = 6;
 
     @Override
     public double escapeBreakCost(BlockPos p) {
@@ -386,8 +450,6 @@ public final class ClientWorldView implements StateWorldView {
         }
         return false;
     }
-    /** Cardinal offsets for {@link #risesFromWater}'s open-face probe. */
-    private static final int[][] ESCAPE_FACE_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     /**
      * Tool-aware mining cost, independent of which break-gate authorised it (general allowBreak vs the water-escape
      * allowSwimEscapeBreak).
@@ -473,61 +535,6 @@ public final class ClientWorldView implements StateWorldView {
         }
         return BuildBlocks.placeableCount(pl.getInventory().items.subList(0, 9));
     }
-    // Cells checked for lava/fire around a candidate stand position: the 4
-    // horizontal neighbours at foot, head, and foot-below levels. Diagonals
-    // and the cell itself are skipped — the cell + the block directly below
-    // are already hard-rejected by isHazard/canStandAt, and 12 face reads
-    // keep the per-node cost cheap.
-    private static final int[][] DANGER_OFFSETS = {
-        {1, 0, 0},
-        {-1, 0, 0},
-        {0, 0, 1},
-        {0, 0, -1}, // foot ring
-        {1, 1, 0},
-        {-1, 1, 0},
-        {0, 1, 1},
-        {0, 1, -1}, // head ring
-        {1, -1, 0},
-        {-1, -1, 0},
-        {0, -1, 1},
-        {0, -1, -1}, // below-feet ring
-        // Diagonals + straight-up: a swim route hugging a lava shore kept its
-        // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide player
-        // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
-        // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
-        // res masked what would kill a naked bot). Charging the diagonal and
-        // overhead cells makes A* keep a 1-cell margin whenever any detour
-        // exists; a true single-file lava channel still prices in, not out.
-        {0, 1, 0},
-        {1, 0, 1},
-        {1, 0, -1},
-        {-1, 0, 1},
-        {-1, 0, -1}, // foot diagonals
-        {1, 1, 1},
-        {1, 1, -1},
-        {-1, 1, 1},
-        {-1, 1, -1}, // head diagonals
-    };
-    // The 4 cardinal horizontal neighbours, for the cliff-edge probe below.
-    private static final int[][] HORIZONTAL_4 = {
-        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
-    };
-    // Water-bucket (MLG) fall availability, snapshotted once per search:
-    // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
-    // the hotbar for a water bucket in every WaterBucketFall.valid would be
-    // wasteful. Refreshed every repath (the bucket may have been used/refilled).
-    private volatile boolean bucketFallReady = false;
-    // Navigator failure blacklist (Baritone-style): nodes where the Navigator couldn't
-    // execute a move, mapped to their expiry time (ms). penalizeStuckNode adds an
-    // entry; beginSearch prunes expired ones and snapshots the rest into
-    // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
-    private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
-    private final Map<BlockPos, Integer> stuckStrength = new HashMap<>(); // accumulated wedge count per node
-    private float[] stuckAvoidXyz = new float[0]; // flat [x,y,z,strength, ...] (stride-4), snapshot per search
-    private static final long STUCK_AVOID_MS = 15_000; // entries decay after 15s
-    private static final double STUCK_AVOID_PENALTY = 600; // soft, finite — a sole route is still taken
-    private static final double STUCK_AVOID_RADIUS = 2.5; // blocks; smooth bump around the failed node
-    private static final int STUCK_AVOID_MAX_STRENGTH = 6; // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
     /**
      * Blacklist a node the Navigator couldn't execute a move at. Penalty ACCUMULATES: a flat one-shot bump (the
      * original behaviour) doesn't route around a wedge whose only forward move (e.g. a parkour leap the bot rams
@@ -563,13 +570,6 @@ public final class ClientWorldView implements StateWorldView {
         }
         return false;
     }
-
-    // Controlled-entity movement attributes, snapshotted once per search so the
-    // whole A* run sees a consistent capability (and the Navigator reads the same).
-    // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
-    private volatile int stepUpBlocks = 0; // floor(STEP_HEIGHT): full blocks walkable-up without a jump
-    private volatile int jumpUpBlocks = 1; // floor(jump apex): full blocks reachable WITH a jump
-    private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
 
     @Override
     public int maxStepUpBlocks() {

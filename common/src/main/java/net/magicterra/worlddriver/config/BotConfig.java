@@ -21,7 +21,6 @@ import net.magicterra.worlddriver.api.methods.setting.BotSettings;
  * Range bounds are enforced in {@link SettingsRegistry} so this class doesn't need its own validation.
  */
 public final class BotConfig {
-    private BotConfig() {}
 
     /**
      * Baritone-style survival toggles — each tick the bot driver checks these and may inject a single client-side
@@ -166,6 +165,24 @@ public final class BotConfig {
             GameConfig.class);
 
     /**
+     * The compiled-in default of every persistable field, captured at class initialization — which completes BEFORE
+     * {@link BotConfigFile#load()} (a method call) can apply any persisted value, so these are the true defaults baked
+     * into THIS build. The shadow-default scheme leans on this map twice: {@link BotConfigFile#save()} writes it as the
+     * {@code <key>.default} line, and {@link BotConfigFile#load()} re-saves a file whose stored snapshot no longer
+     * matches the current compiled default. Assigned in a static block at the very END of the class so every field it
+     * reads (all the volatiles above) is already class-initialized.
+     */
+    static final Map<String, String> COMPILED_DEFAULTS;
+
+    // Capture the compiled-in defaults LAST — after every persistable volatile is
+    // initialized, and (being class init) before load() runs.
+    static {
+        COMPILED_DEFAULTS = captureCompiledDefaults();
+    }
+
+    private BotConfig() {}
+
+    /**
      * Initializes this class, which captures {@link #COMPILED_DEFAULTS}. Every other config class calls it from a
      * static block after its own fields, so the defaults are captured before any setting anywhere can be written,
      * whichever class is touched first.
@@ -222,16 +239,6 @@ public final class BotConfig {
         }
         return String.valueOf(v);
     }
-
-    /**
-     * The compiled-in default of every persistable field, captured at class initialization — which completes BEFORE
-     * {@link BotConfigFile#load()} (a method call) can apply any persisted value, so these are the true defaults baked
-     * into THIS build. The shadow-default scheme leans on this map twice: {@link BotConfigFile#save()} writes it as the
-     * {@code <key>.default} line, and {@link BotConfigFile#load()} re-saves a file whose stored snapshot no longer
-     * matches the current compiled default. Assigned in a static block at the very END of the class so every field it
-     * reads (all the volatiles above) is already class-initialized.
-     */
-    static final Map<String, String> COMPILED_DEFAULTS;
 
     private static Map<String, String> captureCompiledDefaults() {
         Map<String, String> m = new LinkedHashMap<>();
@@ -440,11 +447,5 @@ public final class BotConfig {
         ControlConfig.navigatorBridgeHoldRepath = false;
         WorldConfig.pathfinderFloatingBreakTax = false;
         WorldConfig.pathfinderLogBreakTax = 1.0;
-    }
-
-    // Capture the compiled-in defaults LAST — after every persistable volatile is
-    // initialized, and (being class init) before load() runs.
-    static {
-        COMPILED_DEFAULTS = captureCompiledDefaults();
     }
 }

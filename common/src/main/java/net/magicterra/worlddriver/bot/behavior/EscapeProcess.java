@@ -43,21 +43,6 @@ import net.minecraft.world.level.Level;
  * FakePlayer alike.
  */
 public final class EscapeProcess implements BotProcess {
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
-
-    private enum Phase {
-        PICK,
-        CARVE,
-        STEP_UP,
-        VERT_BREAK,
-        VERT_RISE
-    }
-
-    /** Climb until foot Y reaches this (or open sky is overhead). */
-    private final int targetY;
 
     private static final int MAX_STEPS = 48;
     /**
@@ -67,6 +52,15 @@ public final class EscapeProcess implements BotProcess {
      */
     private static final int FUTILE_LIMIT = 4;
 
+    private static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Equipment equipment;
+
+    private BlockInteraction blocks;
+
+    /** Climb until foot Y reaches this (or open sky is overhead). */
+    private final int targetY;
+
     private Phase phase = Phase.PICK;
     private Direction dir = null;
     private BlockPos base = null; // the foot cell we're climbing FROM this step
@@ -75,6 +69,16 @@ public final class EscapeProcess implements BotProcess {
     private int steps = 0;
     private int futileCycles = 0;
     private int stepsAtLastPick = -1;
+
+    private String failure;
+
+    private enum Phase {
+        PICK,
+        CARVE,
+        STEP_UP,
+        VERT_BREAK,
+        VERT_RISE
+    }
 
     public EscapeProcess(int targetY) {
         this.targetY = targetY;
@@ -115,8 +119,6 @@ public final class EscapeProcess implements BotProcess {
         failure = error;
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {
@@ -453,8 +455,6 @@ public final class EscapeProcess implements BotProcess {
         }
         return false;
     }
-
-    private static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
 
     /**
      * Escaped: from the current foot cell the bot can step sideways onto a supported, head-clear, non-hazard cell —

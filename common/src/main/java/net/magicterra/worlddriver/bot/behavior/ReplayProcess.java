@@ -27,11 +27,6 @@ public final class ReplayProcess implements BotProcess, Navigating {
 
     private final Navigator navigator;
 
-    @Override
-    public Navigator navigator() {
-        return navigator;
-    }
-
     private final List<BlockPos> plan;
     private final List<Move.Edge> edges;
     private final Goal endGoal;
@@ -39,6 +34,13 @@ public final class ReplayProcess implements BotProcess, Navigating {
     private final boolean follow;
     private final boolean goalReached;
     private boolean begun;
+
+    private String failure;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     public ReplayProcess(List<BlockPos> plan, List<Move.Edge> edges, Goal endGoal, BlockPos startFoot) {
         this(plan, edges, endGoal, startFoot, NavigatorSettings.named("replay"), false, true);
@@ -105,8 +107,6 @@ public final class ReplayProcess implements BotProcess, Navigating {
         failure = navigator.result().reason();
         return true;
     }
-
-    private String failure;
 
     @Override
     public String failure() {

@@ -22,7 +22,6 @@ import org.lwjgl.glfw.GLFW;
  * server never loads this class.
  */
 public final class MouseYield {
-    private MouseYield() {}
 
     /** Max gap between the two ESC presses that count as a double-tap. */
     public static final long ESC_DOUBLE_TAP_MS = 400;
@@ -36,6 +35,8 @@ public final class MouseYield {
      * thread, the bot tick writes it.
      */
     private static volatile String driver = "";
+
+    private MouseYield() {}
 
     /** Record a bot drive this tick. {@code who} labels it for the HUD (chain or slot name). */
     public static void markDriving(String who) {

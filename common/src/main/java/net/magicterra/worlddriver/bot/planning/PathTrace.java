@@ -16,6 +16,30 @@ import net.minecraft.core.BlockPos;
  */
 public interface PathTrace {
 
+    /** No-op sink — the default; release builds keep this and nothing else. */
+    PathTrace NOOP = new PathTrace() {
+        @Override
+        public void onSearchBegin(BlockPos start, Goal goal) {}
+
+        @Override
+        public void onNodeExpanded(BlockPos pos, double g) {}
+
+        @Override
+        public void onSearchResult(
+                List<BlockPos> path,
+                List<Move.Edge> edges,
+                boolean goalReached,
+                int expanded,
+                long ms,
+                double finalCost) {}
+
+        @Override
+        public void onNavigatorTick(NavigatorSample sample) {}
+
+        @Override
+        public void onTerminal(Outcome outcome, String reason) {}
+    };
+
     /** Terminal outcome of a goto session, as classified by the Navigator. */
     enum Outcome {
         SUCCESS,
@@ -63,28 +87,4 @@ public interface PathTrace {
 
     /** Fired when a goto session terminates. */
     void onTerminal(Outcome outcome, String reason);
-
-    /** No-op sink — the default; release builds keep this and nothing else. */
-    PathTrace NOOP = new PathTrace() {
-        @Override
-        public void onSearchBegin(BlockPos start, Goal goal) {}
-
-        @Override
-        public void onNodeExpanded(BlockPos pos, double g) {}
-
-        @Override
-        public void onSearchResult(
-                List<BlockPos> path,
-                List<Move.Edge> edges,
-                boolean goalReached,
-                int expanded,
-                long ms,
-                double finalCost) {}
-
-        @Override
-        public void onNavigatorTick(NavigatorSample sample) {}
-
-        @Override
-        public void onTerminal(Outcome outcome, String reason) {}
-    };
 }
