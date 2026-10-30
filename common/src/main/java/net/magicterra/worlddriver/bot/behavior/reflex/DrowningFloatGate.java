@@ -18,6 +18,8 @@ public final class DrowningFloatGate {
     private DrowningFloatGate() {}
 
     /**
+     * Whether the reflex should hold jump this tick while the bot is drowning.
+     *
      * @param underwater {@code LocalPlayer#isUnderWater()} — head submerged.
      * @param air {@code LocalPlayer#getAirSupply()} this tick.
      * @param airThreshold {@code BehaviorConfig#drownFloatAirThreshold}.

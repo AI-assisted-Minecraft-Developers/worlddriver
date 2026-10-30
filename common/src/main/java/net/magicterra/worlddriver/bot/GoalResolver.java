@@ -49,7 +49,7 @@ public final class GoalResolver {
      *   <li>a different budget: 200_000 here against {@code MineProcess.SCAN_BUDGET} = 50_000.
      * </ul>
      *
-     * None of that is necessarily wrong — a goto is not a mine — but "Mirrors" invited the reader to assume a shared
+     * <p>None of that is necessarily wrong — a goto is not a mine — but "Mirrors" invited the reader to assume a shared
      * safety floor that was never there, and the missing clause is the lava one.
      */
     public static BlockPos findNearestStandForBlock(Entity self, String blockId, int radius) {

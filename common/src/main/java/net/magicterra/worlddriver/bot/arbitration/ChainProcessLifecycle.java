@@ -21,10 +21,10 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
  */
 public final class ChainProcessLifecycle {
 
-    /** endReason for a preemption by a higher-priority chain ({@code onInterrupt}). */
+    /** The end reason for a preemption by a higher-priority chain ({@code onInterrupt}). */
     public static final String INTERRUPTED = "INTERRUPTED";
 
-    /** endReason for an explicit episode cancel ({@code cancelEpisode}). */
+    /** The end reason for an explicit episode cancel ({@code cancelEpisode}). */
     public static final String CANCELLED = "CANCELLED";
 
     private ChainProcessLifecycle() {}

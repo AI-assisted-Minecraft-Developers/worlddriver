@@ -43,6 +43,7 @@ public final class MineCellProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /** Mines the single cell {@code target}. */
     public MineCellProcess(BlockPos target) {
         this.target = target.immutable();
     }

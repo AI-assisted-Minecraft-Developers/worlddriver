@@ -26,18 +26,22 @@ public final class Intent {
 
     private final EntityLeash entityLeash;
 
+    /** An intent to reach {@code target} with no bias, the full capability set and no constraints. */
     public Intent(Goal target) {
         this(target, List.of(), CapabilityProfile.ALL, List.of(), null);
     }
 
+    /** An intent to reach {@code target} under the cost modifiers in {@code bias}. */
     public Intent(Goal target, List<CostModifier> bias) {
         this(target, bias, CapabilityProfile.ALL, List.of(), null);
     }
 
+    /** An intent to reach {@code target} with the given bias, capability profile and constraints. */
     public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {
         this(target, bias, capability, constraints, null);
     }
 
+    /** The intent to reach {@code target} with every part given; a null {@code target} means no goal. */
     public Intent(
             Goal target,
             List<CostModifier> bias,

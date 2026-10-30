@@ -37,7 +37,7 @@ public final class CancelRouting {
      *       {@link Chain#cancelEpisode}, i.e. the unified {@link ChainProcessLifecycle} drop from gap#72-①.
      * </ol>
      *
-     * All matching routing steps are taken (labels keep them distinguishable), so a request like {@code runAway}
+     * <p>All matching routing steps are taken (labels keep them distinguishable), so a request like {@code runAway}
      * reaches both a user flee and the retreat reflex's flee.
      */
     public static Plan resolve(String which, String userProcessKind, List<Chain> chains) {

@@ -40,6 +40,7 @@ public final class AutoTotem {
     /** One SWAP click on the inventory menu: {@code slot} with {@code button} (0..8 a hotbar slot, 40 the offhand). */
     record Click(int slot, int button) {}
 
+    /** Puts a totem of undying in the offhand when the planner finds one to move there. */
     public void tick(Body body) {
         Player p = body.asPlayer();
         Menus menus = body.menus().orElse(null);

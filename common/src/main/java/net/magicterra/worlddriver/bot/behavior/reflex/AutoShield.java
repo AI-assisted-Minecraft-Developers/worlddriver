@@ -50,6 +50,7 @@ public final class AutoShield {
         return null;
     }
 
+    /** Raises the shield and turns toward the focus of the threat {@code scan}. */
     public void engage(Body body, ThreatScanner.Scan scan) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
@@ -68,6 +69,7 @@ public final class AutoShield {
         raising = true;
     }
 
+    /** Lowers the shield if this reflex raised it. */
     public void release(Body body) {
         if (raising) {
             body.equipment().ifPresent(h -> h.commandUseItem(false));

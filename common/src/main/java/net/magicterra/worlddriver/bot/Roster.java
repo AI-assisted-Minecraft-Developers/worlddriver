@@ -16,6 +16,7 @@ public final class Roster {
     /** What a roster change answers: the bot's ref, or why nothing changed. */
     public sealed interface Outcome permits Done, Refusal {}
 
+    /** The change went through; {@code bot} is the ref of the bot it made or took over. */
     public record Done(String bot) implements Outcome {}
 
     /** {@code unknown} when the ref names no bot; otherwise the request names something that cannot be a bot. */

@@ -13,6 +13,7 @@ public final class ActionTickets {
         return handle == null ? null : new Of(handle);
     }
 
+    /** The API cancel reason that reports a scheduler stop cause to the caller. */
     public static CancelReason reason(Ticket.Stop why) {
         return switch (why) {
             case REQUESTED -> CancelReason.REQUESTED;

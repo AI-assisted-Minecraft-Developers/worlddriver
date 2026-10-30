@@ -74,7 +74,11 @@ public final class AntiSuffocate {
      */
     private BlockPos trackedHead;
 
-    /** @return true if it took over to break a suffocating head block this tick. */
+    /**
+     * Takes over to break a suffocating head block this tick.
+     *
+     * @return true if it took over this tick
+     */
     public boolean tick(Body body) {
         Player p = body.asPlayer();
         BlockInteraction blocks = body.blockInteraction().orElse(null);
@@ -184,7 +188,7 @@ public final class AntiSuffocate {
     }
 
     /**
-     * gap#72-④: {@code outcome} names WHY the episode ended, logged once IFF an episode was actually running
+     * The {@code outcome} names WHY the episode ended, logged once IFF an episode was actually running
      * ({@code trackedHead != null} — reset() is also the every-idle-tick no-op path, which must stay silent): "clear" =
      * the suffocation gate dropped; "no-solid-target" = nothing solid left to break (typically the break succeeded and
      * the trigger's ~40t damage tail is still decaying); "unbreakable" = gave up (bedrock); "level-gone".

@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 
+/** Runs from a position until the bot is at least the minimum distance away. */
 public final class RunAwayProcess implements BotProcess, Navigating {
     private final BlockPos from;
 
@@ -31,10 +32,12 @@ public final class RunAwayProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /** Creates a flee from {@code from} to at least {@code minDist} blocks away. */
     public RunAwayProcess(BlockPos from, int minDist) {
         this(from, minDist, null);
     }
 
+    /** Creates a flee from {@code from} to at least {@code minDist} blocks away, reporting into {@code slot}. */
     public RunAwayProcess(BlockPos from, int minDist, BotState.ProcessSlot slot) {
         this.from = from;
         this.minDist = minDist;

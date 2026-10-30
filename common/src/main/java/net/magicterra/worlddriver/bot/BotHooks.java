@@ -12,10 +12,12 @@ public final class BotHooks {
 
     private BotHooks() {}
 
+    /** Installs {@code api} as the client-side impl that the {@code mc.bot.*} routes call into. */
     public static void register(BotApi api) {
         impl = api;
     }
 
+    /** The installed impl, or null when none is registered. */
     public static BotApi impl() {
         return impl;
     }

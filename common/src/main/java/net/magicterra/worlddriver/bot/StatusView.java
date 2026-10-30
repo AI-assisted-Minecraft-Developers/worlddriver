@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 public final class StatusView {
     private StatusView() {}
 
+    /** The state of every process slot {@code mc.bot.status} reports, read from {@code s}. */
     public static ControlContracts.Slots slots(BotState s) {
         return new ControlContracts.Slots(
                 slot(s.mc_goto),

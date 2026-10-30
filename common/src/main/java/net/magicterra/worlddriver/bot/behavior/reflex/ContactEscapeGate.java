@@ -29,6 +29,8 @@ public final class ContactEscapeGate {
     private ContactEscapeGate() {}
 
     /**
+     * Whether a contact-damage message this tick should start the escape.
+     *
      * @param lastDamageMsgId {@code getLastDamageSource().getMsgId()}, null if none
      * @param hurtTime vanilla post-hit invulnerability countdown (10 → 0)
      * @param enabled {@code BehaviorConfig.contactDamageEscape}

@@ -21,6 +21,7 @@ import net.minecraft.world.item.alchemy.PotionContents;
 public final class AutoHeal {
     private boolean healing;
 
+    /** Whether a healing item should be used now: the bot is hurt and has one in the hotbar. */
     public boolean wants(Body body) {
         Player p = body.asPlayer();
         return p != null
@@ -29,6 +30,7 @@ public final class AutoHeal {
                 && healSlot(p) >= 0;
     }
 
+    /** Switches to the healing item, then holds the use key until it is consumed. */
     public void engage(Body body) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
@@ -50,6 +52,7 @@ public final class AutoHeal {
         healing = true;
     }
 
+    /** Lets go of the use key if this reflex is holding it. */
     public void release(Body body) {
         if (healing) {
             body.equipment().ifPresent(h -> h.commandUseItem(false));

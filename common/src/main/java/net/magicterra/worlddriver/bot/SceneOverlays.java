@@ -46,6 +46,7 @@ public final class SceneOverlays {
     public interface Surface {
         int NONE = Integer.MIN_VALUE;
 
+        /** The standable surface height at ({@code dx}, {@code dz}), or {@link #NONE} when there is no footing. */
         int surfaceY(int dx, int dz);
     }
 

@@ -6,16 +6,22 @@ package net.magicterra.worlddriver.bot.arbitration;
  * one of these, and two tickets for the same action are equal.
  */
 public interface Ticket {
+    /** The action's id, as the API reports it. */
     String id();
 
+    /** Whether the action is still running. */
     boolean running();
 
+    /** Ends the action as succeeded; true when this call did it. */
     boolean succeed();
 
+    /** Ends the action as succeeded with {@code result}; true when this call did it. */
     boolean succeed(Object result);
 
+    /** Ends the action as failed with {@code message}; true when this call did it. */
     boolean fail(String message);
 
+    /** Ends the action as cancelled for {@code why}; true when this call did it. */
     boolean cancelled(Stop why);
 
     /** Ends this as replaced by the action {@code replacementId}. */

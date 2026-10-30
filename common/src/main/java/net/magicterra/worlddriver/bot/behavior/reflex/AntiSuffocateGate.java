@@ -62,12 +62,12 @@ public final class AntiSuffocateGate {
     }
 
     /**
-     * gap#80 (live drowning-escape verification): {@code AntiSuffocate#resolveHead}'s target-eligibility test, factored
-     * out into its own zero-client-type function (same split-file reason as {@link #shouldTrigger}) so a dedicated
-     * GameTest server can exercise it directly with real blocks. The four {@code resolveHead} call sites used to test
-     * {@code !state.isAir()} — WATER is {@code !isAir()} too, so a submerged (drowning, not suffocating) head made
-     * {@code resolveHead} return the water block, which the reflex then flailed at trying to break (unbreakable,
-     * raycast misses), fighting {@code DrownEscapeChain}'s float-up. The correct criterion is vanilla's own
+     * The target-eligibility test of {@code AntiSuffocate#resolveHead}, factored out into its own zero-client-type
+     * function (same split-file reason as {@link #shouldTrigger}) so a dedicated GameTest server can exercise it
+     * directly with real blocks. The four {@code resolveHead} call sites used to test {@code !state.isAir()} — WATER is
+     * {@code !isAir()} too, so a submerged (drowning, not suffocating) head made {@code resolveHead} return the water
+     * block, which the reflex then flailed at trying to break (unbreakable, raycast misses), fighting
+     * {@code DrownEscapeChain}'s float-up. The correct criterion is vanilla's own
      * {@code BlockState#isSuffocating(BlockGetter, BlockPos)} — the exact predicate {@code Entity#isInWall()} ANDs
      * against {@code !isAir()} internally (true only for a block whose cached collision shape is a full,
      * motion-blocking solid; false for water, whose collision shape is empty, and for air).

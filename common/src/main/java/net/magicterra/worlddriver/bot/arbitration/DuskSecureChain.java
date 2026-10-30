@@ -48,21 +48,23 @@ public final class DuskSecureChain implements Chain {
     private float lastBidTier = Priorities.IDLE_SECURE;
 
     /**
-     * gap#75-b: true while the last dig episode ended by PREEMPTION (onInterrupt) rather than by the process's own
-     * verdict. The bot preempted mid-dig is left standing in its own half-dug 1×1 shaft, which reads
-     * {@code cornered=true} in the HazardField (no standable neighbor within a 1-block step-up) — so the legacy
-     * start-gate self-vetoed the reflex for the REST of the night and the bot idled exposed in an unsealed pit (live
-     * 2026-07-14, dayTime 13000). While set, {@link #startGateBlocks} waives ONLY the cornered veto (day/present still
-     * gate; the idle-tier THREAT_RADIUS veto and debounce still apply). Consumed by: the next process's own terminal
-     * verdict (a bail must NOT re-trigger in a loop — each retry re-anchors lower and would ratchet the shaft down),
-     * dawn (window closed), or an explicit episode cancel.
+     * True while the last dig episode ended by PREEMPTION (onInterrupt) rather than by the process's own verdict. The
+     * bot preempted mid-dig is left standing in its own half-dug 1×1 shaft, which reads {@code cornered=true} in the
+     * HazardField (no standable neighbor within a 1-block step-up) — so the legacy start-gate self-vetoed the reflex
+     * for the REST of the night and the bot idled exposed in an unsealed pit (live 2026-07-14, dayTime 13000). While
+     * set, {@link #startGateBlocks} waives ONLY the cornered veto (day/present still gate; the idle-tier THREAT_RADIUS
+     * veto and debounce still apply). Consumed by: the next process's own terminal verdict (a bail must NOT re-trigger
+     * in a loop — each retry re-anchors lower and would ratchet the shaft down), dawn (window closed), or an explicit
+     * episode cancel.
      */
     private boolean rearmPending;
 
+    /** Creates the chain with no route-event sink; its events go nowhere. */
     public DuskSecureChain(BotState state, WorldModel worldModel) {
         this(state, worldModel, (type, pos, data) -> {});
     }
 
+    /** Creates the chain over {@code state} and {@code worldModel}, sending its route events to {@code emitter}. */
     public DuskSecureChain(BotState state, WorldModel worldModel, RouteEvents.Emitter emitter) {
         this.emitter = emitter;
         this.state = state;
@@ -96,7 +98,7 @@ public final class DuskSecureChain implements Chain {
     }
 
     /**
-     * gap#75-b pure start-gate (server-safe, matrix-testable — the {@link #urgentBid} split precedent): does the legacy
+     * Pure start gate (server-safe, matrix-testable — the {@link #urgentBid} split precedent): does the legacy
      * day/present/cornered gate refuse to (re)start a dig this tick? {@code cornered} normally sits the reflex out (a
      * genuinely boxed-in bot is not a shelter case) — EXCEPT while {@code rearmPending}: a preemption dropped the held
      * process mid-dig, so the cornered reading IS our own unsealed shaft and must not block finishing/sealing it.
@@ -243,8 +245,8 @@ public final class DuskSecureChain implements Chain {
     }
 
     /**
-     * gap#72-②: expose the held BunkerProcess's kind ("bunker") so a targeted {@code mc.bot.cancel{process:"bunker"}}
-     * can reach it by kind.
+     * Exposes the held BunkerProcess's kind ("bunker") so a targeted {@code mc.bot.cancel{process:"bunker"}} can reach
+     * it by kind.
      */
     @Override
     public String heldProcessKind() {
@@ -303,7 +305,7 @@ public final class DuskSecureChain implements Chain {
         return process;
     }
 
-    /** Test seam (gap#75-b): is a post-preemption re-arm pending? */
+    /** Test seam: whether a post-preemption re-arm is pending. */
     public boolean rearmPendingForTest() {
         return rearmPending;
     }

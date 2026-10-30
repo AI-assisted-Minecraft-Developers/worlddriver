@@ -34,8 +34,10 @@ import net.minecraft.world.entity.player.Player;
 public final class GotoOrders {
     private GotoOrders() {}
 
+    /** What a goto request turns into: a process to start, a launch beside the held one, or a refusal. */
     public sealed interface Order permits Start, Launch, Refuse {}
 
+    /** A process to start on the body, with the {@code trip} it follows. */
     public record Start(BotProcess process, Trip trip) implements Order {}
 
     /** Work beside the held process, a preview: {@code launcher} takes the admitted action and ends it. */
@@ -47,6 +49,7 @@ public final class GotoOrders {
     /** The resolved goal and route of a request, or why it cannot be resolved now. */
     public sealed interface Resolution permits Resolved, Refuse {}
 
+    /** A resolved request: the {@code goal} to walk to and the parsed route conditions. */
     public record Resolved(Goal goal, RouteParams.Parsed route) implements Resolution {}
 
     /** Resolve on the body's thread. */
