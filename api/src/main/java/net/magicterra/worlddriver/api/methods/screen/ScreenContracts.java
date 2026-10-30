@@ -207,6 +207,7 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ screen.info
 
+    /** The answer of {@code mc.client.screen.info}: the open screen in brief, and whether a world and player exist. */
     @Named("ScreenInfo")
     public record ScreenInfo(
             @ContextId String contextId,
@@ -240,9 +241,11 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ screen.tree
 
+    /** A node's rectangle in GUI coordinates, the ones {@code input.click} takes. */
     @Named("ScreenBox")
     public record Box(int x, int y, int width, int height) {}
 
+    /** The stack in a menu slot: item id and count. */
     @Named("SlotItem")
     public record SlotItem(
             @ResourceId String id, @Range(min = 0) int count) {}
@@ -291,6 +294,7 @@ public final class ScreenContracts {
             @Doc("This node threw while being read; the rest of the tree stands.")
             Optional<String> error) {}
 
+    /** The answer of {@code mc.client.screen.tree}: the open screen and its nodes, flattened depth first. */
     @Named("ScreenTree")
     public record ScreenTree(
             @ContextId String contextId,
@@ -308,6 +312,7 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ screen.close
 
+    /** The parameters of {@code mc.client.screen.close}. */
     @Named("ScreenCloseParams")
     public record CloseParams(Optional<@ContextId String> contextId) {}
 
@@ -339,6 +344,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** The parameters of {@code mc.client.input.click}: a node's ref, or both x and y. */
     @Named("ClickParams")
     public record ClickParams(
             @Doc("A node's ref from screen.tree: clicks the centre of its box as it is now.")
@@ -375,6 +381,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** The parameters of {@code mc.client.input.mouseMove}: both x and y, a scroll, or both. */
     @Named("MouseMoveParams")
     public record MoveParams(
             @Doc("GUI coordinates. Without them the cursor stays put: in the world a moved cursor turns the camera.")
@@ -392,10 +399,12 @@ public final class ScreenContracts {
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (x.isPresent() != y.isPresent()) {
+            if (x.isPresent() == y.isPresent()) {
+                if (x.isEmpty() && scroll == 0 && scrollX == 0) {
+                    at.field("x").fail(ApiIssue.Code.INVALID_VALUE, "give x and y, a scroll, or both");
+                }
+            } else {
                 at.field(x.isEmpty() ? "x" : "y").fail(ApiIssue.Code.INVALID_VALUE, "give both x and y, or neither");
-            } else if (x.isEmpty() && scroll == 0 && scrollX == 0) {
-                at.field("x").fail(ApiIssue.Code.INVALID_VALUE, "give x and y, a scroll, or both");
             }
         }
     }
@@ -430,6 +439,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** The parameters of {@code mc.client.input.slotClick}; with {@code bot}, a server player's menu is clicked. */
     @Named("SlotClickParams")
     public record SlotClickParams(
             @Doc("The menu's slot index, from observe.container or screen.tree.") @Range(min = 0)
@@ -459,27 +469,32 @@ public final class ScreenContracts {
             if (bot.isEmpty()) {
                 return;
             }
-            if (!bot.get().startsWith(PLAYER_PREFIX)) {
+            if (bot.get().startsWith(PLAYER_PREFIX)) {
+                if (returnTree) {
+                    at.field("returnTree")
+                            .fail(
+                                    ApiIssue.Code.INVALID_VALUE,
+                                    "returnTree reads this client's screen, not a server player's menu");
+                } else if (contextId.isPresent()) {
+                    at.field("contextId")
+                            .fail(ApiIssue.Code.INVALID_VALUE, "a server player's menu has no screen context");
+                }
+            } else {
                 at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, PLAYER_ONLY);
-            } else if (returnTree) {
-                at.field("returnTree")
-                        .fail(
-                                ApiIssue.Code.INVALID_VALUE,
-                                "returnTree reads this client's screen, not a server player's menu");
-            } else if (contextId.isPresent()) {
-                at.field("contextId").fail(ApiIssue.Code.INVALID_VALUE, "a server player's menu has no screen context");
             }
         }
     }
 
     // ------------------------------------------------------------------ input.setHotbarSlot
 
+    /** The parameters of {@code mc.client.input.setHotbarSlot}. */
     @Named("SetHotbarSlotParams")
     public record HotbarParams(
             @Doc("0 is leftmost.") @Range(min = 0, max = 8) int slot, Optional<@ContextId String> contextId) {}
 
     // ------------------------------------------------------------------ input.typeText / replaceText
 
+    /** The parameters of {@code mc.client.input.typeText}. */
     @Named("TypeTextParams")
     public record TypeParams(
             @Length(max = 4096) String text,
@@ -500,6 +515,7 @@ public final class ScreenContracts {
 
             Optional<@ContextId String> contextId) {}
 
+    /** The parameters of {@code mc.client.input.replaceText}: the box by ref or by match, not both. */
     @Named("ReplaceTextParams")
     public record ReplaceParams(
             @Doc("The box's new whole contents.") @Length(max = 4096)
@@ -529,6 +545,7 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ input.slider
 
+    /** The parameters of {@code mc.client.input.slider}: the slider by at most one of ref, match or index. */
     @Named("SliderParams")
     public record SliderParams(
             @Doc("A node's ref from screen.tree: the slider to set, or alone to read.")
@@ -560,6 +577,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** One slider as read: its place among the screen's sliders, its label, and its 0-1 value. */
     @Named("SliderValue")
     public record Slider(
             @Range(min = 0) int index,
@@ -568,6 +586,7 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ input.key / keybind
 
+    /** What a key event does: press, release, or both a tick apart. */
     @Named("KeyAction")
     public enum KeyAction implements WireName {
         PRESS,
@@ -581,6 +600,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** Where {@code mc.client.input.key} sends a key event. */
     @Named("KeyRoute")
     public enum KeyRoute implements WireName {
         /** The open screen, else the key bindings: where a real keystroke goes. */
@@ -601,6 +621,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** A modifier bit sent with a key event to a screen. */
     @Named("KeyModifier")
     public enum Modifier implements WireName {
         SHIFT("shift"),
@@ -622,6 +643,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** Where a sent key event actually went, as a key reply reports it. */
     @Named("KeyVia")
     public enum KeyVia implements WireName {
         SCREEN,
@@ -634,6 +656,7 @@ public final class ScreenContracts {
         }
     }
 
+    /** The parameters of {@code mc.client.input.key}. */
     @Named("KeyParams")
     public record KeyParams(
             @Doc("ENTER, ESCAPE, TAB, BACKSPACE, DELETE, SPACE, LEFT, RIGHT, UP, DOWN, HOME, END, PAGEUP, PAGEDOWN, "
@@ -656,6 +679,7 @@ public final class ScreenContracts {
 
             Optional<@ContextId String> contextId) {}
 
+    /** The parameters of {@code mc.client.input.keybind}; without a name it lists every mapping. */
     @Named("KeybindParams")
     public record KeybindParams(
             @Doc("A mapping id (key.inventory) or part of an id or title. Omitted: list every mapping.")
@@ -677,6 +701,7 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ observe.container
 
+    /** The parameters of {@code mc.observe.container}: a block pos, a server player, or neither for this client. */
     @Named("ContainerParams")
     public record ContainerParams(
             @Doc("A chest, barrel, hopper, furnace… Omitted: the menu open on this client.")
@@ -710,15 +735,18 @@ public final class ScreenContracts {
             Optional<@Range(min = 0) Integer> maxDamage,
             Optional<@Range(min = 0) Integer> damage,
             @Doc("Points left; damageable items only.") Optional<@Range(min = 0) Integer> durability) {
+        /** A row whose damage fields are taken from {@code wear}. */
         public SlotRow(int index, Optional<String> id, Optional<Integer> count, ClientContracts.Wear wear) {
             this(index, id, count, wear.maxDamage(), wear.damage(), wear.durability());
         }
 
+        /** An empty slot: the index alone. */
         public static SlotRow empty(int index) {
             return new SlotRow(index, Optional.empty(), Optional.empty(), ClientContracts.Wear.NONE);
         }
     }
 
+    /** The answer of {@code mc.observe.container}, tagged by {@code source}: block, menu or player. */
     @Tag("source")
     @Named("ContainerView")
     public sealed interface ContainerView permits BlockContainer, MenuContainer, PlayerMenu {}

@@ -57,6 +57,7 @@ public final class QueryContracts {
 
     private QueryContracts() {}
 
+    /** A field of a block row, as named in {@code select}. */
     @Named("BlockField")
     public enum BlockField implements WireName {
         POS("pos"),
@@ -101,10 +102,12 @@ public final class QueryContracts {
         }
     }
 
+    /** The parameters of {@code mc.query}: a block query or an entity query, told apart by {@code q}. */
     @Tag("q")
     @Named("QueryParams")
     public sealed interface Query permits Blocks, Entities {}
 
+    /** Which blocks a block query keeps. */
     @Named("BlockQueryFilter")
     public record BlockFilter(
             @Wire("in_radius")
@@ -115,6 +118,7 @@ public final class QueryContracts {
 
             @Doc("Only this block, or any block in a #tag.") Optional<@BlockOrTag String> type) {}
 
+    /** Which entities an entity query keeps. */
     @Named("EntityQueryFilter")
     public record EntityFilter(
             @Wire("in_radius")
@@ -131,6 +135,7 @@ public final class QueryContracts {
             @Wire("is_living") @Doc("true drops items, XP orbs and the like; false keeps only those.")
             Optional<Boolean> isLiving) {}
 
+    /** A query for the non-air blocks in a cube; answered with {@link BlockRows}. */
     @Variant("blocks")
     public record Blocks(
             @Doc("Omitted: mc.system.testOrigin; on a client with no server, its player.")
@@ -151,6 +156,7 @@ public final class QueryContracts {
         }
     }
 
+    /** A query for the entities in a cube; answered with {@link EntityRows}. */
     @Variant("entities")
     public record Entities(
             @Doc("Omitted: mc.system.testOrigin; on a client with no server, its player.")
@@ -160,6 +166,7 @@ public final class QueryContracts {
             @Doc("Keep only these row fields.") Optional<@Length(max = 10) List<EntityField>> select)
             implements Query {}
 
+    /** One matched block; a field left out of {@code select} is absent. */
     @Named("BlockRow")
     public record BlockRow(
             Optional<BlockPosition> pos,
@@ -168,6 +175,7 @@ public final class QueryContracts {
             @Doc("Blockstate properties as /setblock spells them; absent for a state without any.")
             Optional<@Length(max = 64) Map<String, String>> state) {}
 
+    /** One matched entity; a field left out of {@code select}, or not measured where it ran, is absent. */
     @Named("EntityRow")
     public record EntityRow(
             Optional<Point> pos,
@@ -189,15 +197,18 @@ public final class QueryContracts {
             @Doc("From the center; client fallback only.")
             Optional<@Range(min = 0, max = Double.MAX_VALUE) Double> distance) {}
 
+    /** The reply of {@code mc.query}, tagged with the same {@code q} as the query it answers. */
     @Tag("q")
     @Named("QueryReply")
     public sealed interface Rows permits BlockRows, EntityRows {}
 
+    /** The answer to a block query. */
     @Variant("blocks")
     public record BlockRows(
             @Doc("Every non-air cell that matched.") @Length(max = 32_768)
             List<BlockRow> blocks) implements Rows {}
 
+    /** The answer to an entity query: every entity that matched. */
     @Variant("entities")
     public record EntityRows(@Length(max = 65_536) List<EntityRow> entities) implements Rows {}
 

@@ -109,6 +109,7 @@ public final class InteractContracts {
 
     private InteractContracts() {}
 
+    /** Which hand a use is made with. */
     @Named("Hand")
     public enum Hand implements WireName {
         MAIN,
@@ -120,6 +121,7 @@ public final class InteractContracts {
         }
     }
 
+    /** A side of a block, as clicked by a use. */
     @Named("BlockFace")
     public enum Face implements WireName {
         DOWN,
@@ -153,6 +155,7 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ lookAt
 
+    /** The parameters of {@code mc.bot.lookAt}: a block to face, or both yaw and pitch. */
     @Named("LookAtParams")
     public record LookParams(
             @Default("self") @BotRef String bot,
@@ -187,12 +190,14 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ holdItem
 
+    /** The parameters of {@code mc.bot.holdItem}; {@code minecraft:air} empties the hand. */
     @Named("HoldItemParams")
     public record HoldParams(
             @Default("self") @BotRef String bot, @ResourceId String item) {}
 
     // ------------------------------------------------------------------ useItem
 
+    /** The parameters of {@code mc.bot.useItem}: at most one of a block and an entity; neither uses in the air. */
     @Named("UseItemParams")
     public record UseParams(
             @Default("self") @BotRef String bot,
@@ -233,9 +238,11 @@ public final class InteractContracts {
     @Named("UsedOn")
     public sealed interface UsedOn permits InAir, OnBlock, OnEntity {}
 
+    /** The item was used in the air, on no block or entity. */
     @Variant("air")
     public record InAir() implements UsedOn {}
 
+    /** The item was used on this face of the block at {@code pos}. */
     @Variant("block")
     public record OnBlock(BlockPosition pos, Face face) implements UsedOn {}
 
@@ -255,12 +262,14 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ attackEntity
 
+    /** The parameters of {@code mc.bot.attackEntity}: who swings, and at which entity. */
     @Named("AttackEntityParams")
     public record AttackParams(
             @Default("self") @BotRef String bot, @EntityId int entityId) {}
 
     // ------------------------------------------------------------------ equip
 
+    /** What {@code mc.bot.equip} puts on. */
     @Named("EquipProfile")
     public enum Profile implements WireName {
         /** Armour and the best weapon in hand. */
@@ -276,6 +285,7 @@ public final class InteractContracts {
         }
     }
 
+    /** An armour slot, as named in what {@code mc.bot.equip} reports missing. */
     @Named("ArmorSlot")
     public enum ArmorSlot implements WireName {
         HEAD,
@@ -289,6 +299,7 @@ public final class InteractContracts {
         }
     }
 
+    /** The parameters of {@code mc.bot.equip}. */
     @Named("EquipParams")
     public record EquipParams(
             @Default("best") Profile profile,

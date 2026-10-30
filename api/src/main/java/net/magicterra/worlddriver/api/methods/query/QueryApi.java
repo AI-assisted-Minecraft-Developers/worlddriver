@@ -13,6 +13,7 @@ public interface QueryApi {
         return QueryApiBinding.calls(registry);
     }
 
+    /** The non-air blocks or the entities in a cube around a center; blocks read only loaded chunks. */
     @Spec(QueryContracts.class)
     CompletionStage<QueryContracts.Rows> query(QueryContracts.Query q, CallContext ctx);
 }

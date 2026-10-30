@@ -138,22 +138,27 @@ public final class SettingsContracts {
     @TsAlias(name = "SettingKey", type = "keyof SettingValues")
     public @interface SettingKey {}
 
+    /** Whether {@code key} is a setting key, control or not. */
     public static boolean isKnown(String key) {
         return TYPES.containsKey(key);
     }
 
+    /** Whether {@code key} is a setting key that op {@code read} can answer, which excludes {@link #WRITE_ONLY}. */
     public static boolean readable(String key) {
         return isKnown(key) && !WRITE_ONLY.contains(key);
     }
 
+    /** Whether {@code key} is a setting key that op {@code patch} can write, which excludes {@link #CONTROLS}. */
     public static boolean patchable(String key) {
         return isKnown(key) && !CONTROLS.contains(key);
     }
 
+    /** The parameters of {@code mc.bot.setting}: a read, a patch or an apply, told apart by {@code op}. */
     @Tag("op")
     @Named("SettingsParams")
     public sealed interface SettingsOp permits Read, Patch, Apply {}
 
+    /** Op {@code read}: the values of the named keys, or of every readable key; answered with {@link Values}. */
     @Variant("read")
     public record Read(
             @Doc("Omitted: every readable key. Empty: none.")
@@ -176,17 +181,20 @@ public final class SettingsContracts {
             for (int i = 0; i < named.size(); i++) {
                 String k = named.get(i);
                 DecodeContext here = at.field("keys").index(i);
-                if (!isKnown(k)) {
-                    here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
-                } else if (!readable(k)) {
+                if (readable(k)) {
+                    if (!seen.add(k)) {
+                        here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
+                    }
+                } else if (isKnown(k)) {
                     here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
-                } else if (!seen.add(k)) {
-                    here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
+                } else {
+                    here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
                 }
             }
         }
     }
 
+    /** Op {@code patch}: new values for one or more keys, committed together; controls are refused. */
     @Variant("patch")
     public record Patch(
             @Doc("The keys to write and their new values, e.g. {autoEat: true}; validated together and committed "
@@ -213,6 +221,7 @@ public final class SettingsContracts {
         }
     }
 
+    /** Op {@code apply}: runs one control, {@code paused} or {@code debugFly}, with the given value. */
     @Variant("apply")
     public record Apply(
             @OneOf(
@@ -223,10 +232,12 @@ public final class SettingsContracts {
             boolean value)
             implements SettingsOp {}
 
+    /** The reply of {@code mc.bot.setting}, tagged with the same {@code op} as the request. */
     @Tag("op")
     @Named("SettingsReply")
     public sealed interface SettingsReply permits Values, Patched, Applied {}
 
+    /** The answer to a read: each key asked for and its value. */
     @Variant("read")
     public record Values(
             @Doc("In the order asked for.") @As(value = SettingsContracts.class, field = "SETTING_VALUES")
@@ -265,6 +276,7 @@ public final class SettingsContracts {
         return Optional.empty();
     }
 
+    /** The answer to an apply: the control that ran and the value it was given. */
     @Variant("apply")
     public record Applied(
             @OneOf(

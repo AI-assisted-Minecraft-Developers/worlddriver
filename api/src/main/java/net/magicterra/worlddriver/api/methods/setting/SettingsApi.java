@@ -15,6 +15,7 @@ public interface SettingsApi {
         return SettingsApiBinding.calls(registry);
     }
 
+    /** Reads settings, patches them together, or applies one control, as {@code op} says. */
     @Spec(SettingsContracts.class)
     CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx);
 }
