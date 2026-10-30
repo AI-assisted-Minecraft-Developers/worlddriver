@@ -276,7 +276,7 @@ public final class ProgressPhase {
             double pz,
             float liveYaw,
             boolean inW,
-            boolean headClear) {
+            boolean horizontalCollision) {
         arc.proj.compute(nav.route.path(), nav.route.edges(), world, nav.route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
         boolean reset = nav.route.path() != arc.shadowPath;
@@ -287,13 +287,14 @@ public final class ProgressPhase {
         // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
         // forward window is blocked by a pending vertical edge (arc.proj.barrierHit = a legit pillar/bridge/parkour
         // hold where zero ds is expected) or on a fresh path. The horizontalCollision gate keeps it off deliberate
-        // non-ramming pauses (brakes, goal-dwell). EXCLUDES water: in water |ds|≈0 while hCol is the NORMAL state of
+        // non-ramming pauses (brakes, goal-dwell). EXCLUDES water: in water |ds|≈0 while horizontalCollision is the
+        // NORMAL state of
         // a swim-into-bank / climb-out, which owns its own dedicated recovery (waterCellTax / swimBankClimb / dig);
         // firing the wedge there repath-storms the climb-out and resets its aim every reroute (live -665 water-gap:
         // 7× arc-wedge at step 1 in water, dYaw stuck 95°, repeated turning back and side-to-side swerving). The
         // targeted ram is the DRY mountain
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
-        if (reset || inW || arc.proj.barrierHit || !headClear || Math.abs(ds) > ARC_WEDGE_DS) {
+        if (reset || inW || arc.proj.barrierHit || !horizontalCollision || Math.abs(ds) > ARC_WEDGE_DS) {
             arc.wedgeTicks = 0;
         } else {
             arc.wedgeTicks++;

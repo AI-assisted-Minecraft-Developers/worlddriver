@@ -232,7 +232,9 @@ public final class PathProjection {
     }
 
     /** MC yaw of the direction a-&gt;b: 0=+z(S), 90=-x(W), 180=-z(N), -90=+x(E); atan2(-dx,dz). */
+    // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
+    @SuppressWarnings("PMD.UnnecessaryCast")
     private static float yawOf(BlockPos a, BlockPos b) {
-        return (float) Math.toDegrees(Math.atan2(-(b.getX() - a.getX()), b.getZ() - a.getZ()));
+        return (float) Math.toDegrees(Math.atan2(-(double) (b.getX() - a.getX()), b.getZ() - a.getZ()));
     }
 }
