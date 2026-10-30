@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.debug;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,7 +71,7 @@ public final class PathArchiveRecorder implements PathTrace {
 
     private final List<PathArchive.Segment> segments = new ArrayList<>();
 
-    private final Long2ObjectOpenHashMap<PathArchive.EnvelopeCell> envelopeMap = new Long2ObjectOpenHashMap<>();
+    private final Long2ObjectMap<PathArchive.EnvelopeCell> envelopeMap = new Long2ObjectOpenHashMap<>();
 
     private final List<PathArchive.Tick> ticks = new ArrayList<>();
 
@@ -109,18 +110,15 @@ public final class PathArchiveRecorder implements PathTrace {
      */
     private volatile String lastReplayRun;
 
+    /** The recorder installed as the trace sink, or null before {@link #activate} has run. */
     public static PathArchiveRecorder active() {
         return active;
     }
 
+    /** Make {@code recorder} the one {@link #active()} hands out. */
     public static void activate(PathArchiveRecorder recorder) {
         active = recorder;
     }
-
-    // -----------------------------------------------------------------------
-    // Public no-arg constructor required by the task spec
-    // -----------------------------------------------------------------------
-    public PathArchiveRecorder() {}
 
     // -----------------------------------------------------------------------
     // PathTrace callbacks
@@ -371,7 +369,7 @@ public final class PathArchiveRecorder implements PathTrace {
         replayEntityId = null;
 
         // Snapshot all mutable state before handing off to the background thread.
-        PathArchive.Header header = new PathArchive.Header(
+        final PathArchive.Header header = new PathArchive.Header(
                 seed,
                 dimension,
                 startMs,
@@ -384,11 +382,11 @@ public final class PathArchiveRecorder implements PathTrace {
         // A replay-run carries only trajectory+deviation (with a planRef pointing at
         // the plan archive that holds the per-step facts); a plan archive carries the
         // full segments + envelope. Snapshot accordingly.
-        List<PathArchive.Segment> segSnap = replay ? List.of() : List.copyOf(segments);
-        List<PathArchive.EnvelopeCell> envSnap = replay ? List.of() : List.copyOf(envelopeMap.values());
-        List<PathArchive.Tick> tickSnap = List.copyOf(ticks);
-        String planRef = replay ? replayPlanRef : null;
-        String kind = replay ? "replay" : "plan";
+        final List<PathArchive.Segment> segSnap = replay ? List.of() : List.copyOf(segments);
+        final List<PathArchive.EnvelopeCell> envSnap = replay ? List.of() : List.copyOf(envelopeMap.values());
+        final List<PathArchive.Tick> tickSnap = List.copyOf(ticks);
+        final String planRef = replay ? replayPlanRef : null;
+        final String kind = replay ? "replay" : "plan";
 
         segments.clear();
         envelopeMap.clear();
@@ -458,15 +456,15 @@ public final class PathArchiveRecorder implements PathTrace {
      * field is the registry key of the fluid type, or {@code null} for empty fluid.
      */
     private static PathArchive.EnvelopeCell sampleCell(Level level, BlockPos pos) {
-        int[] posArr = new int[] {pos.getX(), pos.getY(), pos.getZ()};
+        final int[] posArr = {pos.getX(), pos.getY(), pos.getZ()};
 
         BlockState st = level.getBlockState(pos);
-        String block = BuiltInRegistries.BLOCK.getKey(st.getBlock()).toString();
+        final String block = BuiltInRegistries.BLOCK.getKey(st.getBlock()).toString();
 
         VoxelShape colShape = st.getCollisionShape(level, pos);
         boolean empty = colShape.isEmpty();
         boolean fullCube = !empty && st.isCollisionShapeFullBlock(level, pos);
-        boolean solid = fullCube;
+        final boolean solid = fullCube;
 
         // Only store shape AABB list for partial (non-empty, non-full-cube) shapes.
         List<double[]> shape = null;

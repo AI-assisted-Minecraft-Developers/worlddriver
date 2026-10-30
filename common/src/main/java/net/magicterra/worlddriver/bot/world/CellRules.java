@@ -78,10 +78,7 @@ public final class CellRules {
         if (shape == Shapes.block()) {
             return false;
         }
-        if (isThinFloorDecoration(shape)) {
-            return true;
-        }
-        return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
+        return isThinFloorDecoration(shape) || !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
 
     /**
@@ -108,10 +105,7 @@ public final class CellRules {
         if (shape.max(Direction.Axis.Y) > 1.0 + 1e-6) {
             return false;
         }
-        if (isThinFloorDecoration(shape)) {
-            return false;
-        }
-        return Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
+        return !isThinFloorDecoration(shape) && Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
 
     /**
@@ -122,10 +116,7 @@ public final class CellRules {
         if (s.isAir() || !s.getFluidState().isEmpty()) {
             return false;
         }
-        if (s.getCollisionShape(lvl, p).isEmpty()) {
-            return false;
-        }
-        return s.getDestroySpeed(lvl, p) == 0f;
+        return !s.getCollisionShape(lvl, p).isEmpty() && s.getDestroySpeed(lvl, p) == 0f;
     }
 
     private static boolean isThinFloorDecoration(VoxelShape shape) {

@@ -54,6 +54,7 @@ public final class ThreatWatch {
         latest = ThreatScanner.compute(self.level(), self, ThreatScanner.DEFAULT_RADIUS, velocities);
     }
 
+    /** Forgets the projectile history and the last scan, so {@link #current()} reads empty until the next refresh. */
     public void clear() {
         lastProjPos.clear();
         velocities = Map.of();

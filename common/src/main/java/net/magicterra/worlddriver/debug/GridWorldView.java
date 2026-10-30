@@ -94,11 +94,13 @@ public final class GridWorldView implements WorldView {
         return (lx * sy + ly) * sz + lz;
     }
 
+    /** The cell at (x, y, z): {@link #AIR}, {@link #SOLID} or {@link #WATER}; AIR outside the grid. */
     public byte get(int x, int y, int z) {
         int i = idx(x, y, z);
         return i < 0 ? AIR : cells[i];
     }
 
+    /** Set the cell at (x, y, z) to {@code v}; a cell outside the grid is silently ignored. */
     public void set(int x, int y, int z, byte v) {
         int i = idx(x, y, z);
         if (i >= 0) {

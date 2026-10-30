@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.debug;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -43,7 +44,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     private final List<PathSession.PlannedRoute> plannedRoutes = new ArrayList<>();
 
-    private final ArrayDeque<NavigatorSample> trajectory = new ArrayDeque<>();
+    private final Deque<NavigatorSample> trajectory = new ArrayDeque<>();
 
     private Outcome outcome;
 

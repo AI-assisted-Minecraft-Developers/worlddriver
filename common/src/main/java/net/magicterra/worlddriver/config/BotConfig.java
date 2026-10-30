@@ -113,7 +113,7 @@ public final class BotConfig {
     public static volatile String tunnelWidthBias = BotSettings.DEFAULTS.tunnelWidthBias();
 
     /**
-     * gap#68-⑧: ticks after a respawn during which autoFight does NOT re-engage and autoBackfill does NOT auto-start —
+     * Gap#68-⑧: ticks after a respawn during which autoFight does NOT re-engage and autoBackfill does NOT auto-start —
      * a freshly-respawned naked bot must not resume lethal intents (combat kept hunting / orphan digging executed
      * post-respawn).
      */
@@ -197,7 +197,9 @@ public final class BotConfig {
      * static block after its own fields, so the defaults are captured before any setting anywhere can be written,
      * whichever class is touched first.
      */
-    static void initialize() {}
+    static void initialize() {
+        // Empty on purpose: calling it is what runs this class's static initializer.
+    }
 
     /** The public field {@code name} of whichever class declares it. */
     public static Field field(String name) throws NoSuchFieldException {
@@ -386,13 +388,13 @@ public final class BotConfig {
 
     /**
      * The gametest rig template in one unlosable piece: snapshot EVERY mutable config key, re-pin
-     * {@link #applyGameTestBaseline}, and hand back the restore as an {@link AutoCloseable} —
+     * {@link #applyGameTestBaseline}, and hand back the restore as an {@link AutoCloseable}.
      *
      * <pre>try (var pin = BotConfig.pinnedBaseline()) { … arena body … }</pre>
      *
-     * Arenas whose metrics are config-sensitive must use this instead of hand-rolling the three steps: restoring only a
-     * few named keys after flipping the whole baseline is exactly the leak that made descentYawArena "flaky" for sixty
-     * days (a {@code /test} run on an integrated server left the live bot on the legacy-OFF baseline).
+     * <p>Arenas whose metrics are config-sensitive must use this instead of hand-rolling the three steps: restoring
+     * only a few named keys after flipping the whole baseline is exactly the leak that made descentYawArena "flaky" for
+     * sixty days (a {@code /test} run on an integrated server left the live bot on the legacy-OFF baseline).
      */
     public static ConfigPin pinnedBaseline() {
         Map<String, Object> snap = snapshotAll();

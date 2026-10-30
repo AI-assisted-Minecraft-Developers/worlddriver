@@ -187,7 +187,9 @@ public interface WorldView {
      * (Baritone's {@code Avoidance} list). Mobs move, so the snapshot refreshes on every repath. Default no-op (static
      * views need nothing).
      */
-    default void beginSearch() {}
+    default void beginSearch() {
+        // Static views keep no per-search state.
+    }
 
     /**
      * Toggled by the time-sliced search around its node-expansion work so a view may memoise blockstate reads for the
@@ -195,7 +197,9 @@ public interface WorldView {
      * {@code true} at the top of {@link PathFinder.Search#advance} and {@code false} when the slice yields. Default
      * no-op (uncached views ignore it).
      */
-    default void cacheActive(boolean on) {}
+    default void cacheActive(boolean on) {
+        // Uncached views read live either way.
+    }
 
     /**
      * The game tick this view is currently reading, used only to group searches that share one tick. Every budget
@@ -238,7 +242,9 @@ public interface WorldView {
      * first place. We add the failure-avoidance because our Navigator's steep-climb execution is weaker; once it's
      * hardened this can be reduced/removed.
      */
-    default void penalizeStuckNode(BlockPos pos) {}
+    default void penalizeStuckNode(BlockPos pos) {
+        // Static views never fail a move and must stay deterministic.
+    }
 
     /**
      * True while any {@link #penalizeStuckNode} entries are still live (not yet decayed). A "no path" with live
@@ -284,6 +290,7 @@ public interface WorldView {
         return 0.6;
     }
 
+    /** The moving body's height; see {@link #bodyWidth()}. */
     default double bodyHeight() {
         return 1.8;
     }
@@ -364,7 +371,9 @@ public interface WorldView {
      * Told by {@code PathFinder.Search} whether the search it is about to run has the DIVE opt-in. The interface
      * default forgets it; a live view keeps it so {@link #surfaceWaterNodes} can answer.
      */
-    default void diveSearch(boolean on) {}
+    default void diveSearch(boolean on) {
+        // The default forgets the flag; only live views keep it.
+    }
 
     /**
      * A buoyant bot occupying this cell FLOATS at the surface and cannot push off a floor: the cell is water AND the

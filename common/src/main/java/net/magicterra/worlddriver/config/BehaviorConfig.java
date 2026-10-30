@@ -99,7 +99,7 @@ public final class BehaviorConfig {
     public static volatile int lavaEscapeWaterRadius = BehaviorSettings.DEFAULTS.lavaEscapeWaterRadius();
 
     /**
-     * gap#70 (live death #18): an IDLE bot (no movement process) that sinks in deep water gets ZERO self-rescue —
+     * Gap#70 (live death #18): an IDLE bot (no movement process) that sinks in deep water gets ZERO self-rescue —
      * {@link BotConfig#autoSwim}'s lift/beach steer is deliberately idle-gated OFF ({@code AutoSwim.tick}'s own doc:
      * "with NO command … force-surfacing … is exactly what must NOT happen"), and Navigator's {@code drowningEscape}
      * only runs inside an active Navigator, which an idle bot has none of. A bot tp'd into a ~29-block-deep river with
@@ -133,7 +133,7 @@ public final class BehaviorConfig {
     public static volatile int routeEventCooldownTicks = BehaviorSettings.DEFAULTS.routeEventCooldownTicks();
 
     /**
-     * gap#68-⑪: ticks {@link net.magicterra.worlddriver.bot.behavior.reflex.AutoTool} yields the hotbar selection after
+     * Gap#68-⑪: ticks {@link net.magicterra.worlddriver.bot.behavior.reflex.AutoTool} yields the hotbar selection after
      * detecting an external actor (setHotbarSlot RPC / human scroll) changed the slot it last wrote — without this,
      * AutoTool re-clobbers the slot on the very next tick whenever the crosshair is on a breakable block, so an
      * external slot switch right before a placement/useItem call silently loses the race. Values <=1 degrade to a

@@ -362,7 +362,7 @@ public final class ControlConfig {
      *  0.64  dy-1 → (previous run, same segment) fell 15 blocks, LANDED IN LAVA
      *  </pre>
      *
-     * Every fatal launch was under one block; every survivable one was over two. The two fatal ones are the whole
+     * <p>Every fatal launch was under one block; every survivable one was over two. The two fatal ones are the whole
      * reason the ladder cannot pass rung 14: the bot drifts one block above its route on a lava-sea rim, then jumps at
      * a node it is already standing next to.
      *
@@ -685,7 +685,7 @@ public final class ControlConfig {
     public static volatile boolean navigatorSearchFromLanding = ControlSettings.DEFAULTS.navigatorSearchFromLanding();
 
     /**
-     * task#82: weave the thin per-move AscendMovement episode tracker over ascent edges (stepUp/stairUpBreak/diagUp; B1
+     * Task#82: weave the thin per-move AscendMovement episode tracker over ascent edges (stepUp/stairUpBreak/diagUp; B1
      * adjudication — the machine never actuates, PREP/RUNNING/SUCCESS fall through to the legacy drive; it owns only
      * the per-edge episode + the dig-aware 72t dead-zone watchdog whose UNREACHABLE folds into
      * forceFellOffPath→re-route). Default ON since 2026-07-20 (B1-3): replay A/B 2×2 over the ascent-heavy corpus

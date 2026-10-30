@@ -25,6 +25,7 @@ import net.minecraft.core.BlockPos;
 public final class PinchArena {
     private PinchArena() {}
 
+    /** What one {@link #run} measured: whether the chain reached the plateau goal, in how many segments, how high. */
     public static final class Result {
         public final boolean reached;
 

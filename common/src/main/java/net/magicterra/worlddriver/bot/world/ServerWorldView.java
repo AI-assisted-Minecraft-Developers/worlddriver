@@ -17,6 +17,7 @@ public final class ServerWorldView implements StateWorldView {
 
     private final ServerLevel level;
 
+    /** A read-only view over {@code level}. */
     public ServerWorldView(ServerLevel level) {
         this.level = level;
     }

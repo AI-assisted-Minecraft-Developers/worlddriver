@@ -58,7 +58,7 @@ public final class BotConfigFile {
      * <pre>  &lt;key&gt;=&lt;current value&gt;
      *  &lt;key&gt;.default=&lt;compiled default of THIS build&gt;</pre>
      *
-     * On the next {@link #load()} a key whose value equals its shadow default is a mere snapshot of the-then default
+     * <p>On the next {@link #load()} a key whose value equals its shadow default is a mere snapshot of the-then default
      * and yields to the current compiled default; a key whose value differs was set by the user and is preserved.
      * Setting a key explicitly back to its default therefore counts as following the default (its value will equal the
      * freshly-written shadow), which is the intended semantics: "I want the default" and "I never touched it" persist

@@ -26,6 +26,7 @@ import net.minecraft.core.BlockPos;
 final class WalkPlanTool {
     private WalkPlanTool() {}
 
+    @SuppressWarnings("PMD.PreserveStackTrace") // an unresolvable goal is a parameter refusal; its message says why
     static WalkingPlan onServer(WalkPlanParams p) {
         Bot bot = BotRegistry.get(p.bot());
         if (!(bot instanceof ServerBot)) {

@@ -38,14 +38,20 @@ public final class HazardField {
         this.cells = cells;
     }
 
+    /** Packs a (dx,dz) offset from the center into the grid's map key. */
     public static long key(int dx, int dz) {
         return ((long) dx << 32) ^ (dz & 0xffffffffL);
     }
 
+    /** The cell at an offset from the center; outside the grid it is {@link HazardCell#unknown()}. */
     public HazardCell at(int dx, int dz) {
         return cells.getOrDefault(key(dx, dz), HazardCell.unknown());
     }
 
+    /**
+     * Scans every column within {@code radius} of {@code center} on {@code w} and classifies it, judging drops against
+     * {@code survivableFall} and water against {@code deepWaterMax}.
+     */
     public static HazardField compute(WorldView w, BlockPos center, int radius, int survivableFall, int deepWaterMax) {
         Map<Long, HazardCell> cells = new HashMap<>();
         for (int dx = -radius; dx <= radius; dx++) {

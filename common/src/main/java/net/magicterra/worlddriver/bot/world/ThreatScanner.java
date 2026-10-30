@@ -62,11 +62,13 @@ public final class ThreatScanner {
     public record Incoming(
             Entity entity, int id, String type, Vec3 pos, Vec3 vel, boolean willHit, int ticksToImpact) {}
 
+    /** One scan's result: the mobs threatening the player, highest score first, and the incoming projectiles. */
     public record Scan(List<Threat> threats, List<Incoming> projectiles) {
         public boolean isEmpty() {
             return threats.isEmpty() && projectiles.isEmpty();
         }
 
+        /** The highest-scored threat, or null when there is none. */
         public Threat top() {
             return threats.isEmpty() ? null : threats.get(0);
         }
@@ -223,10 +225,7 @@ public final class ThreatScanner {
     private static boolean facingPlayer(Entity e, Vec3 playerPos) {
         Vec3 look = e.getLookAngle();
         Vec3 toMe = playerPos.subtract(e.position());
-        if (toMe.lengthSqr() < 1.0e-6) {
-            return true;
-        }
-        return look.dot(toMe.normalize()) > 0.6; // within ~53°
+        return toMe.lengthSqr() < 1.0e-6 || look.dot(toMe.normalize()) > 0.6; // within ~53°
     }
 
     private static double score(Entity e, double dist, int radius, boolean canSee, boolean charging, float swell) {

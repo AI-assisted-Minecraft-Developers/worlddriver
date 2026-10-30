@@ -45,14 +45,17 @@ public final class MoveSignals {
         clutchZ = z;
     }
 
+    /** Whether {@link #planClutch} was called since the last {@link #clear}. */
     public boolean clutchPlanned() {
         return clutchPlanned;
     }
 
+    /** X of the column the planned clutch lands on; meaningful only while {@link #clutchPlanned()}. */
     public int clutchX() {
         return clutchX;
     }
 
+    /** Z of the column the planned clutch lands on; meaningful only while {@link #clutchPlanned()}. */
     public int clutchZ() {
         return clutchZ;
     }

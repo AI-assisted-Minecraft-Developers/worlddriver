@@ -45,43 +45,49 @@ public final class PathChartRenderer {
 
     private PathChartRenderer() {}
 
+    /**
+     * Image size in pixels, the map scale ({@code blocksPerPixel} 0 fits the map to the panel) and whether the top-down
+     * map shades the A* candidates.
+     */
     public record Opts(int width, int height, double blocksPerPixel, boolean includeCandidates) {
+        /** A 1280×960 image, auto-fit scale, candidates shown. */
         public static Opts defaults() {
             return new Opts(1280, 960, 0, true);
         } // bpp 0 = auto-fit
     }
 
+    /** The four-panel chart: header, top-down map, elevation profile and speed/heading time series. */
     public static BufferedImage render(PathSession s, Opts opts) {
-        int W = opts.width();
-        int H = opts.height();
-        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        int width = opts.width();
+        int height = opts.height();
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setColor(BG);
-        g.fillRect(0, 0, W, H);
+        g.fillRect(0, 0, width, height);
 
         int header = 64;
-        int mapH = (H - header) * 55 / 100;
-        int elevH = (H - header) * 20 / 100;
-        int tsH = H - header - mapH - elevH;
+        int mapH = (height - header) * 55 / 100;
+        int elevH = (height - header) * 20 / 100;
+        final int tsH = height - header - mapH - elevH;
         int mapY = header;
         int elevY = header + mapH;
-        int tsY = elevY + elevH;
+        final int tsY = elevY + elevH;
 
-        drawHeader(g, s, W, header);
-        drawMap(g, s, opts, 0, mapY, W, mapH);
-        drawElevation(g, s, 0, elevY, W, elevH);
-        drawTimeSeries(g, s, 0, tsY, W, tsH);
+        drawHeader(g, s, width, header);
+        drawMap(g, s, opts, 0, mapY, width, mapH);
+        drawElevation(g, s, 0, elevY, width, elevH);
+        drawTimeSeries(g, s, 0, tsY, width, tsH);
 
         g.dispose();
         return img;
     }
 
     // ---- Header --------------------------------------------------------------
-    private static void drawHeader(Graphics2D g, PathSession s, int W, int h) {
+    private static void drawHeader(Graphics2D g, PathSession s, int width, int h) {
         g.setColor(PANEL);
-        g.fillRect(0, 0, W, h);
+        g.fillRect(0, 0, width, h);
         g.setColor(TEXT);
         g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
         PathSession.PlannedRoute last = lastPlan(s);
@@ -108,6 +114,8 @@ public final class PathChartRenderer {
     }
 
     // ---- Top-down map --------------------------------------------------------
+    // One panel drawn top to bottom (bounds, candidates, plans, trajectory, markers); splitting it only moves the list.
+    @SuppressWarnings("checkstyle:javancss")
     private static void drawMap(Graphics2D g, PathSession s, Opts opts, int x0, int y0, int w, int h) {
         g.setColor(PANEL);
         g.fillRect(x0, y0, w, h);
@@ -149,13 +157,13 @@ public final class PathChartRenderer {
         double spanX = Math.max(1, maxX - minX);
         double spanZ = Math.max(1, maxZ - minZ);
         double scale = Math.min((w - 20) / spanX, (h - 20) / spanZ);
-        final double fMinX = minX;
-        final double fMinZ = minZ;
-        final double fScale = scale;
+        final double originX = minX;
+        final double originZ = minZ;
+        final double pxPerBlock = scale;
         final int fx0 = x0 + 10;
         final int fy0 = y0 + 10;
-        java.util.function.DoubleUnaryOperator px = wx -> fx0 + (wx - fMinX) * fScale;
-        java.util.function.DoubleUnaryOperator pz = wz -> fy0 + (wz - fMinZ) * fScale;
+        java.util.function.DoubleUnaryOperator px = wx -> fx0 + (wx - originX) * pxPerBlock;
+        java.util.function.DoubleUnaryOperator pz = wz -> fy0 + (wz - originZ) * pxPerBlock;
 
         // candidate heat
         if (opts.includeCandidates() && !s.candidates().isEmpty()) {
@@ -179,19 +187,19 @@ public final class PathChartRenderer {
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
             boolean latest = i == plans.size() - 1;
-            g.setColor(!r.goalReached() ? PLAN_FAILED : latest ? PLAN_LATEST : PLAN_OLD);
+            g.setColor(planColor(r.goalReached(), latest));
             g.setStroke(
                     latest
                             ? new BasicStroke(2.5f)
-                            : !r.goalReached()
-                                    ? new BasicStroke(
+                            : r.goalReached()
+                                    ? new BasicStroke(1.0f)
+                                    : new BasicStroke(
                                             1.6f,
                                             BasicStroke.CAP_BUTT,
                                             BasicStroke.JOIN_ROUND,
                                             1f,
                                             new float[] {5f, 5f},
-                                            0f)
-                                    : new BasicStroke(1.0f));
+                                            0f));
             drawPolyline(g, r.path(), px, pz);
         }
         // actual trajectory, speed-coloured
@@ -229,6 +237,14 @@ public final class PathChartRenderer {
                 "top-down X/Z  (blue=plan, orange=failed plan, green=start, red=goal, cyan=now, arrows=heading)",
                 x0 + 12,
                 y0 + h - 8);
+    }
+
+    /** A failed plan in orange whatever its age; otherwise the latest solid blue and older ones faint. */
+    private static Color planColor(boolean goalReached, boolean latest) {
+        if (!goalReached) {
+            return PLAN_FAILED;
+        }
+        return latest ? PLAN_LATEST : PLAN_OLD;
     }
 
     private static void drawPolyline(
@@ -308,6 +324,8 @@ public final class PathChartRenderer {
     }
 
     // ---- Elevation profile ---------------------------------------------------
+    // Bounds, then the plan line, then the actual line, each a short loop; splitting it only moves the list.
+    @SuppressWarnings("checkstyle:javancss")
     private static void drawElevation(Graphics2D g, PathSession s, int x0, int y0, int w, int h) {
         g.setColor(PANEL);
         g.fillRect(x0, y0, w, h);
@@ -337,11 +355,11 @@ public final class PathChartRenderer {
         }
         int top = y0 + 22;
         int bot = y0 + h - 10;
-        final double fMinY = minY;
-        final double fMaxY = maxY;
+        final double lowY = minY;
+        final double highY = maxY;
         final int ftop = top;
         final int fbot = bot;
-        java.util.function.DoubleUnaryOperator py = wy -> fbot - (wy - fMinY) / (fMaxY - fMinY) * (fbot - ftop);
+        java.util.function.DoubleUnaryOperator py = wy -> fbot - (wy - lowY) / (highY - lowY) * (fbot - ftop);
 
         if (plan != null && plan.path().size() > 1) {
             g.setColor(PLAN_LATEST);
@@ -392,7 +410,7 @@ public final class PathChartRenderer {
         g.setColor(TEXT);
         g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
         g.drawString("speed (b/s)  refs: sprint~5.6 walk~4.3", x0 + 12, y0 + 14);
-        List<PathTrace.NavigatorSample> tr = s.trajectory();
+        final List<PathTrace.NavigatorSample> tr = s.trajectory();
         int top = y0 + 20;
         int bot = y0 + h - 6;
         double maxV = 6.5;
@@ -412,14 +430,14 @@ public final class PathChartRenderer {
         double prevY = Double.NaN;
         for (int i = 1; i < tr.size(); i++) {
             double bps = Math.min(maxV, speedBetween(tr.get(i - 1), tr.get(i)));
-            double xL = x0 + 12 + (double) (i - 1) / (tr.size() - 1) * (w - 24);
-            double xR = x0 + 12 + (double) i / (tr.size() - 1) * (w - 24);
+            double stepLeft = x0 + 12 + (double) (i - 1) / (tr.size() - 1) * (w - 24);
+            double stepRight = x0 + 12 + (double) i / (tr.size() - 1) * (w - 24);
             double y = bot - bps / maxV * (bot - top);
-            g.draw(new Line2D.Double(xL, y, xR, y)); // flat over the interval
+            g.draw(new Line2D.Double(stepLeft, y, stepRight, y)); // flat over the interval
             if (!Double.isNaN(prevX)) {
-                g.draw(new Line2D.Double(prevX, prevY, xL, y)); // riser
+                g.draw(new Line2D.Double(prevX, prevY, stepLeft, y)); // riser
             }
-            prevX = xR;
+            prevX = stepRight;
             prevY = y;
         }
     }
@@ -578,17 +596,17 @@ public final class PathChartRenderer {
      * Headless-safe (AWT, like {@link #render}).
      */
     public static BufferedImage renderThreeView(PathSession s, Opts opts) {
-        int W = opts.width();
-        int H = opts.height();
-        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        int width = opts.width();
+        int height = opts.height();
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setColor(BG);
-        g.fillRect(0, 0, W, H);
+        g.fillRect(0, 0, width, height);
 
         int header = 64;
-        drawHeader(g, s, W, header);
+        drawHeader(g, s, width, header);
 
         double[] b = bounds3(s); // {minX,maxX,minY,maxY,minZ,maxZ}
         if (b == null) {
@@ -609,16 +627,16 @@ public final class PathChartRenderer {
         int gap = 10;
         int m = 26; // m = inner panel margin for axis labels
         int contentY = header + gap;
-        int colW = (W - 3 * gap) / 2;
-        int rowH = (H - header - 3 * gap) / 2;
+        int colW = (width - 3 * gap) / 2;
+        int rowH = (height - header - 3 * gap) / 2;
         int frontX = gap;
         int frontY = contentY; // X/Y  top-left
         int sideX = gap * 2 + colW;
         int sideY = contentY; // Z/Y  top-right (shares Y with FRONT)
         int topX = gap;
         int topY = contentY + rowH + gap; // X/Z  bottom-left (shares X with FRONT)
-        int legX = gap * 2 + colW;
-        int legY = contentY + rowH + gap; // legend/stats bottom-right
+        final int legX = gap * 2 + colW;
+        final int legY = contentY + rowH + gap; // legend/stats bottom-right
 
         // Shared anisotropic scales (px per block): X & Z horizontal, Y magnified.
         double scaleX = (colW - 2 * m) / spanX;
@@ -665,7 +683,8 @@ public final class PathChartRenderer {
         return img;
     }
 
-    /** One orthographic projection panel. hAxis/vAxis: 0=X,1=Y,2=Z; vUp=true → larger value higher. */
+    /** One orthographic projection panel. horizAxis/vertAxis: 0=X,1=Y,2=Z; vertUp=true → larger value higher. */
+    @SuppressWarnings("checkstyle:parameternumber") // panel rect plus origin and scale per axis; callers vary all
     private static void drawProjection(
             Graphics2D g,
             PathSession s,
@@ -675,13 +694,13 @@ public final class PathChartRenderer {
             int ph,
             int m,
             String label,
-            int hAxis,
-            double hMin,
-            double hScale,
-            int vAxis,
-            double vMin,
-            double vScale,
-            boolean vUp) {
+            int horizAxis,
+            double horizMin,
+            double horizScale,
+            int vertAxis,
+            double vertMin,
+            double vertScale,
+            boolean vertUp) {
         g.setColor(PANEL);
         g.fillRect(px, py, pw, ph);
         g.setColor(GRID);
@@ -691,11 +710,11 @@ public final class PathChartRenderer {
         final int fpy = py;
         final int fph = ph;
         final int fm = m;
-        final double fhMin = hMin;
-        final double fhScale = hScale;
-        final double fvMin = vMin;
-        final double fvScale = vScale;
-        final boolean fvUp = vUp;
+        final double fhMin = horizMin;
+        final double fhScale = horizScale;
+        final double fvMin = vertMin;
+        final double fvScale = vertScale;
+        final boolean fvUp = vertUp;
         java.util.function.DoubleUnaryOperator hx = wh -> fpx + fm + (wh - fhMin) * fhScale;
         java.util.function.DoubleUnaryOperator vy =
                 wv -> fvUp ? fpy + fph - fm - (wv - fvMin) * fvScale : fpy + fm + (wv - fvMin) * fvScale;
@@ -705,28 +724,28 @@ public final class PathChartRenderer {
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
             boolean latest = i == plans.size() - 1;
-            g.setColor(!r.goalReached() ? PLAN_FAILED : latest ? PLAN_LATEST : PLAN_OLD);
+            g.setColor(planColor(r.goalReached(), latest));
             g.setStroke(
                     latest
                             ? new BasicStroke(2.2f)
-                            : !r.goalReached()
-                                    ? new BasicStroke(
+                            : r.goalReached()
+                                    ? new BasicStroke(1.0f)
+                                    : new BasicStroke(
                                             1.5f,
                                             BasicStroke.CAP_BUTT,
                                             BasicStroke.JOIN_ROUND,
                                             1f,
                                             new float[] {5f, 5f},
-                                            0f)
-                                    : new BasicStroke(1.0f));
+                                            0f));
             List<BlockPos> path = r.path();
             for (int k = 1; k < path.size(); k++) {
                 BlockPos a = path.get(k - 1);
                 BlockPos c = path.get(k);
                 g.draw(new Line2D.Double(
-                        hx.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, hAxis)),
-                        vy.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, vAxis)),
-                        hx.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, hAxis)),
-                        vy.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, vAxis))));
+                        hx.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, horizAxis)),
+                        vy.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, vertAxis)),
+                        hx.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, horizAxis)),
+                        vy.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, vertAxis))));
             }
         }
         // ACTUAL trajectory, speed-coloured.
@@ -737,10 +756,10 @@ public final class PathChartRenderer {
             PathTrace.NavigatorSample c = tr.get(k);
             g.setColor(speedColor(speedBetween(a, c)));
             g.draw(new Line2D.Double(
-                    hx.applyAsDouble(coord(a.x(), a.y(), a.z(), hAxis)),
-                            vy.applyAsDouble(coord(a.x(), a.y(), a.z(), vAxis)),
-                    hx.applyAsDouble(coord(c.x(), c.y(), c.z(), hAxis)),
-                            vy.applyAsDouble(coord(c.x(), c.y(), c.z(), vAxis))));
+                    hx.applyAsDouble(coord(a.x(), a.y(), a.z(), horizAxis)),
+                            vy.applyAsDouble(coord(a.x(), a.y(), a.z(), vertAxis)),
+                    hx.applyAsDouble(coord(c.x(), c.y(), c.z(), horizAxis)),
+                            vy.applyAsDouble(coord(c.x(), c.y(), c.z(), vertAxis))));
         }
         // markers
         if (s.start() != null) {
@@ -751,12 +770,12 @@ public final class PathChartRenderer {
                             s.start().getX() + 0.5,
                             s.start().getY() + 0.5,
                             s.start().getZ() + 0.5,
-                            hAxis)),
+                            horizAxis)),
                     vy.applyAsDouble(coord(
                             s.start().getX() + 0.5,
                             s.start().getY() + 0.5,
                             s.start().getZ() + 0.5,
-                            vAxis)),
+                            vertAxis)),
                     5);
         }
         if (s.goalMarker() != null) {
@@ -767,12 +786,12 @@ public final class PathChartRenderer {
                             s.goalMarker().getX() + 0.5,
                             s.goalMarker().getY() + 0.5,
                             s.goalMarker().getZ() + 0.5,
-                            hAxis)),
+                            horizAxis)),
                     vy.applyAsDouble(coord(
                             s.goalMarker().getX() + 0.5,
                             s.goalMarker().getY() + 0.5,
                             s.goalMarker().getZ() + 0.5,
-                            vAxis)),
+                            vertAxis)),
                     5);
         }
         if (!tr.isEmpty()) {
@@ -780,8 +799,8 @@ public final class PathChartRenderer {
             marker(
                     g,
                     CUR,
-                    hx.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), hAxis)),
-                    vy.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), vAxis)),
+                    hx.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), horizAxis)),
+                    vy.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), vertAxis)),
                     4);
         }
         g.setColor(TEXT);
@@ -849,6 +868,8 @@ public final class PathChartRenderer {
         return axis == 0 ? x : axis == 1 ? y : z;
     }
 
+    /** {minX,maxX,minY,maxY,minZ,maxZ} over plans and trajectory, or null when the session has neither. */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // null is the "no data" signal the caller branches on
     private static double[] bounds3(PathSession s) {
         double minX = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY;

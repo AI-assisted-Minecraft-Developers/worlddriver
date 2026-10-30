@@ -30,6 +30,7 @@ public final class HorizonArena {
 
     private HorizonArena() {}
 
+    /** What one {@link #run} measured: the first search's cost and how far the chained segments reached. */
     public static final class Result {
         public final int firstExpanded; // nodes the FIRST search expanded (≈ freeze cost)
 

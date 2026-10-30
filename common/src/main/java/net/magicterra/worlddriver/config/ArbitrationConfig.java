@@ -73,7 +73,7 @@ public final class ArbitrationConfig {
     public static volatile int drownEscapeReleaseAir = ArbitrationSettings.DEFAULTS.drownEscapeReleaseAir();
 
     /**
-     * gap#68-②: HP at or below which {@link net.magicterra.worlddriver.bot.arbitration.CombatChain#frailBlocked}
+     * Gap#68-②: HP at or below which {@link net.magicterra.worlddriver.bot.arbitration.CombatChain#frailBlocked}
      * refuses to ENTER a fight — autoFight simply won't bid, and an explicit {@code mc.bot.combat} order is refused
      * loudly (lastError) unless the caller passes {@code force:true}. A live fight already in progress under auto-fight
      * is also abandoned (mid-fight disengage) if HP drops to/below this while fighting; an explicit intent never
@@ -92,7 +92,7 @@ public final class ArbitrationConfig {
     public static volatile boolean autoSecureAtDusk = ArbitrationSettings.DEFAULTS.autoSecureAtDusk();
 
     /**
-     * gap#68-⑨: allow DuskSecureChain to escalate above the user task when exposed at night and unsheltered. Off =
+     * Gap#68-⑨: allow DuskSecureChain to escalate above the user task when exposed at night and unsheltered. Off =
      * legacy idle-only (40) behaviour.
      */
     public static volatile boolean duskUrgent = ArbitrationSettings.DEFAULTS.duskUrgent();

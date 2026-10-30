@@ -47,7 +47,9 @@ import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.game.body.BlastFooting;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.magicterra.worlddriver.game.body.JoinedPlayers;
@@ -84,20 +86,8 @@ final class BotReadings {
                 process != null && bot.busy() && process.kind().equals(bot.activeKind()));
     }
 
-    /** self's navigator, on the client thread. */
-    static NavigatorReading selfNavigator(NavigatorParams p, BotApi self) {
-        LivingEntity e = self.selfEntity();
-        if (e == null) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
-        }
-        BotProcess process = self.lastAskedProcess();
-        ControlContracts.BotStatus status = self.botStatus();
-        boolean running = process != null
-                && status.busy()
-                && status.activeProcess().map(process.kind()::equals).orElse(false);
-        return navigator(p, e, process, running);
-    }
-
+    // A flat list of telemetry counters copied into the reading; splitting it would only scatter the field list.
+    @SuppressWarnings("checkstyle:javancss")
     private static NavigatorReading navigator(NavigatorParams p, LivingEntity e, BotProcess process, boolean running) {
         NavigatorTelemetry tel = NavigatorTelemetry.of(e);
         if (p.newLeg()) {
@@ -191,19 +181,23 @@ final class BotReadings {
                 traces);
     }
 
+    /** The {@code self} bot's navigator, on the client thread. */
+    static NavigatorReading selfNavigator(NavigatorParams p, BotApi self) {
+        LivingEntity e = self.selfEntity();
+        if (e == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        }
+        BotProcess process = self.lastAskedProcess();
+        ControlContracts.BotStatus status = self.botStatus();
+        boolean running = process != null
+                && status.busy()
+                && status.activeProcess().map(process.kind()::equals).orElse(false);
+        return navigator(p, e, process, running);
+    }
+
     static BodyReading body(BodyParams p) {
         ServerBot bot = serverBot(p.bot());
         return body(p, bot.entity(), bot.body(), bot.world());
-    }
-
-    /** self's body, on the client thread: the client avatar over the client's own world. */
-    static BodyReading selfBody(BodyParams p, BotApi self) {
-        LivingEntity e = self.selfEntity();
-        Body body = self.clientAvatar();
-        if (e == null || body == null) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
-        }
-        return body(p, e, body, new ClientWorldView(ClientWorld::level, ClientWorld::player));
     }
 
     private static BodyReading body(BodyParams p, LivingEntity e, Body body, WorldView view) {
@@ -216,14 +210,15 @@ final class BotReadings {
                 pos(foot),
                 NavigatorGeometry.lethalDropAdjacent(view, e, foot));
         ServerPlayerBody player = body instanceof ServerPlayerBody spb ? spb : null;
-        boolean breakHeld = body.blockInteraction().map(b -> b.breakHeld()).orElse(false);
+        boolean breakHeld =
+                body.blockInteraction().map(BlockInteraction::breakHeld).orElse(false);
         Hands hands = new Hands(
                 breakHeld,
                 Optional.ofNullable(body.lookingAtBlock()).map(BotReadings::pos),
                 player == null ? "none" : player.placeTally(),
                 view.placeableBlockCount(),
                 view.canPlace(),
-                body.attack().map(a -> a.lastAttackRefusal()));
+                body.attack().map(Attack::lastAttackRefusal));
         Optional<Reach> reach = p.reach().map(c -> reach(e, cell(c)));
         Optional<Blast> blast = p.blastFrom().map(id -> blast(e, id));
         Optional<List<BlockPosition>> rise = p.rise()
@@ -239,6 +234,16 @@ final class BotReadings {
                 reach,
                 blast,
                 rise);
+    }
+
+    /** The {@code self} bot's body, on the client thread: the client avatar over the client's own world. */
+    static BodyReading selfBody(BodyParams p, BotApi self) {
+        LivingEntity e = self.selfEntity();
+        Body body = self.clientAvatar();
+        if (e == null || body == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        }
+        return body(p, e, body, new ClientWorldView(ClientWorld::level, ClientWorld::player));
     }
 
     static CellsReading cells(CellsParams p, MinecraftServer server) {
@@ -289,6 +294,14 @@ final class BotReadings {
             whose = "server";
         }
         return reading(whose, view, level, p);
+    }
+
+    private static List<BlockPos> cells(List<BlockPosition> ps) {
+        List<BlockPos> out = new ArrayList<>(ps.size());
+        for (BlockPosition p : ps) {
+            out.add(cell(p));
+        }
+        return out;
     }
 
     /** {@code p}'s cells as {@code view} classifies them, and its node in {@code level}. */
@@ -406,14 +419,6 @@ final class BotReadings {
         return "status=" + r.status() + " endReason=" + r.endReason() + " goalReached=" + r.goalReached()
                 + " finalDist=" + String.format(Locale.ROOT, "%.3f", r.finalDist())
                 + " goalSnapped=" + r.goalSnapped() + " reason=" + r.reason();
-    }
-
-    private static List<BlockPos> cells(List<BlockPosition> ps) {
-        List<BlockPos> out = new ArrayList<>(ps.size());
-        for (BlockPosition p : ps) {
-            out.add(cell(p));
-        }
-        return out;
     }
 
     private static BlockPos cell(BlockPosition p) {

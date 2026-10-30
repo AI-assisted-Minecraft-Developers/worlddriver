@@ -8,6 +8,7 @@ public record HazardCell(
         boolean standable, // a 2-tall passable space with support
         boolean lethal // computed: would entering/standing here likely kill us now
         ) {
+    /** A cell nothing is known about: not standable, no hazard recorded, not lethal. */
     public static HazardCell unknown() {
         return new HazardCell(0, 0, false, false, false);
     }

@@ -23,14 +23,21 @@ public final class WorldModel {
 
     private int tick;
 
+    /** The latest published snapshot; safe to read from any thread. */
     public Snapshot snapshot() {
         return snapshot;
     }
 
+    /** The raw hazard grid from the last update, or null when there is no body; read it on the bot's tick thread. */
     public HazardField hazard() {
         return hazard;
     }
 
+    /**
+     * Recomputes the facts for {@code body} over {@code w} and publishes a new snapshot; a null or entity-less body
+     * publishes the absent snapshot. The hazard grid is recomputed only when the foot moves or every
+     * {@code hazardGridDecimateTicks} ticks.
+     */
     public void update(Body body, WorldView w) {
         LivingEntity p = body == null ? null : body.entity();
         if (p == null) {
@@ -120,10 +127,12 @@ public final class WorldModel {
             boolean cornered,
             int lethalCount,
             List<String> rows) {
+        /** The snapshot published while there is no body: {@code present} false, the rest zeroed. */
         public static Snapshot absent() {
             return new Snapshot(false, BlockPos.ZERO, 0, 0, "DAY", false, false, false, 0, List.of());
         }
 
+        /** The snapshot as an ordered map for the wire; an absent snapshot carries only {@code present}. */
         public Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("present", present);

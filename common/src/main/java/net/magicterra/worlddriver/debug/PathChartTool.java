@@ -53,7 +53,7 @@ final class PathChartTool {
         try {
             file = PathChartWriter.write(img, p.name().orElse(null));
         } catch (Exception e) {
-            throw ApiException.of(ApiError.Code.INTERNAL_ERROR, "writing the chart failed: " + e);
+            throw new ApiException(ApiError.of(ApiError.Code.INTERNAL_ERROR, "writing the chart failed: " + e), e);
         }
         return new Chart(
                 p.view(),

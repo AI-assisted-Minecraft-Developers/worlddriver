@@ -9,6 +9,7 @@ import java.util.Map;
 public final class AsciiMapRenderer {
     private AsciiMapRenderer() {}
 
+    /** Renders the field as one row per z offset, north first, with the body at the centre as {@code @}. */
     public static List<String> rows(HazardField f) {
         List<String> rows = new ArrayList<>();
         int r = f.radius;
@@ -41,6 +42,7 @@ public final class AsciiMapRenderer {
         return '.';
     }
 
+    /** Glyph-to-meaning table for the characters {@link #rows} can emit, in a stable order. */
     public static Map<String, String> legend() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("@", "you");

@@ -32,6 +32,9 @@ public final class BuildStamp {
     /** What {@link #version()} answers before a loader has named the version, as in a unit test. */
     public static final String UNKNOWN_VERSION = "unknown";
 
+    /** What a stamp field holds when the class's own file could not be located. */
+    private static final String UNKNOWN_FIELD = "unknown";
+
     private static volatile String version = UNKNOWN_VERSION;
 
     /** Unmodifiable but ordered — the key order is the order the fields were measured in. */
@@ -64,13 +67,13 @@ public final class BuildStamp {
         return STAMP;
     }
 
-    private static LinkedHashMap<String, Object> measure() {
-        LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+    private static Map<String, Object> measure() {
+        Map<String, Object> out = new LinkedHashMap<>();
         try {
             URL url = BuildStamp.class.getResource("BuildStamp.class");
             if (url == null) {
-                out.put("loadedFrom", "unknown");
-                out.put("loadedKind", "unknown");
+                out.put("loadedFrom", UNKNOWN_FIELD);
+                out.put("loadedKind", UNKNOWN_FIELD);
                 return out;
             }
             Path path = resolve(url.toString());
@@ -85,7 +88,7 @@ public final class BuildStamp {
             }
         } catch (Exception | LinkageError e) {
             out.put("loadedFrom", "unreadable");
-            out.put("loadedKind", "unknown");
+            out.put("loadedKind", UNKNOWN_FIELD);
             out.put("stampError", e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         return out;

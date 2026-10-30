@@ -141,7 +141,7 @@ public final class NodePhysics {
         boolean jumpNeeded = false;
         boolean jumpFeasible = true;
         if (next != null) {
-            double dy = (double) (next.getY() - foot.getY());
+            double dy = next.getY() - foot.getY();
             jumpNeeded = dy > MAX_UP_STEP;
             if (jumpNeeded) {
                 // Feasible when the apex fits, we have overhead clearance, and the target cell

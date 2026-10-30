@@ -37,6 +37,9 @@ public final class PathArchive {
             .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
             .create();
 
+    /** The key an edge and a tick both store their move name under. */
+    private static final String MOVE_KEY = "move";
+
     // -----------------------------------------------------------------------
     // Top-level fields
     // -----------------------------------------------------------------------
@@ -144,6 +147,7 @@ public final class PathArchive {
             boolean aabbOverlap,
             double deviation) {}
 
+    /** An archive of the given parts, stored as passed (lists are not copied); {@code planRef} may be null. */
     public PathArchive(
             int version,
             String kind,
@@ -164,30 +168,37 @@ public final class PathArchive {
     // -----------------------------------------------------------------------
     // Accessors
     // -----------------------------------------------------------------------
+    /** Schema version this archive was written with (see {@link #SCHEMA_VERSION}). */
     public int version() {
         return version;
     }
 
+    /** What sort of session this archive records: {@code "plan"} or {@code "replay"}. */
     public String kind() {
         return kind;
     }
 
+    /** Session-level metadata. */
     public Header header() {
         return header;
     }
 
+    /** The adopted path segments, one per repath, in order. */
     public List<Segment> segments() {
         return segments;
     }
 
+    /** The blocks sampled around the path. */
     public List<EnvelopeCell> envelope() {
         return envelope;
     }
 
+    /** The navigator's per-tick samples; empty for a plan-only archive. */
     public List<Tick> trajectory() {
         return trajectory;
     }
 
+    /** For a replay run, the plan archive file it replays; null for a plan archive. */
     public String planRef() {
         return planRef;
     }
@@ -209,6 +220,7 @@ public final class PathArchive {
         return root;
     }
 
+    /** This archive as JSON, nulls included; {@link #fromJson} reads it back. */
     public String toJson() {
         return GSON.toJson(toMap());
     }
@@ -263,7 +275,7 @@ public final class PathArchive {
 
     private static Map<String, Object> edgeToMap(EdgeRec e) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("move", e.move());
+        m.put(MOVE_KEY, e.move());
         m.put("cost", e.cost());
         m.put("break", posListToList(e.breakCells()));
         m.put("place", posListToList(e.placeCells()));
@@ -352,7 +364,7 @@ public final class PathArchive {
         m.put("z", t.z());
         m.put("yaw", (double) t.yaw());
         m.put("step", t.step());
-        m.put("move", t.move());
+        m.put(MOVE_KEY, t.move());
         m.put("onGround", t.onGround());
         m.put("inWater", t.inWater());
         m.put("pose", t.pose());
@@ -366,11 +378,13 @@ public final class PathArchive {
     // Deserialisation: fromJson / fromMap
     // -----------------------------------------------------------------------
 
+    /** Parse an archive written by {@link #toJson}; a missing or mistyped field throws {@link ClassCastException}. */
     @SuppressWarnings("unchecked")
     public static PathArchive fromJson(String s) {
         return fromMap(GSON.fromJson(s, new TypeToken<Map<String, Object>>() {}.getType()));
     }
 
+    /** Rebuild an archive from the plain tree {@link #toMap} produces. */
     @SuppressWarnings("unchecked")
     public static PathArchive fromMap(Map<String, Object> m) {
         int version = asInt(m.get("version"));
@@ -438,7 +452,7 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static EdgeRec edgeFromMap(Map<String, Object> m) {
         return new EdgeRec(
-                asStr(m.get("move")),
+                asStr(m.get(MOVE_KEY)),
                 asDouble(m.get("cost")),
                 posListFromList((List<Object>) m.get("break")),
                 posListFromList((List<Object>) m.get("place")));
@@ -531,7 +545,7 @@ public final class PathArchive {
                 asDouble(m.get("z")),
                 (float) asDouble(m.get("yaw")),
                 asInt(m.get("step")),
-                asStrNullable(m.get("move")), // null when the tick is at/past the terminal node (no entering edge)
+                asStrNullable(m.get(MOVE_KEY)), // null when the tick is at/past the terminal node (no entering edge)
                 asBool(m.get("onGround")),
                 asBool(m.get("inWater")),
                 asStr(m.get("pose")),
@@ -547,28 +561,28 @@ public final class PathArchive {
         if (o instanceof Number n) {
             return n.intValue();
         }
-        throw new ClassCastException("expected Number for int, got " + (o == null ? "null" : o.getClass()));
+        throw new ClassCastException("expected Number for int, got " + typeOf(o));
     }
 
     private static long asLong(Object o) {
         if (o instanceof Number n) {
             return n.longValue();
         }
-        throw new ClassCastException("expected Number for long, got " + (o == null ? "null" : o.getClass()));
+        throw new ClassCastException("expected Number for long, got " + typeOf(o));
     }
 
     private static double asDouble(Object o) {
         if (o instanceof Number n) {
             return n.doubleValue();
         }
-        throw new ClassCastException("expected Number for double, got " + (o == null ? "null" : o.getClass()));
+        throw new ClassCastException("expected Number for double, got " + typeOf(o));
     }
 
     private static boolean asBool(Object o) {
         if (o instanceof Boolean b) {
             return b;
         }
-        throw new ClassCastException("expected Boolean, got " + (o == null ? "null" : o.getClass()));
+        throw new ClassCastException("expected Boolean, got " + typeOf(o));
     }
 
     /** Returns the string value, throwing if null. */
@@ -576,7 +590,12 @@ public final class PathArchive {
         if (o instanceof String s) {
             return s;
         }
-        throw new ClassCastException("expected String, got " + (o == null ? "null" : o.getClass()));
+        throw new ClassCastException("expected String, got " + typeOf(o));
+    }
+
+    /** {@code o}'s class as string concatenation prints it, or {@code "null"}; for the cast errors above. */
+    private static String typeOf(Object o) {
+        return o == null ? "null" : String.valueOf(o.getClass());
     }
 
     /** Returns the string value, or {@code null} if the JSON value was null. */
@@ -593,7 +612,7 @@ public final class PathArchive {
     // -- position helpers --
 
     /** Encode {@code int[3]} → {@code List<Integer>}. */
-    private static List<Object> posToList(int[] p) {
+    private static List<Object> posToList(int... p) {
         List<Object> l = new ArrayList<>(3);
         l.add(p[0]);
         l.add(p[1]);

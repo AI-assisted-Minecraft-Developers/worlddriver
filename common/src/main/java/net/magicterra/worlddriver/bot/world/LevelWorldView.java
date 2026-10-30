@@ -75,10 +75,6 @@ public final class LevelWorldView implements StateWorldView {
         return level;
     }
 
-    public LevelWorldView(Level level, Player controller) {
-        this(level, controller, controller);
-    }
-
     /**
      * A view for any controlled entity. One that is not a player has no hands, so it prices every break as impossible
      * and counts no placeable blocks: a planner that emitted a dig for a mob would hand the navigator an edge its
@@ -100,6 +96,11 @@ public final class LevelWorldView implements StateWorldView {
     /** {@link #forMob} with the ways of moving its driver declares; null reads them off the entity. */
     public static LevelWorldView forMob(Level level, LivingEntity mob, Set<Locomotion.Mode> modes) {
         return new LevelWorldView(level, mob, null, false, modes);
+    }
+
+    /** A view planning for a player, which is both the moving body and the hands that dig and place. */
+    public LevelWorldView(Level level, Player controller) {
+        this(level, controller, controller);
     }
 
     private LevelWorldView(Level level, LivingEntity body, Player controller) {

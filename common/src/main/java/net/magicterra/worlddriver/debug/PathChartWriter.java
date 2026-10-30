@@ -31,6 +31,7 @@ public final class PathChartWriter {
     private PathChartWriter() {}
 
     /** Write the image. {@code nameOverride} optional (without extension); else pathchart-NNNN. */
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException") // public signature; the one caller wraps any failure
     public static Map<String, Object> write(BufferedImage img, String nameOverride) throws Exception {
         Files.createDirectories(DIR);
         String name = nameOverride != null && !nameOverride.isBlank()
@@ -67,6 +68,7 @@ public final class PathChartWriter {
                 try {
                     Files.deleteIfExists(pngs.get(i));
                 } catch (Exception ignored) {
+                    // best-effort: a file that will not delete stays until the next prune
                 }
             }
         } catch (Exception ignored) {

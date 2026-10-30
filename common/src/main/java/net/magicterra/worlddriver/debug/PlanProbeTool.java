@@ -75,6 +75,7 @@ final class PlanProbeTool {
         return run(LevelWorldView.forBody(self.level(), self), start, goal(p, self), p, scope);
     }
 
+    @SuppressWarnings("PMD.PreserveStackTrace") // a parameter refusal; its message is the whole of the cause
     static Goal goal(PlanParams p, LivingEntity self) {
         try {
             return GotoGoalResolver.resolve(p.target(), false, self, Map.of(), id -> null);
@@ -101,8 +102,8 @@ final class PlanProbeTool {
         // cost-model decision.
         List<Segment> segs = new ArrayList<>();
         BlockPos from = start;
-        double hStart = goal.estimate(start);
-        double bestH = hStart; // best (lowest) goal estimate reached so far
+        double startEstimate = goal.estimate(start);
+        double bestH = startEstimate; // best (lowest) goal estimate reached so far
         double maxRegression = 0; // worst overshoot back past the best frontier
         int backwardSegs = 0; // segments that ended farther from goal than they started
         boolean reached = false;
@@ -113,17 +114,17 @@ final class PlanProbeTool {
             List<BlockPos> path = r.path();
             int cut = ControlConfig.navigatorCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
             BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
-            double hFrom = goal.estimate(from);
-            double hEnd = goal.estimate(end);
-            if (hEnd > hFrom + 1e-6) {
+            double fromEstimate = goal.estimate(from);
+            double endEstimate = goal.estimate(end);
+            if (endEstimate > fromEstimate + 1e-6) {
                 backwardSegs++;
             }
-            maxRegression = Math.max(maxRegression, hEnd - bestH);
-            bestH = Math.min(bestH, hEnd);
+            maxRegression = Math.max(maxRegression, endEstimate - bestH);
+            bestH = Math.min(bestH, endEstimate);
             segs.add(new Segment(
                     Positions.position(end),
-                    Math.round(hEnd),
-                    Math.round(hEnd - hFrom),
+                    Math.round(endEstimate),
+                    Math.round(endEstimate - fromEstimate),
                     r.expanded(),
                     r.goalReached(),
                     cut > 0 ? Optional.of(Positions.position(path.get(path.size() - 1))) : Optional.empty()));
@@ -143,7 +144,7 @@ final class PlanProbeTool {
                 backwardSegs,
                 Math.round(maxRegression),
                 totalExpanded,
-                Math.round(hStart),
+                Math.round(startEstimate),
                 Math.round(bestH),
                 segs);
     }
@@ -169,15 +170,15 @@ final class PlanProbeTool {
         List<Map<String, Double>> taxes = s.edgeTaxes(r);
         List<BlockPos> path = r.path();
         BlockPos end = path.isEmpty() ? start : path.get(path.size() - 1);
-        double hStart = goal.estimate(start);
-        double hEnd = goal.estimate(end);
+        final double startEstimate = goal.estimate(start);
+        final double endEstimate = goal.estimate(end);
         // maxStepDrop, the largest single-node Y decrease the PLANNER routed, tells a walkable staircase
-        // (every step-down small) from a committed cliff drop; yProfile is the per-node Y trail, read as a
+        // (every step-down small) from a committed cliff drop; heights is the per-node Y trail, read as a
         // side elevation, so a graded staircase is visibly distinct from a plunge.
         int maxStepDrop = 0;
-        List<Integer> yProfile = new ArrayList<>(path.size());
+        List<Integer> heights = new ArrayList<>(path.size());
         for (int k = 0; k < path.size(); k++) {
-            yProfile.add(path.get(k).getY());
+            heights.add(path.get(k).getY());
             if (k > 0) {
                 maxStepDrop = Math.max(
                         maxStepDrop, path.get(k - 1).getY() - path.get(k).getY());
@@ -217,9 +218,13 @@ final class PlanProbeTool {
                 path.size(),
                 Positions.position(end),
                 new Search(r.expanded(), r.ms(), wallMs, Math.round(r.finalCost())),
-                new Estimate(Math.round(hStart), Math.round(hEnd), Math.round(hEnd - hStart), hEnd < hStart - 1e-6),
+                new Estimate(
+                        Math.round(startEstimate),
+                        Math.round(endEstimate),
+                        Math.round(endEstimate - startEstimate),
+                        endEstimate < startEstimate - 1e-6),
                 maxStepDrop,
-                yProfile,
+                heights,
                 path.stream()
                         .map(n -> n.getX() + "," + n.getY() + "," + n.getZ())
                         .toList(),

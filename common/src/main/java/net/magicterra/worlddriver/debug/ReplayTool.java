@@ -52,6 +52,9 @@ import net.minecraft.world.level.block.state.BlockState;
 final class ReplayTool {
     private static final Path REPLAY_DIR = Path.of("config", "worlddriver", "replays");
 
+    /** The parameter path a bad or unreadable archive is refused under. */
+    private static final String FILE_PARAM = "/file";
+
     private ReplayTool() {}
 
     /** The replaying bot's thread, and the bot as the installer drives it. */
@@ -79,6 +82,9 @@ final class ReplayTool {
         return new Target(server, ReplayInstaller.server(serverBot), false);
     }
 
+    // javancss: load, restore, then one of two ways to start, in the order the reply depends on; not split further.
+    // PreserveStackTrace: an unreadable archive is a parameter refusal whose message already carries the cause.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.PreserveStackTrace"})
     static CompletionStage<ReplayReply> replay(
             ApiRegistry api, ReplayParams p, CallContext ctx, ServerThreadHop server) {
         ctx.requireBlockingAllowed("mc.debug.replay");
@@ -89,7 +95,7 @@ final class ReplayTool {
         }
         if (!Files.isRegularFile(archivePath)) {
             throw ApiException.invalidParam(
-                    "/file", ApiIssue.Code.INVALID_VALUE, "no archive " + archivePath.getFileName());
+                    FILE_PARAM, ApiIssue.Code.INVALID_VALUE, "no archive " + archivePath.getFileName());
         }
         String file = archivePath.getFileName().toString();
         PathArchive a;
@@ -97,7 +103,7 @@ final class ReplayTool {
             a = PathArchive.fromJson(Files.readString(archivePath));
         } catch (Exception e) {
             throw ApiException.invalidParam(
-                    "/file", ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage());
+                    FILE_PARAM, ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage());
         }
         // After the archive: a bad parameter is refused as one whoever the bot is.
         Target bot = target(p.bot(), server);
@@ -115,7 +121,7 @@ final class ReplayTool {
                     // An unknown id restored as the registry's default (air) would carve the terrain being replayed.
                     Block b = RegistryIds.lookup(BuiltInRegistries.BLOCK, ec.block())
                             .orElseThrow(() -> ApiException.invalidParam(
-                                    "/file",
+                                    FILE_PARAM,
                                     ApiIssue.Code.INVALID_VALUE,
                                     file + " restores " + ec.block() + ", which this game has no block for"));
                     st = b.defaultBlockState();
@@ -133,12 +139,13 @@ final class ReplayTool {
             // repaths and execution wedges included; the recorded plan is not used.
             int[] hs = a.header().start();
             if (hs == null) {
-                throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
+                throw ApiException.invalidParam(
+                        FILE_PARAM, ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
             }
             Goal goal = reconstructGoal(a.header());
             if (goal == null) {
                 throw ApiException.invalidParam(
-                        "/file",
+                        FILE_PARAM,
                         ApiIssue.Code.INVALID_VALUE,
                         file + " records no goal to re-issue " + "(goalDesc="
                                 + a.header().goalDesc() + "); replay it with replan: false");
@@ -191,11 +198,12 @@ final class ReplayTool {
             }
         }
         if (plan.isEmpty()) {
-            throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no plan nodes");
+            throw ApiException.invalidParam(FILE_PARAM, ApiIssue.Code.INVALID_VALUE, file + " has no plan nodes");
         }
         BlockPos startFoot = plan.get(0);
-        int[] hStart = a.header().start();
-        BlockPos start = hStart != null ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
+        int[] recordedStart = a.header().start();
+        BlockPos start =
+                recordedStart != null ? new BlockPos(recordedStart[0], recordedStart[1], recordedStart[2]) : startFoot;
         Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
         return prepare(api, bot, cells, start, ctx)
                 .thenCompose(restored -> bot.hop()
@@ -305,7 +313,9 @@ final class ReplayTool {
                     .max(Comparator.comparingLong(f -> f.toFile().lastModified()))
                     .orElse(null);
         } catch (Exception e) {
-            throw ApiException.of(ApiError.Code.INTERNAL_ERROR, "listing " + REPLAY_DIR + " failed: " + e.getMessage());
+            throw new ApiException(
+                    ApiError.of(ApiError.Code.INTERNAL_ERROR, "listing " + REPLAY_DIR + " failed: " + e.getMessage()),
+                    e);
         }
     }
 

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.world;
 import static net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf;
 import static net.magicterra.worlddriver.game.body.BotUtil.HAZARD_BLOCKS;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -37,15 +38,6 @@ import net.minecraft.world.phys.Vec3;
  * client's own — so the view names no client class.
  */
 public final class ClientWorldView implements StateWorldView {
-
-    // A* cost units are calibrated so one cardinal cell of walking (Move.Walk's
-    // base cost, 10) ≈ the real time to traverse it: vanilla ground speed
-    // 4.317 b/s → 20/4.317 ≈ 4.63 ticks/block (Baritone's WALK_ONE_BLOCK_COST).
-    // breakCost is computed in mining *ticks*, so it must convert with this
-    // same scale instead of pricing every mining tick as a whole block-walk —
-    // the old `10 * ticks` made the planner ~4.6× too reluctant to dig, taking
-    // absurd detours around a single thin wall it could have tunnelled.
-    private static final double COST_PER_TICK = CellRules.COST_PER_TICK;
 
     /**
      * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
@@ -169,7 +161,7 @@ public final class ClientWorldView implements StateWorldView {
     // get/put would allocate (and GC-churn) right on the render thread, eating the
     // very getBlockState saving the cache exists to buy. fastutil hashes the long
     // directly.
-    private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
+    private final Long2ObjectMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
 
     private boolean cacheActive = false;
 
@@ -204,6 +196,7 @@ public final class ClientWorldView implements StateWorldView {
 
     private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
 
+    /** Reads the world and the controlled player through suppliers, so a view outlives level and respawn changes. */
     public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
         this.level = level;
         this.player = player;
@@ -289,13 +282,10 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public boolean isKnown(BlockPos p) {
         Level lvl = level.get();
-        if (lvl == null) {
-            return false;
-        }
         // ClientChunkCache.hasChunk → the chunk is actually loaded client-side
         // (an unloaded position reads as air from getBlockState, which is the
         // very ambiguity isKnown disambiguates for the long-distance planner).
-        return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
+        return lvl != null && lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
 
     @Override
@@ -525,8 +515,8 @@ public final class ClientWorldView implements StateWorldView {
      *       {@code isUsablePillarBlock} existed and does not license the stated reason.
      * </ul>
      *
-     * Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A* will plan, which is the direction
-     * that needs a gate run rather than a tidy-up.
+     * <p>Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A* will plan, which is the
+     * direction that needs a gate run rather than a tidy-up.
      */
     private boolean hasPlaceableBlock() {
         Player pl = player.get();
@@ -542,10 +532,9 @@ public final class ClientWorldView implements StateWorldView {
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
                 continue;
             }
-            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) {
-                continue; // falling/thin/non-cube → no footing
+            if (BuildBlocks.isUsableBuildBlock(bi.getBlock())) {
+                return true; // isUsableBuildBlock refuses falling/thin/non-cube: no footing
             }
-            return true;
         }
         return false;
     }
@@ -662,13 +651,10 @@ public final class ClientWorldView implements StateWorldView {
             // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
             // the block instead of filling the air cell above → fall not broken.
         }
-        if (s.hasProperty(BlockStateProperties.WATERLOGGED)) {
-            return false;
-        }
         // Must be a full cube so the player lands flat on top and the water
         // source fills the whole landing cell (end rods / torches / partial
         // blocks have a thin collision the player slides off).
-        return s.isCollisionShapeFullBlock(lvl, bp);
+        return !s.hasProperty(BlockStateProperties.WATERLOGGED) && s.isCollisionShapeFullBlock(lvl, bp);
     }
 
     @Override
@@ -729,7 +715,9 @@ public final class ClientWorldView implements StateWorldView {
         hazardSnapshot = worldModel != null ? worldModel.hazard() : null;
     }
 
+    // One additive penalty block per hazard kind, each tuned against the others; splitting would scatter that tuning.
     @Override
+    @SuppressWarnings("checkstyle:javancss")
     public double dangerCost(BlockPos foot) {
         double penalty = 0;
         if (WorldConfig.avoidDanger) {

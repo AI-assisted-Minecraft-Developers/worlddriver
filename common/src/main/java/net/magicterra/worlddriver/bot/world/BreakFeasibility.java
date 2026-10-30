@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -20,14 +21,16 @@ import net.minecraft.core.BlockPos;
  */
 public final class BreakFeasibility {
 
-    private static final ConcurrentHashMap<BlockPos, Long> POISON = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<BlockPos, Long> POISON = new ConcurrentHashMap<>();
 
     private BreakFeasibility() {}
 
+    /** Marks the cell as hopeless to break for the next {@code ttlMs} milliseconds. */
     public static void poison(BlockPos p, long ttlMs) {
         POISON.put(p.immutable(), System.currentTimeMillis() + ttlMs);
     }
 
+    /** Whether the cell is still marked hopeless; an expired mark is dropped on the way and reads as false. */
     public static boolean isPoisoned(BlockPos p) {
         if (POISON.isEmpty()) {
             return false;
