@@ -10,3 +10,5 @@ c7c537a434d5569c8e3c5c836c99aa8d82ee0490
 b8d0c06b6c511ed88c63b00bb9931cc595c9f4d9
 # chore: lay out the scripts again with trailing commas only in arrays and objects
 51d21b4f37eecab1a00ea60c23862a46f12756ad
+# refactor: separate every member with a blank line
+c90ae14cdaf9f0ce757dbd9515f9413b79dc1e34
