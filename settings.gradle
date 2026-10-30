@@ -1,4 +1,7 @@
 pluginManagement {
+    // The convention plugins shared by this build's projects (docs/dev/build.md).
+    includeBuild('build-logic')
+
     repositories {
         // StageWright's gradle plugin arrives as a published artifact, from StageWright's CI
         // builds on the Nexus — or from mavenLocal first, for one built here.

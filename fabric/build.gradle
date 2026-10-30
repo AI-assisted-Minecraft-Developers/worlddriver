@@ -2,10 +2,9 @@ import groovy.json.JsonOutput
 
 plugins {
     id 'com.gradleup.shadow'
+    // :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :neoforge.
+    id 'worlddriver.loader'
 }
-
-// :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :neoforge.
-apply from: rootProject.file('gradle/loader.gradle')
 
 dependencies {
     minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"

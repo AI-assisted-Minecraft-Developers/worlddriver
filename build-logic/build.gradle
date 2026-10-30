@@ -1,0 +1,4 @@
+// Each src/main/groovy/<id>.gradle is a plugin with that id.
+plugins {
+    id 'groovy-gradle-plugin'
+}

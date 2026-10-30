@@ -22,6 +22,17 @@ and to ModDevGradle's runs alike.
 `:api` and `:common` use the vanilla build (NeoForm) that NeoForge `neoforge_version` is made from,
 `neoform_version` in `gradle.properties`, so their Minecraft is the one NeoForge patches.
 
+### Convention plugins
+
+Build logic that more than one project uses, other than the root's own cross-project settings above,
+lives in `build-logic/`, a build the root `settings.gradle` includes for its plugins. Each
+`build-logic/src/main/groovy/<id>.gradle` is a plugin a project applies with `id '<id>'` in its
+`plugins` block:
+
+| Plugin | Applied by | What it does |
+|---|---|---|
+| `worlddriver.loader` | `:fabric`, `:neoforge` | compiles `:api`'s and `:common`'s sources into the loader (below) |
+
 ### Why Loom 1.13
 
 Fabric Loom 1.14 and later need Gradle 9, and StageWright's Gradle plugin cannot run the test suites
@@ -32,7 +43,7 @@ newer Loom here, Gradle 9 in the wrapper and a Gradle daemon on JDK 25, once Sta
 
 ## Each loader compiles the shared sources
 
-No jar is merged into another. `gradle/loader.gradle`, applied by both loaders, adds `:api`'s and
+No jar is merged into another. The `worlddriver.loader` plugin, applied by both loaders, adds `:api`'s and
 `:common`'s Java sources to the loader's own compile (running `:api-processor` there), adds
 `:common`'s resources directory to the loader's resources, and copies in the generated API files. The
 loader's own jar therefore holds every class it ships. The testmod works the same way: each loader's

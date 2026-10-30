@@ -12,7 +12,7 @@ neoForge {
 
 // testmod source set — the in-game tests StageWright runs and the test content (validation
 // scripts, NPCs) live here so they are compiled ONLY for dev/test runs and NEVER baked into a
-// shipped jar. Each loader compiles these sources into its own testmod (gradle/loader.gradle);
+// shipped jar. Each loader compiles these sources into its own testmod (the worlddriver.loader plugin);
 // :common compiles them only to check them and for the unit tests below. testmod sees
 // main's OUTPUT plus main's own compile/runtime classpaths, and StageWright's api (below).
 // The `test` source set is for PURE-JVM unit tests of code that needs no running

@@ -1,0 +1,8 @@
+// The build's own convention plugins, included by the root settings.gradle. See docs/dev/build.md.
+rootProject.name = 'build-logic'
+
+dependencyResolutionManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
