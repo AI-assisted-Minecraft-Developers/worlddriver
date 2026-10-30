@@ -8,6 +8,8 @@ plugins {
     id 'com.github.node-gradle.node' version '7.1.0' apply false
     // The StageWright plugin (resolved from mavenLocal, wired in settings.gradle): the in-game test suites below.
     id 'net.magicterra.stagewright'
+    // Spotless, Checkstyle and PMD (build-logic): docs/dev/code-style.md.
+    id 'worlddriver.lint'
 }
 
 stagewright {

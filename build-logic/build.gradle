@@ -2,3 +2,8 @@
 plugins {
     id 'groovy-gradle-plugin'
 }
+
+dependencies {
+    // Plugins the convention plugins apply.
+    implementation 'com.diffplug.spotless:spotless-plugin-gradle:8.10.4'
+}

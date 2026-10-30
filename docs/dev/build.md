@@ -32,6 +32,7 @@ lives in `build-logic/`, a build the root `settings.gradle` includes for its plu
 | Plugin | Applied by | What it does |
 |---|---|---|
 | `worlddriver.loader` | `:fabric`, `:neoforge` | compiles `:api`'s and `:common`'s sources into the loader (below) |
+| `worlddriver.lint` | the root | Spotless, Checkstyle and PMD ([code-style.md](code-style.md)) |
 
 ### Why Loom 1.13
 

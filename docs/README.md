@@ -48,6 +48,7 @@ For someone adding or changing code here.
 | [Pathfinding conformance](dev/pathfinding-conformance.md) | Telling a planner problem from a navigator problem, and wiring a flag to try a change. |
 | [The replay corpus](dev/replay-corpus.md) | Recording, replaying and analysing a traversal, and what replay can and cannot be evidence of. |
 | [Debugging](dev/debugging.md) | Attaching a debugger to a game this build starts, and what stopping the game costs. |
+| [Code style](dev/code-style.md) | The formatter, Checkstyle and PMD: what each checks, where their settings are, and how to silence one finding. |
 | [The build](dev/build.md) | Which Gradle plugin builds which module, how each loader compiles the shared sources, the access widener and transformer, and what each published jar holds. |
 | [Loader glue](dev/loader-glue.md) | How the shared code is hooked up to each loader's own events, and what stays loader-specific. |
 | [Running a development client](dev/running-the-client.md) | Getting a real game window open, including the platform cases where it hangs. |

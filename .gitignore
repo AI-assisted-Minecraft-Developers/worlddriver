@@ -35,8 +35,12 @@ __pycache__/
 # `config/agent_driver/replays/`, and neither side noticed). Everything under config/ is runtime
 # output; the corpora that were worth keeping live outside the repo now and
 # docs/replay-corpus-regression.md says where.
-/config/
+/config/*
 **/config/worlddriver/debug/
+# Except the lint tools' settings (docs/dev/code-style.md).
+!/config/checkstyle/
+!/config/pmd/
+!/config/spotless/
 /.venv/
 # local tooling (jacoco jars, coverage output) — never commit
 .local/

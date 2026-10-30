@@ -1,0 +1,53 @@
+// Applied by the root project. Spotless owns layout everywhere; Checkstyle and PMD judge what a formatter
+// cannot fix, on main sources only. Settings are in config/; see docs/dev/code-style.md.
+plugins {
+    id 'com.diffplug.spotless'
+}
+
+spotless {
+    java {
+        target '*/src/**/*.java'
+        palantirJavaFormat('2.103.0').formatJavadoc(true)
+    }
+    groovyGradle {
+        target '*.gradle', '*/*.gradle', 'build-logic/src/main/groovy/*.gradle'
+        greclipse().configFile(rootProject.file('config/spotless/greclipse.properties'))
+    }
+    javascript {
+        target '*/src/**/*.js'
+        prettier('3.6.2').config([printWidth: 120, tabWidth: 4])
+    }
+    format 'misc', {
+        target '*.md', '*/*.md', 'docs/**/*.md', '.agents/**/*.md',
+                '*.properties', '*/*.properties', 'config/**/*.properties',
+                '.github/**/*.yml', '*/src/**/*.yml', '*/src/**/*.yaml',
+                '*/src/**/*.json', 'docs/**/*.json', '*/src/**/*.mcmeta', '*/src/**/*.toml', '*/src/**/*.cfg',
+                '*/src/**/*.xml', 'config/**/*.xml'
+        // Written by :common:updateSkillManual.
+        targetExclude '.agents/skills/worlddriver-rpc/references/methods.md'
+        trimTrailingWhitespace()
+        leadingTabsToSpaces()
+        endWithNewline()
+    }
+}
+
+allprojects {
+    pluginManager.withPlugin('java') {
+        apply plugin: 'checkstyle'
+        apply plugin: 'pmd'
+        checkstyle {
+            toolVersion = '14.3.0'
+            configDirectory = rootProject.file('config/checkstyle')
+            sourceSets = [project.sourceSets.main]
+            // Reports only until the existing findings are fixed.
+            ignoreFailures = true
+        }
+        pmd {
+            toolVersion = '7.29.0'
+            ruleSets = []
+            ruleSetFiles = rootProject.files('config/pmd/ruleset.xml')
+            sourceSets = [project.sourceSets.main]
+            ignoreFailures = true
+        }
+    }
+}
