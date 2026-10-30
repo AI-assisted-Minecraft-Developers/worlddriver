@@ -62,9 +62,13 @@ dependencies {
     // `:dev` is the Mojang-named jar, the names this compile classpath uses. The plain
     // artifact is intermediary and would fail to link.
     // Not transitive: its POM names worlddriver-api, which is this build's own :api.
-    testmodImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
+    testmodImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") {
+        transitive = false
+    }
     // The unit tests see testmod's classes (sourceSets above), so they need what those link against.
-    testImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
+    testImplementation("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") {
+        transitive = false
+    }
     // The JUnit tests StageWright runs inside the game; its loader jar ships the runtime.
     testmodImplementation platform('org.junit:junit-bom:5.11.3')
     testmodImplementation 'org.junit.jupiter:junit-jupiter-api'
@@ -105,7 +109,6 @@ dependencies {
     // codec-http for the WS server/client. Compile-only here; each loader nests it
     // in its jar and, on NeoForge, puts it on the dev runs' classpath.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
-
 }
 
 // The API artifacts are :api's to generate; this project checks them and ships them in the mod jar.
@@ -126,8 +129,18 @@ def checkApiTypes = tasks.register('checkApiTypes', com.github.gradle.node.npm.t
     description = 'Type-checks src/apiTypes/usage.ts against the generated declarations with TypeScript 5.9.3.'
     dependsOn generateApiArtifacts
     command = '--yes'
-    args = ['--package=typescript@5.9.3', '--', 'tsc', '--noEmit', '--strict',
-            '--target', 'es2020', '--lib', 'es2020', 'src/apiTypes/usage.ts']
+    args = [
+        '--package=typescript@5.9.3',
+        '--',
+        'tsc',
+        '--noEmit',
+        '--strict',
+        '--target',
+        'es2020',
+        '--lib',
+        'es2020',
+        'src/apiTypes/usage.ts'
+    ]
     inputs.dir(generatedApiDir)
     inputs.file('src/apiTypes/usage.ts')
     outputs.file(apiTypesChecked)

@@ -11,7 +11,9 @@ neoForge {
         disableRecompilation = true
     }
     // :common's access transformer, which the jar carries at the default place NeoForge reads it from.
-    accessTransformers = [project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')]
+    accessTransformers = [
+        project(':common').file('src/main/resources/META-INF/accesstransformer.cfg')
+    ]
 
     mods {
         // The testmod is in no mod of this build's own: StageWright's plugin gives the suites' runs a copy of this
@@ -52,8 +54,12 @@ dependencies {
     // invisible to it in a dev run; additionalRuntimeClasspath puts the jar on the game's classpath. jarJar nests
     // it in the shipped jar. transitive=false so we ship only codec-http and reuse MC's netty core.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
-    additionalRuntimeClasspath("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
-    jarJar("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    additionalRuntimeClasspath("io.netty:netty-codec-http:$rootProject.netty_version") {
+        transitive = false
+    }
+    jarJar("io.netty:netty-codec-http:$rootProject.netty_version") {
+        transitive = false
+    }
 }
 
 processResources {
@@ -61,14 +67,14 @@ processResources {
     // input leaves the task up-to-date across a gradle.properties edit, so the jar keeps
     // shipping the previous metadata — how a license change once stopped at the toml.
     def expansions = [
-            version                : project.version,
-            minecraft_version_range: rootProject.minecraft_version_range,
-            neoforge_version_range : rootProject.neoforge_version_range,
-            loader_version_range   : rootProject.loader_version_range,
-            mod_license            : rootProject.mod_license,
-            mod_authors            : rootProject.mod_authors,
-            mod_description        : rootProject.mod_description,
-            mod_source_url         : rootProject.mod_source_url,
+        version                : project.version,
+        minecraft_version_range: rootProject.minecraft_version_range,
+        neoforge_version_range : rootProject.neoforge_version_range,
+        loader_version_range   : rootProject.loader_version_range,
+        mod_license            : rootProject.mod_license,
+        mod_authors            : rootProject.mod_authors,
+        mod_description        : rootProject.mod_description,
+        mod_source_url         : rootProject.mod_source_url,
     ]
     expansions.each { key, value -> inputs.property key, value }
 

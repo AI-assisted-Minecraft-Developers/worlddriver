@@ -28,7 +28,9 @@ tasks.named('test') {
 
 // The generated bindings are public API too: ship their source with the rest.
 tasks.named('sourcesJar') {
-    from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory })
+    from(tasks.named('compileJava').flatMap {
+        it.options.generatedSourceOutputDirectory
+    })
 }
 
 // The d.ts, script wrappers, schemas and reference, generated from the method descriptions on a classpath with no
@@ -63,7 +65,11 @@ tasks.register('generateApiArtifacts', JavaExec) {
     inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedApiDir)
     dependsOn tasks.named('compileJava'), tasks.named('compileGenJava')
-    argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
+    argumentProviders.add({
+        [
+            generatedApiDir.get().asFile.absolutePath
+        ]
+    } as CommandLineArgumentProvider)
 }
 
 // The same files as the `artifacts` zip beside the jars, for a client that is not Java.

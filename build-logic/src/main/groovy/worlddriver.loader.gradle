@@ -68,7 +68,9 @@ sourceSets {
 dependencies {
     // What :common's testmod compiles against, for the same sources compiled here (common/build.gradle). Compile
     // only: in a game both come inside StageWright's mod, and a second copy would split their packages.
-    testmodCompileOnly("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") { transitive = false }
+    testmodCompileOnly("net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev") {
+        transitive = false
+    }
     testmodCompileOnly platform('org.junit:junit-bom:5.11.3')
     testmodCompileOnly 'org.junit.jupiter:junit-jupiter-api'
 }
@@ -80,7 +82,9 @@ tasks.named('processTestmodResources', ProcessResources) {
     // Both testmods may name providers of one service: one file listing all of them, not the last one copied.
     def services = [:]
     filesMatching('META-INF/services/*') { details ->
-        services.computeIfAbsent(details.path) { [] } << details.file.text.trim()
+        services.computeIfAbsent(details.path) {
+            []
+        } << details.file.text.trim()
         details.exclude()
     }
     doLast {
@@ -97,7 +101,9 @@ shadowJar {
     // Rhino is shaded and relocated so KubeJS's copy cannot change WorldDriver's scripts;
     // netty-codec-http stays nested (Jar-in-Jar).
     relocate 'dev.latvian.mods.rhino', 'net.magicterra.worlddriver.shadow.rhino'
-    configurations = [project.configurations.shadowBundle]
+    configurations = [
+        project.configurations.shadowBundle
+    ]
 }
 
 // The binary holds :api's and :common's classes, so their sources ship here too, or this jar would not be the source

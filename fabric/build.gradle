@@ -24,9 +24,10 @@ dependencies {
     // libraries the way NeoForge does, so plain `implementation` is enough at
     // runtime; `include` nests it (Jar-in-Jar) inside the prod jar.
     // transitive=false so we ship only codec-http and reuse MC's netty core.
-    include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    include("io.netty:netty-codec-http:$rootProject.netty_version") {
+        transitive = false
+    }
     implementation "io.netty:netty-codec-http:$rootProject.netty_version"
-
 }
 
 // Fabric writes a range as space-joined predicates, not a Maven interval: `[1.21.1,1.22)` is
@@ -48,14 +49,16 @@ processResources {
     // The same values neoforge.mods.toml expands, and one map for expand and inputs, for the reason
     // given there.
     def expansions = [
-            version            : project.version,
-            mod_license        : jsonText(rootProject.mod_license),
-            mod_description    : jsonText(rootProject.mod_description),
-            mod_source_url     : jsonText(rootProject.mod_source_url),
-            // Joined with `", "` so the template's ["${mod_authors}"] becomes one string per author.
-            mod_authors        : rootProject.mod_authors.split(',').collect { jsonText(it.trim()) }.join('", "'),
-            minecraft_range    : fabricRange(rootProject.minecraft_version_range),
-            fabric_loader_range: ">=${rootProject.fabric_loader_version}".toString(),
+        version            : project.version,
+        mod_license        : jsonText(rootProject.mod_license),
+        mod_description    : jsonText(rootProject.mod_description),
+        mod_source_url     : jsonText(rootProject.mod_source_url),
+        // Joined with `", "` so the template's ["${mod_authors}"] becomes one string per author.
+        mod_authors        : rootProject.mod_authors.split(',').collect {
+            jsonText(it.trim())
+        }.join('", "'),
+        minecraft_range    : fabricRange(rootProject.minecraft_version_range),
+        fabric_loader_range: ">=${rootProject.fabric_loader_version}".toString(),
     ]
     expansions.each { key, value -> inputs.property key, value }
 
