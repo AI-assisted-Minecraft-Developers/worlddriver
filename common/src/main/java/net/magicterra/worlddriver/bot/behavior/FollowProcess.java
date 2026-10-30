@@ -231,7 +231,7 @@ public final class FollowProcess implements BotProcess, Navigating {
     private static void aimAtEntity(LivingEntity p, Entity e) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
-        double dy = (e.getY() + e.getBbHeight() * 0.5) - eye.y;
+        double dy = e.getY() + e.getBbHeight() * 0.5 - eye.y;
         double dz = e.getZ() - eye.z;
         float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));

@@ -540,12 +540,12 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override
     public void aimAtBlock(BlockPos cell) {
         aimTarget = cell.immutable();
-        double dx = (cell.getX() + 0.5) - fp.getX();
-        double dy = (cell.getY() + 0.5) - fp.getEyeY();
-        double dz = (cell.getZ() + 0.5) - fp.getZ();
+        double dx = cell.getX() + 0.5 - fp.getX();
+        double dy = cell.getY() + 0.5 - fp.getEyeY();
+        double dz = cell.getZ() + 0.5 - fp.getZ();
         double horiz = Math.sqrt(dx * dx + dz * dz);
-        fp.setYRot((float) (Math.toDegrees(Math.atan2(-dx, dz))));
-        fp.setXRot((float) (-Math.toDegrees(Math.atan2(dy, horiz))));
+        fp.setYRot((float) Math.toDegrees(Math.atan2(-dx, dz)));
+        fp.setXRot((float) -Math.toDegrees(Math.atan2(dy, horiz)));
     }
 
     @Override

@@ -795,7 +795,7 @@ public final class ClientInput {
                     try {
                         int n = Integer.parseInt(name.substring(1));
                         if (n >= 1 && n <= 25) {
-                            return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + (n - 1);
+                            return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + n - 1;
                         }
                     } catch (NumberFormatException ignored) {
                     }
@@ -804,10 +804,10 @@ public final class ClientInput {
                 if (name.length() == 1) {
                     char c = name.charAt(0);
                     if (c >= 'A' && c <= 'Z') {
-                        return org.lwjgl.glfw.GLFW.GLFW_KEY_A + (c - 'A');
+                        return org.lwjgl.glfw.GLFW.GLFW_KEY_A + c - 'A';
                     }
                     if (c >= '0' && c <= '9') {
-                        return org.lwjgl.glfw.GLFW.GLFW_KEY_0 + (c - '0');
+                        return org.lwjgl.glfw.GLFW.GLFW_KEY_0 + c - '0';
                     }
                 }
                 return -1;

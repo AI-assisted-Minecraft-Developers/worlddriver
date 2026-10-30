@@ -136,7 +136,7 @@ public final class DrownEscape implements Controller {
                 turnTicks = HEADING_HOLD_TICKS;
                 float pick = p.getYRot() + 180f; // fallback: straight back
                 for (int i = 0; i < 8; i++) {
-                    float cand = ((probe + i) % 8) * 45f;
+                    float cand = (probe + i) % 8 * 45f;
                     int dx = (int) Math.round(-Math.sin(Math.toRadians(cand)));
                     int dz = (int) Math.round(Math.cos(Math.toRadians(cand)));
                     BlockPos out = foot.offset(dx * 2, 0, dz * 2);

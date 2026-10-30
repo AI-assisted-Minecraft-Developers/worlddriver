@@ -192,8 +192,8 @@ public final class ExpectAlarms {
         // east into a wall, node 5 blocks south, attack=false, pinned indefinitely).
         if (path != null && step < path.size()) {
             BlockPos node = path.get(step);
-            double ndx = (node.getX() + 0.5) - p.getX();
-            double ndz = (node.getZ() + 0.5) - p.getZ();
+            double ndx = node.getX() + 0.5 - p.getX();
+            double ndz = node.getZ() + 0.5 - p.getZ();
             float bearNode = (float) Math.toDegrees(Math.atan2(-ndx, ndz));
             float tear = Math.abs(angleDiff(p.getYRot(), bearNode));
             if (tear > 90 && moved < 0.03) {

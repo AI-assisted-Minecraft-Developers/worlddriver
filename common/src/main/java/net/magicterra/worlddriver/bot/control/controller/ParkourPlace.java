@@ -94,8 +94,8 @@ public final class ParkourPlace implements Controller {
             return true;
         }
         // Snap heading at the destination — can't course-correct mid-air.
-        double adx = (dest.getX() + 0.5) - p.getX();
-        double adz = (dest.getZ() + 0.5) - p.getZ();
+        double adx = dest.getX() + 0.5 - p.getX();
+        double adz = dest.getZ() + 0.5 - p.getZ();
         if (Math.abs(adx) > 1e-4 || Math.abs(adz) > 1e-4) {
             float yaw = (float) Math.toDegrees(Math.atan2(-adx, adz));
             p.setYRot(yaw);

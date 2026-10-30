@@ -305,8 +305,8 @@ public final class NavigatorGeometry {
         if (lethal == null) {
             return "no lethal cell, no bearing computed";
         }
-        double bx = (lethal.getX() + 0.5) - (foot.getX() + 0.5);
-        double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
+        double bx = lethal.getX() + 0.5 - (foot.getX() + 0.5);
+        double bz = lethal.getZ() + 0.5 - (foot.getZ() + 0.5);
         // Minecraft yaw: 0 = +Z, 90 = -X. atan2(-dx, dz) puts a world bearing in the same frame.
         double bearing = Math.toDegrees(Math.atan2(-bx, bz));
         double delta = Math.abs(Mth.wrapDegrees(bearing - p.getYRot()));

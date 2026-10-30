@@ -36,7 +36,7 @@ public final class LoadedCube {
                 if (c == null) {
                     unloaded.add(new ChunkPos(cx, cz));
                 }
-                chunks[(cz - minCz) * w + (cx - minCx)] = c;
+                chunks[(cz - minCz) * w + cx - minCx] = c;
             }
         }
         if (!unloaded.isEmpty()) {
@@ -48,7 +48,7 @@ public final class LoadedCube {
             for (int dy = -radius; dy <= radius; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     bp.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
-                    LevelChunk chunk = chunks[((bp.getZ() >> 4) - minCz) * w + ((bp.getX() >> 4) - minCx)];
+                    LevelChunk chunk = chunks[((bp.getZ() >> 4) - minCz) * w + (bp.getX() >> 4) - minCx];
                     BlockState st = chunk.getBlockState(bp);
                     if (!st.isAir()) {
                         cell.accept(bp, st);

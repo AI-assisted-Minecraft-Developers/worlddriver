@@ -968,9 +968,9 @@ public final class ProgressPhase {
                 && nav.route.step() < stepProg.noProgressStep) {
             stepProg.noProgressStep = nav.route.step();
             BlockPos rn = nav.route.path().get(nav.route.step());
-            double rdx = (rn.getX() + 0.5) - p.getX();
+            double rdx = rn.getX() + 0.5 - p.getX();
             double rdy = rn.getY() - p.getY();
-            double rdz = (rn.getZ() + 0.5) - p.getZ();
+            double rdz = rn.getZ() + 0.5 - p.getZ();
             stepProg.noProgressBestD2 = rdx * rdx + rdy * rdy + rdz * rdz;
         }
         if (npStepFresh) {
@@ -986,9 +986,9 @@ public final class ProgressPhase {
             // count wedge ticks while that stops improving — a fall2 that can't
             // drop or a blocked bridgePlace never closes in and still trips.
             BlockPos wn = nav.route.path().get(nav.route.step());
-            double wdx = (wn.getX() + 0.5) - p.getX();
+            double wdx = wn.getX() + 0.5 - p.getX();
             double wdy = wn.getY() - p.getY();
-            double wdz = (wn.getZ() + 0.5) - p.getZ();
+            double wdz = wn.getZ() + 0.5 - p.getZ();
             // A buoyant bot bobs ±1.5 vertically; folding wdy² into the closest-approach
             // progress test makes wd2 oscillate even while the bot creeps FORWARD toward a
             // water goal, so noStepProgressTicks falsely climbs → wedged → safetyRepath churn:
@@ -1018,9 +1018,9 @@ public final class ProgressPhase {
                 && nav.route.step() >= 0
                 && nav.route.step() < nav.route.path().size()) {
             BlockPos sn = nav.route.path().get(nav.route.step());
-            double sdx = (sn.getX() + 0.5) - p.getX();
+            double sdx = sn.getX() + 0.5 - p.getX();
             double sdy = sn.getY() - p.getY();
-            double sdz = (sn.getZ() + 0.5) - p.getZ();
+            double sdz = sn.getZ() + 0.5 - p.getZ();
             double sd2 = sdx * sdx + sdy * sdy + sdz * sdz;
             // navigatorStuckStepMonotonic: only a step ADVANCE opens a fresh progress window.
             // On an open-water straight path the buoyant drift makes the projection/within
@@ -1201,8 +1201,8 @@ public final class ProgressPhase {
                 break;
             }
             BlockPos w = nav.route.path().get(nav.route.step());
-            double dx = (w.getX() + 0.5) - p.getX();
-            double dz = (w.getZ() + 0.5) - p.getZ();
+            double dx = w.getX() + 0.5 - p.getX();
+            double dz = w.getZ() + 0.5 - p.getZ();
             double cur2 = dx * dx + dz * dz;
             // A climb node counts as REACHED only once the feet are up at it. The
             // |Δy|<1.2 gate marks a +1 climb node "reached" from a full block below —
@@ -1273,8 +1273,8 @@ public final class ProgressPhase {
             boolean overshot = false;
             if (!within && nav.route.step() + 1 < nav.route.path().size()) {
                 BlockPos nx = nav.route.path().get(nav.route.step() + 1);
-                double ndx = (nx.getX() + 0.5) - p.getX();
-                double ndz = (nx.getZ() + 0.5) - p.getZ();
+                double ndx = nx.getX() + 0.5 - p.getX();
+                double ndz = nx.getZ() + 0.5 - p.getZ();
                 // Skip the current node only if the player is genuinely beyond it
                 // (next node STRICTLY horizontally closer) AND the next node is
                 // itself vertically reachable from where the player actually IS.

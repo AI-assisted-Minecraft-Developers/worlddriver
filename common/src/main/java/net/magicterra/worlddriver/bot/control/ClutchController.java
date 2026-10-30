@@ -238,8 +238,8 @@ public final class ClutchController {
             // it can't push the bot past.
             if (landingX != Integer.MIN_VALUE) {
                 Vec3 v = p.getDeltaMovement();
-                double ox = (landingX + 0.5) - p.getX();
-                double oz = (landingZ + 0.5) - p.getZ();
+                double ox = landingX + 0.5 - p.getX();
+                double oz = landingZ + 0.5 - p.getZ();
                 double nudgeX = Math.max(-0.04, Math.min(0.04, ox * 0.08));
                 double nudgeZ = Math.max(-0.04, Math.min(0.04, oz * 0.08));
                 p.setDeltaMovement(v.x * 0.5 + nudgeX, v.y, v.z * 0.5 + nudgeZ);

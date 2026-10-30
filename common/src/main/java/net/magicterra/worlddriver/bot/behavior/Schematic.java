@@ -167,7 +167,7 @@ public final class Schematic {
                     && !"minecraft:cave_air".equals(id)
                     && !"minecraft:void_air".equals(id)) {
                 int x = idx % w;
-                int z = (idx / w) % l;
+                int z = idx / w % l;
                 int y = idx / (w * l);
                 entries.add(new Entry(x, y, z, id));
             }

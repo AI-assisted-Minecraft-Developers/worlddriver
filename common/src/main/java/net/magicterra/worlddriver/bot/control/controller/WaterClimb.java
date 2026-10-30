@@ -992,8 +992,8 @@ public final class WaterClimb implements Controller {
         nav.waterClimb.pillarHighWaterY = foot.getY();
         nav.waterClimb.placeAttemptCell = null;
         nav.waterClimb.sideRung = false;
-        double ex = (cwp.getX() + 0.5) - p.getX();
-        double ez = (cwp.getZ() + 0.5) - p.getZ();
+        double ex = cwp.getX() + 0.5 - p.getX();
+        double ez = cwp.getZ() + 0.5 - p.getZ();
         nav.waterClimb.yaw = ex * ex + ez * ez > 1e-4 ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
         // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
         // foot, then bail to the fallback actuators.
@@ -1258,8 +1258,8 @@ public final class WaterClimb implements Controller {
         Keys.forward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
         nav.keys.jump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
         if (rungBeside) {
-            nav.waterClimb.yaw = (float)
-                    Math.toDegrees(Math.atan2(-((rung.getX() + 0.5) - p.getX()), (rung.getZ() + 0.5) - p.getZ()));
+            nav.waterClimb.yaw =
+                    (float) Math.toDegrees(Math.atan2(-(rung.getX() + 0.5 - p.getX()), rung.getZ() + 0.5 - p.getZ()));
         } else if (shallowAfloat && !insidePending) {
             BlockPos side = sideFoothold(world, foot, nav.waterClimb.yaw, p.getBoundingBox());
             if (side != null) {
@@ -1279,7 +1279,7 @@ public final class WaterClimb implements Controller {
                 nav.waterClimb.colX = side.getX();
                 nav.waterClimb.colZ = side.getZ();
                 nav.waterClimb.yaw = (float)
-                        Math.toDegrees(Math.atan2(-((side.getX() + 0.5) - p.getX()), (side.getZ() + 0.5) - p.getZ()));
+                        Math.toDegrees(Math.atan2(-(side.getX() + 0.5 - p.getX()), side.getZ() + 0.5 - p.getZ()));
                 return TickStep.WALKING;
             }
         }

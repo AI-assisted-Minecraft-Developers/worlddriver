@@ -346,9 +346,9 @@ public final class PathArchiveRecorder implements PathTrace {
     private double minDeviation(double x, double y, double z) {
         double best = Double.NaN;
         for (BlockPos n : replayPlan) {
-            double dx = (n.getX() + 0.5) - x;
-            double dy = (n.getY() + 0.5) - y;
-            double dz = (n.getZ() + 0.5) - z;
+            double dx = n.getX() + 0.5 - x;
+            double dy = n.getY() + 0.5 - y;
+            double dz = n.getZ() + 0.5 - z;
             double d = Math.sqrt(dx * dx + dy * dy + dz * dz);
             if (Double.isNaN(best) || d < best) {
                 best = d;

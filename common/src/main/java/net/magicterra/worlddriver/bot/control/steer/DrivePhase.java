@@ -398,8 +398,8 @@ public final class DrivePhase {
      * the sprint.
      */
     private boolean finalApproach(Navigator nav, LivingEntity p, BlockPos wp, boolean parkourEdge) {
-        double dx = (wp.getX() + 0.5) - p.getX();
-        double dz = (wp.getZ() + 0.5) - p.getZ();
+        double dx = wp.getX() + 0.5 - p.getX();
+        double dz = wp.getZ() + 0.5 - p.getZ();
         return ControlConfig.navigatorFinalNodeDirectAim
                 && !p.isInWater()
                 && !parkourEdge
@@ -814,8 +814,8 @@ public final class DrivePhase {
         if (dryStepUp) {
             int xA = wp.getX() != foot.getX() ? 1 : 0;
             int zA = wp.getZ() != foot.getZ() ? 1 : 0;
-            double flatDist = xA * Math.abs((wp.getX() + 0.5) - p.getX()) + zA * Math.abs((wp.getZ() + 0.5) - p.getZ());
-            double sideDist = zA * Math.abs((wp.getX() + 0.5) - p.getX()) + xA * Math.abs((wp.getZ() + 0.5) - p.getZ());
+            double flatDist = xA * Math.abs(wp.getX() + 0.5 - p.getX()) + zA * Math.abs(wp.getZ() + 0.5 - p.getZ());
+            double sideDist = zA * Math.abs(wp.getX() + 0.5 - p.getX()) + xA * Math.abs(wp.getZ() + 0.5 - p.getZ());
             Vec3 vel = p.getDeltaMovement();
             double lateralMotion = xA * vel.z + zA * vel.x;
             // SPRINT-BUNNY-HOP a cardinal +1 step (a smooth stair climb). The deterministic
@@ -860,8 +860,7 @@ public final class DrivePhase {
                     && (grindPress || grindGraze)
                     && backoffRunwayFloored(world, p, wp)) {
                 nav.recovery.backOff(
-                        (float) (Math.toDegrees(
-                                        Math.atan2(-((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ()))
+                        (float) (Math.toDegrees(Math.atan2(-(wp.getX() + 0.5 - p.getX()), wp.getZ() + 0.5 - p.getZ()))
                                 + 180.0),
                         nav.stallDetect.escal.tick);
                 if (GameConfig.navigatorDebug) {
@@ -911,17 +910,17 @@ public final class DrivePhase {
                 latX = seg[0];
                 latZ = seg[1];
             } else if (waterClimb) {
-                latX = (wp.getX() + 0.5) - p.getX();
-                latZ = (wp.getZ() + 0.5) - p.getZ();
+                latX = wp.getX() + 0.5 - p.getX();
+                latZ = wp.getZ() + 0.5 - p.getZ();
             } // centre on the target column
             else if (diagUp) {
-                latX = (wp.getX() + 0.5) - p.getX();
-                latZ = (wp.getZ() + 0.5) - p.getZ();
+                latX = wp.getX() + 0.5 - p.getX();
+                latZ = wp.getZ() + 0.5 - p.getZ();
             } // centre on the diagonal toward the step corner
             else if (ddx == 0 && ddz != 0) {
-                latX = (wp.getX() + 0.5) - p.getX(); // N/S lane → hold X
+                latX = wp.getX() + 0.5 - p.getX(); // N/S lane → hold X
             } else if (ddz == 0 && ddx != 0) {
-                latZ = (wp.getZ() + 0.5) - p.getZ(); // E/W lane → hold Z
+                latZ = wp.getZ() + 0.5 - p.getZ(); // E/W lane → hold Z
                 // Anti-drift in a current: a flowing-water cell pushes the bot
                 // downstream, so steer upstream (subtract the flow vector from the
                 // lateral target). The strafe is far stronger than the push, so this
@@ -1099,8 +1098,8 @@ public final class DrivePhase {
                 gcz = nr.target().getZ();
             }
             if (gcx != Integer.MIN_VALUE) {
-                double gdx = (gcx + 0.5) - p.getX();
-                double gdz = (gcz + 0.5) - p.getZ();
+                double gdx = gcx + 0.5 - p.getX();
+                double gdz = gcz + 0.5 - p.getZ();
                 if (gdx * gdx + gdz * gdz > 0.5) { // not already essentially on centre
                     driveTargetYaw = (float) Math.toDegrees(Math.atan2(-gdx, gdz));
                     driveF = 1.0;
@@ -1432,8 +1431,8 @@ public final class DrivePhase {
         // lava-side passage stays passable, just slow — exactly right there).
         BlockPos hazardCell = null; // the CELL, kept so the log can name it — see announceLavaBrake
         {
-            double hax = (wp.getX() + 0.5) - p.getX();
-            double haz = (wp.getZ() + 0.5) - p.getZ();
+            double hax = wp.getX() + 0.5 - p.getX();
+            double haz = wp.getZ() + 0.5 - p.getZ();
             double hal = Math.sqrt(hax * hax + haz * haz);
             if (hal > 1e-3) {
                 BlockPos aheadCell =
@@ -1475,8 +1474,8 @@ public final class DrivePhase {
             // (SNEAKING_SPEED 0.3 from the crouching tick on, on both bots) — same lip, same
             // measurement as the sprint term; see this class's javadoc. Sibling exclusions: the
             // lane-keep strafe and descentAirborneDriftClamp above
-            double bdx = (wp.getX() + 0.5) - p.getX();
-            double bdz = (wp.getZ() + 0.5) - p.getZ();
+            double bdx = wp.getX() + 0.5 - p.getX();
+            double bdz = wp.getZ() + 0.5 - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);
             if (blen > 1e-3) {
                 double ax = p.getX() + bdx / blen * 0.6;
@@ -1820,8 +1819,8 @@ public final class DrivePhase {
         // and it historically checked neither allowBreak NOR NoBreak. Gate it so forbidDig (and the
         // global switch) are both honored — an executor recovery must never out-mutate the planner.
         if (p.isInWater() && p.horizontalCollision && nav.mayBreak()) {
-            double bdx = (wp.getX() + 0.5) - p.getX();
-            double bdz = (wp.getZ() + 0.5) - p.getZ();
+            double bdx = wp.getX() + 0.5 - p.getX();
+            double bdz = wp.getZ() + 0.5 - p.getZ();
             double bl = Math.sqrt(bdx * bdx + bdz * bdz);
             BlockPos surf = BlockPos.containing(p.getX(), p.getY() + 1.0, p.getZ());
             BlockPos aheadPad =
@@ -1858,8 +1857,8 @@ public final class DrivePhase {
                 && (nav.stuckTicks > 40
                         || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60))
                 && !nav.blocks.breakHeld()) {
-            double fdx = (wp.getX() + 0.5) - p.getX();
-            double fdz = (wp.getZ() + 0.5) - p.getZ();
+            double fdx = wp.getX() + 0.5 - p.getX();
+            double fdz = wp.getZ() + 0.5 - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
                 BlockPos tgt = wallDigTarget(world, p, wp, fdx / fl, fdz / fl);
@@ -1965,8 +1964,8 @@ public final class DrivePhase {
         tick.leadWhy = "contact";
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
-        double dx = (node.getX() + 0.5) - p.getX();
-        double dz = (node.getZ() + 0.5) - p.getZ();
+        double dx = node.getX() + 0.5 - p.getX();
+        double dz = node.getZ() + 0.5 - p.getZ();
         if (vh > 0.03) {
             dx = v.x;
             dz = v.z;

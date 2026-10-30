@@ -104,8 +104,8 @@ public final class PathProjection {
             aboveReach |= i > step && a.getY() - footY >= 2; // the step's own segment always projects
             double ax = a.getX() + 0.5;
             double az = a.getZ() + 0.5;
-            double vx = (b.getX() + 0.5) - ax;
-            double vz = (b.getZ() + 0.5) - az;
+            double vx = b.getX() + 0.5 - ax;
+            double vz = b.getZ() + 0.5 - az;
             double len2 = vx * vx + vz * vz;
             double t = len2 < 1e-9 ? 0.0 : ((px - ax) * vx + (pz - az) * vz) / len2;
             if (t < 0) {
@@ -159,8 +159,8 @@ public final class PathProjection {
             // project onto). Pin the projection to the final node and measure perp to it — never index past
             // the end (the OOB that crashed walk 2 when the bot smoothly reached a segment's final node).
             BlockPos last = path.get(n - 1);
-            double dxl = (last.getX() + 0.5) - px;
-            double dzl = (last.getZ() + 0.5) - pz;
+            double dxl = last.getX() + 0.5 - px;
+            double dzl = last.getZ() + 0.5 - pz;
             bestD2 = dxl * dxl + dzl * dzl;
         }
         this.segIdx = bestSeg;
@@ -191,8 +191,8 @@ public final class PathProjection {
             BlockPos b = path.get(i + 1);
             double ax = a.getX() + 0.5;
             double az = a.getZ() + 0.5;
-            double vx = (b.getX() + 0.5) - ax;
-            double vz = (b.getZ() + 0.5) - az;
+            double vx = b.getX() + 0.5 - ax;
+            double vz = b.getZ() + 0.5 - az;
             double segLen = Math.hypot(vx, vz);
             double from = i == seg ? frac : 0.0;
             double avail = segLen * (1.0 - from);

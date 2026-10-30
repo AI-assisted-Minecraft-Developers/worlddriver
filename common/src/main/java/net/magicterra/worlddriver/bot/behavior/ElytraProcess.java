@@ -463,8 +463,8 @@ public final class ElytraProcess implements BotProcess {
             if (fixedYaw != null) {
                 yaw = fixedYaw;
             } else if (target != null) {
-                double dx = (target.getX() + 0.5) - p.getX();
-                double dz = (target.getZ() + 0.5) - p.getZ();
+                double dx = target.getX() + 0.5 - p.getX();
+                double dz = target.getZ() + 0.5 - p.getZ();
                 yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
             } else {
                 yaw = p.getYRot();
@@ -495,8 +495,8 @@ public final class ElytraProcess implements BotProcess {
 
             // Arrival / safety stop.
             if (target != null) {
-                double dx = (target.getX() + 0.5) - p.getX();
-                double dz = (target.getZ() + 0.5) - p.getZ();
+                double dx = target.getX() + 0.5 - p.getX();
+                double dz = target.getZ() + 0.5 - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
                     if (BehaviorConfig.elytraDebug) {
                         logSummary();

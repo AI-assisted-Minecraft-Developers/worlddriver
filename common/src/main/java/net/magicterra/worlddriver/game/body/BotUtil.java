@@ -554,8 +554,8 @@ public final class BotUtil {
      *     has already been released and the placement may proceed.
      */
     public static boolean stepToStandCentre(LivingEntity p, Body a, BlockPos stand) {
-        double dxToCenter = (stand.getX() + 0.5) - p.getX();
-        double dzToCenter = (stand.getZ() + 0.5) - p.getZ();
+        double dxToCenter = stand.getX() + 0.5 - p.getX();
+        double dzToCenter = stand.getZ() + 0.5 - p.getZ();
         if (Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter) > 0.25) {
             // Re-aim forward at the stand centre; the caller re-faces the support next tick.
             float yaw = (float) Math.toDegrees(Math.atan2(-dxToCenter, dzToCenter));

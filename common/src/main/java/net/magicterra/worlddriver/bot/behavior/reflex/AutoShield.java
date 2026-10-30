@@ -85,6 +85,6 @@ public final class AutoShield {
         double dz = at.z - p.getZ();
         double horiz = Math.sqrt(dx * dx + dz * dz);
         p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        p.setXRot((float) (-Math.toDegrees(Math.atan2(dy, horiz))));
+        p.setXRot((float) -Math.toDegrees(Math.atan2(dy, horiz)));
     }
 }

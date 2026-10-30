@@ -2183,7 +2183,7 @@ public final class PathFinder {
         }
 
         private long totalMs(long sliceStart) {
-            return (elapsedNanos + (System.nanoTime() - sliceStart)) / 1_000_000L;
+            return (elapsedNanos + System.nanoTime() - sliceStart) / 1_000_000L;
         }
     }
 

@@ -83,8 +83,8 @@ public final class VineClimb implements Controller {
         // OVERSHOOT_RESYNC_SQ — the live landing arrests at cur2~1.24, too far for REACH_DIST_SQ) AND
         // airborne. CANNOT fire mid-leap (over a parkour GAP foot=air, isClimbable=false). !p.isInWater()
         // stays (the apex is BEFORE the drop); if the grab still misses, the water climb-out takes over.
-        double vineDx = (wp.getX() + 0.5) - p.getX();
-        double vineDz = (wp.getZ() + 0.5) - p.getZ();
+        double vineDx = wp.getX() + 0.5 - p.getX();
+        double vineDz = wp.getZ() + 0.5 - p.getZ();
         boolean landedOnVine = ControlConfig.navigatorVineLandGrab
                 && world.isClimbable(foot)
                 && !p.onGround()
@@ -149,8 +149,8 @@ public final class VineClimb implements Controller {
         // the water pocket. Bias the wall pick toward the path-ahead direction so a corner
         // (two walls) still yields a stable heading; if no neighbour is solid (free climb),
         // fall back to the path-ahead bearing.
-        double vdx = (ahead.getX() + 0.5) - p.getX();
-        double vdz = (ahead.getZ() + 0.5) - p.getZ();
+        double vdx = ahead.getX() + 0.5 - p.getX();
+        double vdz = ahead.getZ() + 0.5 - p.getZ();
         Float wallYaw = vineWallYaw(world, foot, vdx, vdz);
         // NOTE (fix Q): a broad slide-guard-over-water (force climbUp when water-below) was tried
         // here and REMOVED — it misfired on LEGIT vine descents over water (live -702,489: path
@@ -196,8 +196,8 @@ public final class VineClimb implements Controller {
             // climbs the curtain up-and-across toward each successive node). `wp` can flip ±180° when
             // the pure-pursuit `step` advances under the foot, so the heading is SLEW-LIMITED below to
             // keep that from circling the bot off a narrow column.
-            double tx = (wp.getX() + 0.5) - p.getX();
-            double tz = (wp.getZ() + 0.5) - p.getZ();
+            double tx = wp.getX() + 0.5 - p.getX();
+            double tz = wp.getZ() + 0.5 - p.getZ();
             if (tx * tx + tz * tz < 0.04) {
                 // wp is DIRECTLY above (within 0.2 block): atan2 of a ~zero vector is pure noise.
                 // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.

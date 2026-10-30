@@ -64,7 +64,7 @@ public final class PathChartRenderer {
         int header = 64;
         int mapH = (H - header) * 55 / 100;
         int elevH = (H - header) * 20 / 100;
-        int tsH = (H - header) - mapH - elevH;
+        int tsH = H - header - mapH - elevH;
         int mapY = header;
         int elevY = header + mapH;
         int tsY = elevY + elevH;
@@ -352,7 +352,7 @@ public final class PathChartRenderer {
             double prevY = py.applyAsDouble(plan.path().get(0).getY());
             for (int i = 1; i < plan.path().size(); i++) {
                 acc += horiz(plan.path().get(i - 1), plan.path().get(i));
-                double xx = x0 + 12 + (acc / Math.max(1, total)) * (w - 24);
+                double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
                 double yy = py.applyAsDouble(plan.path().get(i).getY());
                 g.draw(new Line2D.Double(prevX, prevY, xx, yy));
                 prevX = xx;
@@ -370,7 +370,7 @@ public final class PathChartRenderer {
                 acc += Math.hypot(
                         tr.get(i).x() - tr.get(i - 1).x(),
                         tr.get(i).z() - tr.get(i - 1).z());
-                double xx = x0 + 12 + (acc / Math.max(1, total)) * (w - 24);
+                double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
                 double yy = py.applyAsDouble(tr.get(i).y());
                 g.draw(new Line2D.Double(prevX, prevY, xx, yy));
                 prevX = xx;
@@ -602,9 +602,9 @@ public final class PathChartRenderer {
         double minX = b[0] - pad;
         double minY = b[2] - pad;
         double minZ = b[4] - pad;
-        double spanX = Math.max(1, (b[1] + pad) - minX);
-        double spanY = Math.max(1, (b[3] + pad) - minY);
-        double spanZ = Math.max(1, (b[5] + pad) - minZ);
+        double spanX = Math.max(1, b[1] + pad - minX);
+        double spanY = Math.max(1, b[3] + pad - minY);
+        double spanZ = Math.max(1, b[5] + pad - minZ);
 
         int gap = 10;
         int m = 26; // m = inner panel margin for axis labels

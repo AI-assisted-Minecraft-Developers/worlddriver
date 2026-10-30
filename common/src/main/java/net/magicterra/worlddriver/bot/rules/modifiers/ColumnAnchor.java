@@ -18,8 +18,8 @@ public record ColumnAnchor(double cx, double cz, double softRadius, double weigh
         if (weight <= 0) {
             return 0;
         }
-        double dx = (to.getX() + 0.5) - cx;
-        double dz = (to.getZ() + 0.5) - cz;
+        double dx = to.getX() + 0.5 - cx;
+        double dz = to.getZ() + 0.5 - cz;
         double dist = Math.sqrt(dx * dx + dz * dz);
         return dist > softRadius ? weight * (dist - softRadius) : 0;
     }

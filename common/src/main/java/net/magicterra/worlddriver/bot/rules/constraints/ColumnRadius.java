@@ -49,8 +49,8 @@ public record ColumnRadius(double cx, double cz, double radius) implements Const
      * {@link LeashHardRadius} and the arena checker use.
      */
     private double distSqXZ(BlockPos p) {
-        double dx = (p.getX() + 0.5) - cx;
-        double dz = (p.getZ() + 0.5) - cz;
+        double dx = p.getX() + 0.5 - cx;
+        double dz = p.getZ() + 0.5 - cz;
         return dx * dx + dz * dz;
     }
 }

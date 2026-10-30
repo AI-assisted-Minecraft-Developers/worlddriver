@@ -242,8 +242,8 @@ public final class Pillar implements Controller {
         // pillar below engages. Self-recovering: a blocked approach rams → noStepProgress
         // climbs → the fellOffPath/repath path re-routes, so this can't deadlock.
         BlockPos pcol = nav.route.path().get(nav.route.step());
-        double pcdx = (pcol.getX() + 0.5) - p.getX();
-        double pcdz = (pcol.getZ() + 0.5) - p.getZ();
+        double pcdx = pcol.getX() + 0.5 - p.getX();
+        double pcdz = pcol.getZ() + 0.5 - p.getZ();
         // DRY pillars only: a buoyant/water pillar bobs and drifts off-column BY DESIGN and
         // has its own float-up + place-on-crest handling below; aligning would fight the bob
         // (regressed buoyantWallArena to 192-tick WATERLINE thrash). The thrash is AT the

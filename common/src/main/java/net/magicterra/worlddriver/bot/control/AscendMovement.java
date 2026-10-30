@@ -70,8 +70,8 @@ public final class AscendMovement implements Movement {
     }
 
     private static double cur2(MovementContext ctx) {
-        double dx = (ctx.node.getX() + 0.5) - ctx.p.getX();
-        double dz = (ctx.node.getZ() + 0.5) - ctx.p.getZ();
+        double dx = ctx.node.getX() + 0.5 - ctx.p.getX();
+        double dz = ctx.node.getZ() + 0.5 - ctx.p.getZ();
         return dx * dx + dz * dz;
     }
 }

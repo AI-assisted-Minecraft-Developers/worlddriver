@@ -641,7 +641,7 @@ public final class AimPhase {
         // by the CONTINUOUS Y gap to the waypoint with a bob-proof threshold (a flat or
         // gently-graded swim stays on the carrot; only a genuine dive / bank-climb ≥~1.5
         // aims at the block). On land the integer test is exact and unchanged.
-        double wpAimDy = (wp.getY() + 0.5) - p.getY();
+        double wpAimDy = wp.getY() + 0.5 - p.getY();
         boolean aimAtWaypoint = (p.isInWater() ? Math.abs(wpAimDy) > 1.5 : wp.getY() != foot.getY()) || parkourEdge;
         // Re-centre recovery on a stuck flat walk: a 1-wide channel needs the
         // player centred on the lane axis or the off-centre hitbox snags a corner
@@ -683,8 +683,8 @@ public final class AimPhase {
             BlockPos sp = nav.route.path().get(nav.route.step() - 1);
             boolean onSpine = foot.getX() == sp.getX() && foot.getZ() == sp.getZ();
             if (!onSpine && losWalkable(world, foot, sp)) {
-                double rcx = (sp.getX() + 0.5) - p.getX();
-                double rcz = (sp.getZ() + 0.5) - p.getZ();
+                double rcx = sp.getX() + 0.5 - p.getX();
+                double rcz = sp.getZ() + 0.5 - p.getZ();
                 // Only re-centre toward the previous node when it is NOT behind us:
                 // once the bot has progressed past sp, aiming at its centre points
                 // backward and steers the bot the wrong way (a stuck spot then drags
@@ -693,8 +693,8 @@ public final class AimPhase {
                 // product with the forward (toward-waypoint) direction so reCentre only
                 // fires for genuine lateral drift, never to reverse. Backward case
                 // falls through to the carrot, which keeps pushing forward.
-                double fwx = (wp.getX() + 0.5) - p.getX();
-                double fwz = (wp.getZ() + 0.5) - p.getZ();
+                double fwx = wp.getX() + 0.5 - p.getX();
+                double fwz = wp.getZ() + 0.5 - p.getZ();
                 // NORMALIZED backward gate: the raw dot's >=0 cut also rejected the
                 // near-PERPENDICULAR re-centre — which is exactly the corner-resnag this
                 // branch exists for (bridge bypass trio: the bot pinned on the barrier's
@@ -718,8 +718,8 @@ public final class AimPhase {
         String aimSrc;
         if (aimAtWaypoint) {
             aimSrc = "wp";
-            adx = (wp.getX() + 0.5) - p.getX();
-            adz = (wp.getZ() + 0.5) - p.getZ();
+            adx = wp.getX() + 0.5 - p.getX();
+            adz = wp.getZ() + 0.5 - p.getZ();
             // Dry +1 staircase camera-spin fix: once the bob carries the bot
             // horizontally ON TOP of the close +1 step node, that node's bearing flips
             // ±180° each tick (it's now beside/behind the foot) and a multi-step stair
@@ -815,8 +815,8 @@ public final class AimPhase {
             // (previous node) and the strafe (cross-axis) don't pull onto the IMMEDIATE node, so the
             // orbit only breaks on the slow wedge timer. Aim straight at the fixed node centre so the
             // bot closes onto it (within / clean crossing → step advances) instead of circling the carrot.
-            adx = (wp.getX() + 0.5) - p.getX();
-            adz = (wp.getZ() + 0.5) - p.getZ();
+            adx = wp.getX() + 0.5 - p.getX();
+            adz = wp.getZ() + 0.5 - p.getZ();
         } else {
             aimSrc = "carrot";
             double[] c = carrotPoint(nav, world, foot, p.getX(), p.getZ());
@@ -865,8 +865,8 @@ public final class AimPhase {
                         .get(Math.min(
                                 nav.route.step() + WATER_FAR_AIM_LOOKAHEAD,
                                 nav.route.path().size() - 1));
-                adx = (far.getX() + 0.5) - p.getX();
-                adz = (far.getZ() + 0.5) - p.getZ();
+                adx = far.getX() + 0.5 - p.getX();
+                adz = far.getZ() + 0.5 - p.getZ();
                 aimSrc = "farNode";
             }
         }
@@ -900,8 +900,8 @@ public final class AimPhase {
                 && nav.route.step() < nav.route.path().size()
                 && nav.stuckTicks > DRY_REANCHOR_STUCK) {
             BlockPos cn = nav.route.path().get(nav.route.step());
-            double cnx = (cn.getX() + 0.5) - p.getX();
-            double cnz = (cn.getZ() + 0.5) - p.getZ();
+            double cnx = cn.getX() + 0.5 - p.getX();
+            double cnz = cn.getZ() + 0.5 - p.getZ();
             // ram-while-facing-wrong extension REVERTED 2026-06-29 (§25): adding an `|| (hCol && |yawErr|>90)`
             // trigger made the live -671 diagDown stall MUCH worse (oscillating limit cycle, totStuck 6009 vs
             // 509 slow-recover) — anchoring BACK to step-1 on a CLOSE ram just bounces the bot back and forth
@@ -910,8 +910,8 @@ public final class AimPhase {
             // trigger (corpus-validated net-positive, §22-24); the close diagDown-ram is a separate open problem.
             if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ) {
                 BlockPos anchor = nav.route.path().get(nav.route.step() - 1);
-                adx = (anchor.getX() + 0.5) - p.getX();
-                adz = (anchor.getZ() + 0.5) - p.getZ();
+                adx = anchor.getX() + 0.5 - p.getX();
+                adz = anchor.getZ() + 0.5 - p.getZ();
             }
         }
         double aim2 = adx * adx + adz * adz;
@@ -981,8 +981,8 @@ public final class AimPhase {
                 && nav.route.path() != null
                 && nav.route.step() < nav.route.path().size()) {
             BlockPos rn = nav.route.path().get(nav.route.step());
-            double rndx = (rn.getX() + 0.5) - p.getX();
-            double rndz = (rn.getZ() + 0.5) - p.getZ();
+            double rndx = rn.getX() + 0.5 - p.getX();
+            double rndz = rn.getZ() + 0.5 - p.getZ();
             if (rndx * rndx + rndz * rndz > 1e-6) {
                 float rnb = (float) Math.toDegrees(Math.atan2(-rndx, rndz));
                 if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
@@ -1443,8 +1443,8 @@ public final class AimPhase {
         // drives at the column) and force a grounded jump below — pushing up-and-over
         // mounts the step instead of bobbing against it. Lateral-close gate (column
         // dist² < 1.6) keeps it from firing on a far / mis-routed node.
-        double stepColDx = (wp.getX() + 0.5) - p.getX();
-        double stepColDz = (wp.getZ() + 0.5) - p.getZ();
+        double stepColDx = wp.getX() + 0.5 - p.getX();
+        double stepColDz = wp.getZ() + 0.5 - p.getZ();
         // Shallow-water bank variant: a bot GROUNDED on a submerged ledge (onGround
         // AND in water — never the deep-water float, which stays !onGround) bobbing
         // against a +1/+2 bank never advances the lateral step. cappedHead (the bank
@@ -1530,8 +1530,8 @@ public final class AimPhase {
         // SETTLE phase). We brake only when close to the landing center, so
         // cutting thrust can never drop the leap short into the gap.
         boolean descendLeap = edge != null && edge.move != null && edge.move.startsWith("parkourDescend");
-        double landDx = (wp.getX() + 0.5) - p.getX();
-        double landDz = (wp.getZ() + 0.5) - p.getZ();
+        double landDx = wp.getX() + 0.5 - p.getX();
+        double landDz = wp.getZ() + 0.5 - p.getZ();
         boolean descendBrake = descendLeap
                 && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4; // within ~1.2 block of landing center

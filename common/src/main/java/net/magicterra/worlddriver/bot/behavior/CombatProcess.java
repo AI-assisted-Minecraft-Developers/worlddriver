@@ -389,7 +389,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (closeHostiles(p) < 2) {
             return 0f;
         }
-        boolean left = (ticks / STRAFE_FLIP) % 2 == 0;
+        boolean left = ticks / STRAFE_FLIP % 2 == 0;
         return left ? 1f : -1f;
     }
 
@@ -514,9 +514,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static void aimAt(Player p, Entity e, double yLead) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
-        double dy = (e.getY() + e.getBbHeight() * 0.5 + yLead) - eye.y;
+        double dy = e.getY() + e.getBbHeight() * 0.5 + yLead - eye.y;
         double dz = e.getZ() - eye.z;
-        float yaw = (float) (Math.toDegrees(Math.atan2(-dx, dz)));
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw);
         p.yHeadRot = yaw;

@@ -39,9 +39,9 @@ public record LeashHardRadius(double ax, double ay, double az, double radius) im
      * has always used.
      */
     private double distSq(BlockPos p) {
-        double dx = (p.getX() + 0.5) - ax;
+        double dx = p.getX() + 0.5 - ax;
         double dy = p.getY() - ay;
-        double dz = (p.getZ() + 0.5) - az;
+        double dz = p.getZ() + 0.5 - az;
         return dx * dx + dy * dy + dz * dz;
     }
 }

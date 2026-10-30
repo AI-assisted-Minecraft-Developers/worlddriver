@@ -117,8 +117,8 @@ public final class EdgeGuardsPhase {
         }
         dbgTicksOnStep++;
         BlockPos nd = nav.route.path().get(nav.route.step());
-        double ddx = (nd.getX() + 0.5) - p.getX();
-        double ddz = (nd.getZ() + 0.5) - p.getZ();
+        double ddx = nd.getX() + 0.5 - p.getX();
+        double ddz = nd.getZ() + 0.5 - p.getZ();
         double cur2 = ddx * ddx + ddz * ddz;
         double dY = nd.getY() - p.getY();
         boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
