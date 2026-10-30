@@ -39,6 +39,10 @@ public final class WorldDriverCommon {
 
     public static final Logger LOG = Mod.LOG;
 
+    /** The IPv4 loopback: the default bind host, and the host the in-JVM bridges dial. */
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP") // loopback by design: the transports are local-only by default
+    private static final String LOOPBACK = "127.0.0.1";
+
     private static volatile DriverApplication api;
 
     private static RpcServer rpcServer;
@@ -88,7 +92,7 @@ public final class WorldDriverCommon {
         try {
             if (api != null && rpcServer == null) {
                 int wantPort = Integer.getInteger("worlddriver.rpcPort", 0);
-                String bindHost = System.getProperty("worlddriver.rpcHost", "127.0.0.1");
+                String bindHost = System.getProperty("worlddriver.rpcHost", LOOPBACK);
                 try {
                     rpcServer = new RpcServer(api.registry(), api, bindHost, wantPort);
                 } catch (Exception bindFail) {
@@ -129,7 +133,7 @@ public final class WorldDriverCommon {
         ensureRpcUp(); // also guarantees api is non-null
         try {
             int wantPort = Integer.getInteger("worlddriver.mcpPort", 0);
-            String bindHost = System.getProperty("worlddriver.mcpHost", "127.0.0.1");
+            String bindHost = System.getProperty("worlddriver.mcpHost", LOOPBACK);
             try {
                 mcpServer = new McpServer(api.registry(), api, bindHost, wantPort);
             } catch (IOException bindFail) {
@@ -163,11 +167,11 @@ public final class WorldDriverCommon {
         try {
             InetAddress addr = InetAddress.getByName(bindHost);
             if (addr.isAnyLocalAddress()) {
-                return addr instanceof Inet6Address ? "[::1]" : "127.0.0.1";
+                return addr instanceof Inet6Address ? "[::1]" : LOOPBACK;
             }
             return addr instanceof Inet6Address ? "[" + addr.getHostAddress() + "]" : bindHost;
         } catch (UnknownHostException e) {
-            return "127.0.0.1";
+            return LOOPBACK;
         }
     }
 
@@ -303,6 +307,7 @@ public final class WorldDriverCommon {
      * Called when STOPPED. A dedicated server's JVM has nothing left to serve, and the HTTP server's non-daemon
      * dispatcher thread would otherwise hold it open; a client keeps both for the title screen.
      */
+    @SuppressWarnings("PMD.NonThreadSafeSingleton") // not a lazy singleton: it tears down on the stopping thread
     public static void onServerStopped(MinecraftServer server) {
         if (!server.isDedicatedServer()) {
             return;
@@ -395,11 +400,11 @@ public final class WorldDriverCommon {
                 LOG.warn("[{}] user scripts path is not a directory: {}", MOD_ID, dir);
                 return 0;
             }
-            RpcBridge bridge = new RpcBridge("127.0.0.1", WorldDriver.rpcPort());
+            RpcBridge bridge = new RpcBridge(LOOPBACK, WorldDriver.rpcPort());
             ApiRegistry a = api.registry();
             int mcpPort = WorldDriver.mcpPort();
             McpBridge mcpBridge = mcpPort > 0
-                    ? new McpBridge("127.0.0.1", mcpPort, name -> {
+                    ? new McpBridge(LOOPBACK, mcpPort, name -> {
                         var spec = a.spec(name);
                         return spec == null ? null : spec.image();
                     })

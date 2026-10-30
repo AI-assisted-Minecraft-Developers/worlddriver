@@ -155,6 +155,7 @@ public final class ClientChat {
         }
     }
 
+    /** The newest chat lines, at most {@code p.limit()} and after {@code p.sinceSeq()}, newest first. */
     public static ChatHistory chatHistory(ChatHistoryParams p) {
         // gameTime only needed to derive ageTicks; the log itself is thread-safe.
         long now = ClientHop.call(ClientChat::gameTimeNow);
@@ -168,6 +169,10 @@ public final class ClientChat {
         return new ChatHistory(ClientChatLog.nextSeq(), rows);
     }
 
+    /**
+     * Ends the tutorial and clears the toasts, as {@code p} asks, on the client thread. A step that fails is reported
+     * with its error rather than thrown.
+     */
     public static OverlaysCleared overlays(OverlaysParams p) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();

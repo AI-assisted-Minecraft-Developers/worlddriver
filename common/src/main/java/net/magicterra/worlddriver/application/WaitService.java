@@ -78,8 +78,8 @@ public final class WaitService implements WaitApi {
     private static final int MAX_RESULTS = 64;
 
     /**
-     * waitId → how it ended. Bounded and insertion-ordered so the genuinely oldest is evicted: a hash order could drop
-     * a result the agent has not fetched yet.
+     * Each waitId's ending. Bounded and insertion-ordered so the genuinely oldest is evicted: a hash order could drop a
+     * result the agent has not fetched yet.
      */
     private static final Map<String, WaitDone> RESULTS = Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
@@ -88,7 +88,7 @@ public final class WaitService implements WaitApi {
         }
     });
 
-    /** waitIds still running: without it an id missing from RESULTS could be running or gone. */
+    /** The waitIds still running: without it an id missing from RESULTS could be running or gone. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
     private final DriverApplication api;
@@ -111,6 +111,7 @@ public final class WaitService implements WaitApi {
      * Run {@code body} in the foreground or in the background. Everything that can refuse the request runs before this,
      * so a bad request is never acknowledged and then failed in the background.
      */
+    @SuppressWarnings("PMD.CloseResource") // each lease is closed when its wait ends or its start throws
     private CompletionStage<Outcome> run(
             MethodSpec<?, Outcome> spec, String kind, boolean background, int timeoutMs, CallContext ctx, Body body) {
         if (!background) {
@@ -151,6 +152,7 @@ public final class WaitService implements WaitApi {
         return CompletableFuture.completedFuture(new Started(waitId));
     }
 
+    @SuppressWarnings("PMD.UseTryWithResources") // the lease is the caller's, released only after the id leaves
     private void finish(
             MethodSpec<?, Outcome> spec, String waitId, Outcome reply, Throwable failure, WaitPermits.Lease lease) {
         WaitDone done;
@@ -308,6 +310,7 @@ public final class WaitService implements WaitApi {
      * honest equal must not read as unsatisfied. Numbers compare by value; a boolean or number also matches its string
      * form, as targets written in a script sometimes are.
      */
+    @SuppressWarnings("PMD.UnnecessaryBoxing") // explicit: Double == Double would compare references, not values
     static boolean looseEquals(JsonElement fieldVal, JsonElement target) {
         if (Objects.equals(fieldVal, target)) {
             return true;

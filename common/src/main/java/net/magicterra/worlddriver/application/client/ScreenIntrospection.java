@@ -71,30 +71,30 @@ public final class ScreenIntrospection {
         }
         WidgetNode hit = byRef.get(ref);
         if (hit == null) {
-            return refused("ref " + ref + " is not on the open screen: it closed, rebuilt its widgets, or the ref came "
+            return refused(refName(ref) + " is not on the open screen: it closed, rebuilt its widgets, or the ref came "
                     + "from another screen. Read screen.tree again");
         }
         if (Boolean.FALSE.equals(hit.visible().orElse(true))) {
-            return refused("ref " + ref + " is hidden");
+            return refused(refName(ref) + " is hidden");
         }
         if (hit.box().isEmpty()) {
-            return refused("ref " + ref + " (" + hit.type() + ") has no box to click");
+            return refused(refName(ref) + " (" + hit.type() + ") has no box to click");
         }
         Box b = hit.box().get();
         double x = b.x() + b.width() / 2.0;
         double y = b.y() + b.height() / 2.0;
         if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
-            return refused("ref " + ref + " lies outside the screen, at " + x + "," + y);
+            return refused(refName(ref) + " lies outside the screen, at " + x + "," + y);
         }
         for (WidgetNode holder = byRef.get(hit.parent().orElse(-1));
                 holder != null;
                 holder = byRef.get(holder.parent().orElse(-1))) {
             if (Boolean.FALSE.equals(holder.visible().orElse(true))) {
                 return refused(
-                        "ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref() + "), which is hidden");
+                        refName(ref) + " sits in " + holder.type() + " (ref " + holder.ref() + "), which is hidden");
             }
             if (holder.box().isPresent() && !inside(holder.box().get(), x, y)) {
-                return refused("ref " + ref + " lies outside the visible part of " + holder.type() + " (ref "
+                return refused(refName(ref) + " lies outside the visible part of " + holder.type() + " (ref "
                         + holder.ref() + "), scrolled out of view");
             }
         }
@@ -103,6 +103,11 @@ public final class ScreenIntrospection {
 
     private static Aim refused(String why) {
         return new Aim(0, 0, Optional.of(why));
+    }
+
+    /** How a refusal names the widget it was given. */
+    private static String refName(int ref) {
+        return "ref " + ref;
     }
 
     /** The live object a ref names on the open screen, or why there is none. */
@@ -122,7 +127,7 @@ public final class ScreenIntrospection {
         if (hit == null) {
             return new Target(
                     null,
-                    Optional.of("ref " + ref + " is not on the open screen: it closed, rebuilt its "
+                    Optional.of(refName(ref) + " is not on the open screen: it closed, rebuilt its "
                             + "widgets, or the ref came from another screen. Read screen.tree again"));
         }
         return new Target(hit, Optional.empty());
@@ -162,15 +167,15 @@ public final class ScreenIntrospection {
         static final After NONE = new After(Optional.empty(), Optional.empty());
     }
 
-    /** returnTree's reading just before the input, or null when it was not asked. Client thread. */
+    /** The {@code returnTree} reading just before the input, or null when it was not asked. Client thread. */
     static ScreenTree before(boolean returnTree) {
         return returnTree ? screenTree() : null;
     }
 
     /**
-     * returnTree's answer: whether the tree now differs from {@code before}, and the tree when it does. The whole tree
-     * is compared, contextId included, so a new screen, a rebuilt one and a toggled widget on the same one all count.
-     * Client thread.
+     * The {@code returnTree} answer: whether the tree now differs from {@code before}, and the tree when it does. The
+     * whole tree is compared, contextId included, so a new screen, a rebuilt one and a toggled widget on the same one
+     * all count. Client thread.
      */
     static After after(ScreenTree before) {
         if (before == null) {
@@ -181,6 +186,10 @@ public final class ScreenIntrospection {
         return new After(Optional.of(changed), changed ? Optional.of(now) : Optional.empty());
     }
 
+    /**
+     * A cheap probe of the client: the open screen and any overlay on top of it, whether a world and player exist,
+     * window focus and mouse grab, and a death screen's cause.
+     */
     public static ScreenInfo screenInfo() {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
@@ -215,6 +224,10 @@ public final class ScreenIntrospection {
         });
     }
 
+    /**
+     * The open screen's widget tree, each widget with the ref that input methods aim at; a widget that throws while
+     * being read is reported on its own node rather than failing the whole answer.
+     */
     public static ScreenTree screenTree() {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
@@ -482,6 +495,7 @@ public final class ScreenIntrospection {
      * case where the probes found nothing — which is precisely the remapped case. They are ordinary virtual calls on
      * public API, so tiny-remapper rewrites them correctly.
      */
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration") // a row's label sits in a private field with no getter
     private static String entryLabel(Object entry) {
         for (String getter : new String[] {"getLevelName", "getDisplayName", "getMessage", "getName"}) {
             try {

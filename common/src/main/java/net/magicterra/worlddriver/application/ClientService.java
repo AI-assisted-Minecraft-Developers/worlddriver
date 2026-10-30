@@ -34,8 +34,6 @@ final class ClientService implements ClientApi {
 
     private static final long CHAT_POLL_MS = 50;
 
-    ClientService() {}
-
     List<ApiMethod<?, ?>> methods() {
         return ClientApiBinding.methods(this);
     }
@@ -50,9 +48,27 @@ final class ClientService implements ClientApi {
         return ApiHandlers.run(ClientService::scene);
     }
 
+    private static ClientScene scene() {
+        BotApi bot = BotHooks.impl();
+        if (bot == null) {
+            throw ApiException.of(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE, "mc.client.scene needs a game client, and this JVM has none");
+        }
+        return bot.scene();
+    }
+
     @Override
     public CompletionStage<ClientContracts.BlockScan> blocks(BlocksParams p, CallContext ctx) {
         return onClient(ctx, c -> () -> blocks(c, p));
+    }
+
+    private static ClientContracts.BlockScan blocks(ClientDriverApi c, BlocksParams p) {
+        Set<String> ids =
+                p.type().map(t -> (Set<String>) new LinkedHashSet<>(Set.of(t))).orElse(null);
+        Double cx = p.center().map(b -> (double) b.x()).orElse(null);
+        Double cy = p.center().map(b -> (double) b.y()).orElse(null);
+        Double cz = p.center().map(b -> (double) b.z()).orElse(null);
+        return c.scanBlocks(p.radius(), cx, cy, cz, ids);
     }
 
     /**
@@ -118,6 +134,7 @@ final class ClientService implements ClientApi {
      * Starts a call that finishes after client ticks or a frame, holding one of the caller's wait permits until its
      * stage completes. No thread is held; the permit bounds how many such stages are pending.
      */
+    @SuppressWarnings("PMD.CloseResource") // the lease is closed when the stage completes or the start throws
     static <T> CompletionStage<T> waiting(
             CallContext ctx, String what, java.util.function.Function<ClientDriverApi, CompletionStage<T>> body) {
         ClientDriverApi c = client();
@@ -132,23 +149,5 @@ final class ClientService implements ClientApi {
             lease.close();
             throw e;
         }
-    }
-
-    private static ClientScene scene() {
-        BotApi bot = BotHooks.impl();
-        if (bot == null) {
-            throw ApiException.of(
-                    ApiError.Code.CAPABILITY_UNAVAILABLE, "mc.client.scene needs a game client, and this JVM has none");
-        }
-        return bot.scene();
-    }
-
-    private static ClientContracts.BlockScan blocks(ClientDriverApi c, BlocksParams p) {
-        Set<String> ids =
-                p.type().map(t -> (Set<String>) new LinkedHashSet<>(Set.of(t))).orElse(null);
-        Double cx = p.center().map(b -> (double) b.x()).orElse(null);
-        Double cy = p.center().map(b -> (double) b.y()).orElse(null);
-        Double cz = p.center().map(b -> (double) b.z()).orElse(null);
-        return c.scanBlocks(p.radius(), cx, cy, cz, ids);
     }
 }

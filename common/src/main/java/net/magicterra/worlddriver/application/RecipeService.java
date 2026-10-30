@@ -33,7 +33,6 @@ import net.magicterra.worlddriver.game.observe.ItemCounts;
 import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -58,7 +57,7 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
  *   <li>{@code mc.plan.acquire} — that plan plus how to get every missing leaf.
  * </ul>
  *
- * All reads run on the server thread (recipes are server-authoritative).
+ * <p>All reads run on the server thread (recipes are server-authoritative).
  */
 public final class RecipeService implements RecipeApi {
     private final DriverApplication api;
@@ -135,7 +134,7 @@ public final class RecipeService implements RecipeApi {
 
     private RecipeContracts.Recipe recipe(RecipeHolder<?> h, Recipe<?> r, ItemStack res) {
         List<RecipeContracts.Ingredient> ings = new ArrayList<>();
-        NonNullList<Ingredient> list = r.getIngredients();
+        List<Ingredient> list = r.getIngredients();
         for (int i = 0; i < list.size(); i++) {
             Ingredient ing = list.get(i);
             if (ing.isEmpty()) {
@@ -318,7 +317,7 @@ public final class RecipeService implements RecipeApi {
     private List<String> shapedPattern(ShapedRecipe sr) {
         int w = sr.getWidth();
         int h = sr.getHeight();
-        NonNullList<Ingredient> ings = sr.getIngredients();
+        List<Ingredient> ings = sr.getIngredients();
         Map<String, Character> keyOf = new LinkedHashMap<>();
         char next = 'A';
         List<String> rows = new ArrayList<>();

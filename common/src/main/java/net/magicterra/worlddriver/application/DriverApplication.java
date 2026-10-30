@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
@@ -82,7 +83,7 @@ public final class DriverApplication implements DriverHost {
 
     volatile MinecraftServer server;
 
-    final ArrayDeque<DriverEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
+    final Deque<DriverEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
 
     final Object eventsLock = new Object();
 
@@ -105,6 +106,10 @@ public final class DriverApplication implements DriverHost {
     /** The core methods, published once; a retry would hand over this same object. */
     private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
 
+    /**
+     * Registers the core methods, then publishes each body task as it is registered, every one in its own batch under
+     * its mod id.
+     */
     public DriverApplication() {
         registry.registerBatch(coreBatch);
         BotTaskService tasks = new BotTaskService(this);
@@ -152,10 +157,6 @@ public final class DriverApplication implements DriverHost {
             throw new IllegalStateException("mc.client.* not available (no client registered)");
         }
         return c;
-    }
-
-    private static ClientDriverApi clientOrNull() {
-        return ClientHooks.impl();
     }
 
     @Override

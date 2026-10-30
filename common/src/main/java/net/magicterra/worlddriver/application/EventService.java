@@ -92,6 +92,7 @@ public final class EventService implements EventApi {
         return new EventContracts.Page(events, page.isEmpty() ? p.cursor() : page.get(page.size() - 1).seq);
     }
 
+    @SuppressWarnings("PMD.UnusedLocalVariable") // the list case binds a name only because Java 21 has no unnamed one
     private EventsReply dispatch(EventsOp op) {
         return switch (op) {
             case Emit e -> emit(e);

@@ -30,6 +30,7 @@ public final class PlayerMenus {
 
     private PlayerMenus() {}
 
+    /** Vanilla's click type for the API's click kind. */
     public static ClickType clickType(ClickKind kind) {
         return switch (kind) {
             case PICKUP -> ClickType.PICKUP;

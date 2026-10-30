@@ -22,7 +22,9 @@ public final class TickClock {
 
     private long count;
 
-    TickClock() {}
+    TickClock() {
+        // package-private so tests can make a clock of their own; the server's is SERVER
+    }
 
     /** The clock the server's post-tick hook feeds and a wait reads. */
     public static TickClock server() {

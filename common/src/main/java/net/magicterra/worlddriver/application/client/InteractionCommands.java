@@ -39,7 +39,7 @@ final class InteractionCommands {
     private InteractionCommands() {}
 
     /** The same rule as any other body's hands; the method has already refused an unregistered id. */
-    public static ImmediateResponse holdItem(InteractContracts.HoldParams params) {
+    static ImmediateResponse holdItem(InteractContracts.HoldParams params) {
         Minecraft mc = Minecraft.getInstance();
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
         return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
@@ -47,7 +47,7 @@ final class InteractionCommands {
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, params.bot()));
     }
 
-    public static ImmediateResponse useItem(InteractContracts.UseParams p) {
+    static ImmediateResponse useItem(InteractContracts.UseParams p) {
         if (p.entityId().isPresent()) {
             return useOnEntity(p, p.entityId().get());
         }
@@ -133,7 +133,7 @@ final class InteractionCommands {
     }
 
     /** {@code on} with the vehicle and the screen the player has now. */
-    public static OnEntity afterUse(OnEntity on) {
+    static OnEntity afterUse(OnEntity on) {
         Minecraft mc = Minecraft.getInstance();
         Entity vehicle = mc.player == null ? null : mc.player.getVehicle();
         return new OnEntity(
@@ -147,7 +147,7 @@ final class InteractionCommands {
                 Optional.empty());
     }
 
-    public static ImmediateResponse attackEntity(InteractContracts.AttackParams p) {
+    static ImmediateResponse attackEntity(InteractContracts.AttackParams p) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(p.entityId());

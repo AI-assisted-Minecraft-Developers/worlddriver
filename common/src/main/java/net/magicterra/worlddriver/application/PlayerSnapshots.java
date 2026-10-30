@@ -42,6 +42,7 @@ import net.minecraft.world.phys.Vec3;
 public final class PlayerSnapshots {
     private PlayerSnapshots() {}
 
+    /** The record for {@code p}; {@code view} is the crosshair and frame rate only the client can add. */
     public static PlayerState of(Player p, Optional<ClientView> view) {
         BlockPos cell = p.blockPosition();
         Vec3 eye = p.getEyePosition();

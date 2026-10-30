@@ -108,7 +108,7 @@ final class BodyInteractions {
         BlockPos pos = Positions.blockPos(at);
         Direction face =
                 p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
-        InteractionHand hand = HandWords.hand(p.hand());
+        final InteractionHand hand = HandWords.hand(p.hand());
         Vec3 hit = HandVerbs.faceCentre(pos, face);
         if (p.lookAt()) {
             HandVerbs.turn(sp, HandVerbs.anglesTo(sp.getEyePosition(), hit.x, hit.y, hit.z));
@@ -137,7 +137,7 @@ final class BodyInteractions {
         if (target == sp) {
             return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
         }
-        InteractionHand hand = HandWords.hand(p.hand());
+        final InteractionHand hand = HandWords.hand(p.hand());
         if (p.lookAt()) {
             HandVerbs.turn(sp, HandVerbs.anglesAt(sp, target));
         }

@@ -116,6 +116,11 @@ final class ClientEventDetector {
      * advancement transitions. Called once per client tick after the threat scan refreshes. Everything funnels through
      * the brain's stream → the same event stream block/chat/death use → subscribers on both transports.
      */
+    @SuppressWarnings({
+        "checkstyle:javancss", // the detectors run in emission order, which is the stream's order
+        "PMD.AvoidAccessibilityAlteration", // the advancement progress map is a private field, found by type
+        "PMD.AvoidBranchingStatementAsLastInLoop" // only the first Map-typed field is the progress map
+    })
     void detectClientEvents(Minecraft mc) {
         if (mc.player == null) {
             return;
@@ -345,6 +350,7 @@ final class ClientEventDetector {
             }
             evtLastActionBar = ab;
         } catch (Throwable ignored) {
+            // never break the tick
         }
 
         // --- Title / subtitle ---------------------------------------------------
@@ -363,6 +369,7 @@ final class ClientEventDetector {
             }
             evtLastTitle = title;
         } catch (Throwable ignored) {
+            // never break the tick
         }
     }
 
@@ -374,6 +381,7 @@ final class ClientEventDetector {
      * The {@code getString()} call no longer is: {@code Component} is public API, so a pattern-match reads the text
      * through a normal virtual call that tiny-remapper rewrites like any other.
      */
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration") // Gui keeps the title and action bar in private fields
     private static String componentFieldText(Object obj, String name) {
         java.lang.reflect.Field f = findField(obj.getClass(), name);
         if (f == null) {
@@ -392,6 +400,7 @@ final class ClientEventDetector {
             try {
                 return k.getDeclaredField(name);
             } catch (NoSuchFieldException ignored) {
+                // not declared here: try the superclass
             }
         }
         return null;

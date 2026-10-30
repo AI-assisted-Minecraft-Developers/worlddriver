@@ -40,6 +40,7 @@ abstract class ServerCommonPacketListenerImplMixin {
             method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V",
             at = @At("HEAD"),
             cancellable = true)
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$dropPayloadToBot(
             Packet<?> packet, @Nullable PacketSendListener listener, CallbackInfo ci) {
         if (packet instanceof ClientboundCustomPayloadPacket && JoinedPlayers.isSilent(connection)) {

@@ -14,9 +14,12 @@ import net.magicterra.worlddriver.api.methods.script.ScriptContracts.SkillReply;
  * until it is bound the three methods are {@code capability_unavailable}.
  */
 public interface ScriptHost {
+    /** Runs a script for {@code mc.script.eval}. */
     CompletionStage<Outcome> eval(EvalParams params, CallContext ctx);
 
+    /** Saves, lists, reads, runs or deletes a stored skill for {@code mc.skill}. */
     CompletionStage<SkillReply> skill(SkillOp op, CallContext ctx);
 
+    /** Starts, reports on or cancels a playbook for {@code mc.bot.playbook}. */
     PlaybookReply playbook(PlaybookOp op, CallContext ctx);
 }

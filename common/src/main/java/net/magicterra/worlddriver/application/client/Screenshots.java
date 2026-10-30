@@ -24,6 +24,12 @@ public final class Screenshots {
     /** How long a capture waits for a frame of its own before reporting that none was drawn. */
     private static final long FRESH_FRAME_MS = 1_000;
 
+    /** The PNG format name, as ImageIO and the reply both spell it. */
+    private static final String PNG = "png";
+
+    /** The JPEG format name, as ImageIO and the reply both spell it. */
+    private static final String JPEG = "jpeg";
+
     private Screenshots() {}
 
     /**
@@ -55,10 +61,11 @@ public final class Screenshots {
     }
 
     /** Off the client thread: the image is plain native memory once read back. Closes it. */
+    @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes") // kept: callers of the stage see this exact type today
     private static ClientContracts.Screenshot encode(Capture cap, ScreenshotParams opts) {
         final int maxW = opts.maxWidth().orElse(0);
         final int maxH = opts.maxHeight().orElse(0);
-        final String fmt = opts.format() == ImageFormat.JPEG ? "jpeg" : "png";
+        final String fmt = opts.format() == ImageFormat.JPEG ? JPEG : PNG;
         final int quality = opts.quality();
         try (NativeImage img = cap.img()) {
             int srcW = img.getWidth();
@@ -76,36 +83,23 @@ public final class Screenshots {
             }
 
             // PNG, no resize → fast path uses NativeImage's own encoder.
-            if ("png".equals(fmt) && dstW == srcW && dstH == srcH) {
-                return reply("png", srcW, srcH, img.asByteArray(), cap);
+            if (PNG.equals(fmt) && dstW == srcW && dstH == srcH) {
+                return reply(PNG, srcW, srcH, img.asByteArray(), cap);
             }
 
             // Resize/transcoding path via AWT: copy ARGB pixels into a
             // BufferedImage so we can scale with Graphics2D and pass to
             // ImageIO. AWT initialises in headless mode fine — ImageIO PNG
             // and JPEG encoders don't need a display.
-            java.awt.image.BufferedImage src =
-                    new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            int[] argb = new int[srcW * srcH];
-            for (int y = 0; y < srcH; y++) {
-                for (int x = 0; x < srcW; x++) {
-                    // NativeImage stores ABGR little-endian; convert to AARRGGBB for AWT.
-                    int p = img.getPixelRGBA(x, y);
-                    int r = p & 0xFF;
-                    int g = (p >> 8) & 0xFF;
-                    int b = (p >> 16) & 0xFF;
-                    int a = (p >> 24) & 0xFF;
-                    argb[y * srcW + x] = (a << 24) | (r << 16) | (g << 8) | b;
-                }
-            }
-            src.setRGB(0, 0, srcW, srcH, argb, 0, srcW);
+            java.awt.image.BufferedImage src = toAwt(img, srcW, srcH);
 
             java.awt.image.BufferedImage out;
-            if (dstW != srcW || dstH != srcH) {
+            boolean resized = dstW != srcW || dstH != srcH;
+            if (resized) {
                 out = new java.awt.image.BufferedImage(
                         dstW,
                         dstH,
-                        "png".equals(fmt)
+                        PNG.equals(fmt)
                                 ? java.awt.image.BufferedImage.TYPE_INT_ARGB
                                 : java.awt.image.BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g2 = out.createGraphics();
@@ -116,7 +110,7 @@ public final class Screenshots {
                         java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
                 g2.drawImage(src, 0, 0, dstW, dstH, null);
                 g2.dispose();
-            } else if ("jpeg".equals(fmt)) {
+            } else if (JPEG.equals(fmt)) {
                 // JPEG doesn't carry alpha; collapse onto opaque RGB.
                 out = new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g2 = out.createGraphics();
@@ -126,17 +120,37 @@ public final class Screenshots {
                 out = src;
             }
 
-            String mime = "png".equals(fmt) ? "png" : "jpeg";
+            String mime = PNG.equals(fmt) ? PNG : JPEG;
             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            if ("jpeg".equals(mime)) {
+            if (JPEG.equals(mime)) {
                 writeJpeg(out, baos, quality);
             } else {
-                javax.imageio.ImageIO.write(out, "png", baos);
+                javax.imageio.ImageIO.write(out, PNG, baos);
             }
             return reply(mime, dstW, dstH, baos.toByteArray(), cap);
         } catch (IOException e) {
             throw new RuntimeException("screenshot encode failed", e);
         }
+    }
+
+    /** {@code img}'s pixels as an AWT ARGB image of the same size. */
+    private static java.awt.image.BufferedImage toAwt(NativeImage img, int srcW, int srcH) {
+        java.awt.image.BufferedImage src =
+                new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        int[] argb = new int[srcW * srcH];
+        for (int y = 0; y < srcH; y++) {
+            for (int x = 0; x < srcW; x++) {
+                // NativeImage stores ABGR little-endian; convert to AARRGGBB for AWT.
+                int p = img.getPixelRGBA(x, y);
+                int r = p & 0xFF;
+                int g = (p >> 8) & 0xFF;
+                int b = (p >> 16) & 0xFF;
+                int a = (p >> 24) & 0xFF;
+                argb[y * srcW + x] = (a << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
+        src.setRGB(0, 0, srcW, srcH, argb, 0, srcW);
+        return src;
     }
 
     /**
@@ -154,7 +168,7 @@ public final class Screenshots {
      */
     private static ClientContracts.Screenshot reply(String format, int width, int height, byte[] bytes, Capture cap) {
         return new ClientContracts.Screenshot(
-                "png".equals(format) ? ImageFormat.PNG : ImageFormat.JPEG,
+                PNG.equals(format) ? ImageFormat.PNG : ImageFormat.JPEG,
                 width,
                 height,
                 cap.frame(),
@@ -166,10 +180,10 @@ public final class Screenshots {
 
     private static void writeJpeg(java.awt.image.BufferedImage img, java.io.OutputStream out, int quality)
             throws IOException {
-        var writers = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg");
+        var writers = javax.imageio.ImageIO.getImageWritersByFormatName(JPEG);
         if (!writers.hasNext()) {
             // Fallback: default-quality JPEG via ImageIO.
-            javax.imageio.ImageIO.write(img, "jpeg", out);
+            javax.imageio.ImageIO.write(img, JPEG, out);
             return;
         }
         javax.imageio.ImageWriter w = writers.next();

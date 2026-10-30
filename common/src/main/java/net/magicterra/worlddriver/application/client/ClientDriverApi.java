@@ -52,17 +52,22 @@ public interface ClientDriverApi {
     /** The hop onto this client's thread. */
     ServerThreadHop hop();
 
+    /** The open screen and overlay, whether a world and player exist, and window focus and mouse grab. */
     ScreenInfo readScreenInfo();
 
+    /** The open screen's widget tree, each widget carrying the ref that input methods aim at. */
     ScreenTree readScreenTree();
 
+    /** Closes the open screen and names the one that was. */
     Closed closeScreen(CloseParams p);
 
+    /** Clicks the open screen at a widget ref or at GUI coordinates. */
     ClientReply click(ClickParams p);
 
     /** Sends a real container click, the same path vanilla's slot click takes. */
     ClientReply slotClick(SlotClickParams p);
 
+    /** Moves the cursor to GUI coordinates and scrolls the wheel, as the mouse handler would. */
     Moved mouseMove(MoveParams p);
 
     /** Selects the held hotbar slot and tells the server. */
@@ -104,8 +109,10 @@ public interface ClientDriverApi {
         LaterChat timedOut();
     }
 
+    /** The newest lines of this client's chat log, newest first. */
     ChatHistory chatHistory(ChatHistoryParams p);
 
+    /** Ends the tutorial and clears the toasts, as asked; a step that fails is reported, not thrown. */
     OverlaysCleared overlays(OverlaysParams p);
 
     /** A capture of a frame drawn after the request; the encode runs off the client thread. */

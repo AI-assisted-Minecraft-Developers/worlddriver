@@ -73,6 +73,9 @@ import net.minecraft.world.level.Level;
  * {@link BodyTaskStarter} a planner that reads the body on its own thread.
  */
 final class BotTaskService implements BotTaskApi {
+    /** What an unknown item id is called in the invalid_params message. */
+    private static final String ITEM_KIND = "item";
+
     private final DriverApplication app;
 
     private final BodyTaskStarter actions;
@@ -100,14 +103,14 @@ final class BotTaskService implements BotTaskApi {
 
     @Override
     public CompletionStage<ActionResponse<GatherContracts.Crafted>> craft(CraftParams p, CallContext ctx) {
-        requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
+        requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/item", p.item());
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.craft(p, body));
     }
 
     @Override
     public CompletionStage<ActionResponse<GatherContracts.Smelted>> smelt(SmeltParams p, CallContext ctx) {
-        requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
-        p.fuel().ifPresent(f -> requireRegistered(BuiltInRegistries.ITEM, "item", "/fuel", f));
+        requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/item", p.item());
+        p.fuel().ifPresent(f -> requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/fuel", f));
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.smelt(p, body));
     }
 
@@ -122,7 +125,7 @@ final class BotTaskService implements BotTaskApi {
             case BuildContracts.Tower t -> t.block();
             case BuildContracts.Bridge b -> b.block();
         };
-        block.ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/structure/block", id));
+        block.ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/structure/block", id));
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.construct(p, body));
     }
 
@@ -143,7 +146,7 @@ final class BotTaskService implements BotTaskApi {
         }
         p.route()
                 .flatMap(RouteContracts.Route::requireTool)
-                .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/route/requireTool", id));
+                .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/route/requireTool", id));
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.follow(p, body));
     }
 
@@ -190,8 +193,17 @@ final class BotTaskService implements BotTaskApi {
         };
     }
 
+    private static BodyTaskStarter.Plan<GotoContracts.Result> plan(GotoOrders.Order order) {
+        return switch (order) {
+            case GotoOrders.Start s -> BodyTaskStarter.Start.reporting(s.process(), (GotoContracts.Result) s.trip());
+            case GotoOrders.Launch l -> new BodyTaskStarter.Launch<>(l.launcher());
+            case GotoOrders.Refuse r -> new BodyTaskStarter.Refuse<>(r.reason(), r.message());
+        };
+    }
+
     /** The schematic is read here, before any body: bytes that are no schematic are a bad parameter. */
     @Override
+    @SuppressWarnings("PMD.PreserveStackTrace") // bad schematic bytes are the caller's error; the message says why
     public CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildParams p, CallContext ctx) {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
             for (int i = 0; i < b.palette().size(); i++) {
@@ -231,6 +243,7 @@ final class BotTaskService implements BotTaskApi {
     }
 
     @Override
+    @SuppressWarnings("PMD.UnusedLocalVariable") // the Clear case binds a name only because Java 21 has no unnamed one
     public CompletionStage<ActionResponse<Summary>> clearArea(ClearAreaContracts.Params p, CallContext ctx) {
         ClearAreaGeometry.Cells box = null;
         if (p.target() instanceof Box b) {
@@ -303,7 +316,7 @@ final class BotTaskService implements BotTaskApi {
     public CompletionStage<ActionResponse<GotoContracts.Result>> goTo(GotoContracts.Params p, CallContext ctx) {
         p.route()
                 .flatMap(RouteContracts.Route::requireTool)
-                .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/route/requireTool", id));
+                .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, ITEM_KIND, "/route/requireTool", id));
         switch (p.target().orElse(null)) {
             case GotoContracts.BlockTarget b
             when !b.block().startsWith("#") ->
@@ -389,14 +402,6 @@ final class BotTaskService implements BotTaskApi {
                             return bot.scoreGoto(p);
                         },
                         ctx);
-    }
-
-    private static BodyTaskStarter.Plan<GotoContracts.Result> plan(GotoOrders.Order order) {
-        return switch (order) {
-            case GotoOrders.Start s -> BodyTaskStarter.Start.reporting(s.process(), (GotoContracts.Result) s.trip());
-            case GotoOrders.Launch l -> new BodyTaskStarter.Launch<>(l.launcher());
-            case GotoOrders.Refuse r -> new BodyTaskStarter.Refuse<>(r.reason(), r.message());
-        };
     }
 
     /** {@code id} when the block registry holds it; otherwise invalid_params at {@code path}. */

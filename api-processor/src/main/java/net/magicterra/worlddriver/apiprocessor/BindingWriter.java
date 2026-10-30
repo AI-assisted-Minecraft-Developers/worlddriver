@@ -38,6 +38,9 @@ final class BindingWriter {
 
     private static final ClassName GENERATED = ClassName.get("javax.annotation.processing", "Generated");
 
+    /** The name the generated code gives every {@code ApiRegistry} field and parameter. */
+    private static final String REGISTRY_NAME = "registry";
+
     private BindingWriter() {}
 
     /** {@code QueryApi} → {@code QueryStubApi}; an interface not named {@code …Api} gets {@code Stub} appended. */
@@ -56,12 +59,12 @@ final class BindingWriter {
 
     static void write(ProcessingEnvironment env, TypeElement iface, List<ApiProcessor.Bound> bound) {
         ClassName type = ClassName.get(iface);
-        String name = String.join("_", type.simpleNames()) + "Binding";
+        final String name = String.join("_", type.simpleNames()) + "Binding";
         ClassName stubType = ClassName.get(type.packageName(), stubName(type));
         boolean open = iface.getModifiers().contains(Modifier.PUBLIC);
         TypeName entry = ParameterizedTypeName.get(
                 API_METHOD, WildcardTypeName.subtypeOf(Object.class), WildcardTypeName.subtypeOf(Object.class));
-        TypeName entries = ParameterizedTypeName.get(ClassName.get(List.class), entry);
+        final TypeName entries = ParameterizedTypeName.get(ClassName.get(List.class), entry);
         TypeName spec = ParameterizedTypeName.get(
                 METHOD_SPEC, WildcardTypeName.subtypeOf(Object.class), WildcardTypeName.subtypeOf(Object.class));
 
@@ -83,12 +86,14 @@ final class BindingWriter {
         TypeSpec.Builder caller = TypeSpec.classBuilder("Caller")
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
                 .addSuperinterface(stubType)
-                .addField(FieldSpec.builder(REGISTRY, "registry", Modifier.PRIVATE, Modifier.FINAL)
+                .addField(FieldSpec.builder(REGISTRY, REGISTRY_NAME, Modifier.PRIVATE, Modifier.FINAL)
                         .build())
                 .addMethod(MethodSpec.constructorBuilder()
-                        .addParameter(REGISTRY, "registry")
+                        .addParameter(REGISTRY, REGISTRY_NAME)
                         .addStatement(
-                                "this.registry = $T.requireNonNull(registry, $S)", java.util.Objects.class, "registry")
+                                "this.registry = $T.requireNonNull(registry, $S)",
+                                java.util.Objects.class,
+                                REGISTRY_NAME)
                         .build());
         CodeBlock.Builder list =
                 CodeBlock.builder().add("return $T.<$T>of(", List.class, entry).indent();
@@ -169,7 +174,7 @@ final class BindingWriter {
                         "A caller that goes through {@code registry}, checked as a request is; each call blocks this thread.\n")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(blockingType)
-                .addParameter(REGISTRY, "registry")
+                .addParameter(REGISTRY, REGISTRY_NAME)
                 .addStatement("$T stub = $T.calls(registry)", stubType, ClassName.get(type.packageName(), name))
                 .addStatement("return $L", waiting.build())
                 .build());
@@ -188,7 +193,7 @@ final class BindingWriter {
                         .addJavadoc("Calls through {@code registry}: checked and refused as a request is.\n")
                         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                         .returns(stubType)
-                        .addParameter(REGISTRY, "registry")
+                        .addParameter(REGISTRY, REGISTRY_NAME)
                         .addStatement("return new Caller(registry)")
                         .build())
                 .addMethod(MethodSpec.methodBuilder("methods")

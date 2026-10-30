@@ -14,10 +14,12 @@ public final class ClientHooks {
 
     private ClientHooks() {}
 
+    /** Installs the platform's client implementation, replacing any earlier one. */
     public static void register(ClientDriverApi api) {
         impl = api;
     }
 
+    /** The registered client implementation, or null before registration and on a dedicated server. */
     public static ClientDriverApi impl() {
         return impl;
     }

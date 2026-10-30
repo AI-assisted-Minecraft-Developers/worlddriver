@@ -90,6 +90,7 @@ public final class ObserveService implements ObserveApi {
         return onClient(ctx, c -> c.observeBoss(p.radius()), new BossReading(List.of(), Optional.empty()));
     }
 
+    /** The seq of the newest event so far; throws when nothing here produces events. */
     public long cursor() {
         requireEventSource();
         return api.eventSeq.get();
@@ -108,6 +109,7 @@ public final class ObserveService implements ObserveApi {
         }
     }
 
+    /** Every buffered event with {@code seq > cursor}, oldest first. */
     public List<DriverEvent> eventsSince(long cursor) {
         return eventsSince(cursor, null, DriverApplication.EVENT_BUFFER_CAP);
     }
@@ -439,11 +441,11 @@ public final class ObserveService implements ObserveApi {
                             if (center == null) {
                                 List<ServerPlayer> all =
                                         api.server.getPlayerList().getPlayers();
-                                if (!all.isEmpty()) {
+                                if (all.isEmpty()) {
+                                    center = DriverApplication.ORIGIN;
+                                } else {
                                     center = all.get(0).blockPosition();
                                     selfId = all.get(0).getId();
-                                } else {
-                                    center = DriverApplication.ORIGIN;
                                 }
                             }
                             return WorldReadings.scene(level, center, radius, requested, p, selfId);

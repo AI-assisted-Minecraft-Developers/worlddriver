@@ -64,6 +64,7 @@ public final class ClientInput {
 
     private ClientInput() {}
 
+    /** Closes whatever screen is open and names the one that was. */
     public static Closed closeScreen(CloseParams p) {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
@@ -83,6 +84,10 @@ public final class ClientInput {
         return new Refused(ClientRefusal.NO_PLAYER, "no player is in a world on this client");
     }
 
+    /**
+     * Clicks the open screen at a widget ref, aimed at the moment of the click, or at GUI {@code x}/{@code y}; the raw
+     * route goes through the mouse handler so input listeners outside the screen see it too.
+     */
     public static ClientReply click(ClickParams p) {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
@@ -132,6 +137,7 @@ public final class ClientInput {
         });
     }
 
+    /** Sends a container click on the open menu's slot through the game mode, so the server sees a real packet. */
     public static ClientReply slotClick(SlotClickParams p) {
         ClickType clickType = PlayerMenus.clickType(p.type());
         return ClientHop.call(() -> {
@@ -165,6 +171,7 @@ public final class ClientInput {
         });
     }
 
+    /** Moves the cursor to GUI {@code x}/{@code y} when given and scrolls the wheel, as the mouse handler would. */
     public static Moved mouseMove(MoveParams p) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
@@ -202,6 +209,7 @@ public final class ClientInput {
         }
     }
 
+    /** Selects the held hotbar slot and tells the server, answering the slot held before. */
     public static ClientReply setHotbarSlot(HotbarParams p) {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
@@ -221,6 +229,7 @@ public final class ClientInput {
         });
     }
 
+    /** Types text into the focused widget, or into the edit box {@code p.ref()} names after focusing it. */
     public static ClientReply typeText(TypeParams p) {
         String t = p.text();
         return ClientHop.call(() -> {
@@ -371,6 +380,7 @@ public final class ClientInput {
      * <p>Target selection: the slider {@code ref} names, else explicit {@code match} (case-insensitive substring of the
      * slider's message, e.g. "render") first, else {@code index} into the on-screen slider list, else the sole slider.
      */
+    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"}) // one chain: ref, match, index, sole slider
     public static ClientReply slider(SliderParams p) {
         String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
         return ClientHop.call(() -> {
@@ -441,9 +451,9 @@ public final class ClientInput {
                 return new Refused(ClientRefusal.AMBIGUOUS, sliders.size() + " sliders — pass match or index");
             }
 
-            ScreenTree before = ScreenIntrospection.before(p.returnTree());
-            double prev = target.value;
-            String prevLabel = target.getMessage().getString();
+            final ScreenTree before = ScreenIntrospection.before(p.returnTree());
+            final double prev = target.value;
+            final String prevLabel = target.getMessage().getString();
             // value/applyValue/updateMessage are protected in vanilla and opened by
             // worlddriver.accesswidener. applyValue() commits the new value to the
             // backing Option; updateMessage() refreshes the displayed label. Both must
@@ -721,6 +731,7 @@ public final class ClientInput {
         return bits;
     }
 
+    @SuppressWarnings("checkstyle:javancss") // a flat table of key names; splitting it would only scatter the table
     private static int glfwKeyCode(String name) {
         switch (name) {
             case "ENTER":
@@ -798,6 +809,7 @@ public final class ClientInput {
                             return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + n - 1;
                         }
                     } catch (NumberFormatException ignored) {
+                        // not F and a number: falls through to the single-character names
                     }
                 }
                 // single A..Z

@@ -53,11 +53,16 @@ public final class WorldDriverEvents {
         WorldDriverCommon.onServerStarted(server);
     }
 
+    /**
+     * The server is stopping: reset the tick clock, cancel every action as world-closed, drop the bot players and
+     * detach the driver. RPC and MCP stay up.
+     */
     public static void serverStopping(MinecraftServer server) {
         TickClock.server().reset();
         WorldDriverCommon.onServerStopping();
     }
 
+    /** The server has stopped; a dedicated server also closes RPC and MCP so its JVM can exit. */
     public static void serverStopped(MinecraftServer server) {
         WorldDriverCommon.onServerStopped(server);
     }
@@ -72,6 +77,7 @@ public final class WorldDriverEvents {
         BotTicker.tickAll();
     }
 
+    /** Registers the {@code /worlddriver} commands, the driver's and the bot's, on {@code dispatcher}. */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         WorldDriverCommon.registerCommands(dispatcher);
         BotCommand.register(dispatcher);

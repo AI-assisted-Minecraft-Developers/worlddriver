@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class ServerLevelMixin {
 
     @Inject(method = "sendBlockUpdated", at = @At("HEAD"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$noteBlockChange(
             BlockPos pos, BlockState before, BlockState after, int flags, CallbackInfo ci) {
         BlockChanges.record((ServerLevel) (Object) this, pos, before, after);

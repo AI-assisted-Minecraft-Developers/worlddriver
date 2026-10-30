@@ -94,6 +94,7 @@ final class BodyTaskStarter {
     }
 
     /** Start an action on {@code body} and answer as {@code awaitMs} asks. */
+    @SuppressWarnings("PMD.CloseResource") // the wait lease is closed when the answer completes or the start throws
     <R> CompletionStage<ActionResponse<R>> start(String body, int awaitMs, CallContext ctx, Planner<R> planner) {
         WaitPermits.Lease lease = null;
         if (awaitMs > 0) {
@@ -294,7 +295,7 @@ final class BodyTaskStarter {
      * Off the game thread: answer with the action's ending, or with it still running once the wait runs out. Both read
      * the same atomic state, so an answer never says ended and timed out at once.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "PMD.CloseResource"}) // the cancel hook is closed when the answer completes
     private <R> CompletionStage<ActionResponse<R>> awaitEnding(
             ActionSnapshot<R> started, int awaitMs, CallContext ctx) {
         ActionHandle h = actions.find(started.actionId());

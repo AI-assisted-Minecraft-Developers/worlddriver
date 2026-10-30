@@ -8,6 +8,9 @@ import java.util.function.Consumer;
 public final class ScriptTest {
     private static final List<Result> results = new CopyOnWriteArrayList<>();
 
+    private ScriptTest() {}
+
+    /** Runs {@code body} as the test {@code name} and records it as passed unless it throws. */
     public static void run(String name, Consumer<TestContext> body) {
         TestContext ctx = new TestContext(name);
         long t0 = System.nanoTime();
@@ -21,27 +24,28 @@ public final class ScriptTest {
         }
     }
 
+    /** An immutable copy of every result recorded since the last {@link #clear()}. */
     public static List<Result> snapshot() {
         return List.copyOf(results);
     }
 
+    /** Forgets every recorded result. */
     public static void clear() {
         results.clear();
     }
 
+    /** The number of recorded tests that failed. */
     public static int summary() {
-        int pass = 0;
         int fail = 0;
         for (Result r : results) {
-            if (r.passed) {
-                pass++;
-            } else {
+            if (!r.passed) {
                 fail++;
             }
         }
         return fail;
     }
 
+    /** One finished test: its name, whether it passed, how long it took, and what it threw if it failed. */
     public static final class Result {
         public final String name;
 
@@ -58,10 +62,12 @@ public final class ScriptTest {
             this.error = err;
         }
 
+        /** A pass that took {@code ms} milliseconds. */
         public static Result ok(String n, long ms) {
             return new Result(n, true, ms, null);
         }
 
+        /** A failure that threw {@code e} after {@code ms} milliseconds. */
         public static Result fail(String n, Throwable e, long ms) {
             return new Result(n, false, ms, e);
         }

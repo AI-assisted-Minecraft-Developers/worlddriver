@@ -56,6 +56,7 @@ public final class ItemSnap {
                 wear(s));
     }
 
+    /** Adds {@code maxDamage}, {@code damage} and {@code durability} to {@code row} when {@code s} can wear down. */
     public static void putWear(Map<String, Object> row, ItemStack s) {
         if (s == null || s.isEmpty() || !s.isDamageableItem()) {
             return;
@@ -86,10 +87,10 @@ public final class ItemSnap {
      */
     public static List<Map<String, Object>> inventoryRows(Player p) {
         List<Map<String, Object>> inv = new ArrayList<>();
-        Inventory pInv = p.getInventory();
-        int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
+        Inventory bag = p.getInventory();
+        int totalSlots = bag.items.size() + bag.armor.size() + bag.offhand.size();
         for (int i = 0; i < totalSlots; i++) {
-            ItemStack st = pInv.getItem(i);
+            ItemStack st = bag.getItem(i);
             if (st == null || st.isEmpty()) {
                 continue;
             }

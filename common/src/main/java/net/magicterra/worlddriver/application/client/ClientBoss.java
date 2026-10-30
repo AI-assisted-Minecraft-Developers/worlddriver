@@ -40,6 +40,10 @@ import net.minecraft.world.level.block.Blocks;
 public final class ClientBoss {
     private ClientBoss() {}
 
+    /**
+     * The nearest boss and the End crystals within {@code radius} blocks (clamped to 1–256), read on the client thread;
+     * empty when no world is loaded.
+     */
     public static BossReading observeBoss(int radius) {
         final int r = Math.max(1, Math.min(256, radius));
         return ClientHop.call(() -> {

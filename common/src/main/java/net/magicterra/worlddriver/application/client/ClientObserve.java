@@ -80,7 +80,7 @@ public final class ClientObserve {
     /** What the camera is aimed at right now (the client-side raycast). */
     private static ObserveContracts.Crosshair crosshair(Minecraft mc, LocalPlayer p) {
         HitResult hr = mc.hitResult;
-        if (hr != null && hr.getType() == HitResult.Type.BLOCK && hr instanceof BlockHitResult bhr) {
+        if (hr instanceof BlockHitResult bhr && bhr.getType() == HitResult.Type.BLOCK) {
             var bp = bhr.getBlockPos();
             return new ObserveContracts.BlockHit(
                     Positions.position(bp),
@@ -90,7 +90,7 @@ public final class ClientObserve {
                             .toString(),
                     Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
         }
-        if (hr != null && hr.getType() == HitResult.Type.ENTITY && hr instanceof EntityHitResult ehr) {
+        if (hr instanceof EntityHitResult ehr && ehr.getType() == HitResult.Type.ENTITY) {
             var ent = ehr.getEntity();
             var ep = ent.position();
             return new ObserveContracts.EntityHit(
@@ -102,6 +102,11 @@ public final class ClientObserve {
         return new ObserveContracts.Miss();
     }
 
+    /**
+     * Every non-air cell within Chebyshev {@code radius} (clamped to 0–16) of the centre, the player's feet when any
+     * axis is null, kept only if it matches one of {@code filterIds} (ids or {@code #tags}) when given. Names the
+     * chunks the client has not received, whose cells read as air.
+     */
     public static BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
         final int r = Math.max(0, Math.min(16, radius));
         return ClientHop.call(() -> {
@@ -146,17 +151,8 @@ public final class ClientObserve {
                         if (bs.isAir()) {
                             continue;
                         }
-                        if (matchers != null) {
-                            boolean ok = false;
-                            for (var m : matchers) {
-                                if (m.test(bs)) {
-                                    ok = true;
-                                    break;
-                                }
-                            }
-                            if (!ok) {
-                                continue;
-                            }
+                        if (matchers != null && !matchesAny(matchers, bs)) {
+                            continue;
                         }
                         // The same id and property map as the server-side q='blocks' rows.
                         blocks.add(new BlockRow(
@@ -182,6 +178,20 @@ public final class ClientObserve {
         });
     }
 
+    private static boolean matchesAny(List<Predicate<BlockState>> matchers, BlockState bs) {
+        for (var m : matchers) {
+            if (m.test(bs)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The entities other than this player whose boxes touch a cube of half-side {@code radius} (clamped to 0–32) around
+     * the centre, the player when any axis is null; {@code hostileFilter}, when set, keeps only hostile or only
+     * non-hostile ones.
+     */
     public static List<EntityRow> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         final int r = Math.max(0, Math.min(32, radius));
         return ClientHop.call(() -> {
@@ -237,6 +247,7 @@ public final class ClientObserve {
         });
     }
 
+    /** The threats within {@code radius} of this player, most dangerous first, and the incoming projectiles. */
     public static ObserveContracts.Threats observeThreats(int radius) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
@@ -402,6 +413,4 @@ public final class ClientObserve {
         }
         return new Miss();
     }
-
-    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
 }

@@ -40,16 +40,7 @@ public final class SystemService implements SystemApi {
         return CompletableFuture.completedFuture(version());
     }
 
-    @Override
-    public CompletionStage<BlockPosition> testOrigin(NoParams p, CallContext ctx) {
-        return CompletableFuture.completedFuture(testOrigin());
-    }
-
-    @Override
-    public CompletionStage<Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx) {
-        return waitTicks(p.ticks(), ctx);
-    }
-
+    /** This build's name, version and uptime, and where its jar was loaded from. */
     public Version version() {
         Map<String, Object> s = BuildStamp.asMap();
         return new Version(
@@ -64,15 +55,27 @@ public final class SystemService implements SystemApi {
                 Optional.ofNullable((String) s.get("stampError")));
     }
 
+    @Override
+    public CompletionStage<BlockPosition> testOrigin(NoParams p, CallContext ctx) {
+        return CompletableFuture.completedFuture(testOrigin());
+    }
+
+    /** The fixed block (0, 200, 0) that queries and scene reads centre on when given no centre and no player. */
     public static BlockPosition testOrigin() {
         return new BlockPosition(
                 DriverApplication.ORIGIN.getX(), DriverApplication.ORIGIN.getY(), DriverApplication.ORIGIN.getZ());
+    }
+
+    @Override
+    public CompletionStage<Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx) {
+        return waitTicks(p.ticks(), ctx);
     }
 
     /**
      * Completes on the timer thread after {@code ticks} × 50 ms, holding no thread meanwhile. A request that is
      * cancelled or whose budget runs out first answers with the ticks that did pass, marked interrupted.
      */
+    @SuppressWarnings("PMD.CloseResource") // the lease and cancel hook are closed when the wait completes
     private CompletionStage<Waited> waitTicks(int ticks, CallContext ctx) {
         if (ticks == 0) {
             return CompletableFuture.completedFuture(new Waited(0, Optional.empty(), Optional.empty()));

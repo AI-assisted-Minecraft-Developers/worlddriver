@@ -40,6 +40,7 @@ abstract class MobMixin implements MobBody.Driven {
                             value = "INVOKE",
                             target = "Lnet/minecraft/world/entity/ai/control/MoveControl;tick()V",
                             shift = At.Shift.AFTER))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$drive(CallbackInfo ci) {
         MobBody body = worlddriver$body;
         if (body != null) {

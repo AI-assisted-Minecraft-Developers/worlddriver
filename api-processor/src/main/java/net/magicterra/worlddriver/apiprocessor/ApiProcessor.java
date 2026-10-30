@@ -81,6 +81,7 @@ public final class ApiProcessor extends AbstractProcessor {
     }
 
     /** The interface's bindings, or null when any check failed (each failure already reported). */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // null means failed; an empty list is a valid binding
     private List<Bound> check(TypeElement iface, TypeElement api) {
         boolean ok = true;
         if (!iface.getTypeParameters().isEmpty()) {
@@ -106,18 +107,18 @@ public final class ApiProcessor extends AbstractProcessor {
             Bound b = checkMethod(m, mirror);
             if (b == null) {
                 ok = false;
-            } else if (!seen.add(b.holder().getQualifiedName() + "." + b.field())) {
-                error(m, b.holder().getSimpleName() + "." + b.field() + " is bound twice in " + iface.getSimpleName());
-                ok = false;
-            } else {
+            } else if (seen.add(b.holder().getQualifiedName() + "." + b.field())) {
                 out.add(b);
+            } else {
+                error(m, fieldRef(b.holder(), b.field()) + " is bound twice in " + iface.getSimpleName());
+                ok = false;
             }
         }
         return ok ? out : null;
     }
 
     private Bound checkMethod(ExecutableElement m, AnnotationMirror mirror) {
-        Types types = processingEnv.getTypeUtils();
+        final Types types = processingEnv.getTypeUtils();
         Elements elements = processingEnv.getElementUtils();
         TypeElement holder = null;
         String field = "SPEC";
@@ -155,19 +156,19 @@ public final class ApiProcessor extends AbstractProcessor {
             error(
                     m,
                     mirror,
-                    holder.getSimpleName() + "." + field + " must be public static final: the binding "
+                    fieldRef(holder, field) + " must be public static final: the binding "
                             + "and the registry both need that one instance");
             return null;
         }
         List<? extends TypeMirror> specArgs = argsOf(spec.asType(), METHOD_SPEC);
         if (specArgs == null) {
-            error(m, mirror, holder.getSimpleName() + "." + field + " is not a MethodSpec<P, R>");
+            error(m, mirror, fieldRef(holder, field) + " is not a MethodSpec<P, R>");
             return null;
         }
         TypeMirror p = specArgs.get(0);
         TypeMirror r = specArgs.get(1);
         String shape = "an @Spec method is CompletionStage<" + r + "> " + m.getSimpleName() + "(" + p
-                + " params, CallContext ctx), as " + holder.getSimpleName() + "." + field + " fixes";
+                + " params, CallContext ctx), as " + fieldRef(holder, field) + " fixes";
 
         List<? extends VariableElement> params = m.getParameters();
         TypeElement ctx = elements.getTypeElement(CALL_CONTEXT);
@@ -178,22 +179,23 @@ public final class ApiProcessor extends AbstractProcessor {
         if (!types.isSameType(params.get(0).asType(), p)) {
             error(
                     params.get(0),
-                    "takes " + params.get(0).asType() + " but " + holder.getSimpleName() + "." + field + " decodes " + p
-                            + "; " + shape);
+                    "takes " + params.get(0).asType() + " but " + fieldRef(holder, field) + " decodes " + p + "; "
+                            + shape);
             return null;
         }
         List<? extends TypeMirror> result = argsOf(m.getReturnType(), COMPLETION_STAGE);
         if (result == null || !types.isSameType(result.get(0), r)) {
             error(
                     m,
-                    "answers " + m.getReturnType() + " but " + holder.getSimpleName() + "." + field + " produces " + r
-                            + "; " + shape);
+                    "answers " + m.getReturnType() + " but " + fieldRef(holder, field) + " produces " + r + "; "
+                            + shape);
             return null;
         }
         return new Bound(m, holder, field);
     }
 
     /** {@code type}'s type arguments when it is {@code erasure<…>} with all of them given, else null. */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // null means "not that type"; callers test for it
     private List<? extends TypeMirror> argsOf(TypeMirror type, String erasure) {
         if (type.getKind() != TypeKind.DECLARED) {
             return null;
@@ -214,6 +216,11 @@ public final class ApiProcessor extends AbstractProcessor {
             }
         }
         return null;
+    }
+
+    /** {@code Holder.FIELD}, the way every message names a spec field. */
+    private static String fieldRef(TypeElement holder, String field) {
+        return holder.getSimpleName() + "." + field;
     }
 
     private void error(Element at, String message) {

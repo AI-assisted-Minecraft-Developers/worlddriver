@@ -26,9 +26,11 @@ abstract class MinecraftMixin {
 
     @Shadow
     @Final
+    @SuppressWarnings("PMD.PublicMemberInNonPublicType") // a shadow mirrors the target field's own modifiers
     public Options options;
 
     @Shadow
+    @SuppressWarnings("PMD.PublicMemberInNonPublicType") // a shadow mirrors the target field's own modifiers
     public Screen screen;
 
     /**
@@ -38,6 +40,7 @@ abstract class MinecraftMixin {
      * one of the passes the drive bought, so a bot that stops driving yields within two ticks.
      */
     @Inject(method = "continueAttack(Z)V", at = @At("HEAD"), cancellable = true)
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$standAsideForBotDig(boolean leftClick, CallbackInfo ci) {
         if (ClientIntents.standAside()) {
             ci.cancel();
@@ -53,6 +56,7 @@ abstract class MinecraftMixin {
     @Redirect(
             method = "handleKeybinds()V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/KeyMapping;isDown()Z"))
+    @SuppressWarnings("PMD.UnusedPrivateMethod") // Mixin calls it in place of the redirected call
     private boolean worlddriver$keyDownOrBotIntent(KeyMapping key) {
         return key.isDown() || (key == options.keyUse && ClientIntents.useHeld());
     }
@@ -61,6 +65,7 @@ abstract class MinecraftMixin {
     @ModifyArg(
             method = "runTick(Z)V",
             at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V"))
+    @SuppressWarnings("PMD.UnusedPrivateMethod") // Mixin calls it to modify the argument
     private int worlddriver$searchInFrameSlack(int fps) {
         FrameSearchPump.spendSlack(fps);
         return fps;
@@ -73,12 +78,14 @@ abstract class MinecraftMixin {
                             value = "INVOKE",
                             target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V",
                             shift = At.Shift.AFTER))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$frameStarted(boolean tick, CallbackInfo ci) {
         FrameSearchPump.frameStarted();
     }
 
     /** Every screen set starts a new screen context; see {@link ScreenContext}. */
     @Inject(method = "setScreen(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("RETURN"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$screenContext(Screen requested, CallbackInfo ci) {
         ScreenContext.opened(screen);
     }

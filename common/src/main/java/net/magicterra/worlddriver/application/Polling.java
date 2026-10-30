@@ -94,6 +94,7 @@ final class Polling {
      * {@code timedOut} answers instead; a cancelled request ends it the same way. A probe that fails ends the wait with
      * its error.
      */
+    @SuppressWarnings("PMD.CloseResource") // the cancel hook is closed when the wait completes
     static <R> CompletableFuture<R> until(
             long budgetMs,
             long pollMs,

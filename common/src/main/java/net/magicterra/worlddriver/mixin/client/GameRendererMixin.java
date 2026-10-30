@@ -19,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class GameRendererMixin {
 
     @Inject(method = "render(Lnet/minecraft/client/DeltaTracker;Z)V", at = @At("RETURN"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$countFrame(DeltaTracker delta, boolean renderLevel, CallbackInfo ci) {
         FrameClock.frameDrawn();
     }

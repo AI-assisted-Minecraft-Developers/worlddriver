@@ -40,6 +40,9 @@ public final class ClientKeybinds {
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
 
+    /** The name of NeoForge's {@code KeyModifier} constant for no modifier. */
+    private static final String NO_MODIFIER = "NONE";
+
     private ClientKeybinds() {}
 
     /**
@@ -77,7 +80,7 @@ public final class ClientKeybinds {
     /** On the client thread. */
     private static Pressed press(KeybindParams p) {
         String want = p.name().map(String::trim).orElse("");
-        KeyAction act = p.action();
+        final KeyAction act = p.action();
         ScreenContext.require(p.contextId());
         KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
         if (want.isEmpty()) {
@@ -185,7 +188,7 @@ public final class ClientKeybinds {
         return s == null ? "none" : s.getClass().getSimpleName();
     }
 
-    private static KeybindsListed list(KeyMapping[] all) {
+    private static KeybindsListed list(KeyMapping... all) {
         List<Keybinding> rows = new ArrayList<>(all.length);
         for (KeyMapping km : all) {
             rows.add(describe(km));
@@ -288,8 +291,8 @@ public final class ClientKeybinds {
             return "skipped: " + km.saveString() + " is not a keyboard key";
         }
         Object modifier = keyModifier(km);
-        String modName = modifier == null ? "NONE" : modifierName(modifier);
-        boolean cleared = !"NONE".equals(modName) && setModifier(km, modifierNamed("NONE"), k);
+        String modName = modifier == null ? NO_MODIFIER : modifierName(modifier);
+        boolean cleared = !NO_MODIFIER.equals(modName) && setModifier(km, modifierNamed(NO_MODIFIER), k);
         try {
             mc.keyboardHandler.keyPress(
                     mc.getWindow().getWindow(),
@@ -305,7 +308,7 @@ public final class ClientKeybinds {
         if (cleared) {
             return "sent, with the " + modName + " modifier cleared for it";
         }
-        return "NONE".equals(modName)
+        return NO_MODIFIER.equals(modName)
                 ? "sent"
                 : "sent, but the " + modName
                         + " modifier could not be cleared — a handler that compares it will refuse";
