@@ -347,7 +347,7 @@ public final class ElytraProcess implements BotProcess {
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 if (BehaviorConfig.elytraDebug) {
                     LOG.info(
-                            "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} horizSpeed={} hcol={}",
+                            "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
                             aborting ? "abort-glide" : "landing",
                             ticks,
                             f(pos.x),

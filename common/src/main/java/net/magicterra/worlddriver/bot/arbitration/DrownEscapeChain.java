@@ -217,7 +217,9 @@ public final class DrownEscapeChain implements Chain {
                         bz);
             }
             if (dir != null) {
-                float yaw = (float) Math.toDegrees(Math.atan2(-dir[0], dir[1]));
+                // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
+                @SuppressWarnings("PMD.UnnecessaryCast")
+                float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], dir[1]));
                 p.setYRot(yaw);
                 p.yHeadRot = yaw;
                 p.yBodyRot = yaw;
