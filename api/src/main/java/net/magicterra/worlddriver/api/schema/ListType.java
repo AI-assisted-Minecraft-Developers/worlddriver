@@ -22,7 +22,9 @@ final class ListType<T> extends ApiType<List<T>> {
         this.maxItems = maxItems;
     }
 
+    // A null return is ApiType.read's failure signal, checked by every caller; an empty list would hide the issues.
     @Override
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     protected List<T> read(JsonElement value, DecodeContext at) {
         if (!(value instanceof JsonArray l)) {
             return at.mismatch(expected(), value);

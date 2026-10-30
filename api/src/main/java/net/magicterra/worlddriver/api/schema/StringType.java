@@ -27,11 +27,11 @@ final class StringType extends ApiType<String> {
         this.meaning = meaning;
     }
 
-    public StringType maxLength(int max) {
+    StringType maxLength(int max) {
         return copy(minLength, max);
     }
 
-    public StringType minLength(int min) {
+    StringType minLength(int min) {
         return copy(min, maxLength);
     }
 
@@ -39,7 +39,7 @@ final class StringType extends ApiType<String> {
      * Declare it to TypeScript as {@code type <name> = <tsType>}, a template literal type for a pattern TypeScript can
      * approximate. TypeScript cannot check the whole pattern; the server does.
      */
-    public StringType tsAlias(String name, String type) {
+    StringType tsAlias(String name, String type) {
         StringType s = copy(minLength, maxLength);
         s.tsName = name;
         s.tsType = type;

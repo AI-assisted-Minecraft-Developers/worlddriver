@@ -62,5 +62,7 @@ public interface EntityDriver {
     }
 
     /** The driver lets go: hand the entity back to its own AI. */
-    default void release() {}
+    default void release() {
+        // Nothing to hand back by default: the entity already runs its own AI.
+    }
 }

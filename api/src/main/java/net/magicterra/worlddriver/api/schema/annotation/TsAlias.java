@@ -12,7 +12,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface TsAlias {
+    /** The TypeScript name of the alias. */
     String name();
 
+    /** The TypeScript type the alias stands for. */
     String type();
 }

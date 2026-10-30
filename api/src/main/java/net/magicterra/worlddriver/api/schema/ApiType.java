@@ -47,6 +47,7 @@ public abstract class ApiType<T> {
         return this;
     }
 
+    /** The description attached with {@link #describe}, or null when none was attached. */
     public final String description() {
         return description;
     }

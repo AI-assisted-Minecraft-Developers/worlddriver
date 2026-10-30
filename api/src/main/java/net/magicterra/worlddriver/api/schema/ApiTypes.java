@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
  * no integer from a fraction, no {@code null} for absent.
  */
 public final class ApiTypes {
+    private static final String BOOLEAN = "boolean";
 
     // ------------------------------------------------------------------ booleans and strings
 
@@ -29,19 +30,19 @@ public final class ApiTypes {
 
         @Override
         protected JsonElement write(Boolean value) {
-            return new JsonPrimitive(Objects.requireNonNull(value, "boolean"));
+            return new JsonPrimitive(Objects.requireNonNull(value, BOOLEAN));
         }
 
         @Override
         protected JsonObject schemaBody() {
             JsonObject s = new JsonObject();
-            s.addProperty("type", "boolean");
+            s.addProperty("type", BOOLEAN);
             return s;
         }
 
         @Override
         public String ts(TsContext ts) {
-            return "boolean";
+            return BOOLEAN;
         }
 
         @Override
@@ -131,7 +132,7 @@ public final class ApiTypes {
             @Override
             protected JsonObject schemaBody() {
                 JsonObject s = new JsonObject();
-                s.addProperty("type", "boolean");
+                s.addProperty("type", BOOLEAN);
                 s.addProperty("const", true);
                 return s;
             }

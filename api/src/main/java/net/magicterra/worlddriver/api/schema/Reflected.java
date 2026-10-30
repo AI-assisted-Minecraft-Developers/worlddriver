@@ -60,6 +60,8 @@ final class Reflected {
             AsString.class,
             As.class);
 
+    private static final String SEP = ": ";
+
     private static final Map<Object, ApiType<?>> CACHE = new ConcurrentHashMap<>();
 
     private static final ThreadLocal<Set<Class<?>>> BUILDING = ThreadLocal.withInitial(HashSet::new);
@@ -110,7 +112,7 @@ final class Reflected {
             Class<?> type = r.javaType();
             Variant v = type == null ? null : type.getAnnotation(Variant.class);
             if (v == null) {
-                throw new IllegalArgumentException("union " + name + ": " + r.expected() + " has no @Variant");
+                throw new IllegalArgumentException("union " + name + SEP + r.expected() + " has no @Variant");
             }
             list.add(new UnionType.Variant(v.value(), type, r));
         }
@@ -132,7 +134,8 @@ final class Reflected {
 
     // ------------------------------------------------------------------ records
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    // Reflection must open the canonical constructor of a contract record, which need not be public.
+    @SuppressWarnings({"unchecked", "rawtypes", "PMD.AvoidAccessibilityAlteration"})
     private static <R> RecordType<R> buildRecord(Class<R> type, Map<String, ApiType<?>> overrides) {
         String where = type.getSimpleName();
         if (!type.isRecord()) {
@@ -176,7 +179,9 @@ final class Reflected {
         }
     }
 
-    private static <R> R construct(Constructor<R> constructor, Object[] args) {
+    // The refusal a compact constructor throws is rethrown as itself, so RecordType sees the original cause.
+    @SuppressWarnings("PMD.PreserveStackTrace")
+    private static <R> R construct(Constructor<R> constructor, Object... args) {
         try {
             return constructor.newInstance(args);
         } catch (InvocationTargetException e) {
@@ -194,6 +199,8 @@ final class Reflected {
         }
     }
 
+    // The accessor of a contract record's component is read by reflection, whatever its visibility.
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
     private static <R> ApiField<R, ?> field(Class<R> owner, RecordComponent c, ApiType<?> override) {
         String where = owner.getSimpleName() + "." + c.getName();
         Wire wire = c.getAnnotation(Wire.class);
@@ -256,7 +263,7 @@ final class Reflected {
             return type.decode(json);
         } catch (ApiException e) {
             throw new IllegalArgumentException(
-                    where + ": default " + text + " does not fit " + type.expected() + ": "
+                    where + ": default " + text + " does not fit " + type.expected() + SEP
                             + e.error().issues(),
                     e);
         }
@@ -384,7 +391,7 @@ final class Reflected {
             return c.take(OnlyTrue.class) != null ? ApiTypes.trueOnly() : ApiTypes.bool();
         }
         if (cls == String.class) {
-            return string(c, where);
+            return string(c);
         }
         if (cls == JsonValue.class) {
             return c.take(OnlyObject.class) != null ? ApiTypes.jsonObject() : ApiTypes.json();
@@ -393,7 +400,7 @@ final class Reflected {
                 where + ": no wire type for " + cls.getName() + "; use @As for a hand-built one");
     }
 
-    private static ApiType<?> string(Constraints c, String where) {
+    private static ApiType<?> string(Constraints c) {
         OneOf oneOf = c.take(OneOf.class);
         if (oneOf != null) {
             return ApiTypes.stringEnum(oneOf.name().isEmpty() ? null : oneOf.name(), oneOf.value());
@@ -447,23 +454,25 @@ final class Reflected {
         return made;
     }
 
+    // The static field an @As names is read by reflection, whatever its visibility.
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
     private static ApiType<?> constant(As as, String where) {
         try {
             Field f = as.value().getDeclaredField(as.field());
             if (!Modifier.isStatic(f.getModifiers()) || !ApiType.class.isAssignableFrom(f.getType())) {
                 throw new IllegalArgumentException(
-                        where + ": " + as.value().getSimpleName() + "." + as.field() + " is no static ApiType");
+                        where + SEP + as.value().getSimpleName() + "." + as.field() + " is no static ApiType");
             }
             f.setAccessible(true);
             ApiType<?> t = (ApiType<?>) f.get(null);
             if (t == null) {
-                throw new IllegalArgumentException(where + ": " + as.value().getSimpleName() + "." + as.field()
+                throw new IllegalArgumentException(where + SEP + as.value().getSimpleName() + "." + as.field()
                         + " is not set yet; declare it before the contract that uses it");
             }
             return t;
         } catch (NoSuchFieldException e) {
             throw new IllegalArgumentException(
-                    where + ": " + as.value().getSimpleName() + " has no field " + as.field(), e);
+                    where + SEP + as.value().getSimpleName() + " has no field " + as.field(), e);
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(e);
         }
@@ -485,7 +494,7 @@ final class Reflected {
         return (long) bound;
     }
 
-    private static Annotation[] concat(Annotation[] a, Annotation[] b) {
+    private static Annotation[] concat(Annotation[] a, Annotation... b) {
         Annotation[] out = Arrays.copyOf(a, a.length + b.length);
         System.arraycopy(b, 0, out, a.length, b.length);
         return out;

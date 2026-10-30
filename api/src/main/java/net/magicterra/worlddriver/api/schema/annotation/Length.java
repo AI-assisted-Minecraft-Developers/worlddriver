@@ -9,7 +9,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface Length {
+    /** The smallest allowed length or count. */
     int min() default 0;
 
+    /** The largest allowed length or count. */
     int max() default Integer.MAX_VALUE;
 }

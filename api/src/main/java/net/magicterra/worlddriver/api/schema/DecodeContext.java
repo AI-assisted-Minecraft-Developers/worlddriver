@@ -19,14 +19,17 @@ public final class DecodeContext {
         this.issues = issues;
     }
 
+    /** A context at the document root, with no issues yet. */
     public static DecodeContext root() {
         return new DecodeContext("", new ArrayList<>());
     }
 
+    /** The JSON Pointer of the value being read here. */
     public String path() {
         return path;
     }
 
+    /** Every issue recorded so far by this decode, shared with its other levels. */
     public List<ApiIssue> issues() {
         return issues;
     }

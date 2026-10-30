@@ -9,7 +9,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface OneOf {
+    /** The allowed strings. */
     String[] value();
 
+    /** The TypeScript name of the union; empty to write it inline. */
     String name() default "";
 }

@@ -13,6 +13,10 @@ import java.util.regex.Pattern;
  * {@link ApiTypes#number}.
  */
 final class NumberTypes {
+    private static final String EXPECTED = "expected ";
+
+    private static final String NUMBER = "number";
+
     private NumberTypes() {}
 
     /**
@@ -26,7 +30,7 @@ final class NumberTypes {
         }
         try {
             return new BigDecimal(n.toString());
-        } catch (NumberFormatException notANumber) {
+        } catch (NumberFormatException badNumber) {
             return null;
         }
     }
@@ -60,7 +64,7 @@ final class NumberTypes {
                 return at.mismatch(expected(), value);
             }
             if (d.compareTo(BigDecimal.valueOf(min)) < 0 || d.compareTo(BigDecimal.valueOf(max)) > 0) {
-                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, EXPECTED + expected() + ", got " + n);
             }
             return narrow.apply(d.longValue());
         }
@@ -86,7 +90,7 @@ final class NumberTypes {
 
         @Override
         public String ts(TsContext ts) {
-            return "number";
+            return NUMBER;
         }
 
         @Override
@@ -122,7 +126,7 @@ final class NumberTypes {
                 return at.mismatch(expected(), value);
             }
             if (!DIGITS.matcher(s).matches()) {
-                return at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got \"" + s + "\"");
+                return at.fail(ApiIssue.Code.INVALID_VALUE, EXPECTED + expected() + ", got \"" + s + "\"");
             }
             long v;
             try {
@@ -131,7 +135,7 @@ final class NumberTypes {
                 return at.fail(ApiIssue.Code.OUT_OF_RANGE, "\"" + s + "\" is outside the 64-bit range");
             }
             if (v < min) {
-                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s);
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, EXPECTED + expected() + ", got " + s);
             }
             return v;
         }
@@ -181,21 +185,21 @@ final class NumberTypes {
                 return at.fail(ApiIssue.Code.OUT_OF_RANGE, "number " + n + " does not fit a double");
             }
             if (v < min || v > max) {
-                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, EXPECTED + expected() + ", got " + n);
             }
             return v;
         }
 
         @Override
         protected JsonElement write(Double value) {
-            Objects.requireNonNull(value, "number");
+            Objects.requireNonNull(value, NUMBER);
             return new JsonPrimitive(value);
         }
 
         @Override
         protected JsonObject schemaBody() {
             JsonObject s = new JsonObject();
-            s.addProperty("type", "number");
+            s.addProperty("type", NUMBER);
             if (min != Double.NEGATIVE_INFINITY) {
                 s.addProperty("minimum", min);
             }
@@ -207,7 +211,7 @@ final class NumberTypes {
 
         @Override
         public String ts(TsContext ts) {
-            return "number";
+            return NUMBER;
         }
 
         @Override

@@ -14,7 +14,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface As {
+    /** The class that declares the static field. */
     Class<?> value();
 
+    /** The name of the static field that holds the type. */
     String field();
 }

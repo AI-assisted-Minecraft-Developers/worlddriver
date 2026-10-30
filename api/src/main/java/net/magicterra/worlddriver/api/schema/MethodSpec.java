@@ -125,18 +125,22 @@ public final class MethodSpec<P, R> {
         return of(name, ApiTypes.of(input), output, description);
     }
 
+    /** The dotted method name, such as {@code mc.observe.player}. */
     public String name() {
         return name;
     }
 
+    /** What the method does, as clients read it. */
     public String description() {
         return description;
     }
 
+    /** The type the parameters are decoded with. */
     public ApiType<P> input() {
         return input;
     }
 
+    /** The type the result is encoded with. */
     public ApiType<R> output() {
         return output;
     }
@@ -146,37 +150,12 @@ public final class MethodSpec<P, R> {
         return listed;
     }
 
+    /** Every effect a call of this method may have. */
     public Set<Effect> effects() {
         return effects;
     }
 
-    public ExecutionClass executionClass() {
-        return executionClass;
-    }
-
-    public Blocking blocking() {
-        return blocking;
-    }
-
-    /** Whether {@code mc.wait.condition} and event watchers may call it repeatedly. */
-    public boolean pollable() {
-        return pollable;
-    }
-
-    public ImageHint image() {
-        return image;
-    }
-
-    /** No effect beyond reading a snapshot. */
-    public boolean readOnly() {
-        return effects.equals(Set.of(Effect.SNAPSHOT_READ));
-    }
-
-    public MethodSpec<P, R> hidden() {
-        return new MethodSpec<>(
-                name, description, input, output, false, effects, executionClass, blocking, pollable, image);
-    }
-
+    /** A copy with exactly these effects. */
     public MethodSpec<P, R> effects(Effect first, Effect... rest) {
         return new MethodSpec<>(
                 name,
@@ -191,21 +170,27 @@ public final class MethodSpec<P, R> {
                 image);
     }
 
-    public MethodSpec<P, R> execution(ExecutionClass c) {
-        return new MethodSpec<>(name, description, input, output, listed, effects, c, blocking, pollable, image);
+    /** The execution budget a call draws from, whichever transport it came in on. */
+    public ExecutionClass executionClass() {
+        return executionClass;
     }
 
-    public MethodSpec<P, R> mayWait() {
-        return new MethodSpec<>(
-                name, description, input, output, listed, effects, executionClass, Blocking.MAY_WAIT, pollable, image);
+    /** Whether a call may hold its caller while it waits. */
+    public Blocking blocking() {
+        return blocking;
     }
 
-    /** Mark it safe to call repeatedly from a wait condition or watcher. */
-    public MethodSpec<P, R> asPollable() {
-        return new MethodSpec<>(
-                name, description, input, output, listed, effects, executionClass, blocking, true, image);
+    /** Whether {@code mc.wait.condition} and event watchers may call it repeatedly. */
+    public boolean pollable() {
+        return pollable;
     }
 
+    /** Where the image's bytes and format sit in the result, or null when the result has no image. */
+    public ImageHint image() {
+        return image;
+    }
+
+    /** A copy that marks the result's image: {@code dataField} holds its bytes, {@code formatField} its format. */
     public MethodSpec<P, R> image(String dataField, String formatField) {
         return new MethodSpec<>(
                 name,
@@ -218,6 +203,34 @@ public final class MethodSpec<P, R> {
                 blocking,
                 pollable,
                 new ImageHint(dataField, formatField));
+    }
+
+    /** No effect beyond reading a snapshot. */
+    public boolean readOnly() {
+        return effects.equals(Set.of(Effect.SNAPSHOT_READ));
+    }
+
+    /** A copy that MCP's tool list leaves out; every entry point can still call it by name. */
+    public MethodSpec<P, R> hidden() {
+        return new MethodSpec<>(
+                name, description, input, output, false, effects, executionClass, blocking, pollable, image);
+    }
+
+    /** A copy that draws from the execution budget {@code c}. */
+    public MethodSpec<P, R> execution(ExecutionClass c) {
+        return new MethodSpec<>(name, description, input, output, listed, effects, c, blocking, pollable, image);
+    }
+
+    /** A copy that may hold its caller while it waits; a game thread refuses such a call before it starts. */
+    public MethodSpec<P, R> mayWait() {
+        return new MethodSpec<>(
+                name, description, input, output, listed, effects, executionClass, Blocking.MAY_WAIT, pollable, image);
+    }
+
+    /** Mark it safe to call repeatedly from a wait condition or watcher. */
+    public MethodSpec<P, R> asPollable() {
+        return new MethodSpec<>(
+                name, description, input, output, listed, effects, executionClass, blocking, true, image);
     }
 
     /** The MCP annotations: hints for a client, derived from the effects rather than declared twice. */

@@ -16,5 +16,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.RECORD_COMPONENT)
 public @interface Default {
+    /** The default, written as the class comment above describes: plain text for a string, JSON otherwise. */
     String value();
 }

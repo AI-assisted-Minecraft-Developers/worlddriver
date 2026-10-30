@@ -37,6 +37,7 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
     /** One member; {@code value} is what the key's type decodes to. */
     public record Entry(String key, Object value) {
+        /** Rejects a missing key or value. */
         public Entry {
             Objects.requireNonNull(key);
             Objects.requireNonNull(value);
@@ -72,6 +73,7 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
         this.tsOwner = tsOwner;
     }
 
+    /** The key table: each key with the type its value decodes as. */
     public Map<String, ApiType<?>> types() {
         return types;
     }
@@ -87,7 +89,9 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
                 + (minEntries > 0 ? " with at least " + minEntries + " known key" : " of known keys");
     }
 
+    // A null return is ApiType.read's failure signal, checked by every caller; an empty list would hide the issues.
     @Override
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     protected List<Entry> read(JsonElement value, DecodeContext at) {
         if (!(value instanceof JsonObject map)) {
             return at.mismatch(expected(), value);
@@ -199,7 +203,8 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     @Override
     public String ts(TsContext ts) {
         return ts.declare(name, tsOwner, () -> {
-            StringBuilder b = new StringBuilder("interface " + name + " {");
+            StringBuilder b =
+                    new StringBuilder(64).append("interface ").append(name).append(" {");
             types.forEach((key, type) -> {
                 b.append("\n    ");
                 JsonElement d = defaultOf(key);

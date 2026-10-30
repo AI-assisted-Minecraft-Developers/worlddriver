@@ -6,5 +6,6 @@ package net.magicterra.worlddriver.api.schema;
  * problems in one go, so a caller sees all of them at once.
  */
 public interface SelfChecked {
+    /** Checks the built record's rule, recording any failure with {@code at} rather than throwing. */
     void check(DecodeContext at);
 }

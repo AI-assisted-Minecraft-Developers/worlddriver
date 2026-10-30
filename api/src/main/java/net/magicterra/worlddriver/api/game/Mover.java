@@ -27,7 +27,9 @@ public interface Mover {
     Progress drive(BlockPos target, double within);
 
     /** The trip ended before arriving, cancelled or superseded: stop moving. */
-    default void stop() {}
+    default void stop() {
+        // A mover that holds nothing between ticks has nothing to let go of.
+    }
 
     /** Why the last {@link Progress#FAILED} failed, for the action's message. */
     default String failure() {

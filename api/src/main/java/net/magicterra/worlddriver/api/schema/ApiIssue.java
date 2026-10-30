@@ -8,6 +8,7 @@ import java.util.Objects;
  */
 public record ApiIssue(String path, Code code, String message) {
 
+    /** Rejects a missing path, code or message. */
     public ApiIssue {
         Objects.requireNonNull(path, "path");
         Objects.requireNonNull(code, "code");

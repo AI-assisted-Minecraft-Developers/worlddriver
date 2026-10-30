@@ -10,6 +10,7 @@ import java.util.Objects;
  */
 public record ApiError(Code code, String message, List<ApiIssue> issues, Execution execution) {
 
+    /** Rejects a missing code, message or execution; copies the issues, so the caller's list cannot change it. */
     public ApiError {
         Objects.requireNonNull(code, "code");
         Objects.requireNonNull(message, "message");
@@ -17,10 +18,12 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
         Objects.requireNonNull(execution, "execution");
     }
 
+    /** An error with no issues, whose execution is the code's default. */
     public static ApiError of(Code code, String message) {
         return new ApiError(code, message, List.of(), code.defaultExecution);
     }
 
+    /** The error kinds, each with its wire name and the JSON-RPC code it is reported under. */
     public enum Code implements WireName {
         INVALID_PARAMS("invalid_params", -32_602, Execution.NOT_STARTED),
         METHOD_NOT_FOUND("method_not_found", -32_601, Execution.NOT_STARTED),

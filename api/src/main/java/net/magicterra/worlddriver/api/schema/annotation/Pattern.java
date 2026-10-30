@@ -12,7 +12,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface Pattern {
+    /** The regular expression the whole string must match. */
     String value();
 
+    /** How an error names the shape that was wanted. */
     String expected();
 }

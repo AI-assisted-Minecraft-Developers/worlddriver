@@ -45,18 +45,22 @@ public final class ApiField<O, F> {
         this.description = description;
     }
 
+    /** The member's name on the wire. */
     public String name() {
         return name;
     }
 
+    /** The type the member's value is decoded and encoded with. */
     public ApiType<?> type() {
         return type;
     }
 
+    /** Whether the member is required, defaulted when absent, or optional. */
     public Presence presence() {
         return presence;
     }
 
+    /** The member's documentation, as the schema shows it. */
     public String description() {
         return description;
     }

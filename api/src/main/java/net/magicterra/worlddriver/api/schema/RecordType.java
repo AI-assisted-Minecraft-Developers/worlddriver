@@ -50,6 +50,7 @@ public final class RecordType<O> extends ApiType<O> {
         return type;
     }
 
+    /** The members, one per record component, in declaration order. */
     public List<ApiField<O, ?>> fields() {
         return fields;
     }
@@ -75,7 +76,7 @@ public final class RecordType<O> extends ApiType<O> {
                 continue;
             }
             if (field(key) == null) {
-                at.field(key).fail(ApiIssue.Code.UNKNOWN_FIELD, unknownMessage(key, skipKey));
+                at.field(key).fail(ApiIssue.Code.UNKNOWN_FIELD, unknownMessage(skipKey));
             }
         }
         Object[] args = new Object[fields.size()];
@@ -93,6 +94,7 @@ public final class RecordType<O> extends ApiType<O> {
                     case REQUIRED -> fat.fail(ApiIssue.Code.REQUIRED, "missing; expected " + f.type.expected());
                     case DEFAULTED -> args[i] = f.defaultValue;
                     case OPTIONAL -> args[i] = Optional.empty();
+                    default -> throw new IllegalStateException("unknown presence " + f.presence);
                 }
                 continue;
             }
@@ -131,7 +133,7 @@ public final class RecordType<O> extends ApiType<O> {
         return copy;
     }
 
-    private String unknownMessage(String key, String skipKey) {
+    private String unknownMessage(String skipKey) {
         List<String> names = new ArrayList<>();
         if (skipKey != null) {
             names.add(skipKey);
@@ -235,7 +237,7 @@ public final class RecordType<O> extends ApiType<O> {
         if (fields.isEmpty() && tagName == null) {
             return "{}";
         }
-        StringBuilder b = new StringBuilder("{");
+        StringBuilder b = new StringBuilder(64).append('{');
         if (tagName != null) {
             b.append(' ')
                     .append(TsContext.key(tagName))

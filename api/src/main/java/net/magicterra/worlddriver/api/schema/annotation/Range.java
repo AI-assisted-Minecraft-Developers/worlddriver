@@ -12,7 +12,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface Range {
+    /** The inclusive lower bound; unbounded when omitted. */
     double min() default Double.NEGATIVE_INFINITY;
 
+    /** The inclusive upper bound; unbounded when omitted. */
     double max() default Double.POSITIVE_INFINITY;
 }

@@ -54,6 +54,7 @@ public final class UnionType<T> extends ApiType<T> {
 
     /** One variant: its tag, the Java class that encodes as it, and the record type of its other fields. */
     public record Variant<T, S extends T>(String tag, Class<S> javaType, RecordType<S> type) {
+        /** Rejects a missing tag, Java class or record type. */
         public Variant {
             Objects.requireNonNull(tag);
             Objects.requireNonNull(javaType);
@@ -61,14 +62,17 @@ public final class UnionType<T> extends ApiType<T> {
         }
     }
 
+    /** The name the union has in the schema and in TypeScript. */
     public String name() {
         return name;
     }
 
+    /** The member that names the variant, such as {@code type}. */
     public String tagName() {
         return tagName;
     }
 
+    /** The variants, in declaration order. */
     public List<Variant<T, ?>> variants() {
         return variants;
     }

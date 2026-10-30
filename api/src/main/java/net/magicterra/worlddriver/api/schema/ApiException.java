@@ -9,24 +9,29 @@ public class ApiException extends RuntimeException {
 
     private final ApiError error;
 
+    /** An exception that carries {@code error} to the entry point unchanged. */
     public ApiException(ApiError error) {
         super(error.message());
         this.error = Objects.requireNonNull(error, "error");
     }
 
+    /** As {@link #ApiException(ApiError)}, with {@code cause} kept for logs and the cause chain. */
     public ApiException(ApiError error, Throwable cause) {
         super(error.message(), cause);
         this.error = Objects.requireNonNull(error, "error");
     }
 
+    /** The error this exception carries. */
     public ApiError error() {
         return error;
     }
 
+    /** An exception for {@code code} with {@code message} and no issues. */
     public static ApiException of(ApiError.Code code, String message) {
         return new ApiException(ApiError.of(code, message));
     }
 
+    /** An {@code invalid_params} error that lists {@code issues}; its message names the first one. */
     public static ApiException invalidParams(List<ApiIssue> issues) {
         String first = issues.isEmpty()
                 ? ""

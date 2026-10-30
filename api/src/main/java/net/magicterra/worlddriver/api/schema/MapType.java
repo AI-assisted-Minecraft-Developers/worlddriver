@@ -17,7 +17,9 @@ final class MapType<T> extends ApiType<Map<String, T>> {
         this.maxEntries = maxEntries;
     }
 
+    // A null return is ApiType.read's failure signal, checked by every caller; an empty map would hide the issues.
     @Override
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     protected Map<String, T> read(JsonElement v, DecodeContext at) {
         if (!(v instanceof JsonObject m)) {
             return at.mismatch(expected(), v);
