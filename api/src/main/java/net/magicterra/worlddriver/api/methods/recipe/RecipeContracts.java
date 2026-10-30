@@ -61,6 +61,7 @@ public final class RecipeContracts {
 
     // ------------------------------------------------------------------ lookup
 
+    /** Look recipes up by {@code result} or by {@code ingredient}, not both; with neither, the first {@code limit}. */
     @Named("RecipeLookupParams")
     public record LookupParams(
             @Doc("Recipes that make this item.") Optional<@ResourceId String> result,
@@ -76,6 +77,7 @@ public final class RecipeContracts {
         }
     }
 
+    /** An item id and a count. */
     @Named("ItemCount")
     public record Stack(
             @ResourceId String id, @Range(min = 0) int count) {}
@@ -123,6 +125,7 @@ public final class RecipeContracts {
             @Doc("The grid as rows, a letter per distinct ingredient and a space per empty cell.")
             Optional<@Length(max = 64) List<String>> pattern) {}
 
+    /** The recipes {@code mc.recipe.lookup} found. */
     @Named("Recipes")
     public record Recipes(@Length(max = 200) List<Recipe> recipes) {}
 
@@ -146,11 +149,13 @@ public final class RecipeContracts {
 
             @Doc("A server player bot whose bag and nearby stations to plan against. Omitted: the first player.")
             Optional<@BotRef String> bot) {
+        /** Params with {@code bot} omitted, so the plan is made for the first player. */
         public PlanParams(String target, int count, Optional<Map<String, Integer>> have) {
             this(target, count, have, Optional.empty());
         }
     }
 
+    /** An item still needed, and how many. */
     @Named("ItemNeed")
     public record ItemNeed(
             @ResourceId String item, @Range(min = 0) int count) {}
@@ -179,6 +184,7 @@ public final class RecipeContracts {
 
             String from) {}
 
+    /** The answer of {@code mc.recipe.resolve}: the craft steps in order, the leaves still missing, the stations. */
     @Named("CraftPlan")
     public record CraftPlan(
             @ResourceId String target,
@@ -209,6 +215,7 @@ public final class RecipeContracts {
                             String>
                     stationsNeeded) {}
 
+    /** Which {@code mc.bot} verb carries out an acquire step. */
     @Named("AcquireAction")
     public enum AcquireAction implements WireName {
         MINE("mine"),
@@ -228,6 +235,7 @@ public final class RecipeContracts {
         }
     }
 
+    /** One step of an acquire plan: mine, farm, smelt or craft {@code count} of {@code item}. */
     @Named("AcquireStep")
     public record AcquireStep(
             @Doc("Which of mc.bot.mine, farm, smelt or craft does this step.")
@@ -258,6 +266,7 @@ public final class RecipeContracts {
             @Doc("smelt: what goes in the furnace.") Optional<@ResourceId String> input,
             @Doc("craft: the inputs.") Optional<String> from) {}
 
+    /** The answer of {@code mc.plan.acquire}: the steps to run top down, and the leaves it cannot obtain. */
     @Named("AcquirePlan")
     public record AcquirePlan(
             @ResourceId String target,

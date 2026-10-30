@@ -17,12 +17,15 @@ public interface TestHarnessApi {
         return TestHarnessApiBinding.calls(registry);
     }
 
+    /** {@code mc.test.settings}: pins, unpins, writes or reads the settings for a scene, never saving them. */
     @Spec(value = TestHarnessContracts.class, spec = "SETTINGS")
     CompletionStage<TestHarnessContracts.SettingsReply> settings(TestHarnessContracts.SettingsOp op, CallContext ctx);
 
+    /** {@code mc.test.bots}: ticks, counts, clears, parks or unparks the server-side bots. Server thread only. */
     @Spec(value = TestHarnessContracts.class, spec = "BOTS")
     CompletionStage<TestHarnessContracts.BotsReply> bots(TestHarnessContracts.BotsOp op, CallContext ctx);
 
+    /** {@code mc.test.input.press}: holds or lets go of a bot's keys; the body moves only when it is ticked. */
     @Spec(value = TestHarnessContracts.class, spec = "PRESS_KEYS")
     CompletionStage<TestHarnessContracts.Pressed> press(TestHarnessContracts.Press press, CallContext ctx);
 }

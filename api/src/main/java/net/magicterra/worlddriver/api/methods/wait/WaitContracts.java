@@ -93,6 +93,7 @@ public final class WaitContracts {
     /** Any wait's answer: its {@code done} variant, or {@link Started} for a background one. */
     public sealed interface Outcome permits Started, EventsArrived, WorldReady, ConditionResult {}
 
+    /** A background wait's immediate answer; read its result later with {@code mc.wait.result} by {@code waitId}. */
     @Variant("started")
     public record Started(@Length(min = 1, max = 128) String waitId) implements Outcome {}
 
@@ -108,6 +109,7 @@ public final class WaitContracts {
 
     // ------------------------------------------------------------------ mc.wait.event
 
+    /** What {@code mc.wait.event} waits for, after which cursor, and for how long. */
     @Named("WaitEventParams")
     public record EventParams(
             @Doc("Wait for events after this seq.") @AsString @Range(min = 0)
@@ -142,6 +144,7 @@ public final class WaitContracts {
 
     // ------------------------------------------------------------------ mc.wait.worldReady
 
+    /** How long {@code mc.wait.worldReady} waits and how often it polls. */
     @Named("WaitWorldReadyParams")
     public record WorldReadyParams(
             @Default("30000") @Range(min = 100, max = 120_000)
@@ -164,6 +167,7 @@ public final class WaitContracts {
 
     // ------------------------------------------------------------------ mc.wait.condition
 
+    /** The method {@code mc.wait.condition} polls, the field it watches, and the value that satisfies it. */
     @Named("WaitConditionParams")
     public record ConditionParams(
             @Doc("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
@@ -197,6 +201,7 @@ public final class WaitContracts {
             @Doc("The field at the last poll.") Optional<JsonValue> value,
             @Range(min = 0) long ms) implements Outcome {}
 
+    /** What {@code mc.wait.result} reads: an action by {@code actionId} or a background wait by {@code waitId}. */
     @Tag("kind")
     @Named("WaitResultParams")
     public sealed interface Query permits ActionQuery, WaitQuery {}
@@ -211,10 +216,12 @@ public final class WaitContracts {
             @Length(min = 1, max = 128) String waitId,
             @Default("true") boolean consume) implements Query {}
 
+    /** The answer of {@code mc.wait.result}, tagged by {@code kind} as the query was. */
     @Tag("kind")
     @Named("WaitResultReply")
     public sealed interface Reply permits ActionReply, WaitReply {}
 
+    /** The action's current snapshot. */
     @Variant("action")
     public record ActionReply(
             @As(value = WaitContracts.class, field = "ANY_ACTION")

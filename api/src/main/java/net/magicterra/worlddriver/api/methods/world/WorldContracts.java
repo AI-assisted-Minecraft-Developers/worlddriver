@@ -103,6 +103,7 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ block
 
+    /** The cell {@code mc.world.block} reads, in which dimension, and whether to include its block entity's NBT. */
     @Named("WorldBlockParams")
     public record BlockParams(
             BlockPosition pos,
@@ -112,11 +113,13 @@ public final class WorldContracts {
 
             @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension) {}
 
+    /** Block light and sky light at a cell, each 0 to 15. */
     @Named("Light")
     public record Light(
             @Range(min = 0, max = 15) int block,
             @Range(min = 0, max = 15) int sky) {}
 
+    /** The answer of {@code mc.world.block}: one cell's block id, blockstate, light and block entity. */
     @Named("BlockReading")
     public record BlockReading(
             BlockPosition pos,
@@ -132,6 +135,7 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ snapshot
 
+    /** The box {@code mc.world.snapshot} keeps, at most {@link #MAX_SNAPSHOT_VOLUME} cells, and what it keeps of it. */
     @Named("SnapshotParams")
     public record SnapshotParams(
             @Doc("A corner, inclusive.") BlockPosition from,
@@ -171,6 +175,7 @@ public final class WorldContracts {
 
     // ------------------------------------------------------------------ restore
 
+    /** The snapshot {@code mc.world.restore} puts back, and whether to forget it afterwards. */
     @Named("RestoreParams")
     public record RestoreParams(
             @Doc("An id mc.world.snapshot answered; an unknown one is invalid_params.") @Length(min = 1, max = 128)
@@ -182,6 +187,7 @@ public final class WorldContracts {
             @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
             boolean returnEvents) {}
 
+    /** What {@code mc.world.restore} wrote: cells, block entities, and entities removed and put back. */
     @Named("Restored")
     public record Restored(
             @Length(min = 1, max = 128) String id,

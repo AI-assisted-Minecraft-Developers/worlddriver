@@ -88,6 +88,7 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.pathChart
 
+    /** Which chart {@code mc.debug.pathChart} draws: the top-down dashboard or the three projections. */
     @Named("ChartView")
     public enum ChartView implements WireName {
         DASHBOARD("dashboard"),
@@ -104,6 +105,7 @@ public final class DebugContracts {
         }
     }
 
+    /** What {@code mc.debug.pathChart} draws, at what size, and whether and under which name it saves the PNG. */
     @Named("ChartParams")
     public record ChartParams(
             @Doc("dashboard: A* candidates, every planned route and the walked trajectory on a top-down map, with an "
@@ -195,6 +197,7 @@ public final class DebugContracts {
             @Doc("Omitted: pathfinder.maxNodes.") Optional<@Range(min = 1, max = 10_000_000) Integer> maxNodes,
             // Half the long range, so a budget added to a clock reading cannot overflow.
             @Doc("Omitted: pathfinder.maxMs.") Optional<@Range(min = 1, max = 1L << 62) Long> maxMs) {
+        /** One search for {@code bot} to {@code target} from where it stands, with the settings' cost model. */
         public static PlanParams of(String bot, GotoContracts.Target target) {
             return new PlanParams(
                     Optional.of(bot),
@@ -207,23 +210,28 @@ public final class DebugContracts {
                     Optional.empty());
         }
 
+        /** A copy that starts the search at {@code start} instead of where the bot stands. */
         public PlanParams from(BlockPosition start) {
             return new PlanParams(bot, target, Optional.of(start), route, chain, maxSegments, maxNodes, maxMs);
         }
 
+        /** A copy that plans as {@code mc.bot.goto} would with route {@code r}. */
         public PlanParams route(RouteContracts.Route r) {
             return new PlanParams(bot, target, from, Optional.of(r), chain, maxSegments, maxNodes, maxMs);
         }
 
+        /** A copy with an explicit node budget and time budget in place of the settings'. */
         public PlanParams budget(int nodes, long ms) {
             return new PlanParams(bot, target, from, route, chain, maxSegments, Optional.of(nodes), Optional.of(ms));
         }
     }
 
+    /** The answer of {@code mc.debug.plan}: one search ({@code mode} single) or a segment chain (chain). */
     @Tag("mode")
     @Named("PlanReply")
     public sealed interface PlanReply permits SinglePlan, ChainPlan {}
 
+    /** How many times one move kind appears on the path, and its summed cost. */
     @Named("MoveCost")
     public record MoveCost(@Range(min = 0) int n, long cost) {}
 
@@ -241,11 +249,13 @@ public final class DebugContracts {
 
             @Doc("Cost modifier name → what it added.") @Default("{}") @Length(max = 64)
             Map<String, Double> taxes) {
+        /** What the cost modifier {@code name} added to this edge, zero when it charged nothing. */
         public double tax(String name) {
             return taxes.getOrDefault(name, 0.0);
         }
     }
 
+    /** What one search spent: nodes expanded, compute and wall time, and the final path cost. */
     @Named("PlanSearch")
     public record Search(
             @Range(min = 0) int expanded,
@@ -275,12 +285,15 @@ public final class DebugContracts {
             boolean sightBudgetExhausted,
 
             @Doc("The box scanned for entities was capped.") boolean snapshotTruncated) {
+        /** The cost modifier {@code name}'s total over the path, zero when it charged nothing. */
         public double tax(String name) {
             return taxes.getOrDefault(name, 0.0);
         }
     }
 
     /** The goal estimate at the start and at the committed end; {@code hDelta} below zero is progress. */
+    // The component names are the wire keys; renaming them would change the JSON.
+    @SuppressWarnings("checkstyle:recordcomponentname")
     @Named("PlanEstimate")
     public record Estimate(
             long hStart,
@@ -294,6 +307,8 @@ public final class DebugContracts {
      * One search. {@code maxStepDrop} is the largest single-node fall the planner routed; {@code moves} is each move's
      * count and summed cost; {@code conditions} what the cost model and the hard constraints did.
      */
+    // The component names are the wire keys; renaming them would change the JSON.
+    @SuppressWarnings("checkstyle:recordcomponentname")
     @Variant("single")
     public record SinglePlan(
             BlockPosition start,
@@ -320,6 +335,9 @@ public final class DebugContracts {
         }
     }
 
+    /** One committed segment of a chain: where it ended, its goal estimate there, and what its search expanded. */
+    // The component names are the wire keys; renaming them would change the JSON.
+    @SuppressWarnings("checkstyle:recordcomponentname")
     @Named("PlanSegment")
     public record Segment(
             BlockPosition end,
@@ -332,6 +350,8 @@ public final class DebugContracts {
             Optional<BlockPosition> sunkTailCut) {}
 
     /** {@code maxRegression}: the worst overshoot back past the best progress so far (cost units; /10 ≈ blocks). */
+    // The component names are the wire keys; renaming them would change the JSON.
+    @SuppressWarnings("checkstyle:recordcomponentname")
     @Variant("chain")
     public record ChainPlan(
             BlockPosition start,
@@ -387,24 +407,29 @@ public final class DebugContracts {
 
             @Doc("The route conditions the navigator walks under.")
             Optional<RouteContracts.Route> route) {
+        /** Walks {@code plan} verbatim on {@code bot}, its last node taken as the goal. */
         public static WalkPlanParams replay(String bot, List<PlanEdge> plan) {
             return new WalkPlanParams(
                     bot, plan, Optional.empty(), Optional.empty(), WalkMode.REPLAY, true, Optional.empty());
         }
 
+        /** Adopts {@code plan} on {@code bot} with the live recovery and repath on. */
         public static WalkPlanParams follow(String bot, List<PlanEdge> plan, boolean goalReached) {
             return new WalkPlanParams(
                     bot, plan, Optional.empty(), Optional.empty(), WalkMode.FOLLOW, goalReached, Optional.empty());
         }
 
+        /** A copy whose goal is {@code g} instead of the last node's block. */
         public WalkPlanParams goal(GotoContracts.Target g) {
             return new WalkPlanParams(bot, plan, Optional.of(g), from, mode, goalReached, route);
         }
 
+        /** A copy with the plan anchored to {@code foot} instead of its first node. */
         public WalkPlanParams from(BlockPosition foot) {
             return new WalkPlanParams(bot, plan, goal, Optional.of(foot), mode, goalReached, route);
         }
 
+        /** A copy the navigator walks under route {@code r}. */
         public WalkPlanParams route(RouteContracts.Route r) {
             return new WalkPlanParams(bot, plan, goal, from, mode, goalReached, Optional.of(r));
         }
@@ -420,6 +445,7 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.replay
 
+    /** Which archive {@code mc.debug.replay} runs, on which bot, and whether it replans or walks the stored plan. */
     @Named("ReplayParams")
     public record ReplayParams(
             @Doc("self, this client's player, or a server-side bot.") @Default("self") @BotRef
@@ -441,6 +467,7 @@ public final class DebugContracts {
         }
     }
 
+    /** The answer of {@code mc.debug.replay}: a replanned run ({@code mode} replan) or a verbatim walk (plan). */
     @Tag("mode")
     @Named("ReplayReply")
     public sealed interface ReplayReply permits Replanned, Replayed {}
@@ -458,6 +485,7 @@ public final class DebugContracts {
             String fidelity)
             implements ReplayReply {}
 
+    /** A stored plan installed to be walked verbatim; {@code fidelity} as in {@link Replanned}. */
     @Variant("plan")
     public record Replayed(
             String file,

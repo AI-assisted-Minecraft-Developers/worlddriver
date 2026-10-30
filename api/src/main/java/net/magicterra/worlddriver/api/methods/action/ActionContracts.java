@@ -71,6 +71,7 @@ public final class ActionContracts {
 
     // ------------------------------------------------------------------ runCommand
 
+    /** The command {@code mc.action.runCommand} runs, and as whom. */
     @Named("RunCommandParams")
     public record CommandParams(
             @Doc("The command, leading slash optional.") @Length(min = 1, max = 32_767)
@@ -90,6 +91,7 @@ public final class ActionContracts {
         }
     }
 
+    /** How a command was run: a plain setblock written directly ({@code fast-path}) or through Brigadier. */
     @Named("CommandVia")
     public enum Via implements WireName {
         FAST_PATH("fast-path"),
@@ -130,6 +132,7 @@ public final class ActionContracts {
 
     // ------------------------------------------------------------------ fill
 
+    /** The box {@code mc.action.fill} fills, corners inclusive, and the block it fills it with. */
     @Named("FillParams")
     public record FillParams(
             @Doc("A corner, inclusive.") BlockPosition from,
@@ -145,16 +148,19 @@ public final class ActionContracts {
         }
     }
 
+    /** The cells {@code mc.action.fill} placed, and its events when they were asked for. */
     @Named("Filled")
     public record Filled(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 
     // ------------------------------------------------------------------ placeMany
 
+    /** One cell and the block to set it to. */
     @Named("Placement")
     public record Placement(
             BlockPosition pos,
             @Doc("A block id.") @ResourceId String type) {}
 
+    /** The cells {@code mc.action.placeMany} sets, in order. */
     @Named("PlaceManyParams")
     public record PlaceManyParams(
             @Doc("Written in order; a cell named twice ends as the later one.") @Length(min = 1, max = 4096)
@@ -163,6 +169,7 @@ public final class ActionContracts {
             @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
             boolean returnEvents) {}
 
+    /** The cells {@code mc.action.placeMany} set, and its events when they were asked for. */
     @Named("Placed")
     public record Placed(@Range(min = 0) int placed, Optional<@Length(max = 4096) List<EventContracts.Event>> events) {}
 }

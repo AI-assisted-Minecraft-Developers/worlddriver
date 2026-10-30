@@ -76,6 +76,7 @@ public final class BotDebugContracts {
 
             @Doc("Start a new leg on the telemetry before reading it.") @Default("false")
             boolean newLeg) {
+        /** Reads {@code bot}'s navigator without starting a new leg. */
         public static NavigatorParams of(String bot) {
             return new NavigatorParams(bot, false);
         }
@@ -120,6 +121,11 @@ public final class BotDebugContracts {
             @Length(max = 256) Map<String, Long> counters,
             @Length(max = 64) Map<String, Boolean> flags,
             @Length(max = 64) Map<String, String> traces) {
+        /**
+         * The counter named {@code name}.
+         *
+         * @throws IllegalArgumentException when the reading has no counter by that name
+         */
         public long counter(String name) {
             Long v = counters.get(name);
             if (v == null) {
@@ -128,6 +134,11 @@ public final class BotDebugContracts {
             return v;
         }
 
+        /**
+         * The flag named {@code name}.
+         *
+         * @throws IllegalArgumentException when the reading has no flag by that name
+         */
         public boolean flag(String name) {
             Boolean v = flags.get(name);
             if (v == null) {
@@ -136,6 +147,11 @@ public final class BotDebugContracts {
             return v;
         }
 
+        /**
+         * The trace named {@code name}.
+         *
+         * @throws IllegalArgumentException when the reading has no trace by that name
+         */
         public String trace(String name) {
             String v = traces.get(name);
             if (v == null) {
@@ -158,14 +174,17 @@ public final class BotDebugContracts {
             Optional<BlockPosition> reach,
             @Doc("An entity id.") Optional<Integer> blastFrom,
             @Doc("Blocks to sweep the bot's box up by.") Optional<@Range(min = 0, max = 16) Double> rise) {
+        /** Params without the {@code rise} query. */
         public BodyParams(String bot, Optional<BlockPosition> reach, Optional<Integer> blastFrom) {
             this(bot, reach, blastFrom, Optional.empty());
         }
 
+        /** Reads {@code bot}'s body with none of the optional queries. */
         public static BodyParams of(String bot) {
             return new BodyParams(bot, Optional.empty(), Optional.empty());
         }
 
+        /** Reads {@code bot}'s body and asks which cells stop its box from rising {@code blocks} blocks. */
         public static BodyParams rise(String bot, double blocks) {
             return new BodyParams(bot, Optional.empty(), Optional.empty(), Optional.of(blocks));
         }
@@ -263,7 +282,7 @@ public final class BotDebugContracts {
         }
     }
 
-    /** self's two views: the client's, which self plans with, and the server's of the same player. */
+    /** One of self's two views: the client's, which self plans with, or the server's of the same player. */
     @Named("CellSide")
     public enum Side implements WireName {
         CLIENT,
@@ -316,6 +335,7 @@ public final class BotDebugContracts {
 
             @Doc("A head in this cell suffocates.") boolean suffocates) {}
 
+    /** The pose and fall facts of standing at the queried node, answered when {@code node} was asked for. */
     @Named("NodeFacts")
     public record NodeFacts(
             boolean fitStand,

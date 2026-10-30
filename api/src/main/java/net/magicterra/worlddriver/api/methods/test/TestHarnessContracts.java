@@ -122,6 +122,7 @@ public final class TestHarnessContracts {
     @Length(min = 1, max = 64)
     public @interface Key {}
 
+    /** What {@code mc.test.settings} does, chosen by {@code op}: pin, unpin, write or read. */
     @Tag("op")
     @Named("TestSettingsParams")
     public sealed interface SettingsOp permits Pin, Unpin, Write, Read {}
@@ -138,14 +139,17 @@ public final class TestHarnessContracts {
             @Doc("Also lift the planner's wall-clock budgets.") @Default("false")
             boolean untimed)
             implements SettingsOp {
+        /** A pin that puts {@code baseline} in place and keeps the planner's wall-clock budgets. */
         public static Pin of(Baseline baseline) {
             return new Pin(baseline, false);
         }
     }
 
+    /** Restore the settings saved by the pin numbered {@code pin}. */
     @Variant("unpin")
     public record Unpin(@Range(min = 1) int pin) implements SettingsOp {}
 
+    /** Set keys, each checked as {@code mc.bot.setting} checks it; a control key is refused. */
     @Variant("write")
     public record Write(
             @As(value = TestHarnessContracts.class, field = "WRITE_VALUES")
@@ -169,6 +173,7 @@ public final class TestHarnessContracts {
         }
     }
 
+    /** Answer what each of {@code keys} holds; an unknown key is refused. */
     @Variant("read")
     public record Read(
             @As(value = TestHarnessContracts.class, field = "KEY_LIST")
@@ -184,16 +189,20 @@ public final class TestHarnessContracts {
         }
     }
 
+    /** The answer of {@code mc.test.settings}, tagged by {@code op} as the request was. */
     @Tag("op")
     @Named("TestSettingsReply")
     public sealed interface SettingsReply permits Pinned, Unpinned, Written, Values {}
 
+    /** The pin's number, to pass to {@link Unpin} to restore the saved settings. */
     @Variant("pin")
     public record Pinned(@Range(min = 1) int pin) implements SettingsReply {}
 
+    /** The pin whose saved settings were restored. */
     @Variant("unpin")
     public record Unpinned(@Range(min = 1) int pin) implements SettingsReply {}
 
+    /** What each written key holds after the write. */
     @Variant("write")
     public record Written(
             @Doc("What each key holds after the write.")
@@ -201,6 +210,7 @@ public final class TestHarnessContracts {
             List<Entry> values)
             implements SettingsReply {}
 
+    /** What each read key holds. */
     @Variant("read")
     public record Values(
             @As(value = TestHarnessContracts.class, field = "SETTING_VALUES")
@@ -218,6 +228,7 @@ public final class TestHarnessContracts {
 
     // ------------------------------------------------------------------ bots
 
+    /** What {@code mc.test.bots} does, chosen by {@code op}: tick, count, clear, park or unpark. */
     @Tag("op")
     @Named("TestBotsParams")
     public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark {}
@@ -259,31 +270,38 @@ public final class TestHarnessContracts {
             @Default("all")
             Part part)
             implements BotsOp {
+        /** Advance every ticking bot once. */
         public static Tick once() {
             return new Tick(1, false, Optional.empty(), Part.ALL);
         }
 
+        /** Advance every ticking bot {@code ticks} times. */
         public static Tick of(int ticks) {
             return new Tick(ticks, false, Optional.empty(), Part.ALL);
         }
 
+        /** Advance every ticking bot up to {@code max} times, stopping early once none is busy. */
         public static Tick untilIdle(int max) {
             return new Tick(max, true, Optional.empty(), Part.ALL);
         }
 
+        /** Advance only {@code bot}, parked or not, {@code ticks} times. */
         public static Tick bot(String bot, int ticks) {
             return new Tick(ticks, false, Optional.of(bot), Part.ALL);
         }
 
+        /** Run only {@code bot}'s body physics step {@code ticks} times. */
         public static Tick body(String bot, int ticks) {
             return new Tick(ticks, false, Optional.of(bot), Part.BODY);
         }
 
+        /** Run {@code bot}'s brain once, leaving its input on the body without moving it. */
         public static Tick brain(String bot) {
             return new Tick(1, false, Optional.of(bot), Part.BRAIN);
         }
     }
 
+    /** Answer how many bots are on the tick list and how many are busy. */
     @Variant("count")
     public record Count() implements BotsOp {}
 
@@ -299,6 +317,7 @@ public final class TestHarnessContracts {
     @Variant("unpark")
     public record Unpark(@BotRef String bot) implements BotsOp {}
 
+    /** The answer of {@code mc.test.bots}, tagged by {@code op}; park and unpark both answer {@link Parked}. */
     @Tag("op")
     @Named("TestBotsReply")
     public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked {}
@@ -313,6 +332,7 @@ public final class TestHarnessContracts {
     public record Counted(
             @Range(min = 0) int ticking, @Range(min = 0) int busy) implements BotsReply {}
 
+    /** How many bots the clear removed. */
     @Variant("clear")
     public record Cleared(@Range(min = 0) int removed) implements BotsReply {}
 
@@ -345,6 +365,7 @@ public final class TestHarnessContracts {
 
             @Doc("An entity id in the bot's level, struck once: no reach test, no footing guard, no swing.")
             Optional<Integer> hit) {
+        /** A press for {@code bot} that changes no key; chain the builders below to set some. */
         public static Press of(String bot) {
             return new Press(
                     bot,
@@ -360,6 +381,7 @@ public final class TestHarnessContracts {
                     Optional.empty());
         }
 
+        /** A copy that sets the movement impulses, each -1 to 1; note {@code left} comes first. */
         public Press move(double left, double forward) {
             return new Press(
                     bot,
@@ -375,34 +397,42 @@ public final class TestHarnessContracts {
                     hit);
         }
 
+        /** A copy that holds or lets go of jump. */
         public Press jump(boolean v) {
             return new Press(bot, forward, left, Optional.of(v), sneak, sprint, attack, use, aimAt, toolFor, hit);
         }
 
+        /** A copy that holds or lets go of sneak. */
         public Press sneak(boolean v) {
             return new Press(bot, forward, left, jump, Optional.of(v), sprint, attack, use, aimAt, toolFor, hit);
         }
 
+        /** A copy that holds or lets go of sprint. */
         public Press sprint(boolean v) {
             return new Press(bot, forward, left, jump, sneak, Optional.of(v), attack, use, aimAt, toolFor, hit);
         }
 
+        /** A copy that holds or lets go of the dig on the cell the bot looks at. */
         public Press attack(boolean v) {
             return new Press(bot, forward, left, jump, sneak, sprint, Optional.of(v), use, aimAt, toolFor, hit);
         }
 
+        /** A copy that holds or lets go of using the item in hand. */
         public Press use(boolean v) {
             return new Press(bot, forward, left, jump, sneak, sprint, attack, Optional.of(v), aimAt, toolFor, hit);
         }
 
+        /** A copy that turns the bot to {@code cell}'s centre at once. */
         public Press aimAt(BlockPosition cell) {
             return new Press(bot, forward, left, jump, sneak, sprint, attack, use, Optional.of(cell), toolFor, hit);
         }
 
+        /** A copy that puts the best tool for the block at {@code cell} in hand. */
         public Press toolFor(BlockPosition cell) {
             return new Press(bot, forward, left, jump, sneak, sprint, attack, use, aimAt, Optional.of(cell), hit);
         }
 
+        /** A copy that strikes the entity {@code entityId} once, with no reach test, footing guard or swing. */
         public Press hit(int entityId) {
             return new Press(
                     bot, forward, left, jump, sneak, sprint, attack, use, aimAt, toolFor, Optional.of(entityId));
