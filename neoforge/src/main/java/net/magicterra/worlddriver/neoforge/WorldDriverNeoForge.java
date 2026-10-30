@@ -14,6 +14,7 @@ import net.neoforged.neoforge.common.NeoForge;
  */
 @Mod(WorldDriverCommon.MOD_ID)
 public final class WorldDriverNeoForge {
+    /** Called by FML: records the loader version, subscribes the server hooks and installs the test content. */
     public WorldDriverNeoForge(IEventBus modBus, ModContainer container) {
         BuildStamp.loaderVersion(container.getModInfo().getVersion().toString());
         NeoForge.EVENT_BUS.register(NeoForgeServerEvents.class);

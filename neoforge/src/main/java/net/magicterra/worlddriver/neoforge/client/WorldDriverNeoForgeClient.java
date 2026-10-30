@@ -22,6 +22,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 public final class WorldDriverNeoForgeClient {
     private WorldDriverNeoForgeClient() {}
 
+    /** Installs the driver's client half on the render thread once client setup runs. */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         // enqueueWork: FMLClientSetupEvent runs on a mod-loading worker; the client API and the

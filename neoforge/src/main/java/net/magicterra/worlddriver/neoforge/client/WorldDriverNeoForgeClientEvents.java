@@ -23,16 +23,19 @@ import net.neoforged.neoforge.event.GameShuttingDownEvent;
 public final class WorldDriverNeoForgeClientEvents {
     private WorldDriverNeoForgeClientEvents() {}
 
+    /** The end of a client tick. */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onClientTick(ClientTickEvent.Post event) {
         WorldDriverClientEvents.clientTickEnd();
     }
 
+    /** The HUD has been drawn; the "Bot is driving" badge draws on top of it. */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onHud(RenderGuiEvent.Post event) {
         WorldDriverClientEvents.hudRendered(event.getGuiGraphics());
     }
 
+    /** This client's player is leaving its world. */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         WorldDriverClientEvents.clientPlayerLeft();
