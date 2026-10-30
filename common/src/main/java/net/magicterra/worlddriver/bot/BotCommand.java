@@ -34,6 +34,9 @@ import net.minecraft.world.phys.Vec3;
  * {@code /worlddriver mob release <bot>} gives it its own AI back. {@code clear} releases every adopted mob.
  */
 public final class BotCommand {
+    private static final String NAME = "name";
+
+    private static final String POS = "pos";
 
     /** The most recently spawned driver, the target of {@code goto}/{@code status}. */
     private static PlayerBot current;
@@ -52,13 +55,13 @@ public final class BotCommand {
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("spawn")
                                 .executes(ctx -> spawn(ctx, null))
-                                .then(Commands.argument("name", StringArgumentType.word())
-                                        .executes(ctx -> spawn(ctx, StringArgumentType.getString(ctx, "name")))))
+                                .then(Commands.argument(NAME, StringArgumentType.word())
+                                        .executes(ctx -> spawn(ctx, StringArgumentType.getString(ctx, NAME)))))
                         .then(Commands.literal("goto")
-                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .then(Commands.argument(POS, BlockPosArgument.blockPos())
                                         .executes(BotCommand::gotoPos)))
                         .then(Commands.literal("mine")
-                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .then(Commands.argument(POS, BlockPosArgument.blockPos())
                                         .executes(BotCommand::minePos)))
                         .then(Commands.literal("status").executes(BotCommand::status))
                         .then(Commands.literal("clear").executes(BotCommand::clear))));
@@ -69,7 +72,7 @@ public final class BotCommand {
                                 .then(Commands.argument("bot", StringArgumentType.greedyString())
                                         .executes(BotCommand::release)))
                         .then(Commands.argument("entity", EntityArgument.entity())
-                                .then(Commands.argument("name", StringArgumentType.word())
+                                .then(Commands.argument(NAME, StringArgumentType.word())
                                         .executes(BotCommand::adopt)))));
     }
 
@@ -81,7 +84,7 @@ public final class BotCommand {
             src.sendFailure(Component.literal("worlddriver mob: " + e.getName().getString() + " is not a mob"));
             return 0;
         }
-        return switch (Roster.adopt(mob, StringArgumentType.getString(ctx, "name"))) {
+        return switch (Roster.adopt(mob, StringArgumentType.getString(ctx, NAME))) {
             case Roster.Done d -> {
                 src.sendSuccess(
                         () -> Component.literal("worlddriver mob: "
@@ -144,7 +147,7 @@ public final class BotCommand {
             src.sendFailure(Component.literal("worlddriver server: no agent — run /worlddriver server spawn first"));
             return 0;
         }
-        BlockPos target = BlockPosArgument.getBlockPos(ctx, "pos");
+        BlockPos target = BlockPosArgument.getBlockPos(ctx, POS);
         current.gotoGoal(new Goal.Block(target));
         BotTicker.register(current); // re-arm a finished driver
         src.sendSuccess(() -> Component.literal("worlddriver server: goto " + target.toShortString()), false);
@@ -157,7 +160,7 @@ public final class BotCommand {
             src.sendFailure(Component.literal("worlddriver server: no agent — run /worlddriver server spawn first"));
             return 0;
         }
-        BlockPos target = BlockPosArgument.getBlockPos(ctx, "pos");
+        BlockPos target = BlockPosArgument.getBlockPos(ctx, POS);
         current.mine(target);
         BotTicker.register(current); // re-arm a finished driver
         src.sendSuccess(() -> Component.literal("worlddriver server: mine " + target.toShortString()), false);

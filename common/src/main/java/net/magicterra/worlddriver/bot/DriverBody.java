@@ -79,6 +79,8 @@ final class DriverBody implements Body {
     }
 
     /** The modes {@code driver} declares, or null when it leaves them to the entity. */
+    // null is the answer "the entity decides", which the caller tests for, so an empty set would change its branch.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     static Set<Locomotion.Mode> modes(EntityDriver driver) {
         Set<EntityDriver.Movement> declared = driver.movements();
         if (declared.isEmpty()) {

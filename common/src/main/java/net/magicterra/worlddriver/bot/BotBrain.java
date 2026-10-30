@@ -86,6 +86,8 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class BotBrain {
 
+    private static final String USER_CANCEL = "user-cancel";
+
     final BotState state = new BotState();
 
     /**
@@ -130,8 +132,8 @@ public final class BotBrain {
     private final InputReleaseGate releaseGate = new InputReleaseGate();
 
     /**
-     * autoEat hold-use loop. Owns its own {@code eating} flag; the tick drives it and releases the use intent when a
-     * process takes over.
+     * The autoEat hold-use loop. Owns its own {@code eating} flag; the tick drives it and releases the use intent when
+     * a process takes over.
      */
     private final AutoEat autoEat = new AutoEat();
 
@@ -163,9 +165,9 @@ public final class BotBrain {
     final BackfillTracker backfillTracker = new BackfillTracker();
 
     /**
-     * gap#68-⑧: post-respawn grace countdown gating autoBackfill's auto-start (mirrors
-     * {@link CombatChain#autoSuppressed()} for autoFight). Armed to {@link BotConfig#respawnGraceTicks} by
-     * {@link #onDeath}; decremented once per tick regardless of process state.
+     * Post-respawn grace countdown gating autoBackfill's auto-start (mirrors {@link CombatChain#autoSuppressed()} for
+     * autoFight). Armed to {@link BotConfig#respawnGraceTicks} by {@link #onDeath}; decremented once per tick
+     * regardless of process state.
      */
     private int respawnGraceLeft;
 
@@ -199,6 +201,9 @@ public final class BotBrain {
 
     private long installedLegSeq;
 
+    /**
+     * Creates the brain: {@code events} receives its events, and {@code world} supplies the view it reads each tick.
+     */
     public BotBrain(RouteEvents.Emitter events, Supplier<? extends WorldView> world) {
         this.events = events;
         this.perceptionEvents = new PerceptionEvents(events);
@@ -222,6 +227,7 @@ public final class BotBrain {
         scheduler.register(new DuskSecureChain(state, worldModel, events)); // 40 — idle dusk shelter
     }
 
+    /** The world model this brain perceives into each tick. */
     public WorldModel worldModel() {
         return worldModel;
     }
@@ -302,12 +308,14 @@ public final class BotBrain {
     }
 
     /** Phase four: the ambient reflexes, the movement channel, and the body-safety backstops. */
+    // A flat run of reflex arbitration in priority order; splitting it would scatter that order across helpers.
+    @SuppressWarnings("checkstyle:javancss")
     public void act(Body body) {
         LivingEntity p = body.entity();
         if (p == null) {
             return;
         }
-        WorldView world = this.world.get();
+        final WorldView world = this.world.get();
         // Ambient hand/equipment/hotbar gating reads the foreground user process
         // (a preempting survival/combat chain leaves it held but suspended).
         BotProcess c = userTask.process();
@@ -521,6 +529,7 @@ public final class BotBrain {
                         || state.combat.active);
     }
 
+    /** Whether the bot is paused; a paused bot's ticks release what it pressed and steer nothing. */
     public boolean paused() {
         return paused;
     }
@@ -565,6 +574,7 @@ public final class BotBrain {
         paused = false;
     }
 
+    /** Cancels {@code action} in the user task or the combat chain, whichever holds it; true when one did. */
     public boolean cancelAction(Body body, ActionHandle action, String reason) {
         Ticket ticket = ActionTickets.of(action);
         return userTask.cancelAction(ticket, reason) || combatChain.cancelAction(body, ticket);
@@ -609,11 +619,14 @@ public final class BotBrain {
      * Why {@code body}, seen through the client window {@code ui}, cannot take an order now, as {@code {ok:false,
      * error, reason}}, or null.
      */
+    // null is the answer "ready", which callers test for, so an empty map would change their branch.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     public static Map<String, Object> refusal(Body body, ClientScreen ui) {
         Readiness.Refusal r = Readiness.refusal(body, ui);
         return r == null ? null : r.result();
     }
 
+    /** Forgets every backfill target the tracker holds. */
     public void forgetBackfill() {
         backfillTracker.clear();
     }
@@ -624,15 +637,15 @@ public final class BotBrain {
         // Combat lives in its own chain, not the user-task slot — cancel it directly.
         if (("all".equals(which) || "combat".equals(which)) && combatChain.engaged()) {
             combatChain.standDown(body);
-            state.combat.lastError = "user-cancel";
+            state.combat.lastError = USER_CANCEL;
             state.combat.active = false;
             hits.add("combat");
         }
         // gap#68-⑦/⑫: "cancel all" stays a best-effort broadcast —
         // every chain episode + the user slot + the orphan backfill queue.
         if ("all".equals(which)) {
-            userTask.cancel("user-cancel");
-            scheduler.cancelAllEpisodes(body, "user-cancel");
+            userTask.cancel(USER_CANCEL);
+            scheduler.cancelAllEpisodes(body, USER_CANCEL);
             backfillTracker.clear();
             return List.of("all");
         }
@@ -643,10 +656,10 @@ public final class BotBrain {
         BotProcess c = userTask.process();
         CancelRouting.Plan plan = CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
         if (plan.cancelUserProcess()) {
-            userTask.cancel("user-cancel");
+            userTask.cancel(USER_CANCEL);
         }
         for (Chain target : plan.episodeTargets()) {
-            target.cancelEpisode(body, "user-cancel");
+            target.cancelEpisode(body, USER_CANCEL);
         }
         hits.addAll(plan.labels());
         return List.copyOf(hits);
@@ -816,6 +829,8 @@ public final class BotBrain {
     }
 
     /** {@code mc.bot.waypoint}; a save with no position takes {@code self}'s feet. */
+    // The ListAll and Clear cases bind a name they never read: Java 21 has no unnamed pattern without preview.
+    @SuppressWarnings("PMD.UnusedLocalVariable")
     public ControlContracts.WaypointReply waypoint(ControlContracts.WaypointOp op, LivingEntity self) {
         return switch (op) {
             case ControlContracts.Save s -> {
@@ -857,6 +872,7 @@ public final class BotBrain {
 
     // === status =============================================================
 
+    /** The status map that {@code mc.bot.status} reports for this bot. */
     public Map<String, Object> status() {
         Map<String, Object> snap = state.snapshot();
         snap.put("paused", paused);
@@ -926,6 +942,7 @@ public final class BotBrain {
         return snap;
     }
 
+    /** This bot's status as the typed {@code mc.bot.status} view, with its process, chain and reflex state. */
     public ControlContracts.BotStatus botStatus(String id) {
         BotProcess c = userTask.process();
         Map<String, ControlContracts.ChainState> chains = StatusView.chains(scheduler);
@@ -1019,6 +1036,7 @@ public final class BotBrain {
         installedLeg = null;
     }
 
+    /** The user task's leg as a map: its sequence number, whether it is busy, its kind and its error. */
     public Map<String, Object> userTaskLeg() {
         Leg now = leg;
         Map<String, Object> out = new LinkedHashMap<>();

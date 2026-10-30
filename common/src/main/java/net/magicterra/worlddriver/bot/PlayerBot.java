@@ -50,6 +50,7 @@ public class PlayerBot extends ServerBot {
     /** The navigator the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
     private final Navigator navigator = new Navigator(NavigatorSettings.named("server"));
 
+    /** Drives the fake player that {@code avatar} owns; the avatar is kept for the body and its accessors. */
     public PlayerBot(ServerPlayerBody avatar) {
         super(avatar.fakePlayer());
         this.avatar = avatar;
@@ -142,10 +143,12 @@ public class PlayerBot extends ServerBot {
         return avatar.fakePlayer();
     }
 
+    /** The avatar this bot drives through. */
     public ServerPlayerBody avatar() {
         return avatar;
     }
 
+    /** The fake player the avatar owns, which the bot's body is built on. */
     public ServerPlayer fakePlayer() {
         return avatar.fakePlayer();
     }
@@ -180,7 +183,9 @@ public class PlayerBot extends ServerBot {
         }
 
         @Override
-        public void attach(BotState st) {}
+        public void attach(BotState st) {
+            // Nothing to attach here: the task's state lives in the navigator.
+        }
 
         @Override
         public String failure() {

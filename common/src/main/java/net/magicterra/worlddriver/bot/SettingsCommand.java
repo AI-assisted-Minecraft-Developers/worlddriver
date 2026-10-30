@@ -80,14 +80,14 @@ public final class SettingsCommand {
             switch (u.key()) {
                 case "autoBackfillBlock" -> {
                     if (!isBlock((String) u.value())) {
-                        issues.add(notABlock(at, (String) u.value()));
+                        issues.add(unknownBlock(at, (String) u.value()));
                     }
                 }
                 case "blocksToAvoid", "buildBlockWhitelist" -> {
                     List<?> ids = (List<?>) u.value();
                     for (int j = 0; j < ids.size(); j++) {
                         if (!isBlock((String) ids.get(j))) {
-                            issues.add(notABlock(at + "/" + j, (String) ids.get(j)));
+                            issues.add(unknownBlock(at + "/" + j, (String) ids.get(j)));
                         }
                     }
                 }
@@ -113,7 +113,7 @@ public final class SettingsCommand {
         return RegistryIds.registered(BuiltInRegistries.BLOCK, id);
     }
 
-    private static ApiIssue notABlock(String path, String id) {
+    private static ApiIssue unknownBlock(String path, String id) {
         return new ApiIssue(path, ApiIssue.Code.INVALID_VALUE, "no block is registered as " + id);
     }
 
@@ -141,6 +141,8 @@ public final class SettingsCommand {
                 }
                 case CONFIG_FIELD -> writeField(u.key(), v);
                 case BOT_PAUSED -> throw new IllegalArgumentException("paused is a control, applied through the bot");
+                default ->
+                    throw new IllegalStateException("no write for setting kind " + SettingsRegistry.readOf(u.key()));
             }
         }
         if (bot != null

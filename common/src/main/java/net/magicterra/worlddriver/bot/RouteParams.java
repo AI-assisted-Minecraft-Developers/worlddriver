@@ -117,6 +117,9 @@ public final class RouteParams {
         return parse(r);
     }
 
+    /** The search profile and the other parameters a {@link Route} asks for. */
+    // One pass over the route's fields: each branch adds one constraint or bias, and their order is the search's order.
+    @SuppressWarnings("checkstyle:javancss")
     public static Parsed parse(Route r) {
         List<CostModifier> bias = new ArrayList<>();
         List<Constraint> cons = new ArrayList<>();
@@ -144,13 +147,13 @@ public final class RouteParams {
         }
         Set<Capability> forbidden = r.parkour() ? EnumSet.noneOf(Capability.class) : EnumSet.of(Capability.PARKOUR);
         Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
-        CapabilityProfile capability = forbidden.isEmpty() && optIn.isEmpty()
+        final CapabilityProfile capability = forbidden.isEmpty() && optIn.isEmpty()
                 ? CapabilityProfile.ALL
                 : new CapabilityProfile(forbidden, optIn);
 
-        r.yRange().ifPresent(y -> yRange(y, bias, cons));
+        r.yRange().ifPresent(y -> yBounds(y, bias, cons));
         r.hug().ifPresent(h -> bias.add(new ShorelineHug(h.weight())));
-        EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
+        final EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
         for (RegionSpec spec : r.regions()) {
             region(spec, bias, cons);
         }
@@ -211,7 +214,7 @@ public final class RouteParams {
 
     // ------------------------------------------------------------------ pieces
 
-    private static void yRange(YRange y, List<CostModifier> bias, List<Constraint> cons) {
+    private static void yBounds(YRange y, List<CostModifier> bias, List<Constraint> cons) {
         if (y.hard()) {
             y.min().ifPresent(lo -> cons.add(new YFloor(lo)));
             y.max().ifPresent(hi -> cons.add(new YCeil(hi)));

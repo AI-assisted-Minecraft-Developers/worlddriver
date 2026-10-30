@@ -36,19 +36,25 @@ public interface Bot {
      * {@link #tick} threw and {@link BotTicker} is dropping the bot: end whatever it held with the error, or a caller
      * waiting on it waits until its own deadline for an ending that never comes.
      */
-    default void crashed(Throwable t) {}
+    default void crashed(Throwable t) {
+        // No task to end by default: a bot that holds work overrides this.
+    }
 
     /**
      * {@link BotRegistry} let the bot go: hand the entity back to whatever ran it before. A player bot has nothing to
      * hand back.
      */
-    default void release() {}
+    default void release() {
+        // Nothing to hand back by default: a bot that borrowed an entity overrides this.
+    }
 
     /**
      * {@link BotTicker} dropped the bot because its entity was removed. A player keeps its name, since the same player
      * object can come back into the world.
      */
-    default void entityRemoved() {}
+    default void entityRemoved() {
+        // No cleanup by default: the entity is already gone when this runs.
+    }
 
     /** {@code player:<name>}, {@code mob:<name>}, {@code entity:<uuid>} or the testmod's {@code npc:<name>}. */
     String id();
@@ -101,6 +107,8 @@ public interface Bot {
      * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same words the client's
      * {@code Readiness} uses, judged on the entity instead of on a screen.
      */
+    // null is the answer "ready", which callers test for, so an empty map would change their branch.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     default Map<String, Object> refusal() {
         LivingEntity e = entity();
         // A removed entity that was not killed has most often gone to disk with its chunk; the id

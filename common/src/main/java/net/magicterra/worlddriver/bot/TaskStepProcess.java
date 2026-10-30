@@ -43,7 +43,9 @@ public final class TaskStepProcess implements BotProcess {
     }
 
     @Override
-    public void attach(BotState st) {}
+    public void attach(BotState st) {
+        // Nothing to attach: a step task keeps no state of its own on the bot.
+    }
 
     @Override
     public boolean tick(Body body, WorldView world, BotState st) {

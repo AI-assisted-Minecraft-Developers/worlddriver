@@ -52,6 +52,7 @@ public abstract class ServerBot implements Bot {
      */
     private volatile boolean tasked;
 
+    /** Builds the brain with no event sink; the entity is not kept here, since subclasses hold their own body. */
     protected ServerBot(LivingEntity entity) {
         this.brain = new BotBrain((type, pos, data) -> {}, this::world);
     }
@@ -202,6 +203,7 @@ public abstract class ServerBot implements Bot {
         return current;
     }
 
+    /** The navigator's verdict from the last tick; a process that stopped by itself reads REACHED here. */
     public Locomotor.Status lastStatus() {
         return last;
     }
@@ -236,11 +238,6 @@ public abstract class ServerBot implements Bot {
         return tick(true);
     }
 
-    /** {@link #tick()} without the body's step: a test harness that changes the input before {@link #stepBody}. */
-    public Locomotor.Status think() {
-        return tick(false);
-    }
-
     private Locomotor.Status tick(boolean step) {
         Body body = body();
         brain.perceive(body);
@@ -262,5 +259,10 @@ public abstract class ServerBot implements Bot {
             }
         }
         return last;
+    }
+
+    /** {@link #tick()} without the body's step: a test harness that changes the input before {@link #stepBody}. */
+    public Locomotor.Status think() {
+        return tick(false);
     }
 }

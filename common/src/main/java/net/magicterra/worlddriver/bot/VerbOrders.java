@@ -82,10 +82,11 @@ public final class VerbOrders {
     /** {@code result} is read on the executor's thread when the process succeeds, so it can count what it did. */
     public record Start<R>(BotProcess process, Supplier<R> result) implements Order<R> {}
 
+    /** Refuses with {@code reason} and {@code message}; nothing starts. */
     public record Refuse<R>(RefusalReason reason, String message) implements Order<R> {}
 
     /** The verbs that hold, place, break or use something: a body with no hands (an NPC) cannot take them. */
-    private static <R> Refuse<R> handless(String verb, LivingEntity self) {
+    private static <R> Refuse<R> handless(String verb) {
         return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, handlessMessage(verb));
     }
 
@@ -103,9 +104,10 @@ public final class VerbOrders {
         return verb + " needs hands, and this body has none";
     }
 
+    /** The order to mine: a body with no hands is refused. */
     public static Order<GatherContracts.Mined> mine(MineParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("mine", self);
+            return handless("mine");
         }
         if (p.pos().isPresent()) {
             MineCellProcess c = new MineCellProcess(blockPos(p.pos().get()));
@@ -116,9 +118,10 @@ public final class VerbOrders {
                 m, () -> new GatherContracts.Mined(p.blocks(), Optional.empty(), p.quantity(), p.radius(), m.broken()));
     }
 
+    /** The order to build a bunker: a body with no hands is refused. */
     public static Order<BuildContracts.Bunkered> bunker(BunkerParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("bunker", self);
+            return handless("bunker");
         }
         int depth = p.depth().orElse(Math.max(1, Math.min(5, ArbitrationConfig.bunkerDepth)));
         BunkerProcess b = new BunkerProcess(depth);
@@ -128,7 +131,7 @@ public final class VerbOrders {
     /** A target below the feet digs a stair down instead of carving one up. */
     public static Order<BuildContracts.Escaped> escape(EscapeParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("escape", self);
+            return handless("escape");
         }
         int feetY = self.blockPosition().getY();
         int targetY = p.targetY().orElse(feetY + 32);
@@ -147,17 +150,19 @@ public final class VerbOrders {
                         way, targetY, self.blockPosition().getY()));
     }
 
+    /** The order to craft: a body with no hands is refused. */
     public static Order<GatherContracts.Crafted> craft(CraftParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("craft", self);
+            return handless("craft");
         }
         CraftProcess c = new CraftProcess(p.item(), p.count());
         return new Start<>(c, () -> new GatherContracts.Crafted(p.item(), p.count(), c.crafted()));
     }
 
+    /** The order to smelt: a body with no hands is refused. */
     public static Order<GatherContracts.Smelted> smelt(SmeltParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("smelt", self);
+            return handless("smelt");
         }
         SmeltProcess s = new SmeltProcess(p.item(), p.count(), p.fuel().orElse(null));
         return new Start<>(
@@ -170,13 +175,14 @@ public final class VerbOrders {
      */
     public static Order<CombatContracts.Fought> combat(CombatContracts.Params p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("combat", self);
+            return handless("combat");
         }
         return new Start<>(
                 new CombatProcess(mode(p.mode()), entityId(p), entityType(p)),
                 () -> new CombatContracts.Fought(p.mode(), p.target()));
     }
 
+    /** The combat mode the request names. */
     public static CombatProcess.Mode mode(CombatContracts.Mode m) {
         return switch (m) {
             case ENGAGE -> CombatProcess.Mode.ENGAGE;
@@ -185,17 +191,20 @@ public final class VerbOrders {
         };
     }
 
+    /** The entity id a combat request names, or null when it names a type or nothing. */
     public static Integer entityId(CombatContracts.Params p) {
         return p.target().orElse(null) instanceof CombatContracts.FoeEntity e ? e.entityId() : null;
     }
 
+    /** The entity type a combat request names, or null when it names an entity or nothing. */
     public static String entityType(CombatContracts.Params p) {
         return p.target().orElse(null) instanceof CombatContracts.FoeType t ? t.type() : null;
     }
 
+    /** The order to farm: a body with no hands is refused. */
     public static Order<GatherContracts.Farmed> farm(FarmParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("farm", self);
+            return handless("farm");
         }
         int min = self.level().getMinBuildHeight();
         int max = self.level().getMaxBuildHeight() - 1;
@@ -217,9 +226,10 @@ public final class VerbOrders {
                         p.from(), p.to(), p.crops(), p.replant(), f.harvested(), f.replanted()));
     }
 
+    /** The order to build a structure: a body with no hands is refused. */
     public static Order<BuildContracts.Constructed> construct(ConstructParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("construct", self);
+            return handless("construct");
         }
         switch (p.structure()) {
             case BuildContracts.Tower t -> {
@@ -254,9 +264,10 @@ public final class VerbOrders {
         }
     }
 
+    /** The order to sleep: a body with no hands is refused. */
     public static Order<MoveContracts.Slept> sleep(SleepParams p, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("sleep", self);
+            return handless("sleep");
         }
         SleepProcess s = new SleepProcess(p.pos().map(Positions::blockPos).orElse(null), p.radius());
         return new Start<>(s, () -> new MoveContracts.Slept(position(s.bedPos())));
@@ -279,7 +290,7 @@ public final class VerbOrders {
 
     private static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
         if (!hasHands(self)) {
-            return handless("build", self);
+            return handless("build");
         }
         BuildProcess build = new BuildProcess(blockPos(p.origin()), s);
         BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
@@ -288,6 +299,7 @@ public final class VerbOrders {
                 build, () -> new BuildContracts.Built(p.origin(), size, blocks, build.placed(), build.skipped()));
     }
 
+    /** The order to follow a named player or an entity type along a route. */
     public static Order<MoveContracts.Followed> follow(FollowParams p, LivingEntity self) {
         String type = p.target() instanceof MoveContracts.QuarryType t ? t.type() : null;
         String name = p.target() instanceof MoveContracts.QuarryPlayer pl ? pl.name() : null;
@@ -297,11 +309,13 @@ public final class VerbOrders {
                 () -> new MoveContracts.Followed(p.target(), p.radius()));
     }
 
+    /** The order to explore outward from a centre, up to a chunk budget. */
     public static Order<MoveContracts.Explored> explore(ExploreParams p, LivingEntity self) {
         ExploreProcess e = new ExploreProcess(p.centerX(), p.centerZ(), p.maxChunks());
         return new Start<>(e, () -> new MoveContracts.Explored(p.centerX(), p.centerZ(), p.maxChunks(), e.visited()));
     }
 
+    /** The order to run from a position, to at least the minimum distance. */
     public static Order<MoveContracts.RanAway> runAway(RunAwayParams p, LivingEntity self) {
         BlockPos src = p.from()
                 .map(Positions::blockPos)

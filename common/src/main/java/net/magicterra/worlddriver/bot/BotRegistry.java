@@ -127,7 +127,7 @@ public final class BotRegistry {
     private static UUID entityUuid(String id) {
         try {
             return UUID.fromString(id.substring(ENTITY_PREFIX.length()));
-        } catch (IllegalArgumentException notAUuid) {
+        } catch (IllegalArgumentException badId) {
             return null;
         }
     }

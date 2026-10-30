@@ -38,12 +38,15 @@ public final class GotoGoalResolver {
     public static final class Unavailable extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
+        /** Carries {@code message} to the caller; no cause and no stack trace are recorded. */
         public Unavailable(String message) {
             super(message, null, false, false);
         }
     }
 
     /**
+     * Resolves a goto target to the goal the navigator walks to, inverted when {@code invert} is set.
+     *
      * @param waypoints the body's saved waypoints; empty for a body that keeps none
      * @param nearestOfType the nearest entity of a registry id the body can see, or null
      */
@@ -58,6 +61,8 @@ public final class GotoGoalResolver {
         return invert ? new Goal.Inverted(base) : base;
     }
 
+    // The Axis case binds a name it never reads: Java 21 has no unnamed pattern without preview features.
+    @SuppressWarnings("PMD.UnusedLocalVariable")
     private static Goal base(
             Target target, Entity self, Map<String, BlockPos> waypoints, Function<String, Entity> nearestOfType) {
         return switch (target) {

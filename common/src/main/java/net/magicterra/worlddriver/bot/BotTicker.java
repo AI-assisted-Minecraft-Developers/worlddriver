@@ -25,6 +25,8 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class BotTicker {
 
+    // Declared as the concrete class: addIfAbsent exists only on CopyOnWriteArrayList.
+    @SuppressWarnings("PMD.LooseCoupling")
     private static final CopyOnWriteArrayList<Bot> ACTIVE = new CopyOnWriteArrayList<>();
 
     // The server tick loads this class before any driver can search, so the planner's stall rows
@@ -35,10 +37,12 @@ public final class BotTicker {
 
     private BotTicker() {}
 
+    /** Puts {@code d} on the tick list; a bot already on it stays where it is. */
     public static void register(Bot d) {
         ACTIVE.addIfAbsent(d);
     }
 
+    /** Takes {@code d} off the tick list; its task is left as it is. */
     public static void unregister(Bot d) {
         ACTIVE.remove(d);
     }
@@ -72,6 +76,7 @@ public final class BotTicker {
         return java.util.List.copyOf(ACTIVE);
     }
 
+    /** Empties the tick list without ending any bot's task. */
     public static void clear() {
         ACTIVE.clear();
     }

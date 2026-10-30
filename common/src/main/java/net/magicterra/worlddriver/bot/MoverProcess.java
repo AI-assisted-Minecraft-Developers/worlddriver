@@ -70,8 +70,8 @@ final class MoverProcess implements BotProcess {
                 st.mc_goto.reset();
                 return true;
             }
+            default -> throw new IllegalStateException("the mover reported a progress this task does not know");
         }
-        return false;
     }
 
     @Override

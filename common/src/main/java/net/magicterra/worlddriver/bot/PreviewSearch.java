@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.magicterra.worlddriver.api.action.ActionHandle;
@@ -63,11 +64,11 @@ public final class PreviewSearch {
 
     private final BotState state;
 
-    private final ArrayDeque<Pending> queue = new ArrayDeque<>();
+    private final Queue<Pending> queue = new ArrayDeque<>();
 
     private Pending current;
 
-    private final LinkedHashMap<String, Plan> plans = new LinkedHashMap<>();
+    private final Map<String, Plan> plans = new LinkedHashMap<>();
 
     private final AtomicInteger seq = new AtomicInteger();
 
@@ -109,10 +110,12 @@ public final class PreviewSearch {
             this.summary = summary;
         }
 
+        /** Whether the preview stopped short of the goal, so this plan is a best-effort route. */
         public boolean bestEffort() {
             return summary.bestEffort();
         }
 
+        /** Whether this plan is older than the time-to-live at {@code nowMs}. */
         public boolean expired(long nowMs) {
             return nowMs - createdMs > TTL_MS;
         }
@@ -154,6 +157,7 @@ public final class PreviewSearch {
         }
     }
 
+    /** Creates a search that writes its results into {@code state}. */
     public PreviewSearch(BotState state) {
         this.state = state;
     }
@@ -372,6 +376,8 @@ public final class PreviewSearch {
      * — without a search and without checking walkability. Synchronous: one entity scan and the rays over those cells,
      * on the calling (game) thread.
      */
+    // contains() takes any Object, so this asks whether the bias list holds this same object; kept exactly as written.
+    @SuppressWarnings("PMD.CollectionTypeMismatch")
     public static Scored score(List<BlockPos> points, SearchProfile profile, ScopeSource scope) {
         List<BlockPos> cells = polylineCells(points);
         if (cells.isEmpty()) {
@@ -477,7 +483,7 @@ public final class PreviewSearch {
     }
 
     private static String keyOf(List<ThreatSnapshot.Threat> seeing, List<String> regions) {
-        TreeMap<Integer, String> ids = new TreeMap<>();
+        Map<Integer, String> ids = new TreeMap<>();
         for (ThreatSnapshot.Threat t : seeing) {
             ids.put(t.id(), t.type());
         }
