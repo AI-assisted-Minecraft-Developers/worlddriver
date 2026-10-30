@@ -218,8 +218,8 @@ public final class DrivePhase {
     /** The first parkour takeoff this walk ever made — see {@link #noteParkourTakeoff}. */
     public String parkourTakeoff;
 
-    public boolean digDrivenThisTick,
-            digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
+    public boolean digDrivenThisTick;
+    public boolean digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
     // DIG_KEY_RELEASE_TICKS)
     public int digIdleTicks; // consecutive tick-ends with the latch owned and no dig driven
 
@@ -350,7 +350,8 @@ public final class DrivePhase {
      * the sprint.
      */
     private boolean finalApproach(Navigator nav, LivingEntity p, BlockPos wp, boolean parkourEdge) {
-        double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
+        double dx = (wp.getX() + 0.5) - p.getX();
+        double dz = (wp.getZ() + 0.5) - p.getZ();
         return ControlConfig.navigatorFinalNodeDirectAim
                 && !p.isInWater()
                 && !parkourEdge
@@ -404,7 +405,8 @@ public final class DrivePhase {
             boolean diving,
             boolean diveUnderCap) {
         DriveLatches l = driveLatch;
-        double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
+        double wdx = wp.getX() + 0.5 - p.getX();
+        double wdz = wp.getZ() + 0.5 - p.getZ();
         // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
         // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
         if (wdx * wdx + wdz * wdz < 1.0
@@ -481,7 +483,8 @@ public final class DrivePhase {
             if (world.isWater(node)) {
                 continue;
             }
-            double dx = node.getX() + 0.5 - p.getX(), dz = node.getZ() + 0.5 - p.getZ();
+            double dx = node.getX() + 0.5 - p.getX();
+            double dz = node.getZ() + 0.5 - p.getZ();
             if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) {
                 l.cruiseOn = false;
                 return Cruise.OFF;
@@ -537,7 +540,8 @@ public final class DrivePhase {
         // against the sprint's 0.9 drag) launches the bot clear out of the water, while a pulse coasts ~9× its
         // vy. Deep under, pulse whenever the rise is slow; within the last 0.3 block, only from a standstill,
         // so the coast ends with the prone eyes (0.4) just above the source block's 8/9 surface.
-        double eyeGap = wp.getY() + 0.889 - (p.getY() + 0.4), vy = p.getDeltaMovement().y;
+        double eyeGap = wp.getY() + 0.889 - (p.getY() + 0.4);
+        double vy = p.getDeltaMovement().y;
         boolean lift = swimming
                 && l.cruiseSwimTicks > CRUISE_CONFIRM_TICKS
                 && p.isUnderWater()
@@ -562,7 +566,10 @@ public final class DrivePhase {
         if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) {
             return null;
         }
-        double ax = sp.getX() + 0.5, az = sp.getZ() + 0.5, sx = wp.getX() + 0.5 - ax, sz = wp.getZ() + 0.5 - az;
+        double ax = sp.getX() + 0.5;
+        double az = sp.getZ() + 0.5;
+        double sx = wp.getX() + 0.5 - ax;
+        double sz = wp.getZ() + 0.5 - az;
         double t = Mth.clamp(((p.getX() - ax) * sx + (p.getZ() - az) * sz) / Math.max(1e-6, sx * sx + sz * sz), 0, 1);
         return new double[] {ax + sx * t - p.getX(), az + sz * t - p.getZ()};
     }
@@ -584,14 +591,16 @@ public final class DrivePhase {
             return bang;
         }
         double yr = Math.toRadians(p.getYRot());
-        double rx = -Math.cos(yr), rz = -Math.sin(yr); // the player's right, as in the lane-keep above
+        double rx = -Math.cos(yr);
+        double rz = -Math.sin(yr); // the player's right, as in the lane-keep above
         double errR = latX * rx + latZ * rz;
         Vec3 v = p.getDeltaMovement();
         double velR = (latX != 0 ? v.x : 0) * rx + (latZ != 0 ? v.z : 0) * rz;
         return -Mth.clamp(LANE_KP * errR - LANE_KD * velR, -1.0, 1.0);
     }
 
-    private static final double LANE_KP = 3.0, LANE_KD = 8.0;
+    private static final double LANE_KP = 3.0;
+    private static final double LANE_KD = 8.0;
 
     private static final double BACKOFF_RUNWAY = 1.8; // how far 12 ticks of walking back carries the bot, with margin
     private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
@@ -602,7 +611,8 @@ public final class DrivePhase {
      * stair (live 2026-09-28, twice at 1390,99,-534: fell 3 blocks, then pillar-recovered, ~12 s each time).
      */
     private static boolean backoffRunwayFloored(WorldView world, LivingEntity p, BlockPos wp) {
-        double bx = p.getX() - (wp.getX() + 0.5), bz = p.getZ() - (wp.getZ() + 0.5);
+        double bx = p.getX() - (wp.getX() + 0.5);
+        double bz = p.getZ() - (wp.getZ() + 0.5);
         double len = Math.hypot(bx, bz);
         if (len < 1e-3) {
             return false;
@@ -687,7 +697,8 @@ public final class DrivePhase {
         // creeps and grinds the wall); strafing centres while forward still drives
         // it down the lane. Projects the cross-axis error onto the player's right
         // vector to pick the key. Skipped during leaps/brakes/bridging.
-        boolean strafeL = false, strafeR = false;
+        boolean strafeL = false;
+        boolean strafeR = false;
         // Baritone MovementAscend jump-timing for a DRY cardinal +1 step. Baritone
         // does NOT sprint an ascend and does NOT hold jump continuously — it walks
         // toward the step squaring up, then presses jump ONLY when CLOSE
@@ -841,7 +852,8 @@ public final class DrivePhase {
         // mounts it (the aligned cardinal climb that already works on dry land).
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
         boolean stepDownLane = ControlConfig.navigatorDescentLaneKeep && wp.getY() == foot.getY() - 1 && !p.isInWater();
-        double laneLatX = 0, laneLatZ = 0;
+        double laneLatX = 0;
+        double laneLatZ = 0;
         if (!descendBrake
                 && !parkourEdge
                 && !steppingOffFall
@@ -851,7 +863,8 @@ public final class DrivePhase {
             double[] seg = ddx != 0 && ddz != 0 && (wp.getY() == foot.getY() || stepDownLane) && !waterClimb && !diagUp
                     ? segmentLaneOffset(nav, p, wp, stepDownLane)
                     : null;
-            double latX = 0, latZ = 0;
+            double latX = 0;
+            double latZ = 0;
             if (seg != null) {
                 latX = seg[0];
                 latZ = seg[1];
@@ -884,8 +897,10 @@ public final class DrivePhase {
             laneLatZ = latZ;
             if (Math.abs(latX) > 0.06 || Math.abs(latZ) > 0.06) {
                 double yr = Math.toRadians(p.getYRot());
-                double fx = -Math.sin(yr), fz = Math.cos(yr); // forward unit (x,z)
-                double rx = -fz, ry = fx; // player's right = forward rot +90°
+                double fx = -Math.sin(yr);
+                double fz = Math.cos(yr); // forward unit (x,z)
+                double rx = -fz;
+                double ry = fx; // player's right = forward rot +90°
                 double dotR = latX * rx + latZ * ry;
                 if (dotR > 0.04) {
                     strafeR = true;
@@ -1032,7 +1047,8 @@ public final class DrivePhase {
         // close the last fraction INTO the disk, where the goal.reached check at the top of step()
         // fires for real. radius>0 only (exact-cell / radius-0 water arrivals unchanged).
         if (nav.route.step() + 1 >= nav.route.path().size() && !nav.goal.reached(foot)) {
-            int gcx = Integer.MIN_VALUE, gcz = 0;
+            int gcx = Integer.MIN_VALUE;
+            int gcz = 0;
             if (nav.goal instanceof Goal.XZ xz && xz.radius() > 0) {
                 gcx = xz.x();
                 gcz = xz.z();
@@ -1041,7 +1057,8 @@ public final class DrivePhase {
                 gcz = nr.target().getZ();
             }
             if (gcx != Integer.MIN_VALUE) {
-                double gdx = (gcx + 0.5) - p.getX(), gdz = (gcz + 0.5) - p.getZ();
+                double gdx = (gcx + 0.5) - p.getX();
+                double gdz = (gcz + 0.5) - p.getZ();
                 if (gdx * gdx + gdz * gdz > 0.5) { // not already essentially on centre
                     driveTargetYaw = (float) Math.toDegrees(Math.atan2(-gdx, gdz));
                     driveF = 1.0;
@@ -1050,7 +1067,8 @@ public final class DrivePhase {
             }
         }
         double driveDelta = Math.toRadians(angleDiff(p.getYRot(), driveTargetYaw));
-        double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
+        double driveCos = Math.cos(driveDelta);
+        double driveSin = Math.sin(driveDelta);
         double cmdStrafe = driveL * driveCos - driveF * driveSin;
         double cmdFwd = driveL * driveSin + driveF * driveCos;
         // CORNER-CLEARANCE repulsion (navigatorCornerClearance): pure-pursuit cuts corners by
@@ -1064,7 +1082,8 @@ public final class DrivePhase {
         // a 1-wide corridor pushes cancel, and the nudge is capped well under the drive
         // impulse so it bends the line rather than steering it.
         if (ControlConfig.navigatorCornerClearance && !p.isInWater() && (driveF != 0 || driveL != 0)) {
-            double rpx = 0, rpz = 0;
+            double rpx = 0;
+            double rpz = 0;
             for (int cdx = -1; cdx <= 1; cdx++) {
                 for (int cdz = -1; cdz <= 1; cdz++) {
                     if (cdx == 0 && cdz == 0) {
@@ -1076,7 +1095,8 @@ public final class DrivePhase {
                     }
                     double ncx = Math.max(n.getX(), Math.min(p.getX(), n.getX() + 1.0));
                     double ncz = Math.max(n.getZ(), Math.min(p.getZ(), n.getZ() + 1.0));
-                    double ox = p.getX() - ncx, oz = p.getZ() - ncz;
+                    double ox = p.getX() - ncx;
+                    double oz = p.getZ() - ncz;
                     double d = Math.sqrt(ox * ox + oz * oz);
                     if (d >= 0.45 || d < 1e-6) {
                         continue;
@@ -1091,7 +1111,8 @@ public final class DrivePhase {
                 double scale = Math.min(0.5, rMag) / rMag; // cap the nudge at half impulse
                 // world → camera frame: forward = (−sinθ, cosθ), left = (cosθ, sinθ)
                 double cam = Math.toRadians(p.getYRot());
-                double camSin = Math.sin(cam), camCos = Math.cos(cam);
+                double camSin = Math.sin(cam);
+                double camCos = Math.cos(cam);
                 cmdStrafe += (rpx * camCos + rpz * camSin) * scale;
                 cmdFwd += (rpz * camCos - rpx * camSin) * scale;
             }
@@ -1420,7 +1441,8 @@ public final class DrivePhase {
                 double az = p.getZ() + bdz / blen * 0.6;
                 BlockPos aheadFoot = new BlockPos((int) Math.floor(ax), foot.getY(), (int) Math.floor(az));
                 boolean gapAhead = !world.isSolid(aheadFoot.below()) && !world.isSolid(aheadFoot);
-                double fx = foot.getX() + 0.5, fz = foot.getZ() + 0.5;
+                double fx = foot.getX() + 0.5;
+                double fz = foot.getZ() + 0.5;
                 double offCentre = Math.abs((p.getX() - fx) * bdz - (p.getZ() - fz) * bdx) / blen;
                 bridgeBrake = gapAhead || offCentre > 0.30;
             }
@@ -1756,7 +1778,8 @@ public final class DrivePhase {
         // and it historically checked neither allowBreak NOR NoBreak. Gate it so forbidDig (and the
         // global switch) are both honored — an executor recovery must never out-mutate the planner.
         if (p.isInWater() && p.horizontalCollision && nav.mayBreak()) {
-            double bdx = (wp.getX() + 0.5) - p.getX(), bdz = (wp.getZ() + 0.5) - p.getZ();
+            double bdx = (wp.getX() + 0.5) - p.getX();
+            double bdz = (wp.getZ() + 0.5) - p.getZ();
             double bl = Math.sqrt(bdx * bdx + bdz * bdz);
             BlockPos surf = BlockPos.containing(p.getX(), p.getY() + 1.0, p.getZ());
             BlockPos aheadPad =
@@ -1793,7 +1816,8 @@ public final class DrivePhase {
                 && (nav.stuckTicks > 40
                         || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60))
                 && !nav.blocks.breakHeld()) {
-            double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
+            double fdx = (wp.getX() + 0.5) - p.getX();
+            double fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
                 BlockPos tgt = wallDigTarget(world, p, wp, fdx / fl, fdz / fl);
@@ -1899,7 +1923,8 @@ public final class DrivePhase {
         tick.leadWhy = "contact";
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
-        double dx = (node.getX() + 0.5) - p.getX(), dz = (node.getZ() + 0.5) - p.getZ();
+        double dx = (node.getX() + 0.5) - p.getX();
+        double dz = (node.getZ() + 0.5) - p.getZ();
         if (vh > 0.03) {
             dx = v.x;
             dz = v.z;
@@ -1909,7 +1934,9 @@ public final class DrivePhase {
             return Double.NaN;
         }
         double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node);
-        double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
+        double air = 0.026;
+        double m1 = vh + 0.2 + air;
+        double m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
         // navigatorRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
         // tick (R1 1386,64,-464: 0.75 of run, 0.75 travelled).
         return contact
@@ -1931,7 +1958,8 @@ public final class DrivePhase {
     private static double riserContact(
             TickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node) {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
-            double cx = p.getX() + ux * s, cz = p.getZ() + uz * s;
+            double cx = p.getX() + ux * s;
+            double cz = p.getZ() + uz * s;
             boolean hit = false;
             for (int x = Mth.floor(cx - 0.3); x <= Mth.floor(cx + 0.2999); x++) {
                 for (int z = Mth.floor(cz - 0.3); z <= Mth.floor(cz + 0.2999); z++) {
@@ -2061,7 +2089,8 @@ public final class DrivePhase {
             return false;
         }
         BlockPos from = nav.route.path().get(nav.route.step() - 1);
-        int dx = wp.getX() - from.getX(), dz = wp.getZ() - from.getZ();
+        int dx = wp.getX() - from.getX();
+        int dz = wp.getZ() - from.getZ();
         if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) {
             return false;
         }
@@ -2085,7 +2114,8 @@ public final class DrivePhase {
                 || foot.equals(nav.route.path().get(nav.route.step() - 1))) {
             return false;
         }
-        double dx = wp.getX() + 0.5 - p.getX(), dz = wp.getZ() + 0.5 - p.getZ();
+        double dx = wp.getX() + 0.5 - p.getX();
+        double dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
     }
 

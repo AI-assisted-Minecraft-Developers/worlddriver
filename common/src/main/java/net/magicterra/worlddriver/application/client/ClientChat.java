@@ -167,8 +167,10 @@ public final class ClientChat {
     public static OverlaysCleared overlays(OverlaysParams p) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
-            boolean tutorial = false, toasts = false;
-            Optional<String> tutorialError = Optional.empty(), toastsError = Optional.empty();
+            boolean tutorial = false;
+            boolean toasts = false;
+            Optional<String> tutorialError = Optional.empty();
+            Optional<String> toastsError = Optional.empty();
             if (p.tutorial()) {
                 try {
                     // Options.tutorialStep is a plain public TutorialSteps field, not an

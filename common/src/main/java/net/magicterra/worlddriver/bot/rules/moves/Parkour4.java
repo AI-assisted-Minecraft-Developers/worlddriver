@@ -60,7 +60,8 @@ public final class Parkour4 extends Move {
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         for (int i = 1; i <= 3; i++) {
             BlockPos mid = from.offset(sx * i, 0, sz * i);
             if (!w.isPassable(mid) || w.isHazard(mid)) {

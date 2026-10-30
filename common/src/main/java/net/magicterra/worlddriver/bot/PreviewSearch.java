@@ -113,7 +113,8 @@ public final class PreviewSearch {
         final List<List<BlockPos>> shown = new ArrayList<>();
         PathFinder.Search search;
         int legIndex;
-        boolean sightDropped, truncated;
+        boolean sightDropped;
+        boolean truncated;
         int expanded;
         long ms;
         double cost;
@@ -393,7 +394,8 @@ public final class PreviewSearch {
         }
         out.add(points.get(0));
         for (int i = 1; i < points.size(); i++) {
-            BlockPos a = points.get(i - 1), b = points.get(i);
+            BlockPos a = points.get(i - 1);
+            BlockPos b = points.get(i);
             int n = Math.max(
                     Math.abs(b.getX() - a.getX()),
                     Math.max(Math.abs(b.getY() - a.getY()), Math.abs(b.getZ() - a.getZ())));

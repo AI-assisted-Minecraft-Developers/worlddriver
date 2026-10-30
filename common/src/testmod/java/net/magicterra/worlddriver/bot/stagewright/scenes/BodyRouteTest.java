@@ -72,8 +72,10 @@ class BodyRouteTest {
     void bodyRoutesWalkAPlayerAndAnNpcByName(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         ApiRegistry api = game.registry();
-        BlockPos playerStart = plot.at(0, FLOOR + 1, -2), playerGoal = plot.at(COURSE, FLOOR + 1, -2);
-        BlockPos npcStart = plot.at(0, FLOOR + 1, 2), npcGoal = plot.at(COURSE, FLOOR + 1, 2);
+        BlockPos playerStart = plot.at(0, FLOOR + 1, -2);
+        BlockPos playerGoal = plot.at(COURSE, FLOOR + 1, -2);
+        BlockPos npcStart = plot.at(0, FLOOR + 1, 2);
+        BlockPos npcGoal = plot.at(COURSE, FLOOR + 1, 2);
         Bodies b = stage(game, plot, playerStart, npcStart);
         SceneBot player = b.player();
         String npc = b.npc().ref();
@@ -115,8 +117,8 @@ class BodyRouteTest {
                 .within(400)
                 .as("both walks end")
                 .until(() -> !ByName.busy(api, player.ref()) && !ByName.busy(api, npc));
-        BlockPos playerAt = player.onServer(p -> p.blockPosition()),
-                npcAt = b.npc().blockPos();
+        BlockPos playerAt = player.onServer(p -> p.blockPosition());
+        BlockPos npcAt = b.npc().blockPos();
         Object playerSlot = slots(botStatus(api, player.ref())).get("goto");
         Object npcSlot = slots(botStatus(api, npc)).get("goto");
         Map<?, ?> playerAction = ByName.read(api, ByName.actionId(playerGo));
@@ -174,7 +176,8 @@ class BodyRouteTest {
     void bodyRoutesStartProcessesByName(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         ApiRegistry api = game.registry();
-        BlockPos playerStart = plot.at(1, FLOOR + 1, -2), npcStart = plot.at(1, FLOOR + 1, 2);
+        BlockPos playerStart = plot.at(1, FLOOR + 1, -2);
+        BlockPos npcStart = plot.at(1, FLOOR + 1, 2);
         Bodies b = stage(game, plot, playerStart, npcStart);
         SceneBot player = b.player();
         String npc = b.npc().ref();

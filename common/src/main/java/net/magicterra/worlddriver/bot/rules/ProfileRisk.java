@@ -19,7 +19,8 @@ public final class ProfileRisk implements RiskAt {
     private final List<Map.Entry<String, Region>> regions = new ArrayList<>();
 
     public ProfileRisk(SearchProfile profile) {
-        int avoid = 0, forbid = 0;
+        int avoid = 0;
+        int forbid = 0;
         for (CostModifier m : profile.bias()) {
             if (m instanceof SightExposure s) {
                 sight.add(s);

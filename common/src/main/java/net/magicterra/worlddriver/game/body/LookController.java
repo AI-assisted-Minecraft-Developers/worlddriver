@@ -27,11 +27,15 @@ public final class LookController {
     private LookController() {}
 
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
-    private static float prevYaw, prevPitch;
+    private static float prevYaw;
+    private static float prevPitch;
     private static boolean havePrev;
     private static boolean snapThisTick;
     // WINDING ground truth: is the RENDERED camera spinning in circles (smoothly, no snap)?
-    private static double windCumAbs, windUnwrapped, windMin, windMax;
+    private static double windCumAbs;
+    private static double windUnwrapped;
+    private static double windMin;
+    private static double windMax;
     private static float windPrev;
     private static boolean windHavePrev;
     private static int windTick;
@@ -92,7 +96,8 @@ public final class LookController {
             snapThisTick = false;
             return;
         }
-        float yaw = p.getYRot(), pitch = p.getXRot();
+        float yaw = p.getYRot();
+        float pitch = p.getXRot();
         boolean snap = snapThisTick || !GameConfig.cameraSlew || !havePrev;
         snapThisTick = false;
         // GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is

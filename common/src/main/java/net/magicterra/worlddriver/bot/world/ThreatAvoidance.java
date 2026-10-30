@@ -25,7 +25,9 @@ public final class ThreatAvoidance {
             if (r <= 0) {
                 continue;
             }
-            double dx = fx - mobXyzr[i], dy = fy - mobXyzr[i + 1], dz = fz - mobXyzr[i + 2];
+            double dx = fx - mobXyzr[i];
+            double dy = fy - mobXyzr[i + 1];
+            double dz = fz - mobXyzr[i + 2];
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
             if (dist < r) {
                 penalty += basePenalty * (r - dist) / r;

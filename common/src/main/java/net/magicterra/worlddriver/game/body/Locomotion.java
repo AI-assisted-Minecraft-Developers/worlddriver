@@ -61,7 +61,8 @@ public record Locomotion(
     public static Locomotion of(Entity mover) {
         int step = (int) Math.floor(mover.maxUpStep());
         double v = 0.42; // vanilla on-foot fallback
-        double walk = 0, fly = 0;
+        double walk = 0;
+        double fly = 0;
         if (mover instanceof LivingEntity le) {
             if (le.getAttributes().hasAttribute(Attributes.JUMP_STRENGTH)) {
                 v = le.getAttributeValue(Attributes.JUMP_STRENGTH);
@@ -127,7 +128,8 @@ public record Locomotion(
      * 1.
      */
     static int jumpApexBlocks(double v0) {
-        double y = 0, vy = v0;
+        double y = 0;
+        double vy = v0;
         for (int i = 0; i < 40 && vy > 0; i++) {
             y += vy;
             vy = (vy - 0.08) * 0.98;

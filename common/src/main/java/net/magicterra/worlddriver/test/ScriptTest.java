@@ -30,7 +30,8 @@ public final class ScriptTest {
     }
 
     public static int summary() {
-        int pass = 0, fail = 0;
+        int pass = 0;
+        int fail = 0;
         for (Result r : results) {
             if (r.passed) {
                 pass++;

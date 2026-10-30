@@ -105,7 +105,8 @@ class PreviewSearchTest {
         assertEquals(new BlockPos(4, 3, 2), cells.get(cells.size() - 1));
         assertEquals(8, cells.size(), cells.toString());
         for (int i = 1; i < cells.size(); i++) {
-            BlockPos a = cells.get(i - 1), b = cells.get(i);
+            BlockPos a = cells.get(i - 1);
+            BlockPos b = cells.get(i);
             assertTrue(Math.abs(a.getX() - b.getX()) <= 1
                     && Math.abs(a.getY() - b.getY()) <= 1
                     && Math.abs(a.getZ() - b.getZ()) <= 1);

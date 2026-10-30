@@ -42,7 +42,8 @@ public final class DodgeChain implements Chain {
         }
         // Perpendicular to the projectile's horizontal velocity (rotate 90° in XZ).
         Vec3 v = in.vel();
-        double px = -v.z, pz = v.x;
+        double px = -v.z;
+        double pz = v.x;
         double len = Math.sqrt(px * px + pz * pz);
         if (len > 1.0e-6) {
             p.setYRot((float) (Math.toDegrees(Math.atan2(pz, px)) - 90.0));

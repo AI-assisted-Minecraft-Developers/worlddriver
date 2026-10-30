@@ -55,7 +55,10 @@ class CoverageTest {
     @Test
     void expectAlarmBlockedJump(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         plot.fill(1, 1, -5, 5, 1, 5, Blocks.STONE); // +1 plateau over the east half
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
@@ -70,7 +73,8 @@ class CoverageTest {
             ServerPlayer fp = walkTo(bot, goal);
             long firedBefore = alarmsFired(bot);
             int t = 0;
-            boolean capped = false, lifted = false;
+            boolean capped = false;
+            boolean lifted = false;
             for (; t < 600 && bot.busy(); t++) {
                 if (!capped && fp.getX() > cx - 1.5) {
                     // Route committed, bot closing on the riser: cap the launch cells.
@@ -118,7 +122,10 @@ class CoverageTest {
     @Test
     void drownEscapeSurface(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Shell first — an unwalled pool drains sideways.
         plot.fill(-4, -5, -3, 2, 0, 3, Blocks.STONE);
@@ -143,7 +150,9 @@ class CoverageTest {
             walkTo(bot, goal);
             // A bot's air does not tick on its own here: drive the air simulation per tick, the same idiom as
             // DrownEscapeChainTest: −1/tick with eyes under, +4/tick (cap 300) at the surface.
-            int airSim = 40, minAir = airSim, maxAir = airSim;
+            int airSim = 40;
+            int minAir = airSim;
+            int maxAir = airSim;
             int t = 0;
             for (; t < 400 && bot.busy(); t++) {
                 bot.tick();
@@ -185,7 +194,9 @@ class CoverageTest {
     @Test
     void bestEffortSpliceCourse(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         plot.fill(-8, 0, -2, 13, 0, 2, Blocks.STONE);
         BlockPos goal = new BlockPos(cx + 12, standY, cz);
         Settings.pin(game)
@@ -215,7 +226,9 @@ class CoverageTest {
     @Test
     void ascendMovementStairs(Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Staircase: floor height +1 per column from x=0..3, landing at +4.
         for (int i = 0; i <= 3; i++) {
@@ -255,7 +268,10 @@ class CoverageTest {
     @Test
     void boxedChurnEscalate(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 32) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         plot.fill(-8, 0, -8, 13, 0, 8, Blocks.STONE);
         // Bedrock mass dx 0..5 across the full floor width, pocket interior dx 0..3 / dz -2..2 carved out.
         plot.fill(0, 1, -8, 5, 4, 8, Blocks.BEDROCK);
@@ -281,8 +297,10 @@ class CoverageTest {
             ServerLevel level = s.overworld();
             ServerPlayer fp = walkTo(bot, goal);
             Pattern churn = Pattern.compile("churnEsc=(\\d+)");
-            int t = 0, churnSeen = 0;
-            boolean enteredPocket = false, released = false;
+            int t = 0;
+            int churnSeen = 0;
+            boolean enteredPocket = false;
+            boolean released = false;
             StringBuilder trace = new StringBuilder();
             for (; t < 1400 && bot.busy(); t++) {
                 bot.tick();
@@ -351,7 +369,9 @@ class CoverageTest {
     @Test
     void quickStartStub(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         plot.fill(-8, 0, -4, 13, 0, 4, Blocks.STONE);
         plot.fill(-4, -1, -4, -3, -1, 4, Blocks.STONE);
         plot.fill(-4, 0, -4, -3, 0, 4, Blocks.WATER);
@@ -406,7 +426,10 @@ class CoverageTest {
     @Test
     void aboveNodeStallPitFill(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         plot.fill(-8, -3, -3, 8, 0, 3, Blocks.STONE);
         // Stepped trench dx 0..4: entry/exit feet at floorY (dx 0 and 4), deep feet at floorY-1 (dx 1..3).
         plot.fill(0, 0, -3, 0, 0, 3, Blocks.AIR);
@@ -465,7 +488,10 @@ class CoverageTest {
     @Test
     void stepUpBackoffCeiling(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         plot.fill(1, 1, -5, 5, 1, 5, Blocks.STONE);
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
@@ -479,7 +505,8 @@ class CoverageTest {
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             ServerPlayer fp = walkTo(bot, goal);
-            int t = 0, cappedTicks = 0;
+            int t = 0;
+            int cappedTicks = 0;
             boolean capped = false;
             for (; t < 700 && bot.busy(); t++) {
                 if (!capped && fp.getX() > cx - 1.5) {
@@ -528,7 +555,9 @@ class CoverageTest {
     @Test
     void surfacePillarPointerNeedsItsSupport(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Two-deep column whose TOP cell is the surface: water at standY and standY+1, air above.
         plot.fill(0, 1, 0, 0, 2, 0, Blocks.WATER);
@@ -576,8 +605,12 @@ class CoverageTest {
 
             final double startY = fp.getY();
             double maxY = startY;
-            boolean placed = false, ranPillarUp = false, pointerPastUnplaced = false, walking = true;
-            int maxStep = 0, t = 0;
+            boolean placed = false;
+            boolean ranPillarUp = false;
+            boolean pointerPastUnplaced = false;
+            boolean walking = true;
+            int maxStep = 0;
+            int t = 0;
             for (; t < 200 && walking; t++) {
                 // Before the tick as well as after: a tick that runs an edge and consumes its node leaves the pointer
                 // past it. The plan is adopted on the first tick, so a pre-tick sample means something from the second.

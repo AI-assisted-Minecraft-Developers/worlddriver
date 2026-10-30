@@ -55,7 +55,11 @@ public final class WaterClimb implements Controller {
 
     // ---- this tick's climb context, from sense() ----
     private BlockPos cwp;
-    private boolean wantClimbNow, wantClimb, waterClimbing, deepDig, cwpSwims;
+    private boolean wantClimbNow;
+    private boolean wantClimb;
+    private boolean waterClimbing;
+    private boolean deepDig;
+    private boolean cwpSwims;
     private int digStall;
 
     // ---- what the climb-out remembers across ticks; StallDetect reads digging, the inspector more ----
@@ -125,7 +129,8 @@ public final class WaterClimb implements Controller {
     // "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at
     // engagePillar so a re-locked column cannot inherit the previous segment's height.
     int targetY; // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
-    int colX, colZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
+    int colX;
+    int colZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
     float yaw; // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
     private boolean
             sideRung; // this takeover has placed a side foothold: keys are anticipatory from here (forward only while
@@ -1249,7 +1254,8 @@ public final class WaterClimb implements Controller {
     private static BlockPos sideFoothold(
             WorldView world, BlockPos foot, float yaw, net.minecraft.world.phys.AABB body) {
         double rad = Math.toRadians(yaw);
-        double hx = -Math.sin(rad), hz = Math.cos(rad);
+        double hx = -Math.sin(rad);
+        double hz = Math.cos(rad);
         BlockPos first = Math.abs(hx) >= Math.abs(hz)
                 ? foot.offset(hx >= 0 ? 1 : -1, 0, 0)
                 : foot.offset(0, 0, hz >= 0 ? 1 : -1);

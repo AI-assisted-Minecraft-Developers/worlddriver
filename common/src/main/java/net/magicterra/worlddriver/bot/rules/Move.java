@@ -21,7 +21,9 @@ import net.minecraft.core.BlockPos;
  * {@link #ALL} catalog that {@link #build()} assembles from those subclasses.
  */
 public abstract class Move {
-    public final int dx, dy, dz;
+    public final int dx;
+    public final int dy;
+    public final int dz;
     public final int cost;
 
     protected Move(int dx, int dy, int dz, int cost) {
@@ -229,7 +231,8 @@ public abstract class Move {
         if (steps < 2) {
             return false;
         }
-        int sx = Integer.signum(to.getX() - from.getX()), sz = Integer.signum(to.getZ() - from.getZ());
+        int sx = Integer.signum(to.getX() - from.getX());
+        int sz = Integer.signum(to.getZ() - from.getZ());
         for (int i = 1; i < steps; i++) {
             if (!bottomless(w, from.offset(sx * i, 0, sz * i))) {
                 return false;
@@ -256,7 +259,8 @@ public abstract class Move {
         if (!hasRunway(w, from)) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         if (sx == 0 && sz == 0) {
             return true;
         }

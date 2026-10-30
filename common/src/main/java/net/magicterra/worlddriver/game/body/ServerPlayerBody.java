@@ -92,8 +92,10 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *   reimplementing it by hand would fork the eat/drink/release semantics.
      */
 
-    private float pendingLeft, pendingForward;
-    private boolean pendingJump, pendingSneak;
+    private float pendingLeft;
+    private float pendingForward;
+    private boolean pendingJump;
+    private boolean pendingSneak;
     private final JumpRelease jumpRelease = new JumpRelease();
     private BlockPos aimTarget;
     private boolean breakHeld;
@@ -534,8 +536,12 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     // falls keeps asking for thousands of ticks with nothing solid anywhere near it, so the totals
     // are dominated by the aftermath; the first call, and the first refusal, are the only samples
     // taken while there was still ground under the question.
-    private int placeCalls, placeNoFace, placeNoBlock;
-    private String firstCallAt, firstNoFaceAt, firstNoBlockAt;
+    private int placeCalls;
+    private int placeNoFace;
+    private int placeNoBlock;
+    private String firstCallAt;
+    private String firstNoFaceAt;
+    private String firstNoBlockAt;
 
     /** Where this bot was and what it was aiming at, for the place tally's first-sample rows. */
     private String placeSample(BlockPos cell) {

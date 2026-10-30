@@ -20,7 +20,8 @@ class ArbiterTest {
     private static final class Fake implements Controller {
         final String name;
         final Set<Channel> channels;
-        final int priority, maxTicks;
+        final int priority;
+        final int maxTicks;
         int wanted;
         int ticked;
         boolean letGo;

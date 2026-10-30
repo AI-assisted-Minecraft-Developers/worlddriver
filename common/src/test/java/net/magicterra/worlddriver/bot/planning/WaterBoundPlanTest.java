@@ -44,7 +44,8 @@ class WaterBoundPlanTest {
     @Test
     void swimsDownTheShaftAndAlongTheBend() {
         GridWorldView w = flooded();
-        BlockPos start = new BlockPos(0, Y, 0), goal = new BlockPos(8, Y - 6, 6);
+        BlockPos start = new BlockPos(0, Y, 0);
+        BlockPos goal = new BlockPos(8, Y - 6, 6);
         PathFinder.Result r = plan(w, start, goal);
         List<BlockPos> path = r.path();
         assertTrue(r.goalReached(), "goal not reached: " + path);

@@ -382,7 +382,8 @@ public final class NavigatorInspector {
         StringBuilder sb = new StringBuilder();
         int last = Math.min(segments, nav.route.path().size() - 1);
         for (int i = 0; i < last; i++) {
-            BlockPos a = nav.route.path().get(i), b = nav.route.path().get(i + 1);
+            BlockPos a = nav.route.path().get(i);
+            BlockPos b = nav.route.path().get(i + 1);
             int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
             StringBuilder holes = new StringBuilder();
             int nHoles = 0;

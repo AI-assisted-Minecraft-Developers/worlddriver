@@ -49,7 +49,8 @@ class McpConcurrencyTest {
             for (int i = 1; i <= cap + extra; i++) {
                 calls.add(http.sendAsync(slowCall(server.port(), i), HttpResponse.BodyHandlers.ofString()));
             }
-            int ok = 0, busy = 0;
+            int ok = 0;
+            int busy = 0;
             for (CompletableFuture<HttpResponse<String>> f : calls) {
                 HttpResponse<String> r = f.get();
                 if (r.statusCode() == 200) {

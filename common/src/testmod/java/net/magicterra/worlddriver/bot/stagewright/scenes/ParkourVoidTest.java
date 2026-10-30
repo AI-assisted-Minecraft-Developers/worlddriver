@@ -162,7 +162,9 @@ class ParkourVoidTest {
     @Test
     void parkourVoidLongRunway(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int padLen = 12, spawnDx = 10, halfW = 1; // 3 cells wide: the End platform is not a plank
+        final int padLen = 12;
+        final int spawnDx = 10;
+        final int halfW = 1; // 3 cells wide: the End platform is not a plank
         final int standY = PAD_Y + 1;
         catchFloor(plot, halfW + 1);
         buildPadGapDeck(plot, 0, padLen, halfW);
@@ -175,8 +177,10 @@ class ParkourVoidTest {
                 .set("navigatorDebug", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.at(spawnDx, standY, 0));
-        final int cx = plot.origin().getX(), cz = plot.origin().getZ();
-        final int padAbs = plot.at(0, PAD_Y, 0).getY(), standAbs = padAbs + 1;
+        final int cx = plot.origin().getX();
+        final int cz = plot.origin().getZ();
+        final int padAbs = plot.at(0, PAD_Y, 0).getY();
+        final int standAbs = padAbs + 1;
 
         Leap leap = game.onServer(s -> {
             ServerPlayer fp = bot.player();
@@ -191,10 +195,19 @@ class ParkourVoidTest {
 
             boolean walking = true;
             NavigatorReading nav = bot.navigator();
-            double minY = fp.getY(), prevX = fp.getX(), prevH = 0.0;
-            double takeoffX = Double.NaN, takeoffHBefore = Double.NaN, takeoffHAfter = Double.NaN;
-            int takeoffTick = -1, tLip = -1, tDeck = -1, tFell = -1, t = 0;
-            String gapMove = null, firstPlan = null;
+            double minY = fp.getY();
+            double prevX = fp.getX();
+            double prevH = 0.0;
+            double takeoffX = Double.NaN;
+            double takeoffHBefore = Double.NaN;
+            double takeoffHAfter = Double.NaN;
+            int takeoffTick = -1;
+            int tLip = -1;
+            int tDeck = -1;
+            int tFell = -1;
+            int t = 0;
+            String gapMove = null;
+            String firstPlan = null;
             for (; t < 400 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
@@ -358,7 +371,8 @@ class ParkourVoidTest {
     void parkourVoidRunwayGate(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = PAD_Y + 1;
-        final int shortDz = -4, longDz = 4; // two 1-wide lanes, 8 cells apart across the void
+        final int shortDz = -4;
+        final int longDz = 4; // two 1-wide lanes, 8 cells apart across the void
 
         Settings.pinUntimed(game).set("allowBreak", false).set("allowParkour4", false);
         catchFloor(plot, 6);

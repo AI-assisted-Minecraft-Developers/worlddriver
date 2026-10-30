@@ -151,7 +151,8 @@ public final class BotConfigFile {
                 try (var r = Files.newBufferedReader(path)) {
                     props.load(r);
                 }
-                int applied = 0, skipped = 0;
+                int applied = 0;
+                int skipped = 0;
                 boolean needsUpgrade = false; // any legacy key, or any stale snapshot
                 List<String> legacyDrift = new ArrayList<>();
                 for (Field f : BotConfig.persistableFields()) {

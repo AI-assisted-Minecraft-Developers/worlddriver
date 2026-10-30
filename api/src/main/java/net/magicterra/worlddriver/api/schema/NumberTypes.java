@@ -32,7 +32,8 @@ final class NumberTypes {
     }
 
     static final class IntegerType<T extends Number> extends ApiType<T> {
-        private final long min, max;
+        private final long min;
+        private final long max;
         private final Function<Long, T> narrow;
         private final Function<T, Long> widen;
 
@@ -156,7 +157,8 @@ final class NumberTypes {
     }
 
     static final class NumberType extends ApiType<Double> {
-        private final double min, max;
+        private final double min;
+        private final double max;
 
         NumberType(double min, double max) {
             this.min = min;
@@ -205,7 +207,8 @@ final class NumberTypes {
 
         @Override
         public String expected() {
-            boolean lo = min != Double.NEGATIVE_INFINITY, hi = max != Double.POSITIVE_INFINITY;
+            boolean lo = min != Double.NEGATIVE_INFINITY;
+            boolean hi = max != Double.POSITIVE_INFINITY;
             if (lo && hi) {
                 return "a number " + fmt(min) + "–" + fmt(max);
             }

@@ -71,7 +71,9 @@ class BiasPlanTest {
     @Test
     void digUpY() {
         BlockMapView w = new BlockMapView();
-        final int base = 30, top = 40, targetY = 41;
+        final int base = 30;
+        final int top = 40;
+        final int targetY = 41;
         w.fill(-2, base, -2, 2, top, 2, Blocks.STONE);
         w.set(0, base + 1, 0, Blocks.AIR);
         w.set(0, base + 2, 0, Blocks.AIR);
@@ -96,7 +98,9 @@ class BiasPlanTest {
     @Test
     void digDownY() {
         BlockMapView w = new BlockMapView();
-        final int top = 40, targetY = 34, slabLo = 28;
+        final int top = 40;
+        final int targetY = 34;
+        final int slabLo = 28;
         w.fill(-2, slabLo, -2, 2, top, 2, Blocks.STONE);
         BlockPos start = new BlockPos(0, top + 1, 0);
         kit(w, false);
@@ -123,7 +127,9 @@ class BiasPlanTest {
     @Test
     void columnRadius() {
         BlockMapView w = new BlockMapView();
-        final int base = 30, rungs = 8, targetY = base + rungs + 1;
+        final int base = 30;
+        final int rungs = 8;
+        final int targetY = base + rungs + 1;
         w.set(0, base, 0, Blocks.STONE);
         for (int k = 1; k <= rungs; k++) {
             w.set(k, base + k, 0, Blocks.STONE);
@@ -246,7 +252,9 @@ class BiasPlanTest {
     @Test
     void forbidWater() {
         BlockMapView w = new BlockMapView();
-        final int y = 40, stripLo = 5, stripHi = 6;
+        final int y = 40;
+        final int stripLo = 5;
+        final int stripHi = 6;
         for (int dx = -1; dx <= 12; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 w.set(dx, y, dz, Blocks.STONE);
@@ -287,7 +295,9 @@ class BiasPlanTest {
     @Test
     void forbidDig() {
         BlockMapView w = new BlockMapView();
-        final int top = 40, targetY = 34, slabLo = 28;
+        final int top = 40;
+        final int targetY = 34;
+        final int slabLo = 28;
         w.fill(-2, slabLo, -2, 2, top, 2, Blocks.STONE);
         BlockPos start = new BlockPos(0, top + 1, 0);
         kit(w, false);
@@ -339,7 +349,8 @@ class BiasPlanTest {
                         .hug(new RouteContracts.Hug(RouteContracts.HugWhat.SHORE, 30.0))
                         .walkOnly()
                         .build());
-        int plainMinZ = minZ(plain.path()), huggedMinZ = minZ(hugged.path());
+        int plainMinZ = minZ(plain.path());
+        int huggedMinZ = minZ(hugged.path());
 
         assertTrue(
                 plain.goalReached() && hugged.goalReached(),
@@ -369,7 +380,9 @@ class BiasPlanTest {
     @Test
     void escapeFarthestNoRockDrill() {
         BlockMapView w = new BlockMapView();
-        final int base = 18, top = 40, footY = top - 4;
+        final int base = 18;
+        final int top = 40;
+        final int footY = top - 4;
         w.fill(-3, base, -3, 3, top, 3, Blocks.STONE);
         w.set(0, footY, 0, Blocks.AIR);
         w.set(0, footY + 1, 0, Blocks.AIR);
@@ -396,7 +409,9 @@ class BiasPlanTest {
     @Test
     void budgetAwayTunnelChurn() {
         BlockMapView w = new BlockMapView();
-        final int base = 18, top = 40, footY = top - 4;
+        final int base = 18;
+        final int top = 40;
+        final int footY = top - 4;
         w.fill(-3, base, -3, 20, top, 3, Blocks.STONE);
         w.fill(0, footY, 0, 16, footY + 1, 0, Blocks.AIR); // chamber cell + away tunnel
         BlockPos start = new BlockPos(0, footY, 0);
@@ -426,7 +441,8 @@ class BiasPlanTest {
     private static double maxXZDist(List<BlockPos> path, double cx, double cz) {
         double max = 0;
         for (BlockPos p : path) {
-            double dx = (p.getX() + 0.5) - cx, dz = (p.getZ() + 0.5) - cz;
+            double dx = (p.getX() + 0.5) - cx;
+            double dz = (p.getZ() + 0.5) - cz;
             max = Math.max(max, Math.sqrt(dx * dx + dz * dz));
         }
         return max;

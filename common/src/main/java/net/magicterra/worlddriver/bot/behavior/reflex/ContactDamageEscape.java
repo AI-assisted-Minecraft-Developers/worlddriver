@@ -93,7 +93,8 @@ public final class ContactDamageEscape {
             lastHazard = hazard;
         }
         Vec3 me = p.position();
-        double dx, dz;
+        double dx;
+        double dz;
         if (lastHazard != null) {
             dx = me.x - (lastHazard.getX() + 0.5);
             dz = me.z - (lastHazard.getZ() + 0.5);

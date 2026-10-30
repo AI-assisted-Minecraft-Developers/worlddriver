@@ -89,7 +89,8 @@ public final class MediumMove extends Move {
 
     @Override
     public boolean valid(WorldView w, BlockPos from) {
-        int side = cellsBeside(w.bodyWidth()), up = cellsAbove(w.bodyHeight());
+        int side = cellsBeside(w.bodyWidth());
+        int up = cellsAbove(w.bodyHeight());
         // The box at its new node and every corner on the way, less where it already is.
         for (int x = -side + Math.min(0, dx); x <= side + Math.max(0, dx); x++) {
             for (int y = Math.min(0, dy); y <= up + Math.max(0, dy); y++) {

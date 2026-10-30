@@ -82,7 +82,9 @@ public final class MobBody implements Body {
     /** A squid's speed at full input, in blocks per tick: about its own stroke's average. */
     private static final double SQUID_SPEED = 0.1;
     /** The largest speed modifiers an axolotl's own brain uses, out of water and in it. */
-    private static final float AXOLOTL_LAND_MODIFIER = 0.15f, AXOLOTL_WATER_MODIFIER = 0.6f;
+    private static final float AXOLOTL_LAND_MODIFIER = 0.15f;
+
+    private static final float AXOLOTL_WATER_MODIFIER = 0.6f;
     /** Ticks a flyer takes to reach its cruising speed from rest, or to stop from it. */
     private static final int FLIGHT_ACCEL_TICKS = 5;
     /**
@@ -100,7 +102,9 @@ public final class MobBody implements Body {
     private final Mob mob;
     private final List<Held> held = new ArrayList<>();
     /** The control's speed factors when it is a smooth swimmer's; 1 otherwise. */
-    private final float inWaterFactor, outOfWaterFactor;
+    private final float inWaterFactor;
+
+    private final float outOfWaterFactor;
     /** No walking mode: it rises in water by its vertical input alone. */
     private final boolean swimsOnly;
     /** It flies: moved by its velocity, at {@link #flightSpeed} blocks a tick at full input. */
@@ -108,17 +112,24 @@ public final class MobBody implements Body {
 
     private final double flightSpeed;
     /** Where the flyer was at its last AI step, and the spot it holds while it has no input. */
-    private Vec3 flightLast, hoverAt;
+    private Vec3 flightLast;
 
-    private float left, forward;
-    private boolean jump, sneak;
-    private float heading, magnitude;
+    private Vec3 hoverAt;
+
+    private float left;
+    private float forward;
+    private boolean jump;
+    private boolean sneak;
+    private float heading;
+    private float magnitude;
     private boolean aimed;
-    private float aimYaw, aimPitch;
+    private float aimYaw;
+    private float aimPitch;
     private boolean released;
     private Vec3 pushStart;
     private int pushTicks;
-    private boolean pushBlocked, unresponsive;
+    private boolean pushBlocked;
+    private boolean unresponsive;
 
     private MobBody(Mob mob) {
         this.mob = mob;
@@ -244,7 +255,9 @@ public final class MobBody implements Body {
     @Override
     public void aimAtBlock(BlockPos cell) {
         Vec3 eye = mob.getEyePosition();
-        double dx = cell.getX() + 0.5 - eye.x, dy = cell.getY() + 0.5 - eye.y, dz = cell.getZ() + 0.5 - eye.z;
+        double dx = cell.getX() + 0.5 - eye.x;
+        double dy = cell.getY() + 0.5 - eye.y;
+        double dz = cell.getZ() + 0.5 - eye.z;
         aimYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         aimPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         aimed = true;

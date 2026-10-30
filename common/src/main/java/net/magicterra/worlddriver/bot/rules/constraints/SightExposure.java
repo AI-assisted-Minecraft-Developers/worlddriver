@@ -169,8 +169,12 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
             return row[2 * i + 1];
         }
         ThreatSnapshot.Threat t = observers.get(i);
-        double x = cell.getX() + 0.5, y = cell.getY() + eye, z = cell.getZ() + 0.5;
-        double dx = x - t.eye().x, dy = y - t.eye().y, dz = z - t.eye().z;
+        double x = cell.getX() + 0.5;
+        double y = cell.getY() + eye;
+        double z = cell.getZ() + 0.5;
+        double dx = x - t.eye().x;
+        double dy = y - t.eye().y;
+        double dz = z - t.eye().z;
         boolean seen;
         if (dx * dx + dy * dy + dz * dz > ranges[i] * ranges[i]) {
             seen = false; // out of range: no ray
@@ -211,13 +215,17 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     /** Distance from the cell centre to the nearest observer that sees it; +∞ when unseen. */
     public double nearestSeeing(BlockPos cell) {
         double best = Double.POSITIVE_INFINITY;
-        double x = cell.getX() + 0.5, y = cell.getY(), z = cell.getZ() + 0.5;
+        double x = cell.getX() + 0.5;
+        double y = cell.getY();
+        double z = cell.getZ() + 0.5;
         for (int i = 0; i < observers.size(); i++) {
             if (!seenBy(i, cell)) {
                 continue;
             }
             Vec3 p = observers.get(i).pos();
-            double dx = x - p.x, dy = y - p.y, dz = z - p.z;
+            double dx = x - p.x;
+            double dy = y - p.y;
+            double dz = z - p.z;
             best = Math.min(best, dx * dx + dy * dy + dz * dz);
         }
         return Math.sqrt(best);

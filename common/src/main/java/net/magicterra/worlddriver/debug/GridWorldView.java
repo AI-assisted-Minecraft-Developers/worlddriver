@@ -19,7 +19,9 @@ import net.minecraft.core.BlockPos;
  * probes.
  */
 public final class GridWorldView implements WorldView {
-    public static final byte AIR = 0, SOLID = 1, WATER = 2;
+    public static final byte AIR = 0;
+    public static final byte SOLID = 1;
+    public static final byte WATER = 2;
 
     private final MoveSignals signals = new MoveSignals();
 
@@ -28,7 +30,12 @@ public final class GridWorldView implements WorldView {
         return signals;
     }
 
-    private final int x0, y0, z0, sx, sy, sz;
+    private final int x0;
+    private final int y0;
+    private final int z0;
+    private final int sx;
+    private final int sy;
+    private final int sz;
     private final byte[] cells;
     private boolean place = true; // pillar/bridge enabled by default so vertical-escape can be staged
 
@@ -46,7 +53,8 @@ public final class GridWorldView implements WorldView {
         return this;
     }
 
-    private double width = 0.6, height = 1.8;
+    private double width = 0.6;
+    private double height = 1.8;
 
     /** Plan for a body this wide and tall; a player's by default. Returns this for chaining. */
     public GridWorldView withBody(double width, double height) {
@@ -67,7 +75,9 @@ public final class GridWorldView implements WorldView {
     }
 
     private int idx(int x, int y, int z) {
-        int lx = x - x0, ly = y - y0, lz = z - z0;
+        int lx = x - x0;
+        int ly = y - y0;
+        int lz = z - z0;
         if (lx < 0 || ly < 0 || lz < 0 || lx >= sx || ly >= sy || lz >= sz) {
             return -1;
         }

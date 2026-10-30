@@ -21,7 +21,8 @@ import org.junit.jupiter.api.Test;
  * <p>The continuation is deliberately not anchored at the foot; that gap is what the gate judges.
  */
 class DeepWaterFloatBeelineTest {
-    private static final int SURFACE = 8, SPAN = 56;
+    private static final int SURFACE = 8;
+    private static final int SPAN = 56;
     private static final BlockPos FOOT = new BlockPos(0, SURFACE, 0);
     private static final BlockPos FAR = new BlockPos(48, SURFACE, 0);
     private static final List<BlockPos> CONT =

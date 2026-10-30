@@ -102,14 +102,18 @@ public final class ElytraPathfinder {
                 return stringPull(w, reconstruct(parent, cur, startNode), start, goal);
             }
 
-            int cx = gx(cur), cy = gy(cur), cz = gz(cur);
+            int cx = gx(cur);
+            int cy = gy(cur);
+            int cz = gz(cur);
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dz = -1; dz <= 1; dz++) {
                         if (dx == 0 && dy == 0 && dz == 0) {
                             continue;
                         }
-                        int nx = cx + dx, ny = cy + dy, nz = cz + dz;
+                        int nx = cx + dx;
+                        int ny = cy + dy;
+                        int nz = cz + dz;
                         if (nx < minX || nx > maxX || ny < minY || ny > maxY || nz < minZ || nz > maxZ) {
                             continue;
                         }
@@ -203,7 +207,9 @@ public final class ElytraPathfinder {
      * between adjacent free cells (a thin wall) is caught at the midpoint, and a diagonal can't cut a solid corner.
      */
     private static boolean edgeClear(WorldView w, int ax, int ay, int az, int bx, int by, int bz) {
-        double mx = (ax + bx) * 0.5 * GRID, my = (ay + by) * 0.5 * GRID, mz = (az + bz) * 0.5 * GRID;
+        double mx = (ax + bx) * 0.5 * GRID;
+        double my = (ay + by) * 0.5 * GRID;
+        double mz = (az + bz) * 0.5 * GRID;
         if (!boxClear(w, (int) Math.round(mx), (int) Math.round(my), (int) Math.round(mz), NODE_CLEAR, NODE_CLEAR)) {
             return false;
         }
@@ -233,7 +239,9 @@ public final class ElytraPathfinder {
      * it).
      */
     public static boolean losClear(WorldView w, Vec3 a, Vec3 b) {
-        double dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        double dx = b.x - a.x;
+        double dy = b.y - a.y;
+        double dz = b.z - a.z;
         double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         int steps = Math.max(1, (int) Math.ceil(len));
         for (int i = 0; i <= steps; i++) {

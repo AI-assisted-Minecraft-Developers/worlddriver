@@ -119,10 +119,15 @@ public final class WorldService implements WorldApi {
      */
     @Override
     public CompletionStage<Snapshotted> snapshot(SnapshotParams p, CallContext ctx) {
-        int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
-        int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
-        int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
-        int sx = maxX - minX + 1, sy = maxY - minY + 1, sz = maxZ - minZ + 1;
+        int minX = Math.min(p.from().x(), p.to().x());
+        int maxX = Math.max(p.from().x(), p.to().x());
+        int minY = Math.min(p.from().y(), p.to().y());
+        int maxY = Math.max(p.from().y(), p.to().y());
+        int minZ = Math.min(p.from().z(), p.to().z());
+        int maxZ = Math.max(p.from().z(), p.to().z());
+        int sx = maxX - minX + 1;
+        int sy = maxY - minY + 1;
+        int sz = maxZ - minZ + 1;
 
         String snapId = p.id().orElseGet(() -> "snap-" + autoId.incrementAndGet());
         synchronized (store) {

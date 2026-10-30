@@ -20,7 +20,10 @@ import net.minecraft.world.item.Items;
 public final class AutoTotem {
 
     /** Inventory-menu slots: 9..35 the backpack, 36..44 the hotbar. */
-    static final int FIRST_BACKPACK = 9, FIRST_HOTBAR = 36, LAST_HOTBAR = 44;
+    static final int FIRST_BACKPACK = 9;
+
+    static final int FIRST_HOTBAR = 36;
+    static final int LAST_HOTBAR = 44;
     /** SWAP button that exchanges the clicked slot with the offhand. */
     static final int OFFHAND_BUTTON = 40;
 

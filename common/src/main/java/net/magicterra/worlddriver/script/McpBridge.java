@@ -107,7 +107,8 @@ public final class McpBridge {
         if (!(m.get("result") instanceof JsonObject rm)) {
             throw new IllegalStateException("MCP result not an object");
         }
-        JsonObject textBlock = null, imageBlock = null;
+        JsonObject textBlock = null;
+        JsonObject imageBlock = null;
         if (rm.get("content") instanceof JsonArray cl) {
             for (JsonElement b : cl) {
                 if (!(b instanceof JsonObject bm)) {

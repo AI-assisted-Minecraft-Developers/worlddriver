@@ -556,7 +556,9 @@ public final class RetreatChain implements Chain {
      * (so the flee still has a valid goal).
      */
     private static BlockPos fleeFrom(LivingEntity self, ThreatScanner.Scan scan) {
-        double sx = 0, sy = 0, sz = 0;
+        double sx = 0;
+        double sy = 0;
+        double sz = 0;
         int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
             if (t.distance() > CLEAR_RADIUS + 6) {

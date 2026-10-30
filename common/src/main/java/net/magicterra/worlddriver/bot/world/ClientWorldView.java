@@ -232,12 +232,14 @@ public final class ClientWorldView implements StateWorldView {
             return dc;
         }
         Vec3 flow = waterFlow(to);
-        double fx = flow.x, fz = flow.z;
+        double fx = flow.x;
+        double fz = flow.z;
         double fm = Math.sqrt(fx * fx + fz * fz);
         if (fm < 1e-3) {
             return dc; // still water → no current
         }
-        double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
+        double dx = to.getX() - from.getX();
+        double dz = to.getZ() - from.getZ();
         double dm = Math.sqrt(dx * dx + dz * dz);
         if (dm < 1e-6) {
             return dc; // pure vertical move
@@ -842,12 +844,17 @@ public final class ClientWorldView implements StateWorldView {
         // area (a monster tunnel it spotted from afar) even with no mob scanned there.
         double[][] zones = WorldConfig.avoidZones;
         if (zones.length > 0) {
-            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
+            double fx = foot.getX() + 0.5;
+            double fy = foot.getY();
+            double fz = foot.getZ() + 0.5;
             for (double[] z : zones) {
                 if (z.length < 4) {
                     continue;
                 }
-                double dx = fx - z[0], dy = fy - z[1], dz = fz - z[2], r = z[3];
+                double dx = fx - z[0];
+                double dy = fy - z[1];
+                double dz = fz - z[2];
+                double r = z[3];
                 if (r <= 0) {
                     continue;
                 }
@@ -862,9 +869,13 @@ public final class ClientWorldView implements StateWorldView {
         // (the steep-mountain stepUp/pillar wedge) instead of re-planning into it.
         float[] sa = stuckAvoidXyz;
         if (sa.length > 0) {
-            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
+            double fx = foot.getX() + 0.5;
+            double fy = foot.getY();
+            double fz = foot.getZ() + 0.5;
             for (int i = 0; i + 3 < sa.length; i += 4) {
-                double dx = fx - sa[i], dy = fy - sa[i + 1], dz = fz - sa[i + 2];
+                double dx = fx - sa[i];
+                double dy = fy - sa[i + 1];
+                double dz = fz - sa[i + 2];
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < STUCK_AVOID_RADIUS) {
                     penalty += STUCK_AVOID_PENALTY * sa[i + 3] * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;

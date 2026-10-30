@@ -88,7 +88,8 @@ class PortalTest {
         plot.fill(-4, 0, -3, 5, 0, 3, Blocks.STONE);
 
         // The obsidian ring, x0 = 1, y0 = 1, in the plane z = 0; the interior is the plot's air.
-        final int x0 = 1, y0 = 1;
+        final int x0 = 1;
+        final int y0 = 1;
         plot.fill(x0, y0, 0, x0 + 1, y0, 0, Blocks.OBSIDIAN);
         plot.fill(x0, y0 + 4, 0, x0 + 1, y0 + 4, 0, Blocks.OBSIDIAN);
         plot.fill(x0 - 1, y0 + 1, 0, x0 - 1, y0 + 3, 0, Blocks.OBSIDIAN);
@@ -213,7 +214,8 @@ class PortalTest {
         BlockPos well = plot.at(-8, floorY, -8);
         int floor = plot.at(0, floorY, 0).getY();
 
-        final int x0 = 0, y0 = floorY + 1;
+        final int x0 = 0;
+        final int y0 = floorY + 1;
         SceneBot bot = SceneBot.spawn(game, plot, 7, floorY + 1, -6);
 
         game.runOnServer(s -> {
@@ -235,7 +237,8 @@ class PortalTest {
             Portal p = new Portal(bot, level, fp, floor);
 
             // ---- 1. the backing slab, bottom-up, each block resting on the one below ----
-            int placed = 0, wanted = 0;
+            int placed = 0;
+            int wanted = 0;
             List<String> missed = new ArrayList<>();
             for (int dy = 0; dy <= 6; dy++) {
                 for (int dx = -2; dx <= 3; dx++) {
@@ -276,7 +279,8 @@ class PortalTest {
             hollow.addAll(interior);
             hollow.addAll(caps);
 
-            int wall = 0, wallWanted = 0;
+            int wall = 0;
+            int wallWanted = 0;
             for (int dy = 0; dy <= 6; dy++) {
                 for (int dx = -2; dx <= 3; dx++) {
                     BlockPos at = plot.at(x0 + dx, y0 + dy, 0);
@@ -304,7 +308,8 @@ class PortalTest {
             int cast = 0;
             List<String> castNotes = new ArrayList<>();
             for (int i = 0; i < plan.size(); i++) {
-                BlockPos cell = plan.get(i)[0], wet = plan.get(i)[1];
+                BlockPos cell = plan.get(i)[0];
+                BlockPos wet = plan.get(i)[1];
                 if (!p.pourInto(wet, Items.WATER_BUCKET, Blocks.WATER)) {
                     castNotes.add("water stuck at " + label(plot, cell));
                     break;

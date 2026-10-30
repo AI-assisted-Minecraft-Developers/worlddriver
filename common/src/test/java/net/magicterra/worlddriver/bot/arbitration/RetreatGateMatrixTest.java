@@ -29,7 +29,8 @@ import org.junit.jupiter.api.Test;
  */
 class RetreatGateMatrixTest {
 
-    private static Entity skeleton, zombie;
+    private static Entity skeleton;
+    private static Entity zombie;
 
     @BeforeAll
     static void mobs() throws ReflectiveOperationException {

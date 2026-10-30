@@ -110,7 +110,9 @@ public final class ClientObserve {
             if (level == null) {
                 throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
             }
-            double dx, dy, dz;
+            double dx;
+            double dy;
+            double dz;
             if (cx != null && cy != null && cz != null) {
                 dx = cx;
                 dy = cy;
@@ -188,7 +190,9 @@ public final class ClientObserve {
             if (level == null) {
                 throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
             }
-            double dx, dy, dz;
+            double dx;
+            double dy;
+            double dz;
             if (cx != null && cy != null && cz != null) {
                 dx = cx;
                 dy = cy;
@@ -294,7 +298,8 @@ public final class ClientObserve {
             }
             var eye = p.getEyePosition();
             ClientLevel lvl = mc.level;
-            Optional<String> eyeBlock = Optional.empty(), feetBlock = Optional.empty();
+            Optional<String> eyeBlock = Optional.empty();
+            Optional<String> feetBlock = Optional.empty();
             if (lvl != null) {
                 eyeBlock = Optional.of(BuiltInRegistries.BLOCK
                         .getKey(lvl.getBlockState(BlockPos.containing(eye)).getBlock())

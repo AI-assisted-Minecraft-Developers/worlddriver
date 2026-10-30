@@ -381,7 +381,8 @@ class ReflexTest {
             ServerPlayer fp = bot.player();
             fp.setDeltaMovement(Vec3.ZERO);
             fp.setPos(inLava.getX() + 0.5, inLava.getY(), inLava.getZ() + 0.5);
-            boolean wasInLava = false, burned = false;
+            boolean wasInLava = false;
+            boolean burned = false;
             int outAt = -1;
             for (int t = 0; t < ticks; t++) {
                 bot.tick();

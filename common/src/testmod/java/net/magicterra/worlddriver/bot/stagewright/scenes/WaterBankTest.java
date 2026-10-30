@@ -74,8 +74,10 @@ class WaterBankTest {
     void waterPhysicsParity(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 14;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 14;
         game.runOnServer(s -> buildWaterColumn(s.getLevel(plot.dimension()), cx, cz, floorY, depth));
 
         Settings.pin(game);
@@ -159,8 +161,10 @@ class WaterBankTest {
     @Test
     void buoyantWall(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 6;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 6;
         int surface = floorY + depth; // water surface
         int plateauTop = surface + 5; // wall top +5 above water (sheer, buoyant)
 
@@ -298,8 +302,10 @@ class WaterBankTest {
     void tallBankDigClimb(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 6;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 6;
         int surface = floorY + depth; // water surface
         int plateauTop = surface + 3; // solid hill top
 
@@ -403,8 +409,10 @@ class WaterBankTest {
     @Test
     void waterLowBank(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 6;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 6;
         final int surface = floorY + depth; // water surface (floating foot ~surface)
         final int bankTop = surface + 1; // bank rises ONE block above the water top → a +2 climb-out
 
@@ -522,8 +530,10 @@ class WaterBankTest {
     @Test
     void riverSheerBank(Game game, @Plot.Centered @Plot.Size(x = 64, y = 40, z = 48) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 6;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 6;
         final int surface = floorY + depth; // water surface
         final int wallTop = surface + 5; // sheer south wall top
         final int riverLen = 28; // east run of the channel
@@ -633,8 +643,10 @@ class WaterBankTest {
     @Test
     void deepWaterCross(Game game, @Plot.Centered @Plot.Size(x = 48, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 8;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 8;
         final int surface = floorY + depth; // water surface (floating foot ~surface)
         final int span = 16; // E-W deep-water crossing length
 
@@ -728,12 +740,15 @@ class WaterBankTest {
     void deepWaterClimboutDrift(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 8;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 8;
         final int surface = floorY + depth; // water surface
         final int span = 3; // deep-water run up to the bank
         final int bankTop = surface + 1; // +2 bank (one above the surface)
-        final int zLo = -2, zHi = 8; // WIDE in Z so the bot can drift along the face
+        final int zLo = -2;
+        final int zHi = 8; // WIDE in Z so the bot can drift along the face
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -830,8 +845,10 @@ class WaterBankTest {
     void waterFarAimBankCorner(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), depth = 5;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int depth = 5;
         final int surface = floorY + depth; // water surface
         final int top = surface + 3; // wall crest (unclimbable for a buoyant bot)
         game.runOnServer(s -> {
@@ -1023,8 +1040,10 @@ class WaterBankTest {
     void pillarLedgerCountsRefusedPlaces(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), surface = floorY + 8;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int surface = floorY + 8;
         BlockPos goal = game.onServer(s -> buildLedgerBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
 
         pinLedger(game);
@@ -1054,7 +1073,8 @@ class WaterBankTest {
             boolean sawFutile = false;
             boolean pinning = false;
             BlockPos pinnedAt = null;
-            double bandLow = Double.MAX_VALUE, bandHigh = -Double.MAX_VALUE;
+            double bandLow = Double.MAX_VALUE;
+            double bandHigh = -Double.MAX_VALUE;
             boolean walking = true;
             int t = 0;
             for (; t < 400 && walking; t++) {
@@ -1177,8 +1197,10 @@ class WaterBankTest {
     void pillarLedgerClearsOnARealPlace(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
-        final int floorY = o.getY(), surface = floorY + 8;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int surface = floorY + 8;
         BlockPos goal = game.onServer(s -> buildLedgerBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
 
         pinLedger(game);
@@ -1213,7 +1235,8 @@ class WaterBankTest {
             long ledgerAtFill = -1;
             boolean fillPending = false;
             boolean engagedAtRead = false;
-            int footLow = Integer.MAX_VALUE, footHigh = Integer.MIN_VALUE;
+            int footLow = Integer.MAX_VALUE;
+            int footHigh = Integer.MIN_VALUE;
             Set<BlockPos> wasWater = new HashSet<>();
             boolean walking = true;
             int t = 0;

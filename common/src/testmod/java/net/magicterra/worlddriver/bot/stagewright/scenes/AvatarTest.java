@@ -57,7 +57,8 @@ class AvatarTest {
     /** Two agents must be two players: driving A leaves B where it stands. */
     @Test
     void serverAgentDistinctBodies(Game game, @Plot.Size(x = 32, y = 16, z = 32) Plot plot) {
-        BlockPos a0 = plot.at(5, 1, 5), b0 = plot.at(25, 1, 25);
+        BlockPos a0 = plot.at(5, 1, 5);
+        BlockPos b0 = plot.at(25, 1, 25);
         plot.fill(2, 1, 2, 8, 1, 8, Blocks.STONE);
         plot.fill(22, 1, 22, 28, 1, 28, Blocks.STONE);
         Settings.pin(game).set("navigatorDebug", false);
@@ -65,7 +66,8 @@ class AvatarTest {
         SceneBot b = SceneBot.spawn(game, b0.above());
 
         game.runOnServer(s -> {
-            ServerPlayer fpA = a.player(), fpB = b.player();
+            ServerPlayer fpA = a.player();
+            ServerPlayer fpB = b.player();
             if (fpA == fpB) {
                 fail(
                         "both server agents are literally the same entity (" + System.identityHashCode(fpA) + "): the "
@@ -468,7 +470,8 @@ class AvatarTest {
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.tower(fp.blockPosition().getY() + 3, "minecraft:cobblestone", false);
-            int swung = 0, t = 0;
+            int swung = 0;
+            int t = 0;
             for (; t < 200 && bot.busy(); t++) {
                 bot.tick();
                 if (fp.swinging) {
@@ -499,7 +502,8 @@ class AvatarTest {
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.mineCell(cell);
-            int swung = 0, t = 0;
+            int swung = 0;
+            int t = 0;
             for (; t < 200 && bot.busy(); t++) {
                 bot.tick();
                 if (fp.swinging) {

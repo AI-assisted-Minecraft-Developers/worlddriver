@@ -186,7 +186,8 @@ public final class SceneOverlays {
         double r = cl != null ? cl.radius() : RouteParams.SAFE_CLUSTER.radius();
         int count = cl != null ? cl.count() : RouteParams.SAFE_CLUSTER.count();
         List<String> rows = new ArrayList<>();
-        int max = 0, clustered = 0;
+        int max = 0;
+        int clustered = 0;
         for (int dz = -radius; dz <= radius; dz++) {
             StringBuilder sb = new StringBuilder();
             for (int dx = -radius; dx <= radius; dx++) {

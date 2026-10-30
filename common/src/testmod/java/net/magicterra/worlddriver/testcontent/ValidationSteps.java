@@ -48,7 +48,9 @@ public final class ValidationSteps {
         ApiRegistry api = game.registry();
         TestArena.seed(api, game.onServer(s -> s));
         BlockPos pad = Positions.blockPos(ApiRegistry.await(SystemApi.of(api).testOrigin(new NoParams()), 5_000));
-        double tx = pad.getX() + 1.5, ty = pad.getY() + 1, tz = pad.getZ() + 1.5;
+        double tx = pad.getX() + 1.5;
+        double ty = pad.getY() + 1;
+        double tz = pad.getZ() + 1.5;
         String drift = game.onServer(s -> {
             List<ServerPlayer> players = s.getPlayerList().getPlayers();
             if (players.isEmpty()) {

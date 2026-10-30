@@ -271,7 +271,9 @@ public final class ObserveService implements ObserveApi {
 
     /** Top-down (x-z) heightmap rows, north (-z) first. */
     private List<String> renderTopDown(ServerLevel level, BlockPos c, int r, int vr, List<Entity> mobs) {
-        int cx = c.getX(), cy = c.getY(), cz = c.getZ();
+        int cx = c.getX();
+        int cy = c.getY();
+        int cz = c.getZ();
         Map<Long, Character> mobAt = new HashMap<>();
         for (Entity e : mobs) {
             BlockPos mp = e.blockPosition();
@@ -280,7 +282,8 @@ public final class ObserveService implements ObserveApi {
             }
             mobAt.putIfAbsent(pack(mp.getX(), mp.getZ()), mobGlyph(e));
         }
-        int up = 4, down = Math.max(12, vr + 4);
+        int up = 4;
+        int down = Math.max(12, vr + 4);
         BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
         List<String> rows = new ArrayList<>();
         for (int z = cz - r; z <= cz + r; z++) {
@@ -319,8 +322,11 @@ public final class ObserveService implements ObserveApi {
     /** Vertical cross-section (xy at fixed z, or zy at fixed x), top (+y) first. */
     private List<String> renderCross(ServerLevel level, BlockPos c, String plane, int r, int vr, List<Entity> mobs) {
         boolean xy = plane.equals("xy");
-        int cx = c.getX(), cy = c.getY(), cz = c.getZ();
-        int fixed = xy ? cz : cx, centerAxis = xy ? cx : cz;
+        int cx = c.getX();
+        int cy = c.getY();
+        int cz = c.getZ();
+        int fixed = xy ? cz : cx;
+        int centerAxis = xy ? cx : cz;
         Map<Long, Character> mobAt = new HashMap<>();
         for (Entity e : mobs) {
             BlockPos mp = e.blockPosition();

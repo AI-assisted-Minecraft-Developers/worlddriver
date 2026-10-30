@@ -523,7 +523,9 @@ public final class BotUtil {
         double dx = eye.x - (block.getX() + 0.5);
         double dy = eye.y - (block.getY() + 0.5);
         double dz = eye.z - (block.getZ() + 0.5);
-        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+        double ax = Math.abs(dx);
+        double ay = Math.abs(dy);
+        double az = Math.abs(dz);
         if (ay >= ax && ay >= az) {
             return dy >= 0 ? Direction.UP : Direction.DOWN;
         }

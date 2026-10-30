@@ -70,7 +70,8 @@ public final class ParkourAscend extends Move {
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         // APPROACH-RUNWAY gate (pathfinderParkourAscendNeedRunway): a +1-up parkour needs sprint MOMENTUM at
         // launch, but a bot climbing OUT of a bank reaches the crest via a stepUp/diagUp that decelerates it
         // to ~0 b/s, then fires the leap from a standstill → it lands short and falls back down the staircase

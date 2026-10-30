@@ -113,7 +113,8 @@ final class PlanProbeTool {
             List<BlockPos> path = r.path();
             int cut = ControlConfig.navigatorCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
             BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
-            double hFrom = goal.estimate(from), hEnd = goal.estimate(end);
+            double hFrom = goal.estimate(from);
+            double hEnd = goal.estimate(end);
             if (hEnd > hFrom + 1e-6) {
                 backwardSegs++;
             }
@@ -185,7 +186,8 @@ final class PlanProbeTool {
         // Per-move count and summed edge cost: which moves a route is made of and what the planner charged
         // for each, so a cost model can be checked against the time the walk actually took.
         Map<String, double[]> moves = new TreeMap<>();
-        int breaks = 0, places = 0;
+        int breaks = 0;
+        int places = 0;
         for (Move.Edge e : r.edges()) {
             if (e == null || e.move == null) {
                 continue;

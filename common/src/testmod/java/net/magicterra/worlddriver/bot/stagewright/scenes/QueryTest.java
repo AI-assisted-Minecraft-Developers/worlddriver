@@ -59,7 +59,8 @@ class QueryTest {
                 "B one past the maximum is refused and names the limit (" + refused + ")");
 
         BlockPos far = new BlockPos(center.getX() + FAR, 80, center.getZ() + FAR);
-        int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
+        int fcx = far.getX() >> 4;
+        int fcz = far.getZ() >> 4;
         boolean loaded = game.onServer(s -> s.overworld().getChunkSource().getChunkNow(fcx, fcz) != null);
         assumeTrue(!loaded, "the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
@@ -94,7 +95,8 @@ class QueryTest {
 
         BlockPos at = player.blockPos();
         BlockPos far = new BlockPos(at.getX() + FAR, 80, at.getZ() + FAR);
-        int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
+        int fcx = far.getX() >> 4;
+        int fcz = far.getZ() >> 4;
         ClientContracts.BlockScan distant = blocks.blocks(BlocksParams.around(position(far), 1));
         game.check(
                 distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz),

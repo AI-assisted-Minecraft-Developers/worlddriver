@@ -38,7 +38,8 @@ public final class ExpectAlarms {
     private double exJumpPeakY; // highest Y seen during the watched arc
     private boolean exPrevOnGround; // grounded last tick (jump launch edge)
     private int exFwdNoMoveTicks; // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
-    private double exPrevX, exPrevZ; // last tick's position for the displacement check
+    private double exPrevX;
+    private double exPrevZ; // last tick's position for the displacement check
     private int exThrottle; // global alarm throttle (one line per 40t)
     private long exRepathFlipTick; // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
     private int exRepathFlipCount; // consecutive U-turn adoptions inside the window — the oscillation depth
@@ -175,7 +176,8 @@ public final class ExpectAlarms {
         // east into a wall, node 5 blocks south, attack=false, pinned indefinitely).
         if (path != null && step < path.size()) {
             BlockPos node = path.get(step);
-            double ndx = (node.getX() + 0.5) - p.getX(), ndz = (node.getZ() + 0.5) - p.getZ();
+            double ndx = (node.getX() + 0.5) - p.getX();
+            double ndz = (node.getZ() + 0.5) - p.getZ();
             float bearNode = (float) Math.toDegrees(Math.atan2(-ndx, ndz));
             float tear = Math.abs(angleDiff(p.getYRot(), bearNode));
             if (tear > 90 && moved < 0.03) {

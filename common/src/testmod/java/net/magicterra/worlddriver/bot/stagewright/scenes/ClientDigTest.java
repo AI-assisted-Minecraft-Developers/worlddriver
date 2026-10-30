@@ -177,10 +177,10 @@ class ClientDigTest {
         record Room(List<String> mouthFilled, List<String> mouthOpen, List<String> tunnelFilled, List<String> filled) {}
         Room room = game.onServer(s -> {
             var level = s.overworld();
-            List<String> filled = new ArrayList<>(),
-                    mouthFilled = new ArrayList<>(),
-                    mouthOpen = new ArrayList<>(),
-                    tunnelFilled = new ArrayList<>();
+            List<String> filled = new ArrayList<>();
+            List<String> mouthFilled = new ArrayList<>();
+            List<String> mouthOpen = new ArrayList<>();
+            List<String> tunnelFilled = new ArrayList<>();
             for (int dy = 1; dy <= 2; dy++) {
                 for (int dx = 0; dx <= 2; dx++) {
                     for (int dz = -1; dz <= 1; dz++) {

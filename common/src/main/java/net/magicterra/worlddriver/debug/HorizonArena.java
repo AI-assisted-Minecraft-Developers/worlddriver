@@ -90,7 +90,9 @@ public final class HorizonArena {
         // byte-identical to run(0) — the scene measured nothing and still reported a colour.
         //
         // Per-finder tuning removes the shared knob rather than trying to time the sharing.
-        int firstExpanded = -1, firstEndX = -1, segments = 0;
+        int firstExpanded = -1;
+        int firstEndX = -1;
+        int segments = 0;
         boolean firstGoalReached = false;
         BlockPos from = start;
         {

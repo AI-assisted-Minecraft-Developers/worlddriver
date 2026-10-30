@@ -24,10 +24,14 @@ import net.minecraft.world.phys.Vec3;
 final class DriverBody implements Body {
     private final Mob mob;
     private final EntityDriver driver;
-    private float left, forward;
-    private boolean jump, sneak, sprint;
+    private float left;
+    private float forward;
+    private boolean jump;
+    private boolean sneak;
+    private boolean sprint;
     private boolean aimed;
-    private float aimYaw, aimPitch;
+    private float aimYaw;
+    private float aimPitch;
 
     DriverBody(Mob mob, EntityDriver driver) {
         this.mob = mob;
@@ -113,7 +117,9 @@ final class DriverBody implements Body {
     @Override
     public void aimAtBlock(BlockPos cell) {
         Vec3 eye = mob.getEyePosition();
-        double dx = cell.getX() + 0.5 - eye.x, dy = cell.getY() + 0.5 - eye.y, dz = cell.getZ() + 0.5 - eye.z;
+        double dx = cell.getX() + 0.5 - eye.x;
+        double dy = cell.getY() + 0.5 - eye.y;
+        double dz = cell.getZ() + 0.5 - eye.z;
         aimYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         aimPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         aimed = true;

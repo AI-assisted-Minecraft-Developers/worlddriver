@@ -163,7 +163,8 @@ public final class PillarUp extends Move {
 
     /** Base rung price for a bag holding {@code stock} placeable blocks. */
     static double rungCost(int stock) {
-        double scarce = RulesConfig.pathfinderPillarCost, stocked = RulesConfig.pathfinderPillarCostStocked;
+        double scarce = RulesConfig.pathfinderPillarCost;
+        double stocked = RulesConfig.pathfinderPillarCostStocked;
         double f = Math.min(1.0, Math.max(0, stock) / (double) Math.max(1, RulesConfig.pathfinderPillarStockBlocks));
         return scarce + (stocked - scarce) * f;
     }

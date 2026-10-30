@@ -18,13 +18,21 @@ final class InputFrame {
      * A push and a raw forward can both be commanded in one tick, and the body applies them in the order given; these
      * remember which came last.
      */
-    private boolean push, forward, pushLast;
-    /** The push as commanded, the camera yaw it was relative to, and the same push in the world frame. */
-    private float left, fwd, pushYaw;
+    private boolean push;
 
-    private double worldX, worldZ;
+    private boolean forward;
+    private boolean pushLast;
+    /** The push as commanded, the camera yaw it was relative to, and the same push in the world frame. */
+    private float left;
+
+    private float fwd;
+    private float pushYaw;
+
+    private double worldX;
+    private double worldZ;
     private float rawForward;
-    private Boolean jump, sneak;
+    private Boolean jump;
+    private Boolean sneak;
 
     void clear() {
         push = forward = pushLast = false;
@@ -38,7 +46,9 @@ final class InputFrame {
         this.left = left;
         this.fwd = forward;
         this.pushYaw = yaw;
-        double r = Math.toRadians(yaw), sin = Math.sin(r), cos = Math.cos(r);
+        double r = Math.toRadians(yaw);
+        double sin = Math.sin(r);
+        double cos = Math.cos(r);
         this.worldX = left * cos - forward * sin;
         this.worldZ = forward * cos + left * sin;
     }
@@ -95,7 +105,9 @@ final class InputFrame {
         if (yaw == pushYaw) {
             return new float[] {left, fwd};
         }
-        double r = Math.toRadians(yaw), sin = Math.sin(r), cos = Math.cos(r);
+        double r = Math.toRadians(yaw);
+        double sin = Math.sin(r);
+        double cos = Math.cos(r);
         return new float[] {(float) (worldX * cos + worldZ * sin), (float) (-worldX * sin + worldZ * cos)};
     }
 }

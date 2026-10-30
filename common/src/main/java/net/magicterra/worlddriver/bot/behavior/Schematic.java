@@ -10,7 +10,9 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 
 public final class Schematic {
-    public final int w, h, d;
+    public final int w;
+    public final int h;
+    public final int d;
     public final List<Entry> entries;
 
     public Schematic(int w, int h, int d, List<Entry> entries) {
@@ -21,7 +23,9 @@ public final class Schematic {
     }
 
     public static final class Entry {
-        public final int dx, dy, dz;
+        public final int dx;
+        public final int dy;
+        public final int dz;
         public final String blockId;
 
         public Entry(int dx, int dy, int dz, String blockId) {
@@ -131,9 +135,11 @@ public final class Schematic {
         }
         // Decode varint-packed BlockData, X→Z→Y order, into entries.
         List<Entry> entries = new ArrayList<>();
-        int i = 0, idx = 0;
+        int i = 0;
+        int idx = 0;
         while (i < data.length) {
-            int value = 0, shift = 0;
+            int value = 0;
+            int shift = 0;
             while (true) {
                 if (i >= data.length) {
                     throw new IllegalArgumentException("BlockData varint truncated at idx " + idx);

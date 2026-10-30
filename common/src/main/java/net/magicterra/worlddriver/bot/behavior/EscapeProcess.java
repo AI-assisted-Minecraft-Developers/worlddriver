@@ -71,8 +71,10 @@ public final class EscapeProcess implements BotProcess {
     private Direction dir = null;
     private BlockPos base = null; // the foot cell we're climbing FROM this step
     private BlockPos actTarget = null; // block currently being broken; actTicks is PER-target
-    private int actTicks = 0, steps = 0;
-    private int futileCycles = 0, stepsAtLastPick = -1;
+    private int actTicks = 0;
+    private int steps = 0;
+    private int futileCycles = 0;
+    private int stepsAtLastPick = -1;
 
     public EscapeProcess(int targetY) {
         this.targetY = targetY;

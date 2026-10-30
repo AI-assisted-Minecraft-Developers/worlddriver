@@ -47,12 +47,20 @@ public record Corridor(List<Vec3> points, double radius, boolean hard, double pe
     }
 
     private static double segmentDistance(double x, double y, double z, Vec3 a, Vec3 b) {
-        double abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
-        double apx = x - a.x, apy = y - a.y, apz = z - a.z;
+        double abx = b.x - a.x;
+        double aby = b.y - a.y;
+        double abz = b.z - a.z;
+        double apx = x - a.x;
+        double apy = y - a.y;
+        double apz = z - a.z;
         double len2 = abx * abx + aby * aby + abz * abz;
         double t = len2 <= 1e-12 ? 0 : Math.max(0, Math.min(1, (apx * abx + apy * aby + apz * abz) / len2));
-        double cx = a.x + t * abx, cy = a.y + t * aby, cz = a.z + t * abz;
-        double dx = x - cx, dy = y - cy, dz = z - cz;
+        double cx = a.x + t * abx;
+        double cy = a.y + t * aby;
+        double cz = a.z + t * abz;
+        double dx = x - cx;
+        double dy = y - cy;
+        double dz = z - cz;
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 

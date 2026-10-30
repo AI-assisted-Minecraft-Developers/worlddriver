@@ -133,7 +133,8 @@ class ProcessTest {
     @Test
     void serverFlee(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pinUntimed(game).set("navigatorDebug", false);
-        final int r = 10, minDist = 6;
+        final int r = 10;
+        final int minDist = 6;
         plot.fill(-r, 0, -r, r, 0, r, Blocks.STONE);
         BlockPos from = plot.at(0, 1, 0);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
@@ -141,7 +142,8 @@ class ProcessTest {
             bot.runAway(from, minDist);
             bot.tickUntilIdle(200);
             ServerPlayer fp = bot.player();
-            double dx = fp.getX() - (from.getX() + 0.5), dz = fp.getZ() - (from.getZ() + 0.5);
+            double dx = fp.getX() - (from.getX() + 0.5);
+            double dz = fp.getZ() - (from.getZ() + 0.5);
             double dist = Math.sqrt(dx * dx + dz * dz);
             assertTrue(
                     dist >= minDist - 0.5,
@@ -651,7 +653,9 @@ class ProcessTest {
         plot.fill(0, 1, -1, 0, 2, -1, Blocks.BEDROCK); // back cap
         plot.fill(0, 1, 5, 0, 2, 5, Blocks.BEDROCK); // front cap
         plot.fill(0, 1, 2, 0, 2, 2, Blocks.DEEPSLATE); // the plug, foot + head
-        BlockPos plugFoot = plot.at(0, 1, 2), plugHead = plot.at(0, 2, 2), goal = plot.at(0, 1, 4);
+        BlockPos plugFoot = plot.at(0, 1, 2);
+        BlockPos plugHead = plot.at(0, 2, 2);
+        BlockPos goal = plot.at(0, 1, 4);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         game.runOnServer(s -> {
             // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
@@ -689,7 +693,8 @@ class ProcessTest {
      */
     @Test
     void serverForbidDigWall(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        final int plugDz = 6, standDz = 9;
+        final int plugDz = 6;
+        final int standDz = 9;
         final double leashRadius = 16.0;
         final int budget = 1600; // > navigatorTotalTickBudget(1200); wallDig fires within ~40t of engaging
         Settings.pinUntimed(game)
@@ -704,7 +709,8 @@ class ProcessTest {
         plot.fill(1, 1, -1, 1, 2, standDz + 2, Blocks.BEDROCK);
         plot.fill(0, 1, -1, 0, 2, -1, Blocks.BEDROCK);
         plot.fill(0, 1, standDz + 2, 0, 2, standDz + 2, Blocks.BEDROCK);
-        BlockPos plugFoot = plot.at(0, 1, plugDz), plugHead = plot.at(0, 2, plugDz);
+        BlockPos plugFoot = plot.at(0, 1, plugDz);
+        BlockPos plugHead = plot.at(0, 2, plugDz);
         BlockPos standCell = plot.at(0, 1, standDz);
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -788,7 +794,9 @@ class ProcessTest {
                 .set("allowPlace", true)
                 .set("navigatorDebug", false);
         plot.fill(-1, 0, -1, 6, 0, 1, Blocks.DIRT);
-        BlockPos origin = plot.at(0, 0, 0), t1 = plot.at(2, 1, 0), t2 = plot.at(3, 1, 0);
+        BlockPos origin = plot.at(0, 0, 0);
+        BlockPos t1 = plot.at(2, 1, 0);
+        BlockPos t2 = plot.at(3, 1, 0);
         // 4×2×1 with cobblestone at (2,1,0) and (3,1,0): [dx, dy, dz, palette index].
         BuildContracts.Blocks schem = new BuildContracts.Blocks(
                 4, 2, 1, List.of("minecraft:cobblestone"), List.of(List.of(2, 1, 0, 0), List.of(3, 1, 0, 0)));
@@ -858,7 +866,8 @@ class ProcessTest {
                                     0)));
             bot.tickUntilIdle(200);
             ServerPlayer fp = bot.player();
-            double dx = fp.getX() - (standAt.getX() + 0.5), dz = fp.getZ() - (standAt.getZ() + 0.5);
+            double dx = fp.getX() - (standAt.getX() + 0.5);
+            double dz = fp.getZ() - (standAt.getZ() + 0.5);
             double dist = Math.sqrt(dx * dx + dz * dz);
             assertTrue(dist <= 3.0, "server follow did not close on the armor stand: dist=" + dist); // radius 2 + slack
         });
@@ -877,7 +886,8 @@ class ProcessTest {
     void serverCombatCollectDrops(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pinUntimed(game).set("navigatorDebug", false);
         plot.fill(-2, 0, -2, 10, 0, 2, Blocks.STONE);
-        BlockPos zombieAt = plot.at(6, 1, 0), dropAt = plot.at(9, 1, 0);
+        BlockPos zombieAt = plot.at(6, 1, 0);
+        BlockPos dropAt = plot.at(9, 1, 0);
         int[] ids = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Zombie zombie = new Zombie(level);
@@ -922,7 +932,8 @@ class ProcessTest {
                                     Optional.of(new CombatContracts.FoeType("minecraft:zombie")),
                                     false,
                                     0)));
-            int killedAt = -1, endedAt = -1;
+            int killedAt = -1;
+            int endedAt = -1;
             double killX = Double.NaN;
             for (int t = 0; t < 1500 && bot.busy(); t++) {
                 bot.tick();
@@ -969,7 +980,9 @@ class ProcessTest {
             bot.tickUntilIdle(300);
             ServerPlayer fp = bot.player();
             Vec3 eye = fp.getEyePosition();
-            double dx = track.getX() + 0.5 - eye.x, dy = track.getY() + 0.5 - eye.y, dz = track.getZ() + 0.5 - eye.z;
+            double dx = track.getX() + 0.5 - eye.x;
+            double dy = track.getY() + 0.5 - eye.y;
+            double dz = track.getZ() + 0.5 - eye.z;
             float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
             float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
             float yawErr = Math.abs(Mth.degreesDifference(fp.getYRot(), ty));
@@ -1163,7 +1176,10 @@ class ProcessTest {
      * process ends {@code done}.
      */
     private static void bridgePillarLeg(Game game, Plot plot, int dz, double xOff, float startYaw, String leg) {
-        final int floorY = 0, pillarH = 6, topY = floorY + pillarH, distance = 4;
+        final int floorY = 0;
+        final int pillarH = 6;
+        final int topY = floorY + pillarH;
+        final int distance = 4;
         plot.fill(-3, floorY, dz - 3, 9, floorY, dz + 3, Blocks.STONE);
         plot.fill(0, floorY + 1, dz, 0, topY, dz, Blocks.COBBLESTONE);
         BlockPos pillar = plot.at(0, topY + 1, dz);

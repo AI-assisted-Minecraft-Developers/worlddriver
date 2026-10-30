@@ -49,7 +49,9 @@ public final class ClientBoss {
             if (level == null || pl == null) {
                 return new BossReading(List.of(), Optional.empty());
             }
-            double px = pl.getX(), py = pl.getY(), pz = pl.getZ();
+            double px = pl.getX();
+            double py = pl.getY();
+            double pz = pl.getZ();
             double r2 = (double) r * r;
             LivingEntity boss = null;
             double bossD = Double.MAX_VALUE;
@@ -81,7 +83,8 @@ public final class ClientBoss {
                 return new BossReading(cl, Optional.empty());
             }
 
-            double health = boss.getHealth(), max = boss.getMaxHealth();
+            double health = boss.getHealth();
+            double max = boss.getMaxHealth();
             double pct = max > 0 ? Math.max(0, Math.min(1, health / max)) : 0.0;
             Point pos = new Point(boss.getX(), boss.getY(), boss.getZ());
             double dist = Math.sqrt(bossD);

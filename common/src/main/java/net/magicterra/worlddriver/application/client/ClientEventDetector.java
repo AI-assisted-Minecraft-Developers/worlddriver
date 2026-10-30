@@ -48,7 +48,8 @@ final class ClientEventDetector {
     // that was within 2 uses of max damage and whose inventory COUNT drops this
     // tick has broken — the count check keeps hotbar swaps / slot moves silent.
     private String evtMainhandId = null;
-    private int evtMainhandDamage, evtMainhandMax;
+    private int evtMainhandDamage;
+    private int evtMainhandMax;
     // Advancement-earned detection (client-side, best-effort): completed advancement
     // ids seen so far; new ones emit. evtAdvInit seeds the first poll silently.
     private final Set<String> evtDoneAdv = new HashSet<>();

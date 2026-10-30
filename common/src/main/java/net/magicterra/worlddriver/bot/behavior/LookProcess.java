@@ -17,7 +17,8 @@ public final class LookProcess implements BotProcess {
     private static final int MAX_TICKS = 200; // ~10 s @ 20 tps
     private static final float ALIGN_EPS = 0.5f;
     private final BlockPos track; // null → fixed yaw/pitch
-    private final float fixedYaw, fixedPitch;
+    private final float fixedYaw;
+    private final float fixedPitch;
     private int ticks;
 
     public LookProcess(BlockPos track, float yaw, float pitch) {
@@ -52,14 +53,18 @@ public final class LookProcess implements BotProcess {
             st.look.reset();
             return true;
         }
-        float ty = fixedYaw, tp = fixedPitch;
+        float ty = fixedYaw;
+        float tp = fixedPitch;
         if (track != null) {
             Vec3 eye = p.getEyePosition();
-            double dx = track.getX() + 0.5 - eye.x, dy = track.getY() + 0.5 - eye.y, dz = track.getZ() + 0.5 - eye.z;
+            double dx = track.getX() + 0.5 - eye.x;
+            double dy = track.getY() + 0.5 - eye.y;
+            double dz = track.getZ() + 0.5 - eye.z;
             ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
             tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         }
-        float curY = p.getYRot(), curP = p.getXRot();
+        float curY = p.getYRot();
+        float curP = p.getXRot();
         float ny = smoothAngle(curY, ty);
         float np = smoothAngle(curP, tp);
         p.setYRot(ny);

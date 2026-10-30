@@ -127,7 +127,8 @@ public final class LavaProximityEscape {
             lastLava = threat;
         }
         Vec3 me = p.position();
-        double dx = 0, dz = 0;
+        double dx = 0;
+        double dz = 0;
         if (lastLava != null) {
             dx = me.x - (lastLava.getX() + 0.5);
             dz = me.z - (lastLava.getZ() + 0.5);
@@ -277,7 +278,8 @@ public final class LavaProximityEscape {
             reset("no water");
             return false;
         }
-        double dx = step.getX() + 0.5 - p.getX(), dz = step.getZ() + 0.5 - p.getZ();
+        double dx = step.getX() + 0.5 - p.getX();
+        double dz = step.getZ() + 0.5 - p.getZ();
         p.setYRot((float) Math.toDegrees(Math.atan2(-dx, dz)));
         p.setXRot(0f);
         body.commandMove(0f, 1f);

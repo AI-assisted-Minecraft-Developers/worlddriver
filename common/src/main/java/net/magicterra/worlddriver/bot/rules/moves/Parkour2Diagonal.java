@@ -28,7 +28,8 @@ public final class Parkour2Diagonal extends Move {
         if (!valid(w, from)) {
             return null;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         boolean wet = wetUnder(w, from.offset(sx, 0, sz))
                 || wetUnder(w, from.offset(sx, 0, 0))
                 || wetUnder(w, from.offset(0, 0, sz));
@@ -85,7 +86,8 @@ public final class Parkour2Diagonal extends Move {
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         // Diagonal midpoint (1,1) and the two cardinal half-steps must
         // all be clear at foot+head — the player sweeps that whole corner.
         BlockPos[] mids = {

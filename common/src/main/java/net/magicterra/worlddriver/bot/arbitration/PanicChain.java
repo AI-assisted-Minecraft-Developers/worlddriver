@@ -54,7 +54,8 @@ public final class PanicChain implements Chain {
             body.releaseControls();
             return;
         }
-        double ax = away.x, az = away.z;
+        double ax = away.x;
+        double az = away.z;
         double len = Math.sqrt(ax * ax + az * az);
         ax /= len;
         az /= len;
@@ -66,7 +67,8 @@ public final class PanicChain implements Chain {
         BlockPos foot = p.blockPosition();
         HazardField hf =
                 HazardField.compute(w, foot, 3, SurvivalMath.survivableFall(p.getHealth()), WorldConfig.deepWaterMax);
-        double bestX = 0, bestZ = 0;
+        double bestX = 0;
+        double bestZ = 0;
         boolean found = false;
         for (double off : FLEE_OFFSETS) {
             double r = Math.toRadians(off);

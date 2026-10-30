@@ -80,7 +80,8 @@ public final class ScreenIntrospection {
             return refused("ref " + ref + " (" + hit.type() + ") has no box to click");
         }
         Box b = hit.box().get();
-        double x = b.x() + b.width() / 2.0, y = b.y() + b.height() / 2.0;
+        double x = b.x() + b.width() / 2.0;
+        double y = b.y() + b.height() / 2.0;
         if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
             return refused("ref " + ref + " lies outside the screen, at " + x + "," + y);
         }
@@ -318,8 +319,14 @@ public final class ScreenIntrospection {
         final String type;
         Integer index;
         Box box;
-        Boolean visible, active, focused, selected;
-        String message, key, value, error;
+        Boolean visible;
+        Boolean active;
+        Boolean focused;
+        Boolean selected;
+        String message;
+        String key;
+        String value;
+        String error;
         SlotItem item;
 
         Node(int ref, Integer parent, int depth, String type) {
@@ -549,7 +556,8 @@ public final class ScreenIntrospection {
         // are GUI-local. We expose absolute Screen coords so agents can pass
         // them straight to mc.client.input.click without doing arithmetic.
         // Both protected in vanilla, opened by worlddriver.accesswidener.
-        int leftPos = acs.leftPos, topPos = acs.topPos;
+        int leftPos = acs.leftPos;
+        int topPos = acs.topPos;
         // The holder is named by the menu: it lives exactly as long as these slots do.
         Node holder = out.add(menu, null, 0, "ContainerSlots");
         if (holder == null) {

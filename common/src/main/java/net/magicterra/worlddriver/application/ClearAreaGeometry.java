@@ -52,19 +52,25 @@ final class ClearAreaGeometry {
      */
     static Cells tunnel(long px, long py, long pz, float yaw, Tunnel t, WidthBias bias) {
         Direction d = t.direction().against(Direction.compass(yaw));
-        long lo = (t.width() - 1) / 2, hi = t.width() - 1 - lo; // floor and ceil of (w-1)/2
+        long lo = (t.width() - 1) / 2;
+        long hi = t.width() - 1 - lo; // floor and ceil of (w-1)/2
         if (d == Direction.UP || d == Direction.DOWN) {
             long fy = d == Direction.UP ? 1 : -1;
-            long zlo = (t.height() - 1) / 2, zhi = t.height() - 1 - zlo;
+            long zlo = (t.height() - 1) / 2;
+            long zhi = t.height() - 1 - zlo;
             return box(px - lo, py + fy, pz - zlo, px + hi, py + fy * t.distance(), pz + zhi, Long.MAX_VALUE);
         }
         long fx = d == Direction.EAST ? 1 : d == Direction.WEST ? -1 : 0;
         long fz = d == Direction.SOUTH ? 1 : d == Direction.NORTH ? -1 : 0;
         // The body's left, looking along (fx, fz).
-        long lx = fz, lz = -fx;
-        long toLeft = bias == WidthBias.LEFT ? hi : lo, toRight = bias == WidthBias.LEFT ? lo : hi;
-        long ax = px + fx - lx * toRight, az = pz + fz - lz * toRight;
-        long bx = px + fx * t.distance() + lx * toLeft, bz = pz + fz * t.distance() + lz * toLeft;
+        long lx = fz;
+        long lz = -fx;
+        long toLeft = bias == WidthBias.LEFT ? hi : lo;
+        long toRight = bias == WidthBias.LEFT ? lo : hi;
+        long ax = px + fx - lx * toRight;
+        long az = pz + fz - lz * toRight;
+        long bx = px + fx * t.distance() + lx * toLeft;
+        long bz = pz + fz * t.distance() + lz * toLeft;
         return box(ax, py, az, bx, py + t.height() - 1, bz, Long.MAX_VALUE);
     }
 }

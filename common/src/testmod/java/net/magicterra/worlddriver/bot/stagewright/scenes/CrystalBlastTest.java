@@ -253,8 +253,10 @@ class CrystalBlastTest {
      */
     private static void smashFrom(Game game, Plot plot, TestReporter reporter, int standDy) {
         BlockPos stand = plot.at(0, STAND_Y, 0);
-        final int cx = stand.getX(), cz = stand.getZ();
-        final int standY = stand.getY(), topY = standY - 1;
+        final int cx = stand.getX();
+        final int cz = stand.getZ();
+        final int standY = stand.getY();
+        final int topY = standY - 1;
         final int standAt = standY + standDy;
 
         game.runOnServer(s -> {
@@ -367,10 +369,16 @@ class CrystalBlastTest {
         bot.release();
 
         final double startY = fp.getY();
-        int swings = 0, sinceSwing = 0, firstSwingTick = -1, refused = 0;
-        double minYAfterSwing = Double.MAX_VALUE, closest = Double.MAX_VALUE;
+        int swings = 0;
+        int sinceSwing = 0;
+        int firstSwingTick = -1;
+        int refused = 0;
+        double minYAfterSwing = Double.MAX_VALUE;
+        double closest = Double.MAX_VALUE;
         BlockPos swingStand = null;
-        String underAtSwing = null, underAfterSwing = null, refusal = null;
+        String underAtSwing = null;
+        String underAfterSwing = null;
+        String refusal = null;
         float resAtSwing = Float.NaN;
 
         for (int t = 0; t < TICKS; t++) {

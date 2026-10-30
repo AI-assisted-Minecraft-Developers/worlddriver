@@ -150,7 +150,10 @@ class WaterCrossPlanTest {
     @Test
     void deepWaterSubmergedCross() {
         BlockMapView w = new BlockMapView();
-        final int floorY = 0, surface = floorY + 9, spanX = 24, halfZ = 5;
+        final int floorY = 0;
+        final int surface = floorY + 9;
+        final int spanX = 24;
+        final int halfZ = 5;
         w.fill(-3, floorY, -halfZ - 1, spanX + 7, floorY, halfZ + 1, Blocks.STONE); // deep basin floor
         w.fill(-1, floorY + 1, -halfZ, spanX + 1, surface, halfZ, Blocks.WATER); // deep water
         w.fill(spanX - 1, floorY + 1, -halfZ, spanX, surface - 1, halfZ, Blocks.STONE); // shallow wade shelf, east
@@ -217,7 +220,11 @@ class WaterCrossPlanTest {
      */
     @Test
     void vineOverWaterCross() {
-        final int surface = 8, spanX = 16, halfZ = 3, treeX0 = 5, treeX1 = 11;
+        final int surface = 8;
+        final int spanX = 16;
+        final int halfZ = 3;
+        final int treeX0 = 5;
+        final int treeX1 = 11;
         BlockMapView w = deepCrossing(0, surface, spanX, halfZ);
         // surface+1 = hanging vine (head cell), surface+2/+3 = oak-leaf canopy; lily pads at z=±2 (scenery).
         BlockState leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, Boolean.TRUE);
@@ -283,7 +290,9 @@ class WaterCrossPlanTest {
      */
     @Test
     void padOverWaterCross() {
-        final int surface = 8, spanX = 16, halfZ = 3;
+        final int surface = 8;
+        final int spanX = 16;
+        final int halfZ = 3;
         final int[] padDx = {6, 9, 12}; // sparse single pads on the CENTER line
         BlockMapView w = deepCrossing(0, surface, spanX, halfZ);
         for (int dx : padDx) {
@@ -293,7 +302,8 @@ class WaterCrossPlanTest {
         Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
-        BlockPos padBody = new BlockPos(padDx[1], surface + 1, 0), padFoot = new BlockPos(padDx[1], surface, 0);
+        BlockPos padBody = new BlockPos(padDx[1], surface + 1, 0);
+        BlockPos padFoot = new BlockPos(padDx[1], surface, 0);
         assertTrue(w.isWater(padFoot), "foot under the pad is NOT water at " + padFoot + "; the repro is vacuous");
         assertTrue(
                 w.isBreakableObstruction(padBody),
@@ -340,7 +350,12 @@ class WaterCrossPlanTest {
      */
     @Test
     void padClusterCross() {
-        final int surface = 8, spanX = 16, halfZ = 6, wallDx = 8, wallHalfZ = 3, loneDx = 13;
+        final int surface = 8;
+        final int spanX = 16;
+        final int halfZ = 6;
+        final int wallDx = 8;
+        final int wallHalfZ = 3;
+        final int loneDx = 13;
         BlockMapView w = deepCrossing(0, surface, spanX, halfZ);
         for (int dz = -wallHalfZ; dz <= wallHalfZ; dz++) {
             w.set(wallDx, surface + 1, dz, Blocks.LILY_PAD);
@@ -350,7 +365,8 @@ class WaterCrossPlanTest {
         Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
-        BlockPos wallBody = new BlockPos(wallDx, surface + 1, 0), wallFoot = new BlockPos(wallDx, surface, 0);
+        BlockPos wallBody = new BlockPos(wallDx, surface + 1, 0);
+        BlockPos wallFoot = new BlockPos(wallDx, surface, 0);
         BlockPos wallSibN = new BlockPos(wallDx, surface + 1, 1);
         assertTrue(w.isWater(wallFoot), "foot under the wall is NOT water at " + wallFoot + "; the repro is vacuous");
         assertTrue(

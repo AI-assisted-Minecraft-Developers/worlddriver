@@ -54,7 +54,9 @@ public final class BunkerProcess implements BotProcess {
     private static final int MAX_EXTRA_DEPTH = 4;
     private Phase phase = Phase.DIG_DOWN;
     private int startY = Integer.MIN_VALUE;
-    private int lastDepth = 0, digTicks = 0, actTicks = 0;
+    private int lastDepth = 0;
+    private int digTicks = 0;
+    private int actTicks = 0;
     /**
      * Separate place-attempt timer for PLUG. Kept distinct from {@link #actTicks} (which the player-overlap shuffle
      * branch burns up to breakTimeoutTicks*2) so a long shuffle can't make the FIRST real placement instantly trip the
@@ -101,7 +103,8 @@ public final class BunkerProcess implements BotProcess {
         if (!w.isSolid(n0.relative(d)) || !w.isSolid(n1.relative(d))) {
             return false; // far wall
         }
-        Direction cw = d.getClockWise(), ccw = d.getCounterClockWise();
+        Direction cw = d.getClockWise();
+        Direction ccw = d.getCounterClockWise();
         return w.isSolid(n0.relative(cw))
                 && w.isSolid(n1.relative(cw))
                 && w.isSolid(n0.relative(ccw))

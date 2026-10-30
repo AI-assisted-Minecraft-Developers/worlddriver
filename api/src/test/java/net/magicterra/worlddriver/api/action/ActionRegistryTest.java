@@ -35,7 +35,8 @@ class ActionRegistryTest {
 
     @Test
     void idsAreDistinctAndARunningActionIsFound() {
-        ActionHandle a = handle("player:a", null), b = handle("player:a", null);
+        ActionHandle a = handle("player:a", null);
+        ActionHandle b = handle("player:a", null);
         assertNotEquals(a.id(), b.id());
         assertInstanceOf(Running.class, registry.snapshot(a.id()));
     }
@@ -162,7 +163,8 @@ class ActionRegistryTest {
 
     @Test
     void removingABodyEndsOnlyItsActions() {
-        ActionHandle a = handle("player:a", null), b = handle("player:b", null);
+        ActionHandle a = handle("player:a", null);
+        ActionHandle b = handle("player:b", null);
         registry.cancelBot("player:a", CancelReason.BOT_REMOVED);
         assertEquals(
                 CancelReason.BOT_REMOVED,

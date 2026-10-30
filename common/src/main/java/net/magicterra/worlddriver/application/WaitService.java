@@ -310,7 +310,8 @@ public final class WaitService implements WaitApi {
         if (fieldVal == null || target == null || fieldVal.isJsonNull() || target.isJsonNull()) {
             return false;
         }
-        Double a = asNumber(fieldVal), b = asNumber(target);
+        Double a = asNumber(fieldVal);
+        Double b = asNumber(target);
         if (a != null && b != null) {
             return a.doubleValue() == b.doubleValue();
         }

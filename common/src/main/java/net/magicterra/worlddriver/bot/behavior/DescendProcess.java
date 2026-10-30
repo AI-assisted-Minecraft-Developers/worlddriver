@@ -61,8 +61,10 @@ public final class DescendProcess implements BotProcess {
     private Direction dir = null;
     private BlockPos base = null; // foot cell this stride starts from
     private BlockPos actTarget = null;
-    private int actTicks = 0, steps = 0;
-    private int futileCycles = 0, stepsAtLastPick = -1;
+    private int actTicks = 0;
+    private int steps = 0;
+    private int futileCycles = 0;
+    private int stepsAtLastPick = -1;
     private float startHp = -1f;
 
     public DescendProcess(int targetY) {

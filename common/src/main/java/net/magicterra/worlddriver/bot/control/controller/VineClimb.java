@@ -37,7 +37,8 @@ public final class VineClimb implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
-    private boolean onVine, parkourEdge;
+    private boolean onVine;
+    private boolean parkourEdge;
 
     @Override
     public String name() {

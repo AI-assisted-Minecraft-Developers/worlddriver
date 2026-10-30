@@ -49,7 +49,9 @@ class WorldDriverTest {
     @Test
     void diagonalAscentSpeed(Game game, @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         BlockPos o = plot.at(10, 2, 10);
-        final int cx = o.getX(), cz = o.getZ(), baseY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int baseY = o.getY();
         final int steps = 8;
         final int span = 2 * steps; // dx,dz 0..16
         final int topSurf = baseY + 1 + span; // NE corner surface
@@ -83,8 +85,13 @@ class WorldDriverTest {
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
             // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
-            double startX = Double.NaN, startZ = 0, endX = 0, endZ = 0;
-            int ascTicks = 0, ascSprint = 0, ascHcol = 0;
+            double startX = Double.NaN;
+            double startZ = 0;
+            double endX = 0;
+            double endZ = 0;
+            int ascTicks = 0;
+            int ascSprint = 0;
+            int ascHcol = 0;
             boolean walking = true;
             for (int t = 0; t < 900 && walking; t++) {
                 bot.tick();
@@ -147,8 +154,10 @@ class WorldDriverTest {
     @Test
     void descentYaw(Game game, @Plot.Size(x = 48, y = 48, z = 48) Plot plot) {
         BlockPos o = plot.at(8, 44, 4);
-        final int cx = o.getX(), cz = o.getZ();
-        final int topY = o.getY(), steps = 9;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int topY = o.getY();
+        final int steps = 9;
         final int span = 2 * steps; // dx,dz 0..18
         final int goalSurf = topY - 2 * span; // NE corner surface (surf = topY-(dx+dz))
         BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
@@ -181,20 +190,26 @@ class WorldDriverTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
-            int onSlope = 0, reversals = 0;
+            double prevYaw = Double.NaN;
+            double sumAbsDyaw = 0;
+            double maxDyaw = 0;
+            int onSlope = 0;
+            int reversals = 0;
             double lastSign = 0;
             // Backward hops: the goal is the NE corner, so every tick's net horizontal motion should project >= 0
             // onto the NE direction; a tick that projects negative drove AWAY from the goal.
-            final double gdx = 1.0 / Math.sqrt(2.0), gdz = 1.0 / Math.sqrt(2.0);
-            double prevX = fp.getX(), prevZ = fp.getZ();
+            final double gdx = 1.0 / Math.sqrt(2.0);
+            final double gdz = 1.0 / Math.sqrt(2.0);
+            double prevX = fp.getX();
+            double prevZ = fp.getZ();
             int backSteps = 0;
             double worstBack = 0;
             boolean walking = true;
             for (int t = 0; t < 700 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
+                double ddx = fp.getX() - prevX;
+                double ddz = fp.getZ() - prevZ;
                 if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) { // moved, on the slope
                     double proj = ddx * gdx + ddz * gdz;
                     if (proj < -0.02) {
@@ -269,8 +284,11 @@ class WorldDriverTest {
     @Test
     void selfShaftDigUp(Game game, @Plot.Size(x = 16, y = 32, z = 16) Plot plot) {
         BlockPos o = plot.at(8, 1, 8);
-        final int cx = o.getX(), cz = o.getZ(), baseY = o.getY();
-        final int top = baseY + 20, targetY = top + 2;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int baseY = o.getY();
+        final int top = baseY + 20;
+        final int targetY = top + 2;
         // Solid 7x7 stone slab base..top, air above, sealed 2-high chamber at the centre.
         plot.fill(5, 1, 5, 11, 21, 11, Blocks.STONE);
         plot.fill(8, 2, 8, 8, 3, 8, Blocks.AIR);
@@ -319,7 +337,9 @@ class WorldDriverTest {
     @Test
     void gearScope(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         plot.fill(-2, 0, -2, 4, 0, 2, Blocks.STONE);
         Settings.pin(game).set("navigatorDebug", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
@@ -386,7 +406,9 @@ class WorldDriverTest {
     @Test
     void buriedOre(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         plot.fill(-1, 0, -2, 9, 0, 2, Blocks.DIRT);
         plot.fill(3, 1, -1, 7, 3, 1, Blocks.STONE);
         BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
@@ -480,7 +502,9 @@ class WorldDriverTest {
     @Test
     void entityLeash(Game game, @Plot.Size(x = 16, y = 16, z = 32) Plot plot) {
         BlockPos o = plot.at(8, 1, 1);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         final int goalDz = 24;
         final double leashRadius = 8.0;
         // Side rails keep the navigator ON the lane, so the arena tests the leash, not edge-clipping churn.
@@ -528,7 +552,8 @@ class WorldDriverTest {
                 bot.tick();
             }
             boolean finished1 = !bot.busy();
-            double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
+            double sdx = fp.getX() - (cx + 0.5);
+            double sdz = fp.getZ() - (cz + 0.5);
             double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
             boolean arrivedTrueGoal1 =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;

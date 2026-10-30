@@ -300,7 +300,9 @@ public final class ProgressPhase {
             return false;
         }
         BlockPos a = nav.route.path().get(nav.route.step() - 1);
-        double ax = w.getX() - a.getX(), az = w.getZ() - a.getZ(), len = Math.hypot(ax, az);
+        double ax = w.getX() - a.getX();
+        double az = w.getZ() - a.getZ();
+        double len = Math.hypot(ax, az);
         if (len == 0) {
             return false;
         }
@@ -339,8 +341,10 @@ public final class ProgressPhase {
             return;
         }
         BlockPos dN = nav.route.path().get(nav.route.step() + 1);
-        double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
-        double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);
+        double dsegx = dN.getX() - w.getX();
+        double dsegz = dN.getZ() - w.getZ();
+        double doffx = p.getX() - (w.getX() + 0.5);
+        double doffz = p.getZ() - (w.getZ() + 0.5);
         LOG.info(
                 "[navigator] STEP-ADV-DIAG step={}/{} w={} cur2={} footNodeDy={} se={} disc={} | passed={} crossDesc={} crossWalk={} | nx={} nxY={} pY={} fwdDot={} nxYgate={}",
                 nav.route.step(),
@@ -403,11 +407,13 @@ public final class ProgressPhase {
             return false;
         }
         BlockPos pv = nav.route.path().get(nav.route.step() - 1);
-        double sgx = w.getX() - pv.getX(), sgz = w.getZ() - pv.getZ();
+        double sgx = w.getX() - pv.getX();
+        double sgz = w.getZ() - pv.getZ();
         if (sgx == 0 && sgz == 0) {
             return false;
         }
-        double ofx = p.getX() - (w.getX() + 0.5), ofz = p.getZ() - (w.getZ() + 0.5);
+        double ofx = p.getX() - (w.getX() + 0.5);
+        double ofz = p.getZ() - (w.getZ() + 0.5);
         return ofx * sgx + ofz * sgz <= 0;
     }
 
@@ -788,8 +794,11 @@ public final class ProgressPhase {
         if (!plainFlatWalk(nav.route.edgeAt(nav.route.step() + 1))) {
             return false;
         }
-        double ax = nx.getX() - w.getX(), az = nx.getZ() - w.getZ(), len = Math.hypot(ax, az);
-        double px = p.getX() - (w.getX() + 0.5), pz = p.getZ() - (w.getZ() + 0.5);
+        double ax = nx.getX() - w.getX();
+        double az = nx.getZ() - w.getZ();
+        double len = Math.hypot(ax, az);
+        double px = p.getX() - (w.getX() + 0.5);
+        double pz = p.getZ() - (w.getZ() + 0.5);
         return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
     }
 
@@ -888,7 +897,8 @@ public final class ProgressPhase {
         // Euclidean 2.0 window (rig-metric parity): the first cut used |dx|+|dz|>1.5,
         // which a reCentre/carrot tug-of-war micro-orbit (1-2 block circles at a pinned
         // corner, C98-J2 replay) reset continuously — the clock never reached its gate.
-        double sdxA = p.getX() - physStall.anchorX, sdzA = p.getZ() - physStall.anchorZ;
+        double sdxA = p.getX() - physStall.anchorX;
+        double sdzA = p.getZ() - physStall.anchorZ;
         if (Double.isNaN(physStall.anchorX) || sdxA * sdxA + sdzA * sdzA > 4.0) {
             physStall.anchorX = p.getX();
             physStall.anchorZ = p.getZ();
@@ -909,7 +919,8 @@ public final class ProgressPhase {
         // count the whole climb as stuck. Bridge edges still hard-zero the counter
         // (a sneak crawl barely moves the carrot, so even node-distance can stall
         // mid-place).
-        Move.Edge curBridgeE = nav.route.edgeAt(nav.route.step()), nxtBridgeE = nav.route.edgeAt(nav.route.step() + 1);
+        Move.Edge curBridgeE = nav.route.edgeAt(nav.route.step());
+        Move.Edge nxtBridgeE = nav.route.edgeAt(nav.route.step() + 1);
         boolean onBridge = (curBridgeE != null && "bridgePlace".equals(curBridgeE.move))
                 || (nxtBridgeE != null && "bridgePlace".equals(nxtBridgeE.move));
         // Jitter-immune WEDGE timer: counts raw ticks the bot stays on the SAME path
@@ -1359,8 +1370,10 @@ public final class ProgressPhase {
                     && !p.isInWater()
                     && nav.route.step() + 1 < nav.route.path().size()) {
                 BlockPos nxd = nav.route.path().get(nav.route.step() + 1);
-                double segx = nxd.getX() - w.getX(), segz = nxd.getZ() - w.getZ();
-                double offx = p.getX() - (w.getX() + 0.5), offz = p.getZ() - (w.getZ() + 0.5);
+                double segx = nxd.getX() - w.getX();
+                double segz = nxd.getZ() - w.getZ();
+                double offx = p.getX() - (w.getX() + 0.5);
+                double offz = p.getZ() - (w.getZ() + 0.5);
                 crossedDescendNode = (offx * segx + offz * segz) > 0 && Math.abs(nxd.getY() - p.getY()) < 1.2;
             }
             // WALK overshoot-advance — mirror of crossedDescendNode for a FLAT walk node the bot has
@@ -1383,8 +1396,10 @@ public final class ProgressPhase {
                     && stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
                     && nav.route.step() + 1 < nav.route.path().size()) {
                 BlockPos nxw = nav.route.path().get(nav.route.step() + 1);
-                double segx = nxw.getX() - w.getX(), segz = nxw.getZ() - w.getZ();
-                double offx = p.getX() - (w.getX() + 0.5), offz = p.getZ() - (w.getZ() + 0.5);
+                double segx = nxw.getX() - w.getX();
+                double segz = nxw.getZ() - w.getZ();
+                double offx = p.getX() - (w.getX() + 0.5);
+                double offz = p.getZ() - (w.getZ() + 0.5);
                 crossedWalkNode = (offx * segx + offz * segz) > 0 && Math.abs(nxw.getY() - p.getY()) < 1.2;
             }
             // WATER-SURFACE STEP-DOWN float-and-advance: a stepDown (or short discrete descent) whose

@@ -206,7 +206,8 @@ public final class PathSmoothing {
         lastUnwalkableEmit = a.toShortString() + "→" + b.toShortString();
     }
 
-    private static volatile int emits, unwalkableEmits;
+    private static volatile int emits;
+    private static volatile int unwalkableEmits;
     private static volatile String lastUnwalkableEmit;
 
     /**
@@ -228,10 +229,13 @@ public final class PathSmoothing {
         if (steps == 0) {
             return true;
         }
-        int px = a.getX(), pz = a.getZ(); // previous sampled cell (corner check)
+        int px = a.getX();
+        int pz = a.getZ(); // previous sampled cell (corner check)
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
-            int x = c.getX(), y = c.getY(), z = c.getZ();
+            int x = c.getX();
+            int y = c.getY();
+            int z = c.getZ();
             if (!w.isPassable(c) || w.isHazard(c)) {
                 return false;
             }
@@ -347,7 +351,8 @@ public final class PathSmoothing {
     public static double waypointBias(WorldView w, List<BlockPos> path, int i, int end, List<CostModifier> bias) {
         double sum = 0;
         for (int k = i + 1; k <= end; k++) {
-            BlockPos from = path.get(k - 1), to = path.get(k);
+            BlockPos from = path.get(k - 1);
+            BlockPos to = path.get(k);
             Move.Edge probe = new Move.Edge(to, 0, List.of(), List.of(), "walk");
             for (CostModifier m : bias) {
                 sum += m.extraCost(from, to, probe, null, w);
@@ -502,8 +507,10 @@ public final class PathSmoothing {
         if (step <= 0 || step >= path.size()) {
             return false;
         }
-        BlockPos w = path.get(step), pv = path.get(step - 1);
-        double ax = w.getX() - pv.getX(), az = w.getZ() - pv.getZ();
+        BlockPos w = path.get(step);
+        BlockPos pv = path.get(step - 1);
+        double ax = w.getX() - pv.getX();
+        double az = w.getZ() - pv.getZ();
         if (ax == 0 && az == 0) {
             return false;
         }

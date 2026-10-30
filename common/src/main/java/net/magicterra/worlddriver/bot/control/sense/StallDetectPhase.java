@@ -70,7 +70,9 @@ public final class StallDetectPhase {
     }
 
     /** Blocks² from the churn window's base that count as having left it, and as being back. */
-    private static final int CHURN_CYCLE_LEAVE_SQ = 16, CHURN_CYCLE_RETURN_SQ = 4;
+    private static final int CHURN_CYCLE_LEAVE_SQ = 16;
+
+    private static final int CHURN_CYCLE_RETURN_SQ = 4;
 
     /**
      * Per tick: the wall-corner ram count, and whether the body has left this churn window's base and come back to it
@@ -96,7 +98,9 @@ public final class StallDetectPhase {
             churn.cycle = -1;
             return;
         } // sticks until the window closes
-        int dx = foot.getX() - b.getX(), dz = foot.getZ() - b.getZ(), d2 = dx * dx + dz * dz;
+        int dx = foot.getX() - b.getX();
+        int dz = foot.getZ() - b.getZ();
+        int d2 = dx * dx + dz * dz;
         if (churn.cycle == 0 && d2 >= CHURN_CYCLE_LEAVE_SQ) {
             churn.cycle = 1;
         } else if (churn.cycle == 1 && d2 <= CHURN_CYCLE_RETURN_SQ && Math.abs(foot.getY() - b.getY()) <= 1) {
@@ -397,7 +401,8 @@ public final class StallDetectPhase {
             churn.base = foot;
             churn.windowTicks = 0;
         } else if (++churn.windowTicks >= effChurnWindow) {
-            int cdx = foot.getX() - churn.base.getX(), cdz = foot.getZ() - churn.base.getZ();
+            int cdx = foot.getX() - churn.base.getX();
+            int cdz = foot.getZ() - churn.base.getZ();
             int cdy = foot.getY() - churn.base.getY();
             // Fire on a best-effort churn (existing cases — all net ≈0 Y, unchanged) OR on a
             // GOAL-REACHING limit-cycle that gained no altitude (steep-mountain base / cave),
@@ -534,7 +539,8 @@ public final class StallDetectPhase {
         }
         BlockPos node = nav.route.path().get(nav.route.step());
         if (nav.drive.driveLatch.cruiseOn) {
-            int dx = node.getX() - foot.getX(), dz = node.getZ() - foot.getZ();
+            int dx = node.getX() - foot.getX();
+            int dz = node.getZ() - foot.getZ();
             return dx * dx + dz * dz > 9;
         }
         if (onPlainLane(nav, node, foot, p)) {
@@ -555,11 +561,16 @@ public final class StallDetectPhase {
 
     /** Horizontal squared distance from the foot cell's centre to the segment {@code a → b}. */
     private static double laneDistSqr(BlockPos a, BlockPos b, BlockPos foot) {
-        double ax = a.getX(), az = a.getZ(), bx = b.getX() - ax, bz = b.getZ() - az;
-        double px = foot.getX() - ax, pz = foot.getZ() - az;
+        double ax = a.getX();
+        double az = a.getZ();
+        double bx = b.getX() - ax;
+        double bz = b.getZ() - az;
+        double px = foot.getX() - ax;
+        double pz = foot.getZ() - az;
         double len2 = bx * bx + bz * bz;
         double t = len2 == 0 ? 0 : Math.max(0, Math.min(1, (px * bx + pz * bz) / len2));
-        double dx = px - bx * t, dz = pz - bz * t;
+        double dx = px - bx * t;
+        double dz = pz - bz * t;
         return dx * dx + dz * dz;
     }
 }

@@ -60,14 +60,18 @@ public final class MediumLocomotor implements Locomotor {
     private final Navigator nav;
     private final MediumMove.Medium medium;
     /** "swim" or "fly": the drive tag, the trace's first word, and how failures name the medium. */
-    private final String verb, through;
+    private final String verb;
+
+    private final String through;
 
     private final Route route = new Route();
     private Goal goal;
     private volatile WalkResult result = WalkResult.NONE;
     private List<BlockPos> followed;
     private double bestNodeDist = Double.POSITIVE_INFINITY;
-    private int noProgressTicks, stalls, outTicks;
+    private int noProgressTicks;
+    private int stalls;
+    private int outTicks;
     /** The nearest to the goal, by its estimate, that this walk has been when it planned. */
     private double bestGoalDist = Double.POSITIVE_INFINITY;
 
@@ -193,7 +197,9 @@ public final class MediumLocomotor implements Locomotor {
 
         BlockPos node = route.path().get(route.step());
         double feetAim = node.getY() + MediumMove.feetLift(p.getBbHeight());
-        double tx = node.getX() + 0.5 - p.getX(), ty = feetAim - p.getY(), tz = node.getZ() + 0.5 - p.getZ();
+        double tx = node.getX() + 0.5 - p.getX();
+        double ty = feetAim - p.getY();
+        double tz = node.getZ() + 0.5 - p.getZ();
         double dist = Math.sqrt(tx * tx + ty * ty + tz * tz);
         // Only reaching a node clears the repath count: the first reading after a repath always looks closer.
         if (dist < bestNodeDist - 0.05) {
@@ -288,7 +294,8 @@ public final class MediumLocomotor implements Locomotor {
         double lead = medium == MediumMove.Medium.AIR
                 ? ty - MobBody.FLIGHT_COAST_TICKS * (p.getY() - p.yo)
                 : ty - SWIM_COAST_TICKS * p.getDeltaMovement().y;
-        boolean up = lead > VERTICAL_DEADBAND, down = lead < -VERTICAL_DEADBAND;
+        boolean up = lead > VERTICAL_DEADBAND;
+        boolean down = lead < -VERTICAL_DEADBAND;
         a.commandMove(0f, forward);
         a.commandJump(up);
         a.commandSneak(down);

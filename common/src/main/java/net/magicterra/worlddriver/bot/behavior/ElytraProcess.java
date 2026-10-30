@@ -98,9 +98,11 @@ public final class ElytraProcess implements BotProcess {
     // --- simulator validation state (look + velocity in effect last tick) ---
     private boolean haveSample;
     private Vec3 prevVel = Vec3.ZERO;
-    private float prevYaw, prevPitch;
+    private float prevYaw;
+    private float prevPitch;
     private double prevGravity = ElytraPhysics.GRAVITY;
-    private double sumErr, maxErr;
+    private double sumErr;
+    private double maxErr;
     private int samples;
 
     public ElytraProcess(
@@ -425,7 +427,8 @@ public final class ElytraProcess implements BotProcess {
             if (fixedYaw != null) {
                 yaw = fixedYaw;
             } else if (target != null) {
-                double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
+                double dx = (target.getX() + 0.5) - p.getX();
+                double dz = (target.getZ() + 0.5) - p.getZ();
                 yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
             } else {
                 yaw = p.getYRot();
@@ -456,7 +459,8 @@ public final class ElytraProcess implements BotProcess {
 
             // Arrival / safety stop.
             if (target != null) {
-                double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
+                double dx = (target.getX() + 0.5) - p.getX();
+                double dz = (target.getZ() + 0.5) - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
                     if (BehaviorConfig.elytraDebug) {
                         logSummary();
@@ -582,7 +586,8 @@ public final class ElytraProcess implements BotProcess {
             frontierMode = false;
             return goal;
         }
-        double dx = goal.x - pos.x, dz = goal.z - pos.z;
+        double dx = goal.x - pos.x;
+        double dz = goal.z - pos.z;
         double horiz = Math.hypot(dx, dz);
         if (horiz < 1e-3) {
             frontierMode = false;

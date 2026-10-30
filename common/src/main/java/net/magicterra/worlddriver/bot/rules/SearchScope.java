@@ -123,7 +123,9 @@ public final class SearchScope {
             return new SearchScope(start, goal, ThreatSnapshot.EMPTY, losOf(level), false);
         }
         BlockPos target = goal == null ? null : goal.targetPos();
-        double x0 = start.getX(), y0 = start.getY(), z0 = start.getZ();
+        double x0 = start.getX();
+        double y0 = start.getY();
+        double z0 = start.getZ();
         double x1 = target == null ? x0 : target.getX();
         double y1 = target == null ? y0 : target.getY();
         double z1 = target == null ? z0 : target.getZ();

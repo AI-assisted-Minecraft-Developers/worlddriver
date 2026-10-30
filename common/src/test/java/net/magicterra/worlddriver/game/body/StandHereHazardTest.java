@@ -72,7 +72,8 @@ class StandHereHazardTest {
 
     @Test
     void theStandTable() {
-        BlockState air = s(Blocks.AIR), stone = s(Blocks.STONE);
+        BlockState air = s(Blocks.AIR);
+        BlockState stone = s(Blocks.STONE);
         BlockState wetSlab = s(Blocks.OAK_SLAB)
                 .setValue(SlabBlock.TYPE, SlabType.BOTTOM)
                 .setValue(BlockStateProperties.WATERLOGGED, true);

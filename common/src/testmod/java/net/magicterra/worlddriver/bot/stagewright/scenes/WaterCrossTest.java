@@ -45,7 +45,8 @@ class WaterCrossTest {
     @Test
     void goalSnapBuried(Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
+        final int cx = o.getX();
+        final int cz = o.getZ();
         final int floorY = o.getY();
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -123,7 +124,8 @@ class WaterCrossTest {
     void waterStepDownFloat(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
+        final int cx = o.getX();
+        final int cz = o.getZ();
         final int floorY = o.getY();
         final int waterY = floorY + 1; // the 1-deep water surface (dirt floor at floorY)
         // NODE = the water-surface stepDown foothold at (cx, waterY, cz). HEAD-WALL the node so the buoyant
@@ -248,7 +250,8 @@ class WaterCrossTest {
     void forbidDigPadRam(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
+        final int cx = o.getX();
+        final int cz = o.getZ();
         final int floorY = o.getY();
         final int waterY = floorY + 1;
         BlockPos node = new BlockPos(cx, waterY, cz);
@@ -353,7 +356,8 @@ class WaterCrossTest {
     void deepWaterSubmergedCross(
             Game game, @Plot.Centered @Plot.Size(x = 64, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ();
+        final int cx = o.getX();
+        final int cz = o.getZ();
         final int floorY = o.getY();
         final int surface = floorY + 9; // deep-water surface (floor at floorY → 9 deep)
         final int spanX = 24; // E-W open-water crossing length

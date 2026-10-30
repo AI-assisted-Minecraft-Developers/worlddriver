@@ -275,13 +275,17 @@ public final class AutoSwim {
         // by horizontal distance. Scanning low→high per column and keeping the lowest
         // hit means a shallow beach is always preferred over a tall cliff edge.
         for (int r = 1; r <= SHORE_SCAN_R; r++) {
-            int bestY = Integer.MAX_VALUE, bestD = Integer.MAX_VALUE, bdx = 0, bdz = 0;
+            int bestY = Integer.MAX_VALUE;
+            int bestD = Integer.MAX_VALUE;
+            int bdx = 0;
+            int bdz = 0;
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
                         continue; // this ring only
                     }
-                    int x = bx + dx, z = bz + dz;
+                    int x = bx + dx;
+                    int z = bz + dz;
                     for (int y = by - SHORE_DOWN; y <= by + SHORE_UP; y++) {
                         BlockPos foot = new BlockPos(x, y, z);
                         BlockPos below = new BlockPos(x, y - 1, z);

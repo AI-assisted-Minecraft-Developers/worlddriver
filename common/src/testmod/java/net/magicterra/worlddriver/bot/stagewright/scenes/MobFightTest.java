@@ -94,7 +94,9 @@ class MobFightTest {
     void serverEarnsABlazeRod(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
 
         Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, 0, 0);
@@ -113,7 +115,8 @@ class MobFightTest {
         // all-zero run out of reach even if the true rate is half that, and the per-kill tally is recorded
         // so a future red says which of the two explanations it is.
         final int kills = 24;
-        int rods = 0, killed = 0;
+        int rods = 0;
+        int killed = 0;
         StringBuilder tally = new StringBuilder();
         for (int i = 0; i < kills; i++) {
             // One server task per kill: the bot, the blaze's own tick and its re-pin in lockstep.
@@ -184,7 +187,9 @@ class MobFightTest {
     void serverDamagesTheDragon(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
 
         Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, 0, 0);
@@ -276,7 +281,9 @@ class MobFightTest {
     void serverFightsAFlyingBlaze(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 32, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.at(0, -8, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
 
         Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, -8, 0);
@@ -299,7 +306,8 @@ class MobFightTest {
 
         // Round 2: the same fight in a closed room — what a player does at a spawner: not a new engine verb,
         // a different room.
-        final int rr = 5, hh = 4;
+        final int rr = 5;
+        final int hh = 4;
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             for (int dx = -rr; dx <= rr; dx++) {
@@ -375,7 +383,9 @@ class MobFightTest {
     void serverFutileGateUnderACreepingGoal(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 100, z = 32) Plot plot, TestReporter reporter) {
         BlockPos o = plot.at(0, plot.min().getY() + 4, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
 
         Settings settings = Settings.pin(game)
                 .set("navigatorDebug", false)
@@ -397,7 +407,10 @@ class MobFightTest {
                     creepArm(bot, level, "creepRetarget", cx, floorY, cz, 2, true),
                     chaseArm(bot, level, cx, floorY, cz));
         });
-        ArmReading still = arms.get(0), setGoalArm = arms.get(1), retargetArm = arms.get(2), chase = arms.get(3);
+        ArmReading still = arms.get(0);
+        ArmReading setGoalArm = arms.get(1);
+        ArmReading retargetArm = arms.get(2);
+        ArmReading chase = arms.get(3);
         reporter.publishEntry("gate.still", still.line());
         reporter.publishEntry("gate.creepSetGoal", setGoalArm.line());
         reporter.publishEntry("gate.creepRetarget", retargetArm.line());
@@ -615,7 +628,8 @@ class MobFightTest {
         follow(bot, cx + 0.5, floorY + 1, cz + 0.5, 2); // every arm starts from the same cell
         int regoals = 1;
         int firstTerminal = -1;
-        String firstError = null, verdict = null;
+        String firstError = null;
+        String verdict = null;
         boolean noRoute = false;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
@@ -731,18 +745,23 @@ class MobFightTest {
 
         private final SceneBot bot;
         private final ServerPlayer fp;
-        private final int floorY, budget;
+        private final int floorY;
+        private final int budget;
         private final String tag;
         private final Blaze blaze;
         private final ServerLevel level;
-        private final int cx, cz;
+        private final int cx;
+        private final int cz;
         /** The evidence, published by the test once the round is over. */
         final Map<String, String> rows = new LinkedHashMap<>();
 
         private double highest;
         private int t;
-        private long worstIter, workNanos, worstPump;
-        private int worstAt = -1, serverTicks;
+        private long worstIter;
+        private long workNanos;
+        private long worstPump;
+        private int worstAt = -1;
+        private int serverTicks;
 
         private Map<String, Long> futileAtFall;
         private int fellAt = -1;
@@ -981,7 +1000,9 @@ class MobFightTest {
     void serverBlazeFightStopsWhenTheBodyFallsOut(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 232, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.at(0, plot.max().getY() - 20, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         final int padY = floorY - 200;
 
         // The same untimed budgets the real fight uses. Staging the fall under a budget the real fight does not
@@ -994,7 +1015,8 @@ class MobFightTest {
 
         // Push after a while of fighting, or once the blaze is at half health, whichever comes first:
         // a bot that wins before the push leaves nothing to stage.
-        final int pushAfter = 200, pushNoEarlierThan = 20;
+        final int pushAfter = 200;
+        final int pushNoEarlierThan = 20;
         Settings budgets = Settings.save(game);
         BlazeFightRun run = game.onServer(s -> new BlazeFightRun(
                 game, settings, budgets, s.getLevel(plot.dimension()), bot, cx, cz, floorY, 3_000, "fell"));
@@ -1065,12 +1087,15 @@ class MobFightTest {
     void serverEarnsAnEnderPearl(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
 
         Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, 0, 0);
         // A lid and four walls, five high — tall enough for an enderman; they keep the fight in one place.
-        final int r = 5, h = 5;
+        final int r = 5;
+        final int h = 5;
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             for (int dx = -r; dx <= r; dx++) {
@@ -1092,7 +1117,9 @@ class MobFightTest {
 
         final int fights = 6;
         final int fightTicks = 4_000;
-        int killed = 0, pearls = 0, slow = 0;
+        int killed = 0;
+        int pearls = 0;
+        int slow = 0;
         StringBuilder tally = new StringBuilder();
         StringBuilder ticks = new StringBuilder();
         String[] stalls = {null};
@@ -1205,7 +1232,9 @@ class MobFightTest {
     @Test
     void autoFightAttacksAHostileInReach(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);

@@ -48,7 +48,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     private int breakingTicks;
     private int placeTicks;
     private String breakStartId = "";
-    private int broken, placed, skipped;
+    private int broken;
+    private int placed;
+    private int skipped;
     /**
      * Cells the latest scan found work for but no stand to work from. Not blacklisted, because clearing a neighbour can
      * open a stand; whatever the final scan still counts was never done.

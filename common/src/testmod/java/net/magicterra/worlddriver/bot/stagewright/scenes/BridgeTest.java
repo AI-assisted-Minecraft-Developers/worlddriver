@@ -168,7 +168,8 @@ class BridgeTest {
             // snapshotted — arrive-failures wedge long before the terminal, and the end-of-run trail only shows the
             // FAILED epilogue.
             String pinWindow = null;
-            double spx = 0, spz = 0;
+            double spx = 0;
+            double spz = 0;
             int staticTicks = 0;
             // Inventory-delta events: the material-contract tests fail on END-state bag counts with no way to tell
             // WHEN/WHERE the blocks went — a planned foothold spends 1-2 at the face, a stall-recovery rung spends one
@@ -537,7 +538,8 @@ class BridgeTest {
      */
     private static void stairGap(Game game, Plot plot, String name, int drop, boolean expectThrough) {
         liveStack(game);
-        int hi = DECK + 8, lo = hi - drop;
+        int hi = DECK + 8;
+        int lo = hi - drop;
         pad(plot, -2, hi, 0);
         strip(plot, 0, 11, hi, 0);
         strip(plot, 12, 24, lo, 0); // resume ADJACENT to the lip (x=12) — a Fall edge is dx=1;

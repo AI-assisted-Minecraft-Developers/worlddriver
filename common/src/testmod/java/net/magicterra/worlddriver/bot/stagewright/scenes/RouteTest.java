@@ -97,10 +97,14 @@ class RouteTest {
 
     /** How many of {@code mobs} stand within {@code r} of the cell's centre: the definition of a cluster cell. */
     private static int clusterCount(List<Vec3> mobs, BlockPos p, double r) {
-        double x = p.getX() + 0.5, y = p.getY(), z = p.getZ() + 0.5;
+        double x = p.getX() + 0.5;
+        double y = p.getY();
+        double z = p.getZ() + 0.5;
         int n = 0;
         for (Vec3 m : mobs) {
-            double dx = x - m.x, dy = y - m.y, dz = z - m.z;
+            double dx = x - m.x;
+            double dy = y - m.y;
+            double dz = z - m.z;
             if (dx * dx + dy * dy + dz * dz <= r * r) {
                 n++;
             }
@@ -150,8 +154,10 @@ class RouteTest {
         plot.fill(10, y + 1, -7, 10, y + 3, -5, Blocks.STONE);
         plot.fill(10, y + 1, -3, 10, y + 3, 3, Blocks.STONE);
         plot.fill(10, y + 1, 5, 10, y + 3, 7, Blocks.STONE);
-        BlockPos penGap = plot.at(10, y + 1, 4), freeGap = plot.at(10, y + 1, -4);
-        BlockPos start = plot.at(0, y + 1, 0), goal = plot.at(20, y + 1, 0);
+        BlockPos penGap = plot.at(10, y + 1, 4);
+        BlockPos freeGap = plot.at(10, y + 1, -4);
+        BlockPos start = plot.at(0, y + 1, 0);
+        BlockPos goal = plot.at(20, y + 1, 0);
         SceneBot bot = SceneBot.spawn(game, start);
         List<Vec3> zombies = game.onServer(s -> {
             List<Vec3> at = new ArrayList<>();
@@ -206,9 +212,11 @@ class RouteTest {
         plot.fill(2, y + 1, -1, 18, y + 3, -1, Blocks.STONE);
         plot.fill(20, y + 1, 8, 20, y + 3, 8, Blocks.STONE);
         BlockPos skeletonAt = plot.at(20, y + 4, 8);
-        BlockPos start = plot.at(0, y + 1, 0), goal = plot.at(20, y + 1, 0);
+        BlockPos start = plot.at(0, y + 1, 0);
+        BlockPos goal = plot.at(20, y + 1, 0);
         BlockPos shadowGoal = plot.at(18, y + 1, -3);
-        final int cx = plot.origin().getX(), cz = plot.origin().getZ();
+        final int cx = plot.origin().getX();
+        final int cz = plot.origin().getZ();
 
         SceneBot bot = SceneBot.spawn(game, start);
         int skeletonId = game.onServer(s -> {
@@ -233,7 +241,8 @@ class RouteTest {
         DebugContracts.SinglePlan hugged = plan(bot, start, goal, avoid);
         int[] seenCells = game.onServer(s -> {
             Mob skeleton = (Mob) bot.level().getEntity(skeletonId);
-            int plainSeen = 0, huggedSeen = 0;
+            int plainSeen = 0;
+            int huggedSeen = 0;
             for (BlockPos p : path(plain)) {
                 if (inView(bot.level(), skeleton, p, range)) {
                     plainSeen++;
@@ -246,7 +255,8 @@ class RouteTest {
             }
             return new int[] {plainSeen, huggedSeen};
         });
-        int plainSeen = seenCells[0], huggedSeen = seenCells[1];
+        int plainSeen = seenCells[0];
+        int huggedSeen = seenCells[1];
         reporter.publishEntry(
                 "straight", "cells=" + plain.pathLen() + " exposed " + plainSeen + ": " + cells(path(plain)));
         reporter.publishEntry(
@@ -272,7 +282,8 @@ class RouteTest {
 
         // Now walk it: the bot drives the avoid route over real server ticks while the skeleton's view is sampled.
         bot.goTo(Targets.block(goal), avoid);
-        final int[] ticks = {0}, seen = {0};
+        final int[] ticks = {0};
+        final int[] seen = {0};
         final StringBuilder trace = new StringBuilder();
         game.await().within(700).as("the walk ends").until(() -> {
             ticks[0]++;
@@ -335,15 +346,19 @@ class RouteTest {
         Settings.pin(game).set("allowBreak", false).set("allowPlace", false);
         final int y = 0;
         slab(plot, y, -2, 30, -6, 6);
-        final int wallDx = 18, buildAtDx = 4;
-        final int cx = plot.origin().getX(), wallX = cx + wallDx, buildAtX = cx + buildAtDx;
+        final int wallDx = 18;
+        final int buildAtDx = 4;
+        final int cx = plot.origin().getX();
+        final int wallX = cx + wallDx;
+        final int buildAtX = cx + buildAtDx;
         BlockPos goal = plot.at(28, y + 1, 0);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, y + 1, 0));
         // The whole walk inside one server task, the wall going up between two of the bot's ticks.
         Walled w = game.onServer(s -> {
             ServerPlayer fp = bot.player();
             bot.goTo(Targets.block(goal));
-            boolean walled = false, busy = true;
+            boolean walled = false;
+            boolean busy = true;
             double replannedAtX = Double.NaN;
             BotDebugContracts.NavigatorReading nav = bot.navigator();
             for (int t = 0; t < 600 && busy; t++) {

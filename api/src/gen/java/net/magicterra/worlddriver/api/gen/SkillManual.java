@@ -70,7 +70,8 @@ final class SkillManual {
     }
 
     private static void method(StringBuilder out, MethodSpec<?, ?> m, TsContext ts) {
-        String in = m.input().ts(ts), res = m.output().ts(ts);
+        String in = m.input().ts(ts);
+        String res = m.output().ts(ts);
         out.append("\n### `")
                 .append(m.name())
                 .append("`\n\n")
@@ -138,7 +139,8 @@ final class SkillManual {
     private static String typeOf(ApiType<?> type, TsContext ts) {
         String name = "`" + type.ts(ts) + "`";
         JsonObject s = type.schema();
-        JsonElement lo = s.get("minimum"), hi = s.get("maximum");
+        JsonElement lo = s.get("minimum");
+        JsonElement hi = s.get("maximum");
         if (lo == null && hi == null) {
             return name;
         }

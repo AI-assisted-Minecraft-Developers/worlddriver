@@ -40,7 +40,8 @@ public final class PathChartRenderer {
     private static final Color YAW_TARGET = new Color(230, 200, 90);
 
     public static BufferedImage render(PathSession s, Opts opts) {
-        int W = opts.width(), H = opts.height();
+        int W = opts.width();
+        int H = opts.height();
         BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -52,7 +53,9 @@ public final class PathChartRenderer {
         int mapH = (H - header) * 55 / 100;
         int elevH = (H - header) * 20 / 100;
         int tsH = (H - header) - mapH - elevH;
-        int mapY = header, elevY = header + mapH, tsY = elevY + elevH;
+        int mapY = header;
+        int elevY = header + mapH;
+        int tsY = elevY + elevH;
 
         drawHeader(g, s, W, header);
         drawMap(g, s, opts, 0, mapY, W, mapH);
@@ -96,8 +99,10 @@ public final class PathChartRenderer {
     private static void drawMap(Graphics2D g, PathSession s, Opts opts, int x0, int y0, int w, int h) {
         g.setColor(PANEL);
         g.fillRect(x0, y0, w, h);
-        double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
-        double minZ = Double.POSITIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double minZ = Double.POSITIVE_INFINITY;
+        double maxZ = Double.NEGATIVE_INFINITY;
         for (PathSession.Candidate c : s.candidates()) {
             minX = Math.min(minX, c.x());
             maxX = Math.max(maxX, c.x());
@@ -129,16 +134,21 @@ public final class PathChartRenderer {
         maxX += pad;
         minZ -= pad;
         maxZ += pad;
-        double spanX = Math.max(1, maxX - minX), spanZ = Math.max(1, maxZ - minZ);
+        double spanX = Math.max(1, maxX - minX);
+        double spanZ = Math.max(1, maxZ - minZ);
         double scale = Math.min((w - 20) / spanX, (h - 20) / spanZ);
-        final double fMinX = minX, fMinZ = minZ, fScale = scale;
-        final int fx0 = x0 + 10, fy0 = y0 + 10;
+        final double fMinX = minX;
+        final double fMinZ = minZ;
+        final double fScale = scale;
+        final int fx0 = x0 + 10;
+        final int fy0 = y0 + 10;
         java.util.function.DoubleUnaryOperator px = wx -> fx0 + (wx - fMinX) * fScale;
         java.util.function.DoubleUnaryOperator pz = wz -> fy0 + (wz - fMinZ) * fScale;
 
         // candidate heat
         if (opts.includeCandidates() && !s.candidates().isEmpty()) {
-            double gmin = Double.POSITIVE_INFINITY, gmax = Double.NEGATIVE_INFINITY;
+            double gmin = Double.POSITIVE_INFINITY;
+            double gmax = Double.NEGATIVE_INFINITY;
             for (PathSession.Candidate c : s.candidates()) {
                 gmin = Math.min(gmin, c.g());
                 gmax = Math.max(gmax, c.g());
@@ -147,7 +157,8 @@ public final class PathChartRenderer {
             for (PathSession.Candidate c : s.candidates()) {
                 float t = (float) ((c.g() - gmin) / gspan);
                 g.setColor(new Color(60 + (int) (150 * t), 60, 160 - (int) (120 * t), 90));
-                int cx = (int) px.applyAsDouble(c.x()), cz = (int) pz.applyAsDouble(c.z());
+                int cx = (int) px.applyAsDouble(c.x());
+                int cz = (int) pz.applyAsDouble(c.z());
                 g.fillRect(cx, cz, 2, 2);
             }
         }
@@ -183,8 +194,8 @@ public final class PathChartRenderer {
                     6);
         }
         if (s.goalMarker() != null) {
-            double gx = px.applyAsDouble(s.goalMarker().getX() + 0.5),
-                    gz = pz.applyAsDouble(s.goalMarker().getZ() + 0.5);
+            double gx = px.applyAsDouble(s.goalMarker().getX() + 0.5);
+            double gz = pz.applyAsDouble(s.goalMarker().getZ() + 0.5);
             boolean reached = lastPlan(s) != null && lastPlan(s).goalReached();
             marker(g, GOAL, gx, gz, 6);
             if (!reached) {
@@ -214,7 +225,8 @@ public final class PathChartRenderer {
             java.util.function.DoubleUnaryOperator px,
             java.util.function.DoubleUnaryOperator pz) {
         for (int i = 1; i < path.size(); i++) {
-            BlockPos a = path.get(i - 1), b = path.get(i);
+            BlockPos a = path.get(i - 1);
+            BlockPos b = path.get(i);
             g.draw(new Line2D.Double(
                     px.applyAsDouble(a.getX() + 0.5),
                     pz.applyAsDouble(a.getZ() + 0.5),
@@ -230,7 +242,8 @@ public final class PathChartRenderer {
             java.util.function.DoubleUnaryOperator pz) {
         g.setStroke(new BasicStroke(2.0f));
         for (int i = 1; i < tr.size(); i++) {
-            PathTrace.NavigatorSample a = tr.get(i - 1), b = tr.get(i);
+            PathTrace.NavigatorSample a = tr.get(i - 1);
+            PathTrace.NavigatorSample b = tr.get(i);
             double bps = speedBetween(a, b);
             g.setColor(speedColor(bps));
             g.draw(new Line2D.Double(
@@ -253,12 +266,14 @@ public final class PathChartRenderer {
         int stepEvery = Math.max(1, n / 30);
         for (int i = 0; i < n; i += stepEvery) {
             PathTrace.NavigatorSample t = tr.get(i);
-            double ox = px.applyAsDouble(t.x()), oz = pz.applyAsDouble(t.z());
+            double ox = px.applyAsDouble(t.x());
+            double oz = pz.applyAsDouble(t.z());
             // actual heading (yaw): MC yaw 0=+Z, 90=-X. dx=-sin(yaw), dz=cos(yaw)
             double ar = Math.toRadians(t.yawActual());
             arrow(g, YAW_ACTUAL, ox, oz, -Math.sin(ar), Math.cos(ar), 10);
             if (!Double.isNaN(t.targetX())) {
-                double dx = t.targetX() - t.x(), dz = t.targetZ() - t.z();
+                double dx = t.targetX() - t.x();
+                double dz = t.targetZ() - t.z();
                 double len = Math.hypot(dx, dz);
                 if (len > 1e-3) {
                     arrow(g, YAW_TARGET, ox, oz, dx / len, dz / len, 10);
@@ -270,7 +285,8 @@ public final class PathChartRenderer {
     private static void arrow(Graphics2D g, Color c, double ox, double oz, double dx, double dz, double len) {
         g.setColor(c);
         g.setStroke(new BasicStroke(1.4f));
-        double ex = ox + dx * len, ez = oz + dz * len;
+        double ex = ox + dx * len;
+        double ez = oz + dz * len;
         g.draw(new Line2D.Double(ox, oz, ex, ez));
     }
 
@@ -289,7 +305,8 @@ public final class PathChartRenderer {
 
         List<PathTrace.NavigatorSample> tr = s.trajectory();
         PathSession.PlannedRoute plan = lastPlan(s);
-        double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
         for (PathTrace.NavigatorSample t : tr) {
             minY = Math.min(minY, t.y());
             maxY = Math.max(maxY, t.y());
@@ -306,9 +323,12 @@ public final class PathChartRenderer {
         if (maxY - minY < 1) {
             maxY = minY + 1;
         }
-        int top = y0 + 22, bot = y0 + h - 10;
-        final double fMinY = minY, fMaxY = maxY;
-        final int ftop = top, fbot = bot;
+        int top = y0 + 22;
+        int bot = y0 + h - 10;
+        final double fMinY = minY;
+        final double fMaxY = maxY;
+        final int ftop = top;
+        final int fbot = bot;
         java.util.function.DoubleUnaryOperator py = wy -> fbot - (wy - fMinY) / (fMaxY - fMinY) * (fbot - ftop);
 
         if (plan != null && plan.path().size() > 1) {
@@ -361,7 +381,8 @@ public final class PathChartRenderer {
         g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
         g.drawString("speed (b/s)  refs: sprint~5.6 walk~4.3", x0 + 12, y0 + 14);
         List<PathTrace.NavigatorSample> tr = s.trajectory();
-        int top = y0 + 20, bot = y0 + h - 6;
+        int top = y0 + 20;
+        int bot = y0 + h - 6;
         double maxV = 6.5;
         g.setColor(GRID);
         g.setStroke(new BasicStroke(1f));
@@ -375,7 +396,8 @@ public final class PathChartRenderer {
         g.setColor(new Color(110, 200, 255));
         g.setStroke(new BasicStroke(1.6f));
         // One speed value per interval i (between sample i-1 and i); step plot.
-        double prevX = Double.NaN, prevY = Double.NaN;
+        double prevX = Double.NaN;
+        double prevY = Double.NaN;
         for (int i = 1; i < tr.size(); i++) {
             double bps = Math.min(maxV, speedBetween(tr.get(i - 1), tr.get(i)));
             double xL = x0 + 12 + (double) (i - 1) / (tr.size() - 1) * (w - 24);
@@ -397,7 +419,8 @@ public final class PathChartRenderer {
         g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
         g.drawString("heading: actual yaw (green) vs target bearing (yellow), -180..180", x0 + 12, y0 + 14);
         List<PathTrace.NavigatorSample> tr = s.trajectory();
-        int top = y0 + 20, bot = y0 + h - 6;
+        int top = y0 + 20;
+        int bot = y0 + h - 6;
         java.util.function.DoubleUnaryOperator py = v -> bot - (v + 180) / 360.0 * (bot - top);
         g.setColor(GRID);
         g.draw(new Line2D.Double(x0 + 12, py.applyAsDouble(0), x0 + w - 12, py.applyAsDouble(0)));
@@ -418,7 +441,8 @@ public final class PathChartRenderer {
             boolean actual) {
         g.setColor(c);
         g.setStroke(new BasicStroke(1.4f));
-        double prevX = Double.NaN, prevY = Double.NaN;
+        double prevX = Double.NaN;
+        double prevY = Double.NaN;
         double prevVal = Double.NaN;
         for (int i = 0; i < tr.size(); i++) {
             // NB: keep this as separate statements — a `actual ? (double)x : Double`
@@ -454,7 +478,8 @@ public final class PathChartRenderer {
     }
 
     private static double horiz(BlockPos a, BlockPos b) {
-        double dx = a.getX() - b.getX(), dz = a.getZ() - b.getZ();
+        double dx = a.getX() - b.getX();
+        double dz = a.getZ() - b.getZ();
         return Math.hypot(dx, dz);
     }
 
@@ -482,7 +507,8 @@ public final class PathChartRenderer {
     }
 
     private static double[] speedStats(List<PathTrace.NavigatorSample> tr) {
-        double sum = 0, peak = 0;
+        double sum = 0;
+        double peak = 0;
         int n = 0;
         for (int i = 1; i < tr.size(); i++) {
             double v = speedBetween(tr.get(i - 1), tr.get(i));
@@ -497,7 +523,8 @@ public final class PathChartRenderer {
         if (Double.isNaN(t.targetX())) {
             return null;
         }
-        double dx = t.targetX() - t.x(), dz = t.targetZ() - t.z();
+        double dx = t.targetX() - t.x();
+        double dz = t.targetZ() - t.z();
         // The recorded target is the current WAYPOINT centre; as the bot reaches/passes
         // it the bearing degenerates and flips ~180° (a node-passage artifact, not a real
         // heading error). Skip samples within ~0.75 blk (just past the step-advance gate)
@@ -539,7 +566,8 @@ public final class PathChartRenderer {
      * Headless-safe (AWT, like {@link #render}).
      */
     public static BufferedImage renderThreeView(PathSession s, Opts opts) {
-        int W = opts.width(), H = opts.height();
+        int W = opts.width();
+        int H = opts.height();
         BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -559,19 +587,26 @@ public final class PathChartRenderer {
             return img;
         }
         double pad = 2;
-        double minX = b[0] - pad, minY = b[2] - pad, minZ = b[4] - pad;
+        double minX = b[0] - pad;
+        double minY = b[2] - pad;
+        double minZ = b[4] - pad;
         double spanX = Math.max(1, (b[1] + pad) - minX);
         double spanY = Math.max(1, (b[3] + pad) - minY);
         double spanZ = Math.max(1, (b[5] + pad) - minZ);
 
-        int gap = 10, m = 26; // m = inner panel margin for axis labels
+        int gap = 10;
+        int m = 26; // m = inner panel margin for axis labels
         int contentY = header + gap;
         int colW = (W - 3 * gap) / 2;
         int rowH = (H - header - 3 * gap) / 2;
-        int frontX = gap, frontY = contentY; // X/Y  top-left
-        int sideX = gap * 2 + colW, sideY = contentY; // Z/Y  top-right (shares Y with FRONT)
-        int topX = gap, topY = contentY + rowH + gap; // X/Z  bottom-left (shares X with FRONT)
-        int legX = gap * 2 + colW, legY = contentY + rowH + gap; // legend/stats bottom-right
+        int frontX = gap;
+        int frontY = contentY; // X/Y  top-left
+        int sideX = gap * 2 + colW;
+        int sideY = contentY; // Z/Y  top-right (shares Y with FRONT)
+        int topX = gap;
+        int topY = contentY + rowH + gap; // X/Z  bottom-left (shares X with FRONT)
+        int legX = gap * 2 + colW;
+        int legY = contentY + rowH + gap; // legend/stats bottom-right
 
         // Shared anisotropic scales (px per block): X & Z horizontal, Y magnified.
         double scaleX = (colW - 2 * m) / spanX;
@@ -640,8 +675,14 @@ public final class PathChartRenderer {
         g.setColor(GRID);
         g.setStroke(new BasicStroke(1f));
         g.drawRect(px, py, pw - 1, ph - 1);
-        final int fpx = px, fpy = py, fph = ph, fm = m;
-        final double fhMin = hMin, fhScale = hScale, fvMin = vMin, fvScale = vScale;
+        final int fpx = px;
+        final int fpy = py;
+        final int fph = ph;
+        final int fm = m;
+        final double fhMin = hMin;
+        final double fhScale = hScale;
+        final double fvMin = vMin;
+        final double fvScale = vScale;
         final boolean fvUp = vUp;
         java.util.function.DoubleUnaryOperator hx = wh -> fpx + fm + (wh - fhMin) * fhScale;
         java.util.function.DoubleUnaryOperator vy =
@@ -667,7 +708,8 @@ public final class PathChartRenderer {
                                     : new BasicStroke(1.0f));
             List<BlockPos> path = r.path();
             for (int k = 1; k < path.size(); k++) {
-                BlockPos a = path.get(k - 1), c = path.get(k);
+                BlockPos a = path.get(k - 1);
+                BlockPos c = path.get(k);
                 g.draw(new Line2D.Double(
                         hx.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, hAxis)),
                         vy.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, vAxis)),
@@ -679,7 +721,8 @@ public final class PathChartRenderer {
         List<PathTrace.NavigatorSample> tr = s.trajectory();
         g.setStroke(new BasicStroke(2.0f));
         for (int k = 1; k < tr.size(); k++) {
-            PathTrace.NavigatorSample a = tr.get(k - 1), c = tr.get(k);
+            PathTrace.NavigatorSample a = tr.get(k - 1);
+            PathTrace.NavigatorSample c = tr.get(k);
             g.setColor(speedColor(speedBetween(a, c)));
             g.draw(new Line2D.Double(
                     hx.applyAsDouble(coord(a.x(), a.y(), a.z(), hAxis)),
@@ -744,7 +787,8 @@ public final class PathChartRenderer {
         g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
         g.drawString("PLAN  vs  ACTUAL", px + 14, py + 24);
         g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        int lx = px + 18, yy = py + 50;
+        int lx = px + 18;
+        int yy = py + 50;
         Object[][] rows = {
             {PLAN_LATEST, "plan — latest route"},
             {PLAN_OLD, "plan — earlier replans"},
@@ -794,9 +838,12 @@ public final class PathChartRenderer {
     }
 
     private static double[] bounds3(PathSession s) {
-        double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
-        double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
-        double minZ = Double.POSITIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        double minZ = Double.POSITIVE_INFINITY;
+        double maxZ = Double.NEGATIVE_INFINITY;
         for (PathSession.PlannedRoute r : s.plannedRoutes()) {
             for (BlockPos p : r.path()) {
                 minX = Math.min(minX, p.getX());

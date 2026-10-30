@@ -22,7 +22,12 @@ import net.minecraft.world.phys.AABB;
  * z.
  */
 public final class RegionSnapshot {
-    public final int minX, minY, minZ, sx, sy, sz;
+    public final int minX;
+    public final int minY;
+    public final int minZ;
+    public final int sx;
+    public final int sy;
+    public final int sz;
     private final BlockState[] states;
     private final CompoundTag[] beTags; // null entry == no block entity at that cell
     private final ResourceKey<Level> dimension;
@@ -124,7 +129,8 @@ public final class RegionSnapshot {
         if (!withEntities) {
             return new EntityOutcome(0, 0);
         }
-        int removed = 0, restored = 0;
+        int removed = 0;
+        int restored = 0;
         for (Entity e : level.getEntities((Entity) null, box(), x -> !(x instanceof Player))) {
             e.discard();
             removed++;

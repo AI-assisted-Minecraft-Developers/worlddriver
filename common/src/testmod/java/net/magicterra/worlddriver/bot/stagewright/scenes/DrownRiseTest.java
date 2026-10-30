@@ -199,7 +199,8 @@ class DrownRiseTest {
     private static void breaksTheLid(
             Game game, Client client, Player player, Plot plot, TestReporter reporter, int underFoot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int ox = o.getX(), oz = o.getZ();
+        final int ox = o.getX();
+        final int oz = o.getZ();
         final int y0 = o.getY(); // the pocket's floor
         final BlockPos foot = new BlockPos(ox, y0, oz);
         final BlockPos head = new BlockPos(ox, y0 + 1, oz);
@@ -371,7 +372,8 @@ class DrownRiseTest {
             boolean pinNeighbour,
             boolean armed) {
         BlockPos o = plot.at(0, 0, 0);
-        final int ox = o.getX(), oz = o.getZ();
+        final int ox = o.getX();
+        final int oz = o.getZ();
         final int y0 = o.getY(); // the water's floor
         // Where the bot stands. Centred for an open arm; for the pinned arm, deliberately hard
         // against a cell boundary so the bounding box (width 0.6) straddles TWO columns: at

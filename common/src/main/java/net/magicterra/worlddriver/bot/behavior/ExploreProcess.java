@@ -15,7 +15,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 public final class ExploreProcess implements BotProcess, Navigating {
-    private final int centerChunkX, centerChunkZ;
+    private final int centerChunkX;
+    private final int centerChunkZ;
     private final int maxChunks;
     private final Set<Long> visited = new HashSet<>();
     private final Navigator navigator = new Navigator(NavigatorSettings.named("explore"));
@@ -27,7 +28,8 @@ public final class ExploreProcess implements BotProcess, Navigating {
 
     private int visitedCount;
     private BlockPos currentChunkCenter;
-    private int currentChunkX, currentChunkZ;
+    private int currentChunkX;
+    private int currentChunkZ;
 
     public ExploreProcess(int centerBlockX, int centerBlockZ, int maxChunks) {
         this.centerChunkX = centerBlockX >> 4;
@@ -122,7 +124,8 @@ public final class ExploreProcess implements BotProcess, Navigating {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
                         continue;
                     }
-                    int cx = centerChunkX + dx, cz = centerChunkZ + dz;
+                    int cx = centerChunkX + dx;
+                    int cz = centerChunkZ + dz;
                     long key = chunkKey(cx, cz);
                     if (visited.contains(key)) {
                         continue;

@@ -123,7 +123,8 @@ class SafetyGuardRepathTest {
                         + ") does not match its current wording. Rim walk: " + walk.line() + " | livelock: "
                         + lock.line());
 
-        int walkCells = cellsIn(walk.line()), lockCells = cellsIn(lock.line());
+        int walkCells = cellsIn(walk.line());
+        int lockCells = cellsIn(lock.line());
         assertEquals(
                 1,
                 lockCells,

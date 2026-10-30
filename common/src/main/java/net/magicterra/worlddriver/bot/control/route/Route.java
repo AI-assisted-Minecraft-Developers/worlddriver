@@ -339,9 +339,9 @@ public final class Route {
     }
 
     private static boolean beyondReach(BlockPos at, LivingEntity body) {
-        double dx = at.getX() + 0.5 - body.getX(),
-                dy = at.getY() + 0.5 - body.getEyeY(),
-                dz = at.getZ() + 0.5 - body.getZ();
+        double dx = at.getX() + 0.5 - body.getX();
+        double dy = at.getY() + 0.5 - body.getEyeY();
+        double dz = at.getZ() + 0.5 - body.getZ();
         return dx * dx + dy * dy + dz * dz > OWN_REACH_SQ;
     }
 
@@ -361,16 +361,22 @@ public final class Route {
      * floor, feet or head row — or -1.
      */
     private static int legInTheWay(List<BlockPos> nodes, int from, BlockPos at) {
-        double cx = at.getX() + 0.5, cz = at.getZ() + 0.5;
+        double cx = at.getX() + 0.5;
+        double cz = at.getZ() + 0.5;
         for (int i = Math.max(from, 1); i < nodes.size(); i++) {
-            BlockPos a = nodes.get(i - 1), b = nodes.get(i);
+            BlockPos a = nodes.get(i - 1);
+            BlockPos b = nodes.get(i);
             if (at.getY() < Math.min(a.getY(), b.getY()) - 1 || at.getY() > Math.max(a.getY(), b.getY()) + 1) {
                 continue;
             }
-            double ax = a.getX() + 0.5, az = a.getZ() + 0.5, bx = b.getX() + 0.5 - ax, bz = b.getZ() + 0.5 - az;
+            double ax = a.getX() + 0.5;
+            double az = a.getZ() + 0.5;
+            double bx = b.getX() + 0.5 - ax;
+            double bz = b.getZ() + 0.5 - az;
             double len2 = bx * bx + bz * bz;
             double t = len2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((cx - ax) * bx + (cz - az) * bz) / len2));
-            double ex = ax + bx * t - cx, ez = az + bz * t - cz;
+            double ex = ax + bx * t - cx;
+            double ez = az + bz * t - cz;
             if (ex * ex + ez * ez <= IN_THE_WAY * IN_THE_WAY) {
                 return i;
             }

@@ -178,12 +178,16 @@ public final class ElytraController {
      * along the segment so a fast tick can't tunnel a thin wall). Unloaded chunks read as non-solid.
      */
     private static boolean segmentHitsTerrain(WorldView w, Vec3 a, Vec3 b) {
-        double dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        double dx = b.x - a.x;
+        double dy = b.y - a.y;
+        double dz = b.z - a.z;
         double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         int steps = Math.max(1, (int) Math.ceil(len / STEP));
         for (int i = 1; i <= steps; i++) {
             double f = (double) i / steps;
-            double x = a.x + dx * f, y = a.y + dy * f, z = a.z + dz * f;
+            double x = a.x + dx * f;
+            double y = a.y + dy * f;
+            double z = a.z + dz * f;
             if (solidAt(w, x, y, z) || solidAt(w, x, y + 1.0, z)) {
                 return true; // feet + head cell
             }

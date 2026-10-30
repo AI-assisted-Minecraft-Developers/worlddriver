@@ -46,7 +46,9 @@ public final class AutoEquip {
     private static final String[] ARMOR_SLOT_NAME = {"head", "chest", "legs", "feet"};
 
     /** First and last player-inventory menu slots (main inv 9..35 + hotbar 36..44). */
-    private static final int INV_FIRST = 9, INV_LAST = 44;
+    private static final int INV_FIRST = 9;
+
+    private static final int INV_LAST = 44;
     /**
      * A strictly-better score must beat the incumbent by this, so equal gear never ping-pongs tick to tick (mirrors
      * AutoTool's hysteresis).

@@ -61,7 +61,8 @@ public final class RepathPhase {
         // (stuck/wedged/off-path) stay live.
         boolean bridgingNow = false;
         if (ControlConfig.navigatorBridgeHoldRepath) {
-            Move.Edge cbE = nav.route.edgeAt(nav.route.step()), nbE = nav.route.edgeAt(nav.route.step() + 1);
+            Move.Edge cbE = nav.route.edgeAt(nav.route.step());
+            Move.Edge nbE = nav.route.edgeAt(nav.route.step() + 1);
             bridgingNow =
                     (cbE != null && "bridgePlace".equals(cbE.move)) || (nbE != null && "bridgePlace".equals(nbE.move));
         }
@@ -203,8 +204,8 @@ public final class RepathPhase {
         if (lead <= 0) {
             return true;
         }
-        double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX(),
-                dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
+        double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX();
+        double dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
     }
 

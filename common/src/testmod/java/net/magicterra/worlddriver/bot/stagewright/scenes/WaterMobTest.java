@@ -42,7 +42,10 @@ class WaterMobTest {
 
     private static final int COURSE = 10;
     /** Where the tank's dividing wall stands, and the first and last pool column. */
-    private static final int WALL_X = 5, POOL_FROM = 4, POOL_TO = 7;
+    private static final int WALL_X = 5;
+
+    private static final int POOL_FROM = 4;
+    private static final int POOL_TO = 7;
     /** Ticks for a fresh mob to be ticked at all. */
     private static final int SETTLE_TICKS = 100;
     /** Ticks a swim gets before the test reads where it got to. */

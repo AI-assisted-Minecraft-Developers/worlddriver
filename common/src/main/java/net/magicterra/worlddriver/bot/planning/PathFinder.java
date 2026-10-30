@@ -162,12 +162,12 @@ public final class PathFinder {
     private static final ThreadLocal<long[]> TICK_SPEND =
             ThreadLocal.withInitial(() -> new long[] {Long.MIN_VALUE, 0L, 0L, 0L, 0L, 0L});
 
-    private static final int TS_MARKER = 0,
-            TS_NANOS = 1,
-            TS_SEARCHES = 2,
-            TS_NEXT_REPORT = 3,
-            TS_TRIPPED = 4,
-            TS_SUPPRESSED = 5;
+    private static final int TS_MARKER = 0;
+    private static final int TS_NANOS = 1;
+    private static final int TS_SEARCHES = 2;
+    private static final int TS_NEXT_REPORT = 3;
+    private static final int TS_TRIPPED = 4;
+    private static final int TS_SUPPRESSED = 5;
 
     /**
      * First per-tick report, and the gap between reports after it.
@@ -690,7 +690,8 @@ public final class PathFinder {
             // survived the filter, and whether it (and SwimDown) yields an edge from
             // the start cell — the live rc-a5c/e/g mystery was invisible without this.
             if (GameConfig.navigatorDebug) {
-                Move surfDive = null, swimDown = null;
+                Move surfDive = null;
+                Move swimDown = null;
                 for (Move m : activeMoves) {
                     if ("swimDownSurface".equals(m.name())) {
                         surfDive = m;
@@ -852,7 +853,8 @@ public final class PathFinder {
                 Map<String, Double> taxes = new LinkedHashMap<>();
                 Move.Edge e = i == 0 ? null : r.edges().get(i);
                 if (e != null) {
-                    BlockPos from = r.path().get(i - 1), to = r.path().get(i);
+                    BlockPos from = r.path().get(i - 1);
+                    BlockPos to = r.path().get(i);
                     for (int m = 0; m < costModifiers.size(); m++) {
                         double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
                         if (v != 0) {
@@ -925,7 +927,8 @@ public final class PathFinder {
             Map<String, Double> totals = taxTotals(r);
             int[] hits = new int[costModifiers.size()];
             for (int i = 1; i < r.path().size(); i++) {
-                BlockPos from = r.path().get(i - 1), to = r.path().get(i);
+                BlockPos from = r.path().get(i - 1);
+                BlockPos to = r.path().get(i);
                 Move.Edge e = r.edges().get(i);
                 if (e == null) {
                     continue;
@@ -2264,7 +2267,9 @@ public final class PathFinder {
         final BlockPos pos;
         Node parent;
         Move.Edge edge; // the edge used to reach this node (null for start)
-        double g, h, f;
+        double g;
+        double h;
+        double f;
         boolean closed;
         /**
          * True when ANY edge on the path to this node breaks a block. The last-resort escape-farthest commit only

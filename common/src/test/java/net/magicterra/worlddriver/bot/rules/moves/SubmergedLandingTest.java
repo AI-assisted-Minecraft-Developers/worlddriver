@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
  * cell the bot can never hold. Neither fall may plan one: an 8-deep channel, the bot floating on its surface.
  */
 class SubmergedLandingTest {
-    private static final int DEPTH = 8, SURFACE = DEPTH;
+    private static final int DEPTH = 8;
+    private static final int SURFACE = DEPTH;
 
     /** Stone floor at y=0, water y=1..{@link #SURFACE} over x 0..15, z -2..2, air above. */
     private static GridWorldView channel() {

@@ -47,7 +47,11 @@ class FlyingMobTest {
      * The hall's inside: x from 0 to {@code HALL}, z from -2 to 2, y from 0 to 7; the wall at {@code HALL_WALL}, 5
      * high.
      */
-    private static final int HALL = 10, HALL_WALL = 5, HALL_TOP = 7, WALL_TOP = 4;
+    private static final int HALL = 10;
+
+    private static final int HALL_WALL = 5;
+    private static final int HALL_TOP = 7;
+    private static final int WALL_TOP = 4;
     /** Ticks for a fresh mob to be ticked at all. */
     private static final int SETTLE_TICKS = 100;
     /** Ticks a flight gets before the test reads where it got to. */

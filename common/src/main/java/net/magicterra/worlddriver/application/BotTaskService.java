@@ -248,7 +248,8 @@ final class BotTaskService implements BotTaskApi {
                         "the box covers more than " + ClearAreaContracts.MAX_CELLS + " cells");
             }
         }
-        String fill = null, only = null;
+        String fill = null;
+        String only = null;
         switch (p.edit()) {
             case Clear c -> {}
             case Fill f -> fill = requireBlock("/edit/block", f.block());
@@ -258,7 +259,8 @@ final class BotTaskService implements BotTaskApi {
             }
         }
         ClearAreaGeometry.Cells fixedBox = box;
-        String fillId = fill, filterFrom = only;
+        String fillId = fill;
+        String filterFrom = only;
         return actions.start(p.bot(), p.awaitMs(), ctx, body -> {
             if (!VerbOrders.hasHands(body)) {
                 return new BodyTaskStarter.Refuse<>(

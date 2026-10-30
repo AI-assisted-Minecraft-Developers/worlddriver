@@ -20,7 +20,10 @@ import org.junit.jupiter.api.Test;
  * lethal (or over-taxes it) shows up here as a route that leaves the goal's z to hug the rim.
  */
 class OpenWaterLakeTest {
-    private static final int GROUND = 20, LEN = 48, HALF = 6, DEPTH = 6;
+    private static final int GROUND = 20;
+    private static final int LEN = 48;
+    private static final int HALF = 6;
+    private static final int DEPTH = 6;
 
     private int horizonBefore;
 

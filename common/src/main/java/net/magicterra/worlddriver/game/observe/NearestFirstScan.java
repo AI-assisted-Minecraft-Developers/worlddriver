@@ -39,7 +39,8 @@ public final class NearestFirstScan {
     }
 
     private static BlockPos[] buildSorted(int radius, int vertRadius) {
-        int nx = 2 * radius + 1, ny = 2 * vertRadius + 1;
+        int nx = 2 * radius + 1;
+        int ny = 2 * vertRadius + 1;
         BlockPos[] offsets = new BlockPos[nx * nx * ny];
         int i = 0;
         for (int dx = -radius; dx <= radius; dx++) {

@@ -52,7 +52,9 @@ public final class Pillar implements Controller {
     private Move.Edge edge;
 
     /** The planned pillar: the path index of its edge, and ticks since its jump (-1 = grounded). */
-    private int edgeStep = -1, sinceJump = -1;
+    private int edgeStep = -1;
+
+    private int sinceJump = -1;
 
     // ---- the recovery pillar ----
     public int recoverLatch; // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond

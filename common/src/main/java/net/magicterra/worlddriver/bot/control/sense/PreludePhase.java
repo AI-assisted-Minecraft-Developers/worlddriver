@@ -47,7 +47,8 @@ public final class PreludePhase {
         // onSearchBegin can fire within the same tick (both sites are below line 451) — so
         // the first segment's NodePhysics and envelope sampling always see a non-null level.
         BotLevelHolder.current = p.level();
-        double tx = Double.NaN, tz = Double.NaN;
+        double tx = Double.NaN;
+        double tz = Double.NaN;
         String mv = null;
         if (nav.route.path() != null
                 && nav.route.step() >= 0

@@ -23,8 +23,10 @@ public final class LoadedCube {
      */
     public static List<ChunkPos> nonAir(
             ServerLevel level, BlockPos center, int radius, BiConsumer<BlockPos, BlockState> cell) {
-        int minCx = (center.getX() - radius) >> 4, maxCx = (center.getX() + radius) >> 4;
-        int minCz = (center.getZ() - radius) >> 4, maxCz = (center.getZ() + radius) >> 4;
+        int minCx = (center.getX() - radius) >> 4;
+        int maxCx = (center.getX() + radius) >> 4;
+        int minCz = (center.getZ() - radius) >> 4;
+        int maxCz = (center.getZ() + radius) >> 4;
         int w = maxCx - minCx + 1;
         LevelChunk[] chunks = new LevelChunk[w * (maxCz - minCz + 1)];
         List<ChunkPos> unloaded = new ArrayList<>();

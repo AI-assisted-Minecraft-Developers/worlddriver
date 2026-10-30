@@ -149,7 +149,8 @@ final class TransportCalls {
             if (!(m.get("result") instanceof JsonObject rm)) {
                 throw new IllegalStateException("MCP result not an object");
             }
-            JsonObject textBlock = null, imageBlock = null;
+            JsonObject textBlock = null;
+            JsonObject imageBlock = null;
             if (rm.get("content") instanceof JsonArray blocks) {
                 for (JsonElement b : blocks) {
                     if (!(b instanceof JsonObject bm)) {

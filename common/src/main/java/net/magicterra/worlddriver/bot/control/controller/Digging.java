@@ -94,7 +94,8 @@ public final class Digging {
         if (nav.route.step() + 1 >= nav.route.path().size()) {
             return;
         }
-        Move.Edge cur = nav.route.edgeAt(nav.route.step()), next = nav.route.edgeAt(nav.route.step() + 1);
+        Move.Edge cur = nav.route.edgeAt(nav.route.step());
+        Move.Edge next = nav.route.edgeAt(nav.route.step() + 1);
         if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) {
             return;
         }

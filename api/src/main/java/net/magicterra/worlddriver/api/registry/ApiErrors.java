@@ -75,7 +75,8 @@ public final class ApiErrors {
         if (!(tree instanceof JsonObject m)) {
             return null;
         }
-        String code = string(m.get("code")), message = string(m.get("message"));
+        String code = string(m.get("code"));
+        String message = string(m.get("message"));
         if (code == null || message == null) {
             return null;
         }
@@ -94,7 +95,9 @@ public final class ApiErrors {
                 if (!(o instanceof JsonObject im)) {
                     continue;
                 }
-                String p = string(im.get("path")), ic = string(im.get("code")), msg = string(im.get("message"));
+                String p = string(im.get("path"));
+                String ic = string(im.get("code"));
+                String msg = string(im.get("message"));
                 if (p == null || ic == null || msg == null) {
                     continue;
                 }

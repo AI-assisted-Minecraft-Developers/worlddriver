@@ -327,7 +327,8 @@ public final class NavigatorGeometry {
      */
     private static List<BlockPos> hopLandingCells(LivingEntity p, BlockPos foot, float driveYaw) {
         double r = Math.toRadians(driveYaw);
-        double dx = -Math.sin(r), dz = Math.cos(r); // Minecraft yaw: 0 = +Z, 90 = -X
+        double dx = -Math.sin(r);
+        double dz = Math.cos(r); // Minecraft yaw: 0 = +Z, 90 = -X
         List<BlockPos> out = new ArrayList<>(HOP_ARC_SAMPLES.length);
         for (double d : HOP_ARC_SAMPLES) {
             out.add(BlockPos.containing(p.getX() + dx * d, foot.getY(), p.getZ() + dz * d));
@@ -475,7 +476,8 @@ public final class NavigatorGeometry {
         if (v < 0.05) {
             return false;
         }
-        double ux = vx / v, uz = vz / v;
+        double ux = vx / v;
+        double uz = vz / v;
         BlockPos last = null;
         for (double s = 0.25; s <= reach; s += 0.25) {
             for (double w = -0.3; w <= 0.3; w += 0.3) {

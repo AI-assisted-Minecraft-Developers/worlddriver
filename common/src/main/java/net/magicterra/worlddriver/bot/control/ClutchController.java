@@ -141,7 +141,8 @@ public final class ClutchController {
         // swallowed (the C21 class: bucket crowded out of the hotbar / the
         // permission flag left off after an env rebuild → MLG dead with zero
         // trace until the death screen).
-        int cx = (int) Math.floor(p.getX()), cz = (int) Math.floor(p.getZ());
+        int cx = (int) Math.floor(p.getX());
+        int cz = (int) Math.floor(p.getZ());
         BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 64);
         if (floor == null) {
             return;
@@ -235,7 +236,8 @@ public final class ClutchController {
                 double nudgeZ = Math.max(-0.04, Math.min(0.04, oz * 0.08));
                 p.setDeltaMovement(v.x * 0.5 + nudgeX, v.y, v.z * 0.5 + nudgeZ);
             }
-            int cx = (int) Math.floor(p.getX()), cz = (int) Math.floor(p.getZ());
+            int cx = (int) Math.floor(p.getX());
+            int cz = (int) Math.floor(p.getZ());
             BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
             if (floor != null) {
                 BlockPos cell = floor.offset(0, 1, 0); // water spawns here

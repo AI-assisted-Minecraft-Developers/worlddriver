@@ -62,7 +62,9 @@ public final class ElytraPhysics {
         double cosP = Math.cos(pitchRad);
         double d5 = cosP * cosP;
 
-        double vx = vel.x, vy = vel.y, vz = vel.z;
+        double vx = vel.x;
+        double vy = vel.y;
+        double vz = vel.z;
         vy += gravity * (-1.0 + d5 * 0.75);
         if (vy < 0.0 && hLook > 0.0) { // dive: redirect fall along look
             double d6 = vy * -0.1 * d5;

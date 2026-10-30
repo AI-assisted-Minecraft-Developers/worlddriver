@@ -86,7 +86,8 @@ public final class ClientInput {
             if (s == null) {
                 return noScreen();
             }
-            double x, y;
+            double x;
+            double y;
             if (p.ref().isPresent()) {
                 // Aimed now, not when the caller read the tree: the widget may have moved since, and
                 // the click goes through the screen at that point exactly as a human's would.

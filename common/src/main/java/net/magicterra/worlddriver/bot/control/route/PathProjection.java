@@ -45,7 +45,9 @@ public final class PathProjection {
      * The point {@code lookahead} blocks ahead that {@link #pursuitYaw} bears on, and the index of the node that ends
      * its segment.
      */
-    public double aheadX, aheadZ;
+    public double aheadX;
+
+    public double aheadZ;
 
     public int aheadNode;
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
@@ -74,7 +76,8 @@ public final class PathProjection {
         int n = path.size();
         int scanEnd = Math.min(n - 1, step + window); // last segment start index considered
         int bestSeg = step;
-        double bestT = 0, bestD2 = Double.POSITIVE_INFINITY;
+        double bestT = 0;
+        double bestD2 = Double.POSITIVE_INFINITY;
         boolean barrier = false;
         // The heading must stop at a barrier too, not just the projection: past a pending traverseBreak it
         // took the 12-block leg beyond it and waded the bot 8 blocks away from the bank (live 1431,62,-355).
@@ -89,10 +92,13 @@ public final class PathProjection {
         // end, 0.30 off the birch at 1418,64,-409 the leg itself clears by 0.71. Barriers still start at step.
         int from = ControlConfig.navigatorProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
         for (int i = from; i < scanEnd; i++) {
-            BlockPos a = path.get(i), b = path.get(i + 1);
+            BlockPos a = path.get(i);
+            BlockPos b = path.get(i + 1);
             aboveReach |= i > step && a.getY() - footY >= 2; // the step's own segment always projects
-            double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
-            double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
+            double ax = a.getX() + 0.5;
+            double az = a.getZ() + 0.5;
+            double vx = (b.getX() + 0.5) - ax;
+            double vz = (b.getZ() + 0.5) - az;
             double len2 = vx * vx + vz * vz;
             double t = len2 < 1e-9 ? 0.0 : ((px - ax) * vx + (pz - az) * vz) / len2;
             if (t < 0) {
@@ -100,7 +106,8 @@ public final class PathProjection {
             } else if (t > 1) {
                 t = 1;
             }
-            double cx = ax + t * vx, cz = az + t * vz;
+            double cx = ax + t * vx;
+            double cz = az + t * vz;
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
             if (d2 < bestD2 && !aboveReach) {
                 bestD2 = d2;
@@ -131,19 +138,22 @@ public final class PathProjection {
         // Cumulative XZ arc-length from path[0] to the projection point.
         double arc = 0;
         for (int i = 0; i < bestSeg; i++) {
-            BlockPos a = path.get(i), b = path.get(i + 1);
+            BlockPos a = path.get(i);
+            BlockPos b = path.get(i + 1);
             arc += Math.hypot(b.getX() - a.getX(), b.getZ() - a.getZ());
         }
         if (bestSeg + 1 < n) {
             // A forward segment exists at bestSeg — add the fractional reach along it.
-            BlockPos a = path.get(bestSeg), b = path.get(bestSeg + 1);
+            BlockPos a = path.get(bestSeg);
+            BlockPos b = path.get(bestSeg + 1);
             arc += bestT * Math.hypot(b.getX() - a.getX(), b.getZ() - a.getZ());
         } else if (Double.isInfinite(bestD2)) {
             // Degenerate: step was already at/past the LAST node (the forward window was empty, no segment to
             // project onto). Pin the projection to the final node and measure perp to it — never index past
             // the end (the OOB that crashed walk 2 when the bot smoothly reached a segment's final node).
             BlockPos last = path.get(n - 1);
-            double dxl = (last.getX() + 0.5) - px, dzl = (last.getZ() + 0.5) - pz;
+            double dxl = (last.getX() + 0.5) - px;
+            double dzl = (last.getZ() + 0.5) - pz;
             bestD2 = dxl * dxl + dzl * dzl;
         }
         this.segIdx = bestSeg;
@@ -155,7 +165,8 @@ public final class PathProjection {
         this.aheadX = ahead[0];
         this.aheadZ = ahead[1];
         this.aheadNode = (int) ahead[2];
-        double adx = ahead[0] - px, adz = ahead[1] - pz;
+        double adx = ahead[0] - px;
+        double adz = ahead[1] - pz;
         this.pursuitYaw =
                 adx * adx + adz * adz < 0.09 ? this.tangentYaw : (float) Math.toDegrees(Math.atan2(-adx, adz));
         this.barrierHit = barrier;
@@ -169,9 +180,12 @@ public final class PathProjection {
     private static double[] pointAhead(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
         double remain = lookahead;
         for (int i = seg; i < scanEnd; i++) {
-            BlockPos a = path.get(i), b = path.get(i + 1);
-            double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
-            double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
+            BlockPos a = path.get(i);
+            BlockPos b = path.get(i + 1);
+            double ax = a.getX() + 0.5;
+            double az = a.getZ() + 0.5;
+            double vx = (b.getX() + 0.5) - ax;
+            double vz = (b.getZ() + 0.5) - az;
             double segLen = Math.hypot(vx, vz);
             double from = i == seg ? frac : 0.0;
             double avail = segLen * (1.0 - from);
@@ -193,7 +207,8 @@ public final class PathProjection {
     private static float tangentYawAt(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
         double remain = lookahead;
         for (int i = seg; i < scanEnd; i++) {
-            BlockPos a = path.get(i), b = path.get(i + 1);
+            BlockPos a = path.get(i);
+            BlockPos b = path.get(i + 1);
             double segLen = Math.hypot(b.getX() - a.getX(), b.getZ() - a.getZ());
             double avail = segLen * (1.0 - (i == seg ? frac : 0.0));
             if (avail >= remain || i + 1 >= scanEnd) {

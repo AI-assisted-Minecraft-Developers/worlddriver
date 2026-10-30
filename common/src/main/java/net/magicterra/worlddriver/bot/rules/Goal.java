@@ -164,7 +164,8 @@ public sealed interface Goal
         }
 
         public boolean reached(BlockPos p) {
-            long dx = p.getX() - x, dz = p.getZ() - z;
+            long dx = p.getX() - x;
+            long dz = p.getZ() - z;
             return dx * dx + dz * dz <= (long) radius * radius;
         }
 
@@ -305,8 +306,10 @@ public sealed interface Goal
         }
 
         public double estimate(BlockPos p) {
-            int x = Math.abs(p.getX()), z = Math.abs(p.getZ());
-            int shrt = Math.min(x, z), lng = Math.max(x, z);
+            int x = Math.abs(p.getX());
+            int z = Math.abs(p.getZ());
+            int shrt = Math.min(x, z);
+            int lng = Math.max(x, z);
             int diff = lng - shrt;
             double flat = Math.min(x, Math.min(z, diff * SQRT_2_OVER_2));
             return 10.0 * flat + 10.0 * Math.abs(p.getY() - axisHeight);

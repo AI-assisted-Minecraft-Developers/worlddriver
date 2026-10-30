@@ -94,13 +94,17 @@ class DescentNodeTest {
      * load-bearing — the {@code 0.092} leaves only {@code 0.208 × 0.6 = 0.125} of the footprint on the neighbouring
      * block. Rounding it to {@code 0.5} stands the bot in mid-air.
      */
-    private static final double PERCH_DX = 0.092, PERCH_DZ = 0.700;
+    private static final double PERCH_DX = 0.092;
+
+    private static final double PERCH_DZ = 0.700;
 
     /**
      * Hop 11's goal, as an offset from the bot. Outside the copied box on purpose: what this measures is whether the
      * bot leaves the pocket, not whether it arrives.
      */
-    private static final int GOAL_DX = 17, GOAL_DZ = 17;
+    private static final int GOAL_DX = 17;
+
+    private static final int GOAL_DZ = 17;
     /** Hop 11's own tolerance. */
     private static final int GOAL_R = 6;
 
@@ -246,7 +250,8 @@ class DescentNodeTest {
     private static Leg drive(Game game, Plot plot, Settings settings, TestReporter reporter, String arm, boolean hold) {
         settings.set("navigatorDescentNodeHold", hold);
         BlockPos foot = plot.at(0, BOX_Y0 + PERCH_LAYER, 0);
-        double x0 = foot.getX() + PERCH_DX, z0 = foot.getZ() + PERCH_DZ;
+        double x0 = foot.getX() + PERCH_DX;
+        double z0 = foot.getZ() + PERCH_DZ;
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), x0, foot.getY(), z0);
         GotoContracts.Target goal = Targets.column(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R);
         Leg leg = game.onServer(s -> {
@@ -269,7 +274,10 @@ class DescentNodeTest {
 
             long holds0 = bot.navigator().counter("descentHolds");
             double minY = fp.getY();
-            int noPlan = 0, run = 0, longest = 0, t = 0;
+            int noPlan = 0;
+            int run = 0;
+            int longest = 0;
+            int t = 0;
             boolean lava = false;
             for (; t < DRIVE_TICKS; t++) {
                 askAgain(bot, goal);
@@ -398,11 +406,15 @@ class DescentNodeTest {
     // -------------------------------------------------- the LAST node of the plan (rung 13) ----
 
     /** Columns of the doorway copy, {@code dx ∈ [DOOR_X0, DOOR_X0 + DOOR_NX - 1]} ↔ world {@code x ∈ [1,6]}. */
-    private static final int DOOR_NX = 6, DOOR_X0 = -2;
+    private static final int DOOR_NX = 6;
+
+    private static final int DOOR_X0 = -2;
     /** Rows, {@code dz ∈ [dw.z0(), dw.z0() + DOOR_NZ - 1]} ↔ world {@code z ∈ [16,22]}. */
     private static final int DOOR_NZ = 7;
     /** Layers, {@code dy ∈ [DOOR_Y0, DOOR_Y0 + DOOR_NL - 1]} ↔ world {@code y ∈ [55,61]}. */
-    private static final int DOOR_NL = 7, DOOR_Y0 = 8;
+    private static final int DOOR_NL = 7;
+
+    private static final int DOOR_Y0 = 8;
     /** How many opening ticks each arm records node by node. */
     private static final int TRACE_TICKS = 8;
     /**
@@ -548,7 +560,8 @@ class DescentNodeTest {
         settings.set("navigatorDescentNodeHold", hold);
         BlockPos perch = doorPerch(plot, dw);
         BlockPos step = doorstep(plot, dw);
-        double x0 = perch.getX() + dw.dx(), z0 = perch.getZ() + dw.dz();
+        double x0 = perch.getX() + dw.dx();
+        double z0 = perch.getZ() + dw.dz();
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), x0, perch.getY(), z0);
         Door door = game.onServer(s -> {
             ServerPlayer fp = bot.player();
@@ -571,7 +584,8 @@ class DescentNodeTest {
             GotoContracts.Target goal = Targets.block(step);
             long holds0 = bot.navigator().counter("descentHolds");
             double minY = fp.getY();
-            int t = 0, noPlan = 0;
+            int t = 0;
+            int noPlan = 0;
             boolean onDoorstep = false;
             String end = "none";
             // THE PLAN, tick by tick, for the first few ticks: the claim is about what the navigator does with a plan
@@ -691,7 +705,8 @@ class DescentNodeTest {
         }
         // AXIS is not in the copy because a block name does not carry it. The frame lies in one x plane, so the
         // interior spans z — the only axis vanilla's own PortalShape would have produced.
-        int lit = 0, stood = 0;
+        int lit = 0;
+        int stood = 0;
         for (int pass = 0; pass < 2; pass++) {
             for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++) {
                 for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++) {

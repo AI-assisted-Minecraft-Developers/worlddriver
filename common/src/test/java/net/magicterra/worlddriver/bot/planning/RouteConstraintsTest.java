@@ -267,7 +267,8 @@ class RouteConstraintsTest {
         CountingLos los = new CountingLos();
         SightExposure se = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 120, 1.62, 100);
         se.beginSearch(scope(los, mob(1, "minecraft:skeleton", 0, 0, true)));
-        BlockPos seenCell = at(2, 0), hiddenCell = at(8, 0);
+        BlockPos seenCell = at(2, 0);
+        BlockPos hiddenCell = at(8, 0);
         assertEquals(120, se.extraCost(null, seenCell, null, null, null), 1e-9);
         assertEquals(0, se.extraCost(null, hiddenCell, null, null, null), 1e-9);
         assertEquals(2, los.calls);

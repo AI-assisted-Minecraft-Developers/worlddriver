@@ -27,8 +27,8 @@ public final class AimSmoothing {
     int rawStableTicks =
             0; // consecutive ticks the RAW target barely moved; releases the anti-spin freeze even when the EMA
     // oscillates at the ±180° antipode
-    double freezeAnchorX,
-            freezeAnchorZ; // player pos when the frozen-press stall window opened (spinFreeze deadlock valve)
+    double freezeAnchorX;
+    double freezeAnchorZ; // player pos when the frozen-press stall window opened (spinFreeze deadlock valve)
     int frozenStallTicks = 0; // consecutive frozen ticks with <FREEZE_PRESS_MOVE displacement — valve trips past
     // FREEZE_PRESS_STALL_TICKS
     int reversalStreak = 0; // consecutive ticks the EMA target sat >AIM_REVERSAL_DEG from the smooth value — snap after

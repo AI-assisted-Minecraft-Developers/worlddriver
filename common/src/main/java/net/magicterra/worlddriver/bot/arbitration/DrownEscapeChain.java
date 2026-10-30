@@ -289,7 +289,8 @@ public final class DrownEscapeChain implements Chain {
         if (lidBlocksRise
                 && w != null
                 && breathableColumn(w, Mth.floor(p.getX()), Mth.floor(p.getY()), Mth.floor(p.getZ()))) {
-            double cx = Mth.floor(p.getX()) + 0.5, cz = Mth.floor(p.getZ()) + 0.5;
+            double cx = Mth.floor(p.getX()) + 0.5;
+            double cz = Mth.floor(p.getZ()) + 0.5;
             double off = Math.sqrt((cx - p.getX()) * (cx - p.getX()) + (cz - p.getZ()) * (cz - p.getZ()));
             // Eased by the remaining offset: a full press across 0.2 blocks of water carries the
             // bot to the OPPOSITE boundary, trading one pinning neighbour for the other one.
@@ -562,7 +563,8 @@ public final class DrownEscapeChain implements Chain {
             return NO_LATERAL;
         }
 
-        final int span = 2 * LATERAL_SCAN_R + 1, o = LATERAL_SCAN_R;
+        final int span = 2 * LATERAL_SCAN_R + 1;
+        final int o = LATERAL_SCAN_R;
         boolean[][] seen = new boolean[span][span];
         int[][][] firstStep = new int[span][span][];
         ArrayDeque<int[]> queue = new ArrayDeque<>();
@@ -571,7 +573,8 @@ public final class DrownEscapeChain implements Chain {
         while (!queue.isEmpty()) {
             int[] cur = queue.poll();
             for (int[] s : STEPS) {
-                int dx = cur[0] + s[0], dz = cur[1] + s[1];
+                int dx = cur[0] + s[0];
+                int dz = cur[1] + s[1];
                 if (Math.max(Math.abs(dx), Math.abs(dz)) > LATERAL_SCAN_R) {
                     continue;
                 }

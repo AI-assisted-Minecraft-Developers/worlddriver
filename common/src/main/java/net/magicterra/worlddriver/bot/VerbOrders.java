@@ -132,7 +132,8 @@ public final class VerbOrders {
         }
         int feetY = self.blockPosition().getY();
         int targetY = p.targetY().orElse(feetY + 32);
-        int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
+        int min = self.level().getMinBuildHeight();
+        int max = self.level().getMaxBuildHeight() - 1;
         if (targetY < min || targetY > max) {
             return new Refuse<>(
                     RefusalReason.INVALID_WORLD_TARGET,
@@ -196,7 +197,8 @@ public final class VerbOrders {
         if (!hasHands(self)) {
             return handless("farm", self);
         }
-        int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
+        int min = self.level().getMinBuildHeight();
+        int max = self.level().getMaxBuildHeight() - 1;
         for (BlockPosition end : new BlockPosition[] {p.from(), p.to()}) {
             if (end.y() < min || end.y() > max) {
                 return new Refuse<>(

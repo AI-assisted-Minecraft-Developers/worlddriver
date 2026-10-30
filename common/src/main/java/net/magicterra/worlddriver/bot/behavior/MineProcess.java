@@ -1290,7 +1290,9 @@ public final class MineProcess implements BotProcess, Navigating {
      * such stand, or null if none (then the target is genuinely unreachable).
      */
     private BlockPos findReachStand(Level lvl, BlockPos block) {
-        double tx = block.getX() + 0.5, ty = block.getY() + 0.5, tz = block.getZ() + 0.5;
+        double tx = block.getX() + 0.5;
+        double ty = block.getY() + 0.5;
+        double tz = block.getZ() + 0.5;
         BlockPos bestStand = null;
         double bestD2 = Double.MAX_VALUE;
         for (int dx = -REACH_SCAN_H; dx <= REACH_SCAN_H; dx++) {
@@ -1318,7 +1320,9 @@ public final class MineProcess implements BotProcess, Navigating {
                         continue;
                     }
                     Vec3 eye = standingEye(cand);
-                    double ex = eye.x, ey = eye.y, ez = eye.z;
+                    double ex = eye.x;
+                    double ey = eye.y;
+                    double ez = eye.z;
                     double d2 = (ex - tx) * (ex - tx) + (ey - ty) * (ey - ty) + (ez - tz) * (ez - tz);
                     if (d2 > MAX_REACH * MAX_REACH || d2 >= bestD2) {
                         continue;

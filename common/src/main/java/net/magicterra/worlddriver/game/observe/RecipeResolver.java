@@ -251,7 +251,8 @@ public final class RecipeResolver {
             return null;
         }
         RecipeHolder<?> best = null;
-        int bestScore = Integer.MIN_VALUE, bestCount = Integer.MAX_VALUE;
+        int bestScore = Integer.MIN_VALUE;
+        int bestCount = Integer.MAX_VALUE;
         String bestId = null;
         for (RecipeHolder<?> h : candidates) {
             if (isReversible(h, producers, ra)) {

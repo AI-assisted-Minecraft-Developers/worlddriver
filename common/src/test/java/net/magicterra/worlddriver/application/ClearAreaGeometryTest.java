@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Test;
 
 class ClearAreaGeometryTest {
 
-    private static final float SOUTH = 0f, WEST = 90f, NORTH = 180f, EAST = 270f;
+    private static final float SOUTH = 0f;
+    private static final float WEST = 90f;
+    private static final float NORTH = 180f;
+    private static final float EAST = 270f;
 
     private static Tunnel tunnel(Direction d, int distance, int width, int height) {
         return new Tunnel(d, distance, width, height, Optional.empty());

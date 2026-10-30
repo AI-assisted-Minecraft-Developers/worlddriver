@@ -22,7 +22,8 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
      */
     record Box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) implements Region {
         public Box {
-            double a = Math.min(minX, maxX), b = Math.max(minX, maxX);
+            double a = Math.min(minX, maxX);
+            double b = Math.max(minX, maxX);
             minX = a;
             maxX = b;
             a = Math.min(minY, maxY);
@@ -62,7 +63,9 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
     record Sphere(double cx, double cy, double cz, double radius) implements Region {
         private double dist(double x, double y, double z) {
-            double dx = x - cx, dy = y - cy, dz = z - cz;
+            double dx = x - cx;
+            double dy = y - cy;
+            double dz = z - cz;
             return Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
 

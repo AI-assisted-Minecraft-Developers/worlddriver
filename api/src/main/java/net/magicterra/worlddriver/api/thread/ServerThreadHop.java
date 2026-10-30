@@ -28,7 +28,9 @@ import net.magicterra.worlddriver.api.schema.ApiException;
  * cannot be withdrawn, observe before retrying).
  */
 public final class ServerThreadHop {
-    private static final int QUEUED = 0, RUNNING = 1, ABANDONED = 2;
+    private static final int QUEUED = 0;
+    private static final int RUNNING = 1;
+    private static final int ABANDONED = 2;
 
     private final Executor executor;
     private final BooleanSupplier onTargetThread;

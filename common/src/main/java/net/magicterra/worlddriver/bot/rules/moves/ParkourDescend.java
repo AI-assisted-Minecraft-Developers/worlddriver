@@ -21,7 +21,8 @@ import net.minecraft.core.BlockPos;
  * so the Navigator's existing parkour actuator drives it unchanged.
  */
 public final class ParkourDescend extends Move {
-    private final int dist, drop;
+    private final int dist;
+    private final int drop;
 
     public ParkourDescend(int dx, int dz, int dist, int drop) {
         super(dx * dist, -drop, dz * dist, (dist == 2 ? 22 : 32) + 4 * drop);
@@ -83,7 +84,8 @@ public final class ParkourDescend extends Move {
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         for (int i = 1; i < dist; i++) {
             // Clear box from apex (+1) down to landing level across the gap.
             for (int dyOff = 1; dyOff >= -drop; dyOff--) {

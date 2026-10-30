@@ -11,7 +11,8 @@ import java.util.Objects;
 /** A bounded list of one item type, decoded unmodifiable; see {@link ApiTypes#list}. */
 final class ListType<T> extends ApiType<List<T>> {
     private final ApiType<T> item;
-    private final int minItems, maxItems;
+    private final int minItems;
+    private final int maxItems;
 
     ListType(ApiType<T> item, int minItems, int maxItems) {
         this.item = Objects.requireNonNull(item);

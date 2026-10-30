@@ -28,7 +28,8 @@ import org.junit.jupiter.api.Test;
  */
 class DrownEscapeChainTest {
     private boolean enabledBefore;
-    private int enterBefore, releaseBefore;
+    private int enterBefore;
+    private int releaseBefore;
 
     @BeforeEach
     void keepSettings() {
@@ -110,7 +111,9 @@ class DrownEscapeChainTest {
 
         List<String> flips = new ArrayList<>();
         String prev = "";
-        int preemptAir = -1, releaseAir = -1, minAir = Integer.MAX_VALUE;
+        int preemptAir = -1;
+        int releaseAir = -1;
+        int minAir = Integer.MAX_VALUE;
         boolean underAtRelease = true;
         for (int t = 0; t < 1200 && releaseAir < 0; t++) {
             sched.tick(null, null, st);
@@ -179,7 +182,8 @@ class DrownEscapeChainTest {
     /** The undercut that drowned a bot one block from open water: column capped, the one open neighbour +x. */
     @Test
     void aCappedPocketSteersToItsOnlyOpening() {
-        Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+        Set<BlockPos> solid = new HashSet<>();
+        Set<BlockPos> water = new HashSet<>();
         for (int y = 59; y <= 62; y++) {
             water.add(new BlockPos(0, y, 0)); // bot column: water …
         }
@@ -225,7 +229,8 @@ class DrownEscapeChainTest {
 
     @Test
     void aBoxedCappedPocketFallsBackToTheLidBreak() {
-        Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+        Set<BlockPos> solid = new HashSet<>();
+        Set<BlockPos> water = new HashSet<>();
         for (int y = 59; y <= 62; y++) {
             water.add(new BlockPos(0, y, 0));
         }
@@ -262,7 +267,8 @@ class DrownEscapeChainTest {
             "#####", // z=83
             "#####", // z=84
         };
-        Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+        Set<BlockPos> solid = new HashSet<>();
+        Set<BlockPos> water = new HashSet<>();
         for (int dz = -2; dz <= 2; dz++) {
             for (int dx = -2; dx <= 2; dx++) {
                 char c = floorY59[dz + 2].charAt(dx + 2);

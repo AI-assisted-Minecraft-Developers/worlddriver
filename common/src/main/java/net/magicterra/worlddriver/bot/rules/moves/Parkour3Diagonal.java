@@ -59,7 +59,8 @@ public final class Parkour3Diagonal extends Move {
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return false;
         }
-        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        int sx = Integer.signum(dx);
+        int sz = Integer.signum(dz);
         // Check every cell in the 2x2 trapezoidal sweep between launch
         // and landing: the diagonal interior cells (1,1) (1,2) (2,1)
         // (2,2) (2,3) (3,2) — but the corners-only check (cells the player

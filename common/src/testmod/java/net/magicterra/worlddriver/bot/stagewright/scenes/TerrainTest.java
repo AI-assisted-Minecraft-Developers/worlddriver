@@ -46,15 +46,18 @@ class TerrainTest {
      */
     @Test
     void sheerWall(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 32) Plot plot) {
-        final int floorY = 20, standY = floorY + 1, wallH = 5;
-        final int wallZ = 2, topY = floorY + wallH; // wall-top block; plateau surface = topY (stand topY+1)
+        final int floorY = 20;
+        final int standY = floorY + 1;
+        final int wallH = 5;
+        final int wallZ = 2;
+        final int topY = floorY + wallH; // wall-top block; plateau surface = topY (stand topY+1)
         SceneArena.buildFloor(plot, 0, floorY, 0);
         plot.fill(-5, floorY + 1, wallZ, 5, topY, wallZ, Blocks.STONE);
         plot.fill(-5, topY, 3, 5, topY, 5, Blocks.STONE);
         plot.fill(-5, topY + 1, 3, 5, topY + 4, 5, Blocks.AIR);
         BlockPos goal = plot.at(0, topY + 1, 3); // first plateau cell behind the wall
-        final int wallZAbs = plot.at(0, 0, wallZ).getZ(),
-                topAbs = plot.at(0, topY, 0).getY();
+        final int wallZAbs = plot.at(0, 0, wallZ).getZ();
+        final int topAbs = plot.at(0, topY, 0).getY();
 
         Settings.pin(game).set("allowBreak", false).set("allowPlace", true).set("navigatorDebug", true);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, 0));
@@ -95,14 +98,15 @@ class TerrainTest {
      */
     @Test
     void parkourAscend(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 32) Plot plot) {
-        final int launchY = 30, pitY = 0;
+        final int launchY = 30;
+        final int pitY = 0;
         plot.fill(-6, pitY, -3, 7, pitY, 3, Blocks.STONE);
         plot.fill(-5, launchY, -2, 0, launchY, 2, Blocks.STONE);
         plot.fill(2, launchY + 1, -2, 6, launchY + 1, 2, Blocks.STONE);
         BlockPos goal = plot.at(4, launchY + 2, 0);
-        final int cx = plot.origin().getX(),
-                pitAbs = plot.at(0, pitY, 0).getY(),
-                launchAbs = plot.at(0, launchY, 0).getY();
+        final int cx = plot.origin().getX();
+        final int pitAbs = plot.at(0, pitY, 0).getY();
+        final int launchAbs = plot.at(0, launchY, 0).getY();
 
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
@@ -150,7 +154,8 @@ class TerrainTest {
      */
     @Test
     void ridgeOvershoot(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 48) Plot plot) {
-        final int plainY = -20, topY = -14;
+        final int plainY = -20;
+        final int topY = -14;
         plot.fill(-2, plainY, -7, 2, topY, 0, Blocks.STONE);
         plot.fill(-2, topY - 3, 1, 2, topY - 3, 1, Blocks.STONE);
         plot.fill(-2, plainY, 2, 2, plainY, 16, Blocks.STONE);
@@ -167,13 +172,16 @@ class TerrainTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            double px = fp.getX(), pz = fp.getZ();
-            int noProgress = 0, maxNoProgress = 0;
+            double px = fp.getX();
+            double pz = fp.getZ();
+            int noProgress = 0;
+            int maxNoProgress = 0;
             boolean walking = true;
             for (int t = 0; t < 700 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                double dx = fp.getX() - px, dz = fp.getZ() - pz;
+                double dx = fp.getX() - px;
+                double dz = fp.getZ() - pz;
                 if (dx * dx + dz * dz < 0.0025) {
                     noProgress++; // <0.05 b/tick horizontally
                 } else {
@@ -213,7 +221,9 @@ class TerrainTest {
      */
     @Test
     void descent(Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 48) Plot plot) {
-        final int pitFloorY = -20, topY = 20, steps = 12;
+        final int pitFloorY = -20;
+        final int topY = 20;
+        final int steps = 12;
         plot.fill(-2, pitFloorY, -2, 2, pitFloorY, steps + 2, Blocks.STONE);
         for (int i = 0; i <= steps; i++) {
             plot.place(0, topY - i, i, Blocks.STONE);
@@ -268,7 +278,8 @@ class TerrainTest {
      */
     @Test
     void ascentSpeed(Game game, @Plot.Centered @Plot.Size(x = 64, y = 96, z = 16) Plot plot) {
-        final int baseY = 10, stepCount = 6;
+        final int baseY = 10;
+        final int stepCount = 6;
         plot.fill(-10, baseY, -2, -1, baseY, 2, Blocks.STONE);
         for (int i = 0; i < stepCount; i++) {
             plot.fill(2 * i, baseY, -2, 2 * i + 1, baseY + 1 + i, 2, Blocks.STONE);
@@ -276,9 +287,9 @@ class TerrainTest {
         final int topSurf = baseY + stepCount;
         plot.fill(2 * stepCount, topSurf, -2, 2 * stepCount + 12, topSurf, 2, Blocks.STONE);
         BlockPos goal = plot.at(2 * stepCount + 10, topSurf + 1, 0);
-        final int cx = plot.origin().getX(),
-                ascEndX = cx + 2 * stepCount - 1,
-                topAbs = plot.at(0, topSurf, 0).getY();
+        final int cx = plot.origin().getX();
+        final int ascEndX = cx + 2 * stepCount - 1;
+        final int topAbs = plot.at(0, topSurf, 0).getY();
 
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
@@ -290,15 +301,22 @@ class TerrainTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            int flatTicks = 0, ascTicks = 0;
-            double flatStartX = Double.NaN, flatEndX = 0, ascStartX = Double.NaN, ascEndXObs = 0;
-            int flatSprint = 0, ascSprint = 0, ascHcol = 0;
+            int flatTicks = 0;
+            int ascTicks = 0;
+            double flatStartX = Double.NaN;
+            double flatEndX = 0;
+            double ascStartX = Double.NaN;
+            double ascEndXObs = 0;
+            int flatSprint = 0;
+            int ascSprint = 0;
+            int ascHcol = 0;
             boolean walking = true;
             for (int t = 0; t < 500 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
                 double x = fp.getX();
-                boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
+                boolean spr = fp.isSprinting();
+                boolean hc = fp.horizontalCollision;
                 if (x < cx) {
                     if (Double.isNaN(flatStartX)) {
                         flatStartX = x;
@@ -361,11 +379,14 @@ class TerrainTest {
      */
     @Test
     void ledgeOvershoot(Game game, @Plot.Centered @Plot.Size(x = 96, y = 96, z = 16) Plot plot) {
-        final int h = 40, run = 26, drop = 3;
+        final int h = 40;
+        final int run = 26;
+        final int drop = 3;
         plot.fill(0, h - 4, -2, run, h - 1, 2, Blocks.STONE);
         plot.fill(run + 1, h - 4 - drop, -2, run + 18, h - 1 - drop, 2, Blocks.STONE);
         BlockPos goal = plot.at(run + 16, h - drop, 0);
-        final int cx = plot.origin().getX(), hAbs = plot.at(0, h, 0).getY();
+        final int cx = plot.origin().getX();
+        final int hAbs = plot.at(0, h, 0).getY();
 
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
@@ -378,15 +399,19 @@ class TerrainTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            double prevX = fp.getX(), prevZ = fp.getZ();
-            int backSteps = 0, moved = 0;
-            double worstBack = 0, landX = 0;
+            double prevX = fp.getX();
+            double prevZ = fp.getZ();
+            int backSteps = 0;
+            int moved = 0;
+            double worstBack = 0;
+            double landX = 0;
             boolean pastLip = false;
             boolean walking = true;
             for (int t = 0; t < 400 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
+                double ddx = fp.getX() - prevX;
+                double ddz = fp.getZ() - prevZ;
                 if (!pastLip && fp.getX() > cx + run && fp.getY() < hAbs - 1.5) {
                     pastLip = true;
                     landX = fp.getX();
@@ -439,7 +464,8 @@ class TerrainTest {
         plot.fill(-1, base, -1, 3, base + 4, 1, Blocks.STONE);
         plot.fill(0, base + 1, 0, 0, base + 2, 0, Blocks.AIR); // start chamber
         plot.fill(2, base + 1, 0, 2, base + 2, 0, Blocks.AIR); // goal chamber
-        BlockPos wallFeet = plot.at(1, base + 1, 0), wallHead = plot.at(1, base + 2, 0);
+        BlockPos wallFeet = plot.at(1, base + 1, 0);
+        BlockPos wallHead = plot.at(1, base + 2, 0);
         BlockPos goal = plot.at(2, base + 1, 0);
         final int cx = plot.origin().getX();
 
@@ -451,7 +477,8 @@ class TerrainTest {
             ServerLevel level = bot.level();
             bot.goTo(Targets.block(goal));
             boolean prevHeld = false;
-            int heldTicks = 0, dropsWhileSolid = 0;
+            int heldTicks = 0;
+            int dropsWhileSolid = 0;
             boolean walking = true;
             for (int t = 0; t < 1500 && walking; t++) {
                 bot.tick();

@@ -443,8 +443,10 @@ public final class SearchPhase {
                             .path()
                             .get(Math.min(nav.route.step() + 3, nav.route.path().size() - 1));
                     BlockPos newAhead = res.path().get(3);
-                    double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
-                    double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
+                    double cax = curAhead.getX() + 0.5 - p.getX();
+                    double caz = curAhead.getZ() + 0.5 - p.getZ();
+                    double nax = newAhead.getX() + 0.5 - p.getX();
+                    double naz = newAhead.getZ() + 0.5 - p.getZ();
                     uTurnLeg = (cax * nax + caz * naz) < 0;
                     // Not after a block change: the plan being kept is the one the change cut, and turning
                     // back may be exactly what the new shape asks for.

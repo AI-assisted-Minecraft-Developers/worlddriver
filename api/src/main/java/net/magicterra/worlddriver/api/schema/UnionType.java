@@ -40,7 +40,8 @@ public final class UnionType<T> extends ApiType<T> {
         }
         for (int i = 0; i < this.variants.size(); i++) {
             for (int j = i + 1; j < this.variants.size(); j++) {
-                Class<?> a = this.variants.get(i).javaType, b = this.variants.get(j).javaType;
+                Class<?> a = this.variants.get(i).javaType;
+                Class<?> b = this.variants.get(j).javaType;
                 if (a.isAssignableFrom(b) || b.isAssignableFrom(a)) {
                     throw new IllegalArgumentException("union " + name + ": variants " + a.getSimpleName() + " and "
                             + b.getSimpleName() + " cannot be told apart by class");

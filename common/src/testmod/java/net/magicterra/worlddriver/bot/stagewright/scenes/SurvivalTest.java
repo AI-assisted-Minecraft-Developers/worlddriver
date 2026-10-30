@@ -99,7 +99,8 @@ class SurvivalTest {
             bot.tickUntilIdle(800);
             // The shaft column the bot dug (down from floorY) must be plugged solid.
             ServerLevel level = bot.level();
-            int sealed = 0, shaftCells = 0;
+            int sealed = 0;
+            int shaftCells = 0;
             for (int dy = 0; dy >= -2; dy--) {
                 shaftCells++;
                 if (!level.getBlockState(plot.at(0, floorY + dy, 0)).isAir()) {
@@ -144,7 +145,8 @@ class SurvivalTest {
             bot.runAway(from, minDist);
             bot.tickUntilIdle(800);
 
-            double ddx = fp.getX() - (from.getX() + 0.5), ddz = fp.getZ() - (from.getZ() + 0.5);
+            double ddx = fp.getX() - (from.getX() + 0.5);
+            double ddz = fp.getZ() - (from.getZ() + 0.5);
             double dist = Math.sqrt(ddx * ddx + ddz * ddz);
             assertTrue(
                     fp.getHealth() >= 2.0f,

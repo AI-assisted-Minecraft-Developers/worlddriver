@@ -120,7 +120,9 @@ public final class ThreatScanner {
             return EMPTY;
         }
         boolean isPlayer = player instanceof Player;
-        double px = player.getX(), py = player.getY(), pz = player.getZ();
+        double px = player.getX();
+        double py = player.getY();
+        double pz = player.getZ();
         AABB box = new AABB(px - radius, py - radius, pz - radius, px + radius, py + radius, pz + radius);
         Vec3 myEye = player.getEyePosition();
         AABB myBody = player.getBoundingBox().inflate(0.35);

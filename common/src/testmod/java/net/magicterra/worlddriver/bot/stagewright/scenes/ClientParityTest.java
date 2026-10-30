@@ -196,7 +196,8 @@ class ClientParityTest {
         CellsReading clientView = rig.debug()
                 .cells(new CellsParams(Optional.of(ClientRig.SELF), Optional.empty(), cells, Optional.empty()));
 
-        Map<BlockPosition, Cell> c = byPos(clientView), sv = byPos(server);
+        Map<BlockPosition, Cell> c = byPos(clientView);
+        Map<BlockPosition, Cell> sv = byPos(server);
         List<String> rows = new ArrayList<>();
         int asked = 0;
         for (int i = 0; i < palette.size(); i++) {
@@ -204,7 +205,8 @@ class ClientParityTest {
             BlockPos foot = footOf(plot, i);
             for (BlockPos cell : cellsOf(foot)) {
                 String where = cell.getY() < foot.getY() ? "below" : cell.getY() > foot.getY() ? "above" : "foot";
-                Cell cc = c.get(Positions.position(cell)), sc = sv.get(Positions.position(cell));
+                Cell cc = c.get(Positions.position(cell));
+                Cell sc = sv.get(Positions.position(cell));
                 for (Question q : questions()) {
                     Object cvalue = cc == null ? "missing" : q.ask().apply(cc);
                     Object svalue = sc == null ? "missing" : q.ask().apply(sc);

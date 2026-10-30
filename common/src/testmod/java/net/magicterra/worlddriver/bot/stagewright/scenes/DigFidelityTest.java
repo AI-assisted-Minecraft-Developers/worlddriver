@@ -109,7 +109,8 @@ class DigFidelityTest {
         if (!d.cleared()) {
             fail("rig broken: the stone was not broken: " + d.where());
         }
-        int stone = d.count().apply(Items.STONE), cobble = d.count().apply(Items.COBBLESTONE);
+        int stone = d.count().apply(Items.STONE);
+        int cobble = d.count().apply(Items.COBBLESTONE);
         if (stone != 1 || cobble != 0) {
             fail("Silk Touch on stone gave stone=" + stone + " cobblestone=" + cobble + " (a player gets 1 and 0): "
                     + d.where());

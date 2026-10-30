@@ -88,7 +88,8 @@ class ShorelineSmootherTest {
      */
     private static BlockPos firstOutOfBand(List<BlockPos> path, int rad, WorldView w) {
         for (int i = 0; i < path.size(); i++) {
-            BlockPos a = i == 0 ? path.get(i) : path.get(i - 1), b = path.get(i);
+            BlockPos a = i == 0 ? path.get(i) : path.get(i - 1);
+            BlockPos b = path.get(i);
             int steps = Math.max(1, Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ())));
             for (int k = 0; k <= steps; k++) {
                 double t = (double) k / steps;

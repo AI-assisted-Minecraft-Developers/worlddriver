@@ -63,7 +63,8 @@ public final class Screenshots {
         try {
             int srcW = img.getWidth();
             int srcH = img.getHeight();
-            int dstW = srcW, dstH = srcH;
+            int dstW = srcW;
+            int dstH = srcH;
             if (maxW > 0 || maxH > 0) {
                 double sx = (maxW > 0) ? (double) maxW / srcW : 1.0;
                 double sy = (maxH > 0) ? (double) maxH / srcH : 1.0;

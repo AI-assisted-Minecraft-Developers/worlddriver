@@ -36,9 +36,9 @@ public final class WorldContracts {
 
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b, int limit) {
-        long dx = Math.abs((long) a.x() - b.x()) + 1,
-                dy = Math.abs((long) a.y() - b.y()) + 1,
-                dz = Math.abs((long) a.z() - b.z()) + 1;
+        long dx = Math.abs((long) a.x() - b.x()) + 1;
+        long dy = Math.abs((long) a.y() - b.y()) + 1;
+        long dz = Math.abs((long) a.z() - b.z()) + 1;
         if (dx > limit || dy > limit || dz > limit) {
             return Long.MAX_VALUE;
         }

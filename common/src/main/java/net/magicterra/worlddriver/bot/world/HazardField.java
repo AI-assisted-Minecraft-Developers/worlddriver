@@ -53,7 +53,8 @@ public final class HazardField {
 
     private static HazardCell cellAt(
             WorldView w, BlockPos center, int dx, int dz, int survivableFall, int deepWaterMax) {
-        int cx = center.getX() + dx, cz = center.getZ() + dz;
+        int cx = center.getX() + dx;
+        int cz = center.getZ() + dz;
         BlockPos body = new BlockPos(cx, center.getY(), cz);
         if (!w.isKnown(body)) {
             return HazardCell.unknown();

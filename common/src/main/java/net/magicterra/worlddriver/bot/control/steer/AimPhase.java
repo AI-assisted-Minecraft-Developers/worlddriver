@@ -45,19 +45,18 @@ public final class AimPhase {
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
-        double cx = px, cz = pz;
-        double
-                tx =
-                        nav.route.step() < nav.route.path().size()
-                                ? nav.route.path().get(nav.route.step()).getX() + 0.5
-                                : px,
-                tz =
-                        nav.route.step() < nav.route.path().size()
-                                ? nav.route.path().get(nav.route.step()).getZ() + 0.5
-                                : pz;
+        double cx = px;
+        double cz = pz;
+        double tx = nav.route.step() < nav.route.path().size()
+                ? nav.route.path().get(nav.route.step()).getX() + 0.5
+                : px;
+        double tz = nav.route.step() < nav.route.path().size()
+                ? nav.route.path().get(nav.route.step()).getZ() + 0.5
+                : pz;
         for (int i = nav.route.step(); i < nav.route.path().size() && i - nav.route.step() <= CARROT_MAX_NODES; i++) {
             BlockPos node = nav.route.path().get(i);
-            double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
+            double nx = node.getX() + 0.5;
+            double nz = node.getZ() + 0.5;
             if (hasPendingEdge(world, nav.route.edgeAt(i))) {
                 return new double[] {nx, nz}; // face the action cell
             }
@@ -74,7 +73,9 @@ public final class AimPhase {
                 continue;
             }
             if (remaining <= seg) {
-                double t = remaining / seg, ax = cx + (nx - cx) * t, az = cz + (nz - cz) * t;
+                double t = remaining / seg;
+                double ax = cx + (nx - cx) * t;
+                double az = cz + (nz - cz) * t;
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
                 // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
@@ -209,13 +210,16 @@ public final class AimPhase {
      */
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
         BlockPos prev = nav.route.path().get(nav.route.step() - 1);
-        double ux = wp.getX() - prev.getX(), uz = wp.getZ() - prev.getZ(), ul = Math.hypot(ux, uz);
+        double ux = wp.getX() - prev.getX();
+        double uz = wp.getZ() - prev.getZ();
+        double ul = Math.hypot(ux, uz);
         if (ul < 1e-6) {
             return null;
         }
         ux /= ul;
         uz /= ul;
-        double tx = adx + ux * LOOK_THROUGH, tz = adz + uz * LOOK_THROUGH;
+        double tx = adx + ux * LOOK_THROUGH;
+        double tz = adz + uz * LOOK_THROUGH;
         return tx * ux + tz * uz > 0 ? new double[] {tx, tz} : null;
     }
 
@@ -317,7 +321,8 @@ public final class AimPhase {
                 k <= Math.min(nav.route.step() + 2, nav.route.path().size() - 1);
                 k++) {
             BlockPos n = nav.route.path().get(k);
-            double dx = n.getX() + 0.5 - p.getX(), dz = n.getZ() + 0.5 - p.getZ();
+            double dx = n.getX() + 0.5 - p.getX();
+            double dz = n.getZ() + 0.5 - p.getZ();
             if (k == nav.route.step()
                     && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) {
                 continue;
@@ -344,10 +349,14 @@ public final class AimPhase {
      * every direction.
      */
     private boolean unplannedDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
+        double ux = -Math.sin(Math.toRadians(yaw));
+        double uz = Math.cos(Math.toRadians(yaw));
+        double hw = 0.3;
         for (double d = 0.5; d <= DROP_LOOK; d += 0.25) {
-            double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
-            int x = Mth.floor(fx), z = Mth.floor(fz);
+            double fx = p.getX() + ux * d;
+            double fz = p.getZ() + uz * d;
+            int x = Mth.floor(fx);
+            int z = Mth.floor(fz);
             BlockPos floor = new BlockPos(x, foot.getY() - 1, z);
             if (world.isWater(floor) || world.isWater(floor.above())) {
                 continue;
@@ -399,12 +408,19 @@ public final class AimPhase {
                 nav.route.path().get(i).getY())) {
             return new double[] {pr.aheadX, pr.aheadZ};
         }
-        double ex = pr.aheadX, ez = pr.aheadZ;
+        double ex = pr.aheadX;
+        double ez = pr.aheadZ;
         for (int k = i; k >= Math.max(1, nav.route.step()); k--) {
-            BlockPos a = nav.route.path().get(k - 1), b = nav.route.path().get(k);
-            double sx = a.getX() + 0.5, sz = a.getZ() + 0.5, dx = ex - sx, dz = ez - sz, len = Math.hypot(dx, dz);
+            BlockPos a = nav.route.path().get(k - 1);
+            BlockPos b = nav.route.path().get(k);
+            double sx = a.getX() + 0.5;
+            double sz = a.getZ() + 0.5;
+            double dx = ex - sx;
+            double dz = ez - sz;
+            double len = Math.hypot(dx, dz);
             for (double d = k == i ? len - REACH_BACK_STEP : len; d > 0; d -= REACH_BACK_STEP) {
-                double qx = sx + dx * d / len, qz = sz + dz * d / len;
+                double qx = sx + dx * d / len;
+                double qz = sz + dz * d / len;
                 if ((qx - px) * dx + (qz - pz) * dz <= 0) {
                     return null; // behind the bot
                 }
@@ -466,9 +482,11 @@ public final class AimPhase {
             boolean risersPass,
             double hw,
             List<BlockPos> rises) {
-        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw));
+        double ux = -Math.sin(Math.toRadians(yaw));
+        double uz = Math.cos(Math.toRadians(yaw));
         for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
-            double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
+            double fx = p.getX() + ux * d;
+            double fz = p.getZ() + uz * d;
             for (int sx = -1; sx <= 1; sx += 2) {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     BlockPos c =
@@ -618,7 +636,8 @@ public final class AimPhase {
         // spine is handled by the strafe below, so this only handles the gross
         // drift-off case (foot no longer in the spine cell).
         boolean reCentre = false;
-        double recX = 0, recZ = 0;
+        double recX = 0;
+        double recZ = 0;
         // Guard-pin stall clock: while the stride floor-guard pins the bot at an unplanned
         // void edge, its fire ticks DECREMENT stuckTicks by design (the pin is a hold, not a
         // stall, and recovery bursts at a lip have killed — Navigator wrapper) — so every
@@ -658,7 +677,8 @@ public final class AimPhase {
                 }
             }
         }
-        double adx, adz;
+        double adx;
+        double adz;
         // aimSrc: which branch of the aim decision tree owns the heading this tick —
         // printed in walk-keys so a pinned-heading autopsy (yaw refusing to turn toward
         // the bearing, the T-1 54s dry tear) reads the controlling channel directly
@@ -697,14 +717,16 @@ public final class AimPhase {
                 // aim that did was reverted). Also subsumes the old close-node camera-spin swap:
                 // once the bob carries the bot onto the close +1 node, the trend still points up
                 // the stair instead of flipping ±180°. Forward-only (dot>0) never reverses.
-                double tx = 0, tz = 0;
+                double tx = 0;
+                double tz = 0;
                 BlockPos prev = foot;
                 int last = Math.min(
                         nav.route.step() + STAIR_TREND_LOOKAHEAD,
                         nav.route.path().size() - 1);
                 for (int k = nav.route.step(); k <= last; k++) {
                     BlockPos nd = nav.route.path().get(k);
-                    double sx = nd.getX() - prev.getX(), sz = nd.getZ() - prev.getZ();
+                    double sx = nd.getX() - prev.getX();
+                    double sz = nd.getZ() - prev.getZ();
                     double sl = Math.sqrt(sx * sx + sz * sz);
                     if (sl < 1e-6) {
                         prev = nd;
@@ -846,7 +868,8 @@ public final class AimPhase {
                 && nav.route.step() < nav.route.path().size()
                 && nav.stuckTicks > DRY_REANCHOR_STUCK) {
             BlockPos cn = nav.route.path().get(nav.route.step());
-            double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
+            double cnx = (cn.getX() + 0.5) - p.getX();
+            double cnz = (cn.getZ() + 0.5) - p.getZ();
             // ram-while-facing-wrong extension REVERTED 2026-06-29 (§25): adding an `|| (hCol && |yawErr|>90)`
             // trigger made the live -671 diagDown stall MUCH worse (oscillating limit cycle, totStuck 6009 vs
             // 509 slow-recover) — anchoring BACK to step-1 on a CLOSE ram just bounces the bot back and forth
@@ -897,10 +920,9 @@ public final class AimPhase {
         // divert the drive mid-ridge and r22's suite hung on a bot that walked off the
         // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
         // historical tangent override.
-        boolean
-                pinnedRecovery =
-                        (p.horizontalCollision || nav.safety.guardSneakLatch) && (reCentre || "nodeAim".equals(aimSrc)),
-                walkedRound = false;
+        boolean pinnedRecovery =
+                (p.horizontalCollision || nav.safety.guardSneakLatch) && (reCentre || "nodeAim".equals(aimSrc));
+        boolean walkedRound = false;
         if (ControlConfig.navigatorTangentAim
                 && !launch
                 && !pinnedRecovery
@@ -927,7 +949,8 @@ public final class AimPhase {
                 && nav.route.path() != null
                 && nav.route.step() < nav.route.path().size()) {
             BlockPos rn = nav.route.path().get(nav.route.step());
-            double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
+            double rndx = (rn.getX() + 0.5) - p.getX();
+            double rndz = (rn.getZ() + 0.5) - p.getZ();
             if (rndx * rndx + rndz * rndz > 1e-6) {
                 float rnb = (float) Math.toDegrees(Math.atan2(-rndx, rndz));
                 if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
@@ -1068,7 +1091,8 @@ public final class AimPhase {
             // not the bob's air gap.
             BlockPos losFoot = foot.getY() > wp.getY() ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
             double[] cp = carrotPoint(nav, world, losFoot, p.getX(), p.getZ());
-            double cdx = cp[0] - p.getX(), cdz = cp[1] - p.getZ();
+            double cdx = cp[0] - p.getX();
+            double cdz = cp[1] - p.getZ();
             if (GameConfig.navigatorDebug && cdx * cdx + cdz * cdz <= 1.0) {
                 LOG.info(
                         "[navigator] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
@@ -1112,7 +1136,8 @@ public final class AimPhase {
             // switchback's alternating segments into the steady down-slope trend. (A chord/far-node
             // samples only an endpoint, which itself lands on alternating segments and swings; the
             // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
-            double sumX = 0, sumZ = 0;
+            double sumX = 0;
+            double sumZ = 0;
             int cnt = 0;
             int lastNode = centroidEnd(
                     nav,
@@ -1130,7 +1155,8 @@ public final class AimPhase {
                 cnt++;
             }
             if (cnt > 0) {
-                double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
+                double mdx = sumX / cnt - p.getX();
+                double mdz = sumZ / cnt - p.getZ();
                 float centroidYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
                 if (mdx * mdx + mdz * mdz > 1.0) {
                     targetYaw = dryDescent && nav.route.path().get(lastNode).getY() <= foot.getY()
@@ -1246,7 +1272,8 @@ public final class AimPhase {
         // freeze use shows (in a vine pocket or a climb-out the bot keeps moving). On trip:
         // hard-snap the smooth heading to the live target and drop the freeze.
         if (spinFreeze) {
-            double fdx = p.getX() - aimSmooth.freezeAnchorX, fdz = p.getZ() - aimSmooth.freezeAnchorZ;
+            double fdx = p.getX() - aimSmooth.freezeAnchorX;
+            double fdz = p.getZ() - aimSmooth.freezeAnchorZ;
             if (aimSmooth.frozenStallTicks == 0 || fdx * fdx + fdz * fdz > FREEZE_PRESS_MOVE_SQ) {
                 aimSmooth.freezeAnchorX = p.getX();
                 aimSmooth.freezeAnchorZ = p.getZ();

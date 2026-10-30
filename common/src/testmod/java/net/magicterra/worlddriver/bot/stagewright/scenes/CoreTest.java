@@ -70,7 +70,9 @@ class CoreTest {
     @Test
     void nodePhysics(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             // Cell 1: open 2-high stand cell — floor at floorY, air above.
@@ -151,7 +153,10 @@ class CoreTest {
     @Test
     void physicsParity(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         Settings.pin(game);
 
@@ -161,7 +166,8 @@ class CoreTest {
             ServerPlayer fp = bot.player();
             bot.press(bot.keys().move(0, 0));
             bot.step(3);
-            double startY = fp.getY(), z0 = fp.getZ();
+            double startY = fp.getY();
+            double z0 = fp.getZ();
             fp.setSprinting(true);
             bot.press(bot.keys().move(0, 1));
             for (int i = 0; i < 20; i++) {
@@ -185,7 +191,8 @@ class CoreTest {
         double apex = game.onServer(s -> {
             ServerPlayer fp2 = bot2.player();
             bot2.step(3);
-            double jy0 = fp2.getY(), maxY = jy0;
+            double jy0 = fp2.getY();
+            double maxY = jy0;
             for (int i = 0; i < 30; i++) {
                 bot2.press(bot2.keys().jump(i == 0));
                 bot2.step();
@@ -241,7 +248,9 @@ class CoreTest {
     @Test
     void airborneJumpInert(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, -4, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, -4, 0);
         Settings.pin(game);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
@@ -251,7 +260,9 @@ class CoreTest {
             fp.setPos(cx + 0.5, standY + 8, cz + 0.5);
             fp.setDeltaMovement(Vec3.ZERO);
             bot.step();
-            double prev = fp.getY(), worstRise = 0, riseAt = -1;
+            double prev = fp.getY();
+            double worstRise = 0;
+            double riseAt = -1;
             for (int i = 0; i < 10; i++) {
                 bot.press(bot.keys().jump(true)); // every tick: a step clears the press
                 bot.step();
@@ -296,7 +307,9 @@ class CoreTest {
     @Test
     void climbableGroundJump(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
@@ -372,7 +385,10 @@ class CoreTest {
     @Test
     void buoyantJumpStaysABob(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, -4, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
+        final int standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, -4, 0);
         Settings.pin(game);
         // Order is load-bearing: afloat and bottomed run first and in their original order.
@@ -514,8 +530,11 @@ class CoreTest {
         double restY = fp.getY();
         boolean inWaterAtRest = fp.isInWater();
         StringBuilder head = new StringBuilder();
-        double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
-        int later = 0, minTick = -1;
+        double prev = fp.getY();
+        double first = 0.0;
+        double minY = Double.POSITIVE_INFINITY;
+        int later = 0;
+        int minTick = -1;
         for (int i = 0; i < 60; i++) {
             // Held: a step clears a jump press out of water, so it is pressed again each step.
             bot.press(bot.keys().jump(true));
@@ -562,7 +581,9 @@ class CoreTest {
     @Test
     void jumpWaitsForOnGround(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         Settings.pin(game);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
@@ -600,7 +621,8 @@ class CoreTest {
     /** Where the recorder writes, relative to the server's working directory. */
     private static final Path REPLAYS = Path.of("config", "worlddriver", "replays");
 
-    private static final String PLAN_ARCHIVE = "replay-", REPLAY_RUN = "replay-run-";
+    private static final String PLAN_ARCHIVE = "replay-";
+    private static final String REPLAY_RUN = "replay-run-";
 
     /**
      * End-to-end proof of record → replay: record a goto archive (segments, and the header's dimension), replay its
@@ -611,7 +633,9 @@ class CoreTest {
     @Test
     void replayRoundTrip(Game game, @Plot.Centered @Plot.Size(x = 48, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(-10, 0, 0);
-        final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
+        final int cx = o.getX();
+        final int cz = o.getZ();
+        final int floorY = o.getY();
         plot.fill(-12, 0, -3, 10, 0, 3, Blocks.STONE);
         Settings.pinUntimed(game)
                 .set("pathArchive", true)
@@ -654,7 +678,8 @@ class CoreTest {
             if (rt >= maxTicks) {
                 fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks: " + walk);
             }
-            int dgx = Math.abs(arrival.getX() - goal.getX()), dgz = Math.abs(arrival.getZ() - goal.getZ());
+            int dgx = Math.abs(arrival.getX() - goal.getX());
+            int dgz = Math.abs(arrival.getZ() - goal.getZ());
             if (!(dgx <= 2 && dgz <= 2)) {
                 fail("replayRoundTrip: replay arrival not within +/-2 XZ of goal " + goal.toShortString() + ": "
                         + walk);

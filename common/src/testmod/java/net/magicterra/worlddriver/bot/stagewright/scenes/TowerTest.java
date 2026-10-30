@@ -230,10 +230,22 @@ class TowerTest {
 
     /** Everything one tower order produced, read three independent ways. */
     private static final class Run {
-        int startX, startZ, startFeetY, endX, endZ, endFeetY;
-        int ticks, spent, carriedBefore, carriedAfter, columnPlaced, columnSolid;
+        int startX;
+        int startZ;
+        int startFeetY;
+        int endX;
+        int endZ;
+        int endFeetY;
+        int ticks;
+        int spent;
+        int carriedBefore;
+        int carriedAfter;
+        int columnPlaced;
+        int columnSolid;
         boolean finished;
-        String lastError, placeTally, columnAfter;
+        String lastError;
+        String placeTally;
+        String columnAfter;
 
         int climbed() {
             return endFeetY - startFeetY;
@@ -379,7 +391,9 @@ class TowerTest {
     @Test
     void serverTowersTwelveCourses(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, courses = 12, stock = 64;
+        final int standY = FLOOR + 1;
+        final int courses = 12;
+        final int stock = 64;
         towerConfig(game);
         stageFlatArena(plot, 3, FLOOR);
         BlockPos stand = plot.at(0, standY, 0);
@@ -430,7 +444,10 @@ class TowerTest {
     @Test
     void serverTowersAfterAWalk(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, runway = 12, courses = 8, stock = 64;
+        final int standY = FLOOR + 1;
+        final int runway = 12;
+        final int courses = 8;
+        final int stock = 64;
         // The only arm that plans: real slices over real server ticks.
         towerConfig(game).set("pathfinder.sliceMs", 20).set("pathfinder.maxMs", 2000);
         plot.fill(-3, FLOOR - 3, -3, runway + 3, FLOOR + HEADROOM + 4, 3, Blocks.AIR);
@@ -477,7 +494,9 @@ class TowerTest {
             requireStaged(reporter, "tower", fp, null, at.getX(), at.getY(), courses, at.getZ(), stock);
             return runTower(reporter, "tower", driver, at.getY() + courses, courses, DRIVE_BUDGET, () -> {});
         });
-        final int startX = r.startX, startZ = r.startZ, startFeetY = r.startFeetY;
+        final int startX = r.startX;
+        final int startZ = r.startZ;
+        final int startFeetY = r.startFeetY;
         game.check(
                 r.endFeetY == startFeetY + courses,
                 "A: the bot rises " + courses + " blocks: end feet y "
@@ -514,7 +533,8 @@ class TowerTest {
     @Test
     void serverTowersToWhereItStands(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, stock = 64;
+        final int standY = FLOOR + 1;
+        final int stock = 64;
         towerConfig(game);
         stageFlatArena(plot, 3, FLOOR);
         noOpLeg(game, plot, reporter, "atLevel", -2, standY, stock, 0, "targetY == current feet cell");
@@ -574,7 +594,10 @@ class TowerTest {
     @Test
     void serverTowersWithAFullBackpack(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, courses = 6, stock = 64, bagSlot = 20;
+        final int standY = FLOOR + 1;
+        final int courses = 6;
+        final int stock = 64;
+        final int bagSlot = 20;
         towerConfig(game);
         stageFlatArena(plot, 3, FLOOR);
         BlockPos stand = plot.at(0, standY, 0);
@@ -666,7 +689,10 @@ class TowerTest {
     @Test
     void serverTowersUnderALowCeiling(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, courses = 4, stock = 64, ceilY = standY + 2;
+        final int standY = FLOOR + 1;
+        final int courses = 4;
+        final int stock = 64;
+        final int ceilY = standY + 2;
         towerConfig(game);
         BlockPos stand = plot.at(0, standY, 0);
         final int ceilAbs = plot.at(0, ceilY, 0).getY();
@@ -765,10 +791,14 @@ class TowerTest {
     @Test
     void serverTowersUnderTheNeighboursCeiling(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = FLOOR + 1, courses = 4, stock = 64, ceilY = standY + 2;
+        final int standY = FLOOR + 1;
+        final int courses = 4;
+        final int stock = 64;
+        final int ceilY = standY + 2;
         towerConfig(game);
         BlockPos stand = plot.at(0, standY, 0);
-        final BlockPos lid = plot.at(-1, ceilY, 0), own = plot.at(0, ceilY, 0);
+        final BlockPos lid = plot.at(-1, ceilY, 0);
+        final BlockPos own = plot.at(0, ceilY, 0);
 
         // ---- control: the player straddles into the lidded column ----
         stageFlatArena(plot, 3, FLOOR);

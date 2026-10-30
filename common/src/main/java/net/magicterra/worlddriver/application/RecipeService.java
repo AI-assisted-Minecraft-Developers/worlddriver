@@ -316,7 +316,8 @@ public final class RecipeService implements RecipeApi {
      * ["AAA"," B "," B "].
      */
     private List<String> shapedPattern(ShapedRecipe sr) {
-        int w = sr.getWidth(), h = sr.getHeight();
+        int w = sr.getWidth();
+        int h = sr.getHeight();
         NonNullList<Ingredient> ings = sr.getIngredients();
         Map<String, Character> keyOf = new LinkedHashMap<>();
         char next = 'A';

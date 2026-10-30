@@ -328,7 +328,9 @@ public final class IntentProcess implements BotProcess, Navigating {
      * mutable seam of the dynamic anchor.
      */
     private SearchProfile profileWith(EntityLeash el, BlockPos anchor) {
-        double ax = anchor.getX() + 0.5, ay = anchor.getY(), az = anchor.getZ() + 0.5;
+        double ax = anchor.getX() + 0.5;
+        double ay = anchor.getY();
+        double az = anchor.getZ() + 0.5;
         List<CostModifier> bias = intent.bias();
         List<Constraint> cons = intent.constraints();
         if (el.hard()) {

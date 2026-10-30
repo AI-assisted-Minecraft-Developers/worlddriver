@@ -243,7 +243,9 @@ public final class JoinedPlayers {
         private boolean levelTicked;
 
         /** This step's movement input, as a client's {@code Input} holds it before any scaling. */
-        private float moveLeft, moveForward;
+        private float moveLeft;
+
+        private float moveForward;
 
         private long lastJumpGameTime = -1;
 
@@ -285,7 +287,9 @@ public final class JoinedPlayers {
                 tickCount++;
             }
             levelTicked = false;
-            double x0 = getX(), y0 = getY(), z0 = getZ();
+            double x0 = getX();
+            double y0 = getY();
+            double z0 = getZ();
             boolean wasFallFlying = isFallFlying();
             super.tick();
             doTick();
@@ -333,7 +337,8 @@ public final class JoinedPlayers {
                     && !isPassenger()
                     && canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING)
                     && (isShiftKeyDown() || !isSleeping() && !canPlayerFitWithinBlocksAndEntitiesWhen(Pose.STANDING));
-            float left = moveLeft, forward = moveForward;
+            float left = moveLeft;
+            float forward = moveForward;
             if (crouching || isVisuallyCrawling()) {
                 float slow = (float) getAttributeValue(Attributes.SNEAKING_SPEED);
                 left *= slow;
@@ -379,7 +384,8 @@ public final class JoinedPlayers {
             if (!suffocatesAt(cell)) {
                 return;
             }
-            double fx = x - cell.getX(), fz = z - cell.getZ();
+            double fx = x - cell.getX();
+            double fz = z - cell.getZ();
             Direction nearest = null;
             double gap = Double.MAX_VALUE;
             for (Direction side : new Direction[] {Direction.WEST, Direction.EAST, Direction.NORTH, Direction.SOUTH}) {
@@ -419,7 +425,8 @@ public final class JoinedPlayers {
         @Override
         protected boolean isHorizontalCollisionMinor(Vec3 movement) {
             float yaw = getYRot() * ((float) Math.PI / 180F);
-            double sin = Mth.sin(yaw), cos = Mth.cos(yaw);
+            double sin = Mth.sin(yaw);
+            double cos = Mth.cos(yaw);
             double ix = xxa * cos - zza * sin;
             double iz = zza * cos + xxa * sin;
             double inputSq = Mth.square(ix) + Mth.square(iz);

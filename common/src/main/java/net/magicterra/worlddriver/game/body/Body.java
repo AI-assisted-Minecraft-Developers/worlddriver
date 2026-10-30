@@ -120,7 +120,8 @@ public interface Body {
         if (p == null) {
             return;
         }
-        double dx = wx - p.getX(), dz = wz - p.getZ();
+        double dx = wx - p.getX();
+        double dz = wz - p.getZ();
         if (dx * dx + dz * dz < 1.0E-6) {
             commandMove(0f, 0f);
             return;

@@ -98,7 +98,8 @@ class ThinFootingTest {
     void serverWidensAThinFooting(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 384, z = 24) Plot plot, TestReporter reporter) {
         final int slot = 0;
-        final int deckY = DECK, standY = deckY + 1;
+        final int deckY = DECK;
+        final int standY = deckY + 1;
         // One 1-wide strip of ledge and a single landing cell one up and one across — the diagUp the ladder's plan
         // keeps producing. Everything else is air, so any block found under the bot afterwards was put there by it.
         plot.fill(0, deckY, -3, 0, deckY, 0, Blocks.OBSIDIAN);
@@ -119,8 +120,10 @@ class ThinFootingTest {
 
         BlockPos stand = plot.at(0, standY, 0);
         SceneBot bot = SceneBot.spawn(game, stand);
-        final int cx = plot.origin().getX(), cz = plot.origin().getZ();
-        final int deckAbs = plot.at(0, deckY, 0).getY(), standAbs = stand.getY();
+        final int cx = plot.origin().getX();
+        final int cz = plot.origin().getZ();
+        final int deckAbs = plot.at(0, deckY, 0).getY();
+        final int standAbs = stand.getY();
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
@@ -334,8 +337,11 @@ class ThinFootingTest {
     void serverPlansABridgeFromTheBackpack(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 384, z = 48) Plot plot, TestReporter reporter) {
         final int slot = 20;
-        final int deckY = DECK, standY = deckY + 1;
-        final int nearCells = 4, gapCells = 4, farCells = 4;
+        final int deckY = DECK;
+        final int standY = deckY + 1;
+        final int nearCells = 4;
+        final int gapCells = 4;
+        final int farCells = 4;
         // Void everywhere and genuinely bottomless: a catch floor below the gap would let the navigator fall and
         // recover, which measures the arena instead of the planner.
         plot.fill(0, deckY, 0, 0, deckY, nearCells - 1, Blocks.OBSIDIAN);
@@ -349,8 +355,8 @@ class ThinFootingTest {
 
         BlockPos stand = plot.at(0, standY, 0);
         BlockPos goal = plot.at(0, standY, farStart + farCells - 1);
-        final int farStartAbs = plot.at(0, 0, farStart).getZ(),
-                deckAbs = plot.at(0, deckY, 0).getY();
+        final int farStartAbs = plot.at(0, 0, farStart).getZ();
+        final int deckAbs = plot.at(0, deckY, 0).getY();
         SceneBot bot = SceneBot.spawn(game, stand);
 
         game.runOnServer(s -> {
@@ -463,7 +469,9 @@ class ThinFootingTest {
     void serverTurnsAtTheBridgeHead(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 384, z = 48) Plot plot, TestReporter reporter) {
         final int lateral = -3;
-        final int deckY = DECK, standY = deckY + 1, deckCells = 8;
+        final int deckY = DECK;
+        final int standY = deckY + 1;
+        final int deckCells = 8;
         // A genuine shaft under and past the bridge: the guard only arms instantly over a column that is bottomless
         // to the navigator's own scan floor, so a catch floor would measure the arena.
         plot.fill(0, deckY, 0, 0, deckY, deckCells - 1, Blocks.OBSIDIAN);
@@ -793,7 +801,8 @@ class ThinFootingTest {
      */
     private static String scanRow(Settings settings, ServerLevel level, BlockPos stride, boolean lava) {
         int depth = Math.max(settings.integer("pathfinderMaxDryFall") + 1, 23); // ceil(20 HP) + 3
-        int hazardAt = -1, floorAt = -1;
+        int hazardAt = -1;
+        int floorAt = -1;
         for (int i = 1; i <= depth && floorAt < 0; i++) {
             BlockPos c = stride.below(i);
             if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) {
@@ -823,7 +832,8 @@ class ThinFootingTest {
         settings.set("navigatorStrideFloorGuard", strideGuard);
         BlockPos o = plot.origin();
         double startZ = o.getZ() + 1.5;
-        int standY = plot.at(0, SHELF + 1, 0).getY(), shelfAbs = standY - 1;
+        int standY = plot.at(0, SHELF + 1, 0).getY();
+        int shelfAbs = standY - 1;
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), o.getX() + 0.5, standY, startZ);
         // One column aside from the line the rig walks: the bot never stands in the goal, so the walk is still
         // underway at the lip, where its guards run.
@@ -838,9 +848,11 @@ class ThinFootingTest {
                         + " after " + SETTLE_TICKS + " idle ticks)");
             }
             bot.goTo(Targets.block(goal));
-            double minY = fp.getY(), farZ = fp.getZ();
+            double minY = fp.getY();
+            double farZ = fp.getZ();
             boolean inLava = false;
-            int pinned = 0, t = 0;
+            int pinned = 0;
+            int t = 0;
             for (; t < SHORE_TICKS; t++) {
                 if (straightOn(bot, () -> aim(fp, 0f))) {
                     pinned++;
@@ -1041,7 +1053,8 @@ class ThinFootingTest {
             Game game, Plot plot, Settings settings, TestReporter reporter, String arm, boolean strideGuard) {
         settings.set("navigatorStrideFloorGuard", strideGuard);
         BlockPos o = plot.origin();
-        double startX = o.getX() + 1.5, startZ = o.getZ() + 0.5;
+        double startX = o.getX() + 1.5;
+        double startZ = o.getZ() + 0.5;
         int standY = plot.at(0, RIM_DECK + 1, 0).getY();
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), startX, standY, startZ);
         BlockPos goal = plot.at(0, RIM_DECK + 1, 18);
@@ -1055,9 +1068,15 @@ class ThinFootingTest {
                         + " after " + SETTLE_TICKS + " idle ticks)");
             }
             bot.goTo(Targets.block(goal));
-            double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
+            double minY = fp.getY();
+            double farZ = fp.getZ();
+            double pinZ = Double.NaN;
+            double farAfterPin = 0.0;
             boolean inLava = false;
-            int pinned = 0, run = 0, longest = 0, t = 0;
+            int pinned = 0;
+            int run = 0;
+            int longest = 0;
+            int t = 0;
             for (; t < RIM_TICKS; t++) {
                 if (straightOn(bot, () -> aim(fp, RIM_YAW))) {
                     pinned++;

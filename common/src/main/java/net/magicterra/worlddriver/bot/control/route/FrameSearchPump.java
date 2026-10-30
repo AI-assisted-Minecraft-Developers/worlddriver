@@ -27,7 +27,9 @@ public final class FrameSearchPump {
 
     private static volatile Thread frameThread;
     private static Navigator navigator;
-    private static long offeredAt, frameStart, spentNanos;
+    private static long offeredAt;
+    private static long frameStart;
+    private static long spentNanos;
 
     /** Right after the limiter returns: the next frame's 1/cap starts now. */
     public static void frameStarted() {

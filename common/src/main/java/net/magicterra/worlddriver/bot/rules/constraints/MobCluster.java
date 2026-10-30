@@ -49,7 +49,9 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
      */
     public record Cluster(int count, double radius, boolean hard, double penalty) {}
 
-    private final double radius, rangedRadius, penalty;
+    private final double radius;
+    private final double rangedRadius;
+    private final double penalty;
     private final Cluster cluster;
     private final Set<String> types;
 
@@ -109,7 +111,8 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         }
         float[] xyzr = new float[picked.size() * 4];
         double[] xyz = new double[picked.size() * 3];
-        int i = 0, j = 0;
+        int i = 0;
+        int j = 0;
         for (ThreatSnapshot.Threat t : picked) {
             xyzr[i++] = (float) t.pos().x;
             xyzr[i++] = (float) t.pos().y;
@@ -125,10 +128,15 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
     /** How many snapshot mobs are within {@code r} of a cell centre. */
     public int count(BlockPos p, double r) {
-        double x = p.getX() + 0.5, y = p.getY(), z = p.getZ() + 0.5, r2 = r * r;
+        double x = p.getX() + 0.5;
+        double y = p.getY();
+        double z = p.getZ() + 0.5;
+        double r2 = r * r;
         int n = 0;
         for (int i = 0; i + 2 < mobs.length; i += 3) {
-            double dx = x - mobs[i], dy = y - mobs[i + 1], dz = z - mobs[i + 2];
+            double dx = x - mobs[i];
+            double dy = y - mobs[i + 1];
+            double dz = z - mobs[i + 2];
             if (dx * dx + dy * dy + dz * dz <= r2) {
                 n++;
             }
@@ -138,9 +146,14 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
     /** Distance from a cell centre to the nearest snapshot mob; +∞ with none. */
     public double nearest(BlockPos p) {
-        double x = p.getX() + 0.5, y = p.getY(), z = p.getZ() + 0.5, best = Double.POSITIVE_INFINITY;
+        double x = p.getX() + 0.5;
+        double y = p.getY();
+        double z = p.getZ() + 0.5;
+        double best = Double.POSITIVE_INFINITY;
         for (int i = 0; i + 2 < mobs.length; i += 3) {
-            double dx = x - mobs[i], dy = y - mobs[i + 1], dz = z - mobs[i + 2];
+            double dx = x - mobs[i];
+            double dy = y - mobs[i + 1];
+            double dz = z - mobs[i + 2];
             best = Math.min(best, dx * dx + dy * dy + dz * dz);
         }
         return Math.sqrt(best);

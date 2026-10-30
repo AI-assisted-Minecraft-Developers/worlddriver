@@ -342,7 +342,8 @@ public final class Navigator implements Locomotor {
             }
         }
         BlockPos best = null;
-        long bestToTarget = Long.MAX_VALUE, bestToFoot = Long.MAX_VALUE;
+        long bestToTarget = Long.MAX_VALUE;
+        long bestToFoot = Long.MAX_VALUE;
         for (int dy = -GOAL_SNAP_RADIUS; dy <= GOAL_SNAP_RADIUS; dy++) {
             for (int dx = -GOAL_SNAP_RADIUS; dx <= GOAL_SNAP_RADIUS; dx++) {
                 for (int dz = -GOAL_SNAP_RADIUS; dz <= GOAL_SNAP_RADIUS; dz++) {

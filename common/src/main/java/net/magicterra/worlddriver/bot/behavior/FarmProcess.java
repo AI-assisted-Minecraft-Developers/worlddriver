@@ -32,8 +32,8 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     private static final int PLACE_TIMEOUT_TICKS = 40;
 
-    private final BlockPos minP,
-            maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
+    private final BlockPos minP;
+    private final BlockPos maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
     private final Set<String> crops;
     private final boolean replant;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("farm"));
@@ -48,9 +48,14 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     private BlockPos currentTarget;
     private String currentCropId;
-    private int breakingTicks, placeTicks;
+    private int breakingTicks;
+    private int placeTicks;
     /** {@code skipped} counts crops never harvested; {@code unplanted} those harvested whose replant failed. */
-    private int harvested, replanted, skipped, unplanted;
+    private int harvested;
+
+    private int replanted;
+    private int skipped;
+    private int unplanted;
     /**
      * Mature crops the latest scan found with no stand beside them. Not blacklisted, because a cleared neighbour can
      * open one; whatever the final scan still counts was never harvested.
@@ -252,7 +257,8 @@ public final class FarmProcess implements BotProcess, Navigating {
             return null;
         }
         BlockPos foot = blockPosOf(p);
-        BlockPos bestCrop = null, bestStand = null;
+        BlockPos bestCrop = null;
+        BlockPos bestStand = null;
         long bestD2 = Long.MAX_VALUE;
         stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {

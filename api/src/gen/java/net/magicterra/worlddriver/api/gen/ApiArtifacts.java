@@ -313,7 +313,8 @@ public final class ApiArtifacts {
         out.append("Generated from the method descriptions; the types are in `worlddriver.d.ts`.\n");
         for (MethodSpec<?, ?> m : methods) {
             TsContext ts = new TsContext();
-            String in = m.input().ts(ts), res = m.output().ts(ts);
+            String in = m.input().ts(ts);
+            String res = m.output().ts(ts);
             out.append("\n## `")
                     .append(m.name())
                     .append("`\n\n")

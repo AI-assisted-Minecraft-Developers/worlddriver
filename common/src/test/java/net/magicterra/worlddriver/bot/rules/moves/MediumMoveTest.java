@@ -45,7 +45,8 @@ class MediumMoveTest {
     void aSmallFlyerPassesAOneCellHoleAndAGhastDoesNot() {
         Move east = stroke(MediumMove.FLY, 1, 0, 0);
         // Each from the node whose box ends just short of the wall.
-        BlockPos small = new BlockPos(4, 10, 10), ghast = new BlockPos(2, 10, 10);
+        BlockPos small = new BlockPos(4, 10, 10);
+        BlockPos ghast = new BlockPos(2, 10, 10);
         assertTrue(east.valid(wall(10, 10, 10, 10).withBody(0.5, 0.9), small));
         assertFalse(east.valid(wall(10, 10, 10, 10).withBody(4.0, 4.0), ghast));
         assertFalse(east.valid(wall(10, 9, 13, 11).withBody(4.0, 4.0), ghast)); // three wide, four high
