@@ -18,8 +18,12 @@
 (function () {
     var SENSE_RADIUS = 96;
 
-    function boss()     { return Driver.invoke('mc.observe.boss', { radius: SENSE_RADIUS }); }
-    function aborting()  { return Driver.invoke('mc.bot.playbook', { op: 'status' }).stopping; }
+    function boss() {
+        return Driver.invoke("mc.observe.boss", { radius: SENSE_RADIUS });
+    }
+    function aborting() {
+        return Driver.invoke("mc.bot.playbook", { op: "status" }).stopping;
+    }
     function nearest(list) {
         var best = list[0];
         for (var i = 1; i < list.length; i++) if (list[i].distance < best.distance) best = list[i];
@@ -27,24 +31,27 @@
     }
 
     var b = boss();
-    if (!b.boss || b.boss.type !== 'ender_dragon') {
-        return { ok: true, note: 'no ender dragon present', crystals: b.crystals.length };
+    if (!b.boss || b.boss.type !== "ender_dragon") {
+        return { ok: true, note: "no ender dragon present", crystals: b.crystals.length };
     }
 
     // T0 survival reflexes on for the whole fight.
-    Driver.bot.setting({ op: 'patch', values: { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true } });
+    Driver.bot.setting({ op: "patch", values: { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true } });
     // Gear up if we are carrying anything better (idempotent — no-op once best is worn).
-    try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
+    try {
+        Driver.invoke("mc.bot.equip", { profile: "best" });
+    } catch (e) {}
 
-    var maxRounds = (typeof PLAYBOOK !== 'undefined' && PLAYBOOK.maxRounds) ? PLAYBOOK.maxRounds : 6000;
-    var rounds = 0, crystalsCleared = false;
+    var maxRounds = typeof PLAYBOOK !== "undefined" && PLAYBOOK.maxRounds ? PLAYBOOK.maxRounds : 6000;
+    var rounds = 0,
+        crystalsCleared = false;
 
     while (true) {
-        if (aborting())            return { ok: false, note: 'aborted', rounds: rounds, crystalsCleared: crystalsCleared };
-        if (++rounds > maxRounds)  return { ok: false, note: 'maxRounds exceeded', rounds: rounds };
+        if (aborting()) return { ok: false, note: "aborted", rounds: rounds, crystalsCleared: crystalsCleared };
+        if (++rounds > maxRounds) return { ok: false, note: "maxRounds exceeded", rounds: rounds };
 
         b = boss();
-        if (!b.boss)               return { ok: true, note: 'dragon defeated', rounds: rounds, crystalsCleared: crystalsCleared };
+        if (!b.boss) return { ok: true, note: "dragon defeated", rounds: rounds, crystalsCleared: crystalsCleared };
 
         var crystals = b.crystals;
         if (crystals.length > 0) {
@@ -53,9 +60,11 @@
             // Caged crystals sit in an iron-bar cage atop the taller pillars — get
             // up close (range 2) so we can break in; exposed ones we approach loosely.
             try {
-                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 } });
+                Driver.invoke("mc.bot.goto", {
+                    target: { kind: "position", pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 },
+                });
             } catch (e) {}
-            Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entity', entityId: c.id } });
+            Driver.invoke("mc.bot.combat", { mode: "kill", target: { kind: "entity", entityId: c.id } });
             Driver.system.waitTicks({ ticks: 12 });
             continue;
         }
@@ -67,10 +76,19 @@
         if (b.boss.perched) {
             // Perch is the prime damage window — close on the head, then melee.
             try {
-                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: Math.floor(head.pos.x), y: Math.floor(head.pos.y), z: Math.floor(head.pos.z) }, near: 3 } });
+                Driver.invoke("mc.bot.goto", {
+                    target: {
+                        kind: "position",
+                        pos: { x: Math.floor(head.pos.x), y: Math.floor(head.pos.y), z: Math.floor(head.pos.z) },
+                        near: 3,
+                    },
+                });
             } catch (e) {}
         }
-        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entityType', type: 'minecraft:ender_dragon' } });
+        Driver.invoke("mc.bot.combat", {
+            mode: "kill",
+            target: { kind: "entityType", type: "minecraft:ender_dragon" },
+        });
         Driver.system.waitTicks({ ticks: 12 });
     }
 })();

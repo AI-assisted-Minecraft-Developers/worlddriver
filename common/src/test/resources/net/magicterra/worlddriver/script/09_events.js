@@ -11,7 +11,9 @@
 // the callback runs during step 2, which is well after script eval.
 
 var attachCount = 0;
-ScriptEvents.onAttach(function () { attachCount++; });
+ScriptEvents.onAttach(function () {
+    attachCount++;
+});
 
 // This test runs inline during script eval — before fireAttach() has run.
 ScriptTest.run("09_events: before attach, onAttach callback has not yet fired", function (t) {
@@ -20,7 +22,9 @@ ScriptTest.run("09_events: before attach, onAttach callback has not yet fired", 
 
 ScriptTest.run("09_events: tickListenerCount reflects registration", function (t) {
     var before = ScriptEvents.tickListenerCount();
-    ScriptEvents.tick(function () { /* no-op */ });
+    ScriptEvents.tick(function () {
+        /* no-op */
+    });
     var after = ScriptEvents.tickListenerCount();
     t.assertEqual(after, before + 1, "tick listener count should increment by 1");
 });
@@ -34,7 +38,9 @@ ScriptEvents.onAttach(function () {
 
     ScriptTest.run("09_events: late-registered onAttach fires immediately", function (t) {
         var lateFired = 0;
-        ScriptEvents.onAttach(function () { lateFired++; });
+        ScriptEvents.onAttach(function () {
+            lateFired++;
+        });
         t.assertEqual(lateFired, 1, "post-attach onAttach should fire immediately");
     });
 
