@@ -100,6 +100,8 @@ public final class ScriptEvents {
         return tickCallbacks.size();
     }
 
+    // The validation harness reports on standard error, where its scripts' console.error also goes.
+    @SuppressWarnings("PMD.SystemPrintln")
     private static void invoke(Function cb) {
         ContextFactory f = factory;
         Scriptable s = scope;

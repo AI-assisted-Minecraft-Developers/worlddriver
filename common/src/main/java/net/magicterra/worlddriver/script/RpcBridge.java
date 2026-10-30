@@ -19,6 +19,7 @@ public final class RpcBridge {
 
     private final int port;
 
+    /** A bridge that opens a new connection to {@code ws://host:port/rpc} for every call. */
     public RpcBridge(String host, int port) {
         this.host = host;
         this.port = port;

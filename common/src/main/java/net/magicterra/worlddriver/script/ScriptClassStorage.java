@@ -42,10 +42,7 @@ final class ScriptClassStorage extends CachedClassStorage {
         if (method.isBridge()) {
             return !hasReachableTarget(type, method);
         }
-        if (method.isAnnotationPresent(Deprecated.class)) {
-            return !hasPrimitiveTwin(type, method);
-        }
-        return true;
+        return !method.isAnnotationPresent(Deprecated.class) || !hasPrimitiveTwin(type, method);
     }
 
     /** {@code type} answers {@code bridge}'s name and arity with a method that is not a bridge, on a public type. */

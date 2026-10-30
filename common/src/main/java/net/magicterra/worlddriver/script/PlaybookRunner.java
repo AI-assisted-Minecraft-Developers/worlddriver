@@ -58,10 +58,17 @@ public final class PlaybookRunner {
         }
     }
 
+    /** A runner whose playbooks run through {@code evaluator}, under its class filter. */
     public PlaybookRunner(ScriptEvaluator evaluator) {
         this.evaluator = evaluator;
     }
 
+    /**
+     * Starts a playbook, reports the running or last one, or cancels it. Starting while one is running is refused, as
+     * is a name with no playbook behind it.
+     */
+    // A type pattern needs a binding name; unnamed patterns are not final in Java 21.
+    @SuppressWarnings("PMD.UnusedLocalVariable")
     public PlaybookReply handle(PlaybookOp op) {
         return switch (op) {
             case StartPlaybook s -> start(s);

@@ -7,7 +7,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * prelude.js, the generated method wrappers, and the globals they read, installed the same way in every scope that runs
+ * Installs prelude.js, the generated method wrappers, and the globals they read the same way in every scope that runs
  * them: the {@code mc.script.eval} scope and the validation harness scope. A scope that set up one of these globals
  * itself and missed another would fail only when a script reached the helper that reads it.
  */

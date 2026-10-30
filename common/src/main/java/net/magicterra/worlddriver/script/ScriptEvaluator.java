@@ -70,6 +70,7 @@ public final class ScriptEvaluator {
 
     private final Semaphore runs = new Semaphore(MAX_RUNS);
 
+    /** An evaluator whose scripts call {@code api}, each on a daemon thread of its own. */
     public ScriptEvaluator(ApiRegistry api) {
         this.api = api;
         this.executor = Executors.newCachedThreadPool(
@@ -180,8 +181,10 @@ public final class ScriptEvaluator {
         }
     }
 
+    // Every throwable is first classified as stopped or timed out; only what remains may be a JS throw.
+    @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
     private Outcome runOnce(String source, CallContext ctx, BooleanSupplier stopped, long start) {
-        String runId = ctx.run().orElseThrow().runId();
+        final String runId = ctx.run().orElseThrow().runId();
         ContextFactory factory = new ScriptContextFactory() {
             @Override
             protected Context createContext() {
@@ -348,7 +351,9 @@ public final class ScriptEvaluator {
             stopped = () -> false;
         }
 
+        // Only an unwind signal: runOnce catches every throwable and classifies it by stop flag and deadline.
         @Override
+        @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
         protected void observeInstructionCount(int instructionCount) {
             if (stopped.getAsBoolean()) {
                 throw new RuntimeException("script stopped");

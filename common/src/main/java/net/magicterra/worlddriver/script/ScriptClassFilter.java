@@ -77,6 +77,10 @@ public final class ScriptClassFilter {
 
     private ScriptClassFilter() {}
 
+    /**
+     * Whether a script may see {@code fullClassName}: always, unless {@code -Dworlddriver.sandbox=on} and the denylist
+     * covers it. The visibility context does not change the answer.
+     */
     public static boolean isAllowed(String fullClassName, ClassVisibilityContext type) {
         return DISABLED || !denied(fullClassName);
     }

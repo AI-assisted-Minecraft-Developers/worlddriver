@@ -6,6 +6,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -35,6 +36,7 @@ public final class McpBridge {
 
     private final Function<String, MethodSpec.ImageHint> images;
 
+    /** A bridge to the MCP server at {@code http://host:port/mcp} that puts no image bytes back into results. */
     public McpBridge(String host, int port) {
         this(host, port, name -> null);
     }
@@ -79,7 +81,7 @@ public final class McpBridge {
         }
     }
 
-    private JsonElement call(String toolName, JsonElement args) throws Exception {
+    private JsonElement call(String toolName, JsonElement args) throws IOException, InterruptedException {
         JsonObject params = new JsonObject();
         params.addProperty("name", toolName);
         if (args != null) {

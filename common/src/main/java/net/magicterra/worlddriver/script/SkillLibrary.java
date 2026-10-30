@@ -39,11 +39,18 @@ public final class SkillLibrary {
 
     private final Path dir;
 
+    /** A library kept as one {@code <name>.js} file per skill in {@code dir}, run through {@code evaluator}. */
     public SkillLibrary(ScriptEvaluator evaluator, Path dir) {
         this.evaluator = evaluator;
         this.dir = dir;
     }
 
+    /**
+     * Saves, lists, reads, runs or deletes a skill. Only a run completes later, inside {@code ctx}'s run when it has
+     * one; a name with no saved skill is invalid_params at {@code /name}.
+     */
+    // A type pattern needs a binding name; unnamed patterns are not final in Java 21.
+    @SuppressWarnings("PMD.UnusedLocalVariable")
     public CompletionStage<SkillReply> handle(SkillOp op, CallContext ctx) {
         return switch (op) {
             case SaveSkill s -> CompletableFuture.completedFuture(save(s));
@@ -70,8 +77,10 @@ public final class SkillLibrary {
             Files.createDirectories(dir);
             Files.writeString(file(s.name()), s.source(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw ApiException.of(
-                    ApiError.Code.INTERNAL_ERROR, "writing skill " + s.name() + " failed: " + e.getMessage());
+            throw new ApiException(
+                    ApiError.of(
+                            ApiError.Code.INTERNAL_ERROR, "writing skill " + s.name() + " failed: " + e.getMessage()),
+                    e);
         }
         return new SkillSaved(s.name(), s.source().getBytes(StandardCharsets.UTF_8).length);
     }
@@ -89,7 +98,8 @@ public final class SkillLibrary {
                 skills.add(new SkillEntry(fn.substring(0, fn.length() - 3), Files.size(p)));
             }
         } catch (IOException e) {
-            throw ApiException.of(ApiError.Code.INTERNAL_ERROR, "listing skills failed: " + e.getMessage());
+            throw new ApiException(
+                    ApiError.of(ApiError.Code.INTERNAL_ERROR, "listing skills failed: " + e.getMessage()), e);
         }
         return new SkillList(skills);
     }
@@ -98,8 +108,10 @@ public final class SkillLibrary {
         try {
             return new SkillDeleted(d.name(), Files.deleteIfExists(file(d.name())));
         } catch (IOException e) {
-            throw ApiException.of(
-                    ApiError.Code.INTERNAL_ERROR, "deleting skill " + d.name() + " failed: " + e.getMessage());
+            throw new ApiException(
+                    ApiError.of(
+                            ApiError.Code.INTERNAL_ERROR, "deleting skill " + d.name() + " failed: " + e.getMessage()),
+                    e);
         }
     }
 
@@ -116,7 +128,9 @@ public final class SkillLibrary {
         try {
             return Files.readString(f, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw ApiException.of(ApiError.Code.INTERNAL_ERROR, "reading skill " + name + " failed: " + e.getMessage());
+            throw new ApiException(
+                    ApiError.of(ApiError.Code.INTERNAL_ERROR, "reading skill " + name + " failed: " + e.getMessage()),
+                    e);
         }
     }
 }

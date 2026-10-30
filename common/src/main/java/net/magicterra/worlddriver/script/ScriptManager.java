@@ -31,10 +31,15 @@ public final class ScriptManager {
 
     private final McpBridge mcpBridge; // may be null if MCP server isn't up
 
+    /** A manager for the scripts in {@code scriptsDir} with no MCP bridge; {@code bridge} may be null. */
     public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge) {
         this(api, scriptsDir, bridge, null);
     }
 
+    /**
+     * A manager for the scripts in {@code scriptsDir}; either bridge may be null when its server is not up, and a
+     * script that calls through a missing one throws.
+     */
     public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge, McpBridge mcpBridge) {
         this.api = api;
         this.scriptsDir = scriptsDir;
@@ -42,6 +47,12 @@ public final class ScriptManager {
         this.mcpBridge = mcpBridge;
     }
 
+    /**
+     * Clears the registered script callbacks, evaluates every {@code .js} file in the directory in name order in one
+     * fresh scope, then fires attach. A script that fails is reported and skipped; the count is of those that loaded.
+     */
+    // The validation harness reports on standard error, where its scripts' console.error also goes.
+    @SuppressWarnings({"PMD.SystemPrintln", "PMD.AvoidPrintStackTrace"})
     public int loadAll() throws IOException {
         ScriptEvents.clear();
         ContextFactory factory = new ScriptContextFactory();

@@ -32,6 +32,7 @@ public final class HostedScripts implements Scripting {
 
     private final ContextFactory factory = new ScriptContextFactory();
 
+    /** Scripts whose {@code mc} calls go straight to {@code api}. */
     public HostedScripts(ApiRegistry api) {
         this.api = api;
     }
@@ -72,7 +73,9 @@ public final class HostedScripts implements Scripting {
 
     /** {@code Java.type(name)}. */
     private static final class JavaType extends BaseFunction {
+        // The script gets a JS Error naming the class; the class loader's Java stack means nothing to it.
         @Override
+        @SuppressWarnings("PMD.PreserveStackTrace")
         public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             String name = args.length == 0 ? "undefined" : ScriptRuntime.toString(cx, args[0]);
             if (!cx.visibleToScripts(name, ClassVisibilityContext.CLASS_IN_PACKAGE)) {
@@ -89,6 +92,8 @@ public final class HostedScripts implements Scripting {
         }
     }
 
+    // Recognising Rhino's own array type is the point; an interface would also match Java lists handed through.
+    @SuppressWarnings("PMD.LooseCoupling")
     private Object toJava(Object js, Scriptable scope) {
         if (js == null || js instanceof Undefined) {
             return null;
