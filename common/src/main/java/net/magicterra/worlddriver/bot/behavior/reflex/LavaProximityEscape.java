@@ -5,6 +5,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BotUtil;
@@ -67,7 +68,12 @@ public final class LavaProximityEscape {
 
     private int quenchTicks;
 
-    /** @return true if it drove the escape this tick (keys are ours). */
+    /**
+     * Drives the walk away from nearby lava this tick, holding the movement keys while it does.
+     *
+     * @return true if it drove the escape this tick (keys are ours)
+     */
+    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body body) {
         // Everything read and set here is a LivingEntity's, so a mob walks away from lava too.
         LivingEntity p = body.entity();
@@ -304,7 +310,7 @@ public final class LavaProximityEscape {
             return foot;
         }
         Map<BlockPos, BlockPos> firstStep = new HashMap<>();
-        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        Queue<BlockPos> open = new ArrayDeque<>();
         firstStep.put(foot, foot);
         open.add(foot);
         while (!open.isEmpty()) {

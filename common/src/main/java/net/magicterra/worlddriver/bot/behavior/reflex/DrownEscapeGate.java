@@ -70,9 +70,6 @@ public final class DrownEscapeGate {
         // resumed task dove straight back down). A head-out tick with air merely
         // EQUAL to last tick's (surface bob before the first +4 lands) keeps the
         // latch: no flap from bobbing.
-        if (!underwater && air > prevAir && air > enterAir + RECOVER_MARGIN) {
-            return false;
-        }
-        return true;
+        return underwater || air <= prevAir || air <= enterAir + RECOVER_MARGIN;
     }
 }

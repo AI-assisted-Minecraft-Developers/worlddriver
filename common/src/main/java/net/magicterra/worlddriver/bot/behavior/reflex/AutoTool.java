@@ -38,10 +38,7 @@ public final class AutoTool {
 
     /** Pure yield policy (matrix-testable). */
     public static boolean shouldYield(int selectedNow, int lastAuto, int grace) {
-        if (grace > 0) {
-            return true;
-        }
-        return lastAuto != -1 && selectedNow != lastAuto;
+        return grace > 0 || (lastAuto != -1 && selectedNow != lastAuto);
     }
 
     /**
@@ -57,6 +54,7 @@ public final class AutoTool {
         return graceLeft - 1;
     }
 
+    /** Selects the best hotbar tool for the bot's target, yielding while the player changes the slot by hand. */
     public void tick(Body body) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
@@ -106,11 +104,11 @@ public final class AutoTool {
                 bestCorrect = cor;
             }
         }
-        if (bestSlot != inv.selected) {
+        if (bestSlot == inv.selected) {
+            lastAutoSelected = inv.selected;
+        } else {
             hands.setSelectedSlot(bestSlot);
             lastAutoSelected = bestSlot;
-        } else {
-            lastAutoSelected = inv.selected;
         }
     }
 }

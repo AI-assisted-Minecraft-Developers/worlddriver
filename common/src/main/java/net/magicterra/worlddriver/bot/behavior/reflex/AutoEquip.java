@@ -58,6 +58,7 @@ public final class AutoEquip {
 
     private AutoEquip() {}
 
+    /** The outcome of an equip pass: what was equipped, the loadout, the low-durability items and the missing ones. */
     public record Result(
             List<String> equipped, Map<String, Object> loadout, List<String> lowDurability, List<String> missing) {}
 
@@ -73,6 +74,8 @@ public final class AutoEquip {
      * Equip the best armor in every armor slot (and, if {@code weaponToo}, the best main-hand weapon), reporting the
      * resulting loadout. A body with no hands or menus reports an empty loadout.
      */
+    // One pass over the equipment slots in a fixed order; the steps share its lists and counts.
+    @SuppressWarnings("checkstyle:javancss")
     public static Result equipBest(Body body, boolean weaponToo, double durabilityThreshold) {
         List<String> equipped = new ArrayList<>();
         List<String> lowDurability = new ArrayList<>();

@@ -56,11 +56,15 @@ public final class ContactDamageEscape {
 
     private BlockPos lastHazard;
 
-    /** @return true if it drove the escape this tick (keys are ours). */
+    /**
+     * Drives the escape out of a contact hazard this tick, holding the movement keys while it does.
+     *
+     * @return true if it drove the escape this tick (keys are ours)
+     */
     public boolean tick(Body body) {
         // Everything read and set here is a LivingEntity's, so a mob steps out of a cactus too.
         LivingEntity p = body.entity();
-        Level level = p.level();
+        final Level level = p.level();
         DamageSource src = p.getLastDamageSource();
         String msgId = src != null ? src.getMsgId() : null;
         boolean hot = ContactEscapeGate.shouldTrigger(msgId, p.hurtTime, BehaviorConfig.contactDamageEscape);
@@ -159,7 +163,7 @@ public final class ContactDamageEscape {
     }
 
     private static Iterable<BlockPos> candidates(BlockPos foot) {
-        java.util.ArrayList<BlockPos> out = new java.util.ArrayList<>(18);
+        java.util.List<BlockPos> out = new java.util.ArrayList<>(18);
         out.add(foot);
         out.add(foot.below());
         BlockPos head = foot.above();

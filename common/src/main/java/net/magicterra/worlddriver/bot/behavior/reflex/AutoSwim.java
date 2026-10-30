@@ -24,7 +24,7 @@ import net.minecraft.world.entity.LivingEntity;
  *       actually swims OUT.
  * </ol>
  *
- * The beach step runs ONLY when idle: an active process (goto/runAway) drives its own water-escape moves
+ * <p>The beach step runs ONLY when idle: an active process (goto/runAway) drives its own water-escape moves
  * ({@code SwimAshoreBreak}/{@code SwimUpBreak}) and we must not fight its steering. The lift step is unconditional
  * (compatible with a walking Navigator — both want the surface).
  *
@@ -246,7 +246,7 @@ public final class AutoSwim {
             }
             return;
         }
-        float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
+        float yaw = (float) Math.toDegrees(Math.atan2(-dir[0], dir[1]));
         p.setYRot(yaw);
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;
@@ -273,6 +273,9 @@ public final class AutoSwim {
      * water, so without the foot and head clauses this steered a drowning bot into it; a pond whose only bank is a
      * hazard now gets null, and the caller keeps holding jump to rise.
      */
+    // null is the answer "no reachable bank in range", which the caller tests for; an empty array would need a second
+    // check.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     static int[] nearestShore(WorldView w, int bx, int by, int bz) {
         // Scan ring by ring (nearest first). Within the first ring that has any dry
         // standable bank, pick the LOWEST one (gentlest to climb out onto), tie-broken
