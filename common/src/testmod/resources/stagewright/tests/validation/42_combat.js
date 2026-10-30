@@ -127,6 +127,12 @@ if (!clientAvailable()) {
         equip("minecraft:bow");
         asSelf("give @s minecraft:arrow 64");
         patch({ kiteDistance: 8 });
+        // Stand where backing off has room: two east of the oak log at the origin, half a block north of it, facing
+        // south. The melee check before this one ends wherever its last zombie fell, and a start at z = origin + 1.3
+        // backs straight into the log's south face, so the bot holds at 3.2 blocks and the check reads as no kiting.
+        var origin = Driver.system.testOrigin();
+        asSelf("tp @s " + (origin.x + 2.5) + " " + (origin.y + 1) + " " + (origin.z - 0.5) + " 0 0");
+        Driver.system.waitTicks({ ticks: 3 });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         // A skeleton 3 blocks away, inside the kite band, so the bot must back off toward kiteDistance (8) while
