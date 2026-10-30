@@ -79,6 +79,14 @@ public final class McpServer implements Closeable {
 
     private static final String SERVER_NAME = "worlddriver";
 
+    /** The {@code name} key of a tool entry, of {@code serverInfo} and of {@code tools/call} params. */
+    private static final String NAME = "name";
+
+    /** The {@code text} content-block type, which is also the key holding its text. */
+    private static final String TEXT = "text";
+
+    private static final String CONTENT_TYPE = "Content-Type";
+
     /**
      * Maximum inbound POST body — shared with the WebSocket transport's frame limit so the two cannot disagree about
      * what a request may weigh. See {@link RequestLimits}.
@@ -107,10 +115,20 @@ public final class McpServer implements Closeable {
     /** The tool names {@code tools/list} showed last; a publish that changes them is announced. */
     private volatile Set<String> listed;
 
+    /**
+     * Starts serving on the loopback interface only; a {@code port} of 0 takes any free port, which {@link #port()}
+     * then reports.
+     */
+    // The loopback literal is the security boundary itself: the server must never bind anything else by default.
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     public McpServer(ApiRegistry api, EventFeed events, int port) throws IOException {
         this(api, events, "127.0.0.1", port);
     }
 
+    /**
+     * Starts serving on {@code bindHost}, subscribes to {@code events} for the SSE push, and announces later registry
+     * changes on open streams. Binding anything but loopback exposes every tool to that network.
+     */
     public McpServer(ApiRegistry api, EventFeed events, String bindHost, int port) throws IOException {
         this.api = api;
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
@@ -141,7 +159,7 @@ public final class McpServer implements Closeable {
     private Set<String> listedNames() {
         Set<String> names = new java.util.LinkedHashSet<>();
         for (JsonObject t : McpTools.list(api)) {
-            names.add(t.get("name").getAsString());
+            names.add(t.get(NAME).getAsString());
         }
         return names;
     }
@@ -166,6 +184,7 @@ public final class McpServer implements Closeable {
         }
     }
 
+    /** The port actually bound, which differs from the one asked for when that was 0. */
     public int port() {
         return http.getAddress().getPort();
     }
@@ -178,26 +197,26 @@ public final class McpServer implements Closeable {
             send(ex, 405, "method not allowed");
             return;
         }
-        StringBuilder sb = new StringBuilder();
-        sb.append("<html><body><h1>Agent Driver MCP</h1>");
-        sb.append("<p>POST JSON-RPC 2.0 to /mcp. Tools:</p><ul>");
+        StringBuilder sb = new StringBuilder(4096);
+        sb.append("<html><body><h1>Agent Driver MCP</h1><p>POST JSON-RPC 2.0 to /mcp. Tools:</p><ul>");
         for (JsonObject t : McpTools.list(api)) {
             sb.append("<li><code>")
-                    .append(t.get("name").getAsString())
+                    .append(t.get(NAME).getAsString())
                     .append("</code> — ")
                     .append(t.get("description").getAsString())
                     .append("</li>");
         }
         sb.append("</ul></body></html>");
         byte[] body = sb.toString().getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+        ex.getResponseHeaders().set(CONTENT_TYPE, "text/html; charset=utf-8");
         ex.sendResponseHeaders(200, body.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(body);
         }
     }
 
-    @SuppressWarnings("unchecked")
+    // One linear request pipeline whose every step answers and returns early; split, it would read worse.
+    @SuppressWarnings({"unchecked", "checkstyle:javancss"})
     private void handle(HttpExchange ex) throws IOException {
         if (!checkOrigin(ex)) {
             return;
@@ -220,7 +239,7 @@ public final class McpServer implements Closeable {
         // Not a spec requirement: a no-cors browser fetch may only send the CORS "simple"
         // types, which skip the preflight, so demanding application/json keeps web pages
         // out of tools/call even when the Origin check cannot see them.
-        if (!isJsonContentType(ex.getRequestHeaders().getFirst("Content-Type"))) {
+        if (!isJsonContentType(ex.getRequestHeaders().getFirst(CONTENT_TYPE))) {
             send(ex, 415, "unsupported media type: POST requires Content-Type: application/json");
             return;
         }
@@ -268,7 +287,7 @@ public final class McpServer implements Closeable {
         // A cast here threw out of the handler, and the HTTP server answers that by dropping
         // the connection without a response.
         String method = string(req.get("method"));
-        JsonObject params = req.get("params") instanceof JsonObject mp ? mp : new JsonObject();
+        final JsonObject params = req.get("params") instanceof JsonObject mp ? mp : new JsonObject();
 
         if (method == null) {
             sendJson(ex, 400, jsonRpcError(id, -32_600, "missing or non-string method"));
@@ -327,7 +346,7 @@ public final class McpServer implements Closeable {
                     capabilities.add("logging", new JsonObject());
                     result.add("capabilities", capabilities);
                     JsonObject serverInfo = new JsonObject();
-                    serverInfo.addProperty("name", SERVER_NAME);
+                    serverInfo.addProperty(NAME, SERVER_NAME);
                     serverInfo.addProperty("version", BuildStamp.version());
                     result.add("serverInfo", serverInfo);
                     sendJson(ex, 200, jsonRpcResult(id, result));
@@ -355,7 +374,7 @@ public final class McpServer implements Closeable {
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "tools/call" -> {
-                    String toolName = string(params.get("name"));
+                    String toolName = string(params.get(NAME));
                     if (toolName == null) {
                         sendJson(ex, 200, jsonRpcError(id, -32_602, "missing tool name"));
                         return;
@@ -434,8 +453,11 @@ public final class McpServer implements Closeable {
         }
     }
 
+    // The stream is closed last in a cleanup that must first deregister the subscriber and must swallow a close
+    // failure.
+    @SuppressWarnings("PMD.UseTryWithResources")
     private void streamUntilClosed(HttpExchange ex) throws IOException {
-        ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+        ex.getResponseHeaders().set(CONTENT_TYPE, "text/event-stream; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-cache");
         ex.getResponseHeaders().set("Connection", "keep-alive");
         ex.sendResponseHeaders(200, 0); // 0 = open-ended (chunked); stream stays open
@@ -457,6 +479,7 @@ public final class McpServer implements Closeable {
             try {
                 ex.getResponseBody().close();
             } catch (IOException ignored) {
+                // The client is already gone; closing the exchange below is all that is left to do.
             }
             ex.close();
         }
@@ -635,7 +658,7 @@ public final class McpServer implements Closeable {
             JsonObject meta = result.getAsJsonObject().deepCopy();
             meta.remove(image.dataField());
             JsonArray content = new JsonArray();
-            content.add(block("text", "text", meta.toString()));
+            content.add(block(TEXT, TEXT, meta.toString()));
             JsonObject imageBlock = block("image", "data", b64);
             imageBlock.addProperty("mimeType", "image/" + fmt);
             content.add(imageBlock);
@@ -666,7 +689,7 @@ public final class McpServer implements Closeable {
 
     private static JsonObject toolText(JsonElement result) {
         JsonArray content = new JsonArray();
-        content.add(block("text", "text", result.toString()));
+        content.add(block(TEXT, TEXT, result.toString()));
         JsonObject m = new JsonObject();
         m.add("content", content);
         m.addProperty("isError", false);
@@ -701,7 +724,7 @@ public final class McpServer implements Closeable {
 
     private static JsonObject toolError(String message) {
         JsonArray content = new JsonArray();
-        content.add(block("text", "text", message == null ? "error" : message));
+        content.add(block(TEXT, TEXT, message == null ? "error" : message));
         JsonObject m = new JsonObject();
         m.add("content", content);
         m.addProperty("isError", true);
@@ -718,7 +741,7 @@ public final class McpServer implements Closeable {
 
     private static void sendJson(HttpExchange ex, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "application/json");
+        ex.getResponseHeaders().set(CONTENT_TYPE, "application/json");
         ex.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
@@ -727,7 +750,7 @@ public final class McpServer implements Closeable {
 
     private static void send(HttpExchange ex, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+        ex.getResponseHeaders().set(CONTENT_TYPE, "text/plain; charset=utf-8");
         ex.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
