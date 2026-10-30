@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -64,13 +65,16 @@ public final class ElytraPathfinder {
      * endpoints are unusable, or the search is exhausted — in every fallback the controller still flies, it just steers
      * straight at the goal.
      */
+    // One A* loop with its fallbacks. The steps share the open set, the costs and the parent map, so they stay in one
+    // method.
+    @SuppressWarnings("checkstyle:javancss")
     public static List<Vec3> plan(WorldView w, Vec3 start, Vec3 goal) {
         if (losClear(w, start, goal)) {
             return List.of(goal);
         }
 
         long startNode = key(snap(start.x), snap(start.y), snap(start.z));
-        long goalNode = key(snap(goal.x), snap(goal.y), snap(goal.z));
+        key(snap(goal.x), snap(goal.y), snap(goal.z));
 
         // Search box (grid units) around start+goal so A* can't flood outward.
         int minX = Math.min(snap(start.x), snap(goal.x)) - BOX_MARGIN / GRID;
@@ -83,20 +87,20 @@ public final class ElytraPathfinder {
         Map<Long, Double> g = new HashMap<>();
         Map<Long, Long> parent = new HashMap<>();
         Map<Long, Boolean> freeCache = new HashMap<>();
-        PriorityQueue<long[]> open = new PriorityQueue<>((a, b) -> Long.compare(a[1], b[1]));
+        Queue<long[]> open = new PriorityQueue<>((a, b) -> Long.compare(a[1], b[1]));
 
         g.put(startNode, 0.0);
         open.add(new long[] {startNode, 0});
         int expanded = 0;
         long best = startNode;
-        double bestH = hWorld(startNode, goal);
+        double bestH = straightDist(startNode, goal);
 
         while (!open.isEmpty() && expanded < MAX_NODES) {
             long cur = open.poll()[0];
             expanded++;
             double curG = g.getOrDefault(cur, Double.POSITIVE_INFINITY);
 
-            double h = hWorld(cur, goal);
+            double h = straightDist(cur, goal);
             if (h < bestH) {
                 bestH = h;
                 best = cur;
@@ -134,7 +138,7 @@ public final class ElytraPathfinder {
                         if (ng < g.getOrDefault(nb, Double.POSITIVE_INFINITY)) {
                             g.put(nb, ng);
                             parent.put(nb, cur);
-                            double fpri = ng + hWorld(nb, goal);
+                            double fpri = ng + straightDist(nb, goal);
                             open.add(new long[] {nb, (long) (fpri * 1000)});
                         }
                     }
@@ -144,8 +148,7 @@ public final class ElytraPathfinder {
         // Exhausted / capped: route to the closest node we reached, then straight
         // at the goal (better than nothing; reactive control finishes the job).
         if (best != startNode) {
-            List<Vec3> partial = stringPull(w, reconstruct(parent, best, startNode), start, goal);
-            return partial;
+            return stringPull(w, reconstruct(parent, best, startNode), start, goal);
         }
         return List.of(goal);
     }
@@ -215,21 +218,18 @@ public final class ElytraPathfinder {
         double mx = (ax + bx) * 0.5 * GRID;
         double my = (ay + by) * 0.5 * GRID;
         double mz = (az + bz) * 0.5 * GRID;
-        if (!boxClear(w, (int) Math.round(mx), (int) Math.round(my), (int) Math.round(mz), NODE_CLEAR, NODE_CLEAR)) {
-            return false;
-        }
         // No diagonal corner-cut: each single-axis neighbour cell must be free.
-        if (ax != bx && solid(w, bx * GRID, ay * GRID, az * GRID) && solid(w, ax * GRID, by * GRID, bz * GRID)) {
-            return false;
-        }
-        return true;
+        return boxClear(w, (int) Math.round(mx), (int) Math.round(my), (int) Math.round(mz), NODE_CLEAR, NODE_CLEAR)
+                && !(ax != bx
+                        && solid(w, bx * GRID, ay * GRID, az * GRID)
+                        && solid(w, ax * GRID, by * GRID, bz * GRID));
     }
 
-    /** True if no solid block lies within the box of half-extents (rXZ,rY,rXZ) centred on the world coord. */
-    private static boolean boxClear(WorldView w, int x, int y, int z, int rXZ, int rY) {
-        for (int dx = -rXZ; dx <= rXZ; dx++) {
-            for (int dy = -rY; dy <= rY; dy++) {
-                for (int dz = -rXZ; dz <= rXZ; dz++) {
+    /** True if no solid block lies within the box of half-extents (halfXz,halfY,halfXz) centred on the world coord. */
+    private static boolean boxClear(WorldView w, int x, int y, int z, int halfXz, int halfY) {
+        for (int dx = -halfXz; dx <= halfXz; dx++) {
+            for (int dy = -halfY; dy <= halfY; dy++) {
+                for (int dz = -halfXz; dz <= halfXz; dz++) {
                     if (solid(w, x + dx, y + dy, z + dz)) {
                         return false;
                     }
@@ -275,7 +275,7 @@ public final class ElytraPathfinder {
         return new Vec3(gx(node) * (double) GRID, gy(node) * (double) GRID, gz(node) * (double) GRID);
     }
 
-    private static double hWorld(long node, Vec3 goal) {
+    private static double straightDist(long node, Vec3 goal) {
         return center(node).distanceTo(goal);
     }
 
@@ -297,6 +297,6 @@ public final class ElytraPathfinder {
     }
 
     private static int signed(int v) {
-        return (v & 0x100000) != 0 ? v - 0x200000 : v;
+        return (v & 0x100000) == 0 ? v : v - 0x200000;
     }
 }

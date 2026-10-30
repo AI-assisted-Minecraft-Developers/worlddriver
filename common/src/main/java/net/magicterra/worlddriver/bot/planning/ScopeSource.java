@@ -13,5 +13,6 @@ import net.minecraft.core.BlockPos;
  */
 @FunctionalInterface
 public interface ScopeSource {
+    /** Builds the scope for a search from {@code start} to {@code goal} under {@code profile}. */
     SearchScope gather(BlockPos start, Goal goal, SearchProfile profile);
 }

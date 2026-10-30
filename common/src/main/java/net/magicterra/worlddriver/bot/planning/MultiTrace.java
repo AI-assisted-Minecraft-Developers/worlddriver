@@ -25,8 +25,9 @@ public final class MultiTrace implements PathTrace {
 
     private final PathTrace[] sinks;
 
+    /** Fans every callback out to {@code sinks}, in the order given. */
     public MultiTrace(PathTrace... sinks) {
-        this.sinks = sinks;
+        this.sinks = sinks.clone();
     }
 
     /** Run {@code body} for one sink; never let it escape. */

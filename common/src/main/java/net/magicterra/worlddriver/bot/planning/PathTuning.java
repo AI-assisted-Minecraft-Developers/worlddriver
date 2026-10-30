@@ -53,10 +53,13 @@ public interface PathTuning {
         }
     };
 
+    /** Blocks of progress toward the goal that end the search early with its best path so far; 0 disables it. */
     int horizonBlocks();
 
+    /** Expanded-node count after which the search may commit early to its best path so far; 0 disables it. */
     int softCommitNodes();
 
+    /** Heuristic bias per block the search sits below its start, past the depth slack; 0 disables it. */
     double depthPenalty();
 
     /**

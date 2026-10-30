@@ -19,10 +19,14 @@ public interface PathTrace {
     /** No-op sink — the default; release builds keep this and nothing else. */
     PathTrace NOOP = new PathTrace() {
         @Override
-        public void onSearchBegin(BlockPos start, Goal goal) {}
+        public void onSearchBegin(BlockPos start, Goal goal) {
+            // Release sink: records nothing.
+        }
 
         @Override
-        public void onNodeExpanded(BlockPos pos, double g) {}
+        public void onNodeExpanded(BlockPos pos, double g) {
+            // Release sink: records nothing.
+        }
 
         @Override
         public void onSearchResult(
@@ -31,13 +35,19 @@ public interface PathTrace {
                 boolean goalReached,
                 int expanded,
                 long ms,
-                double finalCost) {}
+                double finalCost) {
+            // Release sink: records nothing.
+        }
 
         @Override
-        public void onNavigatorTick(NavigatorSample sample) {}
+        public void onNavigatorTick(NavigatorSample sample) {
+            // Release sink: records nothing.
+        }
 
         @Override
-        public void onTerminal(Outcome outcome, String reason) {}
+        public void onTerminal(Outcome outcome, String reason) {
+            // Release sink: records nothing.
+        }
     };
 
     /** Terminal outcome of a goto session, as classified by the Navigator. */

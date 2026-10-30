@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
@@ -81,12 +82,21 @@ public final class PathFinder {
      */
     private static final int MIN_CLIMB_ESCAPE = 2;
 
+    /** Log text for a value that does not exist. */
+    private static final String NONE = "none";
+
+    /** Log text for a null node in a diagnostic line. */
+    private static final String NULL_TEXT = "null";
+
+    /** One-decimal format for cost figures in log lines. */
+    private static final String ONE_DECIMAL = "%.1f";
+
     /**
-     * g-cost ceiling for a water-start climb-out to count as CHEAP (dig-free): swimming runs ~10-30 cost/block so 3000
-     * covers a ~100-block swim-and-walk to shore, while one submerged hard-stone dig alone prices ~7500 (5× underwater
-     * multiplier). Cheap ashore commits immediately; an expensive one defers to the surfacing bestClimb / relaxed tier
-     * (see chooseSegment). A couple of soft submerged digs (dirt ≈750 each) still pass as cheap — mud banks are common
-     * and fast to punch through.
+     * The g-cost ceiling for a water-start climb-out to count as CHEAP (dig-free): swimming runs ~10-30 cost/block so
+     * 3000 covers a ~100-block swim-and-walk to shore, while one submerged hard-stone dig alone prices ~7500 (5×
+     * underwater multiplier). Cheap ashore commits immediately; an expensive one defers to the surfacing bestClimb /
+     * relaxed tier (see chooseSegment). A couple of soft submerged digs (dirt ≈750 each) still pass as cheap — mud
+     * banks are common and fast to punch through.
      */
     private static final double ASHORE_CHEAP_G = 3000;
 
@@ -205,7 +215,7 @@ public final class PathFinder {
      *   <li>It must sit FAR below the 60 s {@code max-tick-time} watchdog, or it protects nothing.
      * </ul>
      *
-     * Against the measured healthy worst — under 600 ms, see {@link #TICK_REPORT_NANOS} for why that reading is an
+     * <p>Against the measured healthy worst — under 600 ms, see {@link #TICK_REPORT_NANOS} for why that reading is an
      * interval — this is a margin over 33x, so it cannot fire in a run that works today, the same contract CEILING_MS
      * is written to.
      *
@@ -252,10 +262,10 @@ public final class PathFinder {
     private final SearchProfile profile;
 
     /**
-     * gap#72-④: which chain/verb owns the goal every Search from this PathFinder serves (e.g. "mine", "retreat",
-     * "goto") — telemetry only, never read by the search itself. "?" = an untagged caller (direct
-     * tools/arenas/gametests). The Navigator threads its own owner through {@link #withOwner}; goal producers tag the
-     * Navigator, so the plumbing stays single-source (producer → Navigator → here).
+     * The chain or verb that owns the goal every Search from this PathFinder serves (e.g. "mine", "retreat", "goto") —
+     * telemetry only, never read by the search itself. "?" = an untagged caller (direct tools/arenas/gametests). The
+     * Navigator threads its own owner through {@link #withOwner}; goal producers tag the Navigator, so the plumbing
+     * stays single-source (producer → Navigator → here).
      */
     private String owner = "?";
 
@@ -282,6 +292,7 @@ public final class PathFinder {
         this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, SearchProfile.NONE);
     }
 
+    /** Builds a finder with the configured node and time limits and the given profile. */
     public PathFinder(WorldView world, SearchProfile profile) {
         this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, profile);
     }
@@ -295,10 +306,12 @@ public final class PathFinder {
                 new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
     }
 
+    /** Builds a finder with explicit node and time limits and no profile. */
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
         this(world, maxNodes, maxMs, SearchProfile.NONE);
     }
 
+    /** Builds a finder with explicit node and time limits and the given profile. */
     public PathFinder(WorldView world, int maxNodes, long maxMs, SearchProfile profile) {
         this.world = world;
         this.maxNodes = maxNodes;
@@ -325,8 +338,8 @@ public final class PathFinder {
     }
 
     /**
-     * gap#72-④: tag the searches launched from this PathFinder with the owning chain/verb, so latest.log's search-begin
-     * lines are attributable. Fluent so call sites stay one expression; null/empty keeps the "?" default.
+     * Tags the searches launched from this PathFinder with the owning chain or verb, so latest.log's search-begin lines
+     * are attributable. Fluent so call sites stay one expression; null/empty keeps the "?" default.
      */
     public PathFinder withOwner(String owner) {
         if (owner != null && !owner.isEmpty()) {
@@ -375,6 +388,7 @@ public final class PathFinder {
         return s.result();
     }
 
+    /** Creates a search from {@code start} to {@code goal} under this finder's profile. */
     public Search newSearch(BlockPos start, Goal goal) {
         return new Search(start, goal, false, profile, null, false);
     }
@@ -455,9 +469,9 @@ public final class PathFinder {
         // vs walk@z60 from an identical start → the flaky bobTicks). A deterministic
         // tie-break makes the whole search reproducible; the chosen path is identical
         // in cost, just canonical.
-        private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> {
+        private final Queue<Node> open = new PriorityQueue<>((a, b) -> {
             int c = Double.compare(a.f, b.f);
-            return c != 0 ? c : Long.compare(a.pos.asLong(), b.pos.asLong());
+            return c == 0 ? Long.compare(a.pos.asLong(), b.pos.asLong()) : c;
         });
 
         private final double[] bestHeuristic = new double[COEFFICIENTS.length];
@@ -598,7 +612,7 @@ public final class PathFinder {
 
         private Result result; // null until done
 
-        private String segmentReason = "none"; // A5 diagnostics: which chooseSegment branch fired
+        private String segmentReason = NONE; // A5 diagnostics: which chooseSegment branch fired
 
         /**
          * A5: this search's intent opted into DIVE — water is a legitimate MEDIUM, so the water-avoidance taxes are
@@ -609,6 +623,9 @@ public final class PathFinder {
 
         private int runawayLogged;
 
+        // The constructor wires every field of the search in one place; the assignment order is the initialisation
+        // order.
+        @SuppressWarnings("checkstyle:javancss")
         private Search(
                 BlockPos start,
                 Goal goal,
@@ -763,8 +780,8 @@ public final class PathFinder {
                         capability.allowsOptIn(Capability.DIVE),
                         activeMoves.length,
                         surfDive != null,
-                        sdE == null ? "null" : sdE.to.toShortString() + "/cost=" + sdE.cost,
-                        swE == null ? "null" : swE.to.toShortString() + "/cost=" + swE.cost,
+                        sdE == null ? NULL_TEXT : sdE.to.toShortString() + "/cost=" + sdE.cost,
+                        swE == null ? NULL_TEXT : swE.to.toShortString() + "/cost=" + swE.cost,
                         startInWater,
                         world.isSubmergedFoot(start),
                         maxNodes,
@@ -822,7 +839,7 @@ public final class PathFinder {
                     r.goalReached(),
                     r.path().isEmpty() ? -1 : r.path().size() - 1,
                     r.path().isEmpty()
-                            ? "none"
+                            ? NONE
                             : r.path().get(r.path().size() - 1).toShortString(),
                     r.expanded(),
                     r.ms());
@@ -832,20 +849,23 @@ public final class PathFinder {
                         owner,
                         r.goalReached(),
                         r.path().size() - 1,
-                        String.format(Locale.ROOT, "%.1f", r.finalCost()),
+                        String.format(Locale.ROOT, ONE_DECIMAL, r.finalCost()),
                         explainTaxes(r),
                         explainExpansion());
             }
         }
 
+        /** True once the search has finished, counting a retry that replaced it. */
         public boolean done() {
             return retry != null ? retry.done() : result != null;
         }
 
+        /** The finished result, or null while the search is still running. */
         public Result result() {
             return retry != null ? retry.result() : result;
         }
 
+        /** Nodes expanded so far, counting a retry that replaced this search. */
         public int expanded() {
             return retry != null ? retry.expanded() : expanded;
         }
@@ -1005,15 +1025,15 @@ public final class PathFinder {
                 double total = totals.getOrDefault(costModifierNames.get(m), 0.0);
                 sb.append(costModifierNames.get(m))
                         .append('=')
-                        .append(String.format(Locale.ROOT, "%.1f", total))
+                        .append(String.format(Locale.ROOT, ONE_DECIMAL, total))
                         .append('x')
                         .append(hits[m]);
                 sum += total;
             }
             if (sb.length() == 0) {
-                sb.append("none");
+                sb.append(NONE);
             }
-            return sb + " | taxTotal=" + String.format(Locale.ROOT, "%.1f", sum);
+            return sb + " | taxTotal=" + String.format(Locale.ROOT, ONE_DECIMAL, sum);
         }
 
         /**
@@ -1035,11 +1055,11 @@ public final class PathFinder {
                 }
                 sb.append(costModifierNames.get(m))
                         .append('=')
-                        .append(String.format(Locale.ROOT, "%.1f", expandTax[m]))
+                        .append(String.format(Locale.ROOT, ONE_DECIMAL, expandTax[m]))
                         .append('x')
                         .append(expandHits[m]);
             }
-            return sb.length() == 0 ? "none" : sb.toString();
+            return sb.length() == 0 ? NONE : sb.toString();
         }
 
         /**
@@ -1392,6 +1412,9 @@ public final class PathFinder {
          * Expand nodes until {@code sliceMs} of wall-clock elapses this call (or the search finishes / hits its total
          * budget). Returns true once done; the {@link Result} is then available from {@link #result()}.
          */
+        // One expansion slice of the A* loop. Its branches share the loop's locals, and splitting it would pass a dozen
+        // of them between helpers, so it stays whole.
+        @SuppressWarnings("checkstyle:javancss")
         private boolean advanceOnce(long sliceMs) {
             if (result != null) {
                 return true;
@@ -1803,7 +1826,7 @@ public final class PathFinder {
                                 nodeCost / 1_000_000L,
                                 cur.pos.toShortString(),
                                 runawayLimit / 1_000_000L,
-                                slow == null ? "none" : slow.getClass().getSimpleName(),
+                                slow == null ? NONE : slow.getClass().getSimpleName(),
                                 goal,
                                 expanded,
                                 open.size(),
@@ -1821,9 +1844,9 @@ public final class PathFinder {
                             totalMs(sliceStart),
                             segmentReason,
                             segment == null ? -1 : segment.g,
-                            bestAshore == null ? "null" : bestAshore.pos.toShortString(),
+                            bestAshore == null ? NULL_TEXT : bestAshore.pos.toShortString(),
                             bestAshore == null ? -1 : bestAshore.g,
-                            bestClimb == null ? "null" : bestClimb.pos.getY(),
+                            bestClimb == null ? NULL_TEXT : bestClimb.pos.getY(),
                             open.size());
                 }
                 finish(
@@ -2092,7 +2115,7 @@ public final class PathFinder {
                 segmentReason = "escape-farthest-exhausted";
                 return bestEscape;
             }
-            segmentReason = "none";
+            segmentReason = NONE;
             return null;
         }
 
@@ -2268,6 +2291,7 @@ public final class PathFinder {
             boolean sightBudgetExhausted,
             boolean snapshotTruncated,
             Map<String, Integer> prunedBy) {
+        /** Copies the {@code prunedBy} counts; null becomes empty. */
         public Result {
             prunedBy = prunedBy == null ? Map.of() : Map.copyOf(prunedBy);
         }
@@ -2309,6 +2333,9 @@ public final class PathFinder {
         }
     }
 
+    // g, h and f are the names the cost formula and the A* comments use throughout the search; the inner loop reads
+    // better with them than with longer names.
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     private static final class Node {
         final BlockPos pos;
 
