@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **A script indexes fastutil's primitive maps in their own types.** A key or value a script wrote by
+  index or by name reached the map as the script's own `Integer` or `Double`, which a map of `long` keys
+  or `int` values refuses, so `longMap[5]` read nothing and `object2IntMap.a = 3` threw. A key or value is
+  now converted to the primitive the map's own `put` takes; any other map gets what it got before.
+
 - **A script can call `put` on fastutil's primitive maps.** Such a map
   offers a primitive `put(int, V)`, a deprecated boxed `put(Integer, V)` and the compiler's bridge
   `put(Object, Object)`, and the script engine found no overload better than the others, so

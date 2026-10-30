@@ -128,6 +128,19 @@ class HostedScriptsTest {
     }
 
     @Test
+    void aPrimitiveMapIsIndexedInItsOwnTypes() {
+        // An index reached the map as Integer and a number as Double, which a long key or an int value refuses.
+        Object out = scripts.evaluate("primitive-index.js",
+                "var i = new (Java.type('it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap'))(); i[4] = 'four';"
+                        + " var l = new (Java.type('it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap'))();"
+                        + " l[6] = 'six'; l[7] = 'seven'; delete l[7];"
+                        + " var o = new (Java.type('it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap'))(); o.b = 2;"
+                        + " [i[4], l[6], 6 in l, 7 in l, l.size(), o.getInt('b'), o.b].join(',')",
+                Map.of());
+        assertEquals("four,six,true,false,1,2,2", out);
+    }
+
+    @Test
     void ordinaryOverloadsAndABridgeToAHiddenSuperclassStayCallable() throws Exception {
         assertTrue(ShownSub.class.getDeclaredMethod("greet").isBridge(), "the fixture must carry a visibility bridge");
         Object out = scripts.evaluate("overloads.js",
