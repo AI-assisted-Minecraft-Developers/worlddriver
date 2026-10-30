@@ -8,3 +8,5 @@ c7c537a434d5569c8e3c5c836c99aa8d82ee0490
 66a16da1bcfb9b6698f7f6eed3ee48cc407d9f83
 # chore: lay out every script with Prettier
 b8d0c06b6c511ed88c63b00bb9931cc595c9f4d9
+# chore: lay out the scripts again with trailing commas only in arrays and objects
+51d21b4f37eecab1a00ea60c23862a46f12756ad
