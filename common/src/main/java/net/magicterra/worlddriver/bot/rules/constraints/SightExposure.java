@@ -56,6 +56,8 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
 
     /** Thrown from inside the neighbour loop when the search's ray budget is spent. */
     public static final class RayBudgetExhausted extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         public RayBudgetExhausted(int budget) {
             super("sight: ray budget of " + budget + " spent", null, false, false);
         }

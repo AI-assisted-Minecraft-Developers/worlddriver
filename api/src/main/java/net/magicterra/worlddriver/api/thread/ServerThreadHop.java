@@ -183,6 +183,8 @@ public final class ServerThreadHop {
 
     /** A hop that gave up waiting. {@link #code()} is the error every entry point reports it as. */
     public abstract static class HopTimeoutException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         HopTimeoutException(String message) {
             super(message);
         }
@@ -192,6 +194,8 @@ public final class ServerThreadHop {
 
     /** The task never ran and never will: safe to retry. */
     public static final class NotExecutedException extends HopTimeoutException {
+        private static final long serialVersionUID = 1L;
+
         public NotExecutedException(String message) {
             super(message);
         }
@@ -204,6 +208,8 @@ public final class ServerThreadHop {
 
     /** The task was running when the wait ran out: it may or may not have applied. */
     public static final class OutcomeUnknownException extends HopTimeoutException {
+        private static final long serialVersionUID = 1L;
+
         public OutcomeUnknownException(String message) {
             super(message);
         }

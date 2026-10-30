@@ -34,6 +34,8 @@ public final class GotoGoalResolver {
 
     /** A target the world cannot satisfy now; the request itself was valid. */
     public static final class Unavailable extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         public Unavailable(String message) {
             super(message, null, false, false);
         }

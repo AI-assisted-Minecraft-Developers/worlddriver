@@ -11,6 +11,8 @@ import net.minecraft.world.level.ChunkPos;
  * tick the query runs in.
  */
 public final class UnloadedAreaException extends IllegalArgumentException {
+    private static final long serialVersionUID = 1L;
+
     private final List<ChunkPos> chunks;
 
     public UnloadedAreaException(BlockPos center, int radius, List<ChunkPos> chunks) {

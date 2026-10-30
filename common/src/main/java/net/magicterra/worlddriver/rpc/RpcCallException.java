@@ -9,6 +9,8 @@ import net.magicterra.worlddriver.api.schema.ApiError;
  * the JSON-RPC code either way.
  */
 public final class RpcCallException extends IOException {
+    private static final long serialVersionUID = 1L;
+
     private final int rpcCode;
     private final ApiError apiError;
 

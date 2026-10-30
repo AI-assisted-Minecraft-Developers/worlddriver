@@ -66,6 +66,8 @@ public final class McpBridge {
     }
 
     private static final class BridgeError extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         final ApiError error;
 
         BridgeError(ApiError error) {

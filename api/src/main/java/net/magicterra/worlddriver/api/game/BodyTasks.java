@@ -43,6 +43,8 @@ public final class BodyTasks {
 
     /** A valid request this body cannot take now; the call answers {@code refused} with nothing started. */
     public static final class Refusal extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         private final RefusalReason reason;
 
         public Refusal(RefusalReason reason, String message) {

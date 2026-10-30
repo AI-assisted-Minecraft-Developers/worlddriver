@@ -5,6 +5,8 @@ import java.util.Objects;
 
 /** An {@link ApiError} thrown through Java code; every entry point unwraps it rather than its message. */
 public class ApiException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
     private final ApiError error;
 
     public ApiException(ApiError error) {

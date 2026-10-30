@@ -34,6 +34,8 @@ public interface Scripting {
 
     /** An error a script threw or the engine raised, with where in which script. */
     final class ScriptFailure extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         private final String script;
         private final int line;
 
