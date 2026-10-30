@@ -1,0 +1,10 @@
+# Commits that only changed layout, for `git blame` to look through:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub reads this file by itself.
+
+# chore: lay out every Java source with Palantir Java Format
+c7c537a434d5569c8e3c5c836c99aa8d82ee0490
+# chore: lay out every build script with the Groovy-Eclipse formatter
+66a16da1bcfb9b6698f7f6eed3ee48cc407d9f83
+# chore: lay out every script with Prettier
+b8d0c06b6c511ed88c63b00bb9931cc595c9f4d9

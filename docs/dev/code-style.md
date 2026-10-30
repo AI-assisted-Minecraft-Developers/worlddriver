@@ -31,6 +31,17 @@ would lay it out.
   removed, tabs at the start of a line turned into spaces, a newline at the end. The generated method
   reference of the RPC skill is left alone.
 
+The JavaScript runs in Rhino, which does not accept a comma after the last parameter of a function.
+Prettier writes one when a parameter list is too long for one line, so keep parameter lists short
+enough to fit.
+
+The commits that first applied the formatters are listed in `.git-blame-ignore-revs`. To have
+`git blame` look through them:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
 ## Checkstyle
 
 `config/checkstyle/checkstyle.xml` is Google's checks without the ones about layout, plus:
