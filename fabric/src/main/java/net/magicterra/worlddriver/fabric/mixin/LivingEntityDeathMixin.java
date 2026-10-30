@@ -19,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class LivingEntityDeathMixin {
 
     @Inject(method = "die", at = @At("HEAD"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$reportDeath(DamageSource source, CallbackInfo ci) {
         WorldDriverEvents.livingDying((LivingEntity) (Object) this, source);
     }

@@ -25,6 +25,7 @@ abstract class BlockItemMixin {
                             value = "INVOKE",
                             target =
                                     "Lnet/minecraft/world/item/BlockItem;placeBlock(Lnet/minecraft/world/item/context/BlockPlaceContext;Lnet/minecraft/world/level/block/state/BlockState;)Z"))
+    @SuppressWarnings("PMD.UnusedPrivateMethod") // Mixin calls it around the wrapped operation
     private boolean worlddriver$reportPlace(
             BlockItem self, BlockPlaceContext context, BlockState state, Operation<Boolean> original) {
         boolean placed = original.call(self, context, state);

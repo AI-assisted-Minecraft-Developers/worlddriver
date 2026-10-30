@@ -46,6 +46,7 @@ public final class WorldDriverFabricClient implements ClientModInitializer {
         ClientChat.recordReceived(message, null, overlay);
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter") // Fabric API's CHAT callback fixes the parameter list
     private static void onChatMessage(
             Component message,
             PlayerChatMessage signedMessage,

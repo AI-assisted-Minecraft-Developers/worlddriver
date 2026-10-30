@@ -19,6 +19,7 @@ abstract class MinecraftDisconnectMixin {
     @Inject(
             method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/GameNarrator;clear()V"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$reportLeave(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
         WorldDriverClientEvents.clientPlayerLeft();
     }

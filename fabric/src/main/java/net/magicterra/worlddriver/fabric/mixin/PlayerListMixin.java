@@ -19,12 +19,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class PlayerListMixin {
 
     @Inject(method = "placeNewPlayer", at = @At("RETURN"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$reportJoin(
             Connection connection, ServerPlayer player, CommonListenerCookie cookie, CallbackInfo ci) {
         WorldDriverEvents.playerJoined(player);
     }
 
     @Inject(method = "remove", at = @At("HEAD"))
+    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
     private void worlddriver$reportLeave(ServerPlayer player, CallbackInfo ci) {
         WorldDriverEvents.playerLeft(player);
     }
