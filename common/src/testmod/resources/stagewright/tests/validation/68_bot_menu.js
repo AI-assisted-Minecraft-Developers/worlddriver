@@ -56,7 +56,7 @@ test("68_bot_menu", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     t.assertEqual(
                         menu.menuType,
                         "minecraft:generic_9x3",
-                        "the chest menu is open (got " + JSON.stringify(menu) + ")",
+                        "the chest menu is open (got " + JSON.stringify(menu) + ")"
                     );
                     t.assertEqual(menu.slots[0].id, "minecraft:diamond", "slot 0 item");
                     t.assertEqual(menu.slots[0].count, 5, "slot 0 count");
@@ -85,7 +85,7 @@ test("68_bot_menu", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     errorOf(function () {
                         Driver.invoke("mc.observe.container", { bot: "player:nobody" });
                     }) !== null,
-                    "reading an unknown player's menu throws",
+                    "reading an unknown player's menu throws"
                 );
                 var both = errorOf(function () {
                     Driver.invoke("mc.observe.container", { pos: { x: 0, y: 200, z: 0 }, bot: "player:nobody" });
@@ -94,5 +94,5 @@ test("68_bot_menu", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(both.issues[0].path, "/bot", "pos with bot: path");
             });
         },
-    }),
+    })
 );

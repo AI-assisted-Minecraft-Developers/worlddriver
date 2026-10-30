@@ -69,7 +69,7 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 var s = scene({ x: ox, y: oy, z: oz }, 2, "map");
                 t.assertTrue(
                     s.hazardSummary.lethalCount >= 1,
-                    "a 23-deep pit neighbour is lethal (drop 23 > survivableFall 22)",
+                    "a 23-deep pit neighbour is lethal (drop 23 > survivableFall 22)"
                 );
             });
 
@@ -90,7 +90,7 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(
                     s.hazardSummary.lethalCount,
                     0,
-                    "a 3-block step-down is survivable (drop 3 <= survivableFall 22)",
+                    "a 3-block step-down is survivable (drop 3 <= survivableFall 22)"
                 );
             });
 
@@ -114,7 +114,7 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 var s = scene({ x: ox, y: oy, z: oz }, 2, "map");
                 t.assertTrue(
                     s.hazardSummary.lethalCount >= 1,
-                    "a lava pit neighbour is lethal (drop 23 through lava > survivableFall 22)",
+                    "a lava pit neighbour is lethal (drop 23 through lava > survivableFall 22)"
                 );
             });
 
@@ -142,7 +142,7 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 var s = scene({ x: ox, y: oy, z: oz }, 2, "map");
                 t.assertTrue(
                     s.hazardSummary.lethalCount >= 1,
-                    "3-deep water neighbour (depth>=deepWaterMax=2) is lethal",
+                    "3-deep water neighbour (depth>=deepWaterMax=2) is lethal"
                 );
                 // Verify the safe side: use a scene centered on the safe water column, radius=1.
                 // At x=ox-1 the only relevant neighbour (dx=0,dz=0 is skipped as self) should be fine.
@@ -158,7 +158,7 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(
                     sSafe.hazardSummary.lethalCount,
                     0,
-                    "1-deep water neighbour (depth 1 < deepWaterMax 2) is not lethal",
+                    "1-deep water neighbour (depth 1 < deepWaterMax 2) is not lethal"
                 );
             });
 
@@ -226,5 +226,5 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(r.ok, true, "forceload remove must succeed");
             });
         },
-    }),
+    })
 );

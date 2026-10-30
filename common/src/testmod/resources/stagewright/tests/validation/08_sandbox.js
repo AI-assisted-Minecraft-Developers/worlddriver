@@ -80,7 +80,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                         __probe("typeof java.io.File", function () {
                             return typeof java.io.File;
                         }) +
-                        " (ScriptClassFilter is OFF unless -Dworlddriver.sandbox=on)",
+                        " (ScriptClassFilter is OFF unless -Dworlddriver.sandbox=on)"
                 );
             } catch (e) {
                 /* never let the probe cost the six registrations below */
@@ -103,7 +103,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     denied(function () {
                         java.lang.Runtime.getRuntime().exec("id");
                     }),
-                    "Runtime.getRuntime().exec must throw",
+                    "Runtime.getRuntime().exec must throw"
                 );
             });
 
@@ -117,7 +117,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                         var f = new java.io.File("/etc/passwd");
                         f.exists();
                     }),
-                    "java.io.File construction must throw",
+                    "java.io.File construction must throw"
                 );
             });
 
@@ -128,7 +128,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     denied(function () {
                         new java.net.Socket("127.0.0.1", 1);
                     }),
-                    "java.net.Socket must throw",
+                    "java.net.Socket must throw"
                 );
             });
 
@@ -137,7 +137,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     denied(function () {
                         new java.lang.ProcessBuilder(["id"]).start();
                     }),
-                    "ProcessBuilder must throw",
+                    "ProcessBuilder must throw"
                 );
             });
 
@@ -146,7 +146,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     denied(function () {
                         new java.lang.Thread(function () {}).start();
                     }),
-                    "java.lang.Thread must throw",
+                    "java.lang.Thread must throw"
                 );
             });
 
@@ -158,5 +158,5 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 t.assertTrue(typeof origin.x === "number");
             });
         },
-    }),
+    })
 );

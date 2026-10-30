@@ -35,7 +35,7 @@ test("07_mcp_parity", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(
                     jsonStable(direct),
                     jsonStable(viaMcp),
-                    "in-JVM and MCP block-scan results must be byte-identical",
+                    "in-JVM and MCP block-scan results must be byte-identical"
                 );
             });
 
@@ -55,7 +55,7 @@ test("07_mcp_parity", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(
                     jsonStable(viaTcp),
                     jsonStable(viaMcp),
-                    "TCP and MCP paths must produce identical results",
+                    "TCP and MCP paths must produce identical results"
                 );
             });
 
@@ -71,9 +71,9 @@ test("07_mcp_parity", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertTrue(threw, "expected mcpRoundtrip to throw for unknown tool");
                 t.assertTrue(
                     msg.indexOf("unknown tool") >= 0 || msg.indexOf("isError") >= 0,
-                    "error message should mention the bad tool, got: " + msg,
+                    "error message should mention the bad tool, got: " + msg
                 );
             });
         },
-    }),
+    })
 );

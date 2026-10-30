@@ -151,5 +151,5 @@ test("59_query_projections", { scene: ["wd.validation", "wd.validationIntegrated
                 t.assertEqual(kill.success, true, "cleanup kill should succeed");
             });
         },
-    }),
+    })
 );

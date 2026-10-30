@@ -32,7 +32,7 @@ test("06_rpc_parity", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(
                     jsonStable(direct),
                     jsonStable(viaTcp),
-                    "in-JVM and TCP block-scan results must be byte-identical",
+                    "in-JVM and TCP block-scan results must be byte-identical"
                 );
             });
 
@@ -56,5 +56,5 @@ test("06_rpc_parity", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(jsonStable(direct), jsonStable(viaTcp));
             });
         },
-    }),
+    })
 );

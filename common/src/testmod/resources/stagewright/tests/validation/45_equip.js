@@ -132,19 +132,19 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                     t.assertEqual(r.outcome, "done", "equip done");
                     t.assertTrue(
                         has(a.head && a.head.id, "diamond_helmet"),
-                        "worn head = diamond (" + JSON.stringify(a.head) + ")",
+                        "worn head = diamond (" + JSON.stringify(a.head) + ")"
                     );
                     t.assertTrue(
                         has(a.chest && a.chest.id, "diamond_chestplate"),
-                        "worn chest = diamond (" + JSON.stringify(a.chest) + ")",
+                        "worn chest = diamond (" + JSON.stringify(a.chest) + ")"
                     );
                     t.assertTrue(
                         has(a.legs && a.legs.id, "diamond_leggings"),
-                        "worn legs = diamond (" + JSON.stringify(a.legs) + ")",
+                        "worn legs = diamond (" + JSON.stringify(a.legs) + ")"
                     );
                     t.assertTrue(
                         has(a.feet && a.feet.id, "diamond_boots"),
-                        "worn feet = diamond (" + JSON.stringify(a.feet) + ")",
+                        "worn feet = diamond (" + JSON.stringify(a.feet) + ")"
                     );
                     t.assertEqual(r.missing.length, 0, "nothing missing with a full set");
                     cleanup();
@@ -158,7 +158,7 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                     var r = equipUntil("best", "mainHand", "diamond_sword");
                     t.assertTrue(
                         has(r.loadout.mainHand, "diamond_sword"),
-                        "main hand = diamond sword, not the axe/iron (" + r.loadout.mainHand + ")",
+                        "main hand = diamond sword, not the axe/iron (" + r.loadout.mainHand + ")"
                     );
                     cleanup();
                 });
@@ -175,7 +175,7 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                         if (has(r.lowDurability[i], "diamond_sword")) flagged = true;
                     t.assertTrue(
                         flagged,
-                        "near-broken sword flagged in lowDurability (" + JSON.stringify(r.lowDurability) + ")",
+                        "near-broken sword flagged in lowDurability (" + JSON.stringify(r.lowDurability) + ")"
                     );
                     cleanup();
                 });
@@ -188,7 +188,7 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                     ["chest", "legs", "feet"].forEach(function (s) {
                         t.assertTrue(
                             r.missing.indexOf(s) >= 0,
-                            s + " reported missing (" + JSON.stringify(r.missing) + ")",
+                            s + " reported missing (" + JSON.stringify(r.missing) + ")"
                         );
                     });
                     cleanup();
@@ -208,5 +208,5 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 });
             }
         },
-    }),
+    })
 );

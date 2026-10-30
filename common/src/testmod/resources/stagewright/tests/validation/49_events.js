@@ -29,7 +29,7 @@ test("49_events", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 var page = Driver.observe.eventsSince({ cursor: c0, types: ["test.custom"] });
                 t.assertTrue(
                     page.events.length >= 1,
-                    "the custom event is replayable (got " + page.events.length + ")",
+                    "the custom event is replayable (got " + page.events.length + ")"
                 );
                 var ev = page.events[page.events.length - 1];
                 t.assertEqual(ev.seq, em.seq, "the replayed event is the emitted one");
@@ -131,7 +131,7 @@ test("49_events", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 t.assertEqual(
                     badParams && badParams.path,
                     "/params/extra",
-                    "the polled params meet the target's own contract",
+                    "the polled params meet the target's own contract"
                 );
             });
 
@@ -173,8 +173,8 @@ test("49_events", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(done.length, 1, "one wait.done event for it");
                     t.assertEqual(done[0].data.method, "mc.wait.condition", "naming the wait");
                     t.assertEqual(done[0].data.result.satisfied, true, "carrying the same result");
-                },
+                }
             );
         },
-    }),
+    })
 );

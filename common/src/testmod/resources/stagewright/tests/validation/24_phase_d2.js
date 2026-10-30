@@ -58,5 +58,5 @@ test("24_phase_d2", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(JSON.stringify(Driver.system.mcpRoundtrip("mc.bot.setting", args)), direct, "MCP");
             });
         },
-    }),
+    })
 );

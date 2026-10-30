@@ -20,7 +20,7 @@ test("58_command_result_query_type", { scene: ["wd.validation", "wd.validationIn
                 t.assertTrue(r.feedback.length >= 1, "seed should emit one feedback line");
                 t.assertTrue(
                     String(r.feedback[0]).toLowerCase().indexOf("seed") >= 0,
-                    "feedback should contain the seed text, got: " + r.feedback[0],
+                    "feedback should contain the seed text, got: " + r.feedback[0]
                 );
             });
 
@@ -51,7 +51,7 @@ test("58_command_result_query_type", { scene: ["wd.validation", "wd.validationIn
                         "summon " +
                             n +
                             " should succeed — without both stands the" +
-                            " assertions below are about a world that was never set up",
+                            " assertions below are about a world that was never set up"
                     );
                 }
 
@@ -72,7 +72,7 @@ test("58_command_result_query_type", { scene: ["wd.validation", "wd.validationIn
                 t.assertTrue(r.feedback.length >= 1, "data get should emit feedback");
                 t.assertTrue(
                     String(r.feedback[0]).indexOf("t58") >= 0,
-                    "feedback should contain the tag NBT, got: " + r.feedback[0],
+                    "feedback should contain the tag NBT, got: " + r.feedback[0]
                 );
             });
 
@@ -102,5 +102,5 @@ test("58_command_result_query_type", { scene: ["wd.validation", "wd.validationIn
                 t.assertEqual(kill.success, true, "cleanup kill should succeed");
             });
         },
-    }),
+    })
 );

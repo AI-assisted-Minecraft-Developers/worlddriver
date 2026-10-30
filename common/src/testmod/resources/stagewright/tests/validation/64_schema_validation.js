@@ -30,9 +30,9 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                     t.assertTrue(got.indexOf("/cmd required") >= 0, "must name missing 'cmd', got: " + got);
                     t.assertTrue(
                         got.indexOf("/command unknown_field") >= 0,
-                        "must name unexpected 'command', got: " + got,
+                        "must name unexpected 'command', got: " + got
                     );
-                },
+                }
             );
 
             ScriptTest.run("64_schema_validation: type violation is rejected with both types named", function (t) {
@@ -45,11 +45,11 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                 t.assertEqual(
                     e && e.issues[0].path + " " + e.issues[0].code,
                     "/cmd type_mismatch",
-                    "cmd:42 must be a type error",
+                    "cmd:42 must be a type error"
                 );
                 t.assertTrue(
                     e.issues[0].message.indexOf("string") >= 0,
-                    "names the wanted type: " + e.issues[0].message,
+                    "names the wanted type: " + e.issues[0].message
                 );
             });
 
@@ -71,7 +71,7 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                 t.assertEqual(issue.path, "/hand", "path");
                 t.assertTrue(
                     issue.message.indexOf("main") >= 0 && issue.message.indexOf("off") >= 0,
-                    "got: " + issue.message,
+                    "got: " + issue.message
                 );
             });
 
@@ -85,7 +85,7 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                 var res = JSON.parse(json);
                 t.assertTrue(
                     res.error === undefined && res.result !== undefined,
-                    "waitTicks{ticks:1.0} (written with a fraction) must be accepted, got: " + json,
+                    "waitTicks{ticks:1.0} (written with a fraction) must be accepted, got: " + json
                 );
             });
 
@@ -95,7 +95,7 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                 var issue = res.error ? res.error.issues[0] : null;
                 t.assertTrue(
                     issue !== null && issue.path === "/ticks" && issue.code === "type_mismatch",
-                    "ticks:1.5 must reject as non-integer, got: " + JSON.stringify(res),
+                    "ticks:1.5 must reject as non-integer, got: " + JSON.stringify(res)
                 );
             });
 
@@ -112,5 +112,5 @@ test("64_schema_validation", { scene: ["wd.validation", "wd.validationIntegrated
                 t.assertEqual(e.issues[0].path, "/freeform", "at the key");
             });
         },
-    }),
+    })
 );

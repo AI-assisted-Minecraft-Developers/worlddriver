@@ -104,7 +104,7 @@ test("43_recipe", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 t.assertEqual(
                     missingCount(r.missing, "minecraft:diamond"),
                     2,
-                    "raw diamond is missing, not decompressed (did not hang)",
+                    "raw diamond is missing, not decompressed (did not hang)"
                 );
                 t.assertEqual(r.steps.length, 0, "no nonsensical decompression steps");
             });
@@ -137,5 +137,5 @@ test("43_recipe", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 t.assertEqual(rm.steps.length, rd.steps.length, "MCP resolve step count matches");
             });
         },
-    }),
+    })
 );

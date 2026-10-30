@@ -73,7 +73,7 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                         t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), method + ": in-JVM and TCP must agree");
                         t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), method + ": in-JVM and MCP must agree");
                     }
-                },
+                }
             );
 
             ScriptTest.run(
@@ -88,7 +88,7 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                     t.assertEqual(r[0].outcome, "refused", "outcome, got: " + JSON.stringify(r[0]));
                     t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), "in-JVM and TCP must agree");
                     t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), "in-JVM and MCP must agree");
-                },
+                }
             );
 
             ScriptTest.run("66_body_routes: status lists the same bots on every transport", function (t) {
@@ -96,7 +96,7 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 for (var i = 0; i < r.length; i++) {
                     t.assertTrue(
                         Array.isArray(r[i].bots),
-                        "transport " + i + " must answer bots as an array, got: " + JSON.stringify(r[i].bots),
+                        "transport " + i + " must answer bots as an array, got: " + JSON.stringify(r[i].bots)
                     );
                 }
                 // Ids and kinds only: a bot another scene drives may move or finish between the three reads.
@@ -104,7 +104,7 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                     return jsonStable(
                         s.bots.map(function (b) {
                             return [b.id, b.kind];
-                        }),
+                        })
                     );
                 }
                 t.assertEqual(names(r[0]), names(r[1]), "in-JVM and TCP must list the same bots");
@@ -120,7 +120,7 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                     t.assertTrue(e !== null && Array.isArray(e.issues), "must throw a validation error, got: " + e);
                     t.assertEqual(e.issues[0].path, "/bot", "path");
                     t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
-                },
+                }
             );
 
             ScriptTest.run("66_body_routes: the old body key is an unknown field", function (t) {
@@ -132,5 +132,5 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
             });
         },
-    }),
+    })
 );

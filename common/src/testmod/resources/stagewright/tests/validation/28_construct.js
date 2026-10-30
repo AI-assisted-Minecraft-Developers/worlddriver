@@ -39,7 +39,7 @@ test("28_construct", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 t.assertEqual(i.path, "/structure/kind", "path");
                 t.assertTrue(
                     i.message.indexOf("tower") >= 0 && i.message.indexOf("bridge") >= 0,
-                    "names both: " + i.message,
+                    "names both: " + i.message
                 );
             });
 
@@ -53,7 +53,7 @@ test("28_construct", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 t.assertEqual(
                     firstIssue({ structure: { kind: "tower", height: 3, targetY: 90 } }).path,
                     "/structure/targetY",
-                    "path",
+                    "path"
                 );
             });
 
@@ -67,12 +67,12 @@ test("28_construct", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 t.assertEqual(
                     firstIssue({ structure: { kind: "bridge", direction: "north" } }).path,
                     "/structure/distance",
-                    "missing",
+                    "missing"
                 );
                 t.assertEqual(
                     firstIssue({ structure: { kind: "bridge", distance: 9999 } }).code,
                     "out_of_range",
-                    "oversize",
+                    "oversize"
                 );
             });
 
@@ -101,5 +101,5 @@ test("28_construct", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 });
             });
         },
-    }),
+    })
 );

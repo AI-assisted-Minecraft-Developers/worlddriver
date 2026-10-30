@@ -69,5 +69,5 @@ test("16_attack_entity", { scene: ["wd.validation", "wd.validationIntegrated"], 
                 });
             }
         },
-    }),
+    })
 );

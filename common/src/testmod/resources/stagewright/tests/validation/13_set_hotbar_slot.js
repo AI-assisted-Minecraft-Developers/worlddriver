@@ -103,5 +103,5 @@ test("13_set_hotbar_slot", { scene: ["wd.validation", "wd.validationIntegrated"]
                 });
             }
         },
-    }),
+    })
 );

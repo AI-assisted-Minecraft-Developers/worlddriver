@@ -37,7 +37,7 @@ test("61_world_block", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 }
                 t.assertTrue(
                     beside.light.block >= 13,
-                    "neighbour block light should be lit-bulb bright, got " + beside.light.block,
+                    "neighbour block light should be lit-bulb bright, got " + beside.light.block
                 );
                 t.assertFalse("blockEntity" in cell, "nbt defaults to false");
             });
@@ -60,7 +60,7 @@ test("61_world_block", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertHasKey(cell, "blockEntity");
                 t.assertTrue(
                     String(cell.blockEntity).indexOf("minecraft:diamond") >= 0,
-                    "SNBT should contain the chest contents, got: " + cell.blockEntity,
+                    "SNBT should contain the chest contents, got: " + cell.blockEntity
                 );
 
                 // A plain cell carries no blockEntity, even with nbt:true.
@@ -140,8 +140,8 @@ test("61_world_block", { scene: ["wd.validation", "wd.validationIntegrated"], is
                             cmd: "execute in minecraft:the_nether run forceload remove " + x + " " + z,
                         });
                     }
-                },
+                }
             );
         },
-    }),
+    })
 );

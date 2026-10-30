@@ -52,7 +52,7 @@ test("14_type_text_and_key", { scene: ["wd.validation", "wd.validationIntegrated
                     var r = Driver.client.input.typeText({ text: "" });
                     t.assertTrue(
                         r.outcome === "done" || (r.outcome === "refused" && r.reason === "no_screen"),
-                        "typeText must answer done or no_screen, got " + JSON.stringify(r),
+                        "typeText must answer done or no_screen, got " + JSON.stringify(r)
                     );
                 });
 
@@ -80,5 +80,5 @@ test("14_type_text_and_key", { scene: ["wd.validation", "wd.validationIntegrated
                 });
             }
         },
-    }),
+    })
 );

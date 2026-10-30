@@ -37,7 +37,7 @@ test("15_input_slot_click", { scene: ["wd.validation", "wd.validationIntegrated"
                 t.assertEqual(e.issues[0].path, "/type", "path");
                 t.assertTrue(
                     e.issues[0].message.indexOf("quickMove") >= 0,
-                    "names the click types: " + e.issues[0].message,
+                    "names the click types: " + e.issues[0].message
                 );
             });
 
@@ -90,11 +90,11 @@ test("15_input_slot_click", { scene: ["wd.validation", "wd.validationIntegrated"
                     t.assertEqual(
                         e && e.code,
                         "context_changed",
-                        "the same kind of menu, opened again, is another context",
+                        "the same kind of menu, opened again, is another context"
                     );
                     Driver.client.screen.close({});
                 });
             }
         },
-    }),
+    })
 );

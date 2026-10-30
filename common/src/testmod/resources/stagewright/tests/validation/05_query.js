@@ -21,7 +21,7 @@ test("05_query", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 });
                 t.assertTrue(
                     props.length === 2,
-                    "the two seeded props are there, got " + props.length + " non-player rows of " + res.length,
+                    "the two seeded props are there, got " + props.length + " non-player rows of " + res.length
                 );
                 t.assertHasKey(props[0], "pos");
                 t.assertHasKey(props[0], "type");
@@ -40,5 +40,5 @@ test("05_query", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 t.assertTrue(stones.length >= 1, "expected at least 1 stone via query DSL");
             });
         },
-    }),
+    })
 );

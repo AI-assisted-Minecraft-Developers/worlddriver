@@ -86,7 +86,7 @@ test("18_waypoint", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     var l = Driver.bot.waypoint({ op: "list" });
                     t.assertTrue(
                         Array.isArray(l.waypoints) && l.waypoints.length >= 1,
-                        "stored entries: " + JSON.stringify(l),
+                        "stored entries: " + JSON.stringify(l)
                     );
                 });
 
@@ -101,5 +101,5 @@ test("18_waypoint", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 });
             }
         },
-    }),
+    })
 );

@@ -75,5 +75,5 @@ test("32_break_place", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 patch(was);
             });
         },
-    }),
+    })
 );

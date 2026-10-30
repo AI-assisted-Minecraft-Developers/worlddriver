@@ -23,9 +23,9 @@ test("53_flee_safety", { scene: ["wd.validation", "wd.validationIntegrated"], is
                         var s = Driver.invoke("mc.client.scene", {});
                         t.assertEqual(s.present, true, "client scene present");
                         t.assertTrue("cornered" in s, "scene carries cornered fact");
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

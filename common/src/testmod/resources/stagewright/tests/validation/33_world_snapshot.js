@@ -160,7 +160,7 @@ test("33_world_snapshot", { scene: ["wd.validation", "wd.validationIntegrated"],
                         return r.type === "minecraft:cow";
                     }).length,
                     1,
-                    "the newcomer cow is there",
+                    "the newcomer cow is there"
                 );
 
                 var res = Driver.invoke("mc.world.restore", { id: "ents", discard: true });
@@ -179,7 +179,7 @@ test("33_world_snapshot", { scene: ["wd.validation", "wd.validationIntegrated"],
                         return r.type === "minecraft:cow";
                     }).length,
                     0,
-                    "no cow is left in the box",
+                    "no cow is left in the box"
                 );
                 clear();
             });
@@ -232,5 +232,5 @@ test("33_world_snapshot", { scene: ["wd.validation", "wd.validationIntegrated"],
                 t.assertTrue(threw, "an unknown dimension must be refused");
             });
         },
-    }),
+    })
 );

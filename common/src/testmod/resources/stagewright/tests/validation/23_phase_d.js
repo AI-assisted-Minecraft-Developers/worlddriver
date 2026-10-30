@@ -59,7 +59,7 @@ test("23_phase_d", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 t.assertEqual(e.issues[0].code, "out_of_range", "issue code");
                 t.assertTrue(
                     e.issues[0].message.indexOf("10000") >= 0 && e.issues[0].message.indexOf("4096") >= 0,
-                    "names the cell count and the cap: " + e.issues[0].message,
+                    "names the cell count and the cap: " + e.issues[0].message
                 );
             });
 
@@ -105,5 +105,5 @@ test("23_phase_d", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 Driver.invoke("mc.bot.cancel", { process: "builder" });
             });
         },
-    }),
+    })
 );

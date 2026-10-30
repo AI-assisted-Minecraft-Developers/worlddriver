@@ -27,5 +27,5 @@ test("03_events_since", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(found.length, 1, "expected exactly one block.break at origin");
             });
         },
-    }),
+    })
 );

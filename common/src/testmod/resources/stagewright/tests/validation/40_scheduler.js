@@ -177,9 +177,9 @@ test("40_scheduler", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                         t.assertEqual(part(viaTcp), part(direct), "RPC activeChain/suspended mismatch");
                         t.assertEqual(part(viaMcp), part(direct), "MCP activeChain/suspended mismatch");
                         resetScheduler();
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

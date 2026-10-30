@@ -68,7 +68,7 @@ test("31_goal_types", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                         "pathfinder.axisHeight"
                     ],
                     64,
-                    "axisHeight=64",
+                    "axisHeight=64"
                 );
                 var bad = errorOf(function () {
                     Driver.bot.setting({ op: "patch", values: { "pathfinder.axisHeight": 9999 } });
@@ -91,7 +91,7 @@ test("31_goal_types", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                     t.assertEqual(
                         r.action.state === "running" || r.action.state === "succeeded",
                         true,
-                        "state " + r.action.state,
+                        "state " + r.action.state
                     );
                     Driver.invoke("mc.bot.cancel", {});
                 });
@@ -119,5 +119,5 @@ test("31_goal_types", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 });
             }
         },
-    }),
+    })
 );

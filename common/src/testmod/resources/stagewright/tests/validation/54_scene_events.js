@@ -23,9 +23,9 @@ test("54_scene_events", { scene: ["wd.validation", "wd.validationIntegrated"], i
                         var s = Driver.invoke("mc.client.scene", {});
                         t.assertTrue("exposedAtNight" in s, "scene has exposedAtNight");
                         t.assertTrue("cornered" in s, "scene has cornered");
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

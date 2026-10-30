@@ -27,7 +27,7 @@ test("a script waits on server ticks", { scene: "wd.jupiterSmoke" }, (t) => {
             held++;
             return true;
         },
-        { ticks: 5, within: 20 },
+        { ticks: 5, within: 20 }
     );
     t.expect(held).equals(5);
     t.wait(2);

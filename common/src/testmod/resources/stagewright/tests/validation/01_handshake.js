@@ -11,7 +11,7 @@ test("01_handshake", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 // <base>-snapshot+<minecraft>, a numbered one <base>-alpha.<n>+<minecraft>.
                 t.assertTrue(
                     /^\d+\.\d+\.\d+-(snapshot|alpha\.\d+)\+\d+\.\d+/.test(info.version),
-                    "version is not the build's: " + info.version,
+                    "version is not the build's: " + info.version
                 );
                 t.assertTrue(info.uptimeMs >= 0, "uptimeMs should be non-negative");
             });
@@ -27,5 +27,5 @@ test("01_handshake", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 t.assertTrue(info.builtMs > 0, "builtMs should be a real epoch time, got " + info.builtMs);
             });
         },
-    }),
+    })
 );

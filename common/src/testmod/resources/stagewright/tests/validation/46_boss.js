@@ -110,7 +110,7 @@ test("46_boss", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                     t.assertEqual(typeof b.powered, "boolean", "powered flag exposed");
                     t.assertTrue(
                         b.phase === "first" || b.phase === "second" || b.phase === "spawning",
-                        "phase is first|second|spawning (" + b.phase + ")",
+                        "phase is first|second|spawning (" + b.phase + ")"
                     );
                     cleanupBosses();
                 });
@@ -150,7 +150,7 @@ test("46_boss", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                     var result = s.outcome && s.outcome.result;
                     t.assertTrue(
                         result && has(result.note, "no ender dragon"),
-                        "exited with no-dragon note (" + JSON.stringify(s && s.outcome) + ")",
+                        "exited with no-dragon note (" + JSON.stringify(s && s.outcome) + ")"
                     );
                 });
 
@@ -165,10 +165,10 @@ test("46_boss", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                     t.assertTrue(result && result.ok === false, "gear gate failed -> ok:false");
                     t.assertTrue(
                         result && has(result.note, "gear"),
-                        "note mentions gear (" + JSON.stringify(s && s.outcome) + ")",
+                        "note mentions gear (" + JSON.stringify(s && s.outcome) + ")"
                     );
                 });
             }
         },
-    }),
+    })
 );

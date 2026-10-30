@@ -42,7 +42,7 @@ test("55_setting_perception", { scene: ["wd.validation", "wd.validationIntegrate
                     t.assertEqual(bad.issues[0].code, "out_of_range", "99 is refused");
                     t.assertEqual(read(["hazardGridRadius"]).hazardGridRadius, 16, "the refusal wrote nothing");
                     patch(was);
-                },
+                }
             );
 
             ScriptTest.run("55_setting_perception: deepWaterMax and sceneQueryMaxRadius round-trip", function (t) {
@@ -58,12 +58,12 @@ test("55_setting_perception", { scene: ["wd.validation", "wd.validationIntegrate
                 var m = patch({ mutedEvents: ["entity.death", "item.pickup"] }).mutedEvents;
                 t.assertTrue(
                     m.indexOf("entity.death") >= 0 && m.indexOf("item.pickup") >= 0,
-                    "both muted types round-trip",
+                    "both muted types round-trip"
                 );
                 // Empty list un-mutes everything (the default: push all events)
                 t.assertEqual(patch({ mutedEvents: [] }).mutedEvents.length, 0, "empty list clears all mutes");
                 patch(was);
             });
         },
-    }),
+    })
 );

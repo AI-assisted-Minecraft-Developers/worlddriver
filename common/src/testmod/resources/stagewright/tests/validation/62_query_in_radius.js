@@ -85,7 +85,7 @@ test("62_query_in_radius", { scene: ["wd.validation", "wd.validationIntegrated"]
                             "in-range stand '" +
                                 n3 +
                                 "' missing from r=3 result " +
-                                "(the 2026-06-04 §C silent-omission shape)",
+                                "(the 2026-06-04 §C silent-omission shape)"
                         );
                     }
                     t.assertEqual(rows.length, 7, "exactly the 7 in-range stands, got " + rows.length);
@@ -123,5 +123,5 @@ test("62_query_in_radius", { scene: ["wd.validation", "wd.validationIntegrated"]
                 }
             });
         },
-    }),
+    })
 );

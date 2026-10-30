@@ -127,8 +127,8 @@ test("26_schematic_loader", { scene: ["wd.validation", "wd.validationIntegrated"
                     }
                     t.assertEqual(r.outcome, "accepted", "outcome");
                     Driver.invoke("mc.bot.cancel", { process: "builder" });
-                },
+                }
             );
         },
-    }),
+    })
 );

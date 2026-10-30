@@ -16,9 +16,9 @@ test("69_tick_times", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertTrue(s.meanMs >= 0 && s.meanMs <= s.maxMs, "mean " + s.meanMs + " within max " + s.maxMs);
                 t.assertTrue(
                     s.medianMs >= 0 && s.medianMs <= s.maxMs,
-                    "median " + s.medianMs + " within max " + s.maxMs,
+                    "median " + s.medianMs + " within max " + s.maxMs
                 );
             });
         },
-    }),
+    })
 );

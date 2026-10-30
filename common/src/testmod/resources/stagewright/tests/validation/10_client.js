@@ -37,7 +37,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                             Driver.client.screen.info();
                         });
                         t.assertEqual(e.code, "capability_unavailable", "code");
-                    },
+                    }
                 );
             } else {
                 ScriptTest.run(
@@ -48,7 +48,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                         t.assertEqual(typeof info.worldOpen, "boolean", "worldOpen must be boolean");
                         t.assertEqual(typeof info.hasPlayer, "boolean", "hasPlayer must be boolean");
                         t.assertEqual(typeof info.contextId, "string", "contextId must be a string");
-                    },
+                    }
                 );
 
                 ScriptTest.run("10_client: input.key 'E' opens inventory + close round-trip", function (t) {
@@ -68,7 +68,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                         tree.nodes.some(function (n) {
                             return n.type === "Slot" && n.index === 0;
                         }),
-                        "the inventory's slots are nodes of the tree",
+                        "the inventory's slots are nodes of the tree"
                     );
 
                     var closed = Driver.client.screen.close({});
@@ -88,7 +88,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(
                         e && e.code,
                         "context_changed",
-                        "a close held to the screen before the inventory opened",
+                        "a close held to the screen before the inventory opened"
                     );
                     var open = Driver.client.screen.info();
                     t.assertEqual(open.hasScreen, true, "the refused close left the inventory open");
@@ -104,7 +104,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertTrue(shot.height > 0, "height must be positive (got " + shot.height + ")");
                     t.assertTrue(
                         shot.base64 && shot.base64.length > 100,
-                        "base64 payload must be non-trivial (got " + (shot.base64 ? shot.base64.length : 0) + " bytes)",
+                        "base64 payload must be non-trivial (got " + (shot.base64 ? shot.base64.length : 0) + " bytes)"
                     );
                 });
 
@@ -116,11 +116,11 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     var b = Driver.client.screenshot();
                     t.assertTrue(
                         a.frameWaited === true,
-                        "capture did not get a frame of its own (frame=" + a.frame + ", fps=" + a.fps + ")",
+                        "capture did not get a frame of its own (frame=" + a.frame + ", fps=" + a.fps + ")"
                     );
                     t.assertTrue(
                         b.frame > a.frame,
-                        "frame did not advance between captures (" + a.frame + " -> " + b.frame + ")",
+                        "frame did not advance between captures (" + a.frame + " -> " + b.frame + ")"
                     );
                 });
 
@@ -132,7 +132,7 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(
                         direct.contextId,
                         viaTcp.contextId,
-                        "the same screen is the same context on every path",
+                        "the same screen is the same context on every path"
                     );
                 });
 
@@ -154,11 +154,11 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                             viaMcp.base64 && viaMcp.base64.length > 100,
                             "MCP-path base64 must be re-merged from image block (got " +
                                 (viaMcp.base64 ? viaMcp.base64.length : 0) +
-                                " bytes)",
+                                " bytes)"
                         );
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

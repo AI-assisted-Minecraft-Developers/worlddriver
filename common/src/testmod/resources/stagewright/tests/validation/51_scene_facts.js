@@ -39,7 +39,7 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(
                     s.hazardSummary.cornered,
                     false,
-                    "flat stone neighbours are standable and non-lethal -> not cornered",
+                    "flat stone neighbours are standable and non-lethal -> not cornered"
                 );
             });
 
@@ -65,7 +65,7 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(
                     s.hazardSummary.cornered,
                     true,
-                    "all 8 neighbours solid at feet and head height -> no standable exit -> cornered",
+                    "all 8 neighbours solid at feet and head height -> no standable exit -> cornered"
                 );
             });
 
@@ -88,7 +88,7 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(
                     JSON.stringify(s1.rows),
                     JSON.stringify(s2.rows),
-                    "two successive calls produce JSON-identical rows (byte-stable)",
+                    "two successive calls produce JSON-identical rows (byte-stable)"
                 );
                 // Middle row (index 1) for a flat platform at radius=1:
                 // dz=0 row: dx=-1 is '.', dx=0 is '@', dx=1 is '.', joined by single spaces.
@@ -118,5 +118,5 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(rowsMcp, rowsDirect, "MCP rows must match in-JVM rows");
             });
         },
-    }),
+    })
 );

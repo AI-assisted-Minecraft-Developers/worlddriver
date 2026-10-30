@@ -90,7 +90,7 @@ test("17_goto_selectors", { scene: ["wd.validation", "wd.validationIntegrated"],
                         var r = Driver.bot.goto({ target: { kind: "axis" } });
                         t.assertEqual(r.outcome, "refused", "outcome");
                         t.assertEqual(r.reason, "bot_unavailable", "reason");
-                    },
+                    }
                 );
             } else {
                 ScriptTest.run(
@@ -101,7 +101,7 @@ test("17_goto_selectors", { scene: ["wd.validation", "wd.validationIntegrated"],
                         if (r.reason === "bot_unavailable") return;
                         t.assertEqual(r.reason, "invalid_world_target", "reason");
                         t.assertTrue(r.message.indexOf("waypoint") >= 0, "message names the waypoint: " + r.message);
-                    },
+                    }
                 );
 
                 ScriptTest.run(
@@ -112,9 +112,9 @@ test("17_goto_selectors", { scene: ["wd.validation", "wd.validationIntegrated"],
                         if (r.reason === "bot_unavailable") return;
                         t.assertEqual(r.reason, "invalid_world_target", "reason");
                         t.assertTrue(r.message.indexOf("entity") >= 0, "message names the entity: " + r.message);
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

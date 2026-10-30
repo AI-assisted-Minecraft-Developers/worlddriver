@@ -26,11 +26,11 @@ test("57_replay", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 t.assertEqual(
                     missing && missing.code,
                     "invalid_params",
-                    "refused as a bad parameter: " + (missing && missing.message),
+                    "refused as a bad parameter: " + (missing && missing.message)
                 );
                 t.assertEqual(missing.issues[0].path, "/file", "the file is what is wrong");
                 t.assertEqual(missing.execution, "not_started", "nothing ran");
             });
         },
-    }),
+    })
 );

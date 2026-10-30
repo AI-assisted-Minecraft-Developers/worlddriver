@@ -162,5 +162,5 @@ test("41_defense", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 });
             }
         },
-    }),
+    })
 );

@@ -48,7 +48,7 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 // JSON.stringify formatting may vary by engine; just confirm key+value appear.
                 t.assertTrue(
                     out.log[1].indexOf('"k"') >= 0 && out.log[1].indexOf("1") >= 0,
-                    "object log entry should mention key and value, got: " + out.log[1],
+                    "object log entry should mention key and value, got: " + out.log[1]
                 );
             });
 
@@ -58,7 +58,7 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(out.error.code, "script_error", errorText(out));
                 t.assertTrue(
                     out.error.message.indexOf("boom") >= 0,
-                    "expected error to mention 'boom', got: " + errorText(out),
+                    "expected error to mention 'boom', got: " + errorText(out)
                 );
                 t.assertEqual(out.error.line, 2, "the line it was thrown at");
             });
@@ -111,12 +111,12 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 // JSON.stringify runs the result's own getters, which are the script's code past its last line.
                 var out = call(
                     "Object.defineProperty({}, 'x', {enumerable: true, get: function () { while (true) {} }})",
-                    250,
+                    250
                 );
                 t.assertEqual(
                     out.result,
                     undefined,
-                    "no result from a getter that never returns: " + JSON.stringify(out.result),
+                    "no result from a getter that never returns: " + JSON.stringify(out.result)
                 );
                 // The watchdog may answer first (script_timeout), or the encoding's own budget (script_error); both bound it.
                 t.assertTrue(out.error.code === "script_timeout" || out.error.code === "script_error", errorText(out));
@@ -159,7 +159,7 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(
                     typeof __api.getClass,
                     "undefined",
-                    "if getClass is reachable, javaClassName is redundant",
+                    "if getClass is reachable, javaClassName is redundant"
                 );
                 t.assertEqual(javaClassName(__api), "net.magicterra.worlddriver.script.ScriptCalls");
                 t.assertEqual(javaClassName({ a: 1 }), null);
@@ -182,5 +182,5 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(viaMcp.result, "worlddriver", "MCP path must reach the evaluator");
             });
         },
-    }),
+    })
 );

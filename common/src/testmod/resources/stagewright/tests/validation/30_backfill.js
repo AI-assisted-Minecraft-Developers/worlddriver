@@ -46,7 +46,7 @@ test("30_backfill", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(e.issues[0].path, "/values/autoBackfillBlock", "path");
                 t.assertTrue(
                     e.issues[0].message.indexOf("not_a_real_block_xyz") >= 0,
-                    "names the id: " + e.issues[0].message,
+                    "names the id: " + e.issues[0].message
                 );
                 t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before, "unchanged");
             });
@@ -56,7 +56,7 @@ test("30_backfill", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(
                     patch({ autoBackfillBlock: "minecraft:dirt" }).autoBackfillBlock,
                     "minecraft:dirt",
-                    "dirt",
+                    "dirt"
                 );
                 patch(before);
                 t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before.autoBackfillBlock, "restored");
@@ -69,18 +69,18 @@ test("30_backfill", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                         patch({ autoBackfillRadius: 0 });
                     }).issues[0].code,
                     "out_of_range",
-                    "0 refused",
+                    "0 refused"
                 );
                 t.assertEqual(
                     errorOf(function () {
                         patch({ autoBackfillRadius: 17 });
                     }).issues[0].code,
                     "out_of_range",
-                    "17 refused",
+                    "17 refused"
                 );
                 t.assertEqual(patch({ autoBackfillRadius: 4 }).autoBackfillRadius, 4, "4 committed");
                 patch(before);
             });
         },
-    }),
+    })
 );

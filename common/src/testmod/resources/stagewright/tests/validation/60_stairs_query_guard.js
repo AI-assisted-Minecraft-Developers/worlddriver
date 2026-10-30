@@ -63,5 +63,5 @@ test("60_stairs_query_guard", { scene: ["wd.validation", "wd.validationIntegrate
                 }
             });
         },
-    }),
+    })
 );

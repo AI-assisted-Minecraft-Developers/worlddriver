@@ -40,11 +40,11 @@ test("48_skill", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 t.assertEqual(
                     rn.outcome.result.doubled,
                     42,
-                    "skill computed 21*2=42 (" + JSON.stringify(rn.outcome.result) + ")",
+                    "skill computed 21*2=42 (" + JSON.stringify(rn.outcome.result) + ")"
                 );
                 t.assertTrue(
                     rn.outcome.runId.indexOf("skill-" + name) === 0,
-                    "a run named after the skill: " + rn.outcome.runId,
+                    "a run named after the skill: " + rn.outcome.runId
                 );
 
                 var del = Driver.invoke("mc.skill", { op: "delete", name: name });
@@ -74,5 +74,5 @@ test("48_skill", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 t.assertEqual(unk.issues[0].path, "/name", "the name is what is wrong");
             });
         },
-    }),
+    })
 );

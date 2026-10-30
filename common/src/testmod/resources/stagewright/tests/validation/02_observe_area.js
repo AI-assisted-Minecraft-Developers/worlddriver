@@ -42,5 +42,5 @@ test("02_observe_area", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertTrue(hasLog, "expected oak_log in seeded world");
             });
         },
-    }),
+    })
 );

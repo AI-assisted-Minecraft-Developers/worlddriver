@@ -33,7 +33,7 @@ test("19_setting_survival", { scene: ["wd.validation", "wd.validationIntegrated"
                 t.assertEqual(
                     JSON.stringify(r.values),
                     JSON.stringify({ autoEat: true, autoRespawn: true }),
-                    "values in the order sent",
+                    "values in the order sent"
                 );
                 var off = Driver.bot.setting({ op: "patch", values: { autoEat: false, autoRespawn: false } }).values;
                 t.assertEqual(off.autoEat, false, "autoEat=false after disable");
@@ -67,7 +67,7 @@ test("19_setting_survival", { scene: ["wd.validation", "wd.validationIntegrated"
                 t.assertEqual(
                     e.issues[0].path,
                     "/values/smoothLookDegPerTick",
-                    "the out-of-range rate is refused at its own path",
+                    "the out-of-range rate is refused at its own path"
                 );
                 t.assertEqual(e.issues[0].code, "out_of_range", "issue code");
                 t.assertEqual(read(["smoothLook"]).smoothLook, true, "a refused patch writes none of its keys");
@@ -106,5 +106,5 @@ test("19_setting_survival", { scene: ["wd.validation", "wd.validationIntegrated"
                 }
             });
         },
-    }),
+    })
 );

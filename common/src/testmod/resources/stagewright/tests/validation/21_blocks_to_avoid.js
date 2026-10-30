@@ -75,5 +75,5 @@ test("21_blocks_to_avoid", { scene: ["wd.validation", "wd.validationIntegrated"]
                 });
             });
         },
-    }),
+    })
 );

@@ -36,10 +36,10 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                         t.assertEqual(
                             r.reason,
                             "bot_unavailable",
-                            target.kind + " decodes and reaches the body: " + JSON.stringify(r),
+                            target.kind + " decodes and reaches the body: " + JSON.stringify(r)
                         );
                     });
-                },
+                }
             );
 
             ScriptTest.run("65_schema_union: combat.target is not a bare number, string or array", function (t) {
@@ -78,7 +78,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                         });
                         t.assertTrue(p === null, "entity anchor " + who + " must decode, got issue at " + p);
                     });
-                },
+                }
             );
 
             ScriptTest.run("65_schema_union: goto route.leash entity anchor rejects a number", function (t) {
@@ -138,7 +138,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
                 t.assertTrue(
                     msg === null || msg.indexOf("'args'") < 0,
-                    "array args must not be rejected by the union, got: " + msg,
+                    "array args must not be rejected by the union, got: " + msg
                 );
             });
 
@@ -148,7 +148,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
                 t.assertTrue(
                     msg === null || msg.indexOf("'args'") < 0,
-                    "scalar args must not be rejected by the union, got: " + msg,
+                    "scalar args must not be rejected by the union, got: " + msg
                 );
             });
 
@@ -158,7 +158,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
                 t.assertTrue(
                     msg === null || msg.indexOf("'data'") < 0,
-                    "object data must not be rejected by the union, got: " + msg,
+                    "object data must not be rejected by the union, got: " + msg
                 );
             });
 
@@ -168,7 +168,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
                 t.assertTrue(
                     msg === null || msg.indexOf("'data'") < 0,
-                    "array data must not be rejected by the union, got: " + msg,
+                    "array data must not be rejected by the union, got: " + msg
                 );
             });
 
@@ -186,5 +186,5 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertTrue(p === null, "object value must decode, got issue at " + p);
             });
         },
-    }),
+    })
 );

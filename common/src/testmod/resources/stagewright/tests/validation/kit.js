@@ -34,14 +34,14 @@ function asserts(name) {
             if (cond !== true)
                 fail(
                     (msg === undefined ? "expected true" : msg) +
-                        (typeof cond === "boolean" ? "" : " (not a boolean: " + cond + ")"),
+                        (typeof cond === "boolean" ? "" : " (not a boolean: " + cond + ")")
                 );
         },
         assertFalse: (cond, msg) => {
             if (cond !== false)
                 fail(
                     (msg === undefined ? "expected false" : msg) +
-                        (typeof cond === "boolean" ? "" : " (not a boolean: " + cond + ")"),
+                        (typeof cond === "boolean" ? "" : " (not a boolean: " + cond + ")")
                 );
         },
         assertEqual: (a, b, msg) => {
@@ -65,8 +65,8 @@ step("wd.validation", (t, given) => {
                 t.step(stepName, {
                     method: method,
                     params: params === undefined ? null : JSON.stringify(params),
-                }),
-            ),
+                })
+            )
         );
         if (reply.error) throw new given.DriverApiError(reply.error);
         return reply.result;
@@ -104,5 +104,5 @@ test(
     },
     (t) => {
         t.step("wd.validation.arena");
-    },
+    }
 );

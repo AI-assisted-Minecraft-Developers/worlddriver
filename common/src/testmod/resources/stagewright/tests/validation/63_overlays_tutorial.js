@@ -28,11 +28,11 @@ test("63_overlays_tutorial", { scene: ["wd.validation", "wd.validationIntegrated
                     t.assertEqual(res.tutorial, true, "tutorial must be dismissed (got " + JSON.stringify(res) + ")");
                     t.assertTrue(
                         res.tutorialError === undefined,
-                        "tutorialError must be absent (got " + JSON.stringify(res) + ")",
+                        "tutorialError must be absent (got " + JSON.stringify(res) + ")"
                     );
                     t.assertEqual(res.toasts, true, "toast clearing must keep working");
                 });
             }
         },
-    }),
+    })
 );

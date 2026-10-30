@@ -31,12 +31,12 @@ test("22_phase_c", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     t.assertEqual(
                         Driver.bot.setting({ op: "patch", values: { autoSwim: true } }).values.autoSwim,
                         true,
-                        "autoSwim=true",
+                        "autoSwim=true"
                     );
                     t.assertEqual(
                         Driver.bot.setting({ op: "patch", values: { autoSwim: false } }).values.autoSwim,
                         false,
-                        "autoSwim=false",
+                        "autoSwim=false"
                     );
                     Driver.bot.setting({ op: "patch", values: was });
                 });
@@ -53,7 +53,7 @@ test("22_phase_c", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                         t.assertTrue(typeof s.reflexes.lastPath.ms === "number", "lastPath.ms is number");
                         t.assertTrue(
                             typeof s.reflexes.lastPath.goalReached === "boolean",
-                            "lastPath.goalReached is boolean",
+                            "lastPath.goalReached is boolean"
                         );
                     }
                 });
@@ -66,5 +66,5 @@ test("22_phase_c", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 });
             }
         },
-    }),
+    })
 );

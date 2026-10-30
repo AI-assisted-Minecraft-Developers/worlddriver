@@ -32,7 +32,7 @@ test("47_plan", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                 t.assertTrue(smelt >= 0, "smelts iron_ingot");
                 t.assertTrue(
                     r.steps[smelt].input.indexOf("raw_iron") >= 0,
-                    "smelt input = raw_iron (" + r.steps[smelt].input + ")",
+                    "smelt input = raw_iron (" + r.steps[smelt].input + ")"
                 );
                 var craft = stepIndex(r.steps, "craft", "iron_pickaxe");
                 t.assertTrue(craft >= 0, "crafts iron_pickaxe");
@@ -65,7 +65,7 @@ test("47_plan", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                 t.assertEqual(r.feasible, false, "ender_pearl can't be mined/farmed/smelted");
                 t.assertTrue(
                     r.unobtainable.length > 0,
-                    "unobtainable is non-empty (" + JSON.stringify(r.unobtainable) + ")",
+                    "unobtainable is non-empty (" + JSON.stringify(r.unobtainable) + ")"
                 );
             });
 
@@ -81,5 +81,5 @@ test("47_plan", { scene: ["wd.validation", "wd.validationIntegrated"], isolated:
                 t.assertTrue(e.issues[0].message.indexOf("unknown") >= 0, "error names it (" + e.message + ")");
             });
         },
-    }),
+    })
 );

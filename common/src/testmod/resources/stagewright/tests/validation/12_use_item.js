@@ -37,13 +37,13 @@ test("12_use_item", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(
                     issueOf({ pos: { x: 0, y: 200, z: 0 }, entityId: 1 }).path,
                     "/entityId",
-                    "pos and entityId",
+                    "pos and entityId"
                 );
                 t.assertEqual(issueOf({ face: "up" }).path, "/face", "face without pos");
                 t.assertEqual(
                     issueOf({ pos: { x: 0, y: 200, z: 0 }, sneak: true }).path,
                     "/sneak",
-                    "sneak without entityId",
+                    "sneak without entityId"
                 );
             });
 
@@ -112,7 +112,7 @@ test("12_use_item", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                         }).entities;
                         t.assertTrue(
                             Array.isArray(rows) && rows.length >= 1,
-                            "boat must be findable via mc.query, got " + JSON.stringify(rows),
+                            "boat must be findable via mc.query, got " + JSON.stringify(rows)
                         );
                         // mc.query reads the server, which spawned the boat; self clicks from the client, which
                         // learns of it a tick or more later and until then answers that there is no such entity.
@@ -132,5 +132,5 @@ test("12_use_item", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 });
             }
         },
-    }),
+    })
 );

@@ -51,5 +51,5 @@ test("67_mouse_scroll", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
             });
         },
-    }),
+    })
 );

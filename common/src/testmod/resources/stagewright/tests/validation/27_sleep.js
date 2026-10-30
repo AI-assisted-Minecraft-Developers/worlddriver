@@ -75,5 +75,5 @@ test("27_sleep", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 });
             });
         },
-    }),
+    })
 );

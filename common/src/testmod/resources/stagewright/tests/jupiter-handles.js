@@ -165,7 +165,7 @@ test(
         t.overrideTime(1234);
         t.expect(dayTime(t)).equals(1234);
         t.override("randomTickSpeed", 0);
-    },
+    }
 );
 
 // The scene declares no time, so its clock stands where a quiet world's does: 18000, frozen.
@@ -179,7 +179,7 @@ test(
     },
     (t) => {
         t.expect(dayTime(t)).equals(18000);
-    },
+    }
 );
 
 // Script tests run beside the Java tests, so either kind waits for the other it depends on.
@@ -196,7 +196,7 @@ test(
     { scene: SCENE, dependsOn: [SMOKE + "#ticksPassOnTheServer"] },
     (t) => {
         t.wait(1);
-    },
+    }
 );
 
 // Aborted, never run: reported as skipped with "is not in this run", which is what this test is here to show.
@@ -208,7 +208,7 @@ test(
     },
     (t) => {
         t.expect("ran").equals("aborted before running");
-    },
+    }
 );
 
 test(
@@ -219,5 +219,5 @@ test(
     },
     (t) => {
         t.expect(1 + 1).equals(3);
-    },
+    }
 );

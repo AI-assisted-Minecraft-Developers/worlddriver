@@ -132,7 +132,7 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(
                         countType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "zombie"),
                         3,
-                        "the pack is in",
+                        "the pack is in"
                     );
 
                     var started = Driver.bot.combat({ mode: "engage" }); // non-blocking
@@ -221,7 +221,7 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(
                         a.state,
                         "running",
-                        "the fight is still on across the window, so it measured kiting: " + seen,
+                        "the fight is still on across the window, so it measured kiting: " + seen
                     );
                     t.assertTrue(maxD > 4.0, "the bot backed off past melee range: " + seen);
                     t.assertTrue(minLate >= d0, "once it had backed off it never closed back in toward melee: " + seen);
@@ -256,7 +256,7 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                         t.assertEqual(
                             JSON.stringify(stopped.cancelled),
                             '["combat"]',
-                            "names what it stopped: " + JSON.stringify(stopped),
+                            "names what it stopped: " + JSON.stringify(stopped)
                         );
                         Driver.system.waitTicks({ ticks: 3 });
                         var after = Driver.bot.status({}).status;
@@ -266,13 +266,13 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                         t.assertEqual(
                             ended.state,
                             "cancelled",
-                            "the cancel ended the action: " + JSON.stringify(ended),
+                            "the cancel ended the action: " + JSON.stringify(ended)
                         );
                         t.assertEqual(ended.reason, "requested", "reason");
                         cleanup();
-                    },
+                    }
                 );
             }
         },
-    }),
+    })
 );

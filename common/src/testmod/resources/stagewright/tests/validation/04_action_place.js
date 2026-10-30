@@ -20,5 +20,5 @@ test("04_action_place", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 t.assertEqual(after.blocks[0].pos.z, target.z);
             });
         },
-    }),
+    })
 );

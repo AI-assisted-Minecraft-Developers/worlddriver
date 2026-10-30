@@ -17,12 +17,12 @@ test("25_phase_d3", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(
                     Driver.bot.setting({ op: "patch", values: { allowParkour4: true } }).values.allowParkour4,
                     true,
-                    "allowParkour4 on",
+                    "allowParkour4 on"
                 );
                 t.assertEqual(
                     Driver.bot.setting({ op: "patch", values: { allowParkour4: false } }).values.allowParkour4,
                     false,
-                    "allowParkour4 off",
+                    "allowParkour4 off"
                 );
                 Driver.bot.setting({ op: "patch", values: was });
             });
@@ -46,5 +46,5 @@ test("25_phase_d3", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 t.assertEqual(JSON.stringify(Driver.system.mcpRoundtrip("mc.bot.setting", args)), direct, "MCP");
             });
         },
-    }),
+    })
 );

@@ -134,7 +134,7 @@ test("44_craft", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                         t.assertEqual(a.state, "succeeded", "craft succeeded: " + JSON.stringify(a));
                         t.assertTrue(hotbarHas("minecraft:wooden_pickaxe") >= 1, "a wooden pickaxe was produced");
                         cleanup();
-                    },
+                    }
                 );
 
                 ScriptTest.run("44_craft: smelt raw iron into an iron ingot in a furnace", function (t) {
@@ -148,12 +148,12 @@ test("44_craft", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                     t.assertTrue(a.state !== "running", "smelt finished: " + JSON.stringify(a));
                     t.assertTrue(
                         hotbarHas("minecraft:iron_ingot") >= 1,
-                        "an iron ingot was produced" + (a.message ? " (note: " + a.message + ")" : ""),
+                        "an iron ingot was produced" + (a.message ? " (note: " + a.message + ")" : "")
                     );
                     if (a.state === "succeeded") t.assertEqual(a.result.fuel, "coal", "the fuel it loaded");
                     cleanup();
                 });
             }
         },
-    }),
+    })
 );

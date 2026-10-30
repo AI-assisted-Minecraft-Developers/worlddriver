@@ -64,5 +64,5 @@ test("56_debug_pathchart", { scene: ["wd.validation", "wd.validationIntegrated"]
                 });
             }
         },
-    }),
+    })
 );

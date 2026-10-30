@@ -116,7 +116,7 @@ test("20_clearArea_modes", { scene: ["wd.validation", "wd.validationIntegrated"]
                         var r = Driver.bot.clearArea({ target: { kind: "tunnel", distance: 1 } });
                         t.assertEqual(r.outcome, "refused", "outcome");
                         t.assertEqual(r.reason, "bot_unavailable", "reason");
-                    },
+                    }
                 );
             } else {
                 ScriptTest.run(
@@ -127,7 +127,7 @@ test("20_clearArea_modes", { scene: ["wd.validation", "wd.validationIntegrated"]
                             t.assertEqual(
                                 r.reason,
                                 "bot_unavailable",
-                                "only an unavailable body may refuse: " + r.message,
+                                "only an unavailable body may refuse: " + r.message
                             );
                             return;
                         }
@@ -151,10 +151,10 @@ test("20_clearArea_modes", { scene: ["wd.validation", "wd.validationIntegrated"]
                         t.assertTrue(ended !== null, "the action ended after the cancel");
                         t.assertTrue(
                             ended.state === "cancelled" || ended.state === "succeeded" || ended.state === "failed",
-                            "a cancel or an early finish, got " + JSON.stringify(ended),
+                            "a cancel or an early finish, got " + JSON.stringify(ended)
                         );
                         if (ended.state === "succeeded") t.assertEqual(ended.result.kind, "clearArea", "result kind");
-                    },
+                    }
                 );
 
                 ScriptTest.run("20_clearArea_modes: a new task supersedes the running one by id", function (t) {
@@ -171,12 +171,12 @@ test("20_clearArea_modes", { scene: ["wd.validation", "wd.validationIntegrated"]
                     } else {
                         t.assertTrue(
                             old.state === "succeeded",
-                            "only an early finish may precede the replacement: " + JSON.stringify(old),
+                            "only an early finish may precede the replacement: " + JSON.stringify(old)
                         );
                     }
                     Driver.invoke("mc.bot.cancel", { process: "builder" });
                 });
             }
         },
-    }),
+    })
 );

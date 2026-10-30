@@ -25,5 +25,5 @@ test("52_client_scene", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
             }
         },
-    }),
+    })
 );

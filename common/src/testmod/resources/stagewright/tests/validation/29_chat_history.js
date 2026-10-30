@@ -72,7 +72,7 @@ test("29_chat_history", { scene: ["wd.validation", "wd.validationIntegrated"], i
                             (r.outcome === "done" &&
                                 r.later &&
                                 (r.later.timedOut === true || r.later.lines.length > 0)),
-                        "chat.send returned a known shape: " + JSON.stringify(r),
+                        "chat.send returned a known shape: " + JSON.stringify(r)
                     );
                 });
 
@@ -94,7 +94,7 @@ test("29_chat_history", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     var viaMcp = Driver.system.mcpRoundtrip("mc.client.chat.history", { limit: 5 });
                     t.assertTrue(
                         Array.isArray(viaTcp.messages) && Array.isArray(viaMcp.messages),
-                        "messages on every path",
+                        "messages on every path"
                     );
                     // nextSeq is time-dependent (new messages between calls) but monotonically non-decreasing.
                     t.assertTrue(viaTcp.nextSeq >= direct.nextSeq, "RPC nextSeq monotone");
@@ -102,5 +102,5 @@ test("29_chat_history", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
             }
         },
-    }),
+    })
 );
