@@ -545,7 +545,7 @@ public final class ClientWorldView implements StateWorldView {
         long now = System.currentTimeMillis();
         BlockPos key = pos.immutable();
         Long exp = stuckAvoid.get(key);
-        int strength = (exp != null && exp > now) ? stuckStrength.getOrDefault(key, 1) + 1 : 1;
+        int strength = exp != null && exp > now ? stuckStrength.getOrDefault(key, 1) + 1 : 1;
         strength = Math.min(strength, STUCK_AVOID_MAX_STRENGTH);
         // Decay scales with strength: one stray wedge still clears in 15 s, but a
         // node that keeps failing (or a proven dead pocket re-marked every lap)

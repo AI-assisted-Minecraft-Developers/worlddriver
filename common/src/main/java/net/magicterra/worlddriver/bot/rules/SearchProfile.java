@@ -10,8 +10,8 @@ public record SearchProfile(List<CostModifier> bias, CapabilityProfile capabilit
     public static final SearchProfile NONE = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of());
 
     public SearchProfile {
-        bias = (bias == null) ? List.of() : List.copyOf(bias);
-        capability = (capability == null) ? CapabilityProfile.ALL : capability;
-        constraints = (constraints == null) ? List.of() : List.copyOf(constraints);
+        bias = bias == null ? List.of() : List.copyOf(bias);
+        capability = capability == null ? CapabilityProfile.ALL : capability;
+        constraints = constraints == null ? List.of() : List.copyOf(constraints);
     }
 }

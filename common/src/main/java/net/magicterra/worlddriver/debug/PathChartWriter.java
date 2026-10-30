@@ -30,7 +30,7 @@ public final class PathChartWriter {
     /** Write the image. {@code nameOverride} optional (without extension); else pathchart-NNNN. */
     public static Map<String, Object> write(BufferedImage img, String nameOverride) throws Exception {
         Files.createDirectories(DIR);
-        String name = (nameOverride != null && !nameOverride.isBlank())
+        String name = nameOverride != null && !nameOverride.isBlank()
                 ? nameOverride
                 : String.format("pathchart-%04d-%d", SEQ.incrementAndGet(), System.currentTimeMillis());
         Path out = DIR.resolve(name + ".png");

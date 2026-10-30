@@ -17,7 +17,7 @@ public final class NavigatorFinders {
 
     /** The deep-search finder: the per-Navigator budget override when set, else the global one. */
     static PathFinder deep(Navigator nav, WorldView world) {
-        PathFinder pf = ((nav.searchMaxNodes > 0 && nav.searchMaxMs > 0)
+        PathFinder pf = (nav.searchMaxNodes > 0 && nav.searchMaxMs > 0
                         ? new PathFinder(world, nav.searchMaxNodes, nav.searchMaxMs, nav.profile)
                         : new PathFinder(world, nav.profile))
                 // THIS Navigator's churn clock, not a global every bot writes. Read live, because the

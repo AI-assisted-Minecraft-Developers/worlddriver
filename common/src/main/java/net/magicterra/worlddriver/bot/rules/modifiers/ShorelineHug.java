@@ -26,8 +26,8 @@ public record ShorelineHug(double weight) implements CostModifier {
 
     private static boolean nearWater(BlockPos p, WorldView w) {
         for (int i = 0; i < 4; i++) {
-            int dx = (i == 0) ? 1 : (i == 1) ? -1 : 0;
-            int dz = (i == 2) ? 1 : (i == 3) ? -1 : 0;
+            int dx = i == 0 ? 1 : i == 1 ? -1 : 0;
+            int dz = i == 2 ? 1 : i == 3 ? -1 : 0;
             BlockPos side = p.offset(dx, 0, dz);
             if (w.isWater(side) || w.isWater(side.below())) {
                 return true;

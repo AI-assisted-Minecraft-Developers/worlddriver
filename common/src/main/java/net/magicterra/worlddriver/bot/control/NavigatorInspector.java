@@ -211,9 +211,9 @@ public final class NavigatorInspector {
                     .append(n.getY())
                     .append(',')
                     .append(n.getZ());
-            String mv = (nav.route.edges() != null
+            String mv = nav.route.edges() != null
                             && i < nav.route.edges().size()
-                            && nav.route.edges().get(i) != null)
+                            && nav.route.edges().get(i) != null
                     ? String.valueOf(nav.route.edges().get(i).move)
                     : "no edge";
             sb.append('[').append(mv).append(']');
@@ -433,9 +433,9 @@ public final class NavigatorInspector {
 
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
     public BlockPos pathNode() {
-        return (nav.route.path() != null
+        return nav.route.path() != null
                         && nav.route.step() >= 0
-                        && nav.route.step() < nav.route.path().size())
+                        && nav.route.step() < nav.route.path().size()
                 ? nav.route.path().get(nav.route.step())
                 : null;
     }

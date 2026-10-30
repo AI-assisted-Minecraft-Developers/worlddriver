@@ -293,7 +293,7 @@ public final class PathFinder {
         this.world = world;
         this.maxNodes = maxNodes;
         this.maxMs = maxMs;
-        this.profile = (profile == null) ? SearchProfile.NONE : profile;
+        this.profile = profile == null ? SearchProfile.NONE : profile;
     }
 
     /**
@@ -1072,7 +1072,7 @@ public final class PathFinder {
             // unchanged.
             boolean submerged = world.isWater(to.offset(0, 1, 0));
             boolean cappedChamber = !submerged && world.isSolid(to.offset(0, 2, 0));
-            double overheadExtra = (PlanningConfig.pathfinderSubmergedWaterCost > 0 && (submerged || cappedChamber))
+            double overheadExtra = PlanningConfig.pathfinderSubmergedWaterCost > 0 && (submerged || cappedChamber)
                     ? PlanningConfig.pathfinderSubmergedWaterCost
                     : 0;
             return tax + overheadExtra;
@@ -1090,7 +1090,7 @@ public final class PathFinder {
             if (tax <= 0) {
                 return 0;
             }
-            return (world.isLeaves(to.below()) || world.isLeaves(to.above())) ? tax : 0;
+            return world.isLeaves(to.below()) || world.isLeaves(to.above()) ? tax : 0;
         }
 
         /**
@@ -1351,7 +1351,7 @@ public final class PathFinder {
                 return true;
             }
             long sliceStart = System.nanoTime();
-            long sliceLimit = (sliceMs >= Long.MAX_VALUE / 2) ? Long.MAX_VALUE : sliceMs * 1_000_000L;
+            long sliceLimit = sliceMs >= Long.MAX_VALUE / 2 ? Long.MAX_VALUE : sliceMs * 1_000_000L;
             // Ten times the slice, floored at 100 ms so a thin slice does not cry wolf. Against a
             // measured 8-9 ms worst healthy expansion this only fires on something pathological.
             long runawayLimit =
@@ -1781,7 +1781,7 @@ public final class PathFinder {
                             open.size());
                 }
                 finish(
-                        (segment == null)
+                        segment == null
                                 ? new Result(
                                         List.of(),
                                         List.of(),

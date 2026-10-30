@@ -178,9 +178,9 @@ public final class RetreatChain implements Chain {
                     sealed ? sealedFilteredCount(scan) : 0,
                     combatEngaged);
         } else {
-            long ticksSinceHurt = (lastHurtGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastHurtGameTime);
+            long ticksSinceHurt = lastHurtGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastHurtGameTime);
             long ticksSinceThreat =
-                    (lastThreatSeenGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastThreatSeenGameTime);
+                    lastThreatSeenGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastThreatSeenGameTime);
             String release = releaseReason(hp, thr, scan, ticksSinceHurt, ticksSinceThreat, sealed);
             if (release != null) {
                 LOG.info(

@@ -117,8 +117,8 @@ public final class RepathPhase {
                 if (nav.recovery.countCooldown <= 0) {
                     nav.recovery.countCooldown = 40;
                     if (++nav.recovery.wedgeRepathsHere >= 3) {
-                        BlockPos bwp = (nav.route.path() != null
-                                        && nav.route.step() < nav.route.path().size())
+                        BlockPos bwp = nav.route.path() != null
+                                        && nav.route.step() < nav.route.path().size()
                                 ? nav.route.path().get(nav.route.step())
                                 : null;
                         nav.recovery.burst(Recovery.WEDGE_BURST_TICKS, p, bwp);

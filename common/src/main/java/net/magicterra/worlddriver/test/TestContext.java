@@ -40,7 +40,7 @@ public final class TestContext {
         if (a instanceof Number na && b instanceof Number nb) {
             eq = na.doubleValue() == nb.doubleValue();
         } else {
-            eq = (a == null) ? b == null : a.equals(b);
+            eq = a == null ? b == null : a.equals(b);
         }
         if (!eq) {
             throw new AssertionError("[" + name + "] not equal" + (msg.isEmpty() ? "" : ": " + msg) + "\n  expected: "

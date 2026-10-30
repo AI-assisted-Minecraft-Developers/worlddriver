@@ -220,8 +220,8 @@ public final class ProgressPhase {
             boolean hCol) {
         arc.proj.compute(nav.route.path(), nav.route.edges(), world, nav.route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
-        boolean reset = (nav.route.path() != arc.shadowPath);
-        double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
+        boolean reset = nav.route.path() != arc.shadowPath;
+        double ds = reset || Double.isNaN(arc.shadowS) ? 0.0 : arc.proj.s - arc.shadowS;
         if (!reset && ds < -0.5) {
             arc.monoViol++;
         }
@@ -352,8 +352,8 @@ public final class ProgressPhase {
                 w,
                 String.format("%.2f", cur2),
                 foot.getY() - w.getY(),
-                (se != null && se.move != null ? se.move : "null"),
-                (se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown"))),
+                se != null && se.move != null ? se.move : "null",
+                se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown")),
                 passed,
                 crossedDescendNode,
                 crossedWalkNode,
@@ -936,11 +936,11 @@ public final class ProgressPhase {
         // recovery re-armed forever. Only an ADVANCE opens a fresh window; a retreat
         // re-bases the closest-approach reference on the CURRENT distance (not +INF, which
         // would fake a new-low next tick and zero the clock through the progress branch).
-        boolean npStepFresh = (nav.route.path() == null
+        boolean npStepFresh = nav.route.path() == null
                 || nav.route.step() >= nav.route.path().size()
                 || (ControlConfig.navigatorStuckStepMonotonic
                         ? nav.route.step() > stepProg.noProgressStep
-                        : nav.route.step() != stepProg.noProgressStep));
+                        : nav.route.step() != stepProg.noProgressStep);
         if (!npStepFresh
                 && ControlConfig.navigatorStuckStepMonotonic
                 && nav.route.path() != null

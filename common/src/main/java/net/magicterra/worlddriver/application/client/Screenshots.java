@@ -66,8 +66,8 @@ public final class Screenshots {
             int dstW = srcW;
             int dstH = srcH;
             if (maxW > 0 || maxH > 0) {
-                double sx = (maxW > 0) ? (double) maxW / srcW : 1.0;
-                double sy = (maxH > 0) ? (double) maxH / srcH : 1.0;
+                double sx = maxW > 0 ? (double) maxW / srcW : 1.0;
+                double sy = maxH > 0 ? (double) maxH / srcH : 1.0;
                 double s = Math.min(sx, sy);
                 if (s < 1.0) {
                     dstW = Math.max(1, (int) Math.round(srcW * s));

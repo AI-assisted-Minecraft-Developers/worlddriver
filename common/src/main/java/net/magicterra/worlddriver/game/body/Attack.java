@@ -32,7 +32,7 @@ public interface Attack {
      */
     default void attackEntity(Entity target) {
         LivingEntity p = entity();
-        String refusal = (p == null || target == null) ? null : BlastFooting.refuseSwing(p, target);
+        String refusal = p == null || target == null ? null : BlastFooting.refuseSwing(p, target);
         noteAttackRefusal(refusal);
         if (refusal == null) {
             attackEntityUnchecked(target);

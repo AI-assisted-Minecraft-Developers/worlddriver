@@ -131,7 +131,7 @@ public final class SmeltProcess implements BotProcess {
     public SmeltProcess(String input, int count, String fuelId) {
         this.input = input;
         this.count = Math.max(1, count);
-        this.fuelId = (fuelId == null || fuelId.isBlank()) ? null : fuelId.trim();
+        this.fuelId = fuelId == null || fuelId.isBlank() ? null : fuelId.trim();
     }
 
     @Override

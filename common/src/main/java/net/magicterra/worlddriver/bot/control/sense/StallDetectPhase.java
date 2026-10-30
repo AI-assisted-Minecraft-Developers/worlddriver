@@ -168,7 +168,7 @@ public final class StallDetectPhase {
         // actuator has its own breakTimeoutTicks watchdog, so a dig that's truly
         // stuck (no line of sight, unreachable cell) still escapes after the sum.
         Move.Edge wedgeEdge =
-                (nav.route.path() != null && nav.route.step() < nav.route.path().size())
+                nav.route.path() != null && nav.route.step() < nav.route.path().size()
                         ? nav.route.edgeAt(nav.route.step())
                         : null;
         // "Actively mining" = the break-edge leash/exemption applies ONLY while the
@@ -451,8 +451,8 @@ public final class StallDetectPhase {
                         world.penalizeStuckNode(c.above());
                     }
                 }
-                BlockPos wp = (nav.route.path() != null
-                                && nav.route.step() < nav.route.path().size())
+                BlockPos wp = nav.route.path() != null
+                                && nav.route.step() < nav.route.path().size()
                         ? nav.route.path().get(nav.route.step())
                         : null;
                 if (wp != null) {

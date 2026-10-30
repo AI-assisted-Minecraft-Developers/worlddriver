@@ -128,7 +128,7 @@ public final class PathArchiveRecorder implements PathTrace {
         sessionOpen = true;
         replayArmed = true;
         this.replayEntityId = replayEntityId;
-        replayPlan = (planNodes == null) ? List.of() : List.copyOf(planNodes);
+        replayPlan = planNodes == null ? List.of() : List.copyOf(planNodes);
         replayPlanRef = planRefFile;
 
         startMs = System.currentTimeMillis();
@@ -146,7 +146,7 @@ public final class PathArchiveRecorder implements PathTrace {
         Level level = BotLevelHolder.current;
         if (level != null) {
             dimension = level.dimension().location().toString();
-            seed = (level instanceof ServerLevel sl) ? sl.getSeed() : null;
+            seed = level instanceof ServerLevel sl ? sl.getSeed() : null;
         } else {
             dimension = "minecraft:overworld";
             seed = null;
@@ -185,7 +185,7 @@ public final class PathArchiveRecorder implements PathTrace {
         if (level != null) {
             dimension = level.dimension().location().toString();
             // Seed is only accessible on the server side.
-            seed = (level instanceof ServerLevel sl) ? sl.getSeed() : null;
+            seed = level instanceof ServerLevel sl ? sl.getSeed() : null;
         } else {
             dimension = "minecraft:overworld";
             seed = null;
@@ -235,17 +235,17 @@ public final class PathArchiveRecorder implements PathTrace {
         List<PathArchive.NodeRec> nodeRecs = new ArrayList<>(path.size());
         for (int i = 0; i < path.size(); i++) {
             BlockPos foot = path.get(i);
-            BlockPos prev = (i > 0) ? path.get(i - 1) : null;
-            BlockPos next = (i + 1 < path.size()) ? path.get(i + 1) : null;
+            BlockPos prev = i > 0 ? path.get(i - 1) : null;
+            BlockPos next = i + 1 < path.size() ? path.get(i + 1) : null;
 
             // NodePhysics uses the Level for noCollision / block queries. Pass the
             // edge ENTERING this node (edges[i], null sentinel at i==0) so its planned
             // toBreak/toPlace are reflected in the pose-fit / collision facts — a
             // stairUpBreak node that clears its head cell must not read SUFFOCATE.
-            Move.Edge entering = (i < edges.size()) ? edges.get(i) : null;
+            Move.Edge entering = i < edges.size() ? edges.get(i) : null;
             PathArchive.NodeRec nr;
             if (level != null) {
-                NodePhysics.Facts f = (entering != null)
+                NodePhysics.Facts f = entering != null
                         ? NodePhysics.compute(level, foot, prev, next, entering.toBreak, entering.toPlace)
                         : NodePhysics.compute(level, foot, prev, next);
                 nr = new PathArchive.NodeRec(

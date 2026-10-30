@@ -587,7 +587,7 @@ public final class DrownEscapeChain implements Chain {
                     // The first step of the route that reached here: our own step when we came
                     // straight off the bot's cell, otherwise whatever got us to the cell we came from.
                 }
-                int[] step = (cur[0] == 0 && cur[1] == 0) ? s : firstStep[cur[0] + o][cur[1] + o];
+                int[] step = cur[0] == 0 && cur[1] == 0 ? s : firstStep[cur[0] + o][cur[1] + o];
                 firstStep[dx + o][dz + o] = step;
                 if (breathableColumn(w, bx + dx, by, bz + dz)) {
                     return new LateralEscape(step, null);

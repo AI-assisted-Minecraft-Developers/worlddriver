@@ -119,7 +119,7 @@ class RouteEventsTest {
         // 9 cells straight then back and forth: length 27 over a straight line of 9
         List<BlockPos> path = new ArrayList<>(line(10));
         for (int i = 0; i < 18; i++) {
-            path.add(new BlockPos(9, 64, (i % 2 == 0) ? 1 : 0));
+            path.add(new BlockPos(9, 64, i % 2 == 0 ? 1 : 0));
         }
         RouteEvents ev = new RouteEvents(List.of(), true, false, sink);
         ev.onSearch(

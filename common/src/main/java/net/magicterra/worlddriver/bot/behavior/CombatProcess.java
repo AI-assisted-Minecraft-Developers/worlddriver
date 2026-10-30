@@ -237,7 +237,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (mode == Mode.KILL) {
             if (targetId != null) {
                 Entity e = p.level().getEntity(targetId);
-                return (e != null && e.isAlive() && e != p) ? e : null;
+                return e != null && e.isAlive() && e != p ? e : null;
             }
             return nearestOfType(p);
         }

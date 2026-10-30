@@ -949,7 +949,7 @@ public final class DrivePhase {
                 && !p.onGround()
                 && driveLatch.steepDescentLatch > 0
                 && !parkourEdge;
-        double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
+        double driveF = !descendBrake && !pivotForStepUp && !descentAirborneDriftClamp ? 1.0 : 0.0;
         double driveL = laneStrafe(p, laneLatX, laneLatZ, strafeL, strafeR, cardinalUp && !p.isInWater());
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
@@ -1140,8 +1140,8 @@ public final class DrivePhase {
                     stepUpFreeze,
                     a.dbgSneak(),
                     p.isSprinting(),
-                    (wp.getY() - foot.getY()),
-                    String.format(Locale.ROOT, "%.2f", (stepColDx * stepColDx + stepColDz * stepColDz)));
+                    wp.getY() - foot.getY(),
+                    String.format(Locale.ROOT, "%.2f", stepColDx * stepColDx + stepColDz * stepColDz));
         }
         // Bridging a chasm one placed block at a time: sneak (so a sprint
         // overshoot can't carry the bot off the fresh 1-wide block into the
@@ -1517,7 +1517,7 @@ public final class DrivePhase {
         // A genuine sink keeps the eyes under for many consecutive ticks, so a
         // 3-tick (150 ms) gate costs real buoyancy nothing; swimColumn (water at
         // head height) still rises a true column un-debounced.
-        driveLatch.underwaterTicks = (p.isInWater() && p.isUnderWater()) ? driveLatch.underwaterTicks + 1 : 0;
+        driveLatch.underwaterTicks = p.isInWater() && p.isUnderWater() ? driveLatch.underwaterTicks + 1 : 0;
         boolean swimUp = driveLatch.underwaterTicks >= 3 && !diving;
         // The stuck-wiggle hop unsticks a corner on DRY land, but in shallow water
         // on a flat walk it just bobs the bot off the floor into the buoyant drift
@@ -1671,7 +1671,7 @@ public final class DrivePhase {
                     cappedHead,
                     diving,
                     descendBrake,
-                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()),
+                    p.horizontalCollision && p.onGround() && wp.getY() < foot.getY(),
                     stepUpJump,
                     wiggle,
                     driveLatch.underwaterTicks,

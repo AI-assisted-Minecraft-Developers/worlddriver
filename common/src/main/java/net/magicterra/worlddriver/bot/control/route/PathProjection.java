@@ -127,7 +127,7 @@ public final class PathProjection {
             }
             // Pending break/place edge entering the next node: don't let the projection skim past an
             // unexecuted bridge lip / dug riser.
-            Move.Edge e = (edges != null && i + 1 < edges.size()) ? edges.get(i + 1) : null;
+            Move.Edge e = edges != null && i + 1 < edges.size() ? edges.get(i + 1) : null;
             if (e != null
                     && ((e.toBreak != null && !e.toBreak.isEmpty()) || (e.toPlace != null && !e.toPlace.isEmpty()))) {
                 barrier = true;

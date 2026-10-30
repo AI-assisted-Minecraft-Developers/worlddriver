@@ -330,7 +330,7 @@ class BiasPlanTest {
         final int y = 40;
         w.fill(-1, y, -9, 38, y, 4, Blocks.STONE);
         for (int dx = -1; dx <= 38; dx++) {
-            int shoreDz = (dx >= 12 && dx < 24) ? -7 : -1;
+            int shoreDz = dx >= 12 && dx < 24 ? -7 : -1;
             for (int dz = -9; dz <= shoreDz; dz++) {
                 w.set(dx, y + 1, dz, Blocks.WATER);
             }

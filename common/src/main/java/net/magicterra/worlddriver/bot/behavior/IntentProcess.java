@@ -166,7 +166,7 @@ public final class IntentProcess implements BotProcess, Navigating {
                 // tick via the OR, so we latch onto a late-appearing anchor promptly.)
                 ticksSinceAnchorSolve = 0;
                 LivingEntity self = a.entity();
-                Entity anchor = (self != null) ? EntityFind.nearest(self.level(), self, el.entity()) : null;
+                Entity anchor = self != null ? EntityFind.nearest(self.level(), self, el.entity()) : null;
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();
                     if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {

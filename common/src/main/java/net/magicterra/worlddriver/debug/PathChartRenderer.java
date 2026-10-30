@@ -166,7 +166,7 @@ public final class PathChartRenderer {
         List<PathSession.PlannedRoute> plans = s.plannedRoutes();
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
-            boolean latest = (i == plans.size() - 1);
+            boolean latest = i == plans.size() - 1;
             g.setColor(!r.goalReached() ? PLAN_FAILED : latest ? PLAN_LATEST : PLAN_OLD);
             g.setStroke(
                     latest
@@ -692,7 +692,7 @@ public final class PathChartRenderer {
         List<PathSession.PlannedRoute> plans = s.plannedRoutes();
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
-            boolean latest = (i == plans.size() - 1);
+            boolean latest = i == plans.size() - 1;
             g.setColor(!r.goalReached() ? PLAN_FAILED : latest ? PLAN_LATEST : PLAN_OLD);
             g.setStroke(
                     latest

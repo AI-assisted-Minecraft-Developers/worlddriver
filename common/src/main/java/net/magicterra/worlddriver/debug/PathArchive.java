@@ -382,7 +382,7 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static Header headerFromMap(Map<String, Object> m) {
         Object seedRaw = m.get("seed");
-        Long seed = (seedRaw == null) ? null : asLong(seedRaw);
+        Long seed = seedRaw == null ? null : asLong(seedRaw);
         return new Header(
                 seed,
                 asStr(m.get("dimension")),
@@ -517,7 +517,7 @@ public final class PathArchive {
 
     private static Tick tickFromMap(Map<String, Object> m) {
         Object devRaw = m.get("deviation");
-        double deviation = (devRaw == null) ? Double.NaN : asDouble(devRaw);
+        double deviation = devRaw == null ? Double.NaN : asDouble(devRaw);
         return new Tick(
                 asLong(m.get("tick")),
                 asDouble(m.get("x")),

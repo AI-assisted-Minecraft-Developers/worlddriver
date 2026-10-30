@@ -87,7 +87,7 @@ public final class EdgeGuardsPhase {
             // air friction) otherwise carries the bot past a 1-wide landing
             // before it descends, and the water gets placed on whatever happens
             // to be below the drifted-into column instead.
-            BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
+            BlockPos land = edge != null && edge.move != null && edge.move.startsWith("fallBucket")
                     ? wp
                     : nav.route.path().get(nav.route.step() + 1);
             if (land != null) {
@@ -123,7 +123,7 @@ public final class EdgeGuardsPhase {
         double cur2 = ddx * ddx + ddz * ddz;
         double dY = nd.getY() - p.getY();
         boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
-        BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
+        BlockPos br0 = edge != null && !edge.toBreak.isEmpty() ? edge.toBreak.get(0) : null;
         // bearing TO the node (MC yaw: 0=+z south, atan2(-dx,dz)); yawErr = how far the bot's body
         // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (stuck against a wall) from
         // "facing the wrong way, not driving toward the node" (aim/drive bug) — the missing axis that

@@ -166,7 +166,7 @@ public final class ThreatScanner {
             boolean canSee = lineOfSight(lvl, e, myEye);
             boolean facing = facingPlayer(e, player.position());
             boolean charging = (e instanceof RangedAttackMob) && facing && canSee;
-            float swell = (e instanceof Creeper c) ? c.getSwelling(1f) : 0f;
+            float swell = e instanceof Creeper c ? c.getSwelling(1f) : 0f;
             double score = score(e, dist, radius, canSee, charging, swell);
             // "It just hit me" outranks any passive proximity read: floor + boost so
             // the attacker wins target selection over an idle mob that merely stands
@@ -185,7 +185,7 @@ public final class ThreatScanner {
         // Use this tick's tracked velocity (client deltaMovement is unreliable for
         // projectiles); fall back to deltaMovement on first sight.
         Vec3 tracked = projVel.get(pr.getId());
-        Vec3 vel = (tracked != null) ? tracked : pr.getDeltaMovement();
+        Vec3 vel = tracked != null ? tracked : pr.getDeltaMovement();
         if (vel.lengthSqr() < 1.0e-4) {
             return null; // resting / stuck / just appeared
         }
@@ -228,7 +228,7 @@ public final class ThreatScanner {
 
     private static double score(Entity e, double dist, int radius, boolean canSee, boolean charging, float swell) {
         double prox = Math.max(0.0, 1.0 - dist / radius);
-        double typeW = (e instanceof Creeper) ? 1.0 : (e instanceof RangedAttackMob ? 0.7 : 0.5);
+        double typeW = e instanceof Creeper ? 1.0 : (e instanceof RangedAttackMob ? 0.7 : 0.5);
         double s = typeW * prox;
         if (canSee) {
             s += 0.15;

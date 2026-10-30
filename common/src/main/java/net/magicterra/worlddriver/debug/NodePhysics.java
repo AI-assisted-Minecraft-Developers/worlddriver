@@ -127,7 +127,7 @@ public final class NodePhysics {
         String hazard = detectHazard(level, foot);
 
         // ---- Fall from previous node ----
-        double fall = (prev != null) ? (double) (prev.getY() - foot.getY()) : 0.0;
+        double fall = prev != null ? (double) (prev.getY() - foot.getY()) : 0.0;
         if (fall < 0.0) {
             fall = 0.0; // going UP from prev → no fall
         }

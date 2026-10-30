@@ -59,9 +59,9 @@ public final class Intent {
             }
         }
         this.targets = List.copyOf(targets);
-        this.bias = (bias == null) ? List.of() : List.copyOf(bias);
-        this.capability = (capability == null) ? CapabilityProfile.ALL : capability;
-        this.constraints = (constraints == null) ? List.of() : List.copyOf(constraints);
+        this.bias = bias == null ? List.of() : List.copyOf(bias);
+        this.capability = capability == null ? CapabilityProfile.ALL : capability;
+        this.constraints = constraints == null ? List.of() : List.copyOf(constraints);
         this.entityLeash = entityLeash;
     }
 

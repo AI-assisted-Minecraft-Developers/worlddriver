@@ -57,7 +57,7 @@ public final class PreludePhase {
             tx = t.getX() + 0.5;
             tz = t.getZ() + 0.5;
             Move.Edge e = nav.route.edgeAt(nav.route.step());
-            mv = (e != null) ? e.move : null;
+            mv = e != null ? e.move : null;
         }
         boolean overlap = !p.level().noCollision(p, p.getBoundingBox().deflate(1.0E-7));
         PathTraceHolder.SINK.onNavigatorTick(new PathTrace.NavigatorSample(

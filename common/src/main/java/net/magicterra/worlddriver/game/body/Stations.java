@@ -36,6 +36,6 @@ public final class Stations {
      * village table (gap #275). {@code p == null} → nothing available (world-less caller).
      */
     public static Set<String> available(Player p, Level lvl) {
-        return (p != null && lvl != null && table(p, lvl) != null) ? Set.of("crafting_table") : Set.of();
+        return p != null && lvl != null && table(p, lvl) != null ? Set.of("crafting_table") : Set.of();
     }
 }

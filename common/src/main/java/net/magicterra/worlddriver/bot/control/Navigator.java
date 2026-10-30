@@ -131,7 +131,7 @@ public final class Navigator implements Locomotor {
 
     /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
     private void useProfile(SearchProfile p) {
-        this.profile = (p == null) ? SearchProfile.NONE : p;
+        this.profile = p == null ? SearchProfile.NONE : p;
         boolean forbids = false;
         for (Constraint c : this.profile.constraints()) {
             if (c instanceof NoBreak) {
@@ -660,7 +660,7 @@ public final class Navigator implements Locomotor {
     public TickStep terminalReport(
             TickStep s, PathTrace.Outcome outcome, String reason, String endReason, BlockPos foot) {
         boolean reached = foot != null && goal != null && !goalSnapped && goal.reached(foot);
-        double dist = (foot != null && goal != null) ? goal.estimate(foot) : -1;
+        double dist = foot != null && goal != null ? goal.estimate(foot) : -1;
         result = WalkVerdict.of(
                 s == TickStep.FAILED, reason, reached, endReason, dist, goalSnapped, goal != null && goal.open());
         PathTraceHolder.SINK.onTerminal(outcome, reason);

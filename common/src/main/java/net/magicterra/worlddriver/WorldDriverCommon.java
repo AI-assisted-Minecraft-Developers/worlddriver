@@ -155,9 +155,9 @@ public final class WorldDriverCommon {
         try {
             InetAddress addr = InetAddress.getByName(bindHost);
             if (addr.isAnyLocalAddress()) {
-                return (addr instanceof Inet6Address) ? "[::1]" : "127.0.0.1";
+                return addr instanceof Inet6Address ? "[::1]" : "127.0.0.1";
             }
-            return (addr instanceof Inet6Address) ? "[" + addr.getHostAddress() + "]" : bindHost;
+            return addr instanceof Inet6Address ? "[" + addr.getHostAddress() + "]" : bindHost;
         } catch (UnknownHostException e) {
             return "127.0.0.1";
         }
@@ -395,7 +395,7 @@ public final class WorldDriverCommon {
             RpcBridge bridge = new RpcBridge("127.0.0.1", WorldDriver.rpcPort());
             ApiRegistry a = api.registry();
             int mcpPort = WorldDriver.mcpPort();
-            McpBridge mcpBridge = (mcpPort > 0)
+            McpBridge mcpBridge = mcpPort > 0
                     ? new McpBridge("127.0.0.1", mcpPort, name -> {
                         var spec = a.spec(name);
                         return spec == null ? null : spec.image();

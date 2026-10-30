@@ -294,9 +294,9 @@ public final class EscapeProcess implements BotProcess {
         // at 1 HP). Clear it too when breakable.
         // Own column first (nothing launches without it), then the target column
         // top-down so a falling block above can't drop into a just-cleared cell.
-        BlockPos target = (w.isSolid(startArc) && carvable(w, startArc))
+        BlockPos target = w.isSolid(startArc) && carvable(w, startArc)
                 ? startArc
-                : (w.isSolid(nhUp) && carvable(w, nhUp)) ? nhUp : w.isSolid(nh) ? nh : w.isSolid(nf) ? nf : null;
+                : w.isSolid(nhUp) && carvable(w, nhUp) ? nhUp : w.isSolid(nh) ? nh : w.isSolid(nf) ? nf : null;
         if (target == null) {
             dbg("CARVE clear dir={} → STEP_UP", dir);
             phase = Phase.STEP_UP;
@@ -366,7 +366,7 @@ public final class EscapeProcess implements BotProcess {
         BlockPos newHead = base.above(2); // head cell after the +1 pillar (feet → base+1)
         BlockPos arcClear = newHead.above(); // jump-arc clearance — head clips base+3 at the
         // jump peak (~+2.25); leaving it solid suffocates.
-        BlockPos target = (w.isSolid(arcClear) && !Double.isInfinite(w.breakCost(arcClear)))
+        BlockPos target = w.isSolid(arcClear) && !Double.isInfinite(w.breakCost(arcClear))
                 ? arcClear
                 : w.isSolid(newHead) ? newHead : null;
         if (target == null) {

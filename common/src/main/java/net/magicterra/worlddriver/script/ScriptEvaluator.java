@@ -171,7 +171,7 @@ public final class ScriptEvaluator {
             cx.compileString(source == null ? "" : source, "<skill>", 1, null);
             return null;
         } catch (RuntimeException e) {
-            return (e.getMessage() != null) ? e.getMessage() : e.toString();
+            return e.getMessage() != null ? e.getMessage() : e.toString();
         }
     }
 

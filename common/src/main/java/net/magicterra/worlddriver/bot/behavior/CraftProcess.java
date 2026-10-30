@@ -325,7 +325,7 @@ public final class CraftProcess implements BotProcess {
             return;
         }
 
-        BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : Stations.table(p, lvl);
+        BlockPos table = tablePos != null && isTable(lvl, tablePos) ? tablePos : Stations.table(p, lvl);
         if (table == null) {
             table = placeTable(a, p, lvl);
         }

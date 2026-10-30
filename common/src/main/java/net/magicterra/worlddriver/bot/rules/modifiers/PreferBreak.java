@@ -20,6 +20,6 @@ public record PreferBreak(double penalty) implements CostModifier {
         if (penalty <= 0) {
             return 0;
         }
-        return (edge == null || edge.toBreak.isEmpty()) ? penalty : 0;
+        return edge == null || edge.toBreak.isEmpty() ? penalty : 0;
     }
 }

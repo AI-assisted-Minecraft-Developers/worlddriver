@@ -885,8 +885,8 @@ public final class AimPhase {
         double aim2 = adx * adx + adz * adz;
         boolean climbAim = aimAtWaypoint && p.isInWater() && wpAimDy > 0.5;
         boolean waterThrash = p.isInWater() && nav.progress.stepProg.noStepProgressTicks > WATER_YAW_HOLD_STALL;
-        double aimDeadzone = (climbAim || waterThrash) ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
-        float targetYaw = (aim2 < aimDeadzone)
+        double aimDeadzone = climbAim || waterThrash ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
+        float targetYaw = aim2 < aimDeadzone
                 ? p.getYRot() // essentially on the aim column — hold heading, don't thrash atan2
                 : (float) Math.toDegrees(Math.atan2(-adx, adz));
         // A launch into a leap (parkour or MLG fall) must SNAP the heading even when
@@ -1105,7 +1105,7 @@ public final class AimPhase {
             // Drive source: the carrot ahead, or — when it has collapsed onto the bot (a wall / path
             // end) — the immediate node bearing as a fallback.
             float driveSrcYaw =
-                    (cdx * cdx + cdz * cdz > 1.0) ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
+                    cdx * cdx + cdz * cdz > 1.0 ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
             if (Float.isNaN(aimSmooth.smoothWaterDriveYaw)) {
                 aimSmooth.smoothWaterDriveYaw = driveSrcYaw;
                 aimSmooth.waterDriveRejectStreak = 0;
@@ -1146,7 +1146,7 @@ public final class AimPhase {
                     Math.min(
                             nav.route.step() + DESCENT_CAM_LOOKAHEAD,
                             nav.route.path().size() - 1));
-            int firstNode = (lastNode - nav.route.step() >= 4)
+            int firstNode = lastNode - nav.route.step() >= 4
                     ? nav.route.step() + 2
                     : nav.route.step(); // skip the at-foot nodes
             for (int k = firstNode; k <= lastNode; k++) {
@@ -1390,7 +1390,7 @@ public final class AimPhase {
         // sits in a steady downward gaze (one entry dip, no per-block sawtooth). Pitch
         // does not affect movement, so freezing it here is motion-neutral.
         if (!bridging && !placingEdge) {
-            p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
+            p.setXRot(smoothAngle(p.getXRot(), diveUnderCap || diving ? 50f : 0f));
         }
         // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly
         // mis-aimed,

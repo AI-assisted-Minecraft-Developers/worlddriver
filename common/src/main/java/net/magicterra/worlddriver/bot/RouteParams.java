@@ -142,7 +142,7 @@ public final class RouteParams {
         }
         Set<Capability> forbidden = r.parkour() ? EnumSet.noneOf(Capability.class) : EnumSet.of(Capability.PARKOUR);
         Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
-        CapabilityProfile capability = (forbidden.isEmpty() && optIn.isEmpty())
+        CapabilityProfile capability = forbidden.isEmpty() && optIn.isEmpty()
                 ? CapabilityProfile.ALL
                 : new CapabilityProfile(forbidden, optIn);
 

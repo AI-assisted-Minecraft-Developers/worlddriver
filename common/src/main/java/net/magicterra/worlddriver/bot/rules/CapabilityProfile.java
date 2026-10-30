@@ -24,10 +24,9 @@ public final class CapabilityProfile {
     }
 
     public CapabilityProfile(Set<Capability> forbidden, Set<Capability> optIn) {
-        this.forbidden = (forbidden == null || forbidden.isEmpty())
-                ? EnumSet.noneOf(Capability.class)
-                : EnumSet.copyOf(forbidden);
-        this.optIn = (optIn == null || optIn.isEmpty()) ? EnumSet.noneOf(Capability.class) : EnumSet.copyOf(optIn);
+        this.forbidden =
+                forbidden == null || forbidden.isEmpty() ? EnumSet.noneOf(Capability.class) : EnumSet.copyOf(forbidden);
+        this.optIn = optIn == null || optIn.isEmpty() ? EnumSet.noneOf(Capability.class) : EnumSet.copyOf(optIn);
     }
 
     /** True unless this move's required capability is forbidden. {@code NONE} is never forbidden. */

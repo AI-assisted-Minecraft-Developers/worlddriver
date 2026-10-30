@@ -101,7 +101,7 @@ public final class Route {
     }
 
     public Move.Edge edgeAt(int i) {
-        return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;
+        return edges != null && i >= 0 && i < edges.size() ? edges.get(i) : null;
     }
 
     // ---- writes ----
@@ -115,7 +115,7 @@ public final class Route {
         edges = nodeEdges;
         step = at;
         seg.pathBestEffort = bestEffort;
-        seg.commitEnd = (bestEffort && !nodes.isEmpty()) ? nodes.get(nodes.size() - 1) : null;
+        seg.commitEnd = bestEffort && !nodes.isEmpty() ? nodes.get(nodes.size() - 1) : null;
         seg.frontierWaitTicks = 0; // progress made → reset the frontier re-search budget
         watchFromNow();
     }

@@ -130,7 +130,7 @@ public final class McpBridge {
         }
         JsonElement inner = rm.has("structuredContent")
                 ? rm.get("structuredContent")
-                : (text == null || text.isEmpty()) ? JsonNull.INSTANCE : JsonParser.parseString(text);
+                : text == null || text.isEmpty() ? JsonNull.INSTANCE : JsonParser.parseString(text);
         MethodSpec.ImageHint hint = images.apply(toolName);
         if (imageBlock != null && inner instanceof JsonObject dm) {
             JsonObject merged = dm.deepCopy();

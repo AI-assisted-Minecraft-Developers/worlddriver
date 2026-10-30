@@ -91,9 +91,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
 
     @Override
     public void attach(BotState st) {
-        String mode = (filterFromId != null)
+        String mode = filterFromId != null
                 ? "replace[" + filterFromId + "→" + fillId + "]"
-                : (fillId != null) ? "fill[" + fillId + "]" : "clear";
+                : fillId != null ? "fill[" + fillId + "]" : "clear";
         st.builder.beginRun(
                 mode + " " + CellText.of(minP) + "→" + CellText.of(maxP) + " (vol=" + totalEstimate + ")", null);
     }

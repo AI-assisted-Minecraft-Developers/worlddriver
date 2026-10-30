@@ -754,7 +754,7 @@ public final class WaterClimb implements Controller {
             }
         }
         BlockPos[] cands = {
-            (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
+            dx != 0 || dz != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
             dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
             dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null
         };
@@ -951,7 +951,7 @@ public final class WaterClimb implements Controller {
         nav.waterClimb.sideRung = false;
         double ex = (cwp.getX() + 0.5) - p.getX();
         double ez = (cwp.getZ() + 0.5) - p.getZ();
-        nav.waterClimb.yaw = (ex * ex + ez * ez > 1e-4) ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
+        nav.waterClimb.yaw = ex * ex + ez * ez > 1e-4 ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
         // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
         // foot, then bail to the fallback actuators.
         nav.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
