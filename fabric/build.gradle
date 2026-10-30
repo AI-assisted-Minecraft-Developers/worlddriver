@@ -131,7 +131,9 @@ loom {
     runs.configureEach {
         // The StageWright suites' runs (stagewright<Suite>…) pin their own ephemeral ports and heap;
         // the defaults below are for the dev runs and would make them fight a live dev client.
-        if (it.name.startsWith('stagewright')) return
+        if (it.name.startsWith('stagewright')) {
+            return
+        }
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
         // 39800/39801; WorldDriverCommon reads -Dworlddriver.mcpPort / -Dworlddriver.rpcPort

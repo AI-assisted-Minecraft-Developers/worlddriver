@@ -30,7 +30,9 @@ neoForge {
         }
         configureEach {
             // The StageWright suites' runs (stagewright<Suite>…) set their own heap.
-            if (name.startsWith('stagewright')) return
+            if (name.startsWith('stagewright')) {
+                return
+            }
             // Cap heap so a stuck client/server can't trigger system OOM.
             jvmArgument '-Xmx2g'
         }

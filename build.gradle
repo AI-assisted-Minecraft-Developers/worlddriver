@@ -49,7 +49,9 @@ if (buildNumber != null && !(buildNumber ==~ /0|[1-9][0-9]*/)) {
     throw new GradleException("BUILD_NUMBER is '${buildNumber}', but it must be a whole number"
             + " without leading zeros; unset it for a local build")
 }
-ext.worlddriverVersion = "${mod_base_version}-${buildNumber != null ? "alpha.${buildNumber}" : 'snapshot'}+${minecraft_version}".toString()
+// Not inlined into the string below: the Groovy formatter cannot read a string nested in a string.
+def prerelease = buildNumber != null ? "alpha.${buildNumber}" : 'snapshot'
+ext.worlddriverVersion = "${mod_base_version}-${prerelease}+${minecraft_version}".toString()
 
 allprojects {
     group = rootProject.maven_group

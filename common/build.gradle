@@ -141,7 +141,10 @@ tasks.register('updateSkillManual', Copy) {
     group = 'build'
     description = 'Writes the generated method manual into the worlddriver-rpc skill.'
     dependsOn generateApiArtifacts
-    from(generatedApiDir) { include 'skill-methods.md'; rename { 'methods.md' } }
+    from(generatedApiDir) {
+        include 'skill-methods.md'
+        rename { 'methods.md' }
+    }
     into skillManual.parentFile
 }
 def checkSkillManual = tasks.register('checkSkillManual') {
