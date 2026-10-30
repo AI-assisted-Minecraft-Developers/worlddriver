@@ -11,6 +11,7 @@ public final class SwimDown extends Move {
         super(0, -1, 0, 25);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.isWater(from) || !w.isWater(apply(from))) {
             return false;
@@ -26,6 +27,7 @@ public final class SwimDown extends Move {
         return w.isSubmergedFoot(from);
     }
 
+    @Override
     public String name() {
         return "swimDown";
     }

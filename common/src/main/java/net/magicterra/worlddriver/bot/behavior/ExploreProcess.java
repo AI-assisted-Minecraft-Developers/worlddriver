@@ -37,6 +37,7 @@ public final class ExploreProcess implements BotProcess, Navigating {
         this.maxChunks = maxChunks;
     }
 
+    @Override
     public String kind() {
         return "explore";
     }
@@ -46,6 +47,7 @@ public final class ExploreProcess implements BotProcess, Navigating {
         return visitedCount;
     }
 
+    @Override
     public void attach(BotState st) {
         st.explore.beginRun("explore around chunk (" + centerChunkX + "," + centerChunkZ + ") max=" + maxChunks, null);
     }

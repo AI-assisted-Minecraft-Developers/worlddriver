@@ -89,6 +89,7 @@ public final class SwimBankClimbBreak extends Move {
      * Shares the {@code swimAshore} prefix so the Navigator's water-escape break actuator (press-into-bank +
      * jump-to-mount) drives this with no new branch.
      */
+    @Override
     public String name() {
         return "swimAshoreClimb";
     }

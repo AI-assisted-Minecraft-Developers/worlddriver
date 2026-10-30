@@ -50,10 +50,12 @@ public final class RunAwayProcess implements BotProcess, Navigating {
         return reportSlot != null ? reportSlot : st.runAway;
     }
 
+    @Override
     public String kind() {
         return "runAway";
     }
 
+    @Override
     public void attach(BotState st) {
         slot(st).beginRun("runAway from=" + CellText.of(from) + " minDist=" + minDist, from);
     }

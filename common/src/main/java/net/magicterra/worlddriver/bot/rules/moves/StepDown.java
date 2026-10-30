@@ -44,6 +44,7 @@ public final class StepDown extends Move {
         return strike ? tax : 0;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // A buoyant bot can't follow a descend INTO submerged water (water at the
@@ -63,6 +64,7 @@ public final class StepDown extends Move {
         return w.isPassable(passthrough) && !w.isHazard(passthrough) && w.isPassable(passthrough.offset(0, 1, 0));
     }
 
+    @Override
     public String name() {
         return "stepDown";
     }

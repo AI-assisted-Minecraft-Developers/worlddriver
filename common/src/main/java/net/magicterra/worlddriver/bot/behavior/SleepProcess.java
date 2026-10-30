@@ -51,6 +51,7 @@ public final class SleepProcess implements BotProcess, Navigating {
         this.searchRadius = radius;
     }
 
+    @Override
     public String kind() {
         return "sleep";
     }
@@ -60,6 +61,7 @@ public final class SleepProcess implements BotProcess, Navigating {
         return bedPos;
     }
 
+    @Override
     public void attach(BotState st) {
         st.mc_goto.beginRun(
                 explicit != null

@@ -89,6 +89,7 @@ public final class FarmProcess implements BotProcess, Navigating {
                 (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
@@ -101,6 +102,7 @@ public final class FarmProcess implements BotProcess, Navigating {
         return replanted;
     }
 
+    @Override
     public void attach(BotState st) {
         st.builder.beginRun(
                 "farm[" + String.join(",", crops) + "] " + CellText.of(minP) + "→" + CellText.of(maxP) + " (cells="

@@ -11,6 +11,7 @@ public final class SwimUp extends Move {
         super(0, 1, 0, 25);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.isWater(from)) {
             return false;
@@ -37,6 +38,7 @@ public final class SwimUp extends Move {
         return Move.hasPlaceSupport(w, to);
     }
 
+    @Override
     public String name() {
         return "swimUp";
     }

@@ -27,10 +27,12 @@ public final class LookProcess implements BotProcess {
         this.fixedPitch = pitch;
     }
 
+    @Override
     public String kind() {
         return "look";
     }
 
+    @Override
     public void attach(BotState st) {
         st.look.beginRun(
                 track != null
@@ -46,6 +48,7 @@ public final class LookProcess implements BotProcess {
         }
     }
 
+    @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {

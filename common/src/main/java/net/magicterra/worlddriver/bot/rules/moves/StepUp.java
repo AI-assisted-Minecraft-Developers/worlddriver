@@ -10,6 +10,7 @@ public final class StepUp extends Move {
         super(dx, 1, dz, 15);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // A floating player cannot push off underwater, so no ascent starts from a source below the
@@ -37,6 +38,7 @@ public final class StepUp extends Move {
         return !w.isWater(from.above()) && !w.isWater(to) && !w.isWater(to.above());
     }
 
+    @Override
     public String name() {
         return "stepUp";
     }

@@ -69,6 +69,7 @@ public final class DiagonalAscend extends Move {
         return false;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         // A floating bot can't diagonally jump up out of deep water onto a +1 bank
         // (no floor to push off) — only a flush walk-out or a dig-to-flush climb
@@ -106,6 +107,7 @@ public final class DiagonalAscend extends Move {
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
 
+    @Override
     public String name() {
         return "diagUp";
     }

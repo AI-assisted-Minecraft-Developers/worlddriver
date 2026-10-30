@@ -35,6 +35,7 @@ public final class ParkourDescend extends Move {
         return !(dist >= 3 || drop >= 2) || RulesConfig.allowParkour4;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         // Only the shallow drop-1 descend lands reliably on a 1-wide block:
         // the extra airtime of a deeper drop (or a longer dist-3 gap) carries
@@ -115,6 +116,7 @@ public final class ParkourDescend extends Move {
         return Capability.PARKOUR;
     }
 
+    @Override
     public String name() {
         return "parkourDescend" + dist + "d" + drop;
     }

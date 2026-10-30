@@ -127,10 +127,12 @@ public final class ElytraProcess implements BotProcess {
         this.validate = !useFireworks && !this.reactive;
     }
 
+    @Override
     public String kind() {
         return "elytra";
     }
 
+    @Override
     public void attach(BotState st) {
         st.elytra.beginRun(
                 target != null
@@ -148,6 +150,7 @@ public final class ElytraProcess implements BotProcess {
         return slot == null ? null : slot.lastError;
     }
 
+    @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {

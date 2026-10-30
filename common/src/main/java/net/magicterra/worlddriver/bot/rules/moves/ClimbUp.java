@@ -10,6 +10,7 @@ public final class ClimbUp extends Move {
         super(0, 1, 0, 20);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.isClimbable(from)) {
             return false;
@@ -18,6 +19,7 @@ public final class ClimbUp extends Move {
         return w.isPassable(to.offset(0, 1, 0)) && (w.isClimbable(to) || w.canStandAt(to));
     }
 
+    @Override
     public String name() {
         return "climbUp";
     }

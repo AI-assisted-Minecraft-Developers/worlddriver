@@ -135,6 +135,7 @@ public final class DriverApplication implements DriverHost {
         return ClientHooks.impl();
     }
 
+    @Override
     public void attachServer(MinecraftServer s) {
         this.server = s;
         ServerThreadGuard.install(s::isSameThread);
@@ -145,6 +146,7 @@ public final class DriverApplication implements DriverHost {
      * debug tool ({@code mc.debug.replay}), which restores a recorded block envelope before re-executing a plan.
      * Completes with the number of cells written. Throws if no server is attached.
      */
+    @Override
     public CompletionStage<Integer> restoreCellsOnServer(List<WorldCell> cells, CallContext ctx) {
         ServerLevel level = level();
         return requireServerHop()
@@ -156,6 +158,7 @@ public final class DriverApplication implements DriverHost {
                         ctx);
     }
 
+    @Override
     public void detachServer() {
         this.server = null;
         ServerThreadGuard.uninstall();
@@ -168,6 +171,7 @@ public final class DriverApplication implements DriverHost {
      * Drop the buffered events but never rewind the seq: the transports outlive a world, and a client still holding
      * cursor N would see nothing until the counter climbed back past N.
      */
+    @Override
     public void clearEvents() {
         synchronized (eventsLock) {
             events.clear();
@@ -178,6 +182,7 @@ public final class DriverApplication implements DriverHost {
      * Platform event hooks (and client-tick detectors) feed natural (non-API) signals — block changes, damage, death,
      * chat, threats — into the event stream through here.
      */
+    @Override
     public void emitExternal(String type, BlockPos pos, JsonValue data) {
         emit(type, pos, data);
     }
@@ -247,12 +252,14 @@ public final class DriverApplication implements DriverHost {
      * Register a live push listener (the WebSocket/SSE transports). Idempotent-ish: the same consumer may appear twice
      * if added twice — callers add exactly once.
      */
+    @Override
     public void addEventListener(Consumer<EventContracts.Event> listener) {
         if (listener != null) {
             eventListeners.add(listener);
         }
     }
 
+    @Override
     public void removeEventListener(Consumer<EventContracts.Event> listener) {
         eventListeners.remove(listener);
     }

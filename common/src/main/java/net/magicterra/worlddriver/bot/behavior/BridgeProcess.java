@@ -62,6 +62,7 @@ public final class BridgeProcess implements BotProcess {
         this.preferredBlockId = preferredBlockId;
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
@@ -70,6 +71,7 @@ public final class BridgeProcess implements BotProcess {
         return placed;
     }
 
+    @Override
     public void attach(BotState st) {
         st.builder.beginRun(
                 "bridge " + face.getName() + " ×" + distance

@@ -33,6 +33,7 @@ public final class DiagonalDescend extends Move {
                 name());
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // A buoyant bot can't follow a descend INTO submerged water (water at the
@@ -77,6 +78,7 @@ public final class DiagonalDescend extends Move {
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
 
+    @Override
     public String name() {
         return "diagDown";
     }

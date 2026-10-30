@@ -33,6 +33,7 @@ public final class Diagonal extends Move {
                 apply(from), cost + (drop ? DROP_CORNER_TAX : 0), java.util.List.of(), java.util.List.of(), name());
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) {
@@ -60,6 +61,7 @@ public final class Diagonal extends Move {
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
 
+    @Override
     public String name() {
         return "diag";
     }

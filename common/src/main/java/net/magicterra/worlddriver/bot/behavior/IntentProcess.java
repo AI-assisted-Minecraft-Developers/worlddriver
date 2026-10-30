@@ -124,10 +124,12 @@ public final class IntentProcess implements BotProcess, Navigating {
         return leg;
     }
 
+    @Override
     public String kind() {
         return "goto";
     }
 
+    @Override
     public void attach(BotState st) {
         Goal goal = intent.target();
         BlockPos target = goal instanceof Goal.Block b

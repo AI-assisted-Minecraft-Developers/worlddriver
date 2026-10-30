@@ -89,6 +89,7 @@ public final class ParkourPlace extends Move {
         return Capability.PARKOUR;
     }
 
+    @Override
     public String name() {
         return "parkourPlace2";
     }

@@ -81,6 +81,7 @@ public final class BridgePlace extends Move {
         return new Edge(to, RulesConfig.pathfinderBridgeCost, List.of(), List.of(floor), name());
     }
 
+    @Override
     public String name() {
         return "bridgePlace";
     }

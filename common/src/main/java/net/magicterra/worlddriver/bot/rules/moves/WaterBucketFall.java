@@ -26,6 +26,7 @@ public final class WaterBucketFall extends Move {
         return w.canWaterBucketFall() && drop <= w.maxWaterBucketFall();
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.canWaterBucketFall() || drop > w.maxWaterBucketFall()) {
             return false;
@@ -56,6 +57,7 @@ public final class WaterBucketFall extends Move {
         return clearFallColumn(w, from, dx, dz, drop);
     }
 
+    @Override
     public String name() {
         return "fallBucket" + drop;
     }

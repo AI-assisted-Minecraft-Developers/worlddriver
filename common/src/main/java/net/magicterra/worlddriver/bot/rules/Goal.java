@@ -116,10 +116,12 @@ public sealed interface Goal
             return "Block[target=" + CellText.of(target) + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return p.equals(target);
         }
 
+        @Override
         public double estimate(BlockPos p) {
             return blockHeuristic(p.getX() - target.getX(), p.getY() - target.getY(), p.getZ() - target.getZ());
         }
@@ -137,10 +139,12 @@ public sealed interface Goal
             return "Near[target=" + CellText.of(target) + ", radius=" + radius + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return p.distSqr(target) <= radius * radius;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             double d = Math.sqrt(p.distSqr(target)) - radius;
             return d <= 0 ? 0 : 10 * d;
@@ -163,12 +167,14 @@ public sealed interface Goal
             return true;
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             long dx = p.getX() - x;
             long dz = p.getZ() - z;
             return dx * dx + dz * dz <= (long) radius * radius;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             // Admissible: the goal is a disk of the given radius, not a point.
             double h = xzHeuristic(p.getX() - x, p.getZ() - z) - 10.0 * radius;
@@ -178,10 +184,12 @@ public sealed interface Goal
 
     /** Reach a given Y plane (used for surface/cave navigation). */
     record YLevel(int y) implements Goal {
+        @Override
         public boolean reached(BlockPos p) {
             return p.getY() == y;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             return 10 * Math.abs(p.getY() - y);
         }
@@ -198,10 +206,12 @@ public sealed interface Goal
             return "RunAway[source=" + CellText.of(source) + ", minDist=" + minDist + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return p.distSqr(source) >= (long) minDist * minDist;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             double d = Math.sqrt(p.distSqr(source));
             return d >= minDist ? 0 : 10 * (minDist - d);
@@ -216,6 +226,7 @@ public sealed interface Goal
             return Arrays.stream(children).map(Goal::toString).collect(Collectors.joining(", ", "Composite[", "]"));
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             for (Goal g : children) {
                 if (g.reached(p)) {
@@ -225,6 +236,7 @@ public sealed interface Goal
             return false;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             double best = Double.POSITIVE_INFINITY;
             for (Goal g : children) {
@@ -251,6 +263,7 @@ public sealed interface Goal
             return "GetToBlock[target=" + CellText.of(target) + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             int dy = p.getY() - target.getY();
             return Math.abs(p.getX() - target.getX())
@@ -259,6 +272,7 @@ public sealed interface Goal
                     <= 1;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             int dy = p.getY() - target.getY();
             return blockHeuristic(p.getX() - target.getX(), dy < 0 ? dy + 1 : dy, p.getZ() - target.getZ());
@@ -280,12 +294,14 @@ public sealed interface Goal
             return "TwoBlocks[target=" + CellText.of(target) + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return p.getX() == target.getX()
                     && (p.getY() == target.getY() || p.getY() == target.getY() - 1)
                     && p.getZ() == target.getZ();
         }
 
+        @Override
         public double estimate(BlockPos p) {
             int dy = p.getY() - target.getY();
             return blockHeuristic(p.getX() - target.getX(), dy < 0 ? dy + 1 : dy, p.getZ() - target.getZ());
@@ -300,11 +316,13 @@ public sealed interface Goal
     record Axis(int axisHeight) implements Goal {
         private static final double SQRT_2_OVER_2 = Math.sqrt(2) / 2;
 
+        @Override
         public boolean reached(BlockPos p) {
             return p.getY() == axisHeight
                     && (p.getX() == 0 || p.getZ() == 0 || Math.abs(p.getX()) == Math.abs(p.getZ()));
         }
 
+        @Override
         public double estimate(BlockPos p) {
             int x = Math.abs(p.getX());
             int z = Math.abs(p.getZ());
@@ -327,10 +345,12 @@ public sealed interface Goal
             return true;
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return false;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             return -origin.estimate(p);
         }
@@ -353,10 +373,12 @@ public sealed interface Goal
             return "StrictDirection[origin=" + CellText.of(origin) + ", dx=" + dx + ", dz=" + dz + "]";
         }
 
+        @Override
         public boolean reached(BlockPos p) {
             return false;
         }
 
+        @Override
         public double estimate(BlockPos p) {
             int forward = (p.getX() - origin.getX()) * dx + (p.getZ() - origin.getZ()) * dz;
             int sideways = Math.abs((p.getX() - origin.getX()) * dz) + Math.abs((p.getZ() - origin.getZ()) * dx);

@@ -25,6 +25,7 @@ public final class Fall extends Move {
         this.drop = drop;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         // Live config gate (mirrors WaterBucketFall/FallIntoWater). At the shipping
         // cap of 4 this admits fall2..fall4 and rejects only Fall(5) — it is NOT the
@@ -56,6 +57,7 @@ public final class Fall extends Move {
         return clearFallColumn(w, from, dx, dz, drop);
     }
 
+    @Override
     public String name() {
         return "fall" + drop;
     }

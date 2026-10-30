@@ -122,6 +122,7 @@ public final class TowerProcess implements BotProcess {
         this.reachIntoBag = reachIntoBag;
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
@@ -130,6 +131,7 @@ public final class TowerProcess implements BotProcess {
         return placed;
     }
 
+    @Override
     public void attach(BotState st) {
         st.builder.beginRun(
                 "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);

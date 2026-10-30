@@ -66,6 +66,7 @@ public final class SwimUpBreak extends Move {
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 
+    @Override
     public String name() {
         return "swimUpBreak";
     }

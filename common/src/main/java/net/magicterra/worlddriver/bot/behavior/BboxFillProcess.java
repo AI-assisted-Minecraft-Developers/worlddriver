@@ -84,10 +84,12 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                 (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
 
+    @Override
     public void attach(BotState st) {
         String mode = (filterFromId != null)
                 ? "replace[" + filterFromId + "→" + fillId + "]"

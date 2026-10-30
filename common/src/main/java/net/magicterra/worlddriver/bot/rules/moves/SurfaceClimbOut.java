@@ -21,6 +21,7 @@ public final class SurfaceClimbOut extends Move {
         super(0, 1, 0, 25);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.surfaceWaterNodes()) {
             return false;
@@ -73,6 +74,7 @@ public final class SurfaceClimbOut extends Move {
         return false;
     }
 
+    @Override
     public String name() {
         return "climbOutPlace";
     }

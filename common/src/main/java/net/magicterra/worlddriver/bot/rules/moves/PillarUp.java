@@ -169,6 +169,7 @@ public final class PillarUp extends Move {
         return scarce + (stocked - scarce) * f;
     }
 
+    @Override
     public String name() {
         return "pillarUp";
     }

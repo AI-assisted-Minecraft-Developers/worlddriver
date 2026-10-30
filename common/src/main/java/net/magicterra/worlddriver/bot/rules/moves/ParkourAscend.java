@@ -31,6 +31,7 @@ public final class ParkourAscend extends Move {
         return dist < 3 || RulesConfig.allowParkour4;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (dist >= 3 && !RulesConfig.allowParkour4) {
             return false;
@@ -107,6 +108,7 @@ public final class ParkourAscend extends Move {
         return Capability.PARKOUR;
     }
 
+    @Override
     public String name() {
         return "parkourAscend" + dist;
     }

@@ -10,11 +10,13 @@ public final class Walk extends Move {
         super(dx, 0, dz, 10);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         return w.canStandAt(to);
     }
 
+    @Override
     public String name() {
         return "walk";
     }

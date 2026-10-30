@@ -66,6 +66,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         this.schematic = s;
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
@@ -79,6 +80,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         return skipped;
     }
 
+    @Override
     public void attach(BotState st) {
         st.builder.beginRun("build " + schematic.entries.size() + " blocks @ " + CellText.of(origin), null);
     }

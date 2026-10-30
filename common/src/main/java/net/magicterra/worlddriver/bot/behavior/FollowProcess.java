@@ -58,10 +58,12 @@ public final class FollowProcess implements BotProcess, Navigating {
                 NavigatorSettings.named("follow").withProfile(profile == null ? SearchProfile.NONE : profile));
     }
 
+    @Override
     public String kind() {
         return "follow";
     }
 
+    @Override
     public void attach(BotState st) {
         st.follow.beginRun(
                 "follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius

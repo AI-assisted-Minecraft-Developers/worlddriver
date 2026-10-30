@@ -71,10 +71,12 @@ public final class BackfillProcess implements BotProcess, Navigating {
         this.tracker = tracker;
     }
 
+    @Override
     public String kind() {
         return "builder";
     }
 
+    @Override
     public void attach(BotState st) {
         st.builder.beginRun("backfill " + tracker.size() + " tracked cells", null);
     }

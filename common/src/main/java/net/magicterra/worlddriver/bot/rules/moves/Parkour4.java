@@ -24,6 +24,7 @@ public final class Parkour4 extends Move {
         return RulesConfig.allowParkour4;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (!RulesConfig.allowParkour4) {
             return false;
@@ -83,6 +84,7 @@ public final class Parkour4 extends Move {
         return Capability.PARKOUR;
     }
 
+    @Override
     public String name() {
         return "parkour4";
     }

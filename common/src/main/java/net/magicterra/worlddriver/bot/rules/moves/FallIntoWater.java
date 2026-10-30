@@ -21,6 +21,7 @@ public final class FallIntoWater extends Move {
         this.drop = drop;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // The landing cell must already hold water — that's what makes the
@@ -45,6 +46,7 @@ public final class FallIntoWater extends Move {
         return clearFallColumn(w, from, dx, dz, drop);
     }
 
+    @Override
     public String name() {
         return "fallWater" + drop;
     }

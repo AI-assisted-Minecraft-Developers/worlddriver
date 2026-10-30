@@ -15,6 +15,7 @@ public final class StepUp2 extends Move {
         super(dx, 2, dz, 24);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         if (w.maxJumpUpBlocks() < 2) {
             return false; // can't jump this high → not a legal move
@@ -33,6 +34,7 @@ public final class StepUp2 extends Move {
         return w.isPassable(from.offset(0, 2, 0)) && w.isPassable(from.offset(0, 3, 0));
     }
 
+    @Override
     public String name() {
         return "stepUp2";
     }

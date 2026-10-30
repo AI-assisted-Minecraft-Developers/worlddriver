@@ -34,6 +34,7 @@ public final class SurfaceDive extends Move {
         super(0, -1, 0, 30);
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         // The surface complement of SwimDown: same water-above/water-below
         // shape, but ONLY from a foot that is NOT already submerged (SwimDown
@@ -42,10 +43,12 @@ public final class SurfaceDive extends Move {
         return w.isWater(from) && w.isWater(apply(from)) && !w.isSubmergedFoot(from);
     }
 
+    @Override
     public Capability optInCapability() {
         return Capability.DIVE;
     }
 
+    @Override
     public String name() {
         return "swimDownSurface";
     }

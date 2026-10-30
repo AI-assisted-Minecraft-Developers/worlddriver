@@ -54,6 +54,7 @@ public final class Parkour2Diagonal extends Move {
         return false;
     }
 
+    @Override
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
@@ -113,6 +114,7 @@ public final class Parkour2Diagonal extends Move {
         return Capability.PARKOUR;
     }
 
+    @Override
     public String name() {
         return "parkour2d";
     }

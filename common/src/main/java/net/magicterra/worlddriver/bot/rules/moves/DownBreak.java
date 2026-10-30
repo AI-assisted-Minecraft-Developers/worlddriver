@@ -60,6 +60,7 @@ public final class DownBreak extends Move {
         return new Edge(below, cost + c, List.of(below), List.of(), name());
     }
 
+    @Override
     public String name() {
         return "downBreak";
     }

@@ -249,6 +249,7 @@ public final class MineProcess implements BotProcess, Navigating {
         return false;
     }
 
+    @Override
     public String kind() {
         return "mine";
     }
@@ -258,6 +259,7 @@ public final class MineProcess implements BotProcess, Navigating {
         return broken;
     }
 
+    @Override
     public void attach(BotState st) {
         st.mine.beginRun(String.join(",", targetIds) + "×" + desiredQty, null);
     }

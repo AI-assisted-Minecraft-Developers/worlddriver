@@ -66,10 +66,13 @@ public interface PathTrace {
 
     /** No-op sink — the default; release builds keep this and nothing else. */
     PathTrace NOOP = new PathTrace() {
+        @Override
         public void onSearchBegin(BlockPos start, Goal goal) {}
 
+        @Override
         public void onNodeExpanded(BlockPos pos, double g) {}
 
+        @Override
         public void onSearchResult(
                 List<BlockPos> path,
                 List<Move.Edge> edges,
@@ -78,8 +81,10 @@ public interface PathTrace {
                 long ms,
                 double finalCost) {}
 
+        @Override
         public void onNavigatorTick(NavigatorSample sample) {}
 
+        @Override
         public void onTerminal(Outcome outcome, String reason) {}
     };
 }
