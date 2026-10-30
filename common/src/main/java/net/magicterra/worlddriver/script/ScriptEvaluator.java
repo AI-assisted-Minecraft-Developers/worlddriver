@@ -7,7 +7,6 @@ import dev.latvian.mods.rhino.RhinoException;
 import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
-import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.RunContext;
@@ -141,10 +140,10 @@ public final class ScriptEvaluator {
      * skill. Null when {@code source} parses, else the parser's message.
      */
     public String checkSyntax(String source) {
-        ContextFactory factory = new ContextFactory() {
+        ContextFactory factory = new ScriptContextFactory() {
             @Override
             protected Context createContext() {
-                return new FilteredObservedContext(this, Long.MAX_VALUE, () -> false);
+                return new ObservedContext(this, Long.MAX_VALUE, () -> false);
             }
         };
         Context cx = factory.enter();
@@ -158,10 +157,10 @@ public final class ScriptEvaluator {
 
     private Outcome runOnce(String source, CallContext ctx, BooleanSupplier stopped, long start) {
         String runId = ctx.run().orElseThrow().runId();
-        ContextFactory factory = new ContextFactory() {
+        ContextFactory factory = new ScriptContextFactory() {
             @Override
             protected Context createContext() {
-                return new FilteredObservedContext(this, ctx.deadlineNanos(), stopped);
+                return new ObservedContext(this, ctx.deadlineNanos(), stopped);
             }
         };
         Context cx = factory.enter();
@@ -194,7 +193,7 @@ public final class ScriptEvaluator {
         // DriverApiError the script let through is read the same way, so its code and issues survive. The
         // budget was the script's, and may be spent; this step gets a small one of its own, since stringify
         // still runs the script's own getters.
-        ((FilteredObservedContext) cx).finishWithin(ENVELOPE_BUDGET_MS);
+        ((ObservedContext) cx).finishWithin(ENVELOPE_BUDGET_MS);
         ScriptableObject.putProperty(scope, "__userResult", value == null ? null : cx.javaToJS(value, scope), cx);
         ScriptableObject.putProperty(scope, "__thrown", thrown, cx);
         JsonObject envelope;
@@ -265,14 +264,14 @@ public final class ScriptEvaluator {
     }
 
     /**
-     * Combines the optional {@link ScriptClassFilter} (off by default) with the run's deadline and stop
-     * signal, checked through Rhino's instruction-count hook.
+     * A script context that also stops the script at the run's deadline or stop signal, checked through
+     * Rhino's instruction-count hook.
      */
-    private static final class FilteredObservedContext extends Context {
+    private static final class ObservedContext extends ScriptContextFactory.ScriptContext {
         private long deadlineNanos;
         private BooleanSupplier stopped;
 
-        FilteredObservedContext(ContextFactory factory, long deadlineNanos, BooleanSupplier stopped) {
+        ObservedContext(ContextFactory factory, long deadlineNanos, BooleanSupplier stopped) {
             super(factory);
             this.deadlineNanos = deadlineNanos;
             this.stopped = stopped;
@@ -282,11 +281,6 @@ public final class ScriptEvaluator {
         void finishWithin(long ms) {
             deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ms);
             stopped = () -> false;
-        }
-
-        @Override
-        public boolean visibleToScripts(String fullClassName, ClassVisibilityContext type) {
-            return ScriptClassFilter.isAllowed(fullClassName, type);
         }
 
         @Override

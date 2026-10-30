@@ -11,15 +11,15 @@ import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import dev.latvian.mods.rhino.util.CustomJavaToJsWrapper;
 
 /**
- * Rhino ContextFactory for agent script Contexts (class filtering is OFF by
- * default — see ScriptClassFilter; -Dworlddriver.sandbox=on opts in). The Context
- * delegates {@link Context#visibleToScripts} to {@link ScriptClassFilter}
- * so any LiveConnect class lookup goes through our denylist.
+ * Rhino ContextFactory for every script WorldDriver runs: hosted scripts, the validation suite, and
+ * {@code mc.script.eval} with skills and playbooks, which subclass it for a {@link ScriptContext} that also
+ * watches a deadline. Class filtering is OFF by default — see ScriptClassFilter; -Dworlddriver.sandbox=on
+ * opts in.
  */
-public final class ScriptContextFactory extends ContextFactory {
+public class ScriptContextFactory extends ContextFactory {
     @Override
     protected Context createContext() {
-        return new SandboxedContext(this);
+        return new ScriptContext(this);
     }
 
     /** A Java class's methods without the overloads that only make a call ambiguous; see {@link ScriptClassStorage}. */
@@ -28,8 +28,9 @@ public final class ScriptContextFactory extends ContextFactory {
         return ScriptClassStorage.INSTANCE;
     }
 
-    private static final class SandboxedContext extends Context {
-        SandboxedContext(ContextFactory factory) {
+    /** Sends class lookups through {@link ScriptClassFilter} and wraps a Java map as a {@link KeyTypedJavaMap}. */
+    static class ScriptContext extends Context {
+        ScriptContext(ContextFactory factory) {
             super(factory);
         }
 
