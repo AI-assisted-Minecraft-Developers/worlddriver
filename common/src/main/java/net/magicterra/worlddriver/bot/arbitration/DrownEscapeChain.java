@@ -5,6 +5,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Locale;
+import java.util.Queue;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -174,6 +175,9 @@ public final class DrownEscapeChain implements Chain {
     }
 
     @Override
+    // One tick reads the water state, picks a way out, then actuates; the guards and the actuation must stay in that
+    // order.
+    @SuppressWarnings("checkstyle:javancss")
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
         if (p == null) {
@@ -213,7 +217,7 @@ public final class DrownEscapeChain implements Chain {
                         bz);
             }
             if (dir != null) {
-                float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
+                float yaw = (float) Math.toDegrees(Math.atan2(-dir[0], dir[1]));
                 p.setYRot(yaw);
                 p.yHeadRot = yaw;
                 p.yBodyRot = yaw;
@@ -570,7 +574,7 @@ public final class DrownEscapeChain implements Chain {
         final int o = LATERAL_SCAN_R;
         boolean[][] seen = new boolean[span][span];
         int[][][] firstStep = new int[span][span][];
-        ArrayDeque<int[]> queue = new ArrayDeque<>();
+        Queue<int[]> queue = new ArrayDeque<>();
         seen[o][o] = true;
         queue.add(new int[] {0, 0});
         while (!queue.isEmpty()) {
@@ -641,10 +645,10 @@ public final class DrownEscapeChain implements Chain {
     private static boolean cappedColumn(WorldView w, int x, int by, int z) {
         for (int y = by + 1; y <= by + SURFACE_SCAN_UP; y++) {
             BlockPos c = new BlockPos(x, y, z);
-            if (w.isWater(c)) {
-                continue; // still submerged: keep looking up
+            if (!w.isWater(c)) {
+                return !(w.isPassable(c) && !w.isHazard(c)); // first non-water: air ⇒ open, solid ⇒ capped
             }
-            return !(w.isPassable(c) && !w.isHazard(c)); // first non-water: air ⇒ open, solid ⇒ capped
+            // still submerged: keep looking up
         }
         return false; // all water up the scan: deep, not capped
     }
@@ -656,10 +660,9 @@ public final class DrownEscapeChain implements Chain {
     private static boolean breathableColumn(WorldView w, int x, int by, int z) {
         for (int y = by; y <= by + SURFACE_SCAN_UP; y++) {
             BlockPos c = new BlockPos(x, y, z);
-            if (w.isWater(c)) {
-                continue;
+            if (!w.isWater(c)) {
+                return w.isPassable(c) && !w.isHazard(c);
             }
-            return w.isPassable(c) && !w.isHazard(c);
         }
         return false;
     }

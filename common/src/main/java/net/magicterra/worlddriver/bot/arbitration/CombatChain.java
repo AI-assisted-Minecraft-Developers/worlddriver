@@ -39,8 +39,8 @@ public final class CombatChain implements Chain {
     private volatile String intentType;
 
     /**
-     * gap#68-②: {@code force:true} on the mc.bot.combat verb overrides the frail-HP entry gate for THIS intent only
-     * (the agent has explicitly accepted the risk).
+     * {@code force:true} on the mc.bot.combat verb overrides the frail-HP entry gate for THIS intent only (the agent
+     * has explicitly accepted the risk).
      */
     private volatile boolean intentForce;
 
@@ -54,6 +54,7 @@ public final class CombatChain implements Chain {
     /** Post-respawn autoFight suppression countdown (gap#68 grace). Tick thread only. */
     private int autoSuppressTicks;
 
+    /** Creates the chain over {@code state}, the bot's shared state. */
     public CombatChain(BotState state) {
         this.state = state;
     }
@@ -128,7 +129,7 @@ public final class CombatChain implements Chain {
         this.process = null;
         resetCounters();
         state.combat.beginRun(
-                "combat " + mode.name().toLowerCase() + (id != null ? " id=" + id : "")
+                "combat " + mode.name().toLowerCase(java.util.Locale.ROOT) + (id != null ? " id=" + id : "")
                         + (type != null ? " type=" + type : ""),
                 null);
     }
@@ -197,8 +198,8 @@ public final class CombatChain implements Chain {
     }
 
     /**
-     * gap#68-②: don't ENTER a fight on fragile HP. Pure & matrix-testable. {@code force} (explicit-intent only)
-     * overrides the gate — the agent has accepted the risk.
+     * Refuses to ENTER a fight on fragile HP. Pure and matrix-testable. {@code force} (explicit-intent only) overrides
+     * the gate — the agent has accepted the risk.
      */
     public static boolean frailBlocked(float hp, float thr, boolean force) {
         return !force && hp <= thr;
@@ -308,7 +309,9 @@ public final class CombatChain implements Chain {
     }
 
     @Override
-    public void onResume() {}
+    public void onResume() {
+        // The fight carries on from the state it already holds, so there is nothing to restore here.
+    }
 
     @Override
     public String episodePhase() {

@@ -61,7 +61,9 @@ public final class DodgeChain implements Chain {
     }
 
     @Override
-    public void onResume() {}
+    public void onResume() {
+        // Stateless between bids: nothing to restore.
+    }
 
     /** The soonest projectile predicted to hit, within the dodge radius. */
     private ThreatScanner.Incoming imminent(LivingEntity p, BotState st) {

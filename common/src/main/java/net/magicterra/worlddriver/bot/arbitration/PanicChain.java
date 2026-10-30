@@ -115,7 +115,9 @@ public final class PanicChain implements Chain {
     }
 
     @Override
-    public void onResume() {}
+    public void onResume() {
+        // Stateless between bids: nothing to restore.
+    }
 
     /** The closest creeper within the keep-distance (or one already swelling a bit further out), else null. */
     private Entity nearestCreeper(BotState st) {

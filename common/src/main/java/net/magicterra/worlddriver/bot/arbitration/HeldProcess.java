@@ -27,6 +27,7 @@ public final class HeldProcess {
 
     private volatile End end;
 
+    /** Creates an empty holder that writes its slot claims into {@code state}. */
     public HeldProcess(BotState state) {
         this.state = state;
     }
@@ -86,7 +87,7 @@ public final class HeldProcess {
         if (prev == null) {
             return null;
         }
-        Ticket a = action;
+        final Ticket a = action;
         process = null;
         action = null;
         prev.onCancelled(reason);
@@ -103,8 +104,8 @@ public final class HeldProcess {
      * becomes the last ending.
      */
     public void finished() {
-        BotProcess prev = process;
-        Ticket a = action;
+        final BotProcess prev = process;
+        final Ticket a = action;
         process = null;
         action = null;
         release(null);
@@ -136,10 +137,10 @@ public final class HeldProcess {
 
     /** The held process threw out of its tick: it is dropped with the error as its ending. */
     public void crashed(Throwable t) {
-        String err = t.getClass().getSimpleName() + ": " + t.getMessage();
         if (process == null) {
             return;
         }
+        String err = t.getClass().getSimpleName() + ": " + t.getMessage();
         Ticket a = action;
         try {
             stop(err, h -> h.fail(err));
@@ -161,6 +162,8 @@ public final class HeldProcess {
      * {@code {kind, error}} of the last ending, the shape of {@code UserTaskChain.lastEnd()}, or null if nothing has
      * ended. {@code error} is null only when the process did what it was asked.
      */
+    // null means nothing has ended; the status reader tests for it, so an empty map would read as an ending.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     public Map<String, Object> lastEnd() {
         End e = end;
         if (e == null) {

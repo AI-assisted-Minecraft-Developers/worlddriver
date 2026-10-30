@@ -117,6 +117,10 @@ public final class ProcessScheduler {
         return lastPriorities;
     }
 
+    /**
+     * One scheduler tick: every chain bids, and the channel goes to the highest bidder, with hysteresis for the
+     * incumbent.
+     */
     public void tick(Body body, WorldView w, BotState st) {
         ticks++;
         Chain best = null;
@@ -142,7 +146,6 @@ public final class ProcessScheduler {
         // last-tick priority would strand the channel on a chain that's done.
         if (current != null && best != current && currentP > 0f && bestP < currentP + Priorities.HYSTERESIS) {
             best = current;
-            bestP = currentP;
         }
         if (best != current) {
             // One line per handover — the movement channel deciding who controls the

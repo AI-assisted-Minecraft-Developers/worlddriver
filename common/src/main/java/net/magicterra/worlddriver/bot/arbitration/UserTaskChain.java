@@ -69,6 +69,7 @@ public final class UserTaskChain implements Chain {
      */
     private boolean interrupted;
 
+    /** Creates the chain with the default key release, which releases the bot's controls. */
     public UserTaskChain(BotState state) {
         this(state, b -> {
             if (b != null) {
@@ -129,6 +130,7 @@ public final class UserTaskChain implements Chain {
         return lastAsked;
     }
 
+    /** The ticket of the action this chain's process carries, or null when none does. */
     public Ticket action() {
         return action;
     }
@@ -163,7 +165,7 @@ public final class UserTaskChain implements Chain {
         if (c == null) {
             return;
         }
-        Ticket a = action;
+        final Ticket a = action;
         action = null;
         c.onCancelled(reason); // let the process finalize per-session observers (e.g. flush a path archive)
         endClaim(reason);
@@ -195,6 +197,8 @@ public final class UserTaskChain implements Chain {
      * {@code error} is null only when the process did what it was asked; a give-up, a throw and a cancel all carry
      * their reason. Surfaced as {@code lastProcessEnd} in {@code mc.bot.status}.
      */
+    // null means nothing has ended; the status reader tests for it, so an empty map would read as an ending.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     public Map<String, Object> lastEnd() {
         End e = end;
         if (e == null) {
@@ -242,7 +246,7 @@ public final class UserTaskChain implements Chain {
         driven = body;
         try {
             if (c.tick(body, w, st)) {
-                Ticket a = action;
+                final Ticket a = action;
                 action = null;
                 String failure = c.failure();
                 endClaim(null);
@@ -267,7 +271,7 @@ public final class UserTaskChain implements Chain {
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
-            Ticket a = action;
+            final Ticket a = action;
             action = null;
             try {
                 c.onCancelled(err);

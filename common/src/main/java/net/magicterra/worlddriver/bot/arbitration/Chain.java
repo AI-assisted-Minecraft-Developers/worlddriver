@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.game.body.Body;
  * with movement — they are not chains. See design doc 00 §6.
  */
 public interface Chain {
+    /** The chain's name, as the scheduler and the status report it. */
     String name();
 
     /**
@@ -34,17 +35,23 @@ public interface Chain {
      * Called when a higher-priority chain preempts this one: save a minimal resume point, release what it held on
      * {@code body}. {@code by} is the preempting chain.
      */
-    default void onInterrupt(Body body, Chain by) {}
+    default void onInterrupt(Body body, Chain by) {
+        // Nothing to save or release by default; a chain that holds the channel overrides this.
+    }
 
     /** Called when this chain regains the channel after being suspended. */
-    default void onResume() {}
+    default void onResume() {
+        // Nothing to restore by default; a chain that saved a resume point overrides this.
+    }
 
     /**
      * Called once by {@link ProcessScheduler#register}. A chain that can give up keeps the scheduler so it can
      * {@link ProcessScheduler#bail} out of the bid; standalone (matrix scenes) it is never called, and such a chain
      * must treat a missing scheduler as "no bail".
      */
-    default void registeredWith(ProcessScheduler scheduler) {}
+    default void registeredWith(ProcessScheduler scheduler) {
+        // Keeps no scheduler by default: standalone chains are never registered with one.
+    }
 
     /**
      * The chain's internal, cross-tick episode state, if any — {@code null} means "idle, no residual state" (the common
@@ -72,7 +79,9 @@ public interface Chain {
      * <p>{@code body} is the bot whose inputs the episode may still hold, or null when there is none to release (no
      * world yet, or a caller with no body to hand).
      */
-    default void cancelEpisode(Body body, String reason) {}
+    default void cancelEpisode(Body body, String reason) {
+        // No episode state by default, so there is nothing to cancel.
+    }
 
     /**
      * The {@link net.magicterra.worlddriver.bot.behavior.BotProcess#kind()} of the process this chain is currently
