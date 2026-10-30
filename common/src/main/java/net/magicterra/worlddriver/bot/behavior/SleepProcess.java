@@ -157,6 +157,7 @@ public final class SleepProcess implements BotProcess, Navigating {
             case DONE -> {
                 return true;
             }
+            default -> throw new IllegalStateException("unhandled sleep phase " + phase);
         }
         return false;
     }

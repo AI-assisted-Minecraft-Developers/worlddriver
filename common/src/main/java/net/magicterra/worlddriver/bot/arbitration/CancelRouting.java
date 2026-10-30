@@ -24,7 +24,9 @@ public final class CancelRouting {
 
     /**
      * Resolve a named cancel ({@code which} is never "all" — the caller handles that broadcast separately) against the
-     * user slot and the registered chains, in order:
+     * user slot and the registered chains.
+     *
+     * <p>The steps, in order:
      *
      * <ol>
      *   <li><b>user slot by kind</b> — the user-verb process (P1-⑦ semantics), labelled {@code user/<kind>-process};

@@ -151,7 +151,7 @@ public final class RouteParams {
                 ? CapabilityProfile.ALL
                 : new CapabilityProfile(forbidden, optIn);
 
-        r.yRange().ifPresent(y -> yBounds(y, bias, cons));
+        r.yRange().ifPresent(y -> heightBounds(y, bias, cons));
         r.hug().ifPresent(h -> bias.add(new ShorelineHug(h.weight())));
         final EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
         for (RegionSpec spec : r.regions()) {
@@ -214,7 +214,7 @@ public final class RouteParams {
 
     // ------------------------------------------------------------------ pieces
 
-    private static void yBounds(YRange y, List<CostModifier> bias, List<Constraint> cons) {
+    private static void heightBounds(YRange y, List<CostModifier> bias, List<Constraint> cons) {
         if (y.hard()) {
             y.min().ifPresent(lo -> cons.add(new YFloor(lo)));
             y.max().ifPresent(hi -> cons.add(new YCeil(hi)));
