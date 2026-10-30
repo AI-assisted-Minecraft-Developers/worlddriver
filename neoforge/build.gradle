@@ -1,4 +1,7 @@
 plugins {
+    id 'worlddriver.base'
+    id 'net.neoforged.moddev'
+    id 'worlddriver.mod'
     id 'com.gradleup.shadow'
     // :api's and :common's sources, the Rhino bundle, the testmod and the sources jar: shared with :fabric.
     id 'worlddriver.loader'

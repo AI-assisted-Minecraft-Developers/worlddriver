@@ -11,7 +11,8 @@ before you start it.
 
 ### Any Loom run task, and the in-game test suites
 
-The end of `build.gradle` has a hook that reads the Gradle property `worlddriverJdwp`.
+The `worlddriver.mod` plugin (`build-logic/src/main/groovy/worlddriver.mod.gradle`) has a hook that reads
+the Gradle property `worlddriverJdwp`.
 When it is set, every entry in `loom.runs` gets
 `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:<value>`:
 

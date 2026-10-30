@@ -14,23 +14,23 @@ come from, and what each published jar holds. For the jars other mods compile ag
 | `:neoforge` | ModDevGradle | NeoForge in Mojang names | the NeoForge mod |
 | `:api-processor` | plain `java` | — | nothing; it is an annotation processor |
 
-The root `build.gradle` applies the loader plugin to each module and holds what they share: the
-version, Java 21 through a toolchain, the licence files, publishing, and the JVM-flag properties
-(`-PworlddriverJdwp`, `-PworlddriverVmArgs`, `-PtestkitCoverageAgent`), which it hands to Loom's runs
-and to ModDevGradle's runs alike.
+Each module applies its loader plugin itself, in its `plugins` block. The root `build.gradle` holds
+only what belongs to the root project: the in-game test suites it runs and the repositories they
+resolve from.
 
 `:api` and `:common` use the vanilla build (NeoForm) that NeoForge `neoforge_version` is made from,
 `neoform_version` in `gradle.properties`, so their Minecraft is the one NeoForge patches.
 
 ### Convention plugins
 
-Build logic that more than one project uses, other than the root's own cross-project settings above,
-lives in `build-logic/`, a build the root `settings.gradle` includes for its plugins. Each
-`build-logic/src/main/groovy/<id>.gradle` is a plugin a project applies with `id '<id>'` in its
-`plugins` block:
+Build logic that more than one project uses lives in `build-logic/`, a build the root
+`settings.gradle` includes for its plugins. Each `build-logic/src/main/groovy/<id>.gradle` is a
+plugin a project applies with `id '<id>'` in its `plugins` block:
 
 | Plugin | Applied by | What it does |
 |---|---|---|
+| `worlddriver.base` | every project, first | the group, the version (from `mod_base_version` and `BUILD_NUMBER`), and no caching of changing modules |
+| `worlddriver.mod` | `:api`, `:common`, `:fabric`, `:neoforge`, after the loader plugin | jar names, Java 21 through a toolchain, the licence files in each jar, publishing, the JVM-flag properties (`-PworlddriverJdwp`, `-PworlddriverVmArgs`, `-PtestkitCoverageAgent`) handed to Loom's and ModDevGradle's runs alike, and `verifyJarContents` |
 | `worlddriver.loader` | `:fabric`, `:neoforge` | compiles `:api`'s and `:common`'s sources into the loader (below) |
 | `worlddriver.lint` | the root | Spotless, Checkstyle and PMD ([code-style.md](code-style.md)) |
 

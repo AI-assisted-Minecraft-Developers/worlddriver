@@ -1,0 +1,24 @@
+// Applied by every project of the build, the root included: coordinates and the dependency cache policy.
+
+// <base>-alpha.<n>+<minecraft>. CI sets BUILD_NUMBER to its run number; without it the build is
+// <base>-snapshot+<minecraft>, which is never published to the Nexus. Gradle, Fabric and NeoForge
+// order these forms alike, which `build` and uppercase `SNAPSHOT` are not (StageWright's
+// docs/reference/publishing.md, Versions).
+def buildNumber = providers.environmentVariable('BUILD_NUMBER').orNull
+// Refused rather than spliced in: `alpha.<n>` has to be a SemVer numeric identifier, digits with no
+// leading zero, for the version to be valid SemVer and order by run number.
+if (buildNumber != null && !(buildNumber ==~ /0|[1-9][0-9]*/)) {
+    throw new GradleException("BUILD_NUMBER is '${buildNumber}', but it must be a whole number"
+    + " without leading zeros; unset it for a local build")
+}
+// Not inlined into the string below: the Groovy formatter cannot read a string nested in a string.
+def prerelease = buildNumber != null ? "alpha.${buildNumber}" : 'snapshot'
+
+group = rootProject.maven_group
+version = "${rootProject.mod_base_version}-${prerelease}+${rootProject.minecraft_version}".toString()
+
+// Republished StageWright reaching the run: Gradle's cache by `changing` and the zero TTL below; loom's remap
+// cache, keyed on coordinates, by the StageWright plugin, which drops stale remaps as it is applied.
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}

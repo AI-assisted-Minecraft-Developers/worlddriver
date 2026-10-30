@@ -15,7 +15,7 @@ live in `gradle.properties`, which is the file to read if this page has aged.
 | Requirement | Version | Where it is declared |
 |---|---|---|
 | Minecraft | 1.21.1 | `minecraft_version` |
-| Java | 21 | the Java toolchain in the root `build.gradle` |
+| Java | 21 | the Java toolchain in `build-logic/src/main/groovy/worlddriver.mod.gradle` |
 | Fabric Loader | 0.16.14 or newer | `fabric_loader_version` |
 | Fabric API | 0.116.4+1.21.1, required on Fabric | `fabric_api_version` |
 | NeoForge | 21.1.230 | `neoforge_version` |

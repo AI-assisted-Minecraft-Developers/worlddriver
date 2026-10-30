@@ -1,3 +1,9 @@
+plugins {
+    id 'worlddriver.base'
+    id 'net.neoforged.moddev'
+    id 'worlddriver.mod'
+}
+
 neoForge {
     // Vanilla in Mojang names, the one NeoForge $neoforge_version is built on. The access transformer at its default
     // place, META-INF/accesstransformer.cfg, is applied to it; both loaders compile these sources again with their

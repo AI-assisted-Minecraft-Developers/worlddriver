@@ -1,6 +1,12 @@
 // worlddriver-api: the method contracts, schema, runtime and game hooks another mod compiles against.
 // Published like every mod module: the plain jar in intermediary names (:fabric's remapApiJar), `:dev` in
 // Mojang names (NeoForge, plain compiles). See docs/dev/api-artifacts.md.
+plugins {
+    id 'worlddriver.base'
+    id 'net.neoforged.moddev'
+    id 'worlddriver.mod'
+}
+
 neoForge {
     // Vanilla in Mojang names, the one NeoForge $neoforge_version is built on.
     neoFormVersion = rootProject.neoform_version
