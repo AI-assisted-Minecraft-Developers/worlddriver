@@ -19,12 +19,15 @@ public interface ClientApi {
         return ClientApiBinding.calls(registry);
     }
 
+    /** {@code mc.client.player}: this client's own player as the client predicts it. */
     @Spec(value = ClientContracts.class, spec = "PLAYER")
     CompletionStage<ClientContracts.ClientPlayer> player(NoParams p, CallContext ctx);
 
+    /** {@code mc.client.scene}: the facts the client bot derives every tick from its hazard grid. */
     @Spec(value = ClientContracts.class, spec = "SCENE")
     CompletionStage<ClientContracts.ClientScene> scene(NoParams p, CallContext ctx);
 
+    /** {@code mc.client.blocks}: the blocks the client has loaded around a center, to diff against the server. */
     @Spec(value = ClientContracts.class, spec = "BLOCKS")
     CompletionStage<ClientContracts.BlockScan> blocks(ClientContracts.BlocksParams p, CallContext ctx);
 
@@ -32,9 +35,11 @@ public interface ClientApi {
     @Spec(value = ClientContracts.class, spec = "CHAT_SEND")
     CompletionStage<ClientReply> chatSend(ClientContracts.ChatSendParams p, CallContext ctx);
 
+    /** {@code mc.client.chat.history}: the chat and system lines this client received, newest first. */
     @Spec(value = ClientContracts.class, spec = "CHAT_HISTORY")
     CompletionStage<ClientContracts.ChatHistory> chatHistory(ClientContracts.ChatHistoryParams p, CallContext ctx);
 
+    /** {@code mc.client.overlays}: dismisses the tutorial hints and toasts. */
     @Spec(value = ClientContracts.class, spec = "OVERLAYS")
     CompletionStage<ClientContracts.OverlaysCleared> overlays(ClientContracts.OverlaysParams p, CallContext ctx);
 

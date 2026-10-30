@@ -165,6 +165,7 @@ public final class ClientContracts {
                     KeybindsListed,
                     KeybindDriven {}
 
+    /** The {@code refused} outcome: nothing was done, for {@code reason}, explained in {@code message}. */
     @Variant("refused")
     public record Refused(ClientRefusal reason, String message) implements ClientReply {}
 
@@ -189,6 +190,7 @@ public final class ClientContracts {
             String contextId)
             implements ClientReply {}
 
+    /** The {@code done} outcome of {@code mc.client.input.slotClick}: the slot, button and click type sent. */
     @Variant("done")
     public record SlotClicked(
             @Range(min = 0) int slot,
@@ -206,6 +208,7 @@ public final class ClientContracts {
             Optional<@ContextId String> contextId)
             implements ClientReply {}
 
+    /** The {@code done} outcome of {@code mc.client.input.setHotbarSlot}: the slot now held and the one before. */
     @Variant("done")
     public record HotbarSelected(
             @Range(min = 0, max = 8) int slot,
@@ -232,6 +235,7 @@ public final class ClientContracts {
             String contextId)
             implements ClientReply {}
 
+    /** The {@code done} outcome of {@code mc.client.input.replaceText}: the box's new and previous contents. */
     @Variant("done")
     public record Replaced(
             String value,
@@ -248,6 +252,7 @@ public final class ClientContracts {
             String contextId)
             implements ClientReply {}
 
+    /** The {@code read} outcome of {@code mc.client.input.slider} without a fraction: every slider on the screen. */
     @Variant("read")
     public record SlidersRead(
             @Length(max = 1024) List<ScreenContracts.Slider> sliders,
@@ -256,6 +261,7 @@ public final class ClientContracts {
             String contextId)
             implements ClientReply {}
 
+    /** The {@code set} outcome of {@code mc.client.input.slider}: the slider's label and value after and before. */
     @Variant("set")
     public record SliderSet(
             String label,
@@ -315,6 +321,7 @@ public final class ClientContracts {
             String contextId)
             implements ClientReply {}
 
+    /** The {@code listed} outcome of {@code mc.client.input.keybind} without a name: every key mapping. */
     @Variant("listed")
     public record KeybindsListed(@Length(max = 4096) List<ScreenContracts.Keybinding> keybinds)
             implements ClientReply {}
@@ -377,6 +384,7 @@ public final class ClientContracts {
     public record Wear(Optional<Integer> maxDamage, Optional<Integer> damage, Optional<Integer> durability) {
         public static final Wear NONE = new Wear(Optional.empty(), Optional.empty(), Optional.empty());
 
+        /** The wear of a damageable item with these points; durability is {@code maxDamage - damage}. */
         public static Wear of(int maxDamage, int damage) {
             return new Wear(Optional.of(maxDamage), Optional.of(damage), Optional.of(maxDamage - damage));
         }
@@ -404,9 +412,11 @@ public final class ClientContracts {
             @Doc("The client's block in the eye cell.") Optional<@ResourceId String> eyeBlock,
             @Doc("The client's block in the feet cell.") Optional<@ResourceId String> feetBlock) {}
 
+    /** One status effect active on the client's player. */
     @Named("ActiveEffect")
     public record ActiveEffect(@ResourceId String id, int amplifier, int durationTicks) {}
 
+    /** Health, breath, hunger, experience level and active effects, as the client sees them. */
     @Named("ClientVitals")
     public record Vitals(
             double health,
@@ -418,6 +428,7 @@ public final class ClientContracts {
             int xpLevel,
             @Length(max = 256) List<ActiveEffect> effects) {}
 
+    /** The client level's clock: raw day time, day count, time within the day and its phase. */
     @Named("WorldTime")
     public record Time(
             long dayTime,
@@ -430,6 +441,7 @@ public final class ClientContracts {
                     value = {"day", "sunset", "night", "sunrise"})
             String phase) {}
 
+    /** How far the held weapon's melee recharge has come. */
     @Named("ClientAttackReadiness")
     public record Attack(
             @Doc("The share of the weapon's damage a swing would land now.") @Range(min = 0, max = 1)
@@ -443,6 +455,7 @@ public final class ClientContracts {
             @Doc("The held weapon's whole recharge.") @Range(min = 0)
             int fullCooldownTicks) {}
 
+    /** An item stack: id, count, and wear when the item is damageable. */
     @Named("ItemStack")
     public record Stack(
             @ResourceId String id,
@@ -453,11 +466,13 @@ public final class ClientContracts {
             @Doc("Points left (maxDamage - damage); damageable items only. Unbreaking stretches a point over several "
                     + "uses.")
             Optional<@Range(min = 0) Integer> durability) {
+        /** A stack whose wear fields are taken from {@code wear}. */
         public Stack(String id, int count, Wear wear) {
             this(id, count, wear.maxDamage(), wear.damage(), wear.durability());
         }
     }
 
+    /** One non-empty inventory slot, by vanilla slot index, with the stack's wear. */
     @Named("InventorySlot")
     public record InventorySlot(
             @Doc("Vanilla inventory index: 0-8 hotbar, 9-35 main, 36-39 armour, 40 offhand.") @Range(min = 0)
@@ -468,11 +483,13 @@ public final class ClientContracts {
             Optional<@Range(min = 0) Integer> maxDamage,
             Optional<@Range(min = 0) Integer> damage,
             Optional<@Range(min = 0) Integer> durability) {
+        /** A slot whose wear fields are taken from {@code wear}. */
         public InventorySlot(int slot, String id, int count, Wear wear) {
             this(slot, id, count, wear.maxDamage(), wear.damage(), wear.durability());
         }
     }
 
+    /** The client player's inventory: selected slot, main hand, every non-empty slot and item totals. */
     @Named("ClientInventory")
     public record Inventory(
             @Range(min = 0, max = 8) int selectedSlot,
@@ -488,9 +505,11 @@ public final class ClientContracts {
     @Named("CrosshairHit")
     public sealed interface Hit permits Miss, BlockHit, EntityHit {}
 
+    /** The crosshair is on nothing. */
     @Variant("miss")
     public record Miss() implements Hit {}
 
+    /** The crosshair is on a block, on the given face. */
     @Variant("block")
     public record BlockHit(
             BlockPosition blockPos,
@@ -498,6 +517,7 @@ public final class ClientContracts {
             @ResourceId String block,
             @Doc("From the eyes.") double distance) implements Hit {}
 
+    /** The crosshair is on an entity. */
     @Variant("entity")
     public record EntityHit(
             @EntityId int entityId, @ResourceId String entityType, Point pos, double distance) implements Hit {}
@@ -528,6 +548,7 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ scene
 
+    /** The reply of {@code mc.client.scene}; everything but {@code present} is absent when no player is in a world. */
     @Named("ClientScene")
     public record ClientScene(
             boolean present,
@@ -557,6 +578,7 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ blocks
 
+    /** Parameters of {@code mc.client.blocks}: the center, radius and an optional block or tag filter. */
     @Named("ClientBlocksParams")
     public record BlocksParams(
             @Doc("Omitted: the player's feet.") Optional<BlockPosition> center,
@@ -578,6 +600,7 @@ public final class ClientContracts {
         }
     }
 
+    /** One non-air cell as the client has it loaded. */
     @Named("ClientBlock")
     public record BlockRow(
             BlockPosition pos,
@@ -586,9 +609,11 @@ public final class ClientContracts {
             @Doc("Block state properties; absent for a state with none.")
             Optional<@Length(max = 64) Map<String, String>> state) {}
 
+    /** A chunk by its chunk coordinates. */
     @Named("ChunkRef")
     public record ChunkRef(int x, int z) {}
 
+    /** The reply of {@code mc.client.blocks}: the non-air cells found and any chunks the client has not loaded. */
     @Named("ClientBlockScan")
     public record BlockScan(
             @Doc("Every non-air cell, air skipped.") @Length(max = 40_000)
@@ -602,6 +627,7 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ chat
 
+    /** Where a received chat line came from: a player, or the system. */
     @Named("ChatKind")
     public enum ChatKind implements WireName {
         /** Chat with a real sender profile. */
@@ -615,6 +641,7 @@ public final class ClientContracts {
         }
     }
 
+    /** How {@code mc.client.chat.send} sent the text: as a command (it began with /) or as chat. */
     @Named("SentAs")
     public enum SentAs implements WireName {
         COMMAND,
@@ -643,6 +670,7 @@ public final class ClientContracts {
             @Doc("No line arrived within awaitReplyMs.") boolean timedOut,
             @Range(min = 0) long waitedMs) {}
 
+    /** Parameters of {@code mc.client.chat.send}: the text and how long to wait for later chat. */
     @Named("ChatSendParams")
     public record ChatSendParams(
             @Doc("A leading / sends it as a command.") @Length(min = 1, max = 256)
@@ -653,12 +681,14 @@ public final class ClientContracts {
             @Range(min = 0, max = 30_000)
             int awaitReplyMs) {}
 
+    /** The {@code done} outcome of {@code mc.client.chat.send}: how it was sent, its length, and any later chat. */
     @Variant("done")
     public record ChatSent(
             SentAs kind,
             @Range(min = 0) int length,
             @Doc("With awaitReplyMs only.") Optional<LaterChat> later) implements ClientReply {}
 
+    /** Parameters of {@code mc.client.chat.history}: how many lines, and from which seq. */
     @Named("ChatHistoryParams")
     public record ChatHistoryParams(
             @Doc("The newest this many lines.") @Default("50") @Range(min = 1, max = 256)
@@ -667,6 +697,7 @@ public final class ClientContracts {
             @Doc("Only lines with seq at or after this.") @Default("0") @Range(min = 0)
             long sinceSeq) {}
 
+    /** One received chat line in the history, with how many ticks ago it arrived. */
     @Named("HistoryLine")
     public record HistoryLine(
             @Range(min = 0) long seq,
@@ -685,6 +716,7 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ overlays
 
+    /** Parameters of {@code mc.client.overlays}: which HUD overlay groups to dismiss. */
     @Named("OverlaysParams")
     public record OverlaysParams(
             @Doc("Turn the tutorial hints (Move with W,A,S,D…) off for good.") @Default("true")
@@ -700,6 +732,7 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ screenshot
 
+    /** The encoding of a screenshot: lossless png or smaller jpeg. */
     @Named("ImageFormat")
     public enum ImageFormat implements WireName {
         PNG,
@@ -711,6 +744,7 @@ public final class ClientContracts {
         }
     }
 
+    /** Parameters of {@code mc.client.screenshot}: the size limits, format and jpeg quality. */
     @Named("ScreenshotParams")
     public record ScreenshotParams(
             @Doc("Shrink, keeping the aspect, to at most this wide.")
@@ -724,6 +758,7 @@ public final class ClientContracts {
             @Doc("JPEG only.") @Default("85") @Range(min = 1, max = 100)
             int quality) {}
 
+    /** The reply of {@code mc.client.screenshot}: the encoded image and the frame it was taken from. */
     @Named("Screenshot")
     public record Screenshot(
             ImageFormat format,

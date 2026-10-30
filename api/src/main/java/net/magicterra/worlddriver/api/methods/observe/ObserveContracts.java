@@ -120,6 +120,7 @@ public final class ObserveContracts {
     // reads its own player. Both build the same record, and the client adds what only it has ({@code view}:
     // the crosshair and the frame rate).
 
+    /** Parameters of {@code mc.observe.player}: which player to read. */
     @Named("ObservePlayerParams")
     public record PlayerParams(
             @Doc("A player's profile name. Omitted: the first player on the server, or this client's own.")
@@ -130,6 +131,7 @@ public final class ObserveContracts {
     public record PlayerReading(
             @Doc("Absent when nobody matches.") Optional<PlayerState> player) {}
 
+    /** One player's state as {@code mc.observe.player} reads it; {@code view} is on the client fallback only. */
     @Named("PlayerState")
     public record PlayerState(
             String name,
@@ -167,6 +169,7 @@ public final class ObserveContracts {
 
             @Doc("Client fallback only.") Optional<ClientView> view) {}
 
+    /** The player's body: footing, eye position, pose, and the blocks at its eyes and feet. */
     @Named("PlayerBodyState")
     public record BodyState(
             boolean onGround,
@@ -182,6 +185,7 @@ public final class ObserveContracts {
             @ResourceId String eyeBlock,
             @ResourceId String feetBlock) {}
 
+    /** Health, breath, hunger and experience level. */
     @Named("Vitals")
     public record Vitals(
             double health,
@@ -195,10 +199,12 @@ public final class ObserveContracts {
             double saturation,
             int xpLevel) {}
 
+    /** One active status effect on the player. */
     @Named("MobEffect")
     public record Effect(
             String id, int amplifier, @Doc("-1: infinite.") int durationTicks) {}
 
+    /** Which part of the day/night cycle the world's clock is in. */
     @Named("DayPhase")
     public enum DayPhase implements WireName {
         DAY("day"),
@@ -218,6 +224,7 @@ public final class ObserveContracts {
         }
     }
 
+    /** The world's clock: raw day time, day count, time within the day and its phase. */
     @Named("TimeOfDay")
     public record TimeOfDay(
             @Doc("The world's raw day time.") long dayTime,
@@ -227,6 +234,7 @@ public final class ObserveContracts {
             @Doc("Hostiles spawn from sunset's end (13000) and burn from sunrise (23000).")
             DayPhase phase) {}
 
+    /** How far the held weapon's melee recharge has come. */
     @Named("AttackReadiness")
     public record Attack(
             @Doc("The share of the held weapon's damage a swing would land now.") @Range(min = 0, max = 1)
@@ -252,9 +260,11 @@ public final class ObserveContracts {
             @Doc("Points left, maxDamage − damage; a floor on remaining uses, as Unbreaking stretches a point.")
             Optional<Integer> durability) {}
 
+    /** The four armor slots; an absent slot is empty. */
     @Named("Armor")
     public record Armor(Optional<Item> head, Optional<Item> chest, Optional<Item> legs, Optional<Item> feet) {}
 
+    /** The selected hotbar slot and what is held in each hand and worn. */
     @Named("Equipment")
     public record Equipment(
             @Range(min = 0, max = 8) int selectedSlot,
@@ -262,6 +272,7 @@ public final class ObserveContracts {
             Optional<Item> offHand,
             Armor armor) {}
 
+    /** One non-empty inventory slot, by vanilla slot index; wear fields as in {@link Item}. */
     @Named("PlayerInventorySlot")
     public record InventorySlot(
             @Doc("Vanilla index: 0–8 hotbar, 9–35 main, 36–39 armor, 40 offhand.") @Range(min = 0)
@@ -273,13 +284,16 @@ public final class ObserveContracts {
             Optional<@Range(min = 0) Integer> damage,
             Optional<Integer> durability) {}
 
+    /** What the crosshair hits, tagged by {@code type}: {@code miss}, {@code block} or {@code entity}. */
     @Tag("type")
     @Named("Crosshair")
     public sealed interface Crosshair permits Miss, BlockHit, EntityHit {}
 
+    /** The crosshair hits nothing. */
     @Variant("miss")
     public record Miss() implements Crosshair {}
 
+    /** The crosshair hits a block, on the given face. */
     @Variant("block")
     public record BlockHit(
             BlockPosition blockPos,
@@ -288,6 +302,7 @@ public final class ObserveContracts {
             @Range(min = 0, max = Double.MAX_VALUE) double distance)
             implements Crosshair {}
 
+    /** The crosshair hits an entity. */
     @Variant("entity")
     public record EntityHit(
             @EntityId int entityId,
@@ -296,6 +311,7 @@ public final class ObserveContracts {
             @Range(min = 0, max = Double.MAX_VALUE) double distance)
             implements Crosshair {}
 
+    /** What only a client has: the crosshair hit and the frame rate. */
     @Named("ClientView")
     public record ClientView(
             @Doc("What the camera aims at.") Crosshair hit,
@@ -312,6 +328,7 @@ public final class ObserveContracts {
             @Doc("A server bot, player or mob: the threats its own scan sees. Omitted: self.")
             Optional<@BotRef String> bot) {}
 
+    /** One hostile near the player, with what it is doing and a danger score. */
     @Named("Threat")
     public record Threat(
             @EntityId int id,
@@ -331,6 +348,7 @@ public final class ObserveContracts {
             @Doc("Danger score; deal with the highest first.") @Range(min = 0, max = 1)
             double threat) {}
 
+    /** A projectile in flight near the player, and whether and when it will hit. */
     @Named("IncomingProjectile")
     public record Projectile(
             @EntityId int id,
@@ -350,11 +368,13 @@ public final class ObserveContracts {
 
     // ------------------------------------------------------------------ boss
 
+    /** Parameters of {@code mc.observe.boss}: how far around the player to look. */
     @Named("BossParams")
     public record BossParams(
             @Doc("Blocks around the player; 64 covers the End pillars.") @Default("64") @Range(min = 1, max = 256)
             int radius) {}
 
+    /** One End crystal in range. */
     @Named("EndCrystal")
     public record Crystal(
             @EntityId int id,
@@ -364,6 +384,7 @@ public final class ObserveContracts {
             @Doc("Iron bars around it: climb in, it cannot be shot from below.")
             boolean caged) {}
 
+    /** The ender dragon's current phase; {@code unknown} for one this list does not name. */
     @Named("DragonPhase")
     public enum DragonPhase implements WireName {
         PERCH("perch"),
@@ -389,6 +410,7 @@ public final class ObserveContracts {
         }
     }
 
+    /** The wither's stage: spawning while invulnerable, then first, then second once powered at half health. */
     @Named("WitherPhase")
     public enum WitherPhase implements WireName {
         SPAWNING("spawning"),
@@ -407,13 +429,16 @@ public final class ObserveContracts {
         }
     }
 
+    /** The ender dragon's head part, the one that takes full damage. */
     @Named("DragonHead")
     public record DragonHead(@EntityId int id, Point pos) {}
 
+    /** A boss in range, tagged by {@code type}: {@code ender_dragon} or {@code wither}. */
     @Tag("type")
     @Named("Boss")
     public sealed interface Boss permits Dragon, Wither {}
 
+    /** The ender dragon: health, phase, head and the crystals still healing it. */
     @Variant("ender_dragon")
     public record Dragon(
             @EntityId int id,
@@ -430,6 +455,7 @@ public final class ObserveContracts {
             int crystalsAlive)
             implements Boss {}
 
+    /** The wither: health, phase and remaining invulnerability. */
     @Variant("wither")
     public record Wither(
             @EntityId int id,
@@ -456,6 +482,7 @@ public final class ObserveContracts {
 
     // ------------------------------------------------------------------ scene
 
+    /** How much {@code mc.observe.scene} returns: the summary alone, or also the ASCII hazard map. */
     @Named("SceneRender")
     public enum Render implements WireName {
         SUMMARY("summary"),
@@ -473,6 +500,7 @@ public final class ObserveContracts {
         }
     }
 
+    /** An extra per-cell layer {@code mc.observe.scene} can add next to the hazard grid. */
     @Named("SceneOverlay")
     public enum Overlay implements WireName {
         HEIGHT("height"),
@@ -491,6 +519,7 @@ public final class ObserveContracts {
         }
     }
 
+    /** Parameters of {@code mc.observe.scene}: the center, radius, render mode and overlays to compute. */
     @Named("SceneParams")
     public record SceneParams(
             @Doc("Omitted: the first player, or mc.system.testOrigin with nobody on.")
@@ -514,11 +543,13 @@ public final class ObserveContracts {
                     + "Omitted: ranged hostiles, cluster radius 6.")
             Optional<Route> route) {}
 
+    /** One step to a neighbouring cell, each axis -1, 0 or 1. */
     @Named("FleeStep")
     public record FleeStep(
             @Range(min = -1, max = 1) int dx,
             @Range(min = -1, max = 1) int dz) {}
 
+    /** The hazard grid in brief: lethal cells, whether the center is cornered, and the safest step away. */
     @Named("HazardSummary")
     public record HazardSummary(
             @Doc("Cells that would kill a 20-HP body.") @Range(min = 0)
@@ -529,6 +560,7 @@ public final class ObserveContracts {
             @Doc("The safest step away from a threat to the south.")
             Optional<FleeStep> safeFleeStep) {}
 
+    /** The ASCII hazard grid and its legend, returned when {@code render} is {@code map}. */
     @Named("HazardMap")
     public record HazardMap(
             @Doc("North first; glyphs space-separated, @ the center.") @Length(max = 1024)
@@ -536,10 +568,12 @@ public final class ObserveContracts {
 
             @Doc("Glyph → meaning.") @Length(max = 64) Map<String, String> legend) {}
 
+    /** The height overlay: the center's surface height and the range over standable cells. */
     @Named("HeightStats")
     public record HeightStats(
             int centerY, @Doc("Absent: no standable cell.") Optional<Integer> minY, Optional<Integer> maxY) {}
 
+    /** An entity the sight overlay counts as watching. */
     @Named("SightObserver")
     public record Observer(
             @EntityId int id,
@@ -553,6 +587,7 @@ public final class ObserveContracts {
     @Doc("Like the map's rows: a digit per cell, + for ten or more, . no footing, ? beyond the ray budget.")
     public @interface OverlayRows {}
 
+    /** The sight overlay: the observers counted and, per standable cell, how many of them see it. */
     @Named("SightOverlay")
     public record SightOverlay(
             @Length(max = 4096) List<Observer> observers,
@@ -561,6 +596,7 @@ public final class ObserveContracts {
             Optional<@OnlyTrue Boolean> budgetExhausted,
             Optional<@OnlyTrue Boolean> snapshotTruncated) {}
 
+    /** The mobDensity overlay: per cell, how many counted hostiles are within the cluster radius. */
     @Named("DensityOverlay")
     public record DensityOverlay(
             @Doc("Counted mobs near enough to matter.") @Range(min = 0)
@@ -591,6 +627,7 @@ public final class ObserveContracts {
 
     // ------------------------------------------------------------------ map
 
+    /** Which plane {@code mc.observe.map} draws: top-down {@code xz}, or a vertical {@code xy} or {@code zy} slice. */
     @Named("MapPlane")
     public enum Plane implements WireName {
         XZ("xz"),
@@ -609,6 +646,7 @@ public final class ObserveContracts {
         }
     }
 
+    /** Parameters of {@code mc.observe.map}: the center, extents and plane to draw. */
     @Named("MapParams")
     public record MapParams(
             @Doc("Omitted: the first player's cell.") Optional<BlockPosition> center,
@@ -622,6 +660,7 @@ public final class ObserveContracts {
             @Doc("xz: top-down surface heightmap. xy, zy: a vertical slice through the center.") @Default("xz")
             Plane plane) {}
 
+    /** The reply of {@code mc.observe.map}: the drawn grid, its size, legend and hostile count. */
     @Named("AsciiMap")
     public record AsciiMap(
             Plane plane,

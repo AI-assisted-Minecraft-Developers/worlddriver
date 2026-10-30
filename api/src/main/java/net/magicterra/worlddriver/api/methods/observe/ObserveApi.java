@@ -14,18 +14,23 @@ public interface ObserveApi {
         return ObserveApiBinding.calls(registry);
     }
 
+    /** {@code mc.observe.player}: one player's state, or this client's own player when no server is attached. */
     @Spec(value = ObserveContracts.class, spec = "PLAYER")
     CompletionStage<ObserveContracts.PlayerReading> player(ObserveContracts.PlayerParams p, CallContext ctx);
 
+    /** {@code mc.observe.threats}: scored hostiles and incoming projectiles around the player or a named bot. */
     @Spec(value = ObserveContracts.class, spec = "THREATS")
     CompletionStage<ObserveContracts.Threats> threats(ObserveContracts.ThreatsParams p, CallContext ctx);
 
+    /** {@code mc.observe.boss}: the nearest ender dragon or wither in range and the End crystals; client only. */
     @Spec(value = ObserveContracts.class, spec = "BOSS_SPEC")
     CompletionStage<ObserveContracts.BossReading> boss(ObserveContracts.BossParams p, CallContext ctx);
 
+    /** {@code mc.observe.scene}: the server's hazard grid around a center, with optional map and overlays. */
     @Spec(value = ObserveContracts.class, spec = "SCENE")
     CompletionStage<ObserveContracts.Scene> scene(ObserveContracts.SceneParams p, CallContext ctx);
 
+    /** {@code mc.observe.map}: a compact ASCII heightmap or vertical slice around a center. */
     @Spec(value = ObserveContracts.class, spec = "MAP")
     CompletionStage<ObserveContracts.AsciiMap> map(ObserveContracts.MapParams p, CallContext ctx);
 }
