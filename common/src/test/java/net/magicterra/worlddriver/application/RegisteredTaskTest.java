@@ -109,6 +109,7 @@ class RegisteredTaskTest {
         assertThrows(IllegalArgumentException.class, () -> register("mc.bot.dance", Other.class, Other::new));
         assertThrows(IllegalArgumentException.class, () -> register("nodot", Other.class, Other::new));
         assertEquals(kinds, ActionResults.UNION.variants().size());
-        assertFalse(BodyTasks.all().stream().anyMatch(e -> e.spec().name().equals("unittest.twice")));
+        assertFalse(BodyTasks.all().stream()
+                .anyMatch(e -> "unittest.twice".equals(e.spec().name())));
     }
 }

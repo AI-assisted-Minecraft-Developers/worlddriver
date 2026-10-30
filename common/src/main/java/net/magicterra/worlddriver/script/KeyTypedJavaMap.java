@@ -46,7 +46,7 @@ final class KeyTypedJavaMap extends NativeJavaMap {
     /** The map's own two-argument {@code put} that takes a primitive, or null for a map of objects. */
     private static Method primitivePut(Class<?> type) {
         for (Method m : type.getMethods()) {
-            if (!m.getName().equals("put")
+            if (!"put".equals(m.getName())
                     || m.getParameterCount() != 2
                     || m.isBridge()
                     || m.isAnnotationPresent(Deprecated.class)) {

@@ -15,7 +15,7 @@ class ProductionApiTest {
                 0,
                 Arrays.stream(DriverApplication.class.getDeclaredMethods())
                         .map(Method::getName)
-                        .filter(n -> n.equals("seedTestArea") || n.equals("arenaEntityTicking"))
+                        .filter(n -> "seedTestArea".equals(n) || "arenaEntityTicking".equals(n))
                         .count());
     }
 }

@@ -76,7 +76,7 @@ public final class Screenshots {
             }
 
             // PNG, no resize → fast path uses NativeImage's own encoder.
-            if (fmt.equals("png") && dstW == srcW && dstH == srcH) {
+            if ("png".equals(fmt) && dstW == srcW && dstH == srcH) {
                 return reply("png", srcW, srcH, img.asByteArray(), cap);
             }
 
@@ -105,7 +105,7 @@ public final class Screenshots {
                 out = new java.awt.image.BufferedImage(
                         dstW,
                         dstH,
-                        fmt.equals("png")
+                        "png".equals(fmt)
                                 ? java.awt.image.BufferedImage.TYPE_INT_ARGB
                                 : java.awt.image.BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g2 = out.createGraphics();
@@ -116,7 +116,7 @@ public final class Screenshots {
                         java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
                 g2.drawImage(src, 0, 0, dstW, dstH, null);
                 g2.dispose();
-            } else if (fmt.equals("jpeg")) {
+            } else if ("jpeg".equals(fmt)) {
                 // JPEG doesn't carry alpha; collapse onto opaque RGB.
                 out = new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g2 = out.createGraphics();
@@ -126,9 +126,9 @@ public final class Screenshots {
                 out = src;
             }
 
-            String mime = fmt.equals("png") ? "png" : "jpeg";
+            String mime = "png".equals(fmt) ? "png" : "jpeg";
             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            if (mime.equals("jpeg")) {
+            if ("jpeg".equals(mime)) {
                 writeJpeg(out, baos, quality);
             } else {
                 javax.imageio.ImageIO.write(out, "png", baos);
@@ -156,7 +156,7 @@ public final class Screenshots {
      */
     private static ClientContracts.Screenshot reply(String format, int width, int height, byte[] bytes, Capture cap) {
         return new ClientContracts.Screenshot(
-                format.equals("png") ? ImageFormat.PNG : ImageFormat.JPEG,
+                "png".equals(format) ? ImageFormat.PNG : ImageFormat.JPEG,
                 width,
                 height,
                 cap.frame(),

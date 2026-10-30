@@ -353,7 +353,7 @@ public final class ProgressPhase {
                 String.format("%.2f", cur2),
                 foot.getY() - w.getY(),
                 se != null && se.move != null ? se.move : "null",
-                se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown")),
+                se != null && se.move != null && (se.move.startsWith("fall") || "stepDown".equals(se.move)),
                 passed,
                 crossedDescendNode,
                 crossedWalkNode,
@@ -734,7 +734,7 @@ public final class ProgressPhase {
                     || n.getY() < foot.getY()
                     || e == null
                     || e.move == null
-                    || !(e.move.equals("walk") || e.move.equals("stepDown") || e.move.equals("diagDown"))
+                    || !("walk".equals(e.move) || "stepDown".equals(e.move) || "diagDown".equals(e.move))
                     || !e.toBreak.isEmpty()
                     || !e.toPlace.isEmpty()) {
                 return -1;
@@ -1337,7 +1337,7 @@ public final class ProgressPhase {
             // pillarUp/climb tail (bot legitimately below it) is never aborted.
             boolean descendTail = se != null
                     && se.move != null
-                    && (se.move.startsWith("fall") || se.move.startsWith("diagDown") || se.move.equals("stepDown"));
+                    && (se.move.startsWith("fall") || se.move.startsWith("diagDown") || "stepDown".equals(se.move));
             boolean tailDroppedPast = !p.isInWater() && descendTail && p.getY() < w.getY() - 2.0;
             boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(nav, p, w);
             boolean tailConsumed = !within
@@ -1362,7 +1362,7 @@ public final class ProgressPhase {
             // eagerly there over-leans the descent into MORE back-correction (descentYawArena
             // backSteps 42→71). A discrete drop has one clean overshoot to consume.
             boolean discreteDescend =
-                    se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown"));
+                    se != null && se.move != null && (se.move.startsWith("fall") || "stepDown".equals(se.move));
             boolean crossedDescendNode = false;
             if (!within
                     && !passed
@@ -1391,7 +1391,7 @@ public final class ProgressPhase {
                     && !crossedDescendNode
                     && se != null
                     && se.move != null
-                    && se.move.equals("walk")
+                    && "walk".equals(se.move)
                     && !p.isInWater()
                     && stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
                     && nav.route.step() + 1 < nav.route.path().size()) {
@@ -1423,7 +1423,7 @@ public final class ProgressPhase {
                     && !crossedWalkNode
                     && se != null
                     && se.move != null
-                    && (se.move.equals("stepDown") || se.move.startsWith("fall") || se.move.startsWith("diagDown"))
+                    && ("stepDown".equals(se.move) || se.move.startsWith("fall") || se.move.startsWith("diagDown"))
                     && (p.isInWater() || nav.aim.surfaceWaterLatch > 0)
                     && stepProg.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
                     && cur2 < WATER_STEPDOWN_REACH_SQ
@@ -1467,7 +1467,7 @@ public final class ProgressPhase {
                     && !waterStepDownFloat
                     && se != null
                     && se.move != null
-                    && se.move.equals("walk")
+                    && "walk".equals(se.move)
                     && p.isInWater()
                     && stepProg.noStepProgressTicks > WATER_WALK_STALL_TICKS
                     && cur2 < WATER_WALK_REACH_SQ

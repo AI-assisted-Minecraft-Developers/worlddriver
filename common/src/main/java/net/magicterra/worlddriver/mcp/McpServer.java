@@ -687,7 +687,7 @@ public final class McpServer implements Closeable {
         }
         int semi = contentType.indexOf(';');
         String type = (semi < 0 ? contentType : contentType.substring(0, semi)).trim();
-        return type.equalsIgnoreCase("application/json");
+        return "application/json".equalsIgnoreCase(type);
     }
 
     private static JsonObject toolError(String message) {

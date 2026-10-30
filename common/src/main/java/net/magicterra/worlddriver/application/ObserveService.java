@@ -321,7 +321,7 @@ public final class ObserveService implements ObserveApi {
 
     /** Vertical cross-section (xy at fixed z, or zy at fixed x), top (+y) first. */
     private List<String> renderCross(ServerLevel level, BlockPos c, String plane, int r, int vr, List<Entity> mobs) {
-        boolean xy = plane.equals("xy");
+        boolean xy = "xy".equals(plane);
         int cx = c.getX();
         int cy = c.getY();
         int cz = c.getZ();

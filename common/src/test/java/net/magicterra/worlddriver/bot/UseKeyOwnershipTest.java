@@ -79,7 +79,7 @@ class UseKeyOwnershipTest {
                 String file = p.getFileName().toString();
                 // Anything that is not the literal false can put the key DOWN,
                 // including setDown(hold) where hold is a parameter.
-                (arg.equals("false") ? releasers : acquirers).merge(file, 1, Integer::sum);
+                ("false".equals(arg) ? releasers : acquirers).merge(file, 1, Integer::sum);
             }
         }
         assertEquals(

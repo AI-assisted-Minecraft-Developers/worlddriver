@@ -461,7 +461,7 @@ public final class BotBrain {
      * the acquirer set against exactly that drift.
      */
     private static boolean builderSuppressesAmbients(BotProcess c) {
-        return c != null && c.kind().equals("builder");
+        return c != null && "builder".equals(c.kind());
     }
 
     // === what the host reads ================================================

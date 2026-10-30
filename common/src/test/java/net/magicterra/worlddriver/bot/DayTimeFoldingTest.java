@@ -58,7 +58,7 @@ class DayTimeFoldingTest {
     void onlyTimeSnapFoldsDayTime() {
         List<String> offenders = new ArrayList<>();
         for (Path f : javaSources()) {
-            if (f.getFileName().toString().equals(OWNER)) {
+            if (OWNER.equals(f.getFileName().toString())) {
                 continue;
             }
             int line = 0;

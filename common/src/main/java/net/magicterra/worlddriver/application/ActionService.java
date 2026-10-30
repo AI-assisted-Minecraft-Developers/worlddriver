@@ -142,7 +142,7 @@ public final class ActionService implements ActionApi {
         long cursor = api.eventCursor();
 
         // A command run as a player takes Brigadier's path, which honours that player's dimension.
-        if (verb.equals("setblock") && tok.length >= 5 && p.as().isEmpty()) {
+        if ("setblock".equals(verb) && tok.length >= 5 && p.as().isEmpty()) {
             // Fast-path only when all three coords are absolute integers.
             // Anything else (`~`, `~N`, `^N`, decimals) falls through to
             // Brigadier so the command source's position context is honored
@@ -164,7 +164,7 @@ public final class ActionService implements ActionApi {
                 String type = tok[4];
                 // Resolved before the hop so an unknown block id is refused and nothing is
                 // erased: the registry's fallback for an unknown id is air.
-                boolean isAir = type.equals("air") || type.equals("minecraft:air");
+                boolean isAir = "air".equals(type) || "minecraft:air".equals(type);
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : block("/cmd", type);
                 return api.requireServerHop()
                         .submit(

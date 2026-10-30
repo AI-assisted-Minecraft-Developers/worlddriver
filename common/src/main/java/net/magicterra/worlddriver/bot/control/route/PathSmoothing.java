@@ -56,7 +56,7 @@ public final class PathSmoothing {
         if (!e.toBreak.isEmpty() || !e.toPlace.isEmpty()) {
             return false;
         }
-        return e.move.equals("walk") || e.move.equals("diag");
+        return "walk".equals(e.move) || "diag".equals(e.move);
     }
 
     private static boolean isLeap(Move.Edge e) {

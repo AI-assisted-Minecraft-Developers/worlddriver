@@ -83,7 +83,7 @@ class StationTest {
         RecipeContracts.CraftPlan planHas = resolve(
                 game, bot, "minecraft:wooden_pickaxe", Map.of("minecraft:oak_log", 16, "minecraft:crafting_table", 1));
         assertFalse(
-                planHas.steps().stream().anyMatch(j -> j.craft().equals("minecraft:crafting_table")),
+                planHas.steps().stream().anyMatch(j -> "minecraft:crafting_table".equals(j.craft())),
                 "crafting_table in inventory must suppress injection: jobs="
                         + planHas.steps().stream()
                                 .map(RecipeContracts.CraftStep::craft)
@@ -94,7 +94,7 @@ class StationTest {
                 .setBlockAndUpdate(bot.player().blockPosition().east(), Blocks.CRAFTING_TABLE.defaultBlockState()));
         RecipeContracts.CraftPlan planWorld = resolve(game, bot, "minecraft:wooden_pickaxe", have);
         assertFalse(
-                planWorld.steps().stream().anyMatch(j -> j.craft().equals("minecraft:crafting_table")),
+                planWorld.steps().stream().anyMatch(j -> "minecraft:crafting_table".equals(j.craft())),
                 "a table standing in reach must suppress injection: jobs="
                         + planWorld.steps().stream()
                                 .map(RecipeContracts.CraftStep::craft)

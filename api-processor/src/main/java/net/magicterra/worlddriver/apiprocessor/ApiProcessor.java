@@ -120,10 +120,10 @@ public final class ApiProcessor extends AbstractProcessor {
                 elements.getElementValuesWithDefaults(mirror).entrySet()) {
             String key = e.getKey().getSimpleName().toString();
             Object v = e.getValue().getValue();
-            if (key.equals("value") && v instanceof DeclaredType t) {
+            if ("value".equals(key) && v instanceof DeclaredType t) {
                 holder = (TypeElement) t.asElement();
             }
-            if (key.equals("spec")) {
+            if ("spec".equals(key)) {
                 field = (String) v;
             }
         }

@@ -144,7 +144,7 @@ class HostedScriptsTest {
                 "new.js",
                 "var Sb = Java.type('java.lang.StringBuilder'); var sb = new Sb('ab'); sb.append('c'); sb",
                 Map.of());
-        assertTrue(built instanceof StringBuilder sb && sb.toString().equals("abc"), String.valueOf(built));
+        assertTrue(built instanceof StringBuilder sb && "abc".equals(sb.toString()), String.valueOf(built));
     }
 
     /** A map whose keys are not strings still has methods: looking a member name up as a key must not throw. */

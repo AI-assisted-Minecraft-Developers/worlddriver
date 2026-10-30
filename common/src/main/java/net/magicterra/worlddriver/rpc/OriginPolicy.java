@@ -24,7 +24,7 @@ public final class OriginPolicy {
         try {
             URI uri = URI.create(origin);
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            if (!scheme.equals("http") && !scheme.equals("https")) {
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
                 return false;
             }
             // A userinfo part means the host we would compare is not the origin's host.

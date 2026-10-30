@@ -77,7 +77,7 @@ final class SettingsService implements SettingsApi {
         List<Entry> values = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             String k = keys.get(i);
-            if (bot == null && k.equals("paused")) {
+            if (bot == null && "paused".equals(k)) {
                 throw ApiException.invalidParam(
                         "/keys/" + i,
                         ApiIssue.Code.INVALID_VALUE,
@@ -92,7 +92,7 @@ final class SettingsService implements SettingsApi {
     private static List<String> readableKeys(BotApi bot) {
         List<String> out = new ArrayList<>();
         for (String k : SettingsContracts.TYPES.keySet()) {
-            if (SettingsContracts.readable(k) && (bot != null || !k.equals("paused"))) {
+            if (SettingsContracts.readable(k) && (bot != null || !"paused".equals(k))) {
                 out.add(k);
             }
         }

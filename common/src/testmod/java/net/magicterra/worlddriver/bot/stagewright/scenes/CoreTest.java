@@ -715,7 +715,7 @@ class CoreTest {
             return files.map(p -> p.getFileName().toString())
                     .filter(n -> n.endsWith(".json")
                             && n.startsWith(kind)
-                            && (kind.equals(REPLAY_RUN) || !n.startsWith(REPLAY_RUN)))
+                            && (REPLAY_RUN.equals(kind) || !n.startsWith(REPLAY_RUN)))
                     .collect(Collectors.toSet());
         } catch (IOException e) {
             return Set.of();

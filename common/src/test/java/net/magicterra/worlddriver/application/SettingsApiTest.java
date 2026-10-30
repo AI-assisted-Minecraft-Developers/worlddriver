@@ -54,7 +54,7 @@ class SettingsApiTest {
         var calls = SettingsApi.of(new DriverApplication().registry());
         ApiError e = failure(calls.setting(Patch.of(Map.of("definitelyNotAKnob", 1))));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), e.toString());
-        assertTrue(e.issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob")), e.toString());
+        assertTrue(e.issues().stream().anyMatch(i -> "/values/definitelyNotAKnob".equals(i.path())), e.toString());
     }
 
     /** The call answers a stage, so a game thread may make it: a hop it needs is queued, not refused. */

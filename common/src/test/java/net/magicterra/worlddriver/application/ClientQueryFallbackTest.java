@@ -58,7 +58,7 @@ class ClientQueryFallbackTest {
                 row(3, "minecraft:cow", false, 10.0));
         return (ClientDriverApi) Proxy.newProxyInstance(
                 ClientDriverApi.class.getClassLoader(), new Class<?>[] {ClientDriverApi.class}, (proxy, m, args) -> {
-                    if (m.getName().equals("queryEntities")) {
+                    if ("queryEntities".equals(m.getName())) {
                         return rows;
                     }
                     throw new UnsupportedOperationException(m.getName());
@@ -130,7 +130,7 @@ class ClientQueryFallbackTest {
                         new BlockPosition(1, 64, 0), "minecraft:oak_stairs", Optional.of(Map.of("facing", "north"))));
         return (ClientDriverApi) Proxy.newProxyInstance(
                 ClientDriverApi.class.getClassLoader(), new Class<?>[] {ClientDriverApi.class}, (proxy, m, args) -> {
-                    if (m.getName().equals("scanBlocks")) {
+                    if ("scanBlocks".equals(m.getName())) {
                         radiusSeen[0] = (Integer) args[0];
                         return new BlockScan(
                                 rows, new BlockPosition(0, 64, 0), (Integer) args[0], Optional.ofNullable(unloaded));

@@ -56,7 +56,7 @@ class InteractContractsTest {
         assertEquals(
                 "{\"outcome\":\"done\",\"yaw\":90.0,\"pitch\":10.0}",
                 String.valueOf(InteractContracts.LOOK_AT.output().encode(new Responses.Turned(90, 10))));
-        assertTrue(ActionResults.UNION.variants().stream().anyMatch(v -> v.tag().equals("lookAt")));
+        assertTrue(ActionResults.UNION.variants().stream().anyMatch(v -> "lookAt".equals(v.tag())));
     }
 
     @Test

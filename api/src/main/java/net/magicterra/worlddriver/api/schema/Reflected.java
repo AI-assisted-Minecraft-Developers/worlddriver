@@ -241,9 +241,7 @@ final class Reflected {
     private static Object parseDefault(ApiType<?> type, String text, String where) {
         JsonElement typeName = type.schema().get("type");
         JsonElement json;
-        if (typeName != null
-                && typeName.isJsonPrimitive()
-                && typeName.getAsString().equals("string")) {
+        if (typeName != null && typeName.isJsonPrimitive() && "string".equals(typeName.getAsString())) {
             json = new JsonPrimitive(text);
         } else {
             try {

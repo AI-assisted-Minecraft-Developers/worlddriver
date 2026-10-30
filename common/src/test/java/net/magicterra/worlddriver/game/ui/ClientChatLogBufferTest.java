@@ -26,12 +26,13 @@ class ClientChatLogBufferTest {
         var all = log.since(base);
         assertEquals(4, all.size(), "since(base) returns every recorded line");
         assertTrue(
-                all.get(0).text().equals("feedback-A") && all.get(2).text().equals("feedback-B"),
+                "feedback-A".equals(all.get(0).text())
+                        && "feedback-B".equals(all.get(2).text()),
                 "since() must be oldest-first (stable chronological order)");
         assertTrue(
                 all.get(0).seq() == base && all.get(2).seq() == base + 2, "seq values are assigned in arrival order");
         assertTrue(
-                all.get(1).kind().equals("player") && all.get(0).kind().equals("system"), "kind survives round-trip");
+                "player".equals(all.get(1).kind()) && "system".equals(all.get(0).kind()), "kind survives round-trip");
         assertEquals(
                 "system", all.get(3).kind(), "null kind normalizes to system — the drain's row encode must never NPE");
         assertTrue(all.get(3).self() && !all.get(1).self(), "self flag survives round-trip");
@@ -40,8 +41,8 @@ class ClientChatLogBufferTest {
         var t2 = log.tail(2, base);
         assertTrue(
                 t2.size() == 2
-                        && t2.get(0).text().equals("kindless")
-                        && t2.get(1).text().equals("feedback-B"),
+                        && "kindless".equals(t2.get(0).text())
+                        && "feedback-B".equals(t2.get(1).text()),
                 "tail(cap) returns the newest cap entries, newest first");
         assertEquals(1, log.tail(10, base + 3).size(), "tail() respects the sinceSeq lower bound");
         assertTrue(log.tail(10, base + 4).isEmpty(), "tail(nextSeq) is empty — no phantom lines");

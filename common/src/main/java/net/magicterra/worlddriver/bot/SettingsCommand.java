@@ -144,7 +144,7 @@ public final class SettingsCommand {
             }
         }
         if (bot != null
-                && updates.stream().anyMatch(u -> u.key().equals("autoBackfill") && Boolean.FALSE.equals(u.value()))) {
+                && updates.stream().anyMatch(u -> "autoBackfill".equals(u.key()) && Boolean.FALSE.equals(u.value()))) {
             bot.forgetBackfill();
         }
     }
