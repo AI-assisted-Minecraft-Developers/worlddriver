@@ -357,7 +357,7 @@ public final class BotUtil {
             Level lvl,
             BlockPos base,
             Vec3 origin,
-            java.util.function.Predicate<BlockState> want,
+            Predicate<BlockState> want,
             double maxDist,
             int radiusH,
             int radiusV) {

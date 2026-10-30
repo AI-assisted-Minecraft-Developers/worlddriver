@@ -34,7 +34,7 @@ public final class Parkour4 extends Move {
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
             return false;
         }
-        if (!Move.hasRunway(w, from, dx, dz)) {
+        if (!hasRunway(w, from, dx, dz)) {
             return false;
         }
         BlockPos to = apply(from);
@@ -42,7 +42,7 @@ public final class Parkour4 extends Move {
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to)) {
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && overTheVoid(w, from, to)) {
             return false;
         }
         if (!w.canStandAt(to)) {

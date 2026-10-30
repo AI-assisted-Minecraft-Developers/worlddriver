@@ -15,7 +15,7 @@ public final class WaterBucketFall extends Move {
     private final int drop;
 
     public WaterBucketFall(int dx, int dz, int drop) {
-        super(dx, -drop, dz, Move.WATER_BUCKET_COST + Move.WATER_FALL_PER_BLOCK * drop);
+        super(dx, -drop, dz, WATER_BUCKET_COST + WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;
     }
 

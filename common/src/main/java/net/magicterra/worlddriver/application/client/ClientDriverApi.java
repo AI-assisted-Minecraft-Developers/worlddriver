@@ -139,11 +139,11 @@ public interface ClientDriverApi {
      * Scored hostile + incoming-projectile assessment around the local player (Phase B/C ThreatScanner):
      * {@code mc.observe.threats}' reply.
      */
-    net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats observeThreats(int radius);
+    ObserveContracts.Threats observeThreats(int radius);
 
     /**
      * Phase G boss sensing — nearest EnderDragon/WitherBoss within {@code radius} plus the End-crystal list:
      * {@code mc.observe.boss}' reply.
      */
-    net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading observeBoss(int radius);
+    ObserveContracts.BossReading observeBoss(int radius);
 }

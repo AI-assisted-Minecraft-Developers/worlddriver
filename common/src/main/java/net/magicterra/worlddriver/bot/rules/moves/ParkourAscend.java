@@ -42,7 +42,7 @@ public final class ParkourAscend extends Move {
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
             return false;
         }
-        if (!Move.hasRunway(w, from)) {
+        if (!hasRunway(w, from)) {
             return false;
         }
         BlockPos to = apply(from); // (sx*dist, +1, sz*dist)
@@ -50,7 +50,7 @@ public final class ParkourAscend extends Move {
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to)) {
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && overTheVoid(w, from, to)) {
             return false;
         }
         if (!w.canStandAt(to)) {
@@ -83,7 +83,7 @@ public final class ParkourAscend extends Move {
             return false;
         }
         // A leap longer than 2 needs the full sprint run-up, as every long leap does (Move.hasRunway).
-        if (dist >= 3 && !Move.hasRunway(w, from, dx, dz)) {
+        if (dist >= 3 && !hasRunway(w, from, dx, dz)) {
             return false;
         }
         for (int i = 1; i < dist; i++) {

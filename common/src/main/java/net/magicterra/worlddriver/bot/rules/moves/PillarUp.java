@@ -91,7 +91,7 @@ public final class PillarUp extends Move {
         }
         BlockPos ceiling = from.offset(0, 2, 0); // head room after rising (= to + 1)
 
-        java.util.List<BlockPos> toBreak = new java.util.ArrayList<>();
+        List<BlockPos> toBreak = new java.util.ArrayList<>();
         double cost = rungCost(w); // material-scarcity pricing — see the config javadoc
 
         // Own-column ceiling: the cell the rising head climbs into. Must be open

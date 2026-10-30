@@ -243,7 +243,7 @@ public final class BotInteract {
         // slew (a lagged crosshair would mine/click the wrong block). Exempt this one
         // tick — see LookController. Cosmetic aims (synthetic placement, look-down)
         // do NOT call this, so they stay smoothed.
-        net.magicterra.worlddriver.game.body.LookController.requestSnap();
+        LookController.requestSnap();
     }
 
     /**
@@ -422,8 +422,7 @@ public final class BotInteract {
      * block; the caller's gate then skips the placement and the bot keeps its resource.
      */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc, boolean avoidValuable) {
-        java.util.function.Predicate<ItemStack> ok =
-                avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
+        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
         LocalPlayer p = mc.player;
         if (p == null) {
             return false;
@@ -465,8 +464,7 @@ public final class BotInteract {
     }
 
     private static boolean ensureHoldingPillarBlock(Minecraft mc, boolean avoidValuable) {
-        java.util.function.Predicate<ItemStack> ok =
-                avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
+        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         LocalPlayer p = mc.player;
         if (p == null) {
             return false;
@@ -513,7 +511,7 @@ public final class BotInteract {
     /**
      * Predicate variant of {@link #ensureHolding(Minecraft, Item)}, with the same hotbar-then- main-inventory reach.
      */
-    public static boolean ensureHolding(Minecraft mc, java.util.function.Predicate<ItemStack> want) {
+    public static boolean ensureHolding(Minecraft mc, Predicate<ItemStack> want) {
         LocalPlayer p = mc.player;
         if (p == null) {
             return false;
@@ -535,7 +533,7 @@ public final class BotInteract {
     }
 
     /** True when the held stack is one {@code want} accepts, or a hotbar slot holds one and is now selected. */
-    private static boolean holdFromHotbar(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
+    private static boolean holdFromHotbar(LocalPlayer p, Predicate<ItemStack> want) {
         Inventory inv = p.getInventory();
         if (want.test(inv.getSelected())) {
             return true;
@@ -550,7 +548,7 @@ public final class BotInteract {
     }
 
     /** Creative only: pick a matching stack up from the main inventory into the hand. */
-    private static boolean creativePick(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
+    private static boolean creativePick(LocalPlayer p, Predicate<ItemStack> want) {
         if (!p.isCreative()) {
             return false;
         }
@@ -569,7 +567,7 @@ public final class BotInteract {
      * {@link #ensureHoldingPillarBlock} survival path, extracted). InventoryMenu slots: 9-35 = main inventory, 36-44 =
      * hotbar. Prefers an empty hotbar slot so tools are kept.
      */
-    public static boolean swapFromMainInv(Minecraft mc, LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
+    public static boolean swapFromMainInv(Minecraft mc, LocalPlayer p, Predicate<ItemStack> want) {
         Inventory inv = p.getInventory();
         AbstractContainerMenu menu = p.inventoryMenu;
         for (int ms = 9; ms <= 35; ms++) {

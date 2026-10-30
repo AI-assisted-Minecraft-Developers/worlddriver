@@ -40,9 +40,7 @@ public final class SurfaceClimbOut extends Move {
         if (!w.isPassable(head) || w.isHazard(head)) {
             return false;
         }
-        return w.canStandOn(from.below())
-                || (bankBeside(w, to) && Move.hasPlaceSupport(w, from))
-                || sideFoothold(w, from);
+        return w.canStandOn(from.below()) || (bankBeside(w, to) && hasPlaceSupport(w, from)) || sideFoothold(w, from);
     }
 
     /**

@@ -28,7 +28,7 @@ public final class Diagonal extends Move {
         if (!valid(w, from)) {
             return null;
         }
-        boolean drop = Move.dropCorner(w, from.offset(dx, 0, 0)) || Move.dropCorner(w, from.offset(0, 0, dz));
+        boolean drop = dropCorner(w, from.offset(dx, 0, 0)) || dropCorner(w, from.offset(0, 0, dz));
         return new Edge(
                 apply(from), cost + (drop ? DROP_CORNER_TAX : 0), java.util.List.of(), java.util.List.of(), name());
     }
@@ -55,7 +55,7 @@ public final class Diagonal extends Move {
         // of them are open void. Rung 20 kept ending with the bot falling out of the world from cells like -15,60,36:
         // flat ground, no leap involved, a diagonal off the edge. One cornered floor is enough,
         // because the bot then always has something under some part of it during the crossing.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) {
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && bottomless(w, sideA) && bottomless(w, sideB)) {
             return false;
         }
         return clearColumn(w, sideA) && clearColumn(w, sideB);

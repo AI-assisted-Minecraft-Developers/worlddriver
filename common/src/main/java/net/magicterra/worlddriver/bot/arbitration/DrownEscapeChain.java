@@ -254,10 +254,8 @@ public final class DrownEscapeChain implements Chain {
                             bz,
                             p.getAirSupply(),
                             String.format(
-                                    java.util.Locale.ROOT,
-                                    "%.4f",
-                                    Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z)),
-                            String.format(java.util.Locale.ROOT, "%.3f", p.getY()));
+                                    Locale.ROOT, "%.4f", Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z)),
+                            String.format(Locale.ROOT, "%.3f", p.getY()));
                 }
                 return;
             }

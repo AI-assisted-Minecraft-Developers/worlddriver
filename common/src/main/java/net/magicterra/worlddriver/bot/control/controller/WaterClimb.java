@@ -148,7 +148,7 @@ public final class WaterClimb implements Controller {
     private boolean
             sideRung; // this takeover has placed a side foothold: keys are anticipatory from here (forward only while
     // wet, jump only wet or settled on the ground); cleared at engage
-    private final java.util.Set<BlockPos> placedRungs = new java.util
+    private final Set<BlockPos> placedRungs = new java.util
             .HashSet<>(); // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit,
     // however dry (navigatorShallowWaterSideFoothold)
     private int
@@ -1299,7 +1299,7 @@ public final class WaterClimb implements Controller {
      * A dry cell beside {@code foot} that the bot can step onto without climbing: standable at the same level or one
      * below, and neither it nor its floor is water.
      */
-    private static boolean flushExitBeside(WorldView world, BlockPos foot, java.util.Set<BlockPos> placedRungs) {
+    private static boolean flushExitBeside(WorldView world, BlockPos foot, Set<BlockPos> placedRungs) {
         for (BlockPos n : new BlockPos[] {foot.east(), foot.west(), foot.north(), foot.south()}) {
             if (world.isWater(n) || world.isWater(n.below())) {
                 continue;

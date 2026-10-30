@@ -26,7 +26,7 @@ import net.minecraft.core.BlockPos;
  */
 public final class ParkourPlace extends Move {
     public ParkourPlace(int dx, int dz) {
-        super(dx * 2, 0, dz * 2, 22 + (int) Move.PLACE_COST);
+        super(dx * 2, 0, dz * 2, 22 + (int) PLACE_COST);
     }
 
     @Override
@@ -44,7 +44,7 @@ public final class ParkourPlace extends Move {
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
             return null;
         }
-        if (!Move.hasRunway(w, from)) {
+        if (!hasRunway(w, from)) {
             return null; // need solid ground to push off
         }
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
@@ -78,7 +78,7 @@ public final class ParkourPlace extends Move {
             // Must be physically placeable: a pre-existing solid neighbour of the
             // landing floor to click against during the leap.
         }
-        if (!Move.hasPlaceSupport(w, floor)) {
+        if (!hasPlaceSupport(w, floor)) {
             return null;
         }
         return new Edge(to, cost, List.of(), List.of(floor), name());

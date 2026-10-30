@@ -62,7 +62,7 @@ public interface BotApi {
      * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain. Answers
      * what it stopped; all answers {@code [all]}, a best-effort broadcast.
      */
-    java.util.List<String> cancel(String which);
+    List<String> cancel(String which);
 
     /** The slots as an untyped tree, for the in-JVM readers that poll one slot by name. */
     Map<String, Object> status();

@@ -336,7 +336,7 @@ public final class ClientWorldView implements StateWorldView {
         // unfinishable price +INF so the next search routes around (live 2026-07-21:
         // quick-start stub kept re-adopting a bare-hand submerged bank carve,
         // 4000t sticky-dig churn per lap).
-        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) {
+        if (BreakFeasibility.isPoisoned(p)) {
             return Double.POSITIVE_INFINITY;
         }
         if (!WorldConfig.allowBreak) {
@@ -409,7 +409,7 @@ public final class ClientWorldView implements StateWorldView {
         // by the very next quick search THROUGH the escape pricing — gate-trip →
         // repath → same cell, several laps per second. See BreakFeasibility for why
         // this cannot break the MC-always-escapable contract.
-        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) {
+        if (BreakFeasibility.isPoisoned(p)) {
             return Double.POSITIVE_INFINITY;
         }
         return rawBreakCost(p);

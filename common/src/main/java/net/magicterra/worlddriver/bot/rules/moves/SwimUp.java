@@ -35,7 +35,7 @@ public final class SwimUp extends Move {
         // down — canStandAt's water=floor fiction otherwise lets A* route the climb-out up a
         // mid-pool column the bot can never establish a foothold in (buoyantWallArena: A*
         // picked open-water z=60 over wall-adjacent z=61 → 587-tick waterline thrash).
-        return Move.hasPlaceSupport(w, to);
+        return hasPlaceSupport(w, to);
     }
 
     @Override

@@ -89,7 +89,7 @@ public final class DebugContracts {
     // ------------------------------------------------------------------ mc.debug.pathChart
 
     @Named("ChartView")
-    public enum ChartView implements net.magicterra.worlddriver.api.schema.WireName {
+    public enum ChartView implements WireName {
         DASHBOARD("dashboard"),
         THREE_VIEW("threeview");
         private final String wire;

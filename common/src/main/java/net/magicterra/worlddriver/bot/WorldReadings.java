@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
@@ -149,7 +148,7 @@ public final class WorldReadings {
         BlockPos p = s.pos();
         return new ClientScene(
                 true,
-                Optional.of(Positions.position(p)),
+                Optional.of(position(p)),
                 Optional.of((double) s.health()),
                 Optional.of(s.food()),
                 Optional.of(s.dayPhase()),

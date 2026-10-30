@@ -17,7 +17,7 @@ public final class FallIntoWater extends Move {
     private final int drop;
 
     public FallIntoWater(int dx, int dz, int drop) {
-        super(dx, -drop, dz, 10 + Move.WATER_FALL_PER_BLOCK * drop);
+        super(dx, -drop, dz, 10 + WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;
     }
 

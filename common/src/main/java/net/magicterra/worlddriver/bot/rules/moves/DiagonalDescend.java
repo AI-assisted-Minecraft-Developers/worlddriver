@@ -71,7 +71,7 @@ public final class DiagonalDescend extends Move {
         // Diagonal was the third time in two days an exemption was written narrower than the family
         // it had to cover; rung 20 kept leaving the world from island rims (-15,60,36 / -16,61,34 /
         // -18,61,36 / -35,62,-6) after the flat one was closed.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) {
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && bottomless(w, sideA) && bottomless(w, sideB)) {
             return false;
         }
 

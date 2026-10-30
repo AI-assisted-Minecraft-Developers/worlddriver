@@ -542,8 +542,8 @@ public final class ClientBot implements BotApi {
      * portal.
      */
     @Override
-    public net.magicterra.worlddriver.game.body.Body clientAvatar() {
+    public Body clientAvatar() {
         Minecraft mc = Minecraft.getInstance();
-        return mc.player == null ? null : new net.magicterra.worlddriver.game.body.ClientPlayerBody(mc);
+        return mc.player == null ? null : new ClientPlayerBody(mc);
     }
 }

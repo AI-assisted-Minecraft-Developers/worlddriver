@@ -252,7 +252,7 @@ public final class DrivePhase {
                     p.level().getGameTime(),
                     nav.stuckTicks,
                     foot.toShortString(),
-                    String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                    String.format(Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     NavigatorGeometry.HOP_RANGE,
                     ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
                     ControlConfig.navigatorRecoveryHopFloorGate,
@@ -328,14 +328,14 @@ public final class DrivePhase {
                 .append(jump)
                 .append(" sprinting=")
                 .append(p.isSprinting())
-                .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
+                .append(String.format(Locale.ROOT, " h=%.4f", h))
                 // ASK THE ATTRIBUTE, do not extrapolate the curve. Sprint is ×1.3 through
                 // Attributes.MOVEMENT_SPEED (verified in 1.21.1: SPEED_MODIFIER_SPRINTING = 0.3,
                 // ADD_MULTIPLIED_TOTAL), so 0.13 here means the channel works and 0.1 means the
                 // modifier never took. The expected steady-state cap is printed beside it so nobody
                 // has to redo the arithmetic.
                 .append(String.format(
-                        java.util.Locale.ROOT,
+                        Locale.ROOT,
                         " speedAttr=%.4f(expected steady-state cap %.4f)",
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
@@ -352,10 +352,7 @@ public final class DrivePhase {
                 // block coordinate below is the same for both (a bot falling from y=49.9 spends
                 // three ticks inside block y=49, exactly like a bot resting on y=49.0).
                 .append(String.format(
-                        java.util.Locale.ROOT,
-                        " soleOnSolid=%.4f y=%.4f",
-                        NavigatorGeometry.soleOnSolid(world, p),
-                        p.getY()))
+                        Locale.ROOT, " soleOnSolid=%.4f y=%.4f", NavigatorGeometry.soleOnSolid(world, p), p.getY()))
                 .append(" foot=")
                 .append(foot.toShortString());
         parkourSamples++;
@@ -2178,8 +2175,7 @@ public final class DrivePhase {
         if (parkour
                 && p != null
                 && p.getDeltaMovement().horizontalDistance() < PARKOUR_MIN_TAKEOFF_SPEED
-                && Safety.voidBeside(
-                        world, net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
+                && Safety.voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
             nav.jumpTag = "vetoed: takeoff speed too low";
             return true;
         }
@@ -2303,8 +2299,7 @@ public final class DrivePhase {
                     foot.toShortString(),
                     hazard == null ? "?" : hazard.toShortString(),
                     wp.toShortString(),
-                    String.format(
-                            java.util.Locale.ROOT, "%.3f", p.getDeltaMovement().horizontalDistance()),
+                    String.format(Locale.ROOT, "%.3f", p.getDeltaMovement().horizontalDistance()),
                     p.isSprinting(),
                     p.onGround());
         }

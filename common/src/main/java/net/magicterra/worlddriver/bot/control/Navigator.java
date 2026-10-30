@@ -571,15 +571,13 @@ public final class Navigator implements Locomotor {
                 + (tp == null
                         ? ""
                         : " pos="
+                                + String.format(Locale.ROOT, "%.2f,%.2f,%.2f", tp.getX(), tp.getY(), tp.getZ())
                                 + String.format(
-                                        java.util.Locale.ROOT, "%.2f,%.2f,%.2f", tp.getX(), tp.getY(), tp.getZ())
-                                + String.format(
-                                        java.util.Locale.ROOT,
+                                        Locale.ROOT,
                                         " speedH=%.3f",
                                         tp.getDeltaMovement().horizontalDistance())
                                 + " sole="
-                                + String.format(
-                                        java.util.Locale.ROOT, "%.3f", NavigatorGeometry.soleOnSolid(world, tp)))
+                                + String.format(Locale.ROOT, "%.3f", NavigatorGeometry.soleOnSolid(world, tp)))
                 + " node="
                 + (route.path() == null
                                 || route.step() < 0

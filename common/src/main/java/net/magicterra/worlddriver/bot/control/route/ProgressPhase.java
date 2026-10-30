@@ -500,7 +500,7 @@ public final class ProgressPhase {
         if (nx == null || nx.getY() <= w.getY() || p.isInWater()) {
             return false;
         }
-        double sole = NavigatorGeometry.soleOnSolid(world, p);
+        double sole = soleOnSolid(world, p);
         boolean stacked = nx.getX() == w.getX() && nx.getZ() == w.getZ();
         if (ControlConfig.navigatorCornerFootingConsume
                 && !stacked
@@ -545,7 +545,7 @@ public final class ProgressPhase {
                 && (world.isWater(foot) || world.isWater(foot.below()))
                 && nav.goal.reached(w)
                 && !nav.goal.reached(foot)
-                && NavigatorGeometry.soleOnSolid(world, p) < FOOTING_MIN;
+                && soleOnSolid(world, p) < FOOTING_MIN;
     }
 
     /**
@@ -682,7 +682,7 @@ public final class ProgressPhase {
         boolean unwalked = ControlConfig.navigatorDescentNodeHold
                 && w.getY() < foot.getY()
                 && !p.isInWater()
-                && NavigatorGeometry.soleOnSolid(world, p) > 0.0
+                && soleOnSolid(world, p) > 0.0
                 && stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS
                 // A dip the bot stepped over: the plan goes down to w and straight back up to the
                 // bot's own row, so there is no descent left to strand (live 1539,71,-180 held with the

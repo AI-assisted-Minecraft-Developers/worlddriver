@@ -407,7 +407,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * {@code BotInteract.swapFromMainInv} keeps the same order, so both bodies hold the same slot. Contents only, so
      * the swap rides broadcastChanges.
      */
-    private boolean holdMatching(java.util.function.Predicate<ItemStack> want) {
+    private boolean holdMatching(Predicate<ItemStack> want) {
         var inv = fp.getInventory();
         if (want.test(inv.getSelected())) {
             return true;

@@ -309,11 +309,11 @@ public final class NavigatorGeometry {
         double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
         // Minecraft yaw: 0 = +Z, 90 = -X. atan2(-dx, dz) puts a world bearing in the same frame.
         double bearing = Math.toDegrees(Math.atan2(-bx, bz));
-        double delta = Math.abs(net.minecraft.util.Mth.wrapDegrees(bearing - p.getYRot()));
+        double delta = Math.abs(Mth.wrapDegrees(bearing - p.getYRot()));
         return String.format(
                 java.util.Locale.ROOT,
                 "facing %.0f°, lethal cell %s at %.0f°, angle between %.0f° (%s)",
-                net.minecraft.util.Mth.wrapDegrees(p.getYRot()),
+                Mth.wrapDegrees(p.getYRot()),
                 lethal.toShortString(),
                 bearing,
                 delta,

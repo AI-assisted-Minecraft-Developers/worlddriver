@@ -41,8 +41,7 @@ public final class WorldDriverClientEvents {
     public static void install() {
         ClientHooks.register(new ClientDriverApiImpl());
         // Only a client gets here, so naming the client class never loads it on a server.
-        GameThreads.installClient(
-                () -> net.minecraft.client.Minecraft.getInstance().isSameThread());
+        GameThreads.installClient(() -> Minecraft.getInstance().isSameThread());
         // Boot both RPC and MCP at client init so mc.client.* (and the script
         // evaluator) are reachable from TitleScreen / Pause — before any world
         // exists. Both ensure*Up() calls are idempotent so onServerStarting

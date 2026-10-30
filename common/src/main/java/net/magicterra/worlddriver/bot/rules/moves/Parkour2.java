@@ -25,14 +25,14 @@ public final class Parkour2 extends Move {
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
             return false;
         }
-        if (!Move.hasRunway(w, from)) {
+        if (!hasRunway(w, from)) {
             return false;
         }
         BlockPos to = apply(from);
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
         // the leap stays available rather than leaving the bot with no move at all.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to)) {
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && overTheVoid(w, from, to)) {
             return false;
         }
         if (!w.canStandAt(to)) {

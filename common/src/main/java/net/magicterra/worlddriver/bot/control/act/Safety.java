@@ -652,7 +652,7 @@ public final class Safety {
         if (p.isInWater()) {
             return skipStride(2);
         }
-        if (NavigatorGeometry.soleOnSolid(world, p) <= 0.0) {
+        if (soleOnSolid(world, p) <= 0.0) {
             return skipStride(3);
         }
         Vec3 dm = p.getDeltaMovement();

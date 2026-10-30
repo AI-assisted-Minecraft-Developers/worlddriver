@@ -108,7 +108,7 @@ public final class VerbOrders {
             return handless("mine", self);
         }
         if (p.pos().isPresent()) {
-            MineCellProcess c = new MineCellProcess(Positions.blockPos(p.pos().get()));
+            MineCellProcess c = new MineCellProcess(blockPos(p.pos().get()));
             return new Start<>(c, () -> new GatherContracts.Mined(p.blocks(), p.pos(), 1, 0, c.broken() ? 1 : 0));
         }
         MineProcess m = new MineProcess(p.blocks(), p.quantity(), p.radius());
