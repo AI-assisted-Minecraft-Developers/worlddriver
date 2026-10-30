@@ -15,7 +15,8 @@ spotless {
     }
     javascript {
         target '*/src/**/*.js'
-        prettier('3.6.2').config([printWidth: 120, tabWidth: 4])
+        // es5: Rhino refuses a comma after a function's last parameter.
+        prettier('3.6.2').config([printWidth: 120, tabWidth: 4, trailingComma: 'es5'])
     }
     format 'misc', {
         target '*.md', '*/*.md', 'docs/**/*.md', '.agents/**/*.md',

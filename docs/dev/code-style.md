@@ -26,14 +26,12 @@ would lay it out.
 
 - Java: Palantir Java Format, with javadoc text reflowed.
 - `*.gradle`: the Groovy-Eclipse formatter, indenting with four spaces (`config/spotless/greclipse.properties`).
-- JavaScript under `*/src/`: Prettier, 120 columns, four-space indent.
+- JavaScript under `*/src/`: Prettier, 120 columns, four-space indent, and a comma after the last item
+  only in arrays and objects (`trailingComma: "es5"`). The scripts run in Rhino, which refuses a comma
+  after the last parameter of a function.
 - Markdown, properties, YAML, JSON, TOML, `.mcmeta`, `.cfg` and XML settings files: trailing spaces
   removed, tabs at the start of a line turned into spaces, a newline at the end. The generated method
   reference of the RPC skill is left alone.
-
-The JavaScript runs in Rhino, which does not accept a comma after the last parameter of a function.
-Prettier writes one when a parameter list is too long for one line, so keep parameter lists short
-enough to fit.
 
 The commits that first applied the formatters are listed in `.git-blame-ignore-revs`. To have
 `git blame` look through them:
