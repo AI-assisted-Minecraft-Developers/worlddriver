@@ -22,10 +22,12 @@ public final class JumpRelease {
     public boolean apply(boolean want, boolean grounded, boolean mayRelease) {
         boolean send = want && !(mayRelease && grounded && delay > 1);
         delay = Math.max(0, delay - 1);
-        if (!send) {
+        if (send) {
+            if (grounded && delay == 0) {
+                delay = 10;
+            }
+        } else {
             delay = 0;
-        } else if (grounded && delay == 0) {
-            delay = 10;
         }
         return send;
     }

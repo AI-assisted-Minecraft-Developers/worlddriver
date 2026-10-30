@@ -78,6 +78,7 @@ public final class ClientIntents {
         }
     }
 
+    /** Whether the {@code breakHold} latch is held. */
     public static boolean digHeld() {
         return digHeld;
     }
@@ -107,6 +108,7 @@ public final class ClientIntents {
         useHeld = v;
     }
 
+    /** Whether the use latch is held. */
     public static boolean useHeld() {
         return useHeld;
     }

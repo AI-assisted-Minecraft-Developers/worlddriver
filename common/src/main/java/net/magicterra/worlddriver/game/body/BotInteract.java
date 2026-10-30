@@ -236,6 +236,7 @@ public final class BotInteract {
         }
     }
 
+    /** Points the crosshair at the centre of {@code block} at once, exempt from the camera slew limit for this tick. */
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
         BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
         // Functional exact aim: vanilla's use-item pass / interaction raycasts off
@@ -294,7 +295,7 @@ public final class BotInteract {
         // Efficiency-V wood pick wins here and loses there — deliberate there (it
         // re-decides every tick off mc.hitResult and must not flap), and named here so
         // the three are read as three, not as one implementation copied twice.
-        Holder<Enchantment> eff = null;
+        Holder<Enchantment> eff;
         try {
             eff = lvl.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.EFFICIENCY);
         } catch (Exception ignored) {
@@ -422,11 +423,11 @@ public final class BotInteract {
      * block; the caller's gate then skips the placement and the bot keeps its resource.
      */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc, boolean avoidValuable) {
-        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
         LocalPlayer p = mc.player;
         if (p == null) {
             return false;
         }
+        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
         return holdFromHotbar(p, ok) || creativePick(p, ok);
     }
 
@@ -452,23 +453,12 @@ public final class BotInteract {
         return ensureHoldingPillarBlock(mc, true) || ensureHoldingPillarBlock(mc, false);
     }
 
-    /**
-     * A pillar block the run did not go and get: usable for a strictly vertical pillar, and not one of the resources
-     * {@code isValuablePlacementBlock} names.
-     */
-    public static boolean isThrowawayPillarBlock(ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
-            return false;
-        }
-        return BuildBlocks.isUsablePillarBlock(bi.getBlock()) && !BuildBlocks.isValuablePlacementBlock(bi.getBlock());
-    }
-
     private static boolean ensureHoldingPillarBlock(Minecraft mc, boolean avoidValuable) {
-        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         LocalPlayer p = mc.player;
         if (p == null) {
             return false;
         }
+        Predicate<ItemStack> ok = avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         if (holdFromHotbar(p, ok)) {
             return true;
         }
@@ -485,6 +475,17 @@ public final class BotInteract {
         // once it was reachable). Pull it to the hotbar via a SWAP click (mirrors AutoEquip's inv→hotbar
         // swap). InventoryMenu slots: 9-35 = main inventory, 36-44 = hotbar.
         return swapFromMainInv(mc, p, ok);
+    }
+
+    /**
+     * A pillar block the run did not go and get: usable for a strictly vertical pillar, and not one of the resources
+     * {@code isValuablePlacementBlock} names.
+     */
+    public static boolean isThrowawayPillarBlock(ItemStack stk) {
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
+            return false;
+        }
+        return BuildBlocks.isUsablePillarBlock(bi.getBlock()) && !BuildBlocks.isValuablePlacementBlock(bi.getBlock());
     }
 
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
@@ -571,21 +572,20 @@ public final class BotInteract {
         Inventory inv = p.getInventory();
         AbstractContainerMenu menu = p.inventoryMenu;
         for (int ms = 9; ms <= 35; ms++) {
-            if (!want.test(menu.getSlot(ms).getItem())) {
-                continue;
+            if (want.test(menu.getSlot(ms).getItem())) {
+                int hb = inv.selected; // default: swap into the held slot
+                for (int h = 0; h < 9; h++) {
+                    if (inv.items.get(h).isEmpty()) {
+                        hb = h;
+                        break;
+                    } // prefer empty (keep tools)
+                }
+                if (mc.gameMode != null) {
+                    mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+                }
+                selectHotbar(p, hb);
+                return want.test(inv.getSelected());
             }
-            int hb = inv.selected; // default: swap into the held slot
-            for (int h = 0; h < 9; h++) {
-                if (inv.items.get(h).isEmpty()) {
-                    hb = h;
-                    break;
-                } // prefer empty (keep tools)
-            }
-            if (mc.gameMode != null) {
-                mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
-            }
-            selectHotbar(p, hb);
-            return want.test(inv.getSelected());
         }
         return false;
     }

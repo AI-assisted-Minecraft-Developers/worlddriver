@@ -18,6 +18,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     private final Minecraft mc;
 
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname") // the player nearly every line reads; kept short
     private final LocalPlayer p;
 
     /**
@@ -34,6 +35,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     private int destroyDrivenTick = -1;
 
+    /** A body over {@code mc}'s current player, installing its {@link AvatarInput} if a vanilla one is in place. */
     public ClientPlayerBody(Minecraft mc) {
         this.mc = mc;
         this.p = mc.player;

@@ -25,14 +25,17 @@ public final class RegistryIds {
         return rl == null ? Optional.empty() : registry.getOptional(rl);
     }
 
+    /** Whether something is registered under {@code id}; false for a malformed id. */
     public static boolean registered(Registry<?> registry, String id) {
         return lookup(registry, id).isPresent();
     }
 
+    /** The namespaced id of the stack's item, such as {@code minecraft:stone}. */
     public static String itemId(ItemStack s) {
         return BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
     }
 
+    /** The namespaced id of the state's block, such as {@code minecraft:stone}. */
     public static String blockId(BlockState s) {
         return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();
     }
@@ -56,6 +59,7 @@ public final class RegistryIds {
         return prop.getName(st.getValue(prop));
     }
 
+    /** The namespaced id of the entity's type, such as {@code minecraft:zombie}. */
     public static String typeId(Entity e) {
         return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }

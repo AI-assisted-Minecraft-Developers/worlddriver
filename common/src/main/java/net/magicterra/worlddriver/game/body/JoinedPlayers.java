@@ -38,13 +38,13 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>Why this exists</h2>
  *
- * Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does the thing in a method
- * this player never runs. Blocks dropped nothing ({@code Level#destroyBlock}'s flag), drops were never picked up (the
- * entity-touch loop in {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
- * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling {@code broadcastChanges}).
- * Each was fixed by hand-copying one more piece of vanilla into the server-side player's mirror of
- * {@code Player.tick()} — and that list only grew, because it was a re-implementation maintained by discovering what
- * was missing.
+ * <p>Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does the thing in a
+ * method this player never runs. Blocks dropped nothing ({@code Level#destroyBlock}'s flag), drops were never picked up
+ * (the entity-touch loop in {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty),
+ * and no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling
+ * {@code broadcastChanges}). Each was fixed by hand-copying one more piece of vanilla into the server-side player's
+ * mirror of {@code Player.tick()} — and that list only grew, because it was a re-implementation maintained by
+ * discovering what was missing.
  *
  * <p>A {@code FakePlayer} is a {@code ServerPlayer} that was never <i>placed</i>. The join path —
  * {@code PlayerList.placeNewPlayer} — is what attaches the inventory-menu listener that awards advancements, puts the
@@ -54,7 +54,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>Joined first, then ticked by vanilla</h2>
  *
- * This landed in two halves, so that no gate had to tell "the player is real now" apart from "movement moved". The
+ * <p>This landed in two halves, so that no gate had to tell "the player is real now" apart from "movement moved". The
  * first joined the player and left its {@code tick()} empty while the driver still integrated locomotion by hand. The
  * second is {@link JoinedBody#pump}: each step runs vanilla's player tick on the input a client writes, and
  * {@code tick()} stays empty only for the level's entity loop, which must not move a bot on a schedule of its own.
@@ -68,11 +68,12 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>The trap in the connection</h2>
  *
- * The fake players this replaced swallowed outbound packets by overriding {@code send} on their <i>packet listener</i>.
- * That does not survive here: {@code placeNewPlayer} constructs vanilla's own {@code ServerGamePacketListenerImpl} and
- * installs it, so the listener is not ours to override. The swallow has to move down to the {@link Connection}, and it
- * has to also report {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it queues
- * them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
+ * <p>The fake players this replaced swallowed outbound packets by overriding {@code send} on their <i>packet
+ * listener</i>. That does not survive here: {@code placeNewPlayer} constructs vanilla's own
+ * {@code ServerGamePacketListenerImpl} and installs it, so the listener is not ours to override. The swallow has to
+ * move down to the {@link Connection}, and it has to also report {@code isConnected() == true} — a disconnected
+ * {@code Connection} does not drop packets, it queues them in {@code pendingActions} forever, which is a leak that
+ * looks like nothing at all.
  */
 public final class JoinedPlayers {
 
@@ -291,7 +292,7 @@ public final class JoinedPlayers {
             double x0 = getX();
             double y0 = getY();
             double z0 = getZ();
-            boolean wasFallFlying = isFallFlying();
+            final boolean wasFallFlying = isFallFlying(); // read before the tick changes it
             super.tick();
             doTick();
             Vec3 moved = new Vec3(getX() - x0, getY() - y0, getZ() - z0);
@@ -357,6 +358,8 @@ public final class JoinedPlayers {
                 pushOutOfBlock(getX() + reach, getZ() + reach);
             }
             if (isSprinting()) {
+                // Ported verbatim from LocalPlayer.aiStep; !(f > x) and f <= x differ when f is NaN.
+                @SuppressWarnings("PMD.LogicInversion")
                 boolean spent = !(forward > 1.0E-5F)
                         || !(isPassenger() || getFoodData().getFoodLevel() > 6 || getAbilities().mayfly);
                 if (isSwimming()) {
@@ -466,10 +469,14 @@ public final class JoinedPlayers {
         }
 
         @Override
-        public void die(DamageSource cause) {}
+        public void die(DamageSource cause) {
+            // Cannot die, for the same reason it is invulnerable.
+        }
 
         @Override
-        public void displayClientMessage(Component message, boolean actionBar) {}
+        public void displayClientMessage(Component message, boolean actionBar) {
+            // No client to show it to.
+        }
     }
 
     /**
@@ -521,13 +528,19 @@ public final class JoinedPlayers {
         }
 
         @Override
-        public void send(Packet<?> packet) {}
+        public void send(Packet<?> packet) {
+            // Swallowed: there is no client.
+        }
 
         @Override
-        public void send(Packet<?> packet, @Nullable PacketSendListener listener) {}
+        public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
+            // Swallowed: there is no client.
+        }
 
         @Override
-        public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) {}
+        public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) {
+            // Swallowed: there is no client.
+        }
 
         @Override
         public boolean isConnected() {
@@ -535,32 +548,48 @@ public final class JoinedPlayers {
         }
 
         @Override
-        public void tick() {}
+        public void tick() {
+            // Nothing queued and no channel to poll.
+        }
 
         @Override
-        public void disconnect(Component reason) {}
+        public void disconnect(Component reason) {
+            // Stays "connected"; see the class javadoc.
+        }
 
         @Override
-        public void disconnect(DisconnectionDetails details) {}
+        public void disconnect(DisconnectionDetails details) {
+            // Stays "connected"; see the class javadoc.
+        }
 
         @Override
-        public void setListenerForServerboundHandshake(PacketListener listener) {}
+        public void setListenerForServerboundHandshake(PacketListener listener) {
+            // No handshake ever arrives.
+        }
 
         @Override
-        public void setReadOnly() {}
+        public void setReadOnly() {
+            // Nothing is ever read from this connection.
+        }
 
         @Override
-        public void setupCompression(int threshold, boolean validate) {}
+        public void setupCompression(int threshold, boolean validate) {
+            // A pipeline edit on a pipeline that goes nowhere.
+        }
 
         /**
          * Called every server tick from {@code ServerCommonPacketListenerImpl.resumeFlushing}, and it reaches for
          * {@code channel.eventLoop()} directly rather than going through send.
          */
         @Override
-        public void flushChannel() {}
+        public void flushChannel() {
+            // Nothing buffered to flush.
+        }
 
         @Override
-        public void handleDisconnection() {}
+        public void handleDisconnection() {
+            // Never disconnects.
+        }
 
         /**
          * The two that a swallowed {@code send} does not cover, and the reason the first attempt still died: a protocol
@@ -580,7 +609,9 @@ public final class JoinedPlayers {
         }
 
         @Override
-        public void setupOutboundProtocol(net.minecraft.network.ProtocolInfo<?> protocol) {}
+        public void setupOutboundProtocol(net.minecraft.network.ProtocolInfo<?> protocol) {
+            // A pipeline edit; outbound packets are swallowed in send either way.
+        }
 
         @Override
         public PacketListener getPacketListener() {

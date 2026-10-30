@@ -43,6 +43,7 @@ public final class AvatarInput extends KeyboardInput {
 
     private final JumpRelease jumpRelease = new JumpRelease();
 
+    /** Keyboard input over {@code options}; a {@code command*} call overrides the keys for the tick it is made in. */
     public AvatarInput(Options options) {
         super(options);
     }

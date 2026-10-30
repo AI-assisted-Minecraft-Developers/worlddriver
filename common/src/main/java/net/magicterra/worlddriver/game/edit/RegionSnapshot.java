@@ -159,10 +159,12 @@ public final class RegionSnapshot {
         return new EntityOutcome(removed, restored);
     }
 
+    /** The number of cells in the captured box. */
     public int cells() {
         return sx * sy * sz;
     }
 
+    /** The number of captured cells that were not air. */
     public int nonAir() {
         return nonAir;
     }

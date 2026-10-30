@@ -91,6 +91,9 @@ public final class MouseYield {
                 }
             }
             case NONE -> {}
+            default -> {
+                // Every Action is handled above.
+            }
         }
         if (!GATE.driving()) {
             driver = "";

@@ -58,6 +58,10 @@ public final class BlockChanges {
         return log == null ? 0 : log.head();
     }
 
+    private synchronized long head() {
+        return next;
+    }
+
     /**
      * The cells (as {@link BlockPos#asLong}) that changed in {@code level} from sequence {@code from} up to now, oldest
      * first; empty when none did; null when more than {@link #CAPACITY} did, so some are gone. The next read starts at
@@ -73,10 +77,8 @@ public final class BlockChanges {
         next++;
     }
 
-    private synchronized long head() {
-        return next;
-    }
-
+    // Null is the documented "some changes were overwritten" answer of since(); empty means none happened.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private synchronized long[] from(long from) {
         long start = Math.max(from, 0);
         if (start >= next) {

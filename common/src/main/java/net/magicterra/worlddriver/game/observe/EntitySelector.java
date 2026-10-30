@@ -9,6 +9,7 @@ import com.google.common.primitives.Ints;
 public final class EntitySelector {
     private EntitySelector() {}
 
+    /** Whether the selector, trimmed, is all digits and so names an entity id; null is not. */
     public static boolean isId(String selector) {
         String s = selector == null ? "" : selector.trim();
         return !s.isEmpty() && s.chars().allMatch(Character::isDigit);
@@ -19,6 +20,7 @@ public final class EntitySelector {
         return Ints.tryParse(selector.trim());
     }
 
+    /** Whether the selector names the entity with this id, name and type id; a null or blank selector matches none. */
     public static boolean matches(String selector, int id, String name, String typeId) {
         if (selector == null || selector.isBlank()) {
             return false;

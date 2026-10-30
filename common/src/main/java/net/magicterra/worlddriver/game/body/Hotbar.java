@@ -35,6 +35,7 @@ public final class Hotbar {
         return -1;
     }
 
+    /** Whether the stack is a non-empty item with a food component; null reads as not food. */
     public static boolean isFood(ItemStack stk) {
         return stk != null && !stk.isEmpty() && stk.get(DataComponents.FOOD) != null;
     }

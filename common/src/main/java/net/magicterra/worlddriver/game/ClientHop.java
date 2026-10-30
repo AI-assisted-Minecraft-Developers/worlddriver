@@ -28,13 +28,13 @@ public final class ClientHop {
         return hop().call(body);
     }
 
+    static <T> T call(Executor client, BooleanSupplier onClientThread, long timeoutMs, Supplier<T> body) {
+        return new ServerThreadHop(client, onClientThread, timeoutMs, "client thread").call(body);
+    }
+
     /** The hop itself, for a caller that submits without blocking. */
     public static ServerThreadHop hop() {
         Minecraft mc = Minecraft.getInstance();
         return new ServerThreadHop(mc, mc::isSameThread, CLIENT_THREAD_TIMEOUT_MS, "client thread");
-    }
-
-    static <T> T call(Executor client, BooleanSupplier onClientThread, long timeoutMs, Supplier<T> body) {
-        return new ServerThreadHop(client, onClientThread, timeoutMs, "client thread").call(body);
     }
 }

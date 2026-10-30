@@ -47,8 +47,8 @@ public interface BlockInteraction {
      *
      * <pre>{@code a.aimAtBlock(t); b.breakHold(true); b.continueDestroy(t); }</pre>
      *
-     * The hold for the bookkeeping, the drive for the block. Releasing the hold drops the pending stand-aside too, so
-     * vanilla's next pass aborts the break exactly as a released key did.
+     * <p>The hold for the bookkeeping, the drive for the block. Releasing the hold drops the pending stand-aside too,
+     * so vanilla's next pass aborts the break exactly as a released key did.
      *
      * <p>Server-side players: there {@code breakHold(true)} destroys the aimed block directly, and
      * {@code continueDestroy} on the same cell in the same tick adds nothing. That asymmetry is why the client half
@@ -60,7 +60,7 @@ public interface BlockInteraction {
     boolean breakHeld();
 
     /**
-     * Could a player standing here actually break {@code pos}?
+     * Whether a player standing here could actually break {@code pos}.
      *
      * <p>Asked BEFORE aiming, so a digger can peel what is in the way instead of swinging at something it will never
      * hit. The client answer is {@code true}: vanilla's own game mode owns reach and the crosshair raycast, and
@@ -86,11 +86,15 @@ public interface BlockInteraction {
      * Advance vanilla block destruction on {@code cell} directly, bypassing the crosshair raycast (self-starts on first
      * call — AntiSuffocate gap#69 pattern). At most once per cell per tick. No-op on a body that cannot break blocks.
      */
-    default void continueDestroy(BlockPos cell) {}
+    default void continueDestroy(BlockPos cell) {
+        // A body that cannot break blocks has nothing to advance.
+    }
 
     /**
      * Abandon the break in progress, so its progress is lost; a reflex that drove one with {@link #continueDestroy}
      * ends it here.
      */
-    default void stopDestroy() {}
+    default void stopDestroy() {
+        // A body that cannot break blocks has no break in progress.
+    }
 }

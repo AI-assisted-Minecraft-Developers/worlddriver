@@ -25,7 +25,7 @@ public final class AttackSnap {
     private AttackSnap() {}
 
     /**
-     * Melee readiness of the held weapon, right now:
+     * Melee readiness of the held weapon, right now.
      *
      * <ul>
      *   <li>{@code strengthScale} — 0.0-1.0, vanilla's damage multiplier for a swing landed this tick. Sampled with no
@@ -38,7 +38,7 @@ public final class AttackSnap {
      *       faster than an axe), so the agent can compare weapons rather than infer damage-per-second from bruises.
      * </ul>
      *
-     * A crit additionally needs the player to be falling ({@code onGround} is already in the snapshot), so it is not
+     * <p>A crit additionally needs the player to be falling ({@code onGround} is already in the snapshot), so it is not
      * restated here.
      */
     public static Map<String, Object> snapshot(Player p) {

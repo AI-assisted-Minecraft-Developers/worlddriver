@@ -18,6 +18,7 @@ public final class Crops {
 
     private Crops() {}
 
+    /** One crop: its block id, the item that plants it, and the item harvesting it yields. */
     public record Crop(String block, String seed, String harvest) {}
 
     /** The item that replants {@code block}, or null when it is not a crop. */

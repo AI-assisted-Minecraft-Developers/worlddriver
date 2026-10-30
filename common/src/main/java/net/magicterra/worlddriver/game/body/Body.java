@@ -92,8 +92,10 @@ public interface Body {
      */
     void commandForward(float forward);
 
+    /** Jump intent for this tick, as a held space bar; vanilla's jump gate decides whether it becomes an impulse. */
     void commandJump(boolean v);
 
+    /** Sneak intent for this tick, as a held shift key. */
     void commandSneak(boolean v);
 
     /**
@@ -182,14 +184,17 @@ public interface Body {
     BlockPos lookingAtBlock();
 
     // --- debug snapshot of the commanded input (navigator trace only) ---
+    /** Whether a horizontal move is commanded this tick; for the navigator trace only. */
     default boolean dbgForwardImpulse() {
         return false;
     }
 
+    /** Whether a jump is commanded this tick; for the navigator trace only. */
     default boolean dbgJumping() {
         return false;
     }
 
+    /** Whether a sneak is commanded this tick; for the navigator trace only. */
     default boolean dbgSneak() {
         return false;
     }

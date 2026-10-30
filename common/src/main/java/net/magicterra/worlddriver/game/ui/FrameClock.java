@@ -40,6 +40,7 @@ public final class FrameClock {
         }
     }
 
+    /** The number of frames drawn so far in this JVM. */
     public static long drawn() {
         return DRAWN.get();
     }

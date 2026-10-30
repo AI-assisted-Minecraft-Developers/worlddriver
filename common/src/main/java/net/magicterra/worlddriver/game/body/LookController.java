@@ -27,6 +27,9 @@ public final class LookController {
 
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
+    /** Whole-degree format for the RENDER log rows. */
+    private static final String DEGREES = "%.0f";
+
     private static float prevYaw;
 
     private static float prevPitch;
@@ -113,28 +116,7 @@ public final class LookController {
         float pitch = p.getXRot();
         boolean snap = snapThisTick || !GameConfig.cameraSlew || !havePrev;
         snapThisTick = false;
-        // GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is
-        // exactly what the video sees (and what walk-keys, captured pre-apply, cannot show).
-        if (GameConfig.navigatorDebug && havePrev) {
-            float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
-            if (rd >= 30f) {
-                LOG.info(
-                        "[lookctrl] RENDER {} dyaw={} {}->{}",
-                        snap ? "SNAP" : "slew",
-                        String.format("%.0f", rd),
-                        String.format("%.0f", prevYaw),
-                        String.format("%.0f", yaw));
-            }
-            float pd = Math.abs(pitch - prevPitch);
-            if (pd >= 30f) {
-                LOG.info(
-                        "[lookctrl] RENDER {} dpitch={} {}->{}",
-                        snap ? "SNAP" : "slew",
-                        String.format("%.0f", pd),
-                        String.format("%.0f", prevPitch),
-                        String.format("%.0f", pitch));
-            }
-        }
+        logRenderJump(snap, yaw, pitch);
         float rendered;
         if (snap) {
             // Same heading, but the VALUE nearest last tick's: the renderer lerps yRotO→yRot by value, so a dig
@@ -159,7 +141,7 @@ public final class LookController {
             } else if (dp < -maxP) {
                 dp = -maxP;
             }
-            float np = clamp(prevPitch + dp, -90f, 90f);
+            final float np = clamp(prevPitch + dp, -90f, 90f);
             p.setYRot(ny);
             p.yHeadRot = ny;
             p.yBodyRot = ny;
@@ -168,8 +150,41 @@ public final class LookController {
             prevPitch = np;
             rendered = ny;
         }
-        // WINDING: accumulate the rendered camera's net rotation. A smooth multi-turn spin (no
-        // single snap) still reads as spinning — this is what per-tick snap-counting missed.
+        accumulateWinding(rendered);
+    }
+
+    /**
+     * GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is exactly what the video sees
+     * (and what walk-keys, captured pre-apply, cannot show). Reads the baseline before {@link #apply} moves it.
+     */
+    private static void logRenderJump(boolean snap, float yaw, float pitch) {
+        if (GameConfig.navigatorDebug && havePrev) {
+            float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
+            if (rd >= 30f) {
+                LOG.info(
+                        "[lookctrl] RENDER {} dyaw={} {}->{}",
+                        snap ? "SNAP" : "slew",
+                        String.format(DEGREES, rd),
+                        String.format(DEGREES, prevYaw),
+                        String.format(DEGREES, yaw));
+            }
+            float pd = Math.abs(pitch - prevPitch);
+            if (pd >= 30f) {
+                LOG.info(
+                        "[lookctrl] RENDER {} dpitch={} {}->{}",
+                        snap ? "SNAP" : "slew",
+                        String.format(DEGREES, pd),
+                        String.format(DEGREES, prevPitch),
+                        String.format(DEGREES, pitch));
+            }
+        }
+    }
+
+    /**
+     * WINDING: accumulate the rendered camera's net rotation. A smooth multi-turn spin (no single snap) still reads as
+     * spinning — this is what per-tick snap-counting missed.
+     */
+    private static void accumulateWinding(float rendered) {
         if (GameConfig.navigatorDebug) {
             if (windHavePrev) {
                 float d = Mth.degreesDifference(windPrev, rendered);

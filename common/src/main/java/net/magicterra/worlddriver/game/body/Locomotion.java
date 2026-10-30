@@ -53,6 +53,7 @@ public record Locomotion(
         RIDE
     }
 
+    /** Freezes {@code modes} into an unmodifiable copy. */
     public Locomotion {
         modes = Collections.unmodifiableSet(modes.isEmpty() ? EnumSet.noneOf(Mode.class) : EnumSet.copyOf(modes));
     }

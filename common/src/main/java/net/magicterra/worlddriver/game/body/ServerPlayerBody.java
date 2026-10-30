@@ -158,6 +158,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      */
     private String lastAttackRefusal;
 
+    /** A body over {@code fp}, attaching the inventory-menu listener a placed player would have had. */
     public ServerPlayerBody(ServerPlayer fp) {
         this.fp = fp;
         // Attach vanilla's own inventory-menu listener. A real player gets this from
@@ -245,6 +246,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return new ServerPlayerBody(fp);
     }
 
+    /** The server player this body drives; the same object as {@link #entity()}. */
     public ServerPlayer fakePlayer() {
         return fp;
     }
@@ -435,24 +437,23 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             }
         }
         for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (!want.test(inv.items.get(slot))) {
-                continue;
-            }
-            int to = inv.selected;
-            for (int h = 0; h < 9; h++) {
-                if (inv.items.get(h).isEmpty()) {
-                    to = h;
-                    break;
+            if (want.test(inv.items.get(slot))) {
+                int to = inv.selected;
+                for (int h = 0; h < 9; h++) {
+                    if (inv.items.get(h).isEmpty()) {
+                        to = h;
+                        break;
+                    }
                 }
+                ItemStack bag = inv.items.get(slot);
+                inv.items.set(slot, inv.items.get(to));
+                inv.items.set(to, bag);
+                // `to` starts AS the selected slot and only moves if an empty hotbar slot was found, so
+                // this is often a no-op write; carryTo's equality guard is what keeps it from putting a
+                // pointless packet on the wire.
+                carryTo(to);
+                return true;
             }
-            ItemStack bag = inv.items.get(slot);
-            inv.items.set(slot, inv.items.get(to));
-            inv.items.set(to, bag);
-            // `to` starts AS the selected slot and only moves if an empty hotbar slot was found, so
-            // this is often a no-op write; carryTo's equality guard is what keeps it from putting a
-            // pointless packet on the wire.
-            carryTo(to);
-            return true;
         }
         return false;
     }
@@ -750,7 +751,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     }
 
     /**
-     * Can a player standing here actually break that block?
+     * Whether a player standing here could actually break that block.
      *
      * <p>{@code ServerPlayerGameMode.destroyBlock} has no reach gate and no visibility gate (the packet handler that a
      * connected player's break passes through first has the reach one), so without this the avatar mines through solid
@@ -892,6 +893,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return pendingForward;
     }
 
+    /** The left impulse the next step moves on; see {@link #pendingForward()}. */
     public float pendingLeft() {
         return pendingLeft;
     }

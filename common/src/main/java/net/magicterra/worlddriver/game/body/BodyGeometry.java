@@ -138,6 +138,7 @@ public final class BodyGeometry {
      */
     @FunctionalInterface
     public interface SoleCellVisitor {
+        /** One sole cell, with the area of the footprint (in square blocks) that lies over it. */
         void cell(BlockPos at, double area);
     }
 

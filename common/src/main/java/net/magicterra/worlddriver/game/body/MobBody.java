@@ -148,9 +148,12 @@ public final class MobBody implements Body {
     private boolean unresponsive;
 
     /** Implemented on every {@link Mob} by {@code MobMixin}: the body driving it, or null. */
+    @SuppressWarnings({"checkstyle:googlemethodname", "PMD.AvoidDollarSigns"}) // mixin-added: modid$ avoids clashes
     public interface Driven {
+        /** The body driving this mob, or null when none is. */
         MobBody worlddriver$body();
 
+        /** Attaches {@code body} to this mob, or detaches the current one with null. */
         void worlddriver$body(MobBody body);
     }
 
@@ -462,6 +465,7 @@ public final class MobBody implements Body {
      * Not a run of consecutive ticks: a stalled walk lets go of the keys between its recoveries, and a count that reset
      * on every release would never fill.
      */
+    @SuppressWarnings("PMD.UnusedAssignment") // pushStart is a field the next tick's call reads
     private void watchResponse() {
         Vec3 now = mob.position();
         if (pushStart == null

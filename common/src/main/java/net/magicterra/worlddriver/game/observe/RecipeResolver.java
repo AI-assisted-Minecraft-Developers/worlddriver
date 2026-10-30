@@ -66,6 +66,7 @@ public final class RecipeResolver {
      * crafted, and the distinct {@code stations} the jobs need (excluding the 2×2 inventory grid).
      */
     public record Plan(String target, int count, List<Job> jobs, Map<String, Integer> missing, Set<String> stations) {
+        /** Whether nothing is missing, so running the jobs crafts the target. */
         public boolean complete() {
             return missing.isEmpty();
         }
@@ -128,6 +129,7 @@ public final class RecipeResolver {
      * Post-order DFS: emit a job only after its ingredients are expanded, so the job list comes out dependency-first
      * (topologically ordered).
      */
+    @SuppressWarnings("checkstyle:parameternumber") // the DFS's shared state, threaded through each recursive call
     private static void expand(
             String itemId,
             int qty,
@@ -302,11 +304,11 @@ public final class RecipeResolver {
             return false;
         }
         String y = ings.keySet().iterator().next();
-        List<RecipeHolder<?>> yProducers = producers.get(y);
-        if (yProducers == null) {
+        List<RecipeHolder<?>> producersOfY = producers.get(y);
+        if (producersOfY == null) {
             return false;
         }
-        for (RecipeHolder<?> yh : yProducers) {
+        for (RecipeHolder<?> yh : producersOfY) {
             Map<String, Integer> yings = distinctIngredients(yh.value());
             if (yings.size() == 1 && yings.containsKey(x)) {
                 return true;
@@ -438,6 +440,7 @@ public final class RecipeResolver {
 
     // === shared leaf helpers =================================================
 
+    /** The distinct item ids the ingredient accepts, in the ingredient's own order. */
     public static List<String> acceptedIds(Ingredient ing) {
         List<String> ids = new ArrayList<>();
         for (ItemStack s : ing.getItems()) {
@@ -499,6 +502,7 @@ public final class RecipeResolver {
         return n <= 4;
     }
 
+    /** The recipe's result item, or null when computing it throws, as some dynamic recipes do. */
     public static ItemStack safeResult(Recipe<?> r, HolderLookup.Provider ra) {
         try {
             return r.getResultItem(ra);

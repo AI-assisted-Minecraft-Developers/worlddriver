@@ -104,7 +104,7 @@ public final class FocusPolicy {
         overriding = false;
     }
 
-    /** Test/diagnostic readback: is the override currently installed? */
+    /** Test/diagnostic readback: whether the override is currently installed. */
     public static boolean isOverriding() {
         return overriding;
     }

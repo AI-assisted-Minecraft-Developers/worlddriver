@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.game.ui;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,7 +68,7 @@ public final class ClientChatLog {
      * {@link #GLOBAL}.
      */
     public static final class Buffer {
-        private final ArrayDeque<Entry> log = new ArrayDeque<>();
+        private final Deque<Entry> log = new ArrayDeque<>();
 
         private long nextSeq = 0;
 
@@ -149,10 +150,12 @@ public final class ClientChatLog {
         }
     }
 
+    /** {@link Buffer#record} on the live session's log. */
     public static void record(String kind, String text, long gameTime, boolean self) {
         GLOBAL.record(kind, text, gameTime, self);
     }
 
+    /** {@link Buffer#nextSeq} on the live session's log. */
     public static long nextSeq() {
         return GLOBAL.nextSeq();
     }
@@ -165,10 +168,12 @@ public final class ClientChatLog {
         return GLOBAL.clear();
     }
 
+    /** {@link Buffer#since} on the live session's log. */
     public static List<Entry> since(long sinceSeq) {
         return GLOBAL.since(sinceSeq);
     }
 
+    /** {@link Buffer#tail} on the live session's log. */
     public static List<Entry> tail(int cap, long sinceSeq) {
         return GLOBAL.tail(cap, sinceSeq);
     }

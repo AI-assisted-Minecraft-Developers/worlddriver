@@ -99,6 +99,7 @@ public final class BotUtil {
         return new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
+    /** The standard failure result for a verb this side does not implement, naming what is missing. */
     public static Map<String, Object> unimplemented(String msg) {
         return Map.of("ok", false, "error", "unimplemented: " + msg);
     }
@@ -180,7 +181,7 @@ public final class BotUtil {
      *       "route around", not "I am being hurt".
      * </ul>
      *
-     * Both are narrower than this method on purpose; widening either one is a behaviour change, not a cleanup.
+     * <p>Both are narrower than this method on purpose; widening either one is a behaviour change, not a cleanup.
      */
     public static boolean isHazardState(BlockState s) {
         if (s.getFluidState().is(FluidTags.LAVA)) {

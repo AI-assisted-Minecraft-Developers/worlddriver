@@ -47,6 +47,7 @@ public final class HandVerbs {
     }
 
     /** Turn the head, body and view to {@code aim}. */
+    @SuppressWarnings("PMD.UseVarargs") // aim is a fixed {yaw, pitch} pair, not a variable argument list
     public static void turn(LivingEntity e, float[] aim) {
         e.setYRot(aim[0]);
         e.yHeadRot = aim[0];

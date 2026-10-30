@@ -50,7 +50,9 @@ public interface Attack {
      * Store why the last {@link #attackEntity} declined ({@code null} = it swung). Implementations keep one field; the
      * default drops it, which only costs the diagnostic.
      */
-    default void noteAttackRefusal(String why) {}
+    default void noteAttackRefusal(String why) {
+        // Dropped by default: only the diagnostic is lost.
+    }
 
     /**
      * Why the last {@link #attackEntity} did not swing, or {@code null} if it did. Read it right after the call — a

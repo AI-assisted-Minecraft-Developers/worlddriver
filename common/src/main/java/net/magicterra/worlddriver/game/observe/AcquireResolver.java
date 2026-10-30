@@ -64,6 +64,7 @@ public final class AcquireResolver {
 
     private AcquireResolver() {}
 
+    /** The kind of a {@link Step}; plans list them in the order mine and farm, then smelt, then craft. */
     public enum Action {
         MINE,
         FARM,
@@ -78,12 +79,21 @@ public final class AcquireResolver {
     public record Step(
             Action action, String item, int count, String station, List<String> blocks, String input, String from) {}
 
+    /**
+     * The steps to obtain {@code count} of {@code target}, in execution order, plus the leaves no step can obtain and
+     * how many of each are still missing.
+     */
     public record Plan(String target, int count, List<Step> steps, Map<String, Integer> unobtainable) {
+        /** Whether every leaf is obtainable, so running the steps reaches the target. */
         public boolean feasible() {
             return unobtainable.isEmpty();
         }
     }
 
+    /**
+     * Plans how to obtain {@code count} of {@code target} given the items already in {@code have}, assuming no station
+     * is within reach.
+     */
     public static Plan plan(
             RecipeManager rm, HolderLookup.Provider ra, String target, int count, Map<String, Integer> have) {
         return plan(rm, ra, target, count, have, Set.of());

@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <h2>The run this exists for</h2>
  *
- * Rung 20 of the journey ladder (2026-08-18) walked onto a caged end spike's LID to get in reach (end position
+ * <p>Rung 20 of the journey ladder (2026-08-18) walked onto a caged end spike's LID to get in reach (end position
  * {@code -33,86,23}, block underfoot {@code minecraft:iron_bars}, {@code end=arrived}), hit the crystal once, and the
  * next rung started with {@code minecraft:air} underfoot and ended at a lowest y of {@code -5220}. Rungs 5–9 of that
  * run are all free fall. One hit, nine rungs.
@@ -30,10 +30,10 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <h2>The threshold, and why it is NOT {@code resistance < power}</h2>
  *
- * Writing the criterion the obvious way — {@code getExplosionResistance() < power} — makes this whole guard a <b>silent
- * no-op</b> for the exact case it was written for: iron bars are 6.0, the crystal's blast is 6.0, and {@code 6.0 < 6.0}
- * is false, so the bars pass. Nothing would refuse, nothing would log, and the bot would still be dropped into the
- * void.
+ * <p>Writing the criterion the obvious way — {@code getExplosionResistance() < power} — makes this whole guard a
+ * <b>silent no-op</b> for the exact case it was written for: iron bars are 6.0, the crystal's blast is 6.0, and
+ * {@code 6.0 < 6.0} is false, so the bars pass. Nothing would refuse, nothing would log, and the bot would still be
+ * dropped into the void.
  *
  * <p>The real rule is in {@code Explosion.explode()}. Each of vanilla's rays starts at {@code f = power * (0.7F +
  * random.nextFloat() * 0.6F)}, i.e. up to {@code 1.3 * power}. At every 0.3-block step it subtracts {@code (resistance
@@ -270,7 +270,6 @@ public final class BlastFooting {
     private static String surveyStands(Level level, BlockPos from, double need) {
         List<BlockPos> stands = qualifyingStands(level, from, need);
         int found = stands.size();
-        BlockPos nearest = found == 0 ? null : stands.get(0);
         if (found == 0) {
             return String.format(
                     Locale.ROOT,
@@ -278,6 +277,7 @@ public final class BlastFooting {
                             + "is too weak or air, or has no room for the bot). ",
                     STAND_SURVEY_RADIUS);
         }
+        BlockPos nearest = stands.get(0);
         return String.format(
                 Locale.ROOT,
                 "%2$d qualifying stands are visible within radius %1$d (nearest %3$s, floor %4$s with "

@@ -50,10 +50,12 @@ public final class MouseYieldGate {
         GRAB
     }
 
+    /** A gate with the default linger window. */
     public MouseYieldGate() {
         this(DEFAULT_LINGER_TICKS);
     }
 
+    /** A gate that still counts as driving for {@code lingerTicks} ticks after the last drive mark. */
     public MouseYieldGate(int lingerTicks) {
         this.lingerTicks = lingerTicks;
     }
