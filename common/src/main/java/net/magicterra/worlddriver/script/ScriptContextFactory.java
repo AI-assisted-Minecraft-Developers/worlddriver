@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.script;
 
 import java.util.Map;
 
+import dev.latvian.mods.rhino.CachedClassStorage;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.Scriptable;
@@ -19,6 +20,12 @@ public final class ScriptContextFactory extends ContextFactory {
     @Override
     protected Context createContext() {
         return new SandboxedContext(this);
+    }
+
+    /** A Java class's methods without the overloads that only make a call ambiguous; see {@link ScriptClassStorage}. */
+    @Override
+    public CachedClassStorage getCachedClassStorage() {
+        return ScriptClassStorage.INSTANCE;
     }
 
     private static final class SandboxedContext extends Context {

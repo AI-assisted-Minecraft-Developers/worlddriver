@@ -107,12 +107,46 @@ class HostedScriptsTest {
     /** A map whose keys are not strings still has methods: looking a member name up as a key must not throw. */
     @Test
     void aMethodOnAnIntKeyedMapIsCallable() {
-        // Entries go in by index: put has int, Integer and Object overloads, which Rhino cannot choose between.
         String make = "var M = Java.type('it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap'); var m = new M();"
                 + " m[3] = 'three';";
         Object size = scripts.evaluate("int-map.js", make + " m.int2ObjectEntrySet().size() + m.size()", Map.of());
         assertEquals(2.0, ((Number) size).doubleValue());
         assertEquals("three", String.valueOf(scripts.evaluate("int-map-key.js", make + " String(m[3])", Map.of())));
+    }
+
+    @Test
+    void aPrimitiveMapTakesPut() {
+        // put has a primitive, a deprecated boxed and a bridge overload, which Rhino used to call ambiguous.
+        Object out = scripts.evaluate("primitive-put.js",
+                "var i = new (Java.type('it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap'))(); i.put(3, 'three');"
+                        + " var l = new (Java.type('it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap'))(); l.put(5, 'five');"
+                        + " var o = new (Java.type('it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap'))();"
+                        + " o.put('a', 1); o.addTo('a', 10);"
+                        + " [i.get(3), i.containsKey(3), l.get(5), l.remove(5), l.size(), o.getInt('a')].join(',')",
+                Map.of());
+        assertEquals("three,true,five,five,0,11", out);
+    }
+
+    @Test
+    void ordinaryOverloadsAndABridgeToAHiddenSuperclassStayCallable() throws Exception {
+        assertTrue(ShownSub.class.getDeclaredMethod("greet").isBridge(), "the fixture must carry a visibility bridge");
+        Object out = scripts.evaluate("overloads.js",
+                "var a = new (Java.type('java.util.ArrayList'))(); a.add('x'); a.add('y'); a.add(0, 'w'); a.remove(0);"
+                        + " var max = Java.type('java.lang.Math').max(2, 7);"
+                        + " var s = new (Java.type('" + ShownSub.class.getName() + "'))();"
+                        + " [a.get(0), a.size(), max, s.greet()].join(',')",
+                Map.of());
+        assertEquals("x,2,7,hi", out);
+    }
+
+    /** Not public: a script reaches {@link #greet} only through the bridge javac gives {@link ShownSub}. */
+    static class HiddenBase {
+        public String greet() {
+            return "hi";
+        }
+    }
+
+    public static class ShownSub extends HiddenBase {
     }
 
     @Test

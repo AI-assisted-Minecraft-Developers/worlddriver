@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-30
 
+- **A script can call `put` on fastutil's primitive maps.** Such a map
+  offers a primitive `put(int, V)`, a deprecated boxed `put(Integer, V)` and the compiler's bridge
+  `put(Object, Object)`, and the script engine found no overload better than the others, so
+  `map.put(3, 'x')` threw as ambiguous. Scripts no longer see a bridge whose target they can reach, nor a
+  deprecated overload that only boxes a primitive one; a bridge that is the only way to a public method of
+  a non-public class stays.
+
 - **A bot is one player whichever dimension it is in.** The bots' players were kept per dimension, filed
   under the dimension they were asked for, so a bot restored from its save in the Nether, or moved
   there by a portal or a teleport, was filed under the overworld, and asking for it in its real
