@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.script;
 
-import java.util.Map;
-
 import dev.latvian.mods.rhino.CachedClassStorage;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
@@ -9,12 +7,12 @@ import dev.latvian.mods.rhino.Scriptable;
 import dev.latvian.mods.rhino.type.TypeInfo;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import dev.latvian.mods.rhino.util.CustomJavaToJsWrapper;
+import java.util.Map;
 
 /**
  * Rhino ContextFactory for every script WorldDriver runs: hosted scripts, the validation suite, and
- * {@code mc.script.eval} with skills and playbooks, which subclass it for a {@link ScriptContext} that also
- * watches a deadline. Class filtering is OFF by default — see ScriptClassFilter; -Dworlddriver.sandbox=on
- * opts in.
+ * {@code mc.script.eval} with skills and playbooks, which subclass it for a {@link ScriptContext} that also watches a
+ * deadline. Class filtering is OFF by default — see ScriptClassFilter; -Dworlddriver.sandbox=on opts in.
  */
 public class ScriptContextFactory extends ContextFactory {
     @Override

@@ -9,23 +9,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-
 import net.magicterra.worlddriver.api.call.RunContext;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 
 /**
- * Every action this JVM has accepted and not yet forgotten. Running actions are never evicted; the
- * admission cap is what bounds them. Ended ones are kept for {@link #KEEP_ENDED} entries or
- * {@link #KEEP_ENDED_MS}, whichever runs out first, so a caller that reconnects can still read how an
- * action ended. Nothing survives a restart.
+ * Every action this JVM has accepted and not yet forgotten. Running actions are never evicted; the admission cap is
+ * what bounds them. Ended ones are kept for {@link #KEEP_ENDED} entries or {@link #KEEP_ENDED_MS}, whichever runs out
+ * first, so a caller that reconnects can still read how an action ended. Nothing survives a restart.
  *
- * <p>It also keeps which script run holds which bot: a run's first action on a bot makes the bot
- * the run's until the run has ended and none of its actions on the bot is still running. A start
- * from anyone else is refused as {@code busy} in that time.
+ * <p>It also keeps which script run holds which bot: a run's first action on a bot makes the bot the run's until the
+ * run has ended and none of its actions on the bot is still running. A start from anyone else is refused as
+ * {@code busy} in that time.
  *
  * <p>All state is guarded by this object's monitor; nothing is called out while holding it.
  */
@@ -47,15 +45,16 @@ public final class ActionRegistry {
 
     /** The outcome of {@link #admit}: a handle, or why there is none. */
     public sealed interface Admission permits Admitted, Denied {}
+
     public record Admitted(ActionHandle handle) implements Admission {}
+
     public record Denied(RefusalReason reason, String message) implements Admission {}
 
     /**
-     * Accept an action on {@code bot} for {@code run} (empty: no script run), whose success will report
-     * what {@code result} reads then; null for work that ends itself with an explicit result. Call it on
-     * the thread that is about to install the process, after everything that can refuse the request has
-     * passed, and install at once: a handle that is admitted and never installed stays running until
-     * something cancels it.
+     * Accept an action on {@code bot} for {@code run} (empty: no script run), whose success will report what
+     * {@code result} reads then; null for work that ends itself with an explicit result. Call it on the thread that is
+     * about to install the process, after everything that can refuse the request has passed, and install at once: a
+     * handle that is admitted and never installed stays running until something cancels it.
      */
     public Admission admit(String bot, ActionHandle.Scope scope, Optional<RunContext> run, Supplier<?> result) {
         RunContext caller = requireRunning(run);
@@ -65,7 +64,9 @@ public final class ActionRegistry {
             Denied busy = busy(bot, caller);
             if (busy != null) return busy;
             if (active.size() >= MAX_ACTIVE) {
-                return new Denied(RefusalReason.ACTION_LIMIT, MAX_ACTIVE + " actions are running; wait for one to end or cancel one");
+                return new Denied(
+                        RefusalReason.ACTION_LIMIT,
+                        MAX_ACTIVE + " actions are running; wait for one to end or cancel one");
             }
             String id = "a" + epoch + "-" + seq.incrementAndGet();
             handle = new ActionHandle(this, id, bot, scope, caller == null ? null : caller.runId(), result);
@@ -95,8 +96,11 @@ public final class ActionRegistry {
     private static RunContext requireRunning(Optional<RunContext> run) {
         RunContext caller = run.orElse(null);
         if (caller != null && caller.stopped().isCancelled()) {
-            throw new ApiException(new ApiError(ApiError.Code.CAPABILITY_UNAVAILABLE, caller + " was stopped and starts nothing more",
-                    List.of(), ApiError.Execution.NOT_STARTED));
+            throw new ApiException(new ApiError(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    caller + " was stopped and starts nothing more",
+                    List.of(),
+                    ApiError.Execution.NOT_STARTED));
         }
         return caller;
     }
@@ -109,7 +113,8 @@ public final class ActionRegistry {
             owner = null;
         }
         return owner != null && owner != caller
-                ? new Denied(RefusalReason.BUSY, bot + " is held by " + owner + " until its actions end") : null;
+                ? new Denied(RefusalReason.BUSY, bot + " is held by " + owner + " until its actions end")
+                : null;
     }
 
     /** Monitor held: {@code caller} holds {@code bot}; true when its run is new here and needs {@link #watch}. */
@@ -124,7 +129,9 @@ public final class ActionRegistry {
         caller.ended().onCancel(() -> forgetRunIfIdle(caller));
     }
 
-    /** Whether {@code run} still holds {@code bot}: it has not ended, or one of its actions there runs. Monitor held. */
+    /**
+     * Whether {@code run} still holds {@code bot}: it has not ended, or one of its actions there runs. Monitor held.
+     */
     private boolean holds(RunContext run, String bot) {
         if (!run.ended().isCancelled()) return true;
         for (ActionHandle h : active.values()) {
@@ -150,7 +157,11 @@ public final class ActionRegistry {
                 RunContext run = watchedRuns.get(h.runId());
                 if (run != null && run.ended().isCancelled()) {
                     boolean idle = true;
-                    for (ActionHandle a : active.values()) if (h.runId().equals(a.runId())) { idle = false; break; }
+                    for (ActionHandle a : active.values())
+                        if (h.runId().equals(a.runId())) {
+                            idle = false;
+                            break;
+                        }
                     if (idle) {
                         watchedRuns.remove(run.runId());
                         owners.values().removeIf(r -> r == run);
@@ -162,7 +173,8 @@ public final class ActionRegistry {
 
     private void prune() {
         long cutoff = System.currentTimeMillis() - KEEP_ENDED_MS;
-        while (!ended.isEmpty() && (ended.size() > KEEP_ENDED || ended.peekFirst().endedAtMs() < cutoff)) {
+        while (!ended.isEmpty()
+                && (ended.size() > KEEP_ENDED || ended.peekFirst().endedAtMs() < cutoff)) {
             endedById.remove(ended.removeFirst().id());
         }
     }
@@ -171,8 +183,10 @@ public final class ActionRegistry {
     public ActionSnapshot<Object> snapshot(String id) {
         ActionHandle h = find(id);
         if (h == null) {
-            throw ApiException.of(ApiError.Code.ACTION_NOT_FOUND, "no action " + id + " (unknown, or ended more than "
-                    + KEEP_ENDED_MS / 60_000 + " minutes or " + KEEP_ENDED + " endings ago)");
+            throw ApiException.of(
+                    ApiError.Code.ACTION_NOT_FOUND,
+                    "no action " + id + " (unknown, or ended more than " + KEEP_ENDED_MS / 60_000 + " minutes or "
+                            + KEEP_ENDED + " endings ago)");
         }
         return h.snapshot();
     }
@@ -183,7 +197,9 @@ public final class ActionRegistry {
         return h != null ? h : endedById.get(id);
     }
 
-    public synchronized int activeCount() { return active.size(); }
+    public synchronized int activeCount() {
+        return active.size();
+    }
 
     /** End every running action of {@code scope} with {@code reason}: its world or connection is gone. */
     public void cancelScope(ActionHandle.Scope scope, CancelReason reason) {
@@ -200,18 +216,22 @@ public final class ActionRegistry {
     private final AtomicLong[] generations = {new AtomicLong(), new AtomicLong()};
 
     /**
-     * Which world or connection {@code scope} is on, as a number that changes whenever it closes. A
-     * request reads it when it arrives and the game thread compares before it starts anything, so a
-     * request queued behind a world change cannot act on the next world's bot.
+     * Which world or connection {@code scope} is on, as a number that changes whenever it closes. A request reads it
+     * when it arrives and the game thread compares before it starts anything, so a request queued behind a world change
+     * cannot act on the next world's bot.
      */
-    public long generation(ActionHandle.Scope scope) { return generations[scope.ordinal()].get(); }
+    public long generation(ActionHandle.Scope scope) {
+        return generations[scope.ordinal()].get();
+    }
 
     /** Throw {@code context_changed} unless {@code scope} is still on {@code generation}. */
     public void requireGeneration(ActionHandle.Scope scope, long generation) {
         if (generation(scope) != generation) {
-            throw ApiException.of(ApiError.Code.CONTEXT_CHANGED, "the "
-                    + (scope == ActionHandle.Scope.CLIENT ? "client's connection" : "server's world")
-                    + " changed after this request arrived; nothing was started");
+            throw ApiException.of(
+                    ApiError.Code.CONTEXT_CHANGED,
+                    "the "
+                            + (scope == ActionHandle.Scope.CLIENT ? "client's connection" : "server's world")
+                            + " changed after this request arrived; nothing was started");
         }
     }
 

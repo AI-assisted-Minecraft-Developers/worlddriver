@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -12,62 +13,58 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
  * Who is allowed to hold the use intent ({@code ClientIntents.holdUse}).
  *
- * <p>The use intent is the one shared input {@code BotInteract.releaseKeys()}
- * deliberately does NOT clear. The movement keys and the dig latch get a blanket release
- * once per drive burst, gated by
- * {@link net.magicterra.worlddriver.game.ui.InputReleaseGate} so a human playing
- * without an agent never has their keys clobbered. The use intent cannot join them: the
- * idle release runs AFTER the shield/heal/eat reflexes set it, so clearing it there would
- * undo them every tick.
+ * <p>The use intent is the one shared input {@code BotInteract.releaseKeys()} deliberately does NOT clear. The movement
+ * keys and the dig latch get a blanket release once per drive burst, gated by
+ * {@link net.magicterra.worlddriver.game.ui.InputReleaseGate} so a human playing without an agent never has their keys
+ * clobbered. The use intent cannot join them: the idle release runs AFTER the shield/heal/eat reflexes set it, so
+ * clearing it there would undo them every tick.
  *
- * <p>What replaces the blanket release is a hand-rolled protocol in
- * {@code BotBrain.act} — shield &gt; heal &gt; eat, one holder per tick, the
- * losers call their own {@code release}. Nothing in the type system enforces
- * membership. A fifth acquirer that skips the protocol fails in one of two silent
- * ways: an arbitration winner clobbers it mid-action, or — worse — it leaks and the
- * bot walks around with right-click held, placing blocks, eating its food, or drawing
- * a bow it never fires. {@code CombatChain#releaseUseKey} exists because that leak
- * already happened once, on the combat preempt path.
+ * <p>What replaces the blanket release is a hand-rolled protocol in {@code BotBrain.act} — shield &gt; heal &gt; eat,
+ * one holder per tick, the losers call their own {@code release}. Nothing in the type system enforces membership. A
+ * fifth acquirer that skips the protocol fails in one of two silent ways: an arbitration winner clobbers it mid-action,
+ * or — worse — it leaks and the bot walks around with right-click held, placing blocks, eating its food, or drawing a
+ * bow it never fires. {@code CombatChain#releaseUseKey} exists because that leak already happened once, on the combat
+ * preempt path.
  *
- * <p>Until 2026-09-14 the intent WAS {@code mc.options.keyUse}, and this test scanned for
- * {@code keyUse.setDown}. The latch moved off the keybind ({@code SharedKeybindQuarantineTest}
- * says why); the ownership question did not move, because vanilla's {@code handleKeybinds}
- * now reads the intent exactly where it read the key, with the same start/hold/release
- * consequences. So the same allowlist, on the new name.
+ * <p>Until 2026-09-14 the intent WAS {@code mc.options.keyUse}, and this test scanned for {@code keyUse.setDown}. The
+ * latch moved off the keybind ({@code SharedKeybindQuarantineTest} says why); the ownership question did not move,
+ * because vanilla's {@code handleKeybinds} now reads the intent exactly where it read the key, with the same
+ * start/hold/release consequences. So the same allowlist, on the new name.
  *
- * <p>So the acquirer set is pinned. Adding a writer is fine; adding one without
- * deciding how it releases is what this stops. Releases ({@code holdUse(false)}) are
- * unrestricted — they are always safe.
+ * <p>So the acquirer set is pinned. Adding a writer is fine; adding one without deciding how it releases is what this
+ * stops. Releases ({@code holdUse(false)}) are unrestricted — they are always safe.
  *
- * <p>Not asserted: that each acquirer actually releases on every path. That needs
- * reachability, not a scan. The allowlist is a prompt to think, not a proof.
+ * <p>Not asserted: that each acquirer actually releases on every path. That needs reachability, not a scan. The
+ * allowlist is a prompt to think, not a proof.
  */
 class UseKeyOwnershipTest {
 
     /**
      * Files allowed to hold the use intent, and how each one gives it up.
      *
-     * <p>Deliberately a set of FILES, not call sites: moving a call within a file is
-     * refactoring, introducing a new file that holds the intent is a design decision.
+     * <p>Deliberately a set of FILES, not call sites: moving a call within a file is refactoring, introducing a new
+     * file that holds the intent is a design decision.
      */
     private static final Map<String, String> ALLOWED_ACQUIRERS = Map.of(
             "AutoShield.java", "arbitration winner; release() called by the losers' branch",
             "AutoHeal.java", "arbitration participant; release() on loss and on completion",
             "AutoEat.java", "arbitration participant; releaseIfActive() on loss, self-clears when fed",
-            "CombatProcess.java", "the bow draw, released on the up-edge that shoots and by "
-                    + "CombatChain#releaseUseKey on preempt",
-            "ClientPlayerBody.java", "commandUseItem(hold): the client body's own latch, which every "
-                    + "acquirer above reaches through the Equipment seam");
+            "CombatProcess.java",
+                    "the bow draw, released on the up-edge that shoots and by "
+                            + "CombatChain#releaseUseKey on preempt",
+            "ClientPlayerBody.java",
+                    "commandUseItem(hold): the client body's own latch, which every "
+                            + "acquirer above reaches through the Equipment seam");
 
-    /** The latch itself, and the body seam every reflex holds it through since they stopped naming
-     *  the client. The leading dot keeps the interface declarations out. */
+    /**
+     * The latch itself, and the body seam every reflex holds it through since they stopped naming the client. The
+     * leading dot keeps the interface declarations out.
+     */
     private static final Pattern SET_DOWN =
             Pattern.compile("(?:ClientIntents\\s*\\.\\s*holdUse|\\.\\s*commandUseItem)\\s*\\(([^)]*)\\)");
 
@@ -85,35 +82,39 @@ class UseKeyOwnershipTest {
                 (arg.equals("false") ? releasers : acquirers).merge(file, 1, Integer::sum);
             }
         }
-        assertEquals(new TreeSet<>(ALLOWED_ACQUIRERS.keySet()), new TreeSet<>(acquirers.keySet()),
+        assertEquals(
+                new TreeSet<>(ALLOWED_ACQUIRERS.keySet()),
+                new TreeSet<>(acquirers.keySet()),
                 "the set of files that HOLD the use intent changed. The intent is excluded from "
-                + "releaseKeys() on purpose, so a new acquirer must join the shield>heal>eat "
-                + "arbitration in BotBrain.act or release on every exit path — "
-                + "otherwise the bot can walk around with right-click held. Add it here with a "
-                + "note on how it releases. Known acquirers: " + ALLOWED_ACQUIRERS
-                + "; releases seen (always fine): " + releasers.keySet());
-        assertTrue(releasers.containsKey("CombatChain.java"),
+                        + "releaseKeys() on purpose, so a new acquirer must join the shield>heal>eat "
+                        + "arbitration in BotBrain.act or release on every exit path — "
+                        + "otherwise the bot can walk around with right-click held. Add it here with a "
+                        + "note on how it releases. Known acquirers: " + ALLOWED_ACQUIRERS
+                        + "; releases seen (always fine): " + releasers.keySet());
+        assertTrue(
+                releasers.containsKey("CombatChain.java"),
                 "CombatChain#releaseUseKey is the stand-down path for the bow draw — the leak "
-                + "that motivated this test. Its release disappearing is a regression.");
+                        + "that motivated this test. Its release disappearing is a regression.");
     }
 
     @Test
     void theBlanketReleaseStillSkipsTheUseIntent() {
         // If the use intent is ever added to releaseKeys(), the arbitration above stops being
         // the mechanism and this test is guarding a rule that no longer exists.
-        String interact = read(Path.of(
-                "src/main/java/net/magicterra/worlddriver/game/body/BotInteract.java"));
+        String interact = read(Path.of("src/main/java/net/magicterra/worlddriver/game/body/BotInteract.java"));
         Matcher m = Pattern.compile("(?s)void\\s+releaseKeys\\s*\\(\\s*\\)\\s*\\{(.*?)\\n    \\}")
                 .matcher(strip(interact));
         assertTrue(m.find(), "releaseKeys() not found in BotInteract — this test needs updating");
         String body = m.group(1);
-        assertTrue(body.contains("holdDig(false)"),
+        assertTrue(
+                body.contains("holdDig(false)"),
                 "sanity: releaseKeys() should still clear the dig latch (ClientIntents.holdDig)");
-        assertTrue(!body.contains("holdUse"),
+        assertTrue(
+                !body.contains("holdUse"),
                 "releaseKeys() now clears the use intent. That is a real design change — the idle "
-                + "release runs after the shield/heal/eat reflexes set it, so it would "
-                + "undo them every tick. If it is intended, this test and the arbitration in "
-                + "BotBrain.act both need to go.");
+                        + "release runs after the shield/heal/eat reflexes set it, so it would "
+                        + "undo them every tick. If it is intended, this test and the arbitration in "
+                        + "BotBrain.act both need to go.");
     }
 
     // ---------------------------------------------------------------- helpers

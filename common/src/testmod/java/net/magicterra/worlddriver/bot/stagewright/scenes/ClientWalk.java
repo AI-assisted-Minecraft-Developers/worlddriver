@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import java.util.Locale;
 import java.util.function.Consumer;
-
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.bot.stagewright.kit.ClientRig;
 import net.minecraft.core.BlockPos;
@@ -42,8 +41,8 @@ final class ClientWalk {
 
     /** The server copy of the player now. */
     static Sample sample(ClientRig rig) {
-        return rig.onServer(p -> new Sample(p.server.getTickCount(), p.getX(), p.getY(), p.getZ(), p.onGround(),
-                p.isInWater(), p.getHealth()));
+        return rig.onServer(p -> new Sample(
+                p.server.getTickCount(), p.getX(), p.getY(), p.getZ(), p.onGround(), p.isInWater(), p.getHealth()));
     }
 
     /** How many server ticks after the walk was ordered {@code s} was taken. */
@@ -53,8 +52,8 @@ final class ClientWalk {
 
     /**
      * Order a walk to {@code target}, wait until the player lets go of it or {@code legTicks} pass (cancelled then),
-     * and keep sampling for {@code settleTicks} more: a walk that ends on the last hop of a step-up is still in the
-     * air for a few ticks, and the server's copy trails the client by several more. {@code perTick} sees every sample.
+     * and keep sampling for {@code settleTicks} more: a walk that ends on the last hop of a step-up is still in the air
+     * for a few ticks, and the server's copy trails the client by several more. {@code perTick} sees every sample.
      */
     ClientRig.End go(GotoContracts.Target target, int legTicks, int settleTicks, Consumer<Sample> perTick) {
         start = sample(rig).tick();

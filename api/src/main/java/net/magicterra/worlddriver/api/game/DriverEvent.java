@@ -1,4 +1,5 @@
 package net.magicterra.worlddriver.api.game;
+
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.minecraft.core.BlockPos;
 
@@ -9,11 +10,11 @@ public final class DriverEvent {
     public final BlockPos pos;
 
     /**
-     * The event's payload as a value tree: a String for scalar payloads ({@code block.place} carries a
-     * block id, {@code entity.death} an entity id), an object for structured ones, {@link JsonValue#NULL}
-     * for none. Typed as a tree so an emitter cannot hand the wire a domain object, and so a structured
-     * payload is never pre-encoded into a JSON string inside the JSON event (which once hid every
-     * document payload from consumers that tested for an object).
+     * The event's payload as a value tree: a String for scalar payloads ({@code block.place} carries a block id,
+     * {@code entity.death} an entity id), an object for structured ones, {@link JsonValue#NULL} for none. Typed as a
+     * tree so an emitter cannot hand the wire a domain object, and so a structured payload is never pre-encoded into a
+     * JSON string inside the JSON event (which once hid every document payload from consumers that tested for an
+     * object).
      */
     public final JsonValue data;
 

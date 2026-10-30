@@ -4,25 +4,23 @@ import java.util.Set;
 import net.magicterra.worlddriver.config.GameConfig;
 
 /**
- * Which blocks the bot may PLACE, and which it must not spend. Dist-neutral (callable from both
- * client and dedicated-server WorldViews, and from the bodies that pick what to hold). Split out of
- * {@code BotConfig} when that file hit its 3000-line budget — the predicates read
- * {@link GameConfig#buildBlockWhitelist} at call time and touch no class-init state, so the move
- * carries none of the persistence block's clinit trap.
+ * Which blocks the bot may PLACE, and which it must not spend. Dist-neutral (callable from both client and
+ * dedicated-server WorldViews, and from the bodies that pick what to hold). Split out of {@code BotConfig} when that
+ * file hit its 3000-line budget — the predicates read {@link GameConfig#buildBlockWhitelist} at call time and touch no
+ * class-init state, so the move carries none of the persistence block's clinit trap.
  */
 public final class BuildBlocks {
     private BuildBlocks() {}
 
-    /** Whether {@code block} may be used as a PLACED build block (pillar/bridge/parkour
-     *  footing). Default heuristic, in body order: not a
-     *  {@link net.minecraft.world.level.block.FallingBlock}, not an {@link #isInteractiveBlock}
-     *  (a GUI block placed as filler booby-traps every later place-click), motion-blocking, and
-     *  — the actual shape test — a STURDY top face. Sturdy, NOT "full collision cube": that
-     *  older test rejected mud/soul_sand/soul_soil for being 14/16 tall though the bot stands
-     *  on them fine. It still rejects the thin/partial blocks this exists for (bottom slabs,
-     *  fences, carpets, bamboo, saplings) that would leave the bot stuck on the path it builds. A non-empty
-     *  {@link GameConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still
-     *  apply. */
+    /**
+     * Whether {@code block} may be used as a PLACED build block (pillar/bridge/parkour footing). Default heuristic, in
+     * body order: not a {@link net.minecraft.world.level.block.FallingBlock}, not an {@link #isInteractiveBlock} (a GUI
+     * block placed as filler booby-traps every later place-click), motion-blocking, and — the actual shape test — a
+     * STURDY top face. Sturdy, NOT "full collision cube": that older test rejected mud/soul_sand/soul_soil for being
+     * 14/16 tall though the bot stands on them fine. It still rejects the thin/partial blocks this exists for (bottom
+     * slabs, fences, carpets, bamboo, saplings) that would leave the bot stuck on the path it builds. A non-empty
+     * {@link GameConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still apply.
+     */
     public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
         if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
         // Interactive blocks are resources, not dirt. Placing one both spends a
@@ -46,26 +44,30 @@ public final class BuildBlocks {
         // are standable: live round69, a bot holding ONLY 17 mud + 9 sand + 37 gravel (sand and
         // gravel fall, rejected above) had no foothold, so the +2 climb-out from water deadlocked.
         return st.isFaceSturdy(
-                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
+                net.minecraft.world.level.EmptyBlockGetter.INSTANCE,
+                net.minecraft.core.BlockPos.ZERO,
                 net.minecraft.core.Direction.UP);
     }
 
-    /** How many blocks in {@code items} the bot may place as footing: the stacks whose block passes
-     *  {@link #isUsableBuildBlock}, summed. Which slots a body reaches is the caller's choice. */
+    /**
+     * How many blocks in {@code items} the bot may place as footing: the stacks whose block passes
+     * {@link #isUsableBuildBlock}, summed. Which slots a body reaches is the caller's choice.
+     */
     public static int placeableCount(Iterable<net.minecraft.world.item.ItemStack> items) {
         int n = 0;
         for (net.minecraft.world.item.ItemStack stk : items) {
             if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) continue;
-            if (!isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            if (!isUsableBuildBlock(bi.getBlock())) continue; // falling/thin/non-cube → no footing
             n += stk.getCount();
         }
         return n;
     }
 
-    /** A block whose use-click opens a GUI (block-entity holders + the menu-opening
-     *  work-station family). Shared by {@link #isUsableBuildBlock} (never place one
-     *  as filler) and the navigator's place actuator (never CLICK one as a support —
-     *  the click opens the GUI instead of placing; gap #57/#58). */
+    /**
+     * A block whose use-click opens a GUI (block-entity holders + the menu-opening work-station family). Shared by
+     * {@link #isUsableBuildBlock} (never place one as filler) and the navigator's place actuator (never CLICK one as a
+     * support — the click opens the GUI instead of placing; gap #57/#58).
+     */
     public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) {
         return block instanceof net.minecraft.world.level.block.EntityBlock
                 || block instanceof net.minecraft.world.level.block.CraftingTableBlock
@@ -75,15 +77,16 @@ public final class BuildBlocks {
                 || block instanceof net.minecraft.world.level.block.LoomBlock;
     }
 
-    /** Like {@link #isUsableBuildBlock} but ALSO accepts FallingBlocks (sand/gravel) — for a
-     *  strictly VERTICAL pillar-up where the placed block rests ON the solid rung directly
-     *  below it (supported, so it never falls). {@link #isUsableBuildBlock} excludes falling
-     *  blocks because a BRIDGE places them over a gap (unsupported → they drop); that hazard
-     *  does not exist for an in-place pillar. A bot carrying ONLY sand/gravel (deserts, beaches,
-     *  rivers — very common) otherwise has NO usable foothold and bob-stalls a +2/+3 ascent ram
-     *  it could trivially pillar out of (live 2026-06-24 -1987,111: holdPlaceable rejected the
-     *  bot's 11 sand + 8 gravel → 332-tick stall). Use ONLY where the placement is provably
-     *  supported below (the pillar-recovery actuator); never for bridges/parkour-place. */
+    /**
+     * Like {@link #isUsableBuildBlock} but ALSO accepts FallingBlocks (sand/gravel) — for a strictly VERTICAL pillar-up
+     * where the placed block rests ON the solid rung directly below it (supported, so it never falls).
+     * {@link #isUsableBuildBlock} excludes falling blocks because a BRIDGE places them over a gap (unsupported → they
+     * drop); that hazard does not exist for an in-place pillar. A bot carrying ONLY sand/gravel (deserts, beaches,
+     * rivers — very common) otherwise has NO usable foothold and bob-stalls a +2/+3 ascent ram it could trivially
+     * pillar out of (live 2026-06-24 -1987,111: holdPlaceable rejected the bot's 11 sand + 8 gravel → 332-tick stall).
+     * Use ONLY where the placement is provably supported below (the pillar-recovery actuator); never for
+     * bridges/parkour-place.
+     */
     public static boolean isUsablePillarBlock(net.minecraft.world.level.block.Block block) {
         if (isUsableBuildBlock(block)) return true;
         if (!(block instanceof net.minecraft.world.level.block.FallingBlock)) return false;
@@ -96,29 +99,31 @@ public final class BuildBlocks {
             return id != null && wl.contains(id.toString());
         }
         return st.isFaceSturdy(
-                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
+                net.minecraft.world.level.EmptyBlockGetter.INSTANCE,
+                net.minecraft.core.BlockPos.ZERO,
                 net.minecraft.core.Direction.UP);
     }
 
-    /** Resources the bot deliberately gathered — must not be spent as disposable
-     *  pillar/scaffold filler (gap#81). Deliberately NARROW (wood family, the
-     *  observed waste); extend by adding tags if a run surfaces another wasted
-     *  resource — do not speculate now. */
+    /**
+     * Resources the bot deliberately gathered — must not be spent as disposable pillar/scaffold filler (gap#81).
+     * Deliberately NARROW (wood family, the observed waste); extend by adding tags if a run surfaces another wasted
+     * resource — do not speculate now.
+     */
     public static boolean isValuablePlacementBlock(net.minecraft.world.level.block.Block block) {
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
         return st.is(net.minecraft.tags.BlockTags.LOGS) || st.is(net.minecraft.tags.BlockTags.PLANKS);
     }
 
-    /** Pure ItemStack-level core of a "throwaway" support block — a usable build block (see
-     *  {@link #isUsableBuildBlock}) that is NOT a gathered resource (see
-     *  {@link #isValuablePlacementBlock}); gap#81. Hosted here (not in
-     *  {@code BotInteract}, the client-facing caller) so it stays dist-neutral: {@code
-     *  BotInteract} mixes in unrelated client-only methods (LocalPlayer/Minecraft), and the
-     *  NeoForge RuntimeDistCleaner refuses to load THAT class at all on a dedicated server
-     *  (confirmed live via GameTestServer — "Attempted to load class LocalPlayer for invalid
-     *  dist DEDICATED_SERVER" — even though this predicate itself never touches a client type),
-     *  so the gametest matrix calls this dist-neutral entry point instead. {@code
-     *  BotInteract.isThrowawaySupportBlock} delegates here for production use. */
+    /**
+     * Pure ItemStack-level core of a "throwaway" support block — a usable build block (see {@link #isUsableBuildBlock})
+     * that is NOT a gathered resource (see {@link #isValuablePlacementBlock}); gap#81. Hosted here (not in
+     * {@code BotInteract}, the client-facing caller) so it stays dist-neutral: {@code BotInteract} mixes in unrelated
+     * client-only methods (LocalPlayer/Minecraft), and the NeoForge RuntimeDistCleaner refuses to load THAT class at
+     * all on a dedicated server (confirmed live via GameTestServer — "Attempted to load class LocalPlayer for invalid
+     * dist DEDICATED_SERVER" — even though this predicate itself never touches a client type), so the gametest matrix
+     * calls this dist-neutral entry point instead. {@code BotInteract.isThrowawaySupportBlock} delegates here for
+     * production use.
+     */
     public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) {
         if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) return false;
         return isUsableBuildBlock(bi.getBlock()) && !isValuablePlacementBlock(bi.getBlock());

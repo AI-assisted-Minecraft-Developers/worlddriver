@@ -4,9 +4,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DeathScreen;
 
 /**
- * Baritone-style autoRespawn. Clicks DeathScreen's Respawn button without going
- * through the widget tree — vanilla's button handler calls these two methods
- * exactly. A client reflex: the death screen is the client's. Stateless.
+ * Baritone-style autoRespawn. Clicks DeathScreen's Respawn button without going through the widget tree — vanilla's
+ * button handler calls these two methods exactly. A client reflex: the death screen is the client's. Stateless.
  */
 final class AutoRespawn {
     private AutoRespawn() {}

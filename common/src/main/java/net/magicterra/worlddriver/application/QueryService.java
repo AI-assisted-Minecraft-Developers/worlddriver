@@ -4,16 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
-
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.query.QueryApi;
 import net.magicterra.worlddriver.api.methods.query.QueryApiBinding;
-import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRows;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Blocks;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Entities;
@@ -23,10 +17,14 @@ import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRows;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Query;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Rows;
-import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.application.client.ClientHooks;
+import net.magicterra.worlddriver.bot.BotApi;
+import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -35,13 +33,15 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.AABB;
 
 /**
- * {@code mc.query}. The server scans its overworld on the server thread; a client JVM with no server attached
- * (joined to a remote server) scans its own world through {@link ClientQueryFallback}, on the client thread.
+ * {@code mc.query}. The server scans its overworld on the server thread; a client JVM with no server attached (joined
+ * to a remote server) scans its own world through {@link ClientQueryFallback}, on the client thread.
  */
 final class QueryService implements QueryApi {
     private final DriverApplication app;
 
-    QueryService(DriverApplication app) { this.app = app; }
+    QueryService(DriverApplication app) {
+        this.app = app;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return QueryApiBinding.methods(this);
@@ -83,12 +83,19 @@ final class QueryService implements QueryApi {
             if (wantType != null && !wantType.equals(type)) continue;
             LivingEntity le = e instanceof LivingEntity l ? l : null;
             BlockPos cell = e.blockPosition();
-            out.add(select(new EntityRow(Optional.of(new Point(e.getX(), e.getY(), e.getZ())),
-                    Optional.of(Positions.position(cell)), Optional.of(type),
-                    Optional.of(e.getUUID().toString()), Optional.of(e.getId()),
-                    le == null ? Optional.empty() : Optional.of((double) le.getHealth()),
-                    le == null ? Optional.empty() : Optional.of(PlayerSnapshots.effects(le)),
-                    Optional.empty(), Optional.empty(), Optional.empty()), q.select()));
+            out.add(select(
+                    new EntityRow(
+                            Optional.of(new Point(e.getX(), e.getY(), e.getZ())),
+                            Optional.of(Positions.position(cell)),
+                            Optional.of(type),
+                            Optional.of(e.getUUID().toString()),
+                            Optional.of(e.getId()),
+                            le == null ? Optional.empty() : Optional.of((double) le.getHealth()),
+                            le == null ? Optional.empty() : Optional.of(PlayerSnapshots.effects(le)),
+                            Optional.empty(),
+                            Optional.empty(),
+                            Optional.empty()),
+                    q.select()));
         }
         return out;
     }
@@ -97,10 +104,16 @@ final class QueryService implements QueryApi {
     static EntityRow select(EntityRow r, Optional<List<EntityField>> select) {
         if (select.isEmpty() || select.get().isEmpty()) return r;
         List<EntityField> s = select.get();
-        return new EntityRow(keep(s, EntityField.POS, r.pos()), keep(s, EntityField.BLOCK_POS, r.blockPos()),
-                keep(s, EntityField.TYPE, r.type()), keep(s, EntityField.UUID, r.uuid()), keep(s, EntityField.ID, r.id()),
-                keep(s, EntityField.HEALTH, r.health()), keep(s, EntityField.EFFECTS, r.effects()),
-                keep(s, EntityField.HOSTILE, r.hostile()), keep(s, EntityField.MAX_HEALTH, r.maxHealth()),
+        return new EntityRow(
+                keep(s, EntityField.POS, r.pos()),
+                keep(s, EntityField.BLOCK_POS, r.blockPos()),
+                keep(s, EntityField.TYPE, r.type()),
+                keep(s, EntityField.UUID, r.uuid()),
+                keep(s, EntityField.ID, r.id()),
+                keep(s, EntityField.HEALTH, r.health()),
+                keep(s, EntityField.EFFECTS, r.effects()),
+                keep(s, EntityField.HOSTILE, r.hostile()),
+                keep(s, EntityField.MAX_HEALTH, r.maxHealth()),
                 keep(s, EntityField.DISTANCE, r.distance()));
     }
 

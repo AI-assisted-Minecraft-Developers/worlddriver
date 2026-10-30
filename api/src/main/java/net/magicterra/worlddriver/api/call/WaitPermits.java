@@ -4,9 +4,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The quota a suspended wait draws from, separate from the quota for running requests: a full set
- * of waits must still leave room to observe and to cancel. A wait that cannot get a permit is refused
- * before anything starts.
+ * The quota a suspended wait draws from, separate from the quota for running requests: a full set of waits must still
+ * leave room to observe and to cancel. A wait that cannot get a permit is refused before anything starts.
  */
 public interface WaitPermits {
 
@@ -15,7 +14,8 @@ public interface WaitPermits {
 
     /** A held permit; {@link #close} gives it back exactly once, however often it is called. */
     interface Lease extends AutoCloseable {
-        @Override void close();
+        @Override
+        void close();
     }
 
     /** At most {@code max} waits at a time. */
@@ -36,8 +36,14 @@ public interface WaitPermits {
             Lease a = outer.tryAcquire();
             if (a == null) return null;
             Lease b = inner.tryAcquire();
-            if (b == null) { a.close(); return null; }
-            return () -> { b.close(); a.close(); };
+            if (b == null) {
+                a.close();
+                return null;
+            }
+            return () -> {
+                b.close();
+                a.close();
+            };
         };
     }
 }

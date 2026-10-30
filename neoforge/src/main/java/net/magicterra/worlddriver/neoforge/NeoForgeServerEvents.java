@@ -17,9 +17,9 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * The driver's server hooks in {@link WorldDriverEvents}, subscribed to NeoForge's game event bus. Registered by
- * class from the mod's constructor. {@code HIGH} throughout and {@code LOWEST} for chat, so the driver sits where it
- * always did relative to other mods' listeners: a listener that cancels before it suppresses the report.
+ * The driver's server hooks in {@link WorldDriverEvents}, subscribed to NeoForge's game event bus. Registered by class
+ * from the mod's constructor. {@code HIGH} throughout and {@code LOWEST} for chat, so the driver sits where it always
+ * did relative to other mods' listeners: a listener that cancels before it suppresses the report.
  */
 final class NeoForgeServerEvents {
     private NeoForgeServerEvents() {}

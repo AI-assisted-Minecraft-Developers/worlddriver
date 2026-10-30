@@ -1,13 +1,17 @@
 package net.magicterra.worlddriver.debug;
 
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
-import net.magicterra.worlddriver.api.registry.ApiBatch;
-import net.magicterra.worlddriver.api.registry.ApiHandlers;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
@@ -16,20 +20,16 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.function.Supplier;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One-time wiring for the debug subsystem: publishes {@code mc.debug.*} as a batch of their own wherever the
- * driver runs, and on a client also installs the path recorders as the active {@link PathTraceHolder#SINK}.
+ * One-time wiring for the debug subsystem: publishes {@code mc.debug.*} as a batch of their own wherever the driver
+ * runs, and on a client also installs the path recorders as the active {@link PathTraceHolder#SINK}.
  *
- * Release strip: delete the {@code debug} package, the call to {@link #publish} in {@code WorldDriverCommon} and
- * the call to {@link #init} in {@code WorldDriverClientEvents.install}. Core compiles unchanged.
+ * <p>Release strip: delete the {@code debug} package, the call to {@link #publish} in {@code WorldDriverCommon} and the
+ * call to {@link #init} in {@code WorldDriverClientEvents.install}. Core compiles unchanged.
  */
 public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
@@ -38,7 +38,8 @@ public final class PathDebugBootstrap {
     private PathDebugBootstrap() {}
 
     /** Publish the methods on {@code api}, reaching the server through {@code server}; a repeat is ignored. */
-    public static synchronized void publish(ApiRegistry api, Supplier<ServerThreadHop> server, Supplier<MinecraftServer> level) {
+    public static synchronized void publish(
+            ApiRegistry api, Supplier<ServerThreadHop> server, Supplier<MinecraftServer> level) {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
         serverHop = server;
         serverOf = level;
@@ -84,7 +85,8 @@ public final class PathDebugBootstrap {
     private static <T> CompletionStage<T> onServer(Supplier<T> read, CallContext ctx) {
         ServerThreadHop hop = serverHop.get();
         if (hop == null) {
-            return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+            return CompletableFuture.failedFuture(ApiException.of(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE,
                     "mc.debug readings of a bot are the server's, and no server is attached"));
         }
         return hop.submit(read, ctx);
@@ -98,9 +100,11 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<DebugContracts.PlanReply> plan(DebugContracts.PlanParams p, CallContext ctx) {
-            if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get())) return onServer(() -> PlanProbeTool.onServer(p), ctx);
+            if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get()))
+                return onServer(() -> PlanProbeTool.onServer(p), ctx);
             if (BotHooks.impl() == null) {
-                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                return CompletableFuture.failedFuture(ApiException.of(
+                        ApiError.Code.CAPABILITY_UNAVAILABLE,
                         "mc.debug.plan for self reads this client's world, and there is none; name a server bot"));
             }
             return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.onClient(p), ctx);
@@ -117,11 +121,13 @@ public final class PathDebugBootstrap {
         }
 
         @Override
-        public CompletionStage<BotDebugContracts.NavigatorReading> navigator(BotDebugContracts.NavigatorParams p, CallContext ctx) {
+        public CompletionStage<BotDebugContracts.NavigatorReading> navigator(
+                BotDebugContracts.NavigatorParams p, CallContext ctx) {
             if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.navigator(p), ctx);
             BotApi self = BotHooks.impl();
             if (self == null) {
-                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                return CompletableFuture.failedFuture(ApiException.of(
+                        ApiError.Code.CAPABILITY_UNAVAILABLE,
                         "self is this client's own player, and there is no client here; name a server bot"));
             }
             return self.clientHop().submit(() -> BotReadings.selfNavigator(p, self), ctx);
@@ -132,7 +138,8 @@ public final class PathDebugBootstrap {
             if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.body(p), ctx);
             BotApi self = BotHooks.impl();
             if (self == null) {
-                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                return CompletableFuture.failedFuture(ApiException.of(
+                        ApiError.Code.CAPABILITY_UNAVAILABLE,
                         "self is this client's own player, and there is no client here; name a server bot"));
             }
             return self.clientHop().submit(() -> BotReadings.selfBody(p, self), ctx);
@@ -145,7 +152,8 @@ public final class PathDebugBootstrap {
             if (!selfClient) return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
             BotApi self = BotHooks.impl();
             if (self == null) {
-                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                return CompletableFuture.failedFuture(ApiException.of(
+                        ApiError.Code.CAPABILITY_UNAVAILABLE,
                         "self's client view is this client's, and there is no client here; name a server bot"));
             }
             return self.clientHop().submit(() -> ClientPlanProbe.cells(p), ctx);

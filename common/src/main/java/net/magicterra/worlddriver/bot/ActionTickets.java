@@ -24,12 +24,39 @@ public final class ActionTickets {
     }
 
     private record Of(ActionHandle handle) implements Ticket {
-        @Override public String id() { return handle.id(); }
-        @Override public boolean running() { return handle.running(); }
-        @Override public boolean succeed() { return handle.succeed(); }
-        @Override public boolean succeed(Object result) { return handle.succeed(result); }
-        @Override public boolean fail(String message) { return handle.fail(message); }
-        @Override public boolean cancelled(Stop why) { return handle.cancelled(reason(why)); }
-        @Override public boolean supersede(String replacementId) { return handle.supersede(replacementId); }
+        @Override
+        public String id() {
+            return handle.id();
+        }
+
+        @Override
+        public boolean running() {
+            return handle.running();
+        }
+
+        @Override
+        public boolean succeed() {
+            return handle.succeed();
+        }
+
+        @Override
+        public boolean succeed(Object result) {
+            return handle.succeed(result);
+        }
+
+        @Override
+        public boolean fail(String message) {
+            return handle.fail(message);
+        }
+
+        @Override
+        public boolean cancelled(Stop why) {
+            return handle.cancelled(reason(why));
+        }
+
+        @Override
+        public boolean supersede(String replacementId) {
+            return handle.supersede(replacementId);
+        }
     }
 }

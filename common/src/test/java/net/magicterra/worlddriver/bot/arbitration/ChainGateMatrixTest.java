@@ -11,15 +11,17 @@ import org.junit.jupiter.api.Test;
 class ChainGateMatrixTest {
 
     /**
-     * gap#68-③/⑧: death must gate autoFight re-engagement for a grace window, or a freshly-respawned naked
-     * bot resumes hunting whatever killed it.
+     * gap#68-③/⑧: death must gate autoFight re-engagement for a grace window, or a freshly-respawned naked bot resumes
+     * hunting whatever killed it.
      */
     @Test
     void deathSuppressesAutoFightForAGraceWindow() {
         CombatChain cc = new CombatChain(new BotState());
         cc.suppressAutoFor(3);
         assertTrue(cc.autoSuppressed(), "suppressed right after death");
-        cc.decayAutoSuppression(); cc.decayAutoSuppression(); cc.decayAutoSuppression();
+        cc.decayAutoSuppression();
+        cc.decayAutoSuppression();
+        cc.decayAutoSuppression();
         assertFalse(cc.autoSuppressed(), "suppression decays to zero");
     }
 
@@ -32,8 +34,8 @@ class ChainGateMatrixTest {
     }
 
     /**
-     * gap#68-④⑨: a user task (USER=50) must not suppress dusk shelter all night — exposed at night and not
-     * already cornered/sheltered, the reflex escalates to DUSK_URGENT=90 unless the escalation flag is off.
+     * gap#68-④⑨: a user task (USER=50) must not suppress dusk shelter all night — exposed at night and not already
+     * cornered/sheltered, the reflex escalates to DUSK_URGENT=90 unless the escalation flag is off.
      */
     @Test
     void anExposedBotAtNightBidsUrgently() {

@@ -38,7 +38,7 @@ public final class SurvivalFacts {
                 double score = dx * (-tx) + dz * (-tz);
                 if (score > bestScore) {
                     bestScore = score;
-                    best = new int[]{dx, dz};
+                    best = new int[] {dx, dz};
                 }
             }
         }

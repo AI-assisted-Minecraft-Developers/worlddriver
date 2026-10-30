@@ -1,20 +1,18 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
+import java.util.ArrayList;
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * The declarative unit of navigation the {@link IntentProcess} interprets. Holds
- * the target {@link Goal}s — the {@code route.via} waypoints in order, then the final goal —
- * and a per-intent {@code bias} — a list of {@link CostModifier}s appended to the pathfinder's
- * cost stack for THIS intent (avoid a region, prefer a Y band, leash to an anchor), plus a
- * {@link CapabilityProfile} and a list of {@link Constraint}s. A4a threaded the (empty) bias
+ * The declarative unit of navigation the {@link IntentProcess} interprets. Holds the target {@link Goal}s — the
+ * {@code route.via} waypoints in order, then the final goal — and a per-intent {@code bias} — a list of
+ * {@link CostModifier}s appended to the pathfinder's cost stack for THIS intent (avoid a region, prefer a Y band, leash
+ * to an anchor), plus a {@link CapabilityProfile} and a list of {@link Constraint}s. A4a threaded the (empty) bias
  * through; A2a threads the full {@link SearchProfile}; the route design added the goal list.
  */
 public final class Intent {
@@ -36,14 +34,22 @@ public final class Intent {
         this(target, bias, capability, constraints, null);
     }
 
-    public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints,
-                  EntityLeash entityLeash) {
+    public Intent(
+            Goal target,
+            List<CostModifier> bias,
+            CapabilityProfile capability,
+            List<Constraint> constraints,
+            EntityLeash entityLeash) {
         this(target == null ? List.of() : List.of(target), bias, capability, constraints, entityLeash);
     }
 
     /** The full form: {@code targets} are reached in order, the last one is the goal proper. */
-    public Intent(List<Goal> targets, List<CostModifier> bias, CapabilityProfile capability,
-                  List<Constraint> constraints, EntityLeash entityLeash) {
+    public Intent(
+            List<Goal> targets,
+            List<CostModifier> bias,
+            CapabilityProfile capability,
+            List<Constraint> constraints,
+            EntityLeash entityLeash) {
         if (targets == null || targets.isEmpty()) throw new IllegalArgumentException("intent has no target");
         for (Goal g : targets) if (g == null) throw new IllegalArgumentException("intent target is null");
         this.targets = List.copyOf(targets);
@@ -90,8 +96,10 @@ public final class Intent {
         return new SearchProfile(bias, capability, constraints);
     }
 
-    /** Optional dynamic entity-anchor leash (A3a); {@code null} = no leash, byte-identical
-     *  to pre-A3a behavior. Resolved per re-solve by {@link IntentProcess}. */
+    /**
+     * Optional dynamic entity-anchor leash (A3a); {@code null} = no leash, byte-identical to pre-A3a behavior. Resolved
+     * per re-solve by {@link IntentProcess}.
+     */
     public EntityLeash entityLeash() {
         return entityLeash;
     }

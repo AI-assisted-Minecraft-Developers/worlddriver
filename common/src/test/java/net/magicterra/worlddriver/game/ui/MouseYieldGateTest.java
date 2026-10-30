@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The cursor side of human/bot coexistence ({@link MouseYieldGate}): release the cursor while the bot drives,
- * re-release it after a click grabs it back, let a double-tap of ESC take it for the rest of the burst, and
- * hand it back when the burst ends.
+ * re-release it after a click grabs it back, let a double-tap of ESC take it for the rest of the burst, and hand it
+ * back when the burst ends.
  */
 class MouseYieldGateTest {
     private static final MouseYieldGate.Action NONE = MouseYieldGate.Action.NONE;
@@ -22,8 +22,7 @@ class MouseYieldGateTest {
         MouseYieldGate g = new MouseYieldGate(linger);
 
         // Idle: never touches a cursor nobody asked us to touch.
-        for (int t = 0; t < 50; t++)
-            assertEquals(NONE, g.tick(true, false, false, true), "acted on an idle tick " + t);
+        for (int t = 0; t < 50; t++) assertEquals(NONE, g.tick(true, false, false, true), "acted on an idle tick " + t);
 
         // Drive → release once, then stay released without re-issuing.
         g.markDriving();
@@ -34,7 +33,8 @@ class MouseYieldGateTest {
 
         // Sticky: a click re-grabbed the cursor (vanilla MouseHandler.onPress) → release again.
         g.markDriving();
-        assertEquals(RELEASE, g.tick(true, false, false, true), "did not re-release after a click re-grabbed the cursor");
+        assertEquals(
+                RELEASE, g.tick(true, false, false, true), "did not re-release after a click re-grabbed the cursor");
 
         // A screen owns the cursor: hands off entirely.
         g.markDriving();
@@ -44,7 +44,8 @@ class MouseYieldGateTest {
         for (int t = 0; t <= linger; t++) g.tick(true, false, false, false);
         assertFalse(g.yielded(), "still yielded after the burst ended");
         for (int t = 0; t < 20; t++)
-            assertEquals(NONE, g.tick(true, false, false, true), "kept acting after handing the cursor back at tick " + t);
+            assertEquals(
+                    NONE, g.tick(true, false, false, true), "kept acting after handing the cursor back at tick " + t);
 
         // Double-tap ESC: the human owns the cursor for the REST of this burst.
         g.markDriving();
@@ -54,7 +55,10 @@ class MouseYieldGateTest {
         assertTrue(g.reclaimed(), "reclaimed() false after the ESC double-tap");
         for (int t = 0; t < 20; t++) {
             g.markDriving();
-            assertEquals(NONE, g.tick(true, false, false, true), "stole the cursor back at tick " + t + " after the human reclaimed it");
+            assertEquals(
+                    NONE,
+                    g.tick(true, false, false, true),
+                    "stole the cursor back at tick " + t + " after the human reclaimed it");
         }
 
         // Next burst re-arms the yield.

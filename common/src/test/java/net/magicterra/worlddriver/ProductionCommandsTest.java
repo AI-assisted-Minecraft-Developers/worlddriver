@@ -1,11 +1,16 @@
 package net.magicterra.worlddriver;
 
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.tree.CommandNode;
+import java.util.List;
 import net.magicterra.worlddriver.bot.BotCommand;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
@@ -15,15 +20,9 @@ import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 /**
- * The {@code /worlddriver} tree exactly as the shipped jar registers it: the driver's own
- * subcommands plus the server-avatar ones, and nothing the testmod adds.
+ * The {@code /worlddriver} tree exactly as the shipped jar registers it: the driver's own subcommands plus the
+ * server-avatar ones, and nothing the testmod adds.
  */
 class ProductionCommandsTest {
     private static final String ROOT = WorldDriverCommon.MOD_ID;
@@ -36,13 +35,21 @@ class ProductionCommandsTest {
     }
 
     private static CommandSourceStack source(int permission) {
-        return new CommandSourceStack(CommandSource.NULL, Vec3.ZERO, Vec2.ZERO, null, permission,
-                "test", Component.literal("test"), null, null);
+        return new CommandSourceStack(
+                CommandSource.NULL,
+                Vec3.ZERO,
+                Vec2.ZERO,
+                null,
+                permission,
+                "test",
+                Component.literal("test"),
+                null,
+                null);
     }
 
     /**
-     * Test tooling (the arena seeder the validation scripts run against wipes blocks and entities) is the
-     * testmod's, reached through StageWright steps; the shipped jar offers no {@code test} subcommand.
+     * Test tooling (the arena seeder the validation scripts run against wipes blocks and entities) is the testmod's,
+     * reached through StageWright steps; the shipped jar offers no {@code test} subcommand.
      */
     @Test
     void noTestToolingIsAProductionCommand() {
@@ -52,9 +59,9 @@ class ProductionCommandsTest {
     }
 
     /**
-     * The only dispatch here that starts from the root that production code registers itself: the
-     * test below swaps in an ungated root, and the per-child sweep never asks the root, so a
-     * requirement on the root that locks out permission-2 operators would pass both.
+     * The only dispatch here that starts from the root that production code registers itself: the test below swaps in
+     * an ungated root, and the per-child sweep never asks the root, so a requirement on the root that locks out
+     * permission-2 operators would pass both.
      */
     @Test
     void operatorsAndOnlyOperatorsGetPastTheProductionRoot() {
@@ -62,9 +69,8 @@ class ProductionCommandsTest {
     }
 
     /**
-     * Brigadier keeps the requirement of whichever same-named literal registered first, so a gate on
-     * the root would vanish behind any earlier {@code worlddriver} registration. Each child carries
-     * its own.
+     * Brigadier keeps the requirement of whichever same-named literal registered first, so a gate on the root would
+     * vanish behind any earlier {@code worlddriver} registration. Each child carries its own.
      */
     @Test
     void theGateSurvivesAnUngatedRootRegisteredFirst() {

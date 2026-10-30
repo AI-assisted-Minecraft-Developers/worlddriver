@@ -1,33 +1,32 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
 import java.util.function.Consumer;
-
-import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.behavior.CombatProcess;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Phase C movement-channel chain (priority {@code COMBAT} 60, above the user task
- * 50): hosts the {@link CombatProcess} and decides when to bid for the channel.
+ * Phase C movement-channel chain (priority {@code COMBAT} 60, above the user task 50): hosts the {@link CombatProcess}
+ * and decides when to bid for the channel.
  *
  * <p>Two activation sources:
+ *
  * <ul>
- *   <li><b>Explicit</b> — {@code mc.bot.combat{mode,target}} calls {@link #engage};
- *       the chain bids 60 until the {@link CombatProcess} reports the fight done
- *       (target dead / area clear), then clears its intent and hands the channel
- *       back to the suspended user task.</li>
- *   <li><b>Auto</b> — with {@link ArbitrationConfig#autoFight} on, the chain bids 60 whenever
- *       a hostile scores at or above {@link ArbitrationConfig#autoFightThreatThreshold}, runs
- *       an ENGAGE clear, and drops to 0 when the area is quiet.</li>
+ *   <li><b>Explicit</b> — {@code mc.bot.combat{mode,target}} calls {@link #engage}; the chain bids 60 until the
+ *       {@link CombatProcess} reports the fight done (target dead / area clear), then clears its intent and hands the
+ *       channel back to the suspended user task.
+ *   <li><b>Auto</b> — with {@link ArbitrationConfig#autoFight} on, the chain bids 60 whenever a hostile scores at or
+ *       above {@link ArbitrationConfig#autoFightThreatThreshold}, runs an ENGAGE clear, and drops to 0 when the area is
+ *       quiet.
  * </ul>
  *
- * <p>Like {@link RetreatChain}, this self-activates and self-deactivates via
- * {@link #priority}; a higher chain (retreat/dodge/panic) can preempt it mid-fight,
- * and on resume it re-acquires its target and repaths from the new position.
+ * <p>Like {@link RetreatChain}, this self-activates and self-deactivates via {@link #priority}; a higher chain
+ * (retreat/dodge/panic) can preempt it mid-fight, and on resume it re-acquires its target and repaths from the new
+ * position.
  */
 public final class CombatChain implements Chain {
     private final BotState state;
@@ -36,14 +35,17 @@ public final class CombatChain implements Chain {
     private volatile CombatProcess.Mode intentMode;
     private volatile Integer intentId;
     private volatile String intentType;
-    /** gap#68-②: {@code force:true} on the mc.bot.combat verb overrides the frail-HP
-     *  entry gate for THIS intent only (the agent has explicitly accepted the risk). */
+    /**
+     * gap#68-②: {@code force:true} on the mc.bot.combat verb overrides the frail-HP entry gate for THIS intent only
+     * (the agent has explicitly accepted the risk).
+     */
     private volatile boolean intentForce;
 
     private CombatProcess process;
 
     /** The accepted action the explicit intent carries out, and what it reports when won. Client thread only. */
     private Ticket intentAction;
+
     private Object intentResult;
 
     /** Post-respawn autoFight suppression countdown (gap#68 grace). Tick thread only. */
@@ -53,39 +55,55 @@ public final class CombatChain implements Chain {
         this.state = state;
     }
 
-    /** Arm (or extend) the post-respawn grace: autoFight will not bid for {@code ticks}
-     *  ticks. Does not affect an explicit {@code mc.bot.combat} intent — that is the
-     *  agent's own decision and is never suppressed. */
-    public void suppressAutoFor(int ticks) { autoSuppressTicks = Math.max(autoSuppressTicks, ticks); }
+    /**
+     * Arm (or extend) the post-respawn grace: autoFight will not bid for {@code ticks} ticks. Does not affect an
+     * explicit {@code mc.bot.combat} intent — that is the agent's own decision and is never suppressed.
+     */
+    public void suppressAutoFor(int ticks) {
+        autoSuppressTicks = Math.max(autoSuppressTicks, ticks);
+    }
 
     /** True while the post-respawn autoFight grace is still counting down. */
-    public boolean autoSuppressed() { return autoSuppressTicks > 0; }
+    public boolean autoSuppressed() {
+        return autoSuppressTicks > 0;
+    }
 
-    /** Tick the grace countdown by one. Called unconditionally from {@link #priority}
-     *  every tick so it decays even while some other chain holds the channel. */
-    public void decayAutoSuppression() { if (autoSuppressTicks > 0) autoSuppressTicks--; }
+    /**
+     * Tick the grace countdown by one. Called unconditionally from {@link #priority} every tick so it decays even while
+     * some other chain holds the channel.
+     */
+    public void decayAutoSuppression() {
+        if (autoSuppressTicks > 0) autoSuppressTicks--;
+    }
 
-    @Override public String name() { return "combat"; }
+    @Override
+    public String name() {
+        return "combat";
+    }
 
-    /** Set an explicit combat intent (from the {@code mc.bot.combat} verb), with the
-     *  frail-HP gate at default (not forced). Delegates to the 4-arg overload. */
+    /**
+     * Set an explicit combat intent (from the {@code mc.bot.combat} verb), with the frail-HP gate at default (not
+     * forced). Delegates to the 4-arg overload.
+     */
     public void engage(CombatProcess.Mode mode, Integer id, String type) {
         engage(mode, id, type, false);
     }
 
-    /** Set an explicit combat intent (from the {@code mc.bot.combat} verb). Resets
-     *  the per-engagement telemetry and forces a fresh process next tick.
-     *  @param force gap#68-②: when true, overrides the frail-HP entry gate in
-     *               {@link #bid} for this intent — the agent has explicitly accepted
-     *               the risk of fighting at low HP. */
+    /**
+     * Set an explicit combat intent (from the {@code mc.bot.combat} verb). Resets the per-engagement telemetry and
+     * forces a fresh process next tick.
+     *
+     * @param force gap#68-②: when true, overrides the frail-HP entry gate in {@link #bid} for this intent — the agent
+     *     has explicitly accepted the risk of fighting at low HP.
+     */
     public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force) {
         engage(mode, id, type, force, null, null);
     }
 
     /**
-     * {@link #engage} for an accepted action, which this chain ends: with {@code result} when the fight
-     * is won, failed when it gives up or the health gate refuses it, superseded by the next explicit
-     * fight. A retreat or dodge that interrupts the fight only pauses it. Client thread only.
+     * {@link #engage} for an accepted action, which this chain ends: with {@code result} when the fight is won, failed
+     * when it gives up or the health gate refuses it, superseded by the next explicit fight. A retreat or dodge that
+     * interrupts the fight only pauses it. Client thread only.
      */
     public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force, Ticket action, Object result) {
         Ticket prev = intentAction;
@@ -101,13 +119,17 @@ public final class CombatChain implements Chain {
         this.intentForce = force;
         this.process = null;
         resetCounters();
-        state.combat.beginRun("combat " + mode.name().toLowerCase()
-                + (id != null ? " id=" + id : "") + (type != null ? " type=" + type : ""), null);
+        state.combat.beginRun(
+                "combat " + mode.name().toLowerCase() + (id != null ? " id=" + id : "")
+                        + (type != null ? " type=" + type : ""),
+                null);
     }
 
-    /** Drop any combat intent and release the channel (the {@code mc.bot.cancel}
-     *  path). Telemetry is kept for a post-mortem read, mirroring lastError. {@code body} is
-     *  what the fight held inputs on, or null when there is none to release. */
+    /**
+     * Drop any combat intent and release the channel (the {@code mc.bot.cancel} path). Telemetry is kept for a
+     * post-mortem read, mirroring lastError. {@code body} is what the fight held inputs on, or null when there is none
+     * to release.
+     */
     public void standDown(Body body) {
         standDown(body, h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
@@ -130,7 +152,7 @@ public final class CombatChain implements Chain {
     /** Stand down if the explicit fight is still {@code action}'s; false when that action has left. */
     public boolean cancelAction(Body body, Ticket action) {
         if (action == null || !action.equals(intentAction)) return false;
-        standDown(body, h -> { });
+        standDown(body, h -> {});
         return true;
     }
 
@@ -141,13 +163,16 @@ public final class CombatChain implements Chain {
         if (a != null) ending.accept(a);
     }
 
-    /** True while the chain has work — an explicit intent or a live process.
-     *  Drives the {@code mc.bot.status.combat.active} flag (awaitability). */
+    /**
+     * True while the chain has work — an explicit intent or a live process. Drives the
+     * {@code mc.bot.status.combat.active} flag (awaitability).
+     */
     public boolean engaged() {
         return intentMode != null || process != null;
     }
 
-    @Override public float priority(Body body, WorldView w, BotState st) {
+    @Override
+    public float priority(Body body, WorldView w, BotState st) {
         decayAutoSuppression();
         float bid = bid(body);
         // Keep the status slot truthful EVERY tick (not just on engage). Without
@@ -159,9 +184,10 @@ public final class CombatChain implements Chain {
         return bid;
     }
 
-    /** gap#68-②: don't ENTER a fight on fragile HP. Pure & matrix-testable.
-     *  {@code force} (explicit-intent only) overrides the gate — the agent has
-     *  accepted the risk. */
+    /**
+     * gap#68-②: don't ENTER a fight on fragile HP. Pure & matrix-testable. {@code force} (explicit-intent only)
+     * overrides the gate — the agent has accepted the risk.
+     */
     public static boolean frailBlocked(float hp, float thr, boolean force) {
         return !force && hp <= thr;
     }
@@ -204,7 +230,8 @@ public final class CombatChain implements Chain {
         return 0f;
     }
 
-    @Override public void tick(Body body, WorldView w, BotState st) {
+    @Override
+    public void tick(Body body, WorldView w, BotState st) {
         if (process == null) {
             if (intentMode != null) {
                 process = new CombatProcess(intentMode, intentId, intentType);
@@ -241,34 +268,47 @@ public final class CombatChain implements Chain {
         state.combat.active = engaged();
     }
 
-    /** Preempted by a higher chain (retreat/dodge/panic): stop steering and drop the
-     *  process so resume re-acquires the target and repaths. Intent is preserved so
-     *  the fight continues once the higher chain stands down. gap#72-①: dropped via
-     *  the unified lifecycle (onCancelled fires) but with NO slot — state.combat is
-     *  recomputed from engaged() every tick, so it never orphans. */
-    @Override public void onInterrupt(Body body, Chain by) {
-        process = ChainProcessLifecycle.drop(process, null,
-                ChainProcessLifecycle.INTERRUPTED, "preempted by " + (by != null ? by.name() : "unknown"));
+    /**
+     * Preempted by a higher chain (retreat/dodge/panic): stop steering and drop the process so resume re-acquires the
+     * target and repaths. Intent is preserved so the fight continues once the higher chain stands down. gap#72-①:
+     * dropped via the unified lifecycle (onCancelled fires) but with NO slot — state.combat is recomputed from
+     * engaged() every tick, so it never orphans.
+     */
+    @Override
+    public void onInterrupt(Body body, Chain by) {
+        process = ChainProcessLifecycle.drop(
+                process,
+                null,
+                ChainProcessLifecycle.INTERRUPTED,
+                "preempted by " + (by != null ? by.name() : "unknown"));
         if (body != null) {
             body.releaseControls();
             releaseUseKey(body);
         }
     }
 
-    @Override public void onResume() {}
+    @Override
+    public void onResume() {}
 
-    @Override public String episodePhase() { return engaged() ? "ENGAGED" : null; }
-
-    @Override public void cancelEpisode(Body body, String reason) {
-        if (engaged()) { standDown(body); state.combat.lastError = reason; }
+    @Override
+    public String episodePhase() {
+        return engaged() ? "ENGAGED" : null;
     }
 
-    /** Drop the use intent the {@link CombatProcess} holds while drawing a bow.
-     *  {@link Body#releaseControls()} deliberately omits it (the idle path runs it AFTER
-     *  the shield/heal/eat reflexes set the intent, so clearing it there would clobber
-     *  them every tick); but on a combat preempt/stand-down the bow draw must drop,
-     *  or the bot flees with the bow still held — CombatProcess's own release
-     *  path is bypassed once the process is detached. */
+    @Override
+    public void cancelEpisode(Body body, String reason) {
+        if (engaged()) {
+            standDown(body);
+            state.combat.lastError = reason;
+        }
+    }
+
+    /**
+     * Drop the use intent the {@link CombatProcess} holds while drawing a bow. {@link Body#releaseControls()}
+     * deliberately omits it (the idle path runs it AFTER the shield/heal/eat reflexes set the intent, so clearing it
+     * there would clobber them every tick); but on a combat preempt/stand-down the bow draw must drop, or the bot flees
+     * with the bow still held — CombatProcess's own release path is bypassed once the process is detached.
+     */
     private static void releaseUseKey(Body body) {
         body.equipment().ifPresent(h -> h.commandUseItem(false));
     }

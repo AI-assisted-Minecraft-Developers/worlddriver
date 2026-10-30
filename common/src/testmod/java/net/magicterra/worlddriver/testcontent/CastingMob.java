@@ -10,17 +10,26 @@ import net.minecraft.world.level.Level;
 
 /**
  * Stands in for a modded mob that owns its move control and relies on owning it: its own tick casts
- * {@code getMoveControl()} to {@link OwnMoveControl} every step. A driver that swapped the control for
- * one of its own would make that cast throw, and an entity tick that throws crashes the server.
+ * {@code getMoveControl()} to {@link OwnMoveControl} every step. A driver that swapped the control for one of its own
+ * would make that cast throw, and an entity tick that throws crashes the server.
  */
 public class CastingMob extends PathfinderMob {
 
     /** A vanilla control with something of its own the mob calls. */
     public static final class OwnMoveControl extends MoveControl {
         private int pulses;
-        OwnMoveControl(Mob mob) { super(mob); }
-        void pulse() { pulses++; }
-        public int pulses() { return pulses; }
+
+        OwnMoveControl(Mob mob) {
+            super(mob);
+        }
+
+        void pulse() {
+            pulses++;
+        }
+
+        public int pulses() {
+            return pulses;
+        }
     }
 
     public CastingMob(EntityType<? extends CastingMob> type, Level level) {

@@ -7,7 +7,6 @@ import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Effect;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockOrTag;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
@@ -29,9 +28,9 @@ import net.magicterra.worlddriver.api.schema.annotation.Variant;
 import net.magicterra.worlddriver.api.schema.annotation.Wire;
 
 /**
- * {@code mc.query}: the blocks or the entities in a cube. Each kind is its own variant, so a filter that
- * only means something for one of them cannot be sent to the other. {@code select} keeps only the named
- * row fields, which is why every row field is optional.
+ * {@code mc.query}: the blocks or the entities in a cube. Each kind is its own variant, so a filter that only means
+ * something for one of them cannot be sent to the other. {@code select} keeps only the named row fields, which is why
+ * every row field is optional.
  */
 public final class QueryContracts {
     private QueryContracts() {}
@@ -41,35 +40,60 @@ public final class QueryContracts {
 
     @Named("BlockField")
     public enum BlockField implements WireName {
-        POS("pos"), TYPE("type"), STATE("state");
+        POS("pos"),
+        TYPE("type"),
+        STATE("state");
 
         private final String wire;
 
-        BlockField(String wire) { this.wire = wire; }
+        BlockField(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     /** The last three only the client fallback measures; selecting them on the server leaves them out. */
     @Named("EntityField")
     public enum EntityField implements WireName {
-        POS("pos"), BLOCK_POS("blockPos"), TYPE("type"), UUID("uuid"), ID("id"), HEALTH("health"), EFFECTS("effects"),
-        HOSTILE("hostile"), MAX_HEALTH("maxHealth"), DISTANCE("distance");
+        POS("pos"),
+        BLOCK_POS("blockPos"),
+        TYPE("type"),
+        UUID("uuid"),
+        ID("id"),
+        HEALTH("health"),
+        EFFECTS("effects"),
+        HOSTILE("hostile"),
+        MAX_HEALTH("maxHealth"),
+        DISTANCE("distance");
 
         private final String wire;
 
-        EntityField(String wire) { this.wire = wire; }
+        EntityField(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
-    @Tag("q") @Named("QueryParams")
+    @Tag("q")
+    @Named("QueryParams")
     public sealed interface Query permits Blocks, Entities {}
 
     @Named("BlockQueryFilter")
     public record BlockFilter(
-            @Wire("in_radius") @Doc("Chebyshev radius; 0 is the center cell alone.") @Default("0")
-            @Range(min = 0, max = 15) int inRadius,
+            @Wire("in_radius")
+            @Doc("Chebyshev radius; 0 is the center cell alone.")
+            @Default("0")
+            @Range(min = 0, max = 15)
+            int inRadius,
+
             @Doc("Only this block, or any block in a #tag.") Optional<@BlockOrTag String> type) {}
 
     @Named("EntityQueryFilter")
@@ -77,9 +101,14 @@ public final class QueryContracts {
             @Wire("in_radius")
             @Doc("Cells around the center cell; an entity overlapping one counts. The client caps it at 32.")
             @Default("16")
-            @Range(min = 0, max = 128) int inRadius,
+            @Range(min = 0, max = 128)
+            int inRadius,
+
             Optional<@EntityTypeId String> type,
-            @Wire("is_hostile") @Doc("true: monsters only; false: no monsters.") Optional<Boolean> isHostile,
+
+            @Wire("is_hostile") @Doc("true: monsters only; false: no monsters.")
+            Optional<Boolean> isHostile,
+
             @Wire("is_living") @Doc("true drops items, XP orbs and the like; false keeps only those.")
             Optional<Boolean> isLiving) {}
 
@@ -87,8 +116,10 @@ public final class QueryContracts {
     public record Blocks(
             @Doc("Omitted: mc.system.testOrigin; on a client with no server, its player.")
             Optional<BlockPosition> center,
+
             @Default("{\"in_radius\":0}") BlockFilter filter,
-            @Doc("Keep only these row fields.") Optional<@Length(max = 3) List<BlockField>> select) implements Query {
+            @Doc("Keep only these row fields.") Optional<@Length(max = 3) List<BlockField>> select)
+            implements Query {
 
         /** Every block within {@code radius} of {@code center}, all fields. */
         public static Blocks around(BlockPosition center, int radius) {
@@ -105,6 +136,7 @@ public final class QueryContracts {
     public record Entities(
             @Doc("Omitted: mc.system.testOrigin; on a client with no server, its player.")
             Optional<BlockPosition> center,
+
             @Default("{\"in_radius\":16}") EntityFilter filter,
             @Doc("Keep only these row fields.") Optional<@Length(max = 10) List<EntityField>> select)
             implements Query {}
@@ -113,6 +145,7 @@ public final class QueryContracts {
     public record BlockRow(
             Optional<BlockPosition> pos,
             Optional<@ResourceId String> type,
+
             @Doc("Blockstate properties as /setblock spells them; absent for a state without any.")
             Optional<@Length(max = 64) Map<String, String>> state) {}
 
@@ -122,21 +155,29 @@ public final class QueryContracts {
             @Doc("The cell pos is in.") Optional<BlockPosition> blockPos,
             Optional<@ResourceId String> type,
             @Doc("Stable across queries.") Optional<String> uuid,
-            @Doc("What mc.bot.attackEntity and goto's entity target take.") Optional<@EntityId Integer> id,
+
+            @Doc("What mc.bot.attackEntity and goto's entity target take.")
+            Optional<@EntityId Integer> id,
+
             @Doc("Living entities only.") Optional<Double> health,
+
             @Doc("Living entities, server only: a client is not told other entities' effects.")
             Optional<@Length(max = 256) List<Effect>> effects,
+
             @Doc("Client fallback only.") Optional<Boolean> hostile,
             @Doc("Client fallback only.") Optional<Double> maxHealth,
+
             @Doc("From the center; client fallback only.")
             Optional<@Range(min = 0, max = Double.MAX_VALUE) Double> distance) {}
 
-    @Tag("q") @Named("QueryReply")
+    @Tag("q")
+    @Named("QueryReply")
     public sealed interface Rows permits BlockRows, EntityRows {}
 
     @Variant("blocks")
     public record BlockRows(
-            @Doc("Every non-air cell that matched.") @Length(max = 32768) List<BlockRow> blocks) implements Rows {}
+            @Doc("Every non-air cell that matched.") @Length(max = 32768)
+            List<BlockRow> blocks) implements Rows {}
 
     @Variant("entities")
     public record EntityRows(@Length(max = 65536) List<EntityRow> entities) implements Rows {}
@@ -144,12 +185,13 @@ public final class QueryContracts {
     /** An entity type; a bare path is in the minecraft namespace. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
-    @Pattern(value = "([a-z0-9_.-]+:)?[a-z0-9/._-]+", expected = "an entity id such as minecraft:zombie; a bare path means minecraft:")
+    @Pattern(
+            value = "([a-z0-9_.-]+:)?[a-z0-9/._-]+",
+            expected = "an entity id such as minecraft:zombie; a bare path means minecraft:")
     @Length(max = 256)
     public @interface EntityTypeId {}
 
     // ------------------------------------------------------------------ params
-
 
     public static final UnionType<Query> PARAMS = ApiTypes.union(Query.class);
 
@@ -158,7 +200,10 @@ public final class QueryContracts {
     public static final UnionType<Rows> REPLY = ApiTypes.union(Rows.class);
 
     // Not pollable: a block query may read a 31³ cube in one tick, which is bulk work for a poller to repeat.
-    public static final MethodSpec<Query, Rows> SPEC = MethodSpec.of("mc.query", PARAMS, REPLY,
+    public static final MethodSpec<Query, Rows> SPEC = MethodSpec.of(
+                    "mc.query",
+                    PARAMS,
+                    REPLY,
                     "The non-air blocks or the entities in a cube around a center. Blocks read only loaded chunks: a cube "
                             + "touching an unloaded chunk is refused with the chunk named, never loaded. On a client with "
                             + "no server attached it scans the client's world, under the same limits.")

@@ -7,15 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-
 import net.magicterra.worlddriver.bot.rules.moves.MediumMove;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import org.junit.jupiter.api.Test;
 
 /**
- * The per-mode catalogs are a partition of {@link Move#ALL}, and a walking-and-swimming body gets all
- * of it in its original order — the search breaks ties by insertion, so a reordered catalog would be a
- * routing change, not a refactor.
+ * The per-mode catalogs are a partition of {@link Move#ALL}, and a walking-and-swimming body gets all of it in its
+ * original order — the search breaks ties by insertion, so a reordered catalog would be a routing change, not a
+ * refactor.
  */
 class MoveCatalogTest {
 
@@ -38,8 +37,17 @@ class MoveCatalogTest {
     void swimmingHoldsTheMovesThatStartInWater() {
         List<String> names = new ArrayList<>();
         for (Move m : MoveCatalog.of(Locomotion.Mode.SWIM)) if (!names.contains(m.name())) names.add(m.name());
-        assertEquals(List.of("swimUp", "swimDown", "climbOutPlace", "swimDownSurface", "swimAshore",
-                "swimAshoreClimb", "swimTraverseBreak", "swimUpBreak"), names);
+        assertEquals(
+                List.of(
+                        "swimUp",
+                        "swimDown",
+                        "climbOutPlace",
+                        "swimDownSurface",
+                        "swimAshore",
+                        "swimAshoreClimb",
+                        "swimTraverseBreak",
+                        "swimUpBreak"),
+                names);
     }
 
     @Test

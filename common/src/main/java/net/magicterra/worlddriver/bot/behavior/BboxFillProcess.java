@@ -1,42 +1,45 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.HashSet;
+import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-
-import java.util.HashSet;
-import java.util.Set;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class BboxFillProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos minP;
     private final BlockPos maxP;
-    private final String fillId;        // null = no placement
-    private final String filterFromId;  // null = any non-air; else only this id
+    private final String fillId; // null = no placement
+    private final String filterFromId; // null = any non-air; else only this id
     private final Navigator navigator = new Navigator(NavigatorSettings.named("fill"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final Set<BlockPos> done = new HashSet<>();
     private final int totalEstimate;
@@ -46,37 +49,66 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     private int placeTicks;
     private String breakStartId = "";
     private int broken, placed, skipped;
-    /** Cells the latest scan found work for but no stand to work from. Not blacklisted, because
-     *  clearing a neighbour can open a stand; whatever the final scan still counts was never done. */
+    /**
+     * Cells the latest scan found work for but no stand to work from. Not blacklisted, because clearing a neighbour can
+     * open a stand; whatever the final scan still counts was never done.
+     */
     private int stranded;
+
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
+
     private Phase phase = Phase.SEARCH;
-    private enum Phase { SEARCH, GOING, BREAKING, PLACING }
+
+    private enum Phase {
+        SEARCH,
+        GOING,
+        BREAKING,
+        PLACING
+    }
 
     public BboxFillProcess(BlockPos a, BlockPos b, String fillId, String filterFromId) {
-        this.minP = new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
-        this.maxP = new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
+        this.minP =
+                new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
+        this.maxP =
+                new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
         this.fillId = fillId;
         this.filterFromId = filterFromId;
-        this.totalEstimate = (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
+        this.totalEstimate =
+                (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
-    public String kind() { return "builder"; }
+    public String kind() {
+        return "builder";
+    }
 
     public void attach(BotState st) {
-        String mode = (filterFromId != null) ? "replace[" + filterFromId + "→" + fillId + "]"
-                    : (fillId != null) ? "fill[" + fillId + "]" : "clear";
-        st.builder.beginRun(mode + " " + CellText.of(minP) + "→" + CellText.of(maxP) + " (vol=" + totalEstimate + ")", null);
+        String mode = (filterFromId != null)
+                ? "replace[" + filterFromId + "→" + fillId + "]"
+                : (fillId != null) ? "fill[" + fillId + "]" : "clear";
+        st.builder.beginRun(
+                mode + " " + CellText.of(minP) + "→" + CellText.of(maxP) + " (vol=" + totalEstimate + ")", null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) {
+            failure = st.builder.lastError = "player vanished";
+            st.builder.reset();
+            return true;
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) { failure = st.builder.lastError = Readiness.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (equipment == null || blocks == null) {
+            failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
+            st.builder.reset();
+            return true;
+        }
         Level lvl = p.level();
 
         switch (phase) {
@@ -86,7 +118,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                     // Nothing left to act on. Stamp counters into lastError
                     // so the status snapshot surfaces them.
                     skipped += stranded;
-                    st.builder.lastError = "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
+                    st.builder.lastError =
+                            "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
                     if (skipped > 0) failure = "incomplete: " + skipped + " cells skipped";
                     return true;
@@ -141,9 +174,12 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                 boolean inBbox = false;
                 BlockPos hp = a.lookingAtBlock();
                 if (hp != null) {
-                    inBbox = hp.getX() >= minP.getX() && hp.getX() <= maxP.getX()
-                          && hp.getY() >= minP.getY() && hp.getY() <= maxP.getY()
-                          && hp.getZ() >= minP.getZ() && hp.getZ() <= maxP.getZ();
+                    inBbox = hp.getX() >= minP.getX()
+                            && hp.getX() <= maxP.getX()
+                            && hp.getY() >= minP.getY()
+                            && hp.getY() <= maxP.getY()
+                            && hp.getZ() >= minP.getZ()
+                            && hp.getZ() <= maxP.getZ();
                 }
                 blocks.breakHold(inBbox);
                 breakingTicks++;
@@ -229,9 +265,10 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         return false;
     }
 
-    /** Pick the next bbox cell needing work, bottom-up. Skips done +
-     *  blacklisted + (in replace mode) non-matching cells; in clear/fill
-     *  modes also skips cells that already hold fillId (idempotent). */
+    /**
+     * Pick the next bbox cell needing work, bottom-up. Skips done + blacklisted + (in replace mode) non-matching cells;
+     * in clear/fill modes also skips cells that already hold fillId (idempotent).
+     */
     private BlockPos[] scanNextCell(Level lvl) {
         stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {
@@ -262,8 +299,11 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                         continue;
                     }
                     BlockPos stand = findStandableAdjacent(lvl, bp);
-                    if (stand == null) { stranded++; continue; }
-                    return new BlockPos[]{bp, stand};
+                    if (stand == null) {
+                        stranded++;
+                        continue;
+                    }
+                    return new BlockPos[] {bp, stand};
                 }
             }
         }
@@ -273,14 +313,15 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     /**
      * The face of a solid neighbour that points at {@code block}, or null if it has none.
      *
-     * <p>Deliberately NOT what {@code BuildProcess.findPlacement} does, though a comment here used
-     * to call it a copy: that one also picks the cell to stand in, this one never did — the fill
-     * walks to a stand chosen much earlier by {@link #findStandableAdjacent}. It returned a
-     * two-field {@code Placement} whose {@code stand} was hardcoded null at the one construction
-     * site and read by nobody, which is what made the copy claim look true.
+     * <p>Deliberately NOT what {@code BuildProcess.findPlacement} does, though a comment here used to call it a copy:
+     * that one also picks the cell to stand in, this one never did — the fill walks to a stand chosen much earlier by
+     * {@link #findStandableAdjacent}. It returned a two-field {@code Placement} whose {@code stand} was hardcoded null
+     * at the one construction site and read by nobody, which is what made the copy claim look true.
      */
     private Direction supportFace(Level lvl, BlockPos block) {
-        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        Direction[] order = {
+            Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
+        };
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
             if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
@@ -291,14 +332,14 @@ public final class BboxFillProcess implements BotProcess, Navigating {
 
     private BlockPos findStandableAdjacent(Level lvl, BlockPos block) {
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        for (int dy : new int[]{0, -1, -2, -3, 1, 2}) {
+        for (int dy : new int[] {0, -1, -2, -3, 1, 2}) {
             for (int[] d : dxz) {
                 BlockPos c = block.offset(d[0], dy, d[1]);
                 if (canStandHereStatic(lvl, c) && withinReach(c, block)) return c;
             }
         }
         int[][] diag = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-        for (int dy : new int[]{0, -1, -2}) {
+        for (int dy : new int[] {0, -1, -2}) {
             for (int[] d : diag) {
                 BlockPos c = block.offset(d[0], dy, d[1]);
                 if (canStandHereStatic(lvl, c) && withinReach(c, block)) return c;
@@ -309,13 +350,14 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         return null;
     }
 
-    /** Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
-     *  {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole
-     *  block of margin on purpose: it picks a cell to WALK TO, and the bot will not be standing
-     *  exactly on that centre when it gets there. Choosing a stand the actuator can only just
-     *  reach is how a fill reports a cell placed from a stand it then cannot place from.
-     *  (Sneaking would cost another 0.35 of eye height — this process does not sneak, but
-     *  {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.) */
+    /**
+     * Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
+     * {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole block of margin on
+     * purpose: it picks a cell to WALK TO, and the bot will not be standing exactly on that centre when it gets there.
+     * Choosing a stand the actuator can only just reach is how a fill reports a cell placed from a stand it then cannot
+     * place from. (Sneaking would cost another 0.35 of eye height — this process does not sneak, but
+     * {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.)
+     */
     private static final double FILL_STAND_REACH = 4.0;
 
     private static boolean withinReach(BlockPos stand, BlockPos block) {
@@ -324,7 +366,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
 
     private String currentBlockId(Level lvl) {
         if (lvl == null || currentTarget == null) return "";
-        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
+        return BuiltInRegistries.BLOCK
+                .getKey(lvl.getBlockState(currentTarget).getBlock())
+                .toString();
     }
 
     private boolean cleared(Level lvl) {
@@ -332,5 +376,4 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         BlockState bs = lvl.getBlockState(currentTarget);
         return bs.isAir() || !bs.getFluidState().isEmpty();
     }
-
 }

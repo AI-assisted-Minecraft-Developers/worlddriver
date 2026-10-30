@@ -22,13 +22,16 @@ class JupiterLootTest {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
         assertTrue(assertInstanceOf(LootContracts.Existence.class, queries.loot(new LootContracts.Exists(DUNGEON)))
                 .exists());
-        assertFalse(assertInstanceOf(LootContracts.Existence.class,
-                queries.loot(new LootContracts.Exists("minecraft:chests/no_such_table"))).exists());
+        assertFalse(assertInstanceOf(
+                        LootContracts.Existence.class,
+                        queries.loot(new LootContracts.Exists("minecraft:chests/no_such_table")))
+                .exists());
     }
 
     @Test
     void rollingADungeonHundredTimesYieldsItems(Game game) {
-        var rolled = assertInstanceOf(LootContracts.Rolled.class,
+        var rolled = assertInstanceOf(
+                LootContracts.Rolled.class,
                 game.api(TestQueriesBlockingApi::of).loot(new LootContracts.Roll(DUNGEON, 100)));
         assertTrue(rolled.times() == 100, "rolls");
         assertFalse(rolled.items().isEmpty(), "100 dungeon rolls produced nothing at all");
@@ -38,8 +41,10 @@ class JupiterLootTest {
     @Test
     void aTableNeedingAKillerOrAMissingOneIsRefused(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
-        assertThrows(RuntimeException.class, () -> queries.loot(new LootContracts.Roll("minecraft:entities/zombie", 5)));
-        assertThrows(RuntimeException.class,
+        assertThrows(
+                RuntimeException.class, () -> queries.loot(new LootContracts.Roll("minecraft:entities/zombie", 5)));
+        assertThrows(
+                RuntimeException.class,
                 () -> queries.loot(new LootContracts.Roll("minecraft:chests/no_such_table", 5)));
     }
 }

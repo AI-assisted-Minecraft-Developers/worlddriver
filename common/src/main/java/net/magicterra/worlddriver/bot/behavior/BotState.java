@@ -1,18 +1,15 @@
 package net.magicterra.worlddriver.bot.behavior;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import net.magicterra.worlddriver.bot.world.ThreatWatch;
 import net.minecraft.core.BlockPos;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /**
- * Snapshot the agent can poll via {@code mc.bot.status} + {@code wait.condition}.
- * Deliberately flat field structure so dotted-path matching works directly:
- * {@code field:"goto.active"} or {@code field:"goto.lastError"}.
+ * Snapshot the agent can poll via {@code mc.bot.status} + {@code wait.condition}. Deliberately flat field structure so
+ * dotted-path matching works directly: {@code field:"goto.active"} or {@code field:"goto.lastError"}.
  *
- * Mutated only by the bot tick (single thread); status calls produce a defensive
- * copy via {@link #snapshot()}.
+ * <p>Mutated only by the bot tick (single thread); status calls produce a defensive copy via {@link #snapshot()}.
  */
 public final class BotState {
     public final ProcessSlot mc_goto = new ProcessSlot("goto");
@@ -21,47 +18,56 @@ public final class BotState {
     public final ProcessSlot follow = new ProcessSlot("follow");
     public final ProcessSlot explore = new ProcessSlot("explore");
     public final ProcessSlot runAway = new ProcessSlot("runAway");
-    /** Dedicated slot for the AUTO-retreat reflex (RetreatChain), kept SEPARATE
-     *  from {@link #runAway} (the user-invoked mc.bot.runAway verb). They used to
-     *  share one slot, so the reflex's flee status stomped a user flee's status and
-     *  — because the reflex never reset the slot when it stopped — left it stuck
-     *  active:true forever (the "stale runAway" the agent saw survive every cancel).
-     *  One owner per slot; the reflex clears this when it deactivates. */
+    /**
+     * Dedicated slot for the AUTO-retreat reflex (RetreatChain), kept SEPARATE from {@link #runAway} (the user-invoked
+     * mc.bot.runAway verb). They used to share one slot, so the reflex's flee status stomped a user flee's status and —
+     * because the reflex never reset the slot when it stopped — left it stuck active:true forever (the "stale runAway"
+     * the agent saw survive every cancel). One owner per slot; the reflex clears this when it deactivates.
+     */
     public final ProcessSlot retreat = new ProcessSlot("retreat");
+
     public final ProcessSlot look = new ProcessSlot("look");
     public final ProcessSlot elytra = new ProcessSlot("elytra");
     public final ProcessSlot craft = new ProcessSlot("craft");
     public final ProcessSlot smelt = new ProcessSlot("smelt");
     public final ProcessSlot combat = new ProcessSlot("combat");
-    /** mc.bot.escape (EscapeProcess). Escape used to be slot-less, so its four
-     *  silent-stall modes (weak canWalkOut gate, sealed-roof STEP_UP ping-pong)
-     *  ended with active:false and NO lastError — indistinguishable from success.
-     *  EscapeProcess now reports goal/target/lastError here every tick. */
+    /**
+     * mc.bot.escape (EscapeProcess). Escape used to be slot-less, so its four silent-stall modes (weak canWalkOut gate,
+     * sealed-roof STEP_UP ping-pong) ended with active:false and NO lastError — indistinguishable from success.
+     * EscapeProcess now reports goal/target/lastError here every tick.
+     */
     public final ProcessSlot escape = new ProcessSlot("escape");
-    /** mc.bot.bunker (BunkerProcess). gap#68-⑩: the verb used to be a bare start
-     *  ack with no slot at all — a zero-action bail (water at the dig site, dig
-     *  timeout, …) reported ok:true indistinguishable from a real shelter. Now
-     *  BunkerProcess stamps goalReached/endReason here at every terminal exit
-     *  (goalReached = block-level enclosure ground truth, NOT hazardSummary.cornered). */
+    /**
+     * mc.bot.bunker (BunkerProcess). gap#68-⑩: the verb used to be a bare start ack with no slot at all — a zero-action
+     * bail (water at the dig site, dig timeout, …) reported ok:true indistinguishable from a real shelter. Now
+     * BunkerProcess stamps goalReached/endReason here at every terminal exit (goalReached = block-level enclosure
+     * ground truth, NOT hazardSummary.cornered).
+     */
     public final ProcessSlot bunker = new ProcessSlot("bunker");
-    /** A route preview ({@code mc.bot.goto} with {@code plan: true}, {@code PreviewSearch}). Not a
-     *  process: it drives nothing and is not in {@link #activeName()}. Exists so a status poll sees the
-     *  search running: a missing slot reads as finished. */
+    /**
+     * A route preview ({@code mc.bot.goto} with {@code plan: true}, {@code PreviewSearch}). Not a process: it drives
+     * nothing and is not in {@link #activeName()}. Exists so a status poll sees the search running: a missing slot
+     * reads as finished.
+     */
     public final ProcessSlot plan = new ProcessSlot("plan");
     /** The latest preview's result, merged into the {@code plan} slot's snapshot. */
     public volatile Map<String, Object> planResult;
 
-    /** Phase C combat telemetry (mutated by CombatProcess on the tick thread,
-     *  read by status()). {@code wellTimed} counts swings issued at full attack
-     *  cooldown (scale ≥ 1.0); the ratio wellTimed/swings is the timing-quality
-     *  metric the 42_combat validation asserts. Reset by CombatChain.engage(). */
+    /**
+     * Phase C combat telemetry (mutated by CombatProcess on the tick thread, read by status()). {@code wellTimed}
+     * counts swings issued at full attack cooldown (scale ≥ 1.0); the ratio wellTimed/swings is the timing-quality
+     * metric the 42_combat validation asserts. Reset by CombatChain.engage().
+     */
     public volatile int combatSwings;
+
     public volatile int combatWellTimed;
     public volatile int combatCrits;
     public volatile int combatKills;
 
-    /** This bot's threat picture, refreshed once per tick by whatever ticks the bot. Not a status
-     *  slot; it lives here because every chain and process is already handed this object. */
+    /**
+     * This bot's threat picture, refreshed once per tick by whatever ticks the bot. Not a status slot; it lives here
+     * because every chain and process is already handed this object.
+     */
     public final ThreatWatch threats = new ThreatWatch();
 
     public synchronized Map<String, Object> snapshot() {
@@ -95,14 +101,13 @@ public final class BotState {
     }
 
     /**
-     * Name of the first slot reporting {@code active}, or null when every slot is idle.
-     * Ordered so the slot a human would call "what the bot is doing" wins: movement
-     * first, then the station work, then the reflex-owned slots.
+     * Name of the first slot reporting {@code active}, or null when every slot is idle. Ordered so the slot a human
+     * would call "what the bot is doing" wins: movement first, then the station work, then the reflex-owned slots.
      *
-     * <p>Deliberately covers ALL slots — unlike the screen-watchdog's hand-listed subset
-     * in {@code BotBrain#movementWantsInput}, which excludes craft/smelt because those legitimately hold a
-     * station screen. This one answers "is the bot driving the player at all?", so a
-     * crafting bot counts. Slot fields are volatile; no lock needed for this read.
+     * <p>Deliberately covers ALL slots — unlike the screen-watchdog's hand-listed subset in
+     * {@code BotBrain#movementWantsInput}, which excludes craft/smelt because those legitimately hold a station screen.
+     * This one answers "is the bot driving the player at all?", so a crafting bot counts. Slot fields are volatile; no
+     * lock needed for this read.
      */
     public String activeName() {
         if (mc_goto.active) return mc_goto.name;
@@ -123,38 +128,42 @@ public final class BotState {
     }
 
     /** True when any process slot is running. See {@link #activeName()}. */
-    public boolean anyActive() { return activeName() != null; }
+    public boolean anyActive() {
+        return activeName() != null;
+    }
 
     /** Every process slot, for a caller that has to find out which ones something switched on. */
     public ProcessSlot[] processSlots() {
-        return new ProcessSlot[] {mc_goto, mine, builder, follow, explore, runAway, retreat, look,
-                elytra, craft, smelt, combat, escape, bunker, plan};
+        return new ProcessSlot[] {
+            mc_goto, mine, builder, follow, explore, runAway, retreat, look, elytra, craft, smelt, combat, escape,
+            bunker, plan
+        };
     }
 
     /**
-     * The slot named after {@code kind}, or null. Only for stamping a verb's refusal before any
-     * process exists: a process's own slots are the ones its attach switched on, which is what
-     * {@code SlotClaim} records, because {@code sleep} and {@code replay} report into the goto slot.
+     * The slot named after {@code kind}, or null. Only for stamping a verb's refusal before any process exists: a
+     * process's own slots are the ones its attach switched on, which is what {@code SlotClaim} records, because
+     * {@code sleep} and {@code replay} report into the goto slot.
      */
     public ProcessSlot slotFor(String kind) {
         return switch (kind) {
-            case "goto"    -> mc_goto;
-            case "mine"    -> mine;
+            case "goto" -> mc_goto;
+            case "mine" -> mine;
             case "builder" -> builder;
-            case "follow"  -> follow;
+            case "follow" -> follow;
             case "explore" -> explore;
             case "runAway" -> runAway;
-            case "look"    -> look;
-            case "elytra"  -> elytra;
-            case "craft"   -> craft;
-            case "smelt"   -> smelt;
-            case "escape"  -> escape;
-            case "bunker"  -> bunker;
+            case "look" -> look;
+            case "elytra" -> elytra;
+            case "craft" -> craft;
+            case "smelt" -> smelt;
+            case "escape" -> escape;
+            case "bunker" -> bunker;
             // Any future slot-less kind has NO BotState slot — its liveness surfaces
             // via activeProcessDetail + the live process. Return null so cancel()/error
             // don't (a) leave some other slot's active stuck true by resetting the
             // wrong slot, or (b) stamp a phantom error on the goto slot.
-            default        -> null;
+            default -> null;
         };
     }
 
@@ -162,12 +171,11 @@ public final class BotState {
     public static final class ProcessSlot {
         public final String name;
         public volatile boolean active;
-        public volatile String goal;       // human-readable
-        public volatile BlockPos target;   // current goal target if any
+        public volatile String goal; // human-readable
+        public volatile BlockPos target; // current goal target if any
         /**
-         * Progress through whatever this slot's process is doing — <b>and the unit is the
-         * process's, not a fixed one</b>. These said "remaining nodes" / "current node index"
-         * until it was measured; ten writers disagreed.
+         * Progress through whatever this slot's process is doing — <b>and the unit is the process's, not a fixed
+         * one</b>. These said "remaining nodes" / "current node index" until it was measured; ten writers disagreed.
          *
          * <table><caption>what each writer puts here</caption>
          * <tr><th>writer</th><th>{@code pathLen}</th><th>{@code pathStep}</th></tr>
@@ -185,79 +193,85 @@ public final class BotState {
          *     <td>waypoint index</td></tr>
          * </table>
          *
-         * <p>So {@code pathStep/pathLen} is a fraction only within one verb, and comparing the
-         * pair across verbs — or reading either as a node count — is wrong for half the surface.
-         * The escape pair is the sharpest case: {@code pathLen} there is a constant, so a
-         * descend that is nearly done and one that just started report the same denominator.
+         * <p>So {@code pathStep/pathLen} is a fraction only within one verb, and comparing the pair across verbs — or
+         * reading either as a node count — is wrong for half the surface. The escape pair is the sharpest case:
+         * {@code pathLen} there is a constant, so a descend that is nearly done and one that just started report the
+         * same denominator.
          *
-         * <p>Written down rather than unified because unifying changes what
-         * {@code mc.bot.status} reports to every existing client. If it is ever unified, the
-         * unit has to be named in the key, not in a comment.
+         * <p>Written down rather than unified because unifying changes what {@code mc.bot.status} reports to every
+         * existing client. If it is ever unified, the unit has to be named in the key, not in a comment.
          */
         public volatile int pathLen;
+
         public volatile int pathStep;
         /**
-         * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the
-         * edge that enters it ({@code walk} / {@code stepDown} / {@code fall7} / …).
+         * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the edge that enters it
+         * ({@code walk} / {@code stepDown} / {@code fall7} / …).
          *
-         * <p>On the slots where {@code pathLen}/{@code pathStep} really are a navigator's (see their
-         * javadoc — on five other writers they are not), they say how far along a plan the bot is
-         * and nothing about what the plan asked for. That gap ended a diagnosis: a nether crossing
-         * left the ground and fell eleven blocks into lava, and the only readings anyone had were
-         * about the cell under the player's FEET — which cannot distinguish "the next node really is
-         * across a gap" from "the node is fine and the bot overshot it". Those want opposite fixes.
+         * <p>On the slots where {@code pathLen}/{@code pathStep} really are a navigator's (see their javadoc — on five
+         * other writers they are not), they say how far along a plan the bot is and nothing about what the plan asked
+         * for. That gap ended a diagnosis: a nether crossing left the ground and fell eleven blocks into lava, and the
+         * only readings anyone had were about the cell under the player's FEET — which cannot distinguish "the next
+         * node really is across a gap" from "the node is fine and the bot overshot it". Those want opposite fixes.
          *
-         * <p>Deliberately NOT in {@link #snapshot()}: every {@code mc.bot.status} poll ships every
-         * slot's map to an LLM client, and this is a debugging reading for in-process consumers
-         * (the journey's {@code JourneyFlight}), not something an agent steers on.
+         * <p>Deliberately NOT in {@link #snapshot()}: every {@code mc.bot.status} poll ships every slot's map to an LLM
+         * client, and this is a debugging reading for in-process consumers (the journey's {@code JourneyFlight}), not
+         * something an agent steers on.
          */
         public volatile BlockPos pathNode;
+
         public volatile String pathMove;
         /**
          * WHICH BRANCH of the navigator's tick actuated this one, and who commanded its jump.
          *
-         * <p>The same debugging channel as {@link #pathNode}, and it exists for the same reason a
-         * fall could not be read without that one. {@code Navigator.tickInner} has dozens of early
-         * returns — pillar, dig, escape, step-up — and the drive TAIL, where the lethal-edge
-         * sneak-pin and the sprint/jump decision live, runs only on the ticks that reach it. So
-         * "the bot was not sneaking beside a lava drop" has two completely different causes: the
-         * pin evaluated false, or the tick never got to the pin. {@code NavigatorInspector.driveTag} already
-         * distinguishes them (it is null on an early return) and nothing outside the navigator could
-         * read it — the journey's crossing runs its own {@code IntentProcess} navigator, not the
-         * driver's.
+         * <p>The same debugging channel as {@link #pathNode}, and it exists for the same reason a fall could not be
+         * read without that one. {@code Navigator.tickInner} has dozens of early returns — pillar, dig, escape, step-up
+         * — and the drive TAIL, where the lethal-edge sneak-pin and the sprint/jump decision live, runs only on the
+         * ticks that reach it. So "the bot was not sneaking beside a lava drop" has two completely different causes:
+         * the pin evaluated false, or the tick never got to the pin. {@code NavigatorInspector.driveTag} already
+         * distinguishes them (it is null on an early return) and nothing outside the navigator could read it — the
+         * journey's crossing runs its own {@code IntentProcess} navigator, not the driver's.
          *
-         * <p>Excluded from {@link #snapshot()} for the same reason {@code pathNode} is: this is for
-         * an in-process recorder, not for an agent to steer on.
+         * <p>Excluded from {@link #snapshot()} for the same reason {@code pathNode} is: this is for an in-process
+         * recorder, not for an agent to steer on.
          */
         public volatile String driveTag;
+
         public volatile String jumpTag;
         public volatile long startedAtMs;
-        public volatile String lastError;  // null if last run ok or in-progress
-        /** gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends.
-         *  Kept across reset() (like lastError) so a status read or wait.condition can read it. */
+        public volatile String lastError; // null if last run ok or in-progress
+        /**
+         * gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends. Kept across reset() (like
+         * lastError) so a status read or wait.condition can read it.
+         */
         public volatile Boolean goalReached;
+
         public volatile String endReason;
         public volatile double finalDist = -1;
         /**
-         * The FIRST plan this run ever held, latched once and never overwritten — where the bot was
-         * standing, how long the path was, and which move entered its first node.
+         * The FIRST plan this run ever held, latched once and never overwritten — where the bot was standing, how long
+         * the path was, and which move entered its first node.
          *
-         * <p>{@code pathLen}/{@code pathMove} are live values, and a run that ends somewhere the bot
-         * should never have been reports the planning of that somewhere. Measured 2026-08-17 on the
-         * End arrival platform: the walk's closing row read {@code pathLen=7 move=bridgePlace} while
-         * the bot was 23 000 blocks down a void in which every {@code BridgePlace} premise trivially
-         * holds — a true statement about a plan made in free fall, mistaken for the plan made on the
-         * platform. This field is the sample taken while there was still ground under the question.
+         * <p>{@code pathLen}/{@code pathMove} are live values, and a run that ends somewhere the bot should never have
+         * been reports the planning of that somewhere. Measured 2026-08-17 on the End arrival platform: the walk's
+         * closing row read {@code pathLen=7 move=bridgePlace} while the bot was 23 000 blocks down a void in which
+         * every {@code BridgePlace} premise trivially holds — a true statement about a plan made in free fall, mistaken
+         * for the plan made on the platform. This field is the sample taken while there was still ground under the
+         * question.
          *
-         * <p>Kept across {@link #reset()} for the same reason {@code lastError} is: it is read after
-         * the run it describes has ended.
+         * <p>Kept across {@link #reset()} for the same reason {@code lastError} is: it is read after the run it
+         * describes has ended.
          */
         public volatile String firstPlan;
-        /** The first parkour leap's takeoff state — see NavigatorInspector.parkourTakeoff(). Kept across
-         *  reset() like lastError: it is read after the run it describes has ended. */
+        /**
+         * The first parkour leap's takeoff state — see NavigatorInspector.parkourTakeoff(). Kept across reset() like
+         * lastError: it is read after the run it describes has ended.
+         */
         public volatile String parkourTakeoff;
 
-        ProcessSlot(String name) { this.name = name; }
+        ProcessSlot(String name) {
+            this.name = name;
+        }
 
         public Map<String, Object> snapshot() {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -275,9 +289,9 @@ public final class BotState {
         }
 
         /**
-         * Start a run: switch the slot on and forget every reading the previous run left, the terminal
-         * verdict that {@link #reset()} keeps included. Every attach goes through here, so a running
-         * process never shows the last run's {@code goalReached}/{@code endReason}/{@code finalDist}.
+         * Start a run: switch the slot on and forget every reading the previous run left, the terminal verdict that
+         * {@link #reset()} keeps included. Every attach goes through here, so a running process never shows the last
+         * run's {@code goalReached}/{@code endReason}/{@code finalDist}.
          */
         public void beginRun(String goal, BlockPos target) {
             reset();

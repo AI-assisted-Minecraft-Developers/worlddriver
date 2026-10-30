@@ -30,13 +30,32 @@ public final class CommonTypes {
     public record Look(double yaw, double pitch) {}
 
     /** Compass words are the world's; forward/back/left/right turn with the body's facing. */
-    @Named("Direction") @Doc("forward/back/left/right turn with the body's facing.")
+    @Named("Direction")
+    @Doc("forward/back/left/right turn with the body's facing.")
     public enum Direction implements WireName {
-        FORWARD, BACK, LEFT, RIGHT, NORTH, SOUTH, EAST, WEST, UP, DOWN;
-        @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
-        public boolean vertical() { return this == UP || this == DOWN; }
+        FORWARD,
+        BACK,
+        LEFT,
+        RIGHT,
+        NORTH,
+        SOUTH,
+        EAST,
+        WEST,
+        UP,
+        DOWN;
 
-        /** The compass direction nearest {@code yaw}: Minecraft's {@code Direction.fromYRot}, kept free of game types. */
+        @Override
+        public String wireName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public boolean vertical() {
+            return this == UP || this == DOWN;
+        }
+
+        /**
+         * The compass direction nearest {@code yaw}: Minecraft's {@code Direction.fromYRot}, kept free of game types.
+         */
         public static Direction compass(float yaw) {
             return switch (Math.floorMod((int) Math.floor(yaw / 90.0 + 0.5), 4)) {
                 case 0 -> SOUTH;
@@ -46,7 +65,9 @@ public final class CommonTypes {
             };
         }
 
-        /** This word for a body facing compass direction {@code front}: a turning word turns, the rest are themselves. */
+        /**
+         * This word for a body facing compass direction {@code front}: a turning word turns, the rest are themselves.
+         */
         public Direction against(Direction front) {
             return switch (this) {
                 case FORWARD -> front;
@@ -89,7 +110,8 @@ public final class CommonTypes {
     /** A block id, or a {@code #tag} standing for every block in it. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
-    @Pattern(value = "#?[a-z0-9_.-]+:[a-z0-9/._-]+",
+    @Pattern(
+            value = "#?[a-z0-9_.-]+:[a-z0-9/._-]+",
             expected = "a block id such as minecraft:chest, or a tag such as #minecraft:logs")
     @Length(max = 256)
     public @interface BlockOrTag {}

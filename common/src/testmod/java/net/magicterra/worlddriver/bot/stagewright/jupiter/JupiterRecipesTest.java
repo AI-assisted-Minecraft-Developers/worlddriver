@@ -22,23 +22,27 @@ class JupiterRecipesTest {
     @Test
     void aCraftingTableHasAMakerWhoseSlotsAcceptPlanks(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
-        var made = assertInstanceOf(RecipesContracts.ProducedBy.class,
-                queries.recipes(new RecipesContracts.Producing(TABLE)));
+        var made = assertInstanceOf(
+                RecipesContracts.ProducedBy.class, queries.recipes(new RecipesContracts.Producing(TABLE)));
         assertFalse(made.recipes().isEmpty(), "some recipe makes a crafting table");
 
-        var recipe = assertInstanceOf(RecipesContracts.IngredientsOf.class,
+        var recipe = assertInstanceOf(
+                RecipesContracts.IngredientsOf.class,
                 queries.recipes(new RecipesContracts.Ingredients(made.recipes().get(0))));
         assertEquals(TABLE, recipe.result());
         assertEquals(1, recipe.count());
         assertFalse(recipe.slots().isEmpty(), "it has ingredient slots");
-        assertTrue(recipe.slots().stream().anyMatch(s -> s.accepts().contains("minecraft:oak_planks")),
+        assertTrue(
+                recipe.slots().stream().anyMatch(s -> s.accepts().contains("minecraft:oak_planks")),
                 "a slot accepts oak planks");
     }
 
     @Test
     void theClosureOfACraftingTableReachesLogsAndLeavesNothingUnresolved(Game game) {
-        var closure = assertInstanceOf(RecipesContracts.Closure.class, game.api(TestQueriesBlockingApi::of)
-                .recipes(new RecipesContracts.ClosureOf(TABLE, Optional.empty(), Optional.empty())));
+        var closure = assertInstanceOf(
+                RecipesContracts.Closure.class,
+                game.api(TestQueriesBlockingApi::of)
+                        .recipes(new RecipesContracts.ClosureOf(TABLE, Optional.empty(), Optional.empty())));
         assertEquals(TABLE, closure.root());
         assertTrue(closure.items().contains("minecraft:oak_planks"), "reaches planks");
         assertTrue(closure.unresolvable().isEmpty(), "unresolvable: " + closure.unresolvable());
@@ -47,8 +51,10 @@ class JupiterRecipesTest {
 
     @Test
     void aTinyBoundTruncatesRatherThanFailing(Game game) {
-        var closure = assertInstanceOf(RecipesContracts.Closure.class, game.api(TestQueriesBlockingApi::of)
-                .recipes(new RecipesContracts.ClosureOf(TABLE, Optional.of(1), Optional.empty())));
+        var closure = assertInstanceOf(
+                RecipesContracts.Closure.class,
+                game.api(TestQueriesBlockingApi::of)
+                        .recipes(new RecipesContracts.ClosureOf(TABLE, Optional.of(1), Optional.empty())));
         assertTrue(closure.truncated(), "one node cannot hold the closure");
     }
 
@@ -62,14 +68,13 @@ class JupiterRecipesTest {
     @Test
     void theWholeGraphAudits(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
-        var audit = assertInstanceOf(RecipesContracts.AuditReport.class,
-                queries.recipes(new RecipesContracts.Audit()));
+        var audit = assertInstanceOf(RecipesContracts.AuditReport.class, queries.recipes(new RecipesContracts.Audit()));
         assertTrue(audit.attempted() > 100, "attempted " + audit.attempted());
         assertTrue(audit.skipped() > 0, "special recipes are skipped, not run");
         assertEquals(0, audit.failureCount(), "audit failures: " + audit.failures());
 
-        var uncraftable = assertInstanceOf(RecipesContracts.UncraftableRecipes.class,
-                queries.recipes(new RecipesContracts.Uncraftable()));
+        var uncraftable = assertInstanceOf(
+                RecipesContracts.UncraftableRecipes.class, queries.recipes(new RecipesContracts.Uncraftable()));
         assertEquals(0, uncraftable.count(), "uncraftable: " + uncraftable.recipes());
     }
 }

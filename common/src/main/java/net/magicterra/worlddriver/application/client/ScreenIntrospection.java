@@ -1,24 +1,6 @@
 package net.magicterra.worlddriver.application.client;
 
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Box;
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotItem;
-import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.WidgetNode;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.AbstractSelectionList;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.ObjectSelectionList;
-import net.minecraft.client.gui.components.events.ContainerEventHandler;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
-
 import com.google.common.collect.MapMaker;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,30 +9,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Box;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotItem;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.WidgetNode;
 import net.magicterra.worlddriver.game.ClientHop;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
+import net.magicterra.worlddriver.game.ui.DeathCause;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractSelectionList;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.components.events.ContainerEventHandler;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.Overlay;
-import net.minecraft.client.gui.components.EditBox;
-import net.magicterra.worlddriver.game.ui.DeathCause;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 /**
- * Screen / widget-tree introspection for {@code mc.client.screen.*}, and the refs that let a click name a
- * node of a tree it read earlier.
+ * Screen / widget-tree introspection for {@code mc.client.screen.*}, and the refs that let a click name a node of a
+ * tree it read earlier.
  */
 public final class ScreenIntrospection {
     private ScreenIntrospection() {}
 
     /**
-     * Each widget, list row and slot object's ref, handed out the first time a walk meets it. A node id is
-     * only a place in one read's list and shifts as soon as a widget is added above it; the ref is bound to
-     * the object, so a click by ref lands on the widget the caller saw or is refused, never on its
-     * neighbour. Weak and by identity: a closed screen's widgets are not kept, and a widget's own equals
-     * plays no part. Client thread only, like the walk.
+     * Each widget, list row and slot object's ref, handed out the first time a walk meets it. A node id is only a place
+     * in one read's list and shifts as soon as a widget is added above it; the ref is bound to the object, so a click
+     * by ref lands on the widget the caller saw or is refused, never on its neighbour. Weak and by identity: a closed
+     * screen's widgets are not kept, and a widget's own equals plays no part. Client thread only, like the walk.
      */
     private static final Map<Object, Integer> REFS = new MapMaker().weakKeys().makeMap();
+
     private static int nextRef = 1;
 
     private static int refOf(Object o) {
@@ -61,9 +58,9 @@ public final class ScreenIntrospection {
     record Aim(double x, double y, Optional<String> refusal) {}
 
     /**
-     * Aims at {@code ref} on the open screen. Refused when the ref is not on it any more, is hidden, has no
-     * box, or its centre lies outside the screen or outside the box of anything holding it — a list row
-     * scrolled out of its list, where a click would land on whatever is drawn there instead. Client thread.
+     * Aims at {@code ref} on the open screen. Refused when the ref is not on it any more, is hidden, has no box, or its
+     * centre lies outside the screen or outside the box of anything holding it — a list row scrolled out of its list,
+     * where a click would land on whatever is drawn there instead. Client thread.
      */
     static Aim aim(int ref) {
         ScreenTree tree = screenTree();
@@ -81,14 +78,16 @@ public final class ScreenIntrospection {
         if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
             return refused("ref " + ref + " lies outside the screen, at " + x + "," + y);
         }
-        for (WidgetNode holder = byRef.get(hit.parent().orElse(-1)); holder != null;
-             holder = byRef.get(holder.parent().orElse(-1))) {
+        for (WidgetNode holder = byRef.get(hit.parent().orElse(-1));
+                holder != null;
+                holder = byRef.get(holder.parent().orElse(-1))) {
             if (Boolean.FALSE.equals(holder.visible().orElse(true))) {
-                return refused("ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref() + "), which is hidden");
+                return refused(
+                        "ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref() + "), which is hidden");
             }
             if (holder.box().isPresent() && !inside(holder.box().get(), x, y)) {
-                return refused("ref " + ref + " lies outside the visible part of " + holder.type()
-                        + " (ref " + holder.ref() + "), scrolled out of view");
+                return refused("ref " + ref + " lies outside the visible part of " + holder.type() + " (ref "
+                        + holder.ref() + "), scrolled out of view");
             }
         }
         return new Aim(x, y, Optional.empty());
@@ -111,8 +110,10 @@ public final class ScreenIntrospection {
         if (s != null) seen.add(s);
         GuiEventListener hit = s == null ? null : find(s, ref, seen);
         if (hit == null) {
-            return new Target(null, Optional.of("ref " + ref + " is not on the open screen: it closed, rebuilt its "
-                    + "widgets, or the ref came from another screen. Read screen.tree again"));
+            return new Target(
+                    null,
+                    Optional.of("ref " + ref + " is not on the open screen: it closed, rebuilt its "
+                            + "widgets, or the ref came from another screen. Read screen.tree again"));
         }
         return new Target(hit, Optional.empty());
     }
@@ -149,9 +150,9 @@ public final class ScreenIntrospection {
     }
 
     /**
-     * returnTree's answer: whether the tree now differs from {@code before}, and the tree when it does. The
-     * whole tree is compared, contextId included, so a new screen, a rebuilt one and a toggled widget on the
-     * same one all count. Client thread.
+     * returnTree's answer: whether the tree now differs from {@code before}, and the tree when it does. The whole tree
+     * is compared, contextId included, so a new screen, a rebuilt one and a toggled widget on the same one all count.
+     * Client thread.
      */
     static After after(ScreenTree before) {
         if (before == null) return After.NONE;
@@ -177,12 +178,19 @@ public final class ScreenIntrospection {
             // "it never arrived", and no amount of retrying fixes the first.
             // causeOfDeath: on a DeathScreen the title is just "You Died!"; the actual cause is a
             // separate private Component, surfaced so a cheap probe reveals WHY the bot died.
-            return new ScreenInfo(ScreenContext.current(), s != null, mc.level != null, mc.player != null,
-                    ov != null, Optional.ofNullable(ov).map(o -> o.getClass().getSimpleName()),
-                    mc.isWindowActive(), mc.mouseHandler.isMouseGrabbed(),
+            return new ScreenInfo(
+                    ScreenContext.current(),
+                    s != null,
+                    mc.level != null,
+                    mc.player != null,
+                    ov != null,
+                    Optional.ofNullable(ov).map(o -> o.getClass().getSimpleName()),
+                    mc.isWindowActive(),
+                    mc.mouseHandler.isMouseGrabbed(),
                     Optional.ofNullable(s).map(x -> x.getClass().getSimpleName()),
                     Optional.ofNullable(s).map(x -> x.getTitle().getString()),
-                    Optional.ofNullable(s).map(x -> x.width), Optional.ofNullable(s).map(x -> x.height),
+                    Optional.ofNullable(s).map(x -> x.width),
+                    Optional.ofNullable(s).map(x -> x.height),
                     s instanceof DeathScreen ds ? Optional.ofNullable(DeathCause.of(ds)) : Optional.empty());
         });
     }
@@ -193,8 +201,17 @@ public final class ScreenIntrospection {
             Screen s = mc.screen;
             String context = ScreenContext.current();
             if (s == null) {
-                return new ScreenTree(context, false, Optional.empty(), Optional.empty(), Optional.empty(),
-                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of());
+                return new ScreenTree(
+                        context,
+                        false,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of());
             }
             Nodes nodes = new Nodes(s);
             Optional<String> error = Optional.empty();
@@ -224,21 +241,30 @@ public final class ScreenIntrospection {
             // private Component field, never a child widget — without this
             // surfacing, the agent has no client-side way to find out what
             // killed the player (server log is the only other source).
-            Optional<String> cause = s instanceof DeathScreen ds ? Optional.ofNullable(DeathCause.of(ds)) : Optional.empty();
-            return new ScreenTree(context, true, Optional.of(s.getClass().getSimpleName()),
-                    Optional.of(s.getTitle().getString()), Optional.of(s.width), Optional.of(s.height), cause,
-                    error, slotsError, nodes.build());
+            Optional<String> cause =
+                    s instanceof DeathScreen ds ? Optional.ofNullable(DeathCause.of(ds)) : Optional.empty();
+            return new ScreenTree(
+                    context,
+                    true,
+                    Optional.of(s.getClass().getSimpleName()),
+                    Optional.of(s.getTitle().getString()),
+                    Optional.of(s.width),
+                    Optional.of(s.height),
+                    cause,
+                    error,
+                    slotsError,
+                    nodes.build());
         });
     }
 
     /**
-     * The tree flattened depth first, a node before the nodes it holds. A node is filled in place while
-     * its children are added after it, so each is a mutable row until {@link #build}.
+     * The tree flattened depth first, a node before the nodes it holds. A node is filled in place while its children
+     * are added after it, so each is a mutable row until {@link #build}.
      *
-     * <p>Each object is listed once. A node is named by its object's ref, so an object a mod hangs under
-     * two holders would otherwise be two nodes with one name, and its children's parent would mean
-     * either; the second sighting is dropped instead. The same rule ends the walk of a holder that
-     * contains itself, or the screen, which would otherwise recurse until the stack ran out.
+     * <p>Each object is listed once. A node is named by its object's ref, so an object a mod hangs under two holders
+     * would otherwise be two nodes with one name, and its children's parent would mean either; the second sighting is
+     * dropped instead. The same rule ends the walk of a holder that contains itself, or the screen, which would
+     * otherwise recurse until the stack ran out.
      */
     private static final class Nodes {
         private final List<Node> all = new ArrayList<>();
@@ -282,10 +308,21 @@ public final class ScreenIntrospection {
         }
 
         WidgetNode freeze() {
-            return new WidgetNode(ref, Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
-                    Optional.ofNullable(box), Optional.ofNullable(visible), Optional.ofNullable(active),
-                    Optional.ofNullable(focused), Optional.ofNullable(selected), Optional.ofNullable(message),
-                    Optional.ofNullable(key), Optional.ofNullable(value), Optional.ofNullable(item),
+            return new WidgetNode(
+                    ref,
+                    Optional.ofNullable(parent),
+                    depth,
+                    type,
+                    Optional.ofNullable(index),
+                    Optional.ofNullable(box),
+                    Optional.ofNullable(visible),
+                    Optional.ofNullable(active),
+                    Optional.ofNullable(focused),
+                    Optional.ofNullable(selected),
+                    Optional.ofNullable(message),
+                    Optional.ofNullable(key),
+                    Optional.ofNullable(value),
+                    Optional.ofNullable(item),
                     Optional.ofNullable(error));
         }
     }
@@ -338,9 +375,10 @@ public final class ScreenIntrospection {
         walk(child, n.ref, n.depth + 1, out);
     }
 
-    /** Project per-row bbox + display label for AbstractSelectionList entries.
-     *  {@code getRowTop}/{@code itemHeight} are protected in vanilla and opened by
-     *  worlddriver.accesswidener. */
+    /**
+     * Project per-row bbox + display label for AbstractSelectionList entries. {@code getRowTop}/{@code itemHeight} are
+     * protected in vanilla and opened by worlddriver.accesswidener.
+     */
     private static void listEntries(AbstractSelectionList<?> list, Node owner, Nodes out) {
         // Vanilla layout: row x-span comes from public getRowLeft/getRowWidth.
         // Row y is index-dependent and includes scroll + header offsets, all
@@ -377,20 +415,18 @@ public final class ScreenIntrospection {
     /**
      * Best-effort human label for an arbitrary list entry.
      *
-     * <p>The name-based probes below are deliberate duck-typing: list entries have no
-     * common label interface, so we try the getters vanilla happens to use. That works
-     * in dev and is what every gate exercises — but the getter NAMES are Mojang-mapped
-     * string literals, so in the remapped fabric jar every probe misses and the whole
-     * screen comes back with no labels at all.
+     * <p>The name-based probes below are deliberate duck-typing: list entries have no common label interface, so we try
+     * the getters vanilla happens to use. That works in dev and is what every gate exercises — but the getter NAMES are
+     * Mojang-mapped string literals, so in the remapped fabric jar every probe misses and the whole screen comes back
+     * with no labels at all.
      *
-     * <p>The typed fallbacks run AFTER the probes, never before: the probes decide the
-     * label in dev exactly as they always have (this method's dev output is unchanged
-     * by construction), and the fallbacks only get a turn in the case where the probes
-     * found nothing — which is precisely the remapped case. They are ordinary virtual
-     * calls on public API, so tiny-remapper rewrites them correctly.
+     * <p>The typed fallbacks run AFTER the probes, never before: the probes decide the label in dev exactly as they
+     * always have (this method's dev output is unchanged by construction), and the fallbacks only get a turn in the
+     * case where the probes found nothing — which is precisely the remapped case. They are ordinary virtual calls on
+     * public API, so tiny-remapper rewrites them correctly.
      */
     private static String entryLabel(Object entry) {
-        for (String getter : new String[]{"getLevelName", "getDisplayName", "getMessage", "getName"}) {
+        for (String getter : new String[] {"getLevelName", "getDisplayName", "getMessage", "getName"}) {
             try {
                 var m = entry.getClass().getMethod(getter);
                 Object v = m.invoke(entry);
@@ -398,7 +434,9 @@ public final class ScreenIntrospection {
                 if (v instanceof Component c) return c.getString();
                 String s = v.toString();
                 if (!s.isBlank()) return s;
-            } catch (ReflectiveOperationException ignored) { /* try next */ }
+            } catch (ReflectiveOperationException ignored) {
+                /* try next */
+            }
         }
         // Probe a `getSummary().getLevelName()` chain (the WorldListEntry case).
         // Wrapped in try so unrelated entry classes simply fall through.
@@ -410,7 +448,9 @@ public final class ScreenIntrospection {
                 Object v = m2.invoke(summary);
                 if (v != null) return v.toString();
             }
-        } catch (ReflectiveOperationException ignored) { /* no summary */ }
+        } catch (ReflectiveOperationException ignored) {
+            /* no summary */
+        }
         // Typed fallbacks — the only branches that still work once the jar is remapped.
         if (entry instanceof AbstractWidget w) {
             String s = w.getMessage() == null ? "" : w.getMessage().getString();
@@ -441,7 +481,9 @@ public final class ScreenIntrospection {
                     }
                 }
             }
-        } catch (RuntimeException | ReflectiveOperationException ignored) { /* no label to be had */ }
+        } catch (RuntimeException | ReflectiveOperationException ignored) {
+            /* no label to be had */
+        }
         return null;
     }
 
@@ -465,10 +507,12 @@ public final class ScreenIntrospection {
             // Per slot, for the same reason as the widget walk: a modded slot that throws from
             // isActive or getItem should cost its own row, not the screen's whole slot list.
             try {
-                n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16);   // vanilla slot icon is 16×16
+                n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16); // vanilla slot icon is 16×16
                 n.active = slot.isActive();
                 ItemStack stk = slot.getItem();
-                if (!stk.isEmpty()) n.item = new SlotItem(BuiltInRegistries.ITEM.getKey(stk.getItem()).toString(), stk.getCount());
+                if (!stk.isEmpty())
+                    n.item = new SlotItem(
+                            BuiltInRegistries.ITEM.getKey(stk.getItem()).toString(), stk.getCount());
             } catch (Throwable t) {
                 n.error = describeThrowable(t);
             }

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.List;
 import java.util.Locale;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -33,9 +32,9 @@ import org.junit.jupiter.api.Test;
  * The navigator's and the server body's whole-walk measurements on a headless bot: diagonal ascent speed, the descent
  * yaw-thrash gauge, the self-shaft dig-up, the gear scope, the buried ore and the entity leash.
  *
- * <p>Each arena is built at absolute coordinates taken from its plot ({@code cx}, {@code cz}, {@code floorY}), so
- * the old geometry carries over line for line. A walk runs inside one {@code game.runOnServer}: the bot is ticked by
- * the test alone, with no world tick between its ticks, as the old scene body ran. The old fixed origin slots of
+ * <p>Each arena is built at absolute coordinates taken from its plot ({@code cx}, {@code cz}, {@code floorY}), so the
+ * old geometry carries over line for line. A walk runs inside one {@code game.runOnServer}: the bot is ticked by the
+ * test alone, with no world tick between its ticks, as the old scene body ran. The old fixed origin slots of
  * {@code descentYaw} and {@code selfShaftDigUp} only served goldens nothing asserts (the ceilings have ~30% margin);
  * they are gone, and the goldens below are where the old runs measured them.
  */
@@ -52,8 +51,8 @@ class WorldDriverTest {
         BlockPos o = plot.at(10, 2, 10);
         final int cx = o.getX(), cz = o.getZ(), baseY = o.getY();
         final int steps = 8;
-        final int span = 2 * steps;                 // dx,dz 0..16
-        final int topSurf = baseY + 1 + span;       // NE corner surface
+        final int span = 2 * steps; // dx,dz 0..16
+        final int topSurf = baseY + 1 + span; // NE corner surface
         BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
@@ -69,7 +68,10 @@ class WorldDriverTest {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
         });
-        Settings.pinUntimed(game).set("allowBreak", false).set("allowPlace", false).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", false)
+                .set("allowPlace", false)
+                .set("navigatorDebug", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, baseY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -84,23 +86,37 @@ class WorldDriverTest {
                 bot.tick();
                 walking = bot.busy();
                 if (fp.getX() >= cx) {
-                    if (Double.isNaN(startX)) { startX = fp.getX(); startZ = fp.getZ(); }
-                    endX = fp.getX(); endZ = fp.getZ();
+                    if (Double.isNaN(startX)) {
+                        startX = fp.getX();
+                        startZ = fp.getZ();
+                    }
+                    endX = fp.getX();
+                    endZ = fp.getZ();
                     ascTicks++;
                     if (fp.isSprinting()) ascSprint++;
                     if (fp.horizontalCollision) ascHcol++;
                 }
             }
-            double dist = Double.isNaN(startX) ? 0 : Math.sqrt((endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ));
+            double dist = Double.isNaN(startX)
+                    ? 0
+                    : Math.sqrt((endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ));
             double ascBps = ascTicks > 0 ? dist / (ascTicks * 0.05) : 0;
             int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
             int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
             String step = NavWalk.step(bot);
-            boolean reachedTop = fp.getY() >= topSurf + 1 - 0.6
-                    && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
-            String reading = String.format(Locale.ROOT, "step=%s pos=(%.1f,%.1f,%.1f) diagBps=%.2f ascSprint%%=%d "
-                    + "ascHcol%%=%d ascTicks=%d", step, fp.getX(), fp.getY(), fp.getZ(), ascBps, ascSprintPct,
-                    ascHcolPct, ascTicks);
+            boolean reachedTop =
+                    fp.getY() >= topSurf + 1 - 0.6 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
+            String reading = String.format(
+                    Locale.ROOT,
+                    "step=%s pos=(%.1f,%.1f,%.1f) diagBps=%.2f ascSprint%%=%d " + "ascHcol%%=%d ascTicks=%d",
+                    step,
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    ascBps,
+                    ascSprintPct,
+                    ascHcolPct,
+                    ascTicks);
             TestMod.LOG.info("[wd.diagonalAscentSpeed] {} reachedTop={}", reading, reachedTop);
             if (!reachedTop) fail("diagonalAscentSpeed: did not top out: " + reading);
             if (ascBps < 2.5) fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
@@ -121,8 +137,8 @@ class WorldDriverTest {
         BlockPos o = plot.at(8, 44, 4);
         final int cx = o.getX(), cz = o.getZ();
         final int topY = o.getY(), steps = 9;
-        final int span = 2 * steps;                 // dx,dz 0..18
-        final int goalSurf = topY - 2 * span;       // NE corner surface (surf = topY-(dx+dz))
+        final int span = 2 * steps; // dx,dz 0..18
+        final int goalSurf = topY - 2 * span; // NE corner surface (surf = topY-(dx+dz))
         BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
@@ -163,9 +179,12 @@ class WorldDriverTest {
                 bot.tick();
                 walking = bot.busy();
                 double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
-                if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) {   // moved, on the slope
+                if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) { // moved, on the slope
                     double proj = ddx * gdx + ddz * gdz;
-                    if (proj < -0.02) { backSteps++; worstBack = Math.min(worstBack, proj); }
+                    if (proj < -0.02) {
+                        backSteps++;
+                        worstBack = Math.min(worstBack, proj);
+                    }
                 }
                 prevX = fp.getX();
                 prevZ = fp.getZ();
@@ -187,11 +206,24 @@ class WorldDriverTest {
             }
             // The lower y bound matters: a bot that fell off the strip still crossed the corner thresholds mid-air.
             String step = NavWalk.step(bot);
-            boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
-                    && fp.getY() <= goalSurf + 2 && fp.getY() >= goalSurf - 1;
-            String reading = String.format(Locale.ROOT, "step=%s pos=(%.1f,%.1f,%.1f) sumAbsDyaw=%.0f° maxDyaw=%.0f° "
-                    + "reversals=%d onSlope=%d backSteps=%d worstBack=%.2f", step, fp.getX(), fp.getY(), fp.getZ(),
-                    sumAbsDyaw, maxDyaw, reversals, onSlope, backSteps, worstBack);
+            boolean reached = fp.getX() > cx + span - 3
+                    && fp.getZ() > cz + span - 3
+                    && fp.getY() <= goalSurf + 2
+                    && fp.getY() >= goalSurf - 1;
+            String reading = String.format(
+                    Locale.ROOT,
+                    "step=%s pos=(%.1f,%.1f,%.1f) sumAbsDyaw=%.0f° maxDyaw=%.0f° "
+                            + "reversals=%d onSlope=%d backSteps=%d worstBack=%.2f",
+                    step,
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    sumAbsDyaw,
+                    maxDyaw,
+                    reversals,
+                    onSlope,
+                    backSteps,
+                    worstBack);
             TestMod.LOG.info("[wd.descentYaw] {} reached={}", reading, reached);
             if (!reached) fail("descentYaw: did not reach the bottom: " + reading);
             // The ceiling is over the unsolved carrot-swing baseline, not a smoothness pass: a regression gate.
@@ -216,14 +248,16 @@ class WorldDriverTest {
         // Solid 7x7 stone slab base..top, air above, sealed 2-high chamber at the centre.
         plot.fill(5, 1, 5, 11, 21, 11, Blocks.STONE);
         plot.fill(8, 2, 8, 8, 3, 8, Blocks.AIR);
-        Settings settings = Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true)
+        Settings settings = Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
                 .set("navigatorDebug", true);
         int maxDryFall = settings.integer("pathfinderMaxDryFall");
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, baseY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
-            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
+            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64)); // pillar/plug stock; NO pickaxe (live parity)
             fp.getInventory().selected = 0;
             bot.goTo(Targets.level(targetY));
             double maxY = fp.getY();
@@ -249,10 +283,10 @@ class WorldDriverTest {
     /**
      * The gap #46 gear scope: how much of a server body's held and worn gear is inert. A bare fist against an iron
      * sword on a fresh NoAI zombie ({@link SimProbes#probeSwing}), a fixed 10-point hit bare against full diamond
-     * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist, ATTACK_SPEED 1.6 and ATTACK_DAMAGE 6.0 —
-     * outcomes, not mirrored attributes: reading back the attribute a fix writes proves only that the fix calls its
-     * own API; a zombie losing more health to a sword than to a fist is what an agent pays for. Golden:
-     * {@code bareHand=0.94000053 ironSword=5.9040003}, full-diamond {@code ARMOR=20.0}.
+     * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist, ATTACK_SPEED 1.6 and ATTACK_DAMAGE 6.0 — outcomes,
+     * not mirrored attributes: reading back the attribute a fix writes proves only that the fix calls its own API; a
+     * zombie losing more health to a sword than to a fist is what an agent pays for. Golden: {@code bareHand=0.94000053
+     * ironSword=5.9040003}, full-diamond {@code ARMOR=20.0}.
      */
     @Test
     void gearScope(Game game, @Plot.Centered Plot plot) {
@@ -272,7 +306,7 @@ class WorldDriverTest {
             fp.getInventory().clearContent();
             fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
             fp.getInventory().selected = 0;
-            bot.step();   // the gear must land through the NORMAL tick, not a special API
+            bot.step(); // the gear must land through the NORMAL tick, not a special API
             double atk = fp.getAttributeValue(Attributes.ATTACK_DAMAGE);
             double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
 
@@ -300,15 +334,16 @@ class WorldDriverTest {
                         + "by the wrong weapon: " + reading);
             }
             // 1.21 iron sword = 6 total attack damage (1.0 player base + a +5 modifier).
-            if (Math.abs(atk - 6.0) > 0.001) fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0: " + reading);
+            if (Math.abs(atk - 6.0) > 0.001)
+                fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0: " + reading);
         });
     }
 
     /**
      * The gap #60 buried ore: an IRON_ORE fully encased in harvestable stone has no standable adjacent cell, so the
      * geometric stand test alone rejected it and {@code mc.bot.mine} aborted "no reachable target", although the bot
-     * holds a pickaxe and the navigator digs tunnels for every other verb. Reachability through diggable cover is
-     * A*'s job, not a pre-filter's.
+     * holds a pickaxe and the navigator digs tunnels for every other verb. Reachability through diggable cover is A*'s
+     * job, not a pre-filter's.
      *
      * <p>Two halves, and only the first is the pre-filter's: (1) it hands the navigator a DIG GOAL (one
      * {@code [pathfinder] search-begin owner=mine} line), and (2) the navigator CLIMBS the staircase it digs into the
@@ -325,7 +360,10 @@ class WorldDriverTest {
         plot.fill(3, 1, -1, 7, 3, 1, Blocks.STONE);
         BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
         plot.place(5, 2, 0, Blocks.IRON_ORE);
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", false).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", false)
+                .set("navigatorDebug", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -347,8 +385,17 @@ class WorldDriverTest {
             // The cells the PLANNER chose, beside the arena's hand-derived ones at z=cz: the node the bot could not
             // reach once sat at z=cz−1, where the fixed window was blind.
             String planCells = NavWalk.trace(nav, "planCellAudit");
-            TestMod.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} oreMined={} lastError={} {} {} {}",
-                    fp.getX(), fp.getY(), fp.getZ(), finished, oreMined, err, stairs, planCells, approach);
+            TestMod.LOG.info(
+                    "[wd.buriedOre] pos=({},{},{}) finished={} oreMined={} lastError={} {} {} {}",
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    finished,
+                    oreMined,
+                    err,
+                    stairs,
+                    planCells,
+                    approach);
             if (!oreMined) {
                 fail("buriedOre: buried ore not mined. Separate the two causes by the '[pathfinder] search-begin "
                         + "owner=mine' lines in this window: NONE = gap#60 proper (the stand pre-filter refused to hand "
@@ -366,9 +413,9 @@ class WorldDriverTest {
     /**
      * The seven cells of the staircase the navigator digs into the cube, as one {@code stairs=} fragment: block plus
      * the {@code blocksMotion} verdict, the predicate the server world view steers by. Read it as a two-way test on
-     * {@code (cx+4, floorY+3)}: EMPTY ⇒ the self-destroying staircase is real (the goal snapped onto the cube's top
-     * has that cell as its floor, and the climbing {@code StairUpBreak} breaks it); SOLID ⇒ the bot never got up the
-     * second step and the defect is on the first riser.
+     * {@code (cx+4, floorY+3)}: EMPTY ⇒ the self-destroying staircase is real (the goal snapped onto the cube's top has
+     * that cell as its floor, and the climbing {@code StairUpBreak} breaks it); SOLID ⇒ the bot never got up the second
+     * step and the defect is on the first riser.
      */
     private static String buriedOreStairAudit(ServerLevel level, int cx, int cz, int floorY) {
         int[][] cells = {{3, 1}, {3, 2}, {3, 3}, {4, 2}, {4, 3}, {5, 2}, {5, 3}};
@@ -376,8 +423,13 @@ class WorldDriverTest {
         for (int[] c : cells) {
             BlockPos p = new BlockPos(cx + c[0], floorY + c[1], cz);
             BlockState st = level.getBlockState(p);
-            sb.append('[').append(p.getX()).append(',').append(p.getY()).append(']')
-                    .append(st.blocksMotion() ? "solid " : "empty ").append(st.getBlock());
+            sb.append('[')
+                    .append(p.getX())
+                    .append(',')
+                    .append(p.getY())
+                    .append(']')
+                    .append(st.blocksMotion() ? "solid " : "empty ")
+                    .append(st.getBlock());
         }
         return sb.toString();
     }
@@ -409,7 +461,7 @@ class WorldDriverTest {
         BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
         Settings.pinUntimed(game).set("navigatorDebug", false);
         ArmorStand stand = game.onServer(s -> {
-            ArmorStand a = new ArmorStand(s.overworld(), cx + 0.5, floorY + 1, cz + 0.5);   // AT the bot's start
+            ArmorStand a = new ArmorStand(s.overworld(), cx + 0.5, floorY + 1, cz + 0.5); // AT the bot's start
             a.setNoGravity(true);
             s.overworld().addFreshEntity(a);
             return a;
@@ -418,17 +470,26 @@ class WorldDriverTest {
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
         game.runOnServer(s -> {
             // Near(1), not Block: "reach the destination AREA" — exact-cell parking is not this arena's gate.
-            bot.goTo(Targets.near(goal, 1), Routes.plain().leashEntity("minecraft:armor_stand", leashRadius, true, 0).build());
+            bot.goTo(
+                    Targets.near(goal, 1),
+                    Routes.plain()
+                            .leashEntity("minecraft:armor_stand", leashRadius, true, 0)
+                            .build());
             // Parked at once: starting the goto put the bot on the tick list, and the server must not drive it
             // during the wait for the stand to be indexed.
             bot.park();
         });
 
         // The leash's scan: every entity within 96 of the player, the nearest of the type winning.
-        game.await().within(180).as("the leash's scan sees the fresh armor stand").until(() -> game.onServer(s -> {
-            ServerPlayer fp = bot.player();
-            return !fp.level().getEntities(fp, fp.getBoundingBox().inflate(96.0), e -> e instanceof ArmorStand).isEmpty();
-        }));
+        game.await()
+                .within(180)
+                .as("the leash's scan sees the fresh armor stand")
+                .until(() -> game.onServer(s -> {
+                    ServerPlayer fp = bot.player();
+                    return !fp.level()
+                            .getEntities(fp, fp.getBoundingBox().inflate(96.0), e -> e instanceof ArmorStand)
+                            .isEmpty();
+                }));
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.unpark();
@@ -436,10 +497,16 @@ class WorldDriverTest {
             boolean finished1 = !bot.busy();
             double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
             double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
-            boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.info("[wd.entityLeash] phase1 pos=({},{},{}) finished={} standDist={} arrivedTrueGoal={}",
-                    fp.getX(), fp.getY(), fp.getZ(), finished1, standDist1, arrivedTrueGoal1);
+            boolean arrivedTrueGoal1 =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            TestMod.LOG.info(
+                    "[wd.entityLeash] phase1 pos=({},{},{}) finished={} standDist={} arrivedTrueGoal={}",
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    finished1,
+                    standDist1,
+                    arrivedTrueGoal1);
             if (finished1 || arrivedTrueGoal1) {
                 fail("entityLeash: phase1: the goto reached the true goal before the anchor moved — the hard leash did "
                         + "not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") finished="
@@ -455,17 +522,26 @@ class WorldDriverTest {
             bot.park();
         });
 
-        game.await().within(180).as("the armor stand is indexed at its new anchor").until(() -> game.onServer(s ->
-                !s.overworld().getEntitiesOfClass(ArmorStand.class, new AABB(p2anchor).inflate(2.0)).isEmpty()));
+        game.await()
+                .within(180)
+                .as("the armor stand is indexed at its new anchor")
+                .until(() -> game.onServer(s -> !s.overworld()
+                        .getEntitiesOfClass(ArmorStand.class, new AABB(p2anchor).inflate(2.0))
+                        .isEmpty()));
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.unpark();
             for (int t = 0; t < 600 && bot.busy(); t++) bot.tick();
             boolean finished2 = !bot.busy();
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.info("[wd.entityLeash] phase2 pos=({},{},{}) finished={} reached={}",
-                    fp.getX(), fp.getY(), fp.getZ(), finished2, reached);
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            TestMod.LOG.info(
+                    "[wd.entityLeash] phase2 pos=({},{},{}) finished={} reached={}",
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    finished2,
+                    reached);
             if (!finished2) fail("entityLeash: phase2: the leash re-solve goto did not end after the anchor moved");
             if (!reached) {
                 fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=(" + fp.getX()

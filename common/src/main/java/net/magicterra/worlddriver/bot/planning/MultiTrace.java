@@ -1,27 +1,23 @@
 package net.magicterra.worlddriver.bot.planning;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import net.magicterra.worlddriver.bot.rules.Move;
-
 /**
- * Fan-out {@link PathTrace} that forwards every callback to multiple sinks in
- * order. Lets {@link net.magicterra.worlddriver.debug.PathDebugBootstrap} install
- * both {@link net.magicterra.worlddriver.debug.PathDebugRecorder} and
- * {@link net.magicterra.worlddriver.debug.PathArchiveRecorder} behind a single
- * {@link PathTraceHolder#SINK}.
+ * Fan-out {@link PathTrace} that forwards every callback to multiple sinks in order. Lets
+ * {@link net.magicterra.worlddriver.debug.PathDebugBootstrap} install both
+ * {@link net.magicterra.worlddriver.debug.PathDebugRecorder} and
+ * {@link net.magicterra.worlddriver.debug.PathArchiveRecorder} behind a single {@link PathTraceHolder#SINK}.
  *
- * <p><b>Sinks must never break the bot.</b> These callbacks fire from inside the
- * pathfinder/Navigator tick (e.g. {@code onSearchBegin} from a {@code Search}
- * constructor, {@code onSearchResult}/{@code onNavigatorTick} from {@code Navigator.tick}).
- * A debug/archive sink that throws would propagate up and kill the active goto.
- * So every per-sink call is wrapped: an exception is logged (with stack) and
- * swallowed, and the remaining sinks still run. Observability is never worth a
- * dead pathfind.</p>
+ * <p><b>Sinks must never break the bot.</b> These callbacks fire from inside the pathfinder/Navigator tick (e.g.
+ * {@code onSearchBegin} from a {@code Search} constructor, {@code onSearchResult}/{@code onNavigatorTick} from
+ * {@code Navigator.tick}). A debug/archive sink that throws would propagate up and kill the active goto. So every
+ * per-sink call is wrapped: an exception is logged (with stack) and swallowed, and the remaining sinks still run.
+ * Observability is never worth a dead pathfind.
  */
 public final class MultiTrace implements PathTrace {
 
@@ -34,7 +30,9 @@ public final class MultiTrace implements PathTrace {
     }
 
     /** Run {@code body} for one sink; never let it escape. */
-    private interface SinkOp { void run(PathTrace s); }
+    private interface SinkOp {
+        void run(PathTrace s);
+    }
 
     private void forEach(String cb, SinkOp op) {
         for (PathTrace s : sinks) {
@@ -43,8 +41,12 @@ public final class MultiTrace implements PathTrace {
             } catch (Throwable t) {
                 // Full stack so the underlying bug is fixable, but never rethrow —
                 // a trace sink must not take down the active goto.
-                LOG.warn("[pathtrace] sink {} threw in {} (swallowed): {}",
-                        s.getClass().getSimpleName(), cb, t.toString(), t);
+                LOG.warn(
+                        "[pathtrace] sink {} threw in {} (swallowed): {}",
+                        s.getClass().getSimpleName(),
+                        cb,
+                        t.toString(),
+                        t);
             }
         }
     }
@@ -60,8 +62,8 @@ public final class MultiTrace implements PathTrace {
     }
 
     @Override
-    public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
-                               int expanded, long ms, double finalCost) {
+    public void onSearchResult(
+            List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
         forEach("onSearchResult", s -> s.onSearchResult(path, edges, goalReached, expanded, ms, finalCost));
     }
 

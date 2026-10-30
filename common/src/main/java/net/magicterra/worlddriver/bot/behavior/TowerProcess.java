@@ -1,100 +1,115 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.bot.control.Navigator;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.List;
 import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
-
-import java.util.List;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 
 public final class TowerProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
-    /** Minimum ticks between jump-press and the place attempt — a lower bound
-     *  only. The block fills the cell we jumped FROM, so vanilla's entity
-     *  collision (Level#isUnobstructed) rejects it until the feet have actually
-     *  risen clear of that cell (getY ≥ jumpFromY + 1). A vanilla jump only
-     *  crosses +1.0 around tick 4, so the place is gated on real height, not
-     *  this delay alone (which by itself fired at ~+0.99 and silently no-op'd). */
+    /**
+     * Minimum ticks between jump-press and the place attempt — a lower bound only. The block fills the cell we jumped
+     * FROM, so vanilla's entity collision (Level#isUnobstructed) rejects it until the feet have actually risen clear of
+     * that cell (getY ≥ jumpFromY + 1). A vanilla jump only crosses +1.0 around tick 4, so the place is gated on real
+     * height, not this delay alone (which by itself fired at ~+0.99 and silently no-op'd).
+     */
     private static final int PLACE_DELAY_TICKS = 3;
+
     private static final int STUCK_TICKS = 60;
-    /** Horizontal speed (blocks/tick) below which a course may start.
+    /**
+     * Horizontal speed (blocks/tick) below which a course may start.
      *
-     *  <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A bot still travelling
-     *  when the course begins crosses a cell boundary inside that window, so the fill lands in a
-     *  column the bot is no longer over — and the next course starts from a cell with nothing under
-     *  it. Measured 2026-08-18 by {@code wd.serverTowersAfterAWalk}, whose ONLY difference from the
-     *  green {@code wd.serverTowersTwelveCourses} is that the bot arrives walking: it spent 3
-     *  blocks, put 0 of them in the target column, drifted 4 cells and fell 39. On the real ladder
-     *  the same shape spent 13 blocks for 5 blocks of height.
+     * <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A bot still travelling when the course
+     * begins crosses a cell boundary inside that window, so the fill lands in a column the bot is no longer over — and
+     * the next course starts from a cell with nothing under it. Measured 2026-08-18 by
+     * {@code wd.serverTowersAfterAWalk}, whose ONLY difference from the green {@code wd.serverTowersTwelveCourses} is
+     * that the bot arrives walking: it spent 3 blocks, put 0 of them in the target column, drifted 4 cells and fell 39.
+     * On the real ladder the same shape spent 13 blocks for 5 blocks of height.
      *
-     *  <p>0.05 keeps the drift under half a cell across a whole course (≈9 ticks). Ground friction
-     *  (0.6 × 0.91 per tick with no input) takes a walk's 0.156 below it in four ticks, so waiting
-     *  is cheap; {@link #SETTLE_TICKS} is the backstop for a bot something else is pushing. */
+     * <p>0.05 keeps the drift under half a cell across a whole course (≈9 ticks). Ground friction (0.6 × 0.91 per tick
+     * with no input) takes a walk's 0.156 below it in four ticks, so waiting is cheap; {@link #SETTLE_TICKS} is the
+     * backstop for a bot something else is pushing.
+     */
     private static final double SETTLE_SPEED = 0.05;
-    /** How long a course waits for the bot to stop before starting anyway. Generous next to the
-     *  four ticks friction needs: expiry means something is actively moving the bot, which the
-     *  stuck message reports rather than hiding. */
+    /**
+     * How long a course waits for the bot to stop before starting anyway. Generous next to the four ticks friction
+     * needs: expiry means something is actively moving the bot, which the stuck message reports rather than hiding.
+     */
     private static final int SETTLE_TICKS = 20;
 
     private final int targetY;
     private final String preferredBlockId;
-    /** Whether {@link #preferredBlockId} may be fetched out of the BAG, not just the hotbar.
+    /**
+     * Whether {@link #preferredBlockId} may be fetched out of the BAG, not just the hotbar.
      *
-     *  <p>Off by default, and that default is a contract rather than caution:
-     *  {@code wd.serverTowersWithAFullBackpack} stages nine non-blocks in the hotbar with 64
-     *  cobblestone in slot 20 and asserts this process places NOTHING. See {@link HeldItem}'s class
-     *  note for why the repair is a per-caller argument and not a wider scan.
+     * <p>Off by default, and that default is a contract rather than caution: {@code wd.serverTowersWithAFullBackpack}
+     * stages nine non-blocks in the hotbar with 64 cobblestone in slot 20 and asserts this process places NOTHING. See
+     * {@link HeldItem}'s class note for why the repair is a per-caller argument and not a wider scan.
      *
-     *  <p>On for callers that hand this process the block themselves and then break something —
-     *  the ladder's shaft-exit tower breaks its overhead cell every course, and the tool swap that
-     *  serves that break evicts the cobblestone it was given back into the bag. */
+     * <p>On for callers that hand this process the block themselves and then break something — the ladder's shaft-exit
+     * tower breaks its overhead cell every course, and the tool swap that serves that break evicts the cobblestone it
+     * was given back into the bag.
+     */
     private final boolean reachIntoBag;
+
     private int placed;
     private int stuckTicks;
     /** "not needed" is a success: the bot already stands at the height the caller asked for. */
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
+
     private int startFeetY = Integer.MIN_VALUE;
     private int lastApexFloorY;
     private int sinceJump;
-    private int jumpFromY;            // feet cell at the moment of the jump press
-    /** The column the current course jumped from, latched with {@link #jumpFromY}.
+    private int jumpFromY; // feet cell at the moment of the jump press
+    /**
+     * The column the current course jumped from, latched with {@link #jumpFromY}.
      *
-     *  <p>Before this existed, PLACING recomputed x/z from the bot's CURRENT position while taking
-     *  y from the jump — two halves of one coordinate describing two different moments, which is
-     *  how a drifting bot filled a different column every course. The fill belongs to the course,
-     *  and a course is defined by where it started. */
+     * <p>Before this existed, PLACING recomputed x/z from the bot's CURRENT position while taking y from the jump — two
+     * halves of one coordinate describing two different moments, which is how a drifting bot filled a different column
+     * every course. The fill belongs to the course, and a course is defined by where it started.
+     */
     private int jumpFromX;
+
     private int jumpFromZ;
     private int settling;
     private boolean startedWhileMoving;
-    /** Courses whose jump never lifted the bot a whole block. Counted rather than merely survived:
-     *  a bot that is being shoved off its own arc and one under a lid it cannot see produce the
-     *  same zero height, and only this number distinguishes "tried 15 times" from "tried once and
-     *  got stuck". */
+    /**
+     * Courses whose jump never lifted the bot a whole block. Counted rather than merely survived: a bot that is being
+     * shoved off its own arc and one under a lid it cannot see produce the same zero height, and only this number
+     * distinguishes "tried 15 times" from "tried once and got stuck".
+     */
     private int shortJumps;
+
     private Phase phase = Phase.READY;
-    private enum Phase { READY, JUMPING, PLACING, DONE }
+
+    private enum Phase {
+        READY,
+        JUMPING,
+        PLACING,
+        DONE
+    }
 
     public TowerProcess(int targetY, String preferredBlockId) {
         this(targetY, preferredBlockId, false);
@@ -107,26 +122,42 @@ public final class TowerProcess implements BotProcess {
         this.reachIntoBag = reachIntoBag;
     }
 
-    public String kind() { return "builder"; }
-
-    public int placed() { return placed; }
-
-    public void attach(BotState st) {
-        st.builder.beginRun("tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
+    public String kind() {
+        return "builder";
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
-        if (a.entity() == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+    public int placed() {
+        return placed;
+    }
+
+    public void attach(BotState st) {
+        st.builder.beginRun(
+                "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
+    }
+
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
+        if (a.entity() == null) {
+            failure = st.builder.lastError = "player vanished";
+            st.builder.reset();
+            return true;
+        }
         // The tower is laid from a player's inventory: a controlled entity that is not a player has
         // no hands for it.
         Player p = a.asPlayer();
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null || p == null) { failure = st.builder.lastError = Readiness.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (equipment == null || blocks == null || p == null) {
+            failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
+            st.builder.reset();
+            return true;
+        }
         int feetY = (int) Math.floor(p.getY());
-        if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
-        st.builder.target = new BlockPos(
-                (int) Math.floor(p.getX()), feetY, (int) Math.floor(p.getZ()));
+        if (startFeetY == Integer.MIN_VALUE) {
+            startFeetY = feetY;
+            lastApexFloorY = feetY;
+        }
+        st.builder.target = new BlockPos((int) Math.floor(p.getX()), feetY, (int) Math.floor(p.getZ()));
         st.builder.pathStep = placed;
         st.builder.pathLen = targetY - startFeetY;
 
@@ -171,7 +202,10 @@ public final class TowerProcess implements BotProcess {
             a.releaseInputs();
             return true;
         }
-        if (feetY > lastApexFloorY) { lastApexFloorY = feetY; stuckTicks = 0; }
+        if (feetY > lastApexFloorY) {
+            lastApexFloorY = feetY;
+            stuckTicks = 0;
+        }
 
         // Always hold the block; auto-pick a BlockItem from hotbar if none specified. Every course,
         // and that repetition is the point: whatever the last course's break moved into the hand,
@@ -185,7 +219,7 @@ public final class TowerProcess implements BotProcess {
 
         switch (phase) {
             case READY -> {
-                if (!footed) return false;       // still falling / not landed
+                if (!footed) return false; // still falling / not landed
                 a.releaseInputs();
                 // Let the bot stop before starting a course. `releaseInputs` only stops STEERING —
                 // it does not touch the velocity the player already has, so a tower begun at the end of
@@ -193,7 +227,7 @@ public final class TowerProcess implements BotProcess {
                 // only waits for it.
                 if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
                     if (++settling <= SETTLE_TICKS) return false;
-                    startedWhileMoving = true;   // said out loud by the stuck message, not swallowed
+                    startedWhileMoving = true; // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
                 // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the bot jumped
@@ -211,8 +245,7 @@ public final class TowerProcess implements BotProcess {
                 // can do about a lid is name it for the caller that can mine it. Before this the
                 // answer was "stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)", printed
                 // sixty ticks later, naming the phase the code stopped in rather than the block.
-                if (!p.level().noCollision(p,
-                        p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))) {
+                if (!p.level().noCollision(p, p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))) {
                     st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
                             + ", cannot rise a full block: " + overheadRow(p) + ")";
                     failure = st.builder.lastError;
@@ -240,7 +273,7 @@ public final class TowerProcess implements BotProcess {
                 p.setDeltaMovement(0.0, keep.y, 0.0);
                 a.commandJump(true);
                 sinceJump = 0;
-                jumpFromY = feetY;               // cell we'll fill = the one we jump from
+                jumpFromY = feetY; // cell we'll fill = the one we jump from
                 jumpFromX = (int) Math.floor(p.getX());
                 jumpFromZ = (int) Math.floor(p.getZ());
                 phase = Phase.JUMPING;
@@ -296,29 +329,35 @@ public final class TowerProcess implements BotProcess {
                 if (p.level().getBlockState(support.above()).blocksMotion()) placed++;
                 phase = Phase.READY;
             }
-            case DONE -> { return true; }
+            case DONE -> {
+                return true;
+            }
         }
         return false;
     }
 
-    /** What is in the way of a one-block rise, as evidence: the cells and what stands in them.
+    /**
+     * What is in the way of a one-block rise, as evidence: the cells and what stands in them.
      *
-     *  <p>Cells, because the caller is the only party that can act on them — this process places and
-     *  never breaks. {@code none} rather than an empty string when the rise is clear, so a stall with
-     *  nothing overhead is a POSITIVE reading instead of a missing one; and the entity case is said
-     *  out loud, because vanilla's collision test answers "blocked" for a hard-collision entity that
-     *  no cell scan can name. */
+     * <p>Cells, because the caller is the only party that can act on them — this process places and never breaks.
+     * {@code none} rather than an empty string when the rise is clear, so a stall with nothing overhead is a POSITIVE
+     * reading instead of a missing one; and the entity case is said out loud, because vanilla's collision test answers
+     * "blocked" for a hard-collision entity that no cell scan can name.
+     */
     private static String overheadRow(Player p) {
         List<BlockPos> lid = BodyGeometry.pillarRiseBlockers(p);
         if (lid.isEmpty()) {
             return p.level().noCollision(p, p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))
-                    ? "none" : "blocked by something that is not a block (entity collision)";
+                    ? "none"
+                    : "blocked by something that is not a block (entity collision)";
         }
         StringBuilder sb = new StringBuilder();
         for (BlockPos at : lid) {
             if (sb.length() > 0) sb.append(' ');
-            sb.append(at.toShortString()).append('=')
-              .append(BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(at).getBlock()));
+            sb.append(at.toShortString())
+                    .append('=')
+                    .append(BuiltInRegistries.BLOCK.getKey(
+                            p.level().getBlockState(at).getBlock()));
         }
         return sb.toString();
     }
@@ -332,19 +371,17 @@ public final class TowerProcess implements BotProcess {
      * Hold something to pillar with. Two questions, deliberately kept apart:
      *
      * <ul>
-     *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and
-     *       nothing else will do, so it delegates to {@link HeldItem#holdById}, the one scan the
-     *       process family shares. That scan stops at hotbar slot 8 outside creative, and for a
-     *       caller that has NOT opted in that is pinned: {@code wd.serverTowersWithAFullBackpack}
-     *       stages the cobblestone in slot 20 and asserts the tower places nothing and reports
-     *       {@code "no placeable block in hotbar"}. {@code reachIntoBag} is the per-caller opt-in
-     *       out of that limit — and it applies to THIS branch only, because an id is an explicit
-     *       instruction from the caller and "any block" is not.</li>
-     *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
-     *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
-     *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client
-     *       player genuinely cannot move a bag stack without opening the inventory screen. Do not
-     *       "fix" this branch by pointing it at the bag; that argument has been had.</li>
+     *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and nothing else will do,
+     *       so it delegates to {@link HeldItem#holdById}, the one scan the process family shares. That scan stops at
+     *       hotbar slot 8 outside creative, and for a caller that has NOT opted in that is pinned:
+     *       {@code wd.serverTowersWithAFullBackpack} stages the cobblestone in slot 20 and asserts the tower places
+     *       nothing and reports {@code "no placeable block in hotbar"}. {@code reachIntoBag} is the per-caller opt-in
+     *       out of that limit — and it applies to THIS branch only, because an id is an explicit instruction from the
+     *       caller and "any block" is not.
+     *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a different answer, and
+     *       the hotbar-only limit below is NOT an oversight. Reaching into slots 9..35 for an unnamed block is the
+     *       {@code holdPlaceable} family, where the client player genuinely cannot move a bag stack without opening the
+     *       inventory screen. Do not "fix" this branch by pointing it at the bag; that argument has been had.
      * </ul>
      */
     public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred) {
@@ -355,8 +392,9 @@ public final class TowerProcess implements BotProcess {
     public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred, boolean reachIntoBag) {
         if (!(equipment.entity() instanceof Player p)) return false;
         if (preferred != null) {
-            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(equipment, preferred)
-                                : HeldItem.holdById(equipment, preferred);
+            return reachIntoBag
+                    ? HeldItem.holdByIdFromAnywhere(equipment, preferred)
+                    : HeldItem.holdById(equipment, preferred);
         }
         Inventory inv = p.getInventory();
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.

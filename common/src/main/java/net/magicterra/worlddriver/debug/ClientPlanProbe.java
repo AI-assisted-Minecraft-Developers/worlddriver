@@ -14,8 +14,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 
 /**
- * {@code mc.debug.plan} and {@code mc.debug.cells} for {@code self}: the client's player in the client's world.
- * Client thread only.
+ * {@code mc.debug.plan} and {@code mc.debug.cells} for {@code self}: the client's player in the client's world. Client
+ * thread only.
  */
 final class ClientPlanProbe {
     private ClientPlanProbe() {}
@@ -25,7 +25,11 @@ final class ClientPlanProbe {
         BlockPos start = p.from().map(Positions::blockPos).orElse(mc.player.blockPosition());
         ClientWorldView world = new ClientWorldView(ClientWorld::level, ClientWorld::player);
         int selfId = mc.player.getId();
-        return PlanProbeTool.run(world, start, PlanProbeTool.goal(p, mc.player), p,
+        return PlanProbeTool.run(
+                world,
+                start,
+                PlanProbeTool.goal(p, mc.player),
+                p,
                 (s, g, prof) -> SearchScope.gather(mc.level, selfId, s, g, prof));
     }
 

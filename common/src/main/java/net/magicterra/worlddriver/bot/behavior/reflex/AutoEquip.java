@@ -2,6 +2,10 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.Menus;
@@ -15,46 +19,42 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SwordItem;
 import net.minecraft.world.item.TridentItem;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
- * Phase F equipment manager — the armor/weapon sibling of {@link AutoTool} (which
- * manages the held tool). Scans the inventory and puts the best armor in each armor
- * slot and the best weapon in the main hand, scoring by material tier first then
- * enchantments. Operates on the always-present {@code inventoryMenu} (containerId 0)
- * via slot clicks, the same mechanism as {@link AutoTotem}, so it works headless
- * with no GUI open.
+ * Phase F equipment manager — the armor/weapon sibling of {@link AutoTool} (which manages the held tool). Scans the
+ * inventory and puts the best armor in each armor slot and the best weapon in the main hand, scoring by material tier
+ * first then enchantments. Operates on the always-present {@code inventoryMenu} (containerId 0) via slot clicks, the
+ * same mechanism as {@link AutoTotem}, so it works headless with no GUI open.
  *
  * <p>Two entry points, sharing one core:
+ *
  * <ul>
- *   <li>{@link #equipBest} — the {@code mc.bot.equip} verb: returns a structured
- *       report (final loadout + newly-equipped + low-durability + missing slots)
- *       so the agent (T2) can react (go repair / craft the missing piece).</li>
- *   <li>{@link #tick} — the T0 reflex: ensure best gear is worn (called while the
- *       combat chain is engaged). Idempotent — once the best is worn it stops, as
- *       the worn piece always outscores anything left in the inventory.</li>
+ *   <li>{@link #equipBest} — the {@code mc.bot.equip} verb: returns a structured report (final loadout + newly-equipped
+ *       + low-durability + missing slots) so the agent (T2) can react (go repair / craft the missing piece).
+ *   <li>{@link #tick} — the T0 reflex: ensure best gear is worn (called while the combat chain is engaged). Idempotent
+ *       — once the best is worn it stops, as the worn piece always outscores anything left in the inventory.
  * </ul>
  */
 public final class AutoEquip {
     private AutoEquip() {}
 
     /** InventoryMenu armor slot ids (head/chest/legs/feet), per AutoTotem's map. */
-    private static final EquipmentSlot[] ARMOR_SLOTS =
-            { EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET };
-    private static final int[] ARMOR_MENU_SLOT = { 5, 6, 7, 8 };
-    private static final String[] ARMOR_SLOT_NAME = { "head", "chest", "legs", "feet" };
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+        EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
+    };
+
+    private static final int[] ARMOR_MENU_SLOT = {5, 6, 7, 8};
+    private static final String[] ARMOR_SLOT_NAME = {"head", "chest", "legs", "feet"};
 
     /** First and last player-inventory menu slots (main inv 9..35 + hotbar 36..44). */
     private static final int INV_FIRST = 9, INV_LAST = 44;
-    /** A strictly-better score must beat the incumbent by this, so equal gear
-     *  never ping-pongs tick to tick (mirrors AutoTool's hysteresis). */
+    /**
+     * A strictly-better score must beat the incumbent by this, so equal gear never ping-pongs tick to tick (mirrors
+     * AutoTool's hysteresis).
+     */
     private static final double EPS = 0.5;
 
-    public record Result(List<String> equipped, Map<String, Object> loadout,
-                         List<String> lowDurability, List<String> missing) {}
+    public record Result(
+            List<String> equipped, Map<String, Object> loadout, List<String> lowDurability, List<String> missing) {}
 
     /** T0 reflex: ensure best gear, discard the report. */
     public static void tick(Body body, double durabilityThreshold) {
@@ -62,9 +62,10 @@ public final class AutoEquip {
         equipBest(body, true, durabilityThreshold);
     }
 
-    /** Equip the best armor in every armor slot (and, if {@code weaponToo}, the best
-     *  main-hand weapon), reporting the resulting loadout. A body with no hands or menus
-     *  reports an empty loadout. */
+    /**
+     * Equip the best armor in every armor slot (and, if {@code weaponToo}, the best main-hand weapon), reporting the
+     * resulting loadout. A body with no hands or menus reports an empty loadout.
+     */
     public static Result equipBest(Body body, boolean weaponToo, double durabilityThreshold) {
         List<String> equipped = new ArrayList<>();
         List<String> lowDurability = new ArrayList<>();
@@ -89,7 +90,10 @@ public final class AutoEquip {
             double bestScore = wornScore;
             for (int i = INV_FIRST; i <= INV_LAST; i++) {
                 double s = armorScore(p, slot, menu.getSlot(i).getItem());
-                if (s > bestScore + EPS) { bestScore = s; bestInv = i; }
+                if (s > bestScore + EPS) {
+                    bestScore = s;
+                    bestInv = i;
+                }
             }
             if (bestInv >= 0) {
                 ItemStack neu = menu.getSlot(bestInv).getItem();
@@ -110,14 +114,17 @@ public final class AutoEquip {
             double bestScore = curScore;
             for (int i = INV_FIRST; i <= INV_LAST; i++) {
                 double s = weaponScore(menu.getSlot(i).getItem());
-                if (s > bestScore + EPS) { bestScore = s; bestSlot = i; }
+                if (s > bestScore + EPS) {
+                    bestScore = s;
+                    bestSlot = i;
+                }
             }
             if (bestSlot >= 0) {
                 ItemStack neu = menu.getSlot(bestSlot).getItem();
                 equipped.add(itemId(neu));
-                if (bestSlot >= 36) {                       // already in the hotbar → just select it
+                if (bestSlot >= 36) { // already in the hotbar → just select it
                     hands.setSelectedSlot(bestSlot - 36);
-                } else {                                    // in main inventory → swap to the held slot
+                } else { // in main inventory → swap to the held slot
                     menus.containerClick(menu.containerId, bestSlot, inv.selected, ClickType.SWAP);
                 }
             }
@@ -133,37 +140,42 @@ public final class AutoEquip {
 
     // === equip mechanics =====================================================
 
-    /** Move the item in inventory menu slot {@code invSlot} onto armor slot
-     *  {@code armorMenuSlot}. For the common empty-slot case use QUICK_MOVE — one
-     *  atomic shift-click that {@code InventoryMenu.quickMoveStack} auto-routes to
-     *  the matching armor slot (no intermediate cursor state, so nothing can desync
-     *  under load — the same reliable headless path CraftProcess uses). Only an
-     *  occupied slot (upgrading worn armor) needs the pick-up/place/return dance. */
+    /**
+     * Move the item in inventory menu slot {@code invSlot} onto armor slot {@code armorMenuSlot}. For the common
+     * empty-slot case use QUICK_MOVE — one atomic shift-click that {@code InventoryMenu.quickMoveStack} auto-routes to
+     * the matching armor slot (no intermediate cursor state, so nothing can desync under load — the same reliable
+     * headless path CraftProcess uses). Only an occupied slot (upgrading worn armor) needs the pick-up/place/return
+     * dance.
+     */
     private static void swapIntoArmor(Menus menus, AbstractContainerMenu menu, int invSlot, int armorMenuSlot) {
         int id = menu.containerId;
         if (menu.getSlot(armorMenuSlot).getItem().isEmpty()) {
             menus.containerClick(id, invSlot, 0, ClickType.QUICK_MOVE);
             return;
         }
-        menus.containerClick(id, invSlot, 0, ClickType.PICKUP);       // cursor <- new
+        menus.containerClick(id, invSlot, 0, ClickType.PICKUP); // cursor <- new
         menus.containerClick(id, armorMenuSlot, 0, ClickType.PICKUP); // armor <- new, cursor <- old
         if (!menu.getCarried().isEmpty()) {
-            menus.containerClick(id, invSlot, 0, ClickType.PICKUP);    // old -> emptied slot
+            menus.containerClick(id, invSlot, 0, ClickType.PICKUP); // old -> emptied slot
         }
     }
 
     // === scoring =============================================================
 
-    /** Score this stack as armor for {@code slot}; -1 if it isn't armor for it.
-     *  Material tier dominates (×10), enchantments break ties. */
+    /**
+     * Score this stack as armor for {@code slot}; -1 if it isn't armor for it. Material tier dominates (×10),
+     * enchantments break ties.
+     */
     private static double armorScore(Player p, EquipmentSlot slot, ItemStack stack) {
         if (stack.isEmpty()) return -1;
         if (p.getEquipmentSlotForItem(stack) != slot) return -1;
         return tier(stack) * 10.0 + enchantPoints(stack);
     }
 
-    /** Score this stack as a weapon; -1 if it isn't one. Swords are preferred over
-     *  axes/tridents (the design is "swords first"), then material tier, then enchantments. */
+    /**
+     * Score this stack as a weapon; -1 if it isn't one. Swords are preferred over axes/tridents (the design is "swords
+     * first"), then material tier, then enchantments.
+     */
     private static double weaponScore(ItemStack stack) {
         if (stack.isEmpty()) return -1;
         double base;
@@ -182,7 +194,7 @@ public final class AutoEquip {
         if (id.contains("iron")) return 4;
         if (id.contains("chainmail")) return 3;
         if (id.contains("turtle")) return 3;
-        if (id.contains("stone")) return 2;       // weapons
+        if (id.contains("stone")) return 2; // weapons
         if (id.contains("gold")) return 2;
         if (id.contains("leather")) return 1;
         if (id.contains("wood")) return 1;
@@ -190,8 +202,11 @@ public final class AutoEquip {
     }
 
     private static double enchantPoints(ItemStack stack) {
-        try { return stack.getEnchantments().size(); }
-        catch (RuntimeException e) { return stack.isEnchanted() ? 1 : 0; }
+        try {
+            return stack.getEnchantments().size();
+        } catch (RuntimeException e) {
+            return stack.isEnchanted() ? 1 : 0;
+        }
     }
 
     private static boolean isLowDurability(ItemStack s, double threshold) {

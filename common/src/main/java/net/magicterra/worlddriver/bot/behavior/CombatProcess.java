@@ -2,17 +2,16 @@ package net.magicterra.worlddriver.bot.behavior;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.game.body.Attack;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -28,41 +27,42 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Phase C — the active combat loop. A {@link BotProcess} run by the scheduler's
- * {@code CombatChain} (priority {@code COMBAT} 60, above the user task), it picks a
- * hostile target, closes to weapon range, and lands cooldown-gated hits until the
- * target (or the whole area, in ENGAGE mode) is dead, then self-terminates so the
- * suspended user task resumes.
+ * Phase C — the active combat loop. A {@link BotProcess} run by the scheduler's {@code CombatChain} (priority
+ * {@code COMBAT} 60, above the user task), it picks a hostile target, closes to weapon range, and lands cooldown-gated
+ * hits until the target (or the whole area, in ENGAGE mode) is dead, then self-terminates so the suspended user task
+ * resumes.
  *
  * <p>Drives through the {@link Body} seam: locomotion via the player's own input
- * ({@code commandMove}/{@code commandForward}/{@code commandJump} — never the shared
- * human keybinds), the hit via {@link Attack#attackEntity} (the vanilla left-click
- * path: weapon damage, sweep, knockback, crit), and the bow draw via
- * {@link Equipment#commandUseItem}. Timing is judged on the {@link Player} state
- * (attack cooldown {@link Player#getAttackStrengthScale}, ground/fall for crits) so
- * it stays correct under server lag. The same code runs over a client
- * {@code LocalPlayer} (zero regression) or a server {@code FakePlayer}; entity
- * sensing reads {@link ThreatScanner} (the shared client scan on the client, a fresh
- * {@code compute} on the server).
+ * ({@code commandMove}/{@code commandForward}/{@code commandJump} — never the shared human keybinds), the hit via
+ * {@link Attack#attackEntity} (the vanilla left-click path: weapon damage, sweep, knockback, crit), and the bow draw
+ * via {@link Equipment#commandUseItem}. Timing is judged on the {@link Player} state (attack cooldown
+ * {@link Player#getAttackStrengthScale}, ground/fall for crits) so it stays correct under server lag. The same code
+ * runs over a client {@code LocalPlayer} (zero regression) or a server {@code FakePlayer}; entity sensing reads
+ * {@link ThreatScanner} (the shared client scan on the client, a fresh {@code compute} on the server).
  *
  * <p>Three intents:
+ *
  * <ul>
- *   <li>{@code KILL} — a specific target ({@code id} or {@code type}); done when it dies.</li>
- *   <li>{@code ENGAGE} — clear every hostile in scan range; done when none remain.</li>
- *   <li>{@code DEFEND} — only retaliate against hostiles actively eyeing the bot
- *       (facing + line-of-sight, close); done when nothing is pressing.</li>
+ *   <li>{@code KILL} — a specific target ({@code id} or {@code type}); done when it dies.
+ *   <li>{@code ENGAGE} — clear every hostile in scan range; done when none remain.
+ *   <li>{@code DEFEND} — only retaliate against hostiles actively eyeing the bot (facing + line-of-sight, close); done
+ *       when nothing is pressing.
  * </ul>
  *
- * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Navigator}) and
- * pre-jumps to crit; ranged (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance},
- * drawing and releasing at full charge.
+ * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Navigator}) and pre-jumps to crit; ranged
+ * (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance}, drawing and releasing at full charge.
  */
 public final class CombatProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private Attack attack;
 
-    public enum Mode { KILL, ENGAGE, DEFEND }
+    public enum Mode {
+        KILL,
+        ENGAGE,
+        DEFEND
+    }
 
     /** Re-acquire window: a locked target out of sight this many ticks is dropped. */
     private static final int LOCK_GRACE = 20;
@@ -76,25 +76,32 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static final int BOW_FULL_DRAW = 20;
     /** Post-kill drop sweep: item scan radius around the last kill position. */
     private static final double COLLECT_RADIUS = 8.0;
-    /** Post-kill drop sweep: hard tick budget so an unreachable drop can't wedge
-     *  the process open (the suspended user task must resume). */
+    /**
+     * Post-kill drop sweep: hard tick budget so an unreachable drop can't wedge the process open (the suspended user
+     * task must resume).
+     */
     private static final int COLLECT_BUDGET_TICKS = 100;
 
     private final Mode mode;
-    private final Integer targetId;     // KILL by entity id (nullable)
-    private final String targetType;    // KILL by entity type id (nullable)
+    private final Integer targetId; // KILL by entity id (nullable)
+    private final String targetType; // KILL by entity type id (nullable)
 
     private final Navigator navigator = new Navigator(NavigatorSettings.named("combat"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private Integer lockedId;
-    private boolean lockWasAlive;       // last-seen liveness of the locked target
-    private int lostTicks;              // consecutive ticks the locked target was unseen
+    private boolean lockWasAlive; // last-seen liveness of the locked target
+    private int lostTicks; // consecutive ticks the locked target was unseen
     private BlockPos lastGoalBlock;
-    private int lastQuarryId = -1;      // entity the navigator is currently pursuing; -1 = none
+    private int lastQuarryId = -1; // entity the navigator is currently pursuing; -1 = none
     private int ticks;
-    private boolean approaching;        // currently driving the Navigator
-    private BlockPos lastTargetPos;     // last seen position of a locked target
-    private int collectTicks;           // post-kill drop-sweep tick counter
+    private boolean approaching; // currently driving the Navigator
+    private BlockPos lastTargetPos; // last seen position of a locked target
+    private int collectTicks; // post-kill drop-sweep tick counter
 
     public CombatProcess(Mode mode, Integer targetId, String targetType) {
         this.mode = mode;
@@ -102,32 +109,48 @@ public final class CombatProcess implements BotProcess, Navigating {
         this.targetType = targetType;
     }
 
-    @Override public String kind() { return "combat"; }
+    @Override
+    public String kind() {
+        return "combat";
+    }
 
     /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     /** The ticking bot's threat picture, taken from the state each tick hands in. */
     private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
 
-    @Override public void attach(BotState s) {
-        s.combat.beginRun("combat " + mode.name().toLowerCase()
-                + (targetId != null ? " id=" + targetId : "")
-                + (targetType != null ? " type=" + targetType : ""), null);
+    @Override
+    public void attach(BotState s) {
+        s.combat.beginRun(
+                "combat " + mode.name().toLowerCase()
+                        + (targetId != null ? " id=" + targetId : "")
+                        + (targetType != null ? " type=" + targetType : ""),
+                null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         threats = st.threats;
-        if (a.entity() == null || a.entity().level() == null) { failure = "player vanished"; cleanup(a); return true; }
+        if (a.entity() == null || a.entity().level() == null) {
+            failure = "player vanished";
+            cleanup(a);
+            return true;
+        }
         // The swing and its cooldown are a player's: a controlled entity that is not a player has
         // no hands for them.
         Player p = a.asPlayer();
         equipment = a.equipment().orElse(null);
         attack = a.attack().orElse(null);
         if (equipment == null || attack == null || p == null) {
-            failure = st.combat.lastError = Readiness.Reason.NO_HANDS; cleanup(a); return true;
+            failure = st.combat.lastError = Readiness.Reason.NO_HANDS;
+            cleanup(a);
+            return true;
         }
         ticks++;
 
@@ -140,7 +163,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             // kills, one porkchop banked). KILL/ENGAGE only end with the area
             // clear, so the walk-back is safe; DEFEND stays snappy — it exists to
             // get back to the suspended task, not to loot.
-            if (mode != Mode.DEFEND && lastTargetPos != null
+            if (mode != Mode.DEFEND
+                    && lastTargetPos != null
                     && BehaviorConfig.combatCollectDrops
                     && !collectSweep(a, p, w, st)) {
                 return false;
@@ -179,7 +203,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             // lock-clearing/grace logic below; only `died` gates the counter.
             boolean dead = (locked == null) || !locked.isAlive();
             boolean died = locked != null && !locked.isAlive();
-            if (died && lockWasAlive) { st.combatKills++; }
+            if (died && lockWasAlive) {
+                st.combatKills++;
+            }
             if (!dead && ++lostTicks < LOCK_GRACE) {
                 // Temporarily out of our validity window (e.g. looked away in DEFEND)
                 // but still alive — keep the lock briefly before re-picking.
@@ -234,7 +260,10 @@ public final class CombatProcess implements BotProcess, Navigating {
             if (e == p || !e.isAlive()) continue;
             if (!matchesType(e)) continue;
             double d = e.distanceToSqr(p);
-            if (d < bestD) { bestD = d; best = e; }
+            if (d < bestD) {
+                bestD = d;
+                best = e;
+            }
         }
         return best;
     }
@@ -255,13 +284,13 @@ public final class CombatProcess implements BotProcess, Navigating {
         return false;
     }
 
-    /** The threat picture: the bot's own scan (refreshed each tick by the bot host) on the
-     *  client; a fresh {@link ThreatScanner#compute} on the server, which has no refresh loop
-     *  yet. {@code Level.isClientSide} is set on both ClientLevel and ServerLevel. */
+    /**
+     * The threat picture: the bot's own scan (refreshed each tick by the bot host) on the client; a fresh
+     * {@link ThreatScanner#compute} on the server, which has no refresh loop yet. {@code Level.isClientSide} is set on
+     * both ClientLevel and ServerLevel.
+     */
     private ThreatScanner.Scan scanFor(Player p) {
-        return p.level().isClientSide
-                ? threats.current()
-                : ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS);
+        return p.level().isClientSide ? threats.current() : ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS);
     }
 
     // === melee ===============================================================
@@ -272,7 +301,11 @@ public final class CombatProcess implements BotProcess, Navigating {
             return;
         }
         // In range: stop pathing, face the target, strafe a swarm, swing on cooldown.
-        if (approaching) { a.releaseInputs(); approaching = false; lastGoalBlock = null; }
+        if (approaching) {
+            a.releaseInputs();
+            approaching = false;
+            lastGoalBlock = null;
+        }
         p.setSprinting(false);
         aimAt(p, target, 0.0);
         a.commandMove(strafeImpulse(p), 0f);
@@ -307,17 +340,19 @@ public final class CombatProcess implements BotProcess, Navigating {
             // chasing something it can never reach runs one full A* per tick forever (measured:
             // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
             Goal.Near g = new Goal.Near(tb, radius);
-            if (newQuarry) navigator.start(g); else navigator.retarget(g);
+            if (newQuarry) navigator.start(g);
+            else navigator.retarget(g);
             lastGoalBlock = tb;
             lastQuarryId = target.getId();
         }
         navigator.tick(a, w);
     }
 
-    /** Orbit a swarm (≥2 close hostiles) to avoid being surrounded; stand still vs a
-     *  lone target so the hit rhythm isn't interrupted. Returns the camera-frame strafe
-     *  impulse (+1 = left, -1 = right, 0 = hold), the {@code commandMove} equivalent of
-     *  the old keyLeft/keyRight presses. */
+    /**
+     * Orbit a swarm (≥2 close hostiles) to avoid being surrounded; stand still vs a lone target so the hit rhythm isn't
+     * interrupted. Returns the camera-frame strafe impulse (+1 = left, -1 = right, 0 = hold), the {@code commandMove}
+     * equivalent of the old keyLeft/keyRight presses.
+     */
     private float strafeImpulse(Player p) {
         if (closeHostiles(p) < 2) return 0f;
         boolean left = (ticks / STRAFE_FLIP) % 2 == 0;
@@ -335,20 +370,23 @@ public final class CombatProcess implements BotProcess, Navigating {
     // === ranged ==============================================================
 
     private void rangedTick(Body a, Player p, Entity target, double dist, BotState st) {
-        if (approaching) { approaching = false; lastGoalBlock = null; }
-        aimAt(p, target, dist * 0.12);   // lead a little high for arrow drop
+        if (approaching) {
+            approaching = false;
+            lastGoalBlock = null;
+        }
+        aimAt(p, target, dist * 0.12); // lead a little high for arrow drop
         p.setSprinting(false);
         // Keep the kite band: back up if too close, advance if too far, else hold.
         float fwd = 0f;
         if (dist < BehaviorConfig.kiteDistance - 1.0) {
-            fwd = -1f;                                  // step back, keep facing the target
+            fwd = -1f; // step back, keep facing the target
         } else if (dist > BehaviorConfig.kiteDistance + 2.0) {
             fwd = 1f;
         }
         a.commandForward(fwd);
         // Draw the bow (hold use); release the moment it's fully charged → fires.
         if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
-            equipment.commandUseItem(false);                    // up-edge = release = shoot
+            equipment.commandUseItem(false); // up-edge = release = shoot
             st.combatSwings++;
             st.combatWellTimed++;
         } else {
@@ -363,10 +401,11 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     // === post-kill drop sweep ===============================================
 
-    /** Walk over the item drops around the last kill position (vanilla pickup is
-     *  automatic on touch). Returns {@code true} when done: no live drops left in
-     *  {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran out
-     *  (unreachable drop — never wedge the suspended user task). */
+    /**
+     * Walk over the item drops around the last kill position (vanilla pickup is automatic on touch). Returns
+     * {@code true} when done: no live drops left in {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran
+     * out (unreachable drop — never wedge the suspended user task).
+     */
     private boolean collectSweep(Body a, Player p, WorldView w, BotState st) {
         if (++collectTicks > COLLECT_BUDGET_TICKS) return true;
         AABB box = new AABB(lastTargetPos).inflate(COLLECT_RADIUS);
@@ -378,7 +417,10 @@ public final class CombatProcess implements BotProcess, Navigating {
             // would end the sweep instantly on the very drops we came for.
             if (!ie.isAlive()) continue;
             double d = ie.distanceToSqr(p);
-            if (d < bestD) { bestD = d; nearest = ie; }
+            if (d < bestD) {
+                bestD = d;
+                nearest = ie;
+            }
         }
         if (nearest == null) return true;
         if (collectTicks == 1) st.combat.goal = "combat collect-drops";
@@ -386,7 +428,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
             navigator.start(new Goal.Near(ib, 1));
             lastGoalBlock = ib;
-            lastQuarryId = -1;          // the quarry is dead; the next approach starts a new pursuit
+            lastQuarryId = -1; // the quarry is dead; the next approach starts a new pursuit
         }
         Locomotor.Status s = navigator.tick(a, w);
         if (s != Locomotor.Status.MOVING) {
@@ -421,9 +463,10 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     // === helpers =============================================================
 
-    /** Snap head+body to the target's mid-height (+{@code yLead} blocks up). Snaps
-     *  rather than smooth-pans because the attack/shot raycast needs the crosshair
-     *  on target the same tick. */
+    /**
+     * Snap head+body to the target's mid-height (+{@code yLead} blocks up). Snaps rather than smooth-pans because the
+     * attack/shot raycast needs the crosshair on target the same tick.
+     */
     private static void aimAt(Player p, Entity e, double yLead) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
@@ -431,7 +474,10 @@ public final class CombatProcess implements BotProcess, Navigating {
         double dz = e.getZ() - eye.z;
         float yaw = (float) (Math.toDegrees(Math.atan2(-dx, dz)));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
+        p.setYRot(yaw);
+        p.yHeadRot = yaw;
+        p.yBodyRot = yaw;
+        p.setXRot(pitch);
     }
 
     private void cleanup(Body a) {

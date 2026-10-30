@@ -4,16 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code autoBackfill} puts back only what the bot itself broke, as Baritone's BackfillProcess
- * does. A cell the bot merely walked through was natural air — a cave, a cliff edge, the tunnel
- * a human dug — and filling it plugs the bot's own path with cobblestone.
+ * {@code autoBackfill} puts back only what the bot itself broke, as Baritone's BackfillProcess does. A cell the bot
+ * merely walked through was natural air — a cave, a cliff edge, the tunnel a human dug — and filling it plugs the bot's
+ * own path with cobblestone.
  */
 class BackfillOwnBreaksTest {
 

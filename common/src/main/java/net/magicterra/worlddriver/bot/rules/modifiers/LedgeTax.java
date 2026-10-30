@@ -8,8 +8,8 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * A flat {@code penalty} on every cell beside a drop deeper than {@code minDrop} (or a hazard at any depth), so a
- * route keeps off lips it could survive but would rather not fall from. {@code route.ledge}.
+ * A flat {@code penalty} on every cell beside a drop deeper than {@code minDrop} (or a hazard at any depth), so a route
+ * keeps off lips it could survive but would rather not fall from. {@code route.ledge}.
  */
 public record LedgeTax(int minDrop, double penalty) implements CostModifier {
     @Override

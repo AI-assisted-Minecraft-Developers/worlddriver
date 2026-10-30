@@ -4,10 +4,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -17,25 +16,22 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Lines of sight as a route condition, {@code route.sight}. A cell is exposed to an observer when
- * a ray from the observer's eye to the cell plus {@code eye} is clear of colliding blocks — the
- * shape of vanilla's own "can it see the target" test (eye to eye), made with the same clip
- * {@code ThreatScanner} uses, so water does not block it. Only observers within their
- * {@code range} of the cell are asked; beyond it a cell is unexposed without a ray.
+ * Lines of sight as a route condition, {@code route.sight}. A cell is exposed to an observer when a ray from the
+ * observer's eye to the cell plus {@code eye} is clear of colliding blocks — the shape of vanilla's own "can it see the
+ * target" test (eye to eye), made with the same clip {@code ThreatScanner} uses, so water does not block it. Only
+ * observers within their {@code range} of the cell are asked; beyond it a cell is unexposed without a ray.
  *
- * <p>Soft ({@code avoid}): {@code penalty} per exposed cell per observer. Hard ({@code forbid}):
- * an exposed cell is pruned, with the rejoin rule for a count: the number of observers seeing
- * the destination may not exceed the number seeing the origin, and the distance to the nearest
- * observer that sees the destination must strictly grow.
+ * <p>Soft ({@code avoid}): {@code penalty} per exposed cell per observer. Hard ({@code forbid}): an exposed cell is
+ * pruned, with the rejoin rule for a count: the number of observers seeing the destination may not exceed the number
+ * seeing the origin, and the distance to the nearest observer that sees the destination must strictly grow.
  *
- * <p><b>Rays are the one expensive thing in this design.</b> Results are cached per (cell,
- * observer) for the search, and a search may fire at most {@code rayBudget} rays. When the
- * budget is spent the answer is NOT "count the rest as exposed": that would make a cell's cost
- * depend on how many cells were expanded before it, and A* does not reopen closed nodes, so the
- * same scene would give different routes run to run. Instead {@link RayBudgetExhausted} is
- * thrown, {@code PathFinder.Search} abandons the search and reruns it without this component,
- * and the result says so with {@code sightBudgetExhausted}. The result is then a function of
- * (cell, snapshot) only, at the price of two searches in the worst case.
+ * <p><b>Rays are the one expensive thing in this design.</b> Results are cached per (cell, observer) for the search,
+ * and a search may fire at most {@code rayBudget} rays. When the budget is spent the answer is NOT "count the rest as
+ * exposed": that would make a cell's cost depend on how many cells were expanded before it, and A* does not reopen
+ * closed nodes, so the same scene would give different routes run to run. Instead {@link RayBudgetExhausted} is thrown,
+ * {@code PathFinder.Search} abandons the search and reruns it without this component, and the result says so with
+ * {@code sightBudgetExhausted}. The result is then a function of (cell, snapshot) only, at the price of two searches in
+ * the worst case.
  *
  * <p>Geometry only: no light level, no sneaking, no invisibility, no per-mob aggro range.
  */
@@ -49,11 +45,16 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     }
 
     /** Who to hide from. */
-    public enum Of { RANGED, HOSTILE, PLAYERS, LISTED }
+    public enum Of {
+        RANGED,
+        HOSTILE,
+        PLAYERS,
+        LISTED
+    }
 
     private final Of of;
     private final List<String> listed;
-    private final double rangeOverride;   // <= 0 → each observer's default
+    private final double rangeOverride; // <= 0 → each observer's default
     private final boolean hard;
     private final double penalty;
     private final double eye;
@@ -65,6 +66,7 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     private SearchScope.LineOfSight los = SearchScope.ALWAYS_CLEAR;
     /** (cell, observer index) → seen. Keyed by the cell's packed long and the index. */
     private final Map<Long, boolean[]> cache = new HashMap<>();
+
     private int raysFired;
 
     /**
@@ -76,8 +78,8 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
      * @param eye the height above the cell the ray is aimed at
      * @param rayBudget the most rays one search may fire
      */
-    public SightExposure(Of of, List<String> listed, double rangeOverride, boolean hard, double penalty,
-                         double eye, int rayBudget) {
+    public SightExposure(
+            Of of, List<String> listed, double rangeOverride, boolean hard, double penalty, double eye, int rayBudget) {
         this.of = of == null ? Of.RANGED : of;
         this.listed = listed == null ? List.of() : List.copyOf(listed);
         this.rangeOverride = rangeOverride;
@@ -87,29 +89,54 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         this.rayBudget = Math.max(1, rayBudget);
     }
 
-    /** The same observers and geometry with another ray budget — an observation overlay asks
-     *  for every cell of a grid, which is more rays than one search may spend. */
+    /**
+     * The same observers and geometry with another ray budget — an observation overlay asks for every cell of a grid,
+     * which is more rays than one search may spend.
+     */
     public SightExposure withRayBudget(int budget) {
         return new SightExposure(of, listed, rangeOverride, hard, penalty, eye, budget);
     }
 
-    public Of of() { return of; }
-    public List<String> listed() { return listed; }
-    public boolean hard() { return hard; }
-    public double penalty() { return penalty; }
-    public double eye() { return eye; }
-    public int rayBudget() { return rayBudget; }
-    /** How many rays the current search has fired. */
-    public int raysFired() { return raysFired; }
-    /** The observers this search hides from, after the {@code of} filter. */
-    public List<ThreatSnapshot.Threat> observers() { return observers; }
-
-    @Override public int scanRadius() {
-        if (rangeOverride > 0) return (int) Math.ceil(rangeOverride);
-        return 64;   // the largest default range (a ghast's)
+    public Of of() {
+        return of;
     }
 
-    @Override public void beginSearch(SearchScope scope) {
+    public List<String> listed() {
+        return listed;
+    }
+
+    public boolean hard() {
+        return hard;
+    }
+
+    public double penalty() {
+        return penalty;
+    }
+
+    public double eye() {
+        return eye;
+    }
+
+    public int rayBudget() {
+        return rayBudget;
+    }
+    /** How many rays the current search has fired. */
+    public int raysFired() {
+        return raysFired;
+    }
+    /** The observers this search hides from, after the {@code of} filter. */
+    public List<ThreatSnapshot.Threat> observers() {
+        return observers;
+    }
+
+    @Override
+    public int scanRadius() {
+        if (rangeOverride > 0) return (int) Math.ceil(rangeOverride);
+        return 64; // the largest default range (a ghast's)
+    }
+
+    @Override
+    public void beginSearch(SearchScope scope) {
         List<ThreatSnapshot.Threat> picked = new ArrayList<>();
         for (ThreatSnapshot.Threat t : scope.threats().threats()) {
             boolean want = switch (of) {
@@ -122,7 +149,8 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         }
         observers = List.copyOf(picked);
         ranges = new double[picked.size()];
-        for (int i = 0; i < ranges.length; i++) ranges[i] = rangeOverride > 0 ? rangeOverride : picked.get(i).range();
+        for (int i = 0; i < ranges.length; i++)
+            ranges[i] = rangeOverride > 0 ? rangeOverride : picked.get(i).range();
         los = scope.los();
         cache.clear();
         raysFired = 0;
@@ -138,7 +166,7 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         double dx = x - t.eye().x, dy = y - t.eye().y, dz = z - t.eye().z;
         boolean seen;
         if (dx * dx + dy * dy + dz * dz > ranges[i] * ranges[i]) {
-            seen = false;   // out of range: no ray
+            seen = false; // out of range: no ray
         } else {
             if (raysFired >= rayBudget) throw new RayBudgetExhausted(rayBudget);
             raysFired++;
@@ -191,7 +219,8 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         return penalty * seen(to);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
         return "SightExposure[of=" + of + (of == Of.LISTED ? listed : "") + ", range="
                 + (rangeOverride > 0 ? rangeOverride : "default") + ", " + (hard ? "forbid" : "avoid " + penalty)
                 + ", eye=" + eye + "]";

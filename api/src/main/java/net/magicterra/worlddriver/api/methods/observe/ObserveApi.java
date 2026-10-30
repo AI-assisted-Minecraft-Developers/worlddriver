@@ -1,17 +1,18 @@
 package net.magicterra.worlddriver.api.methods.observe;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.methods.event.EventApi;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
-import net.magicterra.worlddriver.api.methods.event.EventApi;
 
 /** The {@code mc.observe.*} reads of the player and its surroundings; the event stream is {@link EventApi}. */
 public interface ObserveApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ObserveStubApi of(ApiRegistry registry) { return ObserveApiBinding.calls(registry); }
+    static ObserveStubApi of(ApiRegistry registry) {
+        return ObserveApiBinding.calls(registry);
+    }
 
     @Spec(value = ObserveContracts.class, spec = "PLAYER")
     CompletionStage<ObserveContracts.PlayerReading> player(ObserveContracts.PlayerParams p, CallContext ctx);

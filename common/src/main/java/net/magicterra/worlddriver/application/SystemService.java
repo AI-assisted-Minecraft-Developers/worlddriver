@@ -7,14 +7,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
-
-import net.magicterra.worlddriver.config.BuildStamp;
 import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.WaitPermits;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.system.SystemApi;
@@ -23,11 +18,18 @@ import net.magicterra.worlddriver.api.methods.system.SystemContracts;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.TickTimes;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.Version;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.Waited;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.config.BuildStamp;
 
 /** {@code mc.system.*}: what answers without a world. */
 public final class SystemService implements SystemApi {
     private final DriverApplication api;
-    SystemService(DriverApplication api) { this.api = api; }
+
+    SystemService(DriverApplication api) {
+        this.api = api;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return SystemApiBinding.methods(this);
@@ -50,14 +52,21 @@ public final class SystemService implements SystemApi {
 
     public Version version() {
         Map<String, Object> s = BuildStamp.asMap();
-        return new Version("worlddriver", BuildStamp.version(), (System.nanoTime() - api.startNanos) / 1_000_000L,
-                String.valueOf(s.get("loadedFrom")), String.valueOf(s.get("loadedKind")),
-                Optional.ofNullable((String) s.get("builtAt")), Optional.ofNullable((Long) s.get("builtMs")),
-                Optional.ofNullable((Long) s.get("sizeBytes")), Optional.ofNullable((String) s.get("stampError")));
+        return new Version(
+                "worlddriver",
+                BuildStamp.version(),
+                (System.nanoTime() - api.startNanos) / 1_000_000L,
+                String.valueOf(s.get("loadedFrom")),
+                String.valueOf(s.get("loadedKind")),
+                Optional.ofNullable((String) s.get("builtAt")),
+                Optional.ofNullable((Long) s.get("builtMs")),
+                Optional.ofNullable((Long) s.get("sizeBytes")),
+                Optional.ofNullable((String) s.get("stampError")));
     }
 
     public static BlockPosition testOrigin() {
-        return new BlockPosition(DriverApplication.ORIGIN.getX(), DriverApplication.ORIGIN.getY(), DriverApplication.ORIGIN.getZ());
+        return new BlockPosition(
+                DriverApplication.ORIGIN.getX(), DriverApplication.ORIGIN.getY(), DriverApplication.ORIGIN.getZ());
     }
 
     /**
@@ -68,7 +77,8 @@ public final class SystemService implements SystemApi {
         if (ticks == 0) return CompletableFuture.completedFuture(new Waited(0, Optional.empty(), Optional.empty()));
         ctx.requireBlockingAllowed("mc.system.waitTicks");
         WaitPermits.Lease lease = ctx.waits().tryAcquire();
-        if (lease == null) throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
+        if (lease == null)
+            throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
         long t0 = System.nanoTime();
         long fullMs = ticks * 50L;
         // Only a JVM that runs the server has tick times to report.
@@ -76,15 +86,21 @@ public final class SystemService implements SystemApi {
         long fromTick = api.server() != null ? clock.tickCount() : -1;
         CompletableFuture<Waited> out = new CompletableFuture<>();
         Supplier<Optional<TickTimes>> times = () -> fromTick < 0 ? Optional.empty() : clock.since(fromTick);
-        Runnable cut = () -> out.complete(new Waited((int) Math.min(ticks, (System.nanoTime() - t0) / 50_000_000L),
-                Optional.of(true), times.get()));
-        ScheduledFuture<?> full = ApiTimers.schedule(() -> out.complete(new Waited(ticks, Optional.empty(), times.get())), fullMs);
-        ScheduledFuture<?> deadline = ctx.remainingMillis() < fullMs ? ApiTimers.schedule(cut, ctx.remainingMillis()) : null;
+        Runnable cut = () -> out.complete(new Waited(
+                (int) Math.min(ticks, (System.nanoTime() - t0) / 50_000_000L), Optional.of(true), times.get()));
+        ScheduledFuture<?> full =
+                ApiTimers.schedule(() -> out.complete(new Waited(ticks, Optional.empty(), times.get())), fullMs);
+        ScheduledFuture<?> deadline =
+                ctx.remainingMillis() < fullMs ? ApiTimers.schedule(cut, ctx.remainingMillis()) : null;
         AutoCloseable gone = ctx.requestCancelled().onCancel(cut);
         return out.whenComplete((r, t) -> {
             full.cancel(false);
             if (deadline != null) deadline.cancel(false);
-            try { gone.close(); } catch (Exception ignored) { /* nothing to release */ }
+            try {
+                gone.close();
+            } catch (Exception ignored) {
+                /* nothing to release */
+            }
             lease.close();
         });
     }

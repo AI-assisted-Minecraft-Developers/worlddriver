@@ -1,24 +1,24 @@
 package net.magicterra.worlddriver.debug;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.ReplayProcess;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
-import java.util.List;
-import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
- * Installs replay runs for {@code mc.debug.replay}, on the replaying bot's own thread: the client thread for
- * this client's player, the server thread for a server-side bot. The caller has already restored the block
- * envelope off every game thread, so this only places the body, arms capture and starts the driving process.
+ * Installs replay runs for {@code mc.debug.replay}, on the replaying bot's own thread: the client thread for this
+ * client's player, the server thread for a server-side bot. The caller has already restored the block envelope off
+ * every game thread, so this only places the body, arms capture and starts the driving process.
  */
 final class ReplayInstaller {
 
@@ -44,7 +44,9 @@ final class ReplayInstaller {
             }
 
             @Override
-            public void start(BotProcess process) { brain.startProcess(process); }
+            public void start(BotProcess process) {
+                brain.startProcess(process);
+            }
         };
     }
 
@@ -61,17 +63,24 @@ final class ReplayInstaller {
             }
 
             @Override
-            public void start(BotProcess process) { bot.start(process); }
+            public void start(BotProcess process) {
+                bot.start(process);
+            }
         };
     }
 
     /**
-     * Walk a stored plan: arm the path-archive recorder for replay capture, then install a
-     * {@link ReplayProcess} that drives {@code Navigator.beginReplay} so the wedge reproduces with no
-     * re-planning.
+     * Walk a stored plan: arm the path-archive recorder for replay capture, then install a {@link ReplayProcess} that
+     * drives {@code Navigator.beginReplay} so the wedge reproduces with no re-planning.
      */
-    static void startReplay(Driver bot, List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,
-                            BlockPos startFoot, String archiveName) {
+    static void startReplay(
+            Driver bot,
+            List<BlockPos> plan,
+            List<Move.Edge> edges,
+            BlockPos start,
+            Goal endGoal,
+            BlockPos startFoot,
+            String archiveName) {
         Entity body = bot.place(start);
         // Armed BEFORE the process is installed so its very first tick (which calls beginReplay) is captured.
         PathArchiveRecorder rec = PathArchiveRecorder.active();
@@ -80,9 +89,9 @@ final class ReplayInstaller {
     }
 
     /**
-     * Re-issue the recorded goal through the normal {@link IntentProcess}: the recorded plan is not consulted,
-     * A* re-derives it deterministically in the restored terrain, so emergent live behaviour (repaths,
-     * execution wedges) reproduces. A normal path archive of the re-run is captured when pathArchive is on.
+     * Re-issue the recorded goal through the normal {@link IntentProcess}: the recorded plan is not consulted, A*
+     * re-derives it deterministically in the restored terrain, so emergent live behaviour (repaths, execution wedges)
+     * reproduces. A normal path archive of the re-run is captured when pathArchive is on.
      */
     static void startReplayReplan(Driver bot, BlockPos start, Goal goal) {
         bot.place(start);

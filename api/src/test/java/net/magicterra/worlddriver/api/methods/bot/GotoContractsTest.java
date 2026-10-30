@@ -1,23 +1,22 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
-import com.google.gson.JsonObject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.util.List;
 import java.util.Optional;
-
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.GoalMode;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.PlanMode;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Position;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
-import com.google.gson.JsonParser;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.TsContext;
 import org.junit.jupiter.api.Test;
 
 class GotoContractsTest {
@@ -27,7 +26,9 @@ class GotoContractsTest {
     }
 
     private static List<String> paths(String json) {
-        return assertThrows(ApiException.class, () -> decode(json)).error().issues().stream().map(ApiIssue::path).toList();
+        return assertThrows(ApiException.class, () -> decode(json)).error().issues().stream()
+                .map(ApiIssue::path)
+                .toList();
     }
 
     private static final String POS = "{\"kind\":\"position\",\"pos\":{\"x\":1,\"y\":64,\"z\":2}}";
@@ -45,7 +46,8 @@ class GotoContractsTest {
 
     @Test
     void everyTargetKindDecodes() {
-        for (String target : List.of(POS,
+        for (String target : List.of(
+                POS,
                 "{\"kind\":\"column\",\"x\":1,\"z\":2}",
                 "{\"kind\":\"level\",\"y\":-54}",
                 "{\"kind\":\"block\",\"block\":\"#minecraft:logs\"}",
@@ -72,8 +74,10 @@ class GotoContractsTest {
 
     @Test
     void planIdTakesNothingThePreviewAlreadyFixed() {
-        assertEquals("p-3", decode("{\"planId\":\"p-3\",\"awaitMs\":500}").planId().orElseThrow());
-        assertEquals(List.of("/target", "/route", "/invert"),
+        assertEquals(
+                "p-3", decode("{\"planId\":\"p-3\",\"awaitMs\":500}").planId().orElseThrow());
+        assertEquals(
+                List.of("/target", "/route", "/invert"),
                 paths("{\"planId\":\"p-3\",\"target\":" + POS + ",\"route\":{},\"invert\":true}"));
     }
 
@@ -82,12 +86,15 @@ class GotoContractsTest {
         Params p = decode("{\"plan\":\"score\",\"route\":{\"corridor\":{\"points\":[{\"x\":0,\"y\":64,\"z\":0}]}}}");
         assertEquals(PlanMode.SCORE, p.plan().orElseThrow());
         assertEquals(List.of("/route/corridor"), paths("{\"plan\":\"score\"}"));
-        assertEquals(List.of("/target", "/awaitMs", "/route/corridor"), paths("{\"plan\":\"score\",\"target\":" + POS + ",\"awaitMs\":5}"));
+        assertEquals(
+                List.of("/target", "/awaitMs", "/route/corridor"),
+                paths("{\"plan\":\"score\",\"target\":" + POS + ",\"awaitMs\":5}"));
     }
 
     @Test
     void includePathIsOnlyForAPreview() {
-        assertTrue(decode("{\"plan\":\"preview\",\"includePath\":true,\"target\":" + POS + "}").includePath());
+        assertTrue(decode("{\"plan\":\"preview\",\"includePath\":true,\"target\":" + POS + "}")
+                .includePath());
         assertEquals(List.of("/includePath"), paths("{\"includePath\":true,\"target\":" + POS + "}"));
     }
 
@@ -102,7 +109,9 @@ class GotoContractsTest {
 
     @Test
     void scoredIsAnOutcomeBesideAcceptedAndRefused() {
-        JsonObject wire = GotoContracts.RESPONSE.encode(new Scored(4, List.of(), 1.0, false, false)).getAsJsonObject();
+        JsonObject wire = GotoContracts.RESPONSE
+                .encode(new Scored(4, List.of(), 1.0, false, false))
+                .getAsJsonObject();
         assertEquals("scored", wire.get("outcome").getAsString());
         String ts = GotoContracts.RESPONSE.ts(new TsContext());
         assertTrue(ts.contains("GotoResponse"), ts);

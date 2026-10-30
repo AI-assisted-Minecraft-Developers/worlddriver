@@ -5,23 +5,22 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * Fall further than the no-water cap (3 blocks) into a body of water that's
- * <em>already there</em> — Baritone's descend-/fall-into-water. Entering a
- * water block negates <em>all</em> fall damage in vanilla regardless of drop
- * height, so unlike {@link WaterBucketFall} this needs no bucket (nothing to
- * place or scoop) and no fall-damage cap — it's a pure, item-free movement
- * move like {@link Fall}, just taller. Drops ≤3 into water are already
- * covered by plain {@link Fall} (water is a valid stand floor), so this only
- * enumerates the taller no-bucket descents (4+). The {@code fallWater} move
- * name keys the actuator to step off near-vertically (no sprint) so the
- * longer airtime doesn't carry the bot horizontally past the water column.
+ * Fall further than the no-water cap (3 blocks) into a body of water that's <em>already there</em> — Baritone's
+ * descend-/fall-into-water. Entering a water block negates <em>all</em> fall damage in vanilla regardless of drop
+ * height, so unlike {@link WaterBucketFall} this needs no bucket (nothing to place or scoop) and no fall-damage cap —
+ * it's a pure, item-free movement move like {@link Fall}, just taller. Drops ≤3 into water are already covered by plain
+ * {@link Fall} (water is a valid stand floor), so this only enumerates the taller no-bucket descents (4+). The
+ * {@code fallWater} move name keys the actuator to step off near-vertically (no sprint) so the longer airtime doesn't
+ * carry the bot horizontally past the water column.
  */
 public final class FallIntoWater extends Move {
     private final int drop;
+
     public FallIntoWater(int dx, int dz, int drop) {
         super(dx, -drop, dz, 10 + Move.WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;
     }
+
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // The landing cell must already hold water — that's what makes the
@@ -41,5 +40,8 @@ public final class FallIntoWater extends Move {
         // cell just above the water — an overhang anywhere catches the player.
         return clearFallColumn(w, from, dx, dz, drop);
     }
-    public String name() { return "fallWater" + drop; }
+
+    public String name() {
+        return "fallWater" + drop;
+    }
 }

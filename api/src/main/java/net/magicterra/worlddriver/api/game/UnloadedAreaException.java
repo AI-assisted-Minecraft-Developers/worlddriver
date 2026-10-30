@@ -2,14 +2,13 @@ package net.magicterra.worlddriver.api.game;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 
 /**
- * A read-only query reached into chunks that are not loaded. Refused rather than skipped: the
- * result is a flat array of rows, so a skipped chunk would read exactly like a chunk with nothing
- * in it, and loading it instead would stall the tick the query runs in.
+ * A read-only query reached into chunks that are not loaded. Refused rather than skipped: the result is a flat array of
+ * rows, so a skipped chunk would read exactly like a chunk with nothing in it, and loading it instead would stall the
+ * tick the query runs in.
  */
 public final class UnloadedAreaException extends IllegalArgumentException {
     private final List<ChunkPos> chunks;

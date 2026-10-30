@@ -8,5 +8,4 @@ import java.lang.annotation.Target;
 /** A {@code JsonValue} that must be a JSON object. */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
-public @interface OnlyObject {
-}
+public @interface OnlyObject {}

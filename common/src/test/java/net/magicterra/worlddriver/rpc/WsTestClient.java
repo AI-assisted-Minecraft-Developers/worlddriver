@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.TestJson;
-
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -23,20 +22,17 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import net.magicterra.worlddriver.TestJson;
 
 /**
- * Minimal WS client that hands back frames VERBATIM — the point of the server tests is to
- * inspect the bytes, which RpcClient (correctly) filters. It never answers a ping unless
- * told to, so it can stand in for a half-open peer.
+ * Minimal WS client that hands back frames VERBATIM — the point of the server tests is to inspect the bytes, which
+ * RpcClient (correctly) filters. It never answers a ping unless told to, so it can stand in for a half-open peer.
  */
 final class WsTestClient implements AutoCloseable {
     private final NioEventLoopGroup group = new NioEventLoopGroup(1);
@@ -47,18 +43,23 @@ final class WsTestClient implements AutoCloseable {
 
     WsTestClient(int port) throws Exception {
         WebSocketClientHandshaker hs = WebSocketClientHandshakerFactory.newHandshaker(
-                URI.create("ws://127.0.0.1:" + port + "/rpc"), WebSocketVersion.V13,
-                null, false, new DefaultHttpHeaders(), RequestLimits.MAX_REQUEST_BYTES);
+                URI.create("ws://127.0.0.1:" + port + "/rpc"),
+                WebSocketVersion.V13,
+                null,
+                false,
+                new DefaultHttpHeaders(),
+                RequestLimits.MAX_REQUEST_BYTES);
         Handler handler = new Handler(hs);
         Bootstrap b = new Bootstrap();
-        b.group(group).channel(NioSocketChannel.class)
-         .handler(new ChannelInitializer<SocketChannel>() {
-             @Override protected void initChannel(SocketChannel c) {
-                 c.pipeline().addLast(new HttpClientCodec())
-                  .addLast(new HttpObjectAggregator(1 << 20))
-                  .addLast(handler);
-             }
-         });
+        b.group(group).channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
+            @Override
+            protected void initChannel(SocketChannel c) {
+                c.pipeline()
+                        .addLast(new HttpClientCodec())
+                        .addLast(new HttpObjectAggregator(1 << 20))
+                        .addLast(handler);
+            }
+        });
         this.channel = b.connect("127.0.0.1", port).sync().channel();
         if (!handler.ready.await(10, TimeUnit.SECONDS)) {
             throw new IllegalStateException("ws handshake timeout");
@@ -69,12 +70,22 @@ final class WsTestClient implements AutoCloseable {
         private final WebSocketClientHandshaker hs;
         private ChannelPromise ready;
 
-        Handler(WebSocketClientHandshaker hs) { this.hs = hs; }
+        Handler(WebSocketClientHandshaker hs) {
+            this.hs = hs;
+        }
 
-        @Override public void handlerAdded(ChannelHandlerContext c) { ready = c.newPromise(); }
-        @Override public void channelActive(ChannelHandlerContext c) { hs.handshake(c.channel()); }
+        @Override
+        public void handlerAdded(ChannelHandlerContext c) {
+            ready = c.newPromise();
+        }
 
-        @Override protected void channelRead0(ChannelHandlerContext c, Object msg) {
+        @Override
+        public void channelActive(ChannelHandlerContext c) {
+            hs.handshake(c.channel());
+        }
+
+        @Override
+        protected void channelRead0(ChannelHandlerContext c, Object msg) {
             if (!hs.isHandshakeComplete()) {
                 hs.finishHandshake(c.channel(), (FullHttpResponse) msg);
                 ready.setSuccess();
@@ -83,7 +94,8 @@ final class WsTestClient implements AutoCloseable {
             if (msg instanceof TextWebSocketFrame t) inbox.offer(t.text());
             else if (msg instanceof PingWebSocketFrame p) {
                 pingsSeen.incrementAndGet();
-                if (answerPings) c.writeAndFlush(new PongWebSocketFrame(p.content().retain()));
+                if (answerPings)
+                    c.writeAndFlush(new PongWebSocketFrame(p.content().retain()));
             }
         }
     }
@@ -114,7 +126,8 @@ final class WsTestClient implements AutoCloseable {
         return assertInstanceOf(Map.class, TestJson.plain(s), "non-object response: " + s);
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         channel.close();
         group.shutdownGracefully(0, 1, TimeUnit.SECONDS);
     }

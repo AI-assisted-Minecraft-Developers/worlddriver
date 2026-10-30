@@ -7,7 +7,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -42,8 +41,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
  * the client sees it ({@code self} on the client's registry) and once as the server sees the same player
  * ({@code player:<name>} with {@code side: server} on the server's), each from a freshly begun search. Wherever the two
  * disagree on a cell, a route the suite validated is not a route the client will emit, and the suite "ran" on a
- * different set of rules than the product. This asks both views the same questions over a palette of the terrains
- * the split is known to bite on and reports every disagreement as a row; the check is that there are none.
+ * different set of rules than the product. This asks both views the same questions over a palette of the terrains the
+ * split is known to bite on and reports every disagreement as a row; the check is that there are none.
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
@@ -63,10 +62,14 @@ class ClientParityTest {
         return plot.at((i % COLUMNS) * SPACING - (COLUMNS - 1), GROUND + 1, (i / COLUMNS) * SPACING + 2);
     }
 
-    /** One palette entry: the state in the foot cell, plus what the cell under it should be
-     *  (stone unless the entry needs something else — water under a lily pad, sand under cactus). */
+    /**
+     * One palette entry: the state in the foot cell, plus what the cell under it should be (stone unless the entry
+     * needs something else — water under a lily pad, sand under cactus).
+     */
     private record Entry(String name, BlockState foot, BlockState under, BlockState behind) {
-        static Entry of(String name, BlockState foot) { return new Entry(name, foot, Blocks.STONE.defaultBlockState(), null); }
+        static Entry of(String name, BlockState foot) {
+            return new Entry(name, foot, Blocks.STONE.defaultBlockState(), null);
+        }
     }
 
     private static List<Entry> palette() {
@@ -120,10 +123,16 @@ class ClientParityTest {
         e.add(Entry.of("hopper", Blocks.HOPPER.defaultBlockState()));
         e.add(Entry.of("enchanting_table", Blocks.ENCHANTING_TABLE.defaultBlockState()));
         // Both hang on the stone placed north of their cell (behind), so they face south.
-        e.add(new Entry("ladder", Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.SOUTH),
-                Blocks.STONE.defaultBlockState(), Blocks.STONE.defaultBlockState()));
-        e.add(new Entry("vine", Blocks.VINE.defaultBlockState().setValue(net.minecraft.world.level.block.VineBlock.NORTH, true),
-                Blocks.STONE.defaultBlockState(), Blocks.STONE.defaultBlockState()));
+        e.add(new Entry(
+                "ladder",
+                Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.SOUTH),
+                Blocks.STONE.defaultBlockState(),
+                Blocks.STONE.defaultBlockState()));
+        e.add(new Entry(
+                "vine",
+                Blocks.VINE.defaultBlockState().setValue(net.minecraft.world.level.block.VineBlock.NORTH, true),
+                Blocks.STONE.defaultBlockState(),
+                Blocks.STONE.defaultBlockState()));
         return e;
     }
 
@@ -142,13 +151,16 @@ class ClientParityTest {
                 new Question("isBreakableObstruction", Cell::breakableObstruction),
                 new Question("canStandOn", Cell::standOn),
                 new Question("canStandAt", Cell::standAt),
-                new Question("breakCost", c -> c.breakCost()
-                        .map(v -> String.format(Locale.ROOT, "%.1f", v)).orElse("Infinity")));
+                new Question(
+                        "breakCost",
+                        c -> c.breakCost()
+                                .map(v -> String.format(Locale.ROOT, "%.1f", v))
+                                .orElse("Infinity")));
     }
 
     @Test
-    void clientWorldViewParity(Game game, Client client, Player player,
-                               @Plot.Centered @Plot.Size(x = 32, y = 16, z = 48) Plot plot) {
+    void clientWorldViewParity(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 48) Plot plot) {
         List<Entry> palette = palette();
         // A stone slab under the whole grid, air above it, one entry every SPACING cells.
         int gridRows = (palette.size() + COLUMNS - 1) / COLUMNS;
@@ -175,10 +187,10 @@ class ClientParityTest {
         // Let the client receive the palette before either view is asked.
         rig.sync(40);
 
-        CellsReading server = game.api(DebugBlockingApi::of).cells(
-                new CellsParams(Optional.of(player.ref()), Optional.of(Side.SERVER), cells, Optional.empty()));
-        CellsReading clientView = rig.debug().cells(
-                new CellsParams(Optional.of(ClientRig.SELF), Optional.empty(), cells, Optional.empty()));
+        CellsReading server = game.api(DebugBlockingApi::of)
+                .cells(new CellsParams(Optional.of(player.ref()), Optional.of(Side.SERVER), cells, Optional.empty()));
+        CellsReading clientView = rig.debug()
+                .cells(new CellsParams(Optional.of(ClientRig.SELF), Optional.empty(), cells, Optional.empty()));
 
         Map<BlockPosition, Cell> c = byPos(clientView), sv = byPos(server);
         List<String> rows = new ArrayList<>();
@@ -198,12 +210,14 @@ class ClientParityTest {
                 }
             }
         }
-        game.check(rows.isEmpty(), "both views give the same answers for the same world (client=" + clientView.view()
-                + ", server=" + server.view() + "; " + rows.size() + " of " + asked + " queries mismatched): " + rows);
+        game.check(
+                rows.isEmpty(),
+                "both views give the same answers for the same world (client=" + clientView.view() + ", server="
+                        + server.view() + "; " + rows.size() + " of " + asked + " queries mismatched): " + rows);
     }
 
     private static BlockPos[] cellsOf(BlockPos foot) {
-        return new BlockPos[] { foot.below(), foot, foot.above() };
+        return new BlockPos[] {foot.below(), foot, foot.above()};
     }
 
     private static Map<BlockPosition, Cell> byPos(CellsReading reading) {

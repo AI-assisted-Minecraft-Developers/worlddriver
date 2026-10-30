@@ -3,15 +3,14 @@ package net.magicterra.worlddriver.api.game;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Scripting;
 
 /**
- * Where code in the same game finds the driver: the registry every method is called through, the host the
- * game side reports to, and the ports the two servers listen on. The driver comes up at client init on a
- * client and at server start on a dedicated server, after every mod's setup, so a mod that publishes methods
- * of its own does it in {@link #whenReady}.
+ * Where code in the same game finds the driver: the registry every method is called through, the host the game side
+ * reports to, and the ports the two servers listen on. The driver comes up at client init on a client and at server
+ * start on a dedicated server, after every mod's setup, so a mod that publishes methods of its own does it in
+ * {@link #whenReady}.
  */
 public final class WorldDriver {
     private WorldDriver() {}
@@ -24,19 +23,29 @@ public final class WorldDriver {
     private static final List<Consumer<ApiRegistry>> WAITING = new ArrayList<>();
 
     /** Every method the driver answers; null until the driver is up. */
-    public static ApiRegistry registry() { return registry; }
+    public static ApiRegistry registry() {
+        return registry;
+    }
 
     /** What the game side calls on the driver: lifecycle, events, restore. Null until the driver is up. */
-    public static DriverHost host() { return host; }
+    public static DriverHost host() {
+        return host;
+    }
 
     /** The WebSocket RPC server's port, -1 until it listens. */
-    public static int rpcPort() { return rpcPort; }
+    public static int rpcPort() {
+        return rpcPort;
+    }
 
     /** The MCP HTTP server's port, -1 until it listens. */
-    public static int mcpPort() { return mcpPort; }
+    public static int mcpPort() {
+        return mcpPort;
+    }
 
     /** Evaluates JavaScript bound to this game's methods; null until the driver is up. */
-    public static Scripting scripting() { return scripting; }
+    public static Scripting scripting() {
+        return scripting;
+    }
 
     /** Run {@code then} with the registry once the driver is up: now if it is, else on the thread that brings it up. */
     public static void whenReady(Consumer<ApiRegistry> then) {
@@ -64,11 +73,17 @@ public final class WorldDriver {
     }
 
     /** The mod's bootstrap: the RPC server listens on {@code port}. */
-    public static void rpcListening(int port) { rpcPort = port; }
+    public static void rpcListening(int port) {
+        rpcPort = port;
+    }
 
     /** The mod's bootstrap: the MCP server listens on {@code port}. */
-    public static void mcpListening(int port) { mcpPort = port; }
+    public static void mcpListening(int port) {
+        mcpPort = port;
+    }
 
     /** The mod's bootstrap: JavaScript can be evaluated through {@code engine}. */
-    public static void scriptingReady(Scripting engine) { scripting = engine; }
+    public static void scriptingReady(Scripting engine) {
+        scripting = engine;
+    }
 }

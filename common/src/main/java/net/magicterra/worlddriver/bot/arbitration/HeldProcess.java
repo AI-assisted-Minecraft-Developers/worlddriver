@@ -1,21 +1,20 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
 
 /**
- * The single process a server-side player runs, and the status slots it switched on: the part of
- * {@link UserTaskChain} a driver without a scheduler needs, so that both release exactly the slots
- * a process claimed (see {@link SlotClaim} for why a lookup by kind cannot). {@code SlotClaim} itself
- * stays package-private: a claim kept past its process's ending would switch off a slot that a later
- * process has claimed since, and only this class and the chain decide when a process ends.
+ * The single process a server-side player runs, and the status slots it switched on: the part of {@link UserTaskChain}
+ * a driver without a scheduler needs, so that both release exactly the slots a process claimed (see {@link SlotClaim}
+ * for why a lookup by kind cannot). {@code SlotClaim} itself stays package-private: a claim kept past its process's
+ * ending would switch off a slot that a later process has claimed since, and only this class and the chain decide when
+ * a process ends.
  *
- * <p>Like {@link UserTaskChain}, it is driven from one thread, the one that ticks the player, and it
- * writes the ending of the accepted action the held process carries out, if it carries one.
+ * <p>Like {@link UserTaskChain}, it is driven from one thread, the one that ticks the player, and it writes the ending
+ * of the accepted action the held process carries out, if it carries one.
  */
 public final class HeldProcess {
     private final BotState state;
@@ -28,10 +27,14 @@ public final class HeldProcess {
     }
 
     /** The held process, or null. */
-    public BotProcess process() { return process; }
+    public BotProcess process() {
+        return process;
+    }
 
     /** The action the held process carries out, or null. */
-    public Ticket action() { return action; }
+    public Ticket action() {
+        return action;
+    }
 
     /** Attach and hold {@code next}, cancelling whatever was held before. */
     public void start(BotProcess next) {
@@ -39,20 +42,21 @@ public final class HeldProcess {
     }
 
     /**
-     * Attach and hold {@code next} for {@code nextAction} (null: none), ending the held action as
-     * superseded by it, or as cancelled when {@code next} carries no action.
+     * Attach and hold {@code next} for {@code nextAction} (null: none), ending the held action as superseded by it, or
+     * as cancelled when {@code next} carries no action.
      */
     public void start(BotProcess next, Ticket nextAction) {
-        stop("superseded", nextAction != null ? h -> h.supersede(nextAction.id())
-                : h -> h.cancelled(Ticket.Stop.REQUESTED));
+        stop(
+                "superseded",
+                nextAction != null ? h -> h.supersede(nextAction.id()) : h -> h.cancelled(Ticket.Stop.REQUESTED));
         claim = SlotClaim.attach(next, state);
         action = nextAction;
         process = next;
     }
 
     /**
-     * Stop the held process: it hears {@code onCancelled}, and the slots it switched on keep
-     * {@code reason} as their error and go inactive. Returns the process, or null when none was held.
+     * Stop the held process: it hears {@code onCancelled}, and the slots it switched on keep {@code reason} as their
+     * error and go inactive. Returns the process, or null when none was held.
      */
     public BotProcess cancel(String reason) {
         return stop(reason, h -> h.cancelled(Ticket.Stop.REQUESTED));
@@ -83,8 +87,10 @@ public final class HeldProcess {
         return prev;
     }
 
-    /** The held process reported itself finished: its slots go inactive, keeping what it wrote, and
-     *  its own verdict becomes the last ending. */
+    /**
+     * The held process reported itself finished: its slots go inactive, keeping what it wrote, and its own verdict
+     * becomes the last ending.
+     */
     public void finished() {
         BotProcess prev = process;
         Ticket a = action;
@@ -100,7 +106,10 @@ public final class HeldProcess {
         }
     }
 
-    /** The held process ticked and runs on: its action succeeds if it says it {@linkplain BotProcess#achieved achieved} its goal. */
+    /**
+     * The held process ticked and runs on: its action succeeds if it says it {@linkplain BotProcess#achieved achieved}
+     * its goal.
+     */
     public void ranOn() {
         Ticket a = action;
         BotProcess p = process;
@@ -128,8 +137,10 @@ public final class HeldProcess {
 
     private volatile End end;
 
-    /** {@code {kind, error}} of the last ending, the shape of {@code UserTaskChain.lastEnd()}, or
-     *  null if nothing has ended. {@code error} is null only when the process did what it was asked. */
+    /**
+     * {@code {kind, error}} of the last ending, the shape of {@code UserTaskChain.lastEnd()}, or null if nothing has
+     * ended. {@code error} is null only when the process did what it was asked.
+     */
     public Map<String, Object> lastEnd() {
         End e = end;
         if (e == null) return null;

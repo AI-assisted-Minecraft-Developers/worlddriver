@@ -5,25 +5,27 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * Fall further than the no-water cap (3 blocks) and break the fall with a
- * water bucket placed on the landing block — Baritone's MLG. Only emitted
- * when the world view reports a water bucket is available
- * ({@link WorldView#canWaterBucketFall}) and the drop is within the live
- * {@link WorldView#maxWaterBucketFall} cap. The water placement / scoop is
- * an actuator concern (keyed off the {@code fallBucket*} move name), so this
- * is a pure-movement edge with no {@code toBreak}/{@code toPlace}.
+ * Fall further than the no-water cap (3 blocks) and break the fall with a water bucket placed on the landing block —
+ * Baritone's MLG. Only emitted when the world view reports a water bucket is available
+ * ({@link WorldView#canWaterBucketFall}) and the drop is within the live {@link WorldView#maxWaterBucketFall} cap. The
+ * water placement / scoop is an actuator concern (keyed off the {@code fallBucket*} move name), so this is a
+ * pure-movement edge with no {@code toBreak}/{@code toPlace}.
  */
 public final class WaterBucketFall extends Move {
     private final int drop;
+
     public WaterBucketFall(int dx, int dz, int drop) {
         super(dx, -drop, dz, Move.WATER_BUCKET_COST + Move.WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;
     }
-    @Override public boolean availableInSearch(WorldView w) {
+
+    @Override
+    public boolean availableInSearch(WorldView w) {
         // No bucket in hand (or this drop exceeds the live cap) → can't fire anywhere
         // this search. Drops all ~68 WaterBucketFall variants for a bucketless bot.
         return w.canWaterBucketFall() && drop <= w.maxWaterBucketFall();
     }
+
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.canWaterBucketFall() || drop > w.maxWaterBucketFall()) return false;
         BlockPos to = apply(from);
@@ -43,5 +45,8 @@ public final class WaterBucketFall extends Move {
         // the landing — an overhang anywhere would wedge the falling player.
         return clearFallColumn(w, from, dx, dz, drop);
     }
-    public String name() { return "fallBucket" + drop; }
+
+    public String name() {
+        return "fallBucket" + drop;
+    }
 }

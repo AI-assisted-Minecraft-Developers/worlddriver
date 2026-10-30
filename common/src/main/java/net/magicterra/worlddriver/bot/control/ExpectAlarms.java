@@ -1,75 +1,92 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
+import java.util.List;
+import java.util.Locale;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
-import java.util.List;
-import java.util.Locale;
-
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
-
-/** Expectation alarms (navigatorExpectAlarm): compare the world's actual response against
- *  what the pressed actions should produce, and WARN with cause the tick they diverge.
- *  Purely observational — reads avatar/player state at the top of tick, never drives.
+/**
+ * Expectation alarms (navigatorExpectAlarm): compare the world's actual response against what the pressed actions
+ * should produce, and WARN with cause the tick they diverge. Purely observational — reads avatar/player state at the
+ * top of tick, never drives.
  *
- *  <p>Carved out of {@link Navigator} as a self-contained observer: it owns all the {@code ex*}
- *  sentinel state and never influences movement. {@link Navigator} holds one instance and forwards
- *  {@link #tick} (once per tick when the flag is on), {@link #notePlace} (right after a place
- *  click) and {@link #noteRepathFlip} (on a U-turn route adoption). */
+ * <p>Carved out of {@link Navigator} as a self-contained observer: it owns all the {@code ex*} sentinel state and never
+ * influences movement. {@link Navigator} holds one instance and forwards {@link #tick} (once per tick when the flag is
+ * on), {@link #notePlace} (right after a place click) and {@link #noteRepathFlip} (on a U-turn route adoption).
+ */
 public final class ExpectAlarms {
-    /** Total alarms EMITTED (post-throttle) since JVM start — test-visible telemetry so
-     *  coverage scenes can assert an alarm actually fired instead of trusting logs
-     *  (task#95b). Monotonic; scenes diff before/after. */
-    public static final java.util.concurrent.atomic.AtomicInteger FIRED = new java.util.concurrent.atomic.AtomicInteger();
+    /**
+     * Total alarms EMITTED (post-throttle) since JVM start — test-visible telemetry so coverage scenes can assert an
+     * alarm actually fired instead of trusting logs (task#95b). Monotonic; scenes diff before/after.
+     */
+    public static final java.util.concurrent.atomic.AtomicInteger FIRED =
+            new java.util.concurrent.atomic.AtomicInteger();
 
-    private boolean exPrevBreakHeld;   // was the break action held last tick (DIG-dropped edge)
-    private BlockPos exPrevAimBlock;   // block the crosshair pointed at last tick
-    private int exDigHoldTicks;        // consecutive held ticks on the SAME aim block (DIG-slow)
-    private int exJumpTicksLeft;       // ticks left watching a jump's arc (JUMP-noRise)
-    private double exJumpBaseY;        // Y at the launch tick
-    private double exJumpPeakY;        // highest Y seen during the watched arc
-    private boolean exPrevOnGround;    // grounded last tick (jump launch edge)
-    private int exFwdNoMoveTicks;      // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
-    private double exPrevX, exPrevZ;   // last tick's position for the displacement check
-    private int exThrottle;            // global alarm throttle (one line per 40t)
-    private long exRepathFlipTick;     // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
-    private int exRepathFlipCount;     // consecutive U-turn adoptions inside the window — the oscillation depth
-    private int exDriveTearTicks;      // consecutive pinned ticks with the heading >90° off the committed node (DRIVE-tear)
-    private int exGearCheckTicks;      // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
-    private BlockPos exPlacePos;       // cell a placement expects to fill (PLACE-noBlock)
-    private int exPlaceTicksLeft;      // ticks left for the placed block to appear
+    private boolean exPrevBreakHeld; // was the break action held last tick (DIG-dropped edge)
+    private BlockPos exPrevAimBlock; // block the crosshair pointed at last tick
+    private int exDigHoldTicks; // consecutive held ticks on the SAME aim block (DIG-slow)
+    private int exJumpTicksLeft; // ticks left watching a jump's arc (JUMP-noRise)
+    private double exJumpBaseY; // Y at the launch tick
+    private double exJumpPeakY; // highest Y seen during the watched arc
+    private boolean exPrevOnGround; // grounded last tick (jump launch edge)
+    private int exFwdNoMoveTicks; // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
+    private double exPrevX, exPrevZ; // last tick's position for the displacement check
+    private int exThrottle; // global alarm throttle (one line per 40t)
+    private long exRepathFlipTick; // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
+    private int exRepathFlipCount; // consecutive U-turn adoptions inside the window — the oscillation depth
+    private int exDriveTearTicks; // consecutive pinned ticks with the heading >90° off the committed node (DRIVE-tear)
+    private int exGearCheckTicks; // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
+    private BlockPos exPlacePos; // cell a placement expects to fill (PLACE-noBlock)
+    private int exPlaceTicksLeft; // ticks left for the placed block to appear
 
-    /** Note a placement's expected cell for the PLACE-noBlock observer (call right
-     *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */
+    /**
+     * Note a placement's expected cell for the PLACE-noBlock observer (call right after {@code a.placeOn(clicked, UP)}
+     * with {@code clicked.above()}).
+     */
     public void notePlace(BlockPos cell) {
         if (!ControlConfig.navigatorExpectAlarm) return;
         exPlacePos = cell;
         exPlaceTicksLeft = 8;
     }
 
-    /** REPATH-flip: the planner adopted a route whose near-term direction reverses the current
-     *  one. Called (under the navigatorExpectAlarm + uTurnLeg guard) when such an adoption happens. */
+    /**
+     * REPATH-flip: the planner adopted a route whose near-term direction reverses the current one. Called (under the
+     * navigatorExpectAlarm + uTurnLeg guard) when such an adoption happens.
+     */
     public void noteRepathFlip(long pfTickCounter, BlockPos foot) {
         if (pfTickCounter - exRepathFlipTick < 200) {
             exRepathFlipCount++;
             FIRED.incrementAndGet();
-            LOG.warn("[expect] REPATH-flip #{}: adopted a route whose near-term direction reverses the current one "
-                    + "({}t since last flip) — planner oscillating between near-equal routes at {},{},{}",
-                    exRepathFlipCount, pfTickCounter - exRepathFlipTick,
-                    foot.getX(), foot.getY(), foot.getZ());
+            LOG.warn(
+                    "[expect] REPATH-flip #{}: adopted a route whose near-term direction reverses the current one "
+                            + "({}t since last flip) — planner oscillating between near-equal routes at {},{},{}",
+                    exRepathFlipCount,
+                    pfTickCounter - exRepathFlipTick,
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ());
         } else {
             exRepathFlipCount = 0;
         }
         exRepathFlipTick = pfTickCounter;
     }
 
-    public void tick(BlockInteraction blocks, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    public void tick(
+            BlockInteraction blocks,
+            Body a,
+            WorldView world,
+            LivingEntity p,
+            List<BlockPos> path,
+            int step,
+            int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
@@ -79,8 +96,12 @@ public final class ExpectAlarms {
         if (exPrevBreakHeld && !held && exPrevAimBlock != null && world.isSolid(exPrevAimBlock)) {
             if (exThrottle == 0 && exDigHoldTicks >= 5) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] DIG-dropped: breakHold released after {}t while {},{},{} still solid — progress reset",
-                        exDigHoldTicks, exPrevAimBlock.getX(), exPrevAimBlock.getY(), exPrevAimBlock.getZ());
+                LOG.warn(
+                        "[expect] DIG-dropped: breakHold released after {}t while {},{},{} still solid — progress reset",
+                        exDigHoldTicks,
+                        exPrevAimBlock.getX(),
+                        exPrevAimBlock.getY(),
+                        exPrevAimBlock.getZ());
                 exThrottle = 40;
             }
             exDigHoldTicks = 0;
@@ -88,8 +109,11 @@ public final class ExpectAlarms {
             exDigHoldTicks++;
             if (exDigHoldTicks == 200 && exThrottle == 0) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] DIG-slow: {},{},{} held 200t and still solid (tool? water 25x? aim drift?)",
-                        aim.getX(), aim.getY(), aim.getZ());
+                LOG.warn(
+                        "[expect] DIG-slow: {},{},{} held 200t and still solid (tool? water 25x? aim drift?)",
+                        aim.getX(),
+                        aim.getY(),
+                        aim.getZ());
                 exThrottle = 40;
             }
         } else {
@@ -108,9 +132,11 @@ public final class ExpectAlarms {
             // ≤+0.5 (hCol cap); 0.75 keeps that signal and drops the ascent false floor.
             if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.75 && !p.isInWater() && exThrottle == 0) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.75) hCol={} — blocked/in-place jump",
+                LOG.warn(
+                        "[expect] JUMP-noRise: launched at y={} peaked {} (<+0.75) hCol={} — blocked/in-place jump",
                         String.format(Locale.ROOT, "%.2f", exJumpBaseY),
-                        String.format(Locale.ROOT, "%.2f", exJumpPeakY), p.horizontalCollision);
+                        String.format(Locale.ROOT, "%.2f", exJumpPeakY),
+                        p.horizontalCollision);
                 exThrottle = 40;
             }
         } else if (exPrevOnGround && !p.onGround() && vy > 0.3 && !p.isInWater()) {
@@ -126,16 +152,19 @@ public final class ExpectAlarms {
         if (fwdPressed && p.onGround() && moved < 0.03) {
             if (++exFwdNoMoveTicks == 10 && exThrottle == 0) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] MOVE-noMove: forward held 10t, displacement<0.3 at {},{},{} hCol={}",
+                LOG.warn(
+                        "[expect] MOVE-noMove: forward held 10t, displacement<0.3 at {},{},{} hCol={}",
                         String.format(Locale.ROOT, "%.1f", p.getX()),
                         String.format(Locale.ROOT, "%.1f", p.getY()),
-                        String.format(Locale.ROOT, "%.1f", p.getZ()), p.horizontalCollision);
+                        String.format(Locale.ROOT, "%.1f", p.getZ()),
+                        p.horizontalCollision);
                 exThrottle = 40;
             }
         } else if (moved >= 0.03 || !fwdPressed) {
             exFwdNoMoveTicks = 0;
         }
-        exPrevX = p.getX(); exPrevZ = p.getZ();
+        exPrevX = p.getX();
+        exPrevZ = p.getZ();
         // DRIVE-tear: the driven heading (body yaw under commandMove decoupling ≈ the
         // carrot bearing) points >90° away from the committed node for 40 straight ticks
         // while the bot is pinned — the carrot-vs-node tear (user-witnessed: carrot
@@ -148,12 +177,16 @@ public final class ExpectAlarms {
             if (tear > 90 && moved < 0.03) {
                 if (++exDriveTearTicks == 40 && exThrottle == 0) {
                     FIRED.incrementAndGet();
-                    LOG.warn("[expect] DRIVE-tear: heading {}° off the committed node for 40t while pinned "
-                            + "(yaw={} bearNode={} node={},{},{} hCol={}) — carrot/recovery steering away from the path",
+                    LOG.warn(
+                            "[expect] DRIVE-tear: heading {}° off the committed node for 40t while pinned "
+                                    + "(yaw={} bearNode={} node={},{},{} hCol={}) — carrot/recovery steering away from the path",
                             String.format(Locale.ROOT, "%.0f", tear),
                             String.format(Locale.ROOT, "%.0f", p.getYRot()),
                             String.format(Locale.ROOT, "%.0f", bearNode),
-                            node.getX(), node.getY(), node.getZ(), p.horizontalCollision);
+                            node.getX(),
+                            node.getY(),
+                            node.getZ(),
+                            p.horizontalCollision);
                     exThrottle = 40;
                 }
             } else {
@@ -163,13 +196,16 @@ public final class ExpectAlarms {
             // at the node's Y with no step progress for 60t — the step pointer is starved
             // (the crest-orbit family, now alarmed instead of silently grinding).
             double cur2 = ndx * ndx + ndz * ndz;
-            if (cur2 > 0.45 && cur2 < 4.0 && Math.abs(node.getY() - p.getY()) < 1.0
-                    && noStepProgressTicks > 60) {
+            if (cur2 > 0.45 && cur2 < 4.0 && Math.abs(node.getY() - p.getY()) < 1.0 && noStepProgressTicks > 60) {
                 if (exThrottle == 0) {
                     FIRED.incrementAndGet();
-                    LOG.warn("[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
+                    LOG.warn(
+                            "[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
                             String.format(Locale.ROOT, "%.2f", cur2),
-                            node.getX(), node.getY(), node.getZ(), noStepProgressTicks);
+                            node.getX(),
+                            node.getY(),
+                            node.getZ(),
+                            noStepProgressTicks);
                     exThrottle = 40;
                 }
             }
@@ -184,9 +220,12 @@ public final class ExpectAlarms {
                 exPlaceTicksLeft = 0;
             } else if (--exPlaceTicksLeft == 0 && exThrottle == 0) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] PLACE-noBlock: cell {},{},{} still passable 8t after the place click "
-                        + "(allowPlace? build block held? reach? falling block in water?)",
-                        exPlacePos.getX(), exPlacePos.getY(), exPlacePos.getZ());
+                LOG.warn(
+                        "[expect] PLACE-noBlock: cell {},{},{} still passable 8t after the place click "
+                                + "(allowPlace? build block held? reach? falling block in water?)",
+                        exPlacePos.getX(),
+                        exPlacePos.getY(),
+                        exPlacePos.getZ());
                 exThrottle = 40;
             }
         }
@@ -199,7 +238,8 @@ public final class ExpectAlarms {
             String missing = p.level().isClientSide() ? GearCheck.missing(p) : null;
             if (missing != null) {
                 FIRED.incrementAndGet();
-                LOG.warn("[expect] GEAR-degraded: hotbar missing {}— pickups crowded the gear out (MLG dead / hand-mining)",
+                LOG.warn(
+                        "[expect] GEAR-degraded: hotbar missing {}— pickups crowded the gear out (MLG dead / hand-mining)",
                         missing);
             }
         }
@@ -207,12 +247,13 @@ public final class ExpectAlarms {
 
     /** The GEAR sentinel's inventory reads. */
     private static final class GearCheck {
-        /** EVERY pickaxe tier. The tier is irrelevant to what this sentinel watches: a wooden pick
-         *  stranded in slot 33 leaves the bot mining by hand exactly as a diamond one would.
-         *  Listing only IRON/DIAMOND — as this did until 2026-08-26 — put the alarm's threshold
-         *  ABOVE the run it was watching: the journey ladder does not smelt iron until rung 9, so
-         *  rungs 1-8 tripped it every 100t no matter how healthy the bot was (ladder5: 30 times
-         *  through rung 6, wording unchanged after rung 4 handed over a wooden pick). */
+        /**
+         * EVERY pickaxe tier. The tier is irrelevant to what this sentinel watches: a wooden pick stranded in slot 33
+         * leaves the bot mining by hand exactly as a diamond one would. Listing only IRON/DIAMOND — as this did until
+         * 2026-08-26 — put the alarm's threshold ABOVE the run it was watching: the journey ladder does not smelt iron
+         * until rung 9, so rungs 1-8 tripped it every 100t no matter how healthy the bot was (ladder5: 30 times through
+         * rung 6, wording unchanged after rung 4 handed over a wooden pick).
+         */
         private static final List<net.minecraft.world.item.Item> PICKS = List.of(
                 net.minecraft.world.item.Items.WOODEN_PICKAXE,
                 net.minecraft.world.item.Items.STONE_PICKAXE,
@@ -224,10 +265,12 @@ public final class ExpectAlarms {
         private static final List<net.minecraft.world.item.Item> BUCKET =
                 List.of(net.minecraft.world.item.Items.WATER_BUCKET);
 
-        /** @return the missing-gear description ("water_bucket(slot 12) ", …) or null if OK / not a
-         *  player. The slot is printed because this alarm names a cause, and a reader who wants
-         *  to refute it needs the cell to look in — an alarm that asserts "crowded out" without
-         *  saying out of WHERE is asking to be believed rather than checked. */
+        /**
+         * @return the missing-gear description ("water_bucket(slot 12) ", …) or null if OK / not a player. The slot is
+         *     printed because this alarm names a cause, and a reader who wants to refute it needs the cell to look in —
+         *     an alarm that asserts "crowded out" without saying out of WHERE is asking to be believed rather than
+         *     checked.
+         */
         static String missing(LivingEntity p) {
             if (!(p instanceof Player lp)) return null;
             int bucket = strandedSlot(lp, BUCKET);
@@ -237,18 +280,18 @@ public final class ExpectAlarms {
             return out.isEmpty() ? null : out;
         }
 
-        /** DEGRADED names a cause — pickups crowded the gear out — so the judgement has to be able
-         *  to refute that cause: the bag must HOLD a member of {@code family} while the hotbar holds
-         *  none. Carrying none of it at all is "not crafted yet", a different fact and not this
-         *  alarm's business; conflating the two is what made it fire on a bot that was fine.
+        /**
+         * DEGRADED names a cause — pickups crowded the gear out — so the judgement has to be able to refute that cause:
+         * the bag must HOLD a member of {@code family} while the hotbar holds none. Carrying none of it at all is "not
+         * crafted yet", a different fact and not this alarm's business; conflating the two is what made it fire on a
+         * bot that was fine.
          *
-         *  <p>Note this feeds the shared {@link ExpectAlarms#FIRED} counter, which scenes diff across an
-         *  edge. Today that is safe only because those scenes drive a server-side player, which the
-         *  sentinel never samples — a client-side scene doing the same edge trick would see GEAR
-         *  ticks bleed into its own.
+         * <p>Note this feeds the shared {@link ExpectAlarms#FIRED} counter, which scenes diff across an edge. Today
+         * that is safe only because those scenes drive a server-side player, which the sentinel never samples — a
+         * client-side scene doing the same edge trick would see GEAR ticks bleed into its own.
          *
-         *  @return the slot holding the stranded gear, or -1 when nothing is crowded out — which
-         *          covers BOTH "it is on the hotbar" and "we own none of it".
+         * @return the slot holding the stranded gear, or -1 when nothing is crowded out — which covers BOTH "it is on
+         *     the hotbar" and "we own none of it".
          */
         private static int strandedSlot(Player lp, List<net.minecraft.world.item.Item> family) {
             int stranded = -1;
@@ -259,8 +302,10 @@ public final class ExpectAlarms {
             return stranded;
         }
 
-        /** Scans all 36 main-inventory slots. The hotbar is among them, but every caller has already
-         *  ruled the hotbar out, so a hit here is necessarily out of reach. */
+        /**
+         * Scans all 36 main-inventory slots. The hotbar is among them, but every caller has already ruled the hotbar
+         * out, so a hit here is necessarily out of reach.
+         */
         private static int bagSlot(Player lp, net.minecraft.world.item.Item it) {
             net.minecraft.world.entity.player.Inventory inv = lp.getInventory();
             for (int s = 0; s < inv.items.size(); s++) {

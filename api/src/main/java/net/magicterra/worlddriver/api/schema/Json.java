@@ -1,10 +1,9 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.util.Collection;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
+import java.util.Collection;
 
 /** The scalar kinds of a Gson tree, each null when the value is another kind. */
 final class Json {

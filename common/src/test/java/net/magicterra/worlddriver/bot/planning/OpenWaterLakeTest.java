@@ -4,9 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-
-import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.debug.GridWorldView;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
@@ -14,12 +13,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The lake of {@code wd.clientOpenWaterCross}, planned offline: the bot on one bank, a cell on the far
- * bank flush with the water, deep open water between. Under the surface water model the plan is the
- * straight swim along the surface layer — every node on the goal's z, x never turning back, one node per
- * block — at both the default horizon and with the horizon off. The rim is two cells wider than the lake
- * on each side, so a planner that still prices deep water as lethal (or over-taxes it) shows up here as
- * a route that leaves the goal's z to hug the rim.
+ * The lake of {@code wd.clientOpenWaterCross}, planned offline: the bot on one bank, a cell on the far bank flush with
+ * the water, deep open water between. Under the surface water model the plan is the straight swim along the surface
+ * layer — every node on the goal's z, x never turning back, one node per block — at both the default horizon and with
+ * the horizon off. The rim is two cells wider than the lake on each side, so a planner that still prices deep water as
+ * lethal (or over-taxes it) shows up here as a route that leaves the goal's z to hug the rim.
  */
 class OpenWaterLakeTest {
     private static final int GROUND = 20, LEN = 48, HALF = 6, DEPTH = 6;
@@ -27,10 +25,14 @@ class OpenWaterLakeTest {
     private int horizonBefore;
 
     @BeforeEach
-    void keepHorizon() { horizonBefore = PlanningConfig.pathfinderHorizonBlocks; }
+    void keepHorizon() {
+        horizonBefore = PlanningConfig.pathfinderHorizonBlocks;
+    }
 
     @AfterEach
-    void restoreHorizon() { PlanningConfig.pathfinderHorizonBlocks = horizonBefore; }
+    void restoreHorizon() {
+        PlanningConfig.pathfinderHorizonBlocks = horizonBefore;
+    }
 
     @Test
     void straightSwimAtBothHorizons() {
@@ -39,10 +41,10 @@ class OpenWaterLakeTest {
         w.fill(-2, GROUND - DEPTH + 1, -HALF, LEN + 2, GROUND, HALF, GridWorldView.WATER);
         BlockPos start = new BlockPos(0, GROUND - 1, 0);
         BlockPos goal = new BlockPos(LEN + 4, GROUND + 1, 0);
-        for (int hz : new int[] { 48, 0 }) {
+        for (int hz : new int[] {48, 0}) {
             PlanningConfig.pathfinderHorizonBlocks = hz;
             PathFinder.Search s = new PathFinder(w, 100_000, 5_000).newSearch(start, new Goal.Block(goal));
-            while (!s.advance(5_000)) { }
+            while (!s.advance(5_000)) {}
             PathFinder.Result r = s.result();
             List<BlockPos> path = r.path();
             if (hz == 0) {
@@ -58,7 +60,9 @@ class OpenWaterLakeTest {
                 assertTrue(n.getX() >= prevX, "horizon " + hz + ": node " + n.toShortString() + " turned back");
                 prevX = n.getX();
             }
-            assertTrue(path.size() <= LEN + 8, "horizon " + hz + ": " + path.size() + " nodes for a " + (LEN + 4) + "-block line");
+            assertTrue(
+                    path.size() <= LEN + 8,
+                    "horizon " + hz + ": " + path.size() + " nodes for a " + (LEN + 4) + "-block line");
         }
     }
 }

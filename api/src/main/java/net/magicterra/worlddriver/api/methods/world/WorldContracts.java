@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.api.methods.world;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.ResourceId;
@@ -37,7 +36,9 @@ public final class WorldContracts {
 
     /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b, int limit) {
-        long dx = Math.abs((long) a.x() - b.x()) + 1, dy = Math.abs((long) a.y() - b.y()) + 1, dz = Math.abs((long) a.z() - b.z()) + 1;
+        long dx = Math.abs((long) a.x() - b.x()) + 1,
+                dy = Math.abs((long) a.y() - b.y()) + 1,
+                dz = Math.abs((long) a.z() - b.z()) + 1;
         if (dx > limit || dy > limit || dz > limit) return Long.MAX_VALUE;
         return dx * dy * dz;
     }
@@ -58,27 +59,39 @@ public final class WorldContracts {
     @Named("WorldBlockParams")
     public record BlockParams(
             BlockPosition pos,
-            @Doc("Also the block entity's full NBT, as SNBT.") @Default("false") boolean nbt,
+
+            @Doc("Also the block entity's full NBT, as SNBT.") @Default("false")
+            boolean nbt,
+
             @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension) {}
 
     @Named("Light")
-    public record Light(@Range(min = 0, max = 15) int block, @Range(min = 0, max = 15) int sky) {}
+    public record Light(
+            @Range(min = 0, max = 15) int block,
+            @Range(min = 0, max = 15) int sky) {}
 
     @Named("BlockReading")
     public record BlockReading(
             BlockPosition pos,
             @ResourceId String type,
+
             @Doc("Blockstate properties as /setblock spells them; absent for a state without any.")
             Optional<@Length(max = 64) Map<String, String>> state,
+
             Light light,
-            @Doc("With nbt: the SNBT; absent when the cell has no block entity.") Optional<String> blockEntity) {}
+
+            @Doc("With nbt: the SNBT; absent when the cell has no block entity.")
+            Optional<String> blockEntity) {}
 
     public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class);
 
     public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class);
 
     // Pollable: one cell read in one server task.
-    public static final MethodSpec<BlockParams, BlockReading> BLOCK = MethodSpec.of("mc.world.block", BLOCK_PARAMS, BLOCK_READING,
+    public static final MethodSpec<BlockParams, BlockReading> BLOCK = MethodSpec.of(
+                    "mc.world.block",
+                    BLOCK_PARAMS,
+                    BLOCK_READING,
                     "One cell as the server has it: the block id, its blockstate properties, block and sky light, and on "
                             + "request the block entity's NBT. The verify half of build-then-verify.")
             .asPollable();
@@ -90,11 +103,18 @@ public final class WorldContracts {
             @Doc("A corner, inclusive.") BlockPosition from,
             @Doc("The opposite corner, inclusive.") BlockPosition to,
             @Doc("Omitted: minecraft:overworld.") Optional<@ResourceId String> dimension,
+
             @Doc("Its name; an id in use is overwritten. Omitted: a new one.")
             Optional<@Length(min = 1, max = 128) String> id,
-            @Doc("Keep block-entity NBT, so a chest's contents come back too.") @Default("true") boolean blockEntities,
-            @Doc("Also keep the non-player entities inside the box; a restore then removes every non-player entity in the box "
-                    + "and puts these back with their own UUIDs.") @Default("false") boolean entities)
+
+            @Doc("Keep block-entity NBT, so a chest's contents come back too.") @Default("true")
+            boolean blockEntities,
+
+            @Doc(
+                    "Also keep the non-player entities inside the box; a restore then removes every non-player entity in the box "
+                            + "and puts these back with their own UUIDs.")
+            @Default("false")
+            boolean entities)
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
@@ -111,14 +131,18 @@ public final class WorldContracts {
             @Range(min = 0) int blocks,
             @Range(min = 0) int nonAir,
             @Range(min = 0) int blockEntities,
-            @Doc("Non-player entities kept; 0 unless entities was asked for.") @Range(min = 0) int entities) {}
+
+            @Doc("Non-player entities kept; 0 unless entities was asked for.") @Range(min = 0)
+            int entities) {}
 
     public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class);
 
     public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class);
 
     // Reads the world and writes only this driver's in-memory store, which is not world state.
-    public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of("mc.world.snapshot", SNAPSHOT_PARAMS,
+    public static final MethodSpec<SnapshotParams, Snapshotted> SNAPSHOT = MethodSpec.of(
+                    "mc.world.snapshot",
+                    SNAPSHOT_PARAMS,
                     SNAPSHOTTED,
                     "Keep a box of block states, and block-entity NBT, in memory under an id, for mc.world.restore to put "
                             + "back: deterministic setup and teardown. In any dimension, and with entities the non-player ones "
@@ -131,9 +155,12 @@ public final class WorldContracts {
 
     @Named("RestoreParams")
     public record RestoreParams(
-            @Doc("An id mc.world.snapshot answered; an unknown one is invalid_params.")
-            @Length(min = 1, max = 128) String id,
-            @Doc("Forget the snapshot once it is put back.") @Default("false") boolean discard,
+            @Doc("An id mc.world.snapshot answered; an unknown one is invalid_params.") @Length(min = 1, max = 128)
+            String id,
+
+            @Doc("Forget the snapshot once it is put back.") @Default("false")
+            boolean discard,
+
             @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")
             boolean returnEvents) {}
 
@@ -150,7 +177,10 @@ public final class WorldContracts {
 
     public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class);
 
-    public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of("mc.world.restore", RESTORE_PARAMS, RESTORED,
+    public static final MethodSpec<RestoreParams, Restored> RESTORE = MethodSpec.of(
+                    "mc.world.restore",
+                    RESTORE_PARAMS,
+                    RESTORED,
                     "Put a box mc.world.snapshot kept back exactly, block-entity contents included, in the dimension it was taken in; a snapshot with entities swaps the box's non-player "
                             + "entities for the kept ones. Emits world.restore.")
             .effects(MethodSpec.Effect.WORLD_WRITE)

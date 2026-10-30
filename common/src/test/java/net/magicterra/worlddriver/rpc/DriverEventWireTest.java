@@ -1,33 +1,29 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.api.game.DriverEvent;
-import net.magicterra.worlddriver.api.game.EventWire;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-
-import net.minecraft.core.BlockPos;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import java.util.List;
+import java.util.Map;
+import net.magicterra.worlddriver.TestJson;
+import net.magicterra.worlddriver.api.game.DriverEvent;
+import net.magicterra.worlddriver.api.game.EventWire;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.minecraft.core.BlockPos;
+import org.junit.jupiter.api.Test;
+
 /**
  * {@code DriverEvent.data} must reach the wire as a typed value.
  *
- * <p>It was declared {@code String}, so every structured emitter pre-encoded its map
- * to JSON text and the payload shipped as JSON escaped inside a JSON string. It is a
- * {@link JsonValue} built from a Gson tree now, so a payload handed over as text no
- * longer compiles. The field was then an undiscriminated union — scalar payloads
- * ({@code block.place} carries a block id) and documents ({@code time.phase}
- * carries {@code {phase, dayTime}}) were both just strings, and a consumer had to
- * know the event type to guess which. Journeyman guessed structurally with
- * {@code isinstance(d, dict)}; that was never true, so its dusk interrupt was dead
- * code for every {@code time.phase} event.
+ * <p>It was declared {@code String}, so every structured emitter pre-encoded its map to JSON text and the payload
+ * shipped as JSON escaped inside a JSON string. It is a {@link JsonValue} built from a Gson tree now, so a payload
+ * handed over as text no longer compiles. The field was then an undiscriminated union — scalar payloads
+ * ({@code block.place} carries a block id) and documents ({@code time.phase} carries {@code {phase, dayTime}}) were
+ * both just strings, and a consumer had to know the event type to guess which. Journeyman guessed structurally with
+ * {@code isinstance(d, dict)}; that was never true, so its dusk interrupt was dead code for every {@code time.phase}
+ * event.
  */
 class DriverEventWireTest {
 
@@ -42,16 +38,16 @@ class DriverEventWireTest {
 
     @Test
     void structuredPayloadArrivesAsAnObject() {
-        DriverEvent e = event(1, "time.phase", new BlockPos(1, 2, 3),
-                Map.of("phase", "sunset", "dayTime", 12800L));
+        DriverEvent e = event(1, "time.phase", new BlockPos(1, 2, 3), Map.of("phase", "sunset", "dayTime", 12800L));
         Map<?, ?> wire = encodeThenDecode(e);
 
         Object data = wire.get("data");
         assertInstanceOf(Map.class, data, "data must be an object, not JSON inside a string");
         assertEquals("sunset", ((Map<?, ?>) data).get("phase"));
         // The regression in one line: this is Journeyman's actual dusk-interrupt test.
-        assertFalse(data instanceof String, "a String here silently disables consumers "
-                + "that branch on the payload being structured");
+        assertFalse(
+                data instanceof String,
+                "a String here silently disables consumers " + "that branch on the payload being structured");
     }
 
     @Test
@@ -64,8 +60,7 @@ class DriverEventWireTest {
 
     @Test
     void nestedAndListPayloadsSurvive() {
-        DriverEvent e = event(3, "wait.done", null,
-                Map.of("result", Map.of("ok", true), "seen", List.of(1L, 2L)));
+        DriverEvent e = event(3, "wait.done", null, Map.of("result", Map.of("ok", true), "seen", List.of(1L, 2L)));
         Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
         assertEquals(Boolean.TRUE, ((Map<?, ?>) data.get("result")).get("ok"));
         assertEquals(2, ((List<?>) data.get("seen")).size());
@@ -113,14 +108,13 @@ class DriverEventWireTest {
     void notificationFrameCarriesTheSameTypedPayload() {
         // The push channel wraps the event as MCP notifications/message; the payload
         // must not be re-flattened on the way through.
-        DriverEvent e = event(6, "threat.appeared", new BlockPos(0, 64, 0),
-                Map.of("type", "minecraft:zombie", "dist", 7L));
-        Map<?, ?> frame = assertInstanceOf(Map.class,
-                TestJson.plain(EventNotifications.frame(EventWire.dto(e))));
+        DriverEvent e =
+                event(6, "threat.appeared", new BlockPos(0, 64, 0), Map.of("type", "minecraft:zombie", "dist", 7L));
+        Map<?, ?> frame = assertInstanceOf(Map.class, TestJson.plain(EventNotifications.frame(EventWire.dto(e))));
         Map<?, ?> params = assertInstanceOf(Map.class, frame.get("params"));
         Map<?, ?> event = assertInstanceOf(Map.class, params.get("data"));
-        Map<?, ?> payload = assertInstanceOf(Map.class, event.get("data"),
-                "the event's own data must stay an object inside the notification");
+        Map<?, ?> payload = assertInstanceOf(
+                Map.class, event.get("data"), "the event's own data must stay an object inside the notification");
         assertEquals("minecraft:zombie", payload.get("type"));
         assertEquals("notifications/message", frame.get("method"));
     }

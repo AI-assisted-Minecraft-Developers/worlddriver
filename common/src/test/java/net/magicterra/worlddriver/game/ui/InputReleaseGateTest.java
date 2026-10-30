@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** The idle client tick must not clear the human's keys unless the bot itself pressed them ({@link InputReleaseGate}). */
+/**
+ * The idle client tick must not clear the human's keys unless the bot itself pressed them ({@link InputReleaseGate}).
+ */
 class InputReleaseGateTest {
 
     @Test

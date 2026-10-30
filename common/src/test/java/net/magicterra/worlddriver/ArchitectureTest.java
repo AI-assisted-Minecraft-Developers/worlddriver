@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,27 +16,30 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
- * The production dependency boundaries: the api layers ({@code docs/dev/api-layers.md}) and the stack below
- * the api ({@code docs/dev/bot-layering.md}). What the shipped jars may contain is checked by the
- * {@code verifyJarContents} Gradle task instead, since it needs the assembled jars.
+ * The production dependency boundaries: the api layers ({@code docs/dev/api-layers.md}) and the stack below the api
+ * ({@code docs/dev/bot-layering.md}). What the shipped jars may contain is checked by the {@code verifyJarContents}
+ * Gradle task instead, since it needs the assembled jars.
  *
- * <p>The scan reads source, not bytecode: a class is "used" when its fully qualified name appears outside a
- * comment, which is how every cross-package use in this tree is written (an import). Same-package neighbours
- * need no import and never cross a layer, so missing them costs nothing.
+ * <p>The scan reads source, not bytecode: a class is "used" when its fully qualified name appears outside a comment,
+ * which is how every cross-package use in this tree is written (an import). Same-package neighbours need no import and
+ * never cross a layer, so missing them costs nothing.
  */
 class ArchitectureTest {
 
-    /** The driver's sources: the api module's and this one's. The module boundary already keeps the api from
-     *  using the rest; the layers inside each are what this reads them for. */
+    /**
+     * The driver's sources: the api module's and this one's. The module boundary already keeps the api from using the
+     * rest; the layers inside each are what this reads them for.
+     */
     private static final List<Path> SOURCE_ROOTS = List.of(
-            Path.of("../api/src/main/java/net/magicterra/worlddriver"), Path.of("src/main/java/net/magicterra/worlddriver"));
+            Path.of("../api/src/main/java/net/magicterra/worlddriver"),
+            Path.of("src/main/java/net/magicterra/worlddriver"));
+
     private static final Path TESTMOD = Path.of("src/testmod/java/net/magicterra/worlddriver");
-    private static final List<Path> LOADER_SOURCES = List.of(
-            Path.of("../fabric/src/main/java"), Path.of("../neoforge/src/main/java"));
+    private static final List<Path> LOADER_SOURCES =
+            List.of(Path.of("../fabric/src/main/java"), Path.of("../neoforge/src/main/java"));
 
     private static final Pattern COMMENTS_AND_STRINGS =
             Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|/\\*.*?\\*/|//[^\\n]*", Pattern.DOTALL);
@@ -46,27 +49,50 @@ class ArchitectureTest {
             Pattern.compile("net\\.magicterra\\.worlddriver\\.((?:[a-z]\\w*\\.)*)([A-Z]\\w*)");
 
     // ---- the api layers: the layers each may use, and which subpackage holds which
-    private static final Set<String> API_LAYERS = Set.of("schema", "methods", "registry", "call", "thread", "action", "game");
+    private static final Set<String> API_LAYERS =
+            Set.of("schema", "methods", "registry", "call", "thread", "action", "game");
     private static final Set<String> RUNTIME = Set.of("schema", "methods", "registry", "call", "thread", "action");
     private static final Map<String, Set<String>> MAY_USE = Map.of(
-            "schema", Set.of("schema"),
-            "methods", Set.of("schema", "methods", "registry", "call"),
-            "registry", RUNTIME, "call", RUNTIME, "thread", RUNTIME, "action", RUNTIME);
+            "schema",
+            Set.of("schema"),
+            "methods",
+            Set.of("schema", "methods", "registry", "call"),
+            "registry",
+            RUNTIME,
+            "call",
+            RUNTIME,
+            "thread",
+            RUNTIME,
+            "action",
+            RUNTIME);
     private static final Set<String> TRANSPORTS = Set.of("rpc", "mcp", "script");
 
     // ---- the stack below the api: each bot layer may use the ones after it, then game and config.
     // Only the facade (bot's own package) speaks the api.
-    private static final List<String> BOT_ORDER = List.of("bot", "bot/arbitration", "bot/behavior", "bot/control",
-            "bot/planning", "bot/rules", "bot/world");
+    private static final List<String> BOT_ORDER =
+            List.of("bot", "bot/arbitration", "bot/behavior", "bot/control", "bot/planning", "bot/rules", "bot/world");
     private static final Set<String> GAME = Set.of("game", "game/observe", "game/body", "game/edit", "game/ui");
     /** Types the facade hands out and takes back whole: a caller may hold one, never look inside. */
     private static final Set<String> FACADE_EXPORTS = Set.of("bot/behavior/BotProcess");
     /** The settings, one class per layer: a layer reads its own and the ones below, game the lowest. */
     private static final Map<String, String> CONFIG_LAYER = Map.of(
-            "config/BotConfig", "bot", "config/ArbitrationConfig", "bot/arbitration",
-            "config/BehaviorConfig", "bot/behavior", "config/ControlConfig", "bot/control",
-            "config/PlanningConfig", "bot/planning", "config/RulesConfig", "bot/rules",
-            "config/WorldConfig", "bot/world", "config/GameConfig", "game");
+            "config/BotConfig",
+            "bot",
+            "config/ArbitrationConfig",
+            "bot/arbitration",
+            "config/BehaviorConfig",
+            "bot/behavior",
+            "config/ControlConfig",
+            "bot/control",
+            "config/PlanningConfig",
+            "bot/planning",
+            "config/RulesConfig",
+            "bot/rules",
+            "config/WorldConfig",
+            "bot/world",
+            "config/GameConfig",
+            "game");
+
     private static final List<String> CONFIG_ORDER = concat(BOT_ORDER, List.of("game"));
 
     /** Every source file under worlddriver/, keyed by its path without {@code .java}, holding its code. */
@@ -79,20 +105,22 @@ class ArchitectureTest {
         List<String> bad = new ArrayList<>();
         for (Path root : LOADER_SOURCES) {
             for (Path p : javaFiles(root)) {
-                if (code(p).contains("net.magicterra.stagewright.")) bad.add(p + ": production dependency on StageWright");
+                if (code(p).contains("net.magicterra.stagewright."))
+                    bad.add(p + ": production dependency on StageWright");
             }
         }
         assertNone(bad);
     }
 
     /**
-     * Every event hook the driver exposes is called from both loaders. Each loader subscribes its own callbacks
-     * (or mixins) to these methods, so a hook one loader forgot is silently never called there; the in-game tests
-     * cannot reach some of them (client shutdown, the HUD). {@code install} is a bootstrap call, not a hook.
+     * Every event hook the driver exposes is called from both loaders. Each loader subscribes its own callbacks (or
+     * mixins) to these methods, so a hook one loader forgot is silently never called there; the in-game tests cannot
+     * reach some of them (client shutdown, the HUD). {@code install} is a bootstrap call, not a hook.
      */
     @Test
     void everyEventHookIsWiredOnBothLoaders() {
-        Pattern publicStatic = Pattern.compile("public\\s+static\\s+(?!final\\b|class\\b)[\\w<>\\[\\],.? ]+?\\s+(\\w+)\\s*\\(");
+        Pattern publicStatic =
+                Pattern.compile("public\\s+static\\s+(?!final\\b|class\\b)[\\w<>\\[\\],.? ]+?\\s+(\\w+)\\s*\\(");
         Map<Path, String> loaderCode = new LinkedHashMap<>();
         for (Path root : LOADER_SOURCES) {
             StringBuilder all = new StringBuilder();
@@ -118,9 +146,9 @@ class ArchitectureTest {
     }
 
     /**
-     * {@code common}, main and testmod, names no loader and not the Architectury API: each loader's own API is
-     * reached only from that loader's module. String literals are skipped, so a {@code Class.forName} probe for an
-     * optional loader class is allowed.
+     * {@code common}, main and testmod, names no loader and not the Architectury API: each loader's own API is reached
+     * only from that loader's module. String literals are skipped, so a {@code Class.forName} probe for an optional
+     * loader class is allowed.
      */
     @Test
     void commonNamesNoLoaderApi() {
@@ -154,7 +182,9 @@ class ArchitectureTest {
             if (Set.of("bot/behavior", "bot/arbitration", "bot/control", "bot/planning", "bot/rules")
                     .contains(firstTwo(name))) {
                 // The api ban also keeps out the global driver lookup, WorldDriver in api/game.
-                banned.addAll(List.of("net.magicterra.worlddriver.mcp.", "net.magicterra.worlddriver.rpc.",
+                banned.addAll(List.of(
+                        "net.magicterra.worlddriver.mcp.",
+                        "net.magicterra.worlddriver.rpc.",
                         "net.magicterra.worlddriver.api."));
             }
             banned.add("net.magicterra.stagewright.");
@@ -183,7 +213,9 @@ class ArchitectureTest {
             for (String target : usedClasses(text)) {
                 String targetLayer = apiLayer(target);
                 if (targetLayer == null || target.equals(name)) continue;
-                if ((layer != null && MAY_USE.containsKey(layer) && !MAY_USE.get(layer).contains(targetLayer))
+                if ((layer != null
+                                && MAY_USE.containsKey(layer)
+                                && !MAY_USE.get(layer).contains(targetLayer))
                         || (TRANSPORTS.contains(area) && targetLayer.equals("game")))
                     found.add(name + ": uses " + targetLayer + " " + simpleName(target));
             }
@@ -219,15 +251,17 @@ class ArchitectureTest {
                 // A setting field starts from the default its key's record in the api declares.
                 if (src.equals("config") && target.startsWith("api/methods/setting/")) continue;
                 if (!configAllows(src, target)) found.add(name + ": uses config " + simpleName(target));
-                if (!target.equals(name) && !stackAllows(src, dst)) found.add(name + ": uses " + dst + " " + simpleName(target));
+                if (!target.equals(name) && !stackAllows(src, dst))
+                    found.add(name + ": uses " + dst + " " + simpleName(target));
             }
         }
         assertNone(found);
     }
 
     /**
-     * The scenes and test content use the driver as another mod would: through {@code api/} and StageWright. A capability a scene needs that the api lacks is added to the api — or, for a test-only
-     * mutation, to StageWright — never reached past it.
+     * The scenes and test content use the driver as another mod would: through {@code api/} and StageWright. A
+     * capability a scene needs that the api lacks is added to the api — or, for a test-only mutation, to StageWright —
+     * never reached past it.
      */
     @Test
     void theTestmodUsesOnlyTheApiAndStageWright() throws IOException {
@@ -240,13 +274,16 @@ class ArchitectureTest {
                 if (apiLayer(target) == null) found.add(name + " -> " + target);
             }
         }
-        assertTrue(found.isEmpty(), "testmod code reaches past the api; go through api/ or StageWright instead:\n  "
-                + String.join("\n  ", found));
+        assertTrue(
+                found.isEmpty(),
+                "testmod code reaches past the api; go through api/ or StageWright instead:\n  "
+                        + String.join("\n  ", found));
     }
 
     /**
      * A status slot is switched on only by {@code ProcessSlot.beginRun}, which also forgets the last run's verdict. A
-     * process that set {@code active} by hand showed the previous run's {@code goalReached}/{@code endReason} on its own.
+     * process that set {@code active} by hand showed the previous run's {@code goalReached}/{@code endReason} on its
+     * own.
      */
     @Test
     void onlyBeginRunSwitchesAStatusSlotOn() {
@@ -254,15 +291,16 @@ class ArchitectureTest {
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             if (!e.getKey().startsWith("bot/") || e.getKey().equals("bot/behavior/BotState")) continue;
-            if (handSet.matcher(e.getValue()).find()) bad.add(e.getKey() + ": sets a slot active by hand; call beginRun");
+            if (handSet.matcher(e.getValue()).find())
+                bad.add(e.getKey() + ": sets a slot active by hand; call beginRun");
         }
         assertNone(bad);
     }
 
     /**
-     * The bot stack moves the hand only through the body ({@code setSelectedSlot}, {@code holdItem}), which
-     * publishes the slot to the other side. {@code Inventory.pickSlot} and a bare {@code selected} write move it
-     * on one side only.
+     * The bot stack moves the hand only through the body ({@code setSelectedSlot}, {@code holdItem}), which publishes
+     * the slot to the other side. {@code Inventory.pickSlot} and a bare {@code selected} write move it on one side
+     * only.
      */
     @Test
     void theBotMovesTheHandOnlyThroughTheBody() {
@@ -279,7 +317,8 @@ class ArchitectureTest {
     void theScanSeesTheTree() {
         // A source root that resolved to nothing would make every test above pass vacuously.
         assertTrue(SOURCES.size() > 400, "only " + SOURCES.size() + " sources under " + SOURCE_ROOTS);
-        assertTrue(SOURCES.containsKey("bot/control/Navigator") && SOURCES.containsKey("api/registry/ApiRegistry"),
+        assertTrue(
+                SOURCES.containsKey("bot/control/Navigator") && SOURCES.containsKey("api/registry/ApiRegistry"),
                 "the scan did not find the classes it keys its rules on");
     }
 
@@ -315,7 +354,8 @@ class ArchitectureTest {
             return GAME.contains(dst) || (src.equals("bot") && api);
         }
         // The game layer hops threads with the api's hop, and speaks no contract.
-        if (GAME.contains(src)) return Set.of("game", "game/observe", "api/thread").contains(dst);
+        if (GAME.contains(src))
+            return Set.of("game", "game/observe", "api/thread").contains(dst);
         if (src.equals("application")) return GAME.contains(dst) || dst.equals("bot") || api;
         // Everything else reaches the bot only through its facade.
         return !(BOT_ORDER.contains(dst) && !dst.equals("bot")) || src.equals("debug");

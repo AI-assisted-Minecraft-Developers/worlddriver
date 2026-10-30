@@ -1,63 +1,63 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
+import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-
-import static net.magicterra.worlddriver.config.Mod.LOG;
 
 /**
  * Baritone-style autoSwim drowning backstop + active shore-seek.
  *
  * <p>Two jobs:
- * <ol>
- *   <li><b>Lift:</b> hold jump while the head is submerged so the player rises
- *       toward the surface (vanilla in-water jump ≈ 0.04 b/t of lift).</li>
- *   <li><b>Beach (idle only):</b> a bot that respawns or falls into a lake with
- *       NO movement process used to just bob at the surface until something
- *       (a mob, a current, a 1-deep head-dunk) drowned it — the spawn-water
- *       death-loop. Now, when idle and in water, steer toward the nearest dry
- *       standable shore and press forward, so the bot actually swims OUT.</li>
- * </ol>
- * The beach step runs ONLY when idle: an active process (goto/runAway) drives
- * its own water-escape moves ({@code SwimAshoreBreak}/{@code SwimUpBreak}) and we
- * must not fight its steering. The lift step is unconditional (compatible with a
- * walking Navigator — both want the surface).
  *
- * <p><b>gap#70 boundary (live death #18), see {@link #drowningSentinel}:</b> the
- * paragraph above is precisely why an IDLE bot got none of this — {@link #tick}
- * returns immediately when idle (by design: the driver must not move the bot on
- * its own with no command). {@link #drowningSentinel} is the deliberate carve-out
- * for that gap: a PURE VERTICAL float (hold jump only, never forward/turn/beach)
- * is a survival reflex, not the "autonomous movement" the idle-passive contract
- * forbids — same boundary P1 already drew for combat (hurt-entry retreat reacts
- * to being hit while idle).
+ * <ol>
+ *   <li><b>Lift:</b> hold jump while the head is submerged so the player rises toward the surface (vanilla in-water
+ *       jump ≈ 0.04 b/t of lift).
+ *   <li><b>Beach (idle only):</b> a bot that respawns or falls into a lake with NO movement process used to just bob at
+ *       the surface until something (a mob, a current, a 1-deep head-dunk) drowned it — the spawn-water death-loop.
+ *       Now, when idle and in water, steer toward the nearest dry standable shore and press forward, so the bot
+ *       actually swims OUT.
+ * </ol>
+ *
+ * The beach step runs ONLY when idle: an active process (goto/runAway) drives its own water-escape moves
+ * ({@code SwimAshoreBreak}/{@code SwimUpBreak}) and we must not fight its steering. The lift step is unconditional
+ * (compatible with a walking Navigator — both want the surface).
+ *
+ * <p><b>gap#70 boundary (live death #18), see {@link #drowningSentinel}:</b> the paragraph above is precisely why an
+ * IDLE bot got none of this — {@link #tick} returns immediately when idle (by design: the driver must not move the bot
+ * on its own with no command). {@link #drowningSentinel} is the deliberate carve-out for that gap: a PURE VERTICAL
+ * float (hold jump only, never forward/turn/beach) is a survival reflex, not the "autonomous movement" the idle-passive
+ * contract forbids — same boundary P1 already drew for combat (hurt-entry retreat reacts to being hit while idle).
  */
 public final class AutoSwim {
 
-    /** True while {@link #drowningSentinel} is the one holding jump, so it
-     *  releases its own hold exactly once when air recovers/surfaces, without
-     *  clobbering a jump some other actuator set. */
+    /**
+     * True while {@link #drowningSentinel} is the one holding jump, so it releases its own hold exactly once when air
+     * recovers/surfaces, without clobbering a jump some other actuator set.
+     */
     private boolean floatHeld;
 
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
-    /** How far above the bot's foot a climbable bank may sit. Capped at 1: the IDLE
-     *  beach step has no foothold-placer (only an active-process Navigator does, via the
-     *  waterClimb actuator), so a swimming bot can only mount a single +1 step out of
-     *  water. Accepting +2..+4 banks made it steer into a sheer 2–4 block face it
-     *  can't climb and grind/bob there (drowning risk). Matches the [by-1, by+1] range
-     *  documented on {@link #nearestShore}. */
+    /**
+     * How far above the bot's foot a climbable bank may sit. Capped at 1: the IDLE beach step has no foothold-placer
+     * (only an active-process Navigator does, via the waterClimb actuator), so a swimming bot can only mount a single
+     * +1 step out of water. Accepting +2..+4 banks made it steer into a sheer 2–4 block face it can't climb and
+     * grind/bob there (drowning risk). Matches the [by-1, by+1] range documented on {@link #nearestShore}.
+     */
     private static final int SHORE_UP = 1;
     /** How far below (a shallow/beach exit). */
     private static final int SHORE_DOWN = 1;
-    /** Air ticks kept in reserve above the drownEscape threshold while yielding to an
-     *  active dig (~1 s): the backstop resumes lifting BEFORE the escape chain preempts,
-     *  so a dig that runs the lungs down hands over smoothly instead of at the wire. */
+    /**
+     * Air ticks kept in reserve above the drownEscape threshold while yielding to an active dig (~1 s): the backstop
+     * resumes lifting BEFORE the escape chain preempts, so a dig that runs the lungs down hands over smoothly instead
+     * of at the wire.
+     */
     private static final int DIG_AIR_RESERVE = 20;
     /** Throttle counter for navigatorDebug shore logging. */
     private int dbg = 0;
@@ -80,39 +80,42 @@ public final class AutoSwim {
     // autoSwim LAST, so its command is the last write before vanilla consumes it, and the drowning
     // backstop overrides a stuck process instead of losing to it.
 
-    /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
-     *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
-     *  submerged after a cancelled goto has no navigator and no DrowningEscape, and it
-     *  drowned silently twice live 2026-07-02).
+    /**
+     * Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as its predecessor (NOT behind the
+     * autoSwim flag: with autoSwim off, an idle bot left submerged after a cancelled goto has no navigator and no
+     * DrowningEscape, and it drowned silently twice live 2026-07-02).
      *
-     *  <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the
-     *  exact trigger condition every tick ({@code isUnderWater() && air<=100}) and just
-     *  WARNed, on the theory that any self-rescue here would violate "driver idle must be
-     *  passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no
-     *  task sank to the bottom and drowned air 16→0 in ~40 s while this method logged the
-     *  WARN the entire time and did nothing. <b>Controller ruling</b> (see also {@link
-     *  BehaviorConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
-     *  above): the idle-passive contract was always about forbidding UNCOMMANDED
-     *  HORIZONTAL movement/beaching, never about letting the bot drown — P1 already drew
-     *  this exact line for combat (hurt-entry retreat fires while idle, gap#68). A PURE
-     *  VERTICAL float — hold jump ONLY, never {@code keyUp}/{@code keyLeft}/{@code
-     *  keyRight}/yaw, never the shore-steer above — is the same class of survival reflex,
-     *  in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical,
-     *  gated by {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link
-     *  BehaviorConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
-     *  purpose, since it's a bare reflex (the {@code AntiSuffocate} pattern), not the
-     *  autoSwim movement/beach feature.
+     * <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the exact trigger condition every
+     * tick ({@code isUnderWater() && air<=100}) and just WARNed, on the theory that any self-rescue here would violate
+     * "driver idle must be passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no task sank to
+     * the bottom and drowned air 16→0 in ~40 s while this method logged the WARN the entire time and did nothing.
+     * <b>Controller ruling</b> (see also {@link BehaviorConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and
+     * the class doc above): the idle-passive contract was always about forbidding UNCOMMANDED HORIZONTAL
+     * movement/beaching, never about letting the bot drown — P1 already drew this exact line for combat (hurt-entry
+     * retreat fires while idle, gap#68). A PURE VERTICAL float — hold jump ONLY, never
+     * {@code keyUp}/{@code keyLeft}/{@code keyRight}/yaw, never the shore-steer above — is the same class of survival
+     * reflex, in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical, gated by
+     * {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link BehaviorConfig#autoFloatWhenDrowning} —
+     * independent of {@link BotConfig#autoSwim} on purpose, since it's a bare reflex (the {@code AntiSuffocate}
+     * pattern), not the autoSwim movement/beach feature.
      *
-     *  @return true iff this call drove {@code keyJump} (so the caller can mark the
-     *          release gate dirty and avoid a trailing held jump). */
+     * @return true iff this call drove {@code keyJump} (so the caller can mark the release gate dirty and avoid a
+     *     trailing held jump).
+     */
     public boolean drowningSentinel(Body body, boolean idle) {
         LivingEntity p = body.entity();
         if (!idle || p == null) {
-            if (floatHeld) { if (p != null) body.commandJump(false); floatHeld = false; }
+            if (floatHeld) {
+                if (p != null) body.commandJump(false);
+                floatHeld = false;
+            }
             return false;
         }
-        boolean floating = DrowningFloatGate.shouldFloat(p.isUnderWater(), p.getAirSupply(),
-                BehaviorConfig.drownFloatAirThreshold, BehaviorConfig.autoFloatWhenDrowning);
+        boolean floating = DrowningFloatGate.shouldFloat(
+                p.isUnderWater(),
+                p.getAirSupply(),
+                BehaviorConfig.drownFloatAirThreshold,
+                BehaviorConfig.autoFloatWhenDrowning);
         if (floating) {
             body.commandJump(true);
             floatHeld = true;
@@ -120,8 +123,11 @@ public final class AutoSwim {
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
-                LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
-                        p.getAirSupply(), BehaviorConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
+                LOG.info(
+                        "[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
+                        p.getAirSupply(),
+                        BehaviorConfig.drownFloatAirThreshold,
+                        p.blockPosition().toShortString());
         } else if (floatHeld) {
             body.commandJump(false);
             floatHeld = false;
@@ -130,8 +136,8 @@ public final class AutoSwim {
     }
 
     /**
-     * Full backstop. {@code idle} = no movement process owns the channel this
-     * tick (only then do we steer, to avoid fighting an active pathing process).
+     * Full backstop. {@code idle} = no movement process owns the channel this tick (only then do we steer, to avoid
+     * fighting an active pathing process).
      */
     public void tick(Body body, WorldView world, boolean idle) {
         LivingEntity p = body.entity();
@@ -156,13 +162,13 @@ public final class AutoSwim {
         // Digging), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
-        if (world.signals().digging
-                && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
+        if (world.signals().digging && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE)
+            return;
         // Same yield for the Navigator's surface sprint-swim cruise: it puts the eyes under on purpose
         // (the prone pose starts only from there) and breathes on its own above this floor; the
         // held jump and the sprint cancel here would undo the pose every stroke.
-        if (world.signals().cruising
-                && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
+        if (world.signals().cruising && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE)
+            return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             body.commandJump(true);
@@ -178,7 +184,10 @@ public final class AutoSwim {
         // Fully out on dry land (on ground AND head clear of water) — done; let the
         // idle releaseKeys() take over. While still IN water, keep steering even if
         // momentarily on a shallow bottom, so the bot walks up the entry slope.
-        if (p.onGround() && !inWater) { body.commandForward(0f); return; }
+        if (p.onGround() && !inWater) {
+            body.commandForward(0f);
+            return;
+        }
 
         int bx = (int) Math.floor(p.getX());
         int by = (int) Math.floor(p.getY());
@@ -200,17 +209,22 @@ public final class AutoSwim {
             // concurrently-latched sneak from a prior process would defeat this straight-up climb.
             body.commandSneak(false);
             if (GameConfig.navigatorDebug && (dbg++ % 8 == 0))
-                LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}",
-                        bx, by, bz, p.getAirSupply());
+                LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}", bx, by, bz, p.getAirSupply());
             return;
         }
         int[] dir = nearestShore(world, bx, by, bz);
         if (GameConfig.navigatorDebug && (dbg++ % 8 == 0)) {
-            LOG.info("[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
-                    bx, by, bz, p.isUnderWater(), p.onGround(), idle,
+            LOG.info(
+                    "[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
+                    bx,
+                    by,
+                    bz,
+                    p.isUnderWater(),
+                    p.onGround(),
+                    idle,
                     dir == null ? "null" : (dir[0] + "," + dir[1]));
         }
-        if (dir == null) {                          // no reachable bank in range: keep rising
+        if (dir == null) { // no reachable bank in range: keep rising
             if (p.isUnderWater()) body.commandJump(true);
             return;
         }
@@ -218,7 +232,7 @@ public final class AutoSwim {
         p.setYRot(yaw);
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;
-        p.setXRot(0f);                              // swim flat toward the bank
+        p.setXRot(0f); // swim flat toward the bank
         // Raw camera-frame forward, which is what keyUp meant: the yaw was just set to point at the
         // bank, so "along the player's facing" IS "toward the bank" and no decoupling is wanted here.
         body.commandForward(1f);
@@ -228,18 +242,16 @@ public final class AutoSwim {
     }
 
     /**
-     * Nearest column (by Chebyshev ring, then squared distance within the ring)
-     * holding a dry standable spot in {@code [by-1, by+1]} — a bank the bot can
-     * climb onto. Returns {dx,dz} from the bot toward it, or null if none within
-     * {@link #SHORE_SCAN_R}.
+     * Nearest column (by Chebyshev ring, then squared distance within the ring) holding a dry standable spot in
+     * {@code [by-1, by+1]} — a bank the bot can climb onto. Returns {dx,dz} from the bot toward it, or null if none
+     * within {@link #SHORE_SCAN_R}.
      *
-     * <p>"Standable" here differs from {@code WorldView#canStandAt} in one way: the floor rule
-     * is {@code isSolid(below)}, not {@code canStandOn(below)} — coarser, so on the client view
-     * it accepts banks the planner refuses (bottom slabs, the 14/16 family). That costs a failed
-     * climb-out, not a life. The hazard rule is the same as {@code canStandAt}'s: floor, foot and
-     * head. Lava in the foot cell over stone is passable and not water, so without the foot and
-     * head clauses this steered a drowning bot into it; a pond whose only bank is a hazard now
-     * gets null, and the caller keeps holding jump to rise.
+     * <p>"Standable" here differs from {@code WorldView#canStandAt} in one way: the floor rule is
+     * {@code isSolid(below)}, not {@code canStandOn(below)} — coarser, so on the client view it accepts banks the
+     * planner refuses (bottom slabs, the 14/16 family). That costs a failed climb-out, not a life. The hazard rule is
+     * the same as {@code canStandAt}'s: floor, foot and head. Lava in the foot cell over stone is passable and not
+     * water, so without the foot and head clauses this steered a drowning bot into it; a pond whose only bank is a
+     * hazard now gets null, and the caller keeps holding jump to rise.
      */
     static int[] nearestShore(WorldView w, int bx, int by, int bz) {
         // Scan ring by ring (nearest first). Within the first ring that has any dry
@@ -256,19 +268,26 @@ public final class AutoSwim {
                         BlockPos foot = new BlockPos(x, y, z);
                         BlockPos below = new BlockPos(x, y - 1, z);
                         BlockPos head = new BlockPos(x, y + 1, z);
-                        if (w.isSolid(below) && !w.isWater(foot)
-                                && w.isPassable(foot) && w.isPassable(head)
-                                && !w.isHazard(below) && !w.isHazard(foot) && !w.isHazard(head)) {
+                        if (w.isSolid(below)
+                                && !w.isWater(foot)
+                                && w.isPassable(foot)
+                                && w.isPassable(head)
+                                && !w.isHazard(below)
+                                && !w.isHazard(foot)
+                                && !w.isHazard(head)) {
                             int d = dx * dx + dz * dz;
                             if (y < bestY || (y == bestY && d < bestD)) {
-                                bestY = y; bestD = d; bdx = dx; bdz = dz;
+                                bestY = y;
+                                bestD = d;
+                                bdx = dx;
+                                bdz = dz;
                             }
-                            break;                         // lowest standable y in this column
+                            break; // lowest standable y in this column
                         }
                     }
                 }
             }
-            if (bestY != Integer.MAX_VALUE) return new int[]{bdx, bdz};
+            if (bestY != Integer.MAX_VALUE) return new int[] {bdx, bdz};
         }
         return null;
     }

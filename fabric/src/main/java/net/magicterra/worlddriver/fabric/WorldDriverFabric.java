@@ -20,8 +20,10 @@ public final class WorldDriverFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         // Main entrypoints run before the client one, which opens the transports that answer this version.
-        FabricLoader.getInstance().getModContainer(WorldDriverCommon.MOD_ID).ifPresent(mod ->
-                BuildStamp.loaderVersion(mod.getMetadata().getVersion().getFriendlyString()));
+        FabricLoader.getInstance()
+                .getModContainer(WorldDriverCommon.MOD_ID)
+                .ifPresent(mod ->
+                        BuildStamp.loaderVersion(mod.getMetadata().getVersion().getFriendlyString()));
         // Fabric's SERVER_STARTING fires before the server loads its levels, earlier than NeoForge's. The driver's
         // start-up needs no level, and it has to come before every SERVER_STARTED listener: StageWright's publishes
         // its methods onto the registry this creates.
@@ -30,8 +32,8 @@ public final class WorldDriverFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(WorldDriverEvents::serverStopping);
         ServerLifecycleEvents.SERVER_STOPPED.register(WorldDriverEvents::serverStopped);
         ServerTickEvents.END_SERVER_TICK.register(WorldDriverEvents::serverTickEnd);
-        CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) ->
-                WorldDriverEvents.registerCommands(dispatcher));
+        CommandRegistrationCallback.EVENT.register(
+                (dispatcher, context, selection) -> WorldDriverEvents.registerCommands(dispatcher));
         // Both return true: the driver only listens. A listener before it that returns false stops the chain,
         // and with it the report.
         PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) -> {

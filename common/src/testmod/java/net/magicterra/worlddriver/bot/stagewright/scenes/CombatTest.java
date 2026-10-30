@@ -21,12 +21,12 @@ import org.junit.jupiter.api.Test;
 /**
  * What a bot's threat scan sees, read through {@code mc.observe.threats} for a server bot.
  *
- * <p>The summoned mobs are {@code setNoAi(true)} + {@code setPersistenceRequired()}, so they neither move nor
- * despawn. The bot is spawned parked: it stands where it was put and scans only when asked.
+ * <p>The summoned mobs are {@code setNoAi(true)} + {@code setPersistenceRequired()}, so they neither move nor despawn.
+ * The bot is spawned parked: it stands where it was put and scans only when asked.
  *
- * <p>A bot cannot be hurt ({@code isInvulnerableTo} is true for every driver player), so the attacker test records
- * the hit the way a client records one it was told about, through vanilla's {@code handleDamageEvent}, which sets the
- * last damage source the scan reads.
+ * <p>A bot cannot be hurt ({@code isInvulnerableTo} is true for every driver player), so the attacker test records the
+ * hit the way a client records one it was told about, through vanilla's {@code handleDamageEvent}, which sets the last
+ * damage source the scan reads.
  */
 @Scene("wd.scenes")
 class CombatTest {
@@ -54,8 +54,12 @@ class CombatTest {
         });
 
         // The wolf must be in the level's entity index before the scan can find it, even as the attacker.
-        game.await().within(100).as("the wolf enters the level's entity index")
-                .until(() -> !bot.level().getEntitiesOfClass(Wolf.class, Staging.entityBox(plot.at(0, 0, 0))).isEmpty());
+        game.await()
+                .within(100)
+                .as("the wolf enters the level's entity index")
+                .until(() -> !bot.level()
+                        .getEntitiesOfClass(Wolf.class, Staging.entityBox(plot.at(0, 0, 0)))
+                        .isEmpty());
 
         // Without the hit, a neutral wolf is (correctly) not a threat.
         ObserveContracts.Threats before = bot.threats(24);
@@ -66,16 +70,24 @@ class CombatTest {
         game.runOnServer(server -> {
             Wolf w = (Wolf) bot.level().getEntity(wolf);
             bot.player().handleDamageEvent(bot.level().damageSources().mobAttack(w));
-            assertSame(w, bot.player().getLastDamageSource() == null ? null : bot.player().getLastDamageSource().getEntity(),
+            assertSame(
+                    w,
+                    bot.player().getLastDamageSource() == null
+                            ? null
+                            : bot.player().getLastDamageSource().getEntity(),
                     "rig broken: the wolf's hit was not recorded as the last damage");
         });
 
         ObserveContracts.Threats scan = bot.threats(24);
-        ObserveContracts.Threat found = scan.threats().stream().filter(t -> t.id() == wolf).findFirst().orElse(null);
+        ObserveContracts.Threat found =
+                scan.threats().stream().filter(t -> t.id() == wolf).findFirst().orElse(null);
         if (found == null) {
-            fail("the wolf that just hit the player is invisible to the threat scan: threats=" + scan.threats().size());
+            fail("the wolf that just hit the player is invisible to the threat scan: threats="
+                    + scan.threats().size());
         }
         game.check(found.attackedMe(), "the attacker's threat is marked attackedMe: " + found);
-        game.check(scan.threats().get(0).id() == wolf, "the attacker ranks top: top=" + scan.threats().get(0));
+        game.check(
+                scan.threats().get(0).id() == wolf,
+                "the attacker ranks top: top=" + scan.threats().get(0));
     }
 }

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.application;
 
 import java.io.IOException;
-
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
 

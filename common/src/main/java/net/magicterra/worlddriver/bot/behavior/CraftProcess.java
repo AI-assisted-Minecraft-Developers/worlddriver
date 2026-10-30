@@ -1,12 +1,21 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Menus;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
+import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
+
+import java.util.List;
+import java.util.Map;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.Menus;
+import net.magicterra.worlddriver.game.body.Stations;
+import net.magicterra.worlddriver.game.observe.ItemCounts;
+import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -14,66 +23,66 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.CraftingMenu;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 
-import java.util.List;
-import java.util.Map;
-
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
-import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
-import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
-import net.magicterra.worlddriver.game.body.Stations;
-import net.magicterra.worlddriver.game.observe.ItemCounts;
-import net.magicterra.worlddriver.game.observe.RecipeResolver;
-
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
  *
- * <p>Planning reuses the very resolver the {@code mc.recipe.resolve} verb exposes
- * (client {@link RecipeManager}, so this works in multiplayer too — no integrated
- * server needed): "I want N×item" → a dependency-first list of crafting jobs. If
- * any leaf material is missing, the process fails up front reporting "missing N x X" so
- * the caller (T2) can go gather it.
+ * <p>Planning reuses the very resolver the {@code mc.recipe.resolve} verb exposes (client {@link RecipeManager}, so
+ * this works in multiplayer too — no integrated server needed): "I want N×item" → a dependency-first list of crafting
+ * jobs. If any leaf material is missing, the process fails up front reporting "missing N x X" so the caller (T2) can go
+ * gather it.
  *
- * <p>Each job is run through the game's recipe-book placement
- * ({@code MultiPlayerGameMode.handlePlaceRecipe} → {@code ServerboundPlaceRecipePacket}):
- * the server fills the crafting grid from inventory, then we shift-click (QUICK_MOVE)
- * the result slot out — once per craft. 2×2 recipes go through the player inventory
- * menu (no GUI); 3×3 recipes open a crafting table (an existing one within reach, or
- * one placed from the hotbar).
+ * <p>Each job is run through the game's recipe-book placement ({@code MultiPlayerGameMode.handlePlaceRecipe} →
+ * {@code ServerboundPlaceRecipePacket}): the server fills the crafting grid from inventory, then we shift-click
+ * (QUICK_MOVE) the result slot out — once per craft. 2×2 recipes go through the player inventory menu (no GUI); 3×3
+ * recipes open a crafting table (an existing one within reach, or one placed from the hotbar).
  */
 public final class CraftProcess implements BotProcess {
-    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place
-     *  either can be absent. */
+    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place either can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
     private Menus menus;
     /** Max ticks to wait for the server to fill the grid / open the table. */
     private static final int STEP_TIMEOUT = 40;
-    /** Ticks to keep re-planning before declaring materials missing — the client
-     *  inventory lags a just-issued pickup/give by a few ticks, so a one-shot plan
-     *  can read a transient-empty inventory and wrongly report "missing". */
+    /**
+     * Ticks to keep re-planning before declaring materials missing — the client inventory lags a just-issued
+     * pickup/give by a few ticks, so a one-shot plan can read a transient-empty inventory and wrongly report "missing".
+     */
     private static final int PLAN_GRACE = 20;
 
     private final String target;
     private final int count;
 
-    /** Max ticks to spend breaking our own table back (gap #276). A crafting table is
-     *  wood (hardness 2.5): ~75 ticks bare-handed, far less with an axe. Generous cap —
-     *  if it expires we simply walk away, we never fail a craft over cleanup. */
+    /**
+     * Max ticks to spend breaking our own table back (gap #276). A crafting table is wood (hardness 2.5): ~75 ticks
+     * bare-handed, far less with an axe. Generous cap — if it expires we simply walk away, we never fail a craft over
+     * cleanup.
+     */
     private static final int RECLAIM_TIMEOUT = 200;
-    /** Ticks to stand still after the table breaks. Vanilla gives a dropped item a
-     *  10-tick pickup delay; leave without waiting it out and the next process walks
-     *  the bot away from its own table. */
+    /**
+     * Ticks to stand still after the table breaks. Vanilla gives a dropped item a 10-tick pickup delay; leave without
+     * waiting it out and the next process walks the bot away from its own table.
+     */
     private static final int PICKUP_GRACE = 15;
 
-    private enum St { INIT, STATION, OPEN_WAIT, PLACE, AWAIT_RESULT, AWAIT_TAKE, RECLAIM, DONE, FAIL }
+    private enum St {
+        INIT,
+        STATION,
+        OPEN_WAIT,
+        PLACE,
+        AWAIT_RESULT,
+        AWAIT_TAKE,
+        RECLAIM,
+        DONE,
+        FAIL
+    }
+
     private St st = St.INIT;
 
     private List<RecipeResolver.Job> jobs;
@@ -81,45 +90,66 @@ public final class CraftProcess implements BotProcess {
     private int craftsDone;
     private int planTries;
     private int waited;
-    private BlockPos tablePos;   // table currently in use (found OR placed)
-    /** The table THIS process placed, and the only block it may ever break (gap #276).
-     *  Deliberately NOT {@link #tablePos}: that one is also set from {@link Stations#table},
-     *  so reclaiming it would demolish a village / player-base table the bot merely
-     *  borrowed. Null unless {@link #placeTable} actually succeeded. */
+    private BlockPos tablePos; // table currently in use (found OR placed)
+    /**
+     * The table THIS process placed, and the only block it may ever break (gap #276). Deliberately NOT
+     * {@link #tablePos}: that one is also set from {@link Stations#table}, so reclaiming it would demolish a village /
+     * player-base table the bot merely borrowed. Null unless {@link #placeTable} actually succeeded.
+     */
     private BlockPos placedTable;
-    private boolean reclaimTried;   // reclaim runs at most once, on the way out
+
+    private boolean reclaimTried; // reclaim runs at most once, on the way out
     private int reclaimTicks;
     private int pickupTicks;
     private String error;
 
-    @Override public String failure() { return error; }
-    private int crafted;         // total items produced (for the result summary)
+    @Override
+    public String failure() {
+        return error;
+    }
+
+    private int crafted; // total items produced (for the result summary)
 
     public CraftProcess(String target, int count) {
         this.target = target;
         this.count = Math.max(1, count);
     }
 
-    @Override public String kind() { return "craft"; }
+    @Override
+    public String kind() {
+        return "craft";
+    }
 
     /** Items the crafting steps produced so far, intermediate ones included. */
-    public int crafted() { return crafted; }
+    public int crafted() {
+        return crafted;
+    }
 
-    @Override public void attach(BotState s) {
+    @Override
+    public void attach(BotState s) {
         s.craft.beginRun("craft " + count + "× " + target, null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState s) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
-        if (lvl == null) { fail(null, "no player"); s.craft.lastError = error; s.craft.reset(); return true; }
+        if (lvl == null) {
+            fail(null, "no player");
+            s.craft.lastError = error;
+            s.craft.reset();
+            return true;
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
         menus = a.menus().orElse(null);
         // Not a player: no inventory to craft from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
         if (equipment == null || blocks == null || menus == null || p == null) {
-            fail(p, Readiness.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
+            fail(p, Readiness.Reason.NO_HANDS);
+            s.craft.lastError = error;
+            s.craft.reset();
+            return true;
         }
 
         switch (st) {
@@ -159,16 +189,18 @@ public final class CraftProcess implements BotProcess {
 
     // === table reclaim (gap #276) ============================================
 
-    /** Enter RECLAIM if we placed a table and it's still standing. Returns true if the
-     *  process must keep ticking to break it. Runs at most once — {@code reclaimTried}
-     *  is set on the first call, so the terminal check below it can't loop. */
+    /**
+     * Enter RECLAIM if we placed a table and it's still standing. Returns true if the process must keep ticking to
+     * break it. Runs at most once — {@code reclaimTried} is set on the first call, so the terminal check below it can't
+     * loop.
+     */
     private boolean beginReclaim(Body a, Player p, Level lvl) {
         if (reclaimTried) return false;
         reclaimTried = true;
         if (!BehaviorConfig.craftReclaimTable) return false;
         if (placedTable == null || !isTable(lvl, placedTable)) return false;
-        menus.closeContainer();          // can't swing at a block with the table menu open
-        equipment.selectTool(placedTable);   // an axe if we carry one; bare hands work too
+        menus.closeContainer(); // can't swing at a block with the table menu open
+        equipment.selectTool(placedTable); // an axe if we carry one; bare hands work too
         reclaimTicks = 0;
         pickupTicks = 0;
         st = St.RECLAIM;
@@ -180,7 +212,10 @@ public final class CraftProcess implements BotProcess {
             // Give up on the block, never on the craft: a reclaim that can't finish
             // (protected region, block replaced under us) must not turn a successful
             // craft into a failure, nor overwrite the error a failed one is reporting.
-            if (++reclaimTicks > RECLAIM_TIMEOUT) { endReclaim(a); return; }
+            if (++reclaimTicks > RECLAIM_TIMEOUT) {
+                endReclaim(a);
+                return;
+            }
             a.aimAtBlock(placedTable);
             // Both actuators, not one. breakHold alone CANNOT break anything on a driven
             // client: vanilla only runs continueAttack -> continueDestroyBlock while the
@@ -211,8 +246,12 @@ public final class CraftProcess implements BotProcess {
     private void plan(Body a, Player p, Level lvl, BotState s) {
         RecipeManager rm = menus.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
-        if (rm == null) { fail(p, "no recipe manager"); return; }
-        if (!BuiltInRegistries.ITEM.containsKey(net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
+        if (rm == null) {
+            fail(p, "no recipe manager");
+            return;
+        }
+        if (!BuiltInRegistries.ITEM.containsKey(
+                net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
             fail(p, "unknown item: " + target);
             return;
         }
@@ -227,7 +266,7 @@ public final class CraftProcess implements BotProcess {
         if (!plan.complete()) {
             // Give the client inventory a few ticks to catch up before giving up —
             // a craft issued right after a pickup/give would otherwise read empty.
-            if (++planTries < PLAN_GRACE) return;   // stay in INIT, re-plan next tick
+            if (++planTries < PLAN_GRACE) return; // stay in INIT, re-plan next tick
             StringBuilder sb = new StringBuilder("missing");
             boolean first = true;
             for (var e : plan.missing().entrySet()) {
@@ -238,7 +277,7 @@ public final class CraftProcess implements BotProcess {
             fail(p, sb.toString());
             return;
         }
-        if (plan.jobs().isEmpty()) {     // already have enough — nothing to craft
+        if (plan.jobs().isEmpty()) { // already have enough — nothing to craft
             LOG.info("[craft] plan {}×{} already satisfied, no jobs", count, target);
             st = St.DONE;
             return;
@@ -266,7 +305,11 @@ public final class CraftProcess implements BotProcess {
             return;
         }
         // crafting_table: reuse an already-open table, else open one.
-        if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
+        if (p.containerMenu instanceof CraftingMenu) {
+            waited = 0;
+            st = St.PLACE;
+            return;
+        }
 
         BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : Stations.table(p, lvl);
         if (table == null) table = placeTable(a, p, lvl);
@@ -274,9 +317,11 @@ public final class CraftProcess implements BotProcess {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
             // missing SPOT needs one dug cell — a single message for both sends the
             // agent hunting wood while sealed in a 1×1 bunker.
-            fail(p, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
-                    ? "crafting table needed (one is in the inventory, but there is no free cell beside the bot to place it; clear one first)"
-                    : "crafting table needed (none in the inventory)");
+            fail(
+                    p,
+                    p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
+                            ? "crafting table needed (one is in the inventory, but there is no free cell beside the bot to place it; clear one first)"
+                            : "crafting table needed (none in the inventory)");
             return;
         }
         tablePos = table;
@@ -289,7 +334,11 @@ public final class CraftProcess implements BotProcess {
     }
 
     private void awaitTableOpen(Player p, BotState s) {
-        if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
+        if (p.containerMenu instanceof CraftingMenu) {
+            waited = 0;
+            st = St.PLACE;
+            return;
+        }
         if (++waited > STEP_TIMEOUT) fail(p, "timed out opening the crafting table");
     }
 
@@ -307,7 +356,8 @@ public final class CraftProcess implements BotProcess {
 
     private void awaitResult(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
-        ItemStack result = menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
+        ItemStack result =
+                menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
         if (!result.isEmpty()) {
             // Counted before the click: the client's prediction empties this same stack as it moves it.
             int made = result.getCount();
@@ -318,7 +368,11 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(p, "failed to place the recipe (missing ingredients or inventory not synced): " + path(jobs.get(jobIdx).result()));
+        if (++waited > STEP_TIMEOUT)
+            fail(
+                    p,
+                    "failed to place the recipe (missing ingredients or inventory not synced): "
+                            + path(jobs.get(jobIdx).result()));
     }
 
     private void awaitTake(Player p, BotState s) {
@@ -326,12 +380,21 @@ public final class CraftProcess implements BotProcess {
         if (++waited < 2) return;
         craftsDone++;
         RecipeResolver.Job job = jobs.get(jobIdx);
-        LOG.info("[craft] job {}/{} {} craftsDone={}/{} totalCrafted={}",
-                jobIdx + 1, jobs.size(), path(job.result()), craftsDone, job.crafts(), crafted);
+        LOG.info(
+                "[craft] job {}/{} {} craftsDone={}/{} totalCrafted={}",
+                jobIdx + 1,
+                jobs.size(),
+                path(job.result()),
+                craftsDone,
+                job.crafts(),
+                crafted);
         if (craftsDone >= job.crafts()) {
             jobIdx++;
             craftsDone = 0;
-            if (jobIdx >= jobs.size()) { st = St.DONE; return; }
+            if (jobIdx >= jobs.size()) {
+                st = St.DONE;
+                return;
+            }
         }
         st = St.STATION;
     }
@@ -344,7 +407,8 @@ public final class CraftProcess implements BotProcess {
 
     /** Place a crafting table from inventory nearby, return its position (or null). */
     private BlockPos placeTable(Body a, Player p, Level lvl) {
-        BlockPos cell = PlaceNearby.place(a, equipment, blocks, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
+        BlockPos cell =
+                PlaceNearby.place(a, equipment, blocks, p, lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
         // The ONLY assignment of placedTable: this table is ours, so it is the
         // only one reclaim may break (gap #276).
         if (cell != null) placedTable = cell;
@@ -353,23 +417,26 @@ public final class CraftProcess implements BotProcess {
 
     // === misc ================================================================
 
-
     /** Compact one-line dump of a resolved job list for the plan-telemetry log line. */
     private static String jobsSummary(List<RecipeResolver.Job> jobs) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < jobs.size(); i++) {
             RecipeResolver.Job j = jobs.get(i);
             if (i > 0) sb.append(',');
-            sb.append(path(j.result())).append('x').append(j.crafts()).append('@').append(j.station());
+            sb.append(path(j.result()))
+                    .append('x')
+                    .append(j.crafts())
+                    .append('@')
+                    .append(j.station());
         }
         return sb.append(']').toString();
     }
 
-    /** The 2×2 inventory grid's current contents (InventoryMenu slots 1-4), for the
-     *  fail-path telemetry line — lets a log reader see directly whether this failure
-     *  is the gap #67-③ strand (grid non-empty at a FAIL) or a clean one. {@code p}
-     *  is null only from the "no player" guard in {@link #tick}, which never has
-     *  anything to report. */
+    /**
+     * The 2×2 inventory grid's current contents (InventoryMenu slots 1-4), for the fail-path telemetry line — lets a
+     * log reader see directly whether this failure is the gap #67-③ strand (grid non-empty at a FAIL) or a clean one.
+     * {@code p} is null only from the "no player" guard in {@link #tick}, which never has anything to report.
+     */
     private static String gridSummary(Player p) {
         if (p == null) return "n/a";
         StringBuilder sb = new StringBuilder("[");
@@ -381,9 +448,11 @@ public final class CraftProcess implements BotProcess {
         return sb.append(']').toString();
     }
 
-    /** Every failure exits through here — single source for both the terminal
-     *  transition and the fail-path telemetry line (gap #67-⑥: CraftProcess used to
-     *  import LOG and never call it). {@code p} may be null (the "no player" guard). */
+    /**
+     * Every failure exits through here — single source for both the terminal transition and the fail-path telemetry
+     * line (gap #67-⑥: CraftProcess used to import LOG and never call it). {@code p} may be null (the "no player"
+     * guard).
+     */
     private void fail(Player p, String msg) {
         this.error = msg;
         LOG.info("[craft] fail state={} jobIdx={} msg={} grid={}", st, jobIdx, msg, gridSummary(p));

@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -30,8 +29,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The events the server reports about what players and entities do, read back from the server driver's own ring:
  * {@code player.join}, {@code player.leave}, {@code block.break}, {@code block.place} and {@code entity.death}. Each
- * comes from a loader callback (or a mixin where the loader has none), so these are what show a callback is
- * subscribed, fires at the right moment, and fires once.
+ * comes from a loader callback (or a mixin where the loader has none), so these are what show a callback is subscribed,
+ * fires at the right moment, and fires once.
  *
  * <p>Other tests run in the same game at the same time and do the same things, so every event is matched by where it
  * happened or by the bot's own name, never just counted by type.
@@ -50,11 +49,14 @@ class ExternalEventsTest {
         String name = bot.onServer(p -> p.getGameProfile().getName());
         List<EventContracts.Event> joined = since(game, cursor, "player.join");
         long joins = joined.stream().filter(e -> name.equals(data(e))).count();
-        if (joins != 1) fail("player.join for " + name + " reported " + joins + " times, expected once; every join: " + joined);
+        if (joins != 1)
+            fail("player.join for " + name + " reported " + joins + " times, expected once; every join: " + joined);
 
         long beforeLeave = cursor(game);
         bot.remove();
-        long leaves = since(game, beforeLeave, "player.leave").stream().filter(e -> name.equals(data(e))).count();
+        long leaves = since(game, beforeLeave, "player.leave").stream()
+                .filter(e -> name.equals(data(e)))
+                .count();
         if (leaves != 1) fail("player.leave for " + name + " reported " + leaves + " times, expected once");
     }
 
@@ -67,19 +69,27 @@ class ExternalEventsTest {
         plot.fill(-3, 0, -3, 3, 0, 3, Blocks.STONE);
         plot.place(1, 1, 0, Blocks.STONE);
         BlockPos cell = plot.at(1, 1, 0);
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", false).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", false)
+                .set("navigatorDebug", false);
         SceneBot bot = SceneBot.spawn(game, plot.at(-1, 1, 0));
         long cursor = cursor(game);
         game.runOnServer(s -> {
             bot.mineCell(cell);
             bot.tickUntilIdle(200);
-            if (!bot.level().getBlockState(cell).isAir()) fail("rig broken: the cell was not dug: " + bot.level().getBlockState(cell));
+            if (!bot.level().getBlockState(cell).isAir())
+                fail("rig broken: the cell was not dug: " + bot.level().getBlockState(cell));
         });
-        List<EventContracts.Event> at = since(game, cursor, "block.break").stream().filter(e -> at(e, cell)).toList();
-        if (at.size() != 1) fail("block.break at " + cell.toShortString() + " reported " + at.size() + " times, expected once: " + at);
+        List<EventContracts.Event> at = since(game, cursor, "block.break").stream()
+                .filter(e -> at(e, cell))
+                .toList();
+        if (at.size() != 1)
+            fail("block.break at " + cell.toShortString() + " reported " + at.size() + " times, expected once: " + at);
         Object id = data(at.get(0));
-        if (!"minecraft:stone".equals(id)) fail("block.break at " + cell.toShortString() + " named " + id
-                + ", expected minecraft:stone, the block before it was removed");
+        if (!"minecraft:stone".equals(id))
+            fail("block.break at " + cell.toShortString() + " named " + id
+                    + ", expected minecraft:stone, the block before it was removed");
     }
 
     /**
@@ -104,14 +114,19 @@ class ExternalEventsTest {
         for (EventContracts.Event e : since(game, cursor, "block.place")) {
             if (e.pos().isEmpty() || !"minecraft:cobblestone".equals(data(e))) continue;
             BlockPosition p = e.pos().get();
-            if (p.x() != start.getX() || p.z() != start.getZ() || p.y() < start.getY() || p.y() > start.getY() + 4) continue;
+            if (p.x() != start.getX() || p.z() != start.getZ() || p.y() < start.getY() || p.y() > start.getY() + 4)
+                continue;
             perCell.merge(p, 1, Integer::sum);
         }
-        if (perCell.isEmpty()) fail("the tower placed " + placed + " cobblestone and no block.place was reported in its column");
+        if (perCell.isEmpty())
+            fail("the tower placed " + placed + " cobblestone and no block.place was reported in its column");
         for (Map.Entry<BlockPosition, Integer> c : perCell.entrySet())
-            if (c.getValue() != 1) fail("block.place at " + c.getKey() + " reported " + c.getValue() + " times, expected once: " + perCell);
-        if (perCell.size() != placed) fail("the tower placed " + placed + " cobblestone and " + perCell.size()
-                + " cells reported block.place: " + perCell);
+            if (c.getValue() != 1)
+                fail("block.place at " + c.getKey() + " reported " + c.getValue() + " times, expected once: "
+                        + perCell);
+        if (perCell.size() != placed)
+            fail("the tower placed " + placed + " cobblestone and " + perCell.size() + " cells reported block.place: "
+                    + perCell);
     }
 
     /** A pig killed by a command reports one {@code entity.death} naming the pig, where it died. */
@@ -132,14 +147,19 @@ class ExternalEventsTest {
             return pig.blockPosition();
         });
         long deaths = since(game, cursor, "entity.death").stream()
-                .filter(e -> at(e, where) && "minecraft:pig".equals(data(e))).count();
-        if (deaths != 1) fail("entity.death for the pig at " + where.toShortString() + " reported " + deaths + " times, expected once");
+                .filter(e -> at(e, where) && "minecraft:pig".equals(data(e)))
+                .count();
+        if (deaths != 1)
+            fail("entity.death for the pig at " + where.toShortString() + " reported " + deaths
+                    + " times, expected once");
     }
 
     // ---------------------------------------------------------------- helpers
 
     private static long cursor(Game game) {
-        return game.api(EventBlockingApi::of).cursor(new EventContracts.CursorParams()).cursor();
+        return game.api(EventBlockingApi::of)
+                .cursor(new EventContracts.CursorParams())
+                .cursor();
     }
 
     /** Every event of {@code type} after {@code cursor}, oldest first, across as many pages as there are. */
@@ -164,6 +184,7 @@ class ExternalEventsTest {
     }
 
     private static void command(MinecraftServer server, String command) {
-        server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), command);
+        server.getCommands()
+                .performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), command);
     }
 }

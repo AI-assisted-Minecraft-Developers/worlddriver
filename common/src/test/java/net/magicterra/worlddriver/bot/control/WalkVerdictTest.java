@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
-/** The navigator's give-ups end through the same branch as an arrival, so a walk's verdict has to come
- *  from the goal test. */
+/**
+ * The navigator's give-ups end through the same branch as an arrival, so a walk's verdict has to come from the goal
+ * test.
+ */
 class WalkVerdictTest {
 
     @Test
@@ -25,20 +27,26 @@ class WalkVerdictTest {
 
     @Test
     void anArrivalAtTheSnappedCellIsReached() {
-        assertEquals(Locomotor.Status.REACHED,
-                WalkVerdict.of(false, null, false, WalkVerdict.GOAL_SNAPPED, 0.0, true, false).status());
+        assertEquals(
+                Locomotor.Status.REACHED,
+                WalkVerdict.of(false, null, false, WalkVerdict.GOAL_SNAPPED, 0.0, true, false)
+                        .status());
     }
 
     @Test
     void anOpenGoalIsReachedWhenTheWalkStops() {
-        assertEquals(Locomotor.Status.REACHED,
-                WalkVerdict.of(false, null, false, "best-effort-consumed", -350.0, false, true).status());
+        assertEquals(
+                Locomotor.Status.REACHED,
+                WalkVerdict.of(false, null, false, "best-effort-consumed", -350.0, false, true)
+                        .status());
     }
 
     @Test
     void aGiveUpWithNoFootOmitsTheDistance() {
-        assertEquals("goal not reached (path-consumed)",
-                WalkVerdict.of(false, null, false, "path-consumed", -1, false, false).reason());
+        assertEquals(
+                "goal not reached (path-consumed)",
+                WalkVerdict.of(false, null, false, "path-consumed", -1, false, false)
+                        .reason());
     }
 
     @Test

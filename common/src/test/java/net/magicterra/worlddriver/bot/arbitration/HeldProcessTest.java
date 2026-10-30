@@ -9,18 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * The server-side drivers hold their process through {@link HeldProcess}, and every ending has to
- * switch off the slots that process switched on. {@code sleep} and {@code replay} report into the
- * goto slot under kinds no slot is named after, so a lookup by kind leaves {@code goto.active} true
- * after they are cancelled, superseded or finished.
+ * The server-side drivers hold their process through {@link HeldProcess}, and every ending has to switch off the slots
+ * that process switched on. {@code sleep} and {@code replay} report into the goto slot under kinds no slot is named
+ * after, so a lookup by kind leaves {@code goto.active} true after they are cancelled, superseded or finished.
  */
 class HeldProcessTest {
 
@@ -34,11 +32,30 @@ class HeldProcessTest {
             this.attach = attach;
         }
 
-        @Override public String kind() { return kind; }
-        @Override public String failure() { return null; }
-        @Override public void attach(BotState st) { attach.accept(st); }
-        @Override public boolean tick(Body a, WorldView w, BotState st) { return false; }
-        @Override public void onCancelled(String reason) { cancels.add(reason); }
+        @Override
+        public String kind() {
+            return kind;
+        }
+
+        @Override
+        public String failure() {
+            return null;
+        }
+
+        @Override
+        public void attach(BotState st) {
+            attach.accept(st);
+        }
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
+            return false;
+        }
+
+        @Override
+        public void onCancelled(String reason) {
+            cancels.add(reason);
+        }
     }
 
     private static SlotBorrower sleepLike() {
@@ -51,11 +68,30 @@ class HeldProcessTest {
     /** Ends when ticked, reporting {@code failure} as its verdict. */
     private static final class GiveUp implements BotProcess {
         final String failure;
-        GiveUp(String failure) { this.failure = failure; }
-        @Override public String kind() { return "goto"; }
-        @Override public String failure() { return failure; }
-        @Override public void attach(BotState st) { st.mc_goto.active = true; }
-        @Override public boolean tick(Body a, WorldView w, BotState st) { return true; }
+
+        GiveUp(String failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public String kind() {
+            return "goto";
+        }
+
+        @Override
+        public String failure() {
+            return failure;
+        }
+
+        @Override
+        public void attach(BotState st) {
+            st.mc_goto.active = true;
+        }
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
+            return true;
+        }
     }
 
     @Test
@@ -63,7 +99,9 @@ class HeldProcessTest {
         held.start(new GiveUp("goal not reached (churn-giveup, about 10.0 blocks short)"));
         held.finished();
         assertEquals("goto", held.lastEnd().get("kind"));
-        assertEquals("goal not reached (churn-giveup, about 10.0 blocks short)", held.lastEnd().get("error"));
+        assertEquals(
+                "goal not reached (churn-giveup, about 10.0 blocks short)",
+                held.lastEnd().get("error"));
     }
 
     @Test
@@ -118,7 +156,10 @@ class HeldProcessTest {
     @Test
     void aSlotAnotherOwnerHeldIsNotReleased() {
         st.retreat.active = true;
-        held.start(new SlotBorrower("runAway", s -> { s.runAway.active = true; s.retreat.active = true; }));
+        held.start(new SlotBorrower("runAway", s -> {
+            s.runAway.active = true;
+            s.retreat.active = true;
+        }));
         held.cancel("user-cancel");
         assertFalse(st.runAway.active);
         assertTrue(st.retreat.active, "one owner per slot");

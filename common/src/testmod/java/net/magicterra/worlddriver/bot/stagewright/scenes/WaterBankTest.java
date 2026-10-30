@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -7,7 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -28,20 +29,18 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 /**
- * The WaterBank family: water physics on the server body and the bank climb-outs — a buoyant sheer wall,
- * a toolless tall-bank dig, a low-bank foothold, an open-river sheer bank, a deep-water cross, a drift
- * entry, a water divider rounded through a side gap, and the place-futility ledger pair.
+ * The WaterBank family: water physics on the server body and the bank climb-outs — a buoyant sheer wall, a toolless
+ * tall-bank dig, a low-bank foothold, an open-river sheer bank, a deep-water cross, a drift entry, a water divider
+ * rounded through a side gap, and the place-futility ledger pair.
  *
  * <p>Each test builds its arena in a centred plot with the old arena's numbers ({@code cx, cz} the plot's middle,
- * {@code floorY} its middle height) and walks an {@code mc.bot.goto} one whole bot tick at a time (perceive,
- * reflexes, task, body) inside one server task, so no world tick falls between the bot's own.
+ * {@code floorY} its middle height) and walks an {@code mc.bot.goto} one whole bot tick at a time (perceive, reflexes,
+ * task, body) inside one server task, so no world tick falls between the bot's own.
  *
  * <p>Dropped: the two vine probes (optional diagnostics, one a standing known failure) and
- * {@code deepWaterClimboutNoBlock}, the plain case of the block-less bank dig that {@code deepWaterClimboutDrift}
- * and {@code tallBankDigClimb} both cover.
+ * {@code deepWaterClimboutNoBlock}, the plain case of the block-less bank dig that {@code deepWaterClimboutDrift} and
+ * {@code tallBankDigClimb} both cover.
  */
 @Scene("wd.scenes")
 class WaterBankTest {
@@ -53,22 +52,24 @@ class WaterBankTest {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
                 boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
                 for (int dy = 1; dy <= depth; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, floorY + dy, cz + dz),
                             wall ? Blocks.STONE.defaultBlockState() : Blocks.WATER.defaultBlockState());
                 for (int dy = depth + 1; dy <= depth + 4; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, floorY + dy, cz + dz),
                             wall ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
             }
     }
 
     /**
-     * Water-physics parity for the server-side player body: a player driven by manual body steps in a deep
-     * water column must reproduce vanilla fluid movement: (1) submerged no-input SINKS SLOWLY (not free-fall),
-     * (2) holding jump BOBS UP, (3) forward swims (slow).
+     * Water-physics parity for the server-side player body: a player driven by manual body steps in a deep water column
+     * must reproduce vanilla fluid movement: (1) submerged no-input SINKS SLOWLY (not free-fall), (2) holding jump BOBS
+     * UP, (3) forward swims (slow).
      */
     @Test
-    void waterPhysicsParity(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot,
-                            TestReporter reporter) {
+    void waterPhysicsParity(
+            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 14;
@@ -83,10 +84,16 @@ class WaterBankTest {
         double sinkDy = game.onServer(s -> {
             ServerPlayer fp = av.player();
             SimProbes.grantWaterEffects(fp);
-            for (int i = 0; i < 2; i++) { av.press(av.keys().move(0, 0)); av.step(); }   // warm up water state
+            for (int i = 0; i < 2; i++) {
+                av.press(av.keys().move(0, 0));
+                av.step();
+            } // warm up water state
             if (!fp.isInWater()) fail("waterPhysicsParity: avatar not in water after baseTick (water state not wired)");
             double y0 = fp.getY();
-            for (int i = 0; i < 20; i++) { av.press(av.keys().move(0, 0)); av.step(); }
+            for (int i = 0; i < 20; i++) {
+                av.press(av.keys().move(0, 0));
+                av.step();
+            }
             return fp.getY() - y0;
         });
 
@@ -95,9 +102,15 @@ class WaterBankTest {
         double riseDy = game.onServer(s -> {
             ServerPlayer fp2 = av2.player();
             SimProbes.grantWaterEffects(fp2);
-            for (int i = 0; i < 2; i++) { av2.press(av2.keys().move(0, 0)); av2.step(); }
+            for (int i = 0; i < 2; i++) {
+                av2.press(av2.keys().move(0, 0));
+                av2.step();
+            }
             double jy0 = fp2.getY();
-            for (int i = 0; i < 25; i++) { av2.press(av2.keys().jump(true).move(0, 0)); av2.step(); }
+            for (int i = 0; i < 25; i++) {
+                av2.press(av2.keys().jump(true).move(0, 0));
+                av2.step();
+            }
             return fp2.getY() - jy0;
         });
 
@@ -106,33 +119,40 @@ class WaterBankTest {
         double swimDz = game.onServer(s -> {
             ServerPlayer fp3 = av3.player();
             SimProbes.grantWaterEffects(fp3);
-            for (int i = 0; i < 2; i++) { av3.press(av3.keys().move(0, 0)); av3.step(); }
+            for (int i = 0; i < 2; i++) {
+                av3.press(av3.keys().move(0, 0));
+                av3.step();
+            }
             double z0 = fp3.getZ();
-            for (int i = 0; i < 20; i++) { fp3.setYRot(0f); av3.press(av3.keys().move(0, 1)); av3.step(); }
+            for (int i = 0; i < 20; i++) {
+                fp3.setYRot(0f);
+                av3.press(av3.keys().move(0, 1));
+                av3.step();
+            }
             return fp3.getZ() - z0;
         });
 
-        reporter.publishEntry("water", "sinkDy=" + sinkDy + " riseDy=" + riseDy + " swimDz=" + swimDz
-                + " surface=" + (floorY + depth));
+        reporter.publishEntry(
+                "water",
+                "sinkDy=" + sinkDy + " riseDy=" + riseDy + " swimDz=" + swimDz + " surface=" + (floorY + depth));
         if (sinkDy < -1.5 || sinkDy > 0.2)
             fail("waterPhysicsParity: submerged sink not vanilla-slow: dy=" + sinkDy
                     + " (expected slow water drift, free-fall would be much more negative)");
-        if (riseDy < 0.8)
-            fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
-        if (swimDz < 0.3 || swimDz > 5.0)
-            fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
+        if (riseDy < 0.8) fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
+        if (swimDz < 0.3 || swimDz > 5.0) fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
     }
 
-    /** The REAL navigator must mount a +5 SHEER wall rising from DEEP water (all buoyant — no dry ledge).
-     *  Break+place ON. Asserts the bot reaches the dry plateau behind the wall and the waterline bob stays
-     *  bounded (≤120 ticks). */
+    /**
+     * The REAL navigator must mount a +5 SHEER wall rising from DEEP water (all buoyant — no dry ledge). Break+place
+     * ON. Asserts the bot reaches the dry plateau behind the wall and the waterline bob stays bounded (≤120 ticks).
+     */
     @Test
     void buoyantWall(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 6;
-        int surface = floorY + depth;            // water surface
-        int plateauTop = surface + 5;            // wall top +5 above water (sheer, buoyant)
+        int surface = floorY + depth; // water surface
+        int plateauTop = surface + 5; // wall top +5 above water (sheer, buoyant)
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -161,12 +181,16 @@ class WaterBankTest {
             // Dry plateau behind the wall.
             for (int dx = -3; dx <= 3; dx++)
                 for (int dz = 3; dz <= 6; dz++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, plateauTop, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, plateauTop, cz + dz), Blocks.STONE.defaultBlockState());
         });
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 3);
 
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", true);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
         Map<String, String> rows = new LinkedHashMap<>();
@@ -186,7 +210,7 @@ class WaterBankTest {
 
             double maxY = fp.getY();
             boolean everDry = false;
-            int bobTicks = 0;                 // ticks stuck in-water below the wall top
+            int bobTicks = 0; // ticks stuck in-water below the wall top
             boolean walking = true;
             for (int t = 0; t < 800 && walking; t++) {
                 bot.tick();
@@ -199,23 +223,31 @@ class WaterBankTest {
             bot.cancel();
             BotDebugContracts.NavigatorReading nav = bot.navigator();
             boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
-                    + " everDry=" + everDry + " onPlateau=" + onPlateau + " bobTicks=" + bobTicks);
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
+                            + " everDry=" + everDry + " onPlateau=" + onPlateau + " bobTicks=" + bobTicks);
             // Recorded on every run, PASS included: a guard that cannot fire changes no colour, and this is
             // the only place a reader can see whether the pillar branch was even entered.
             long engages = nav.counter("waterPillarEngages") - engages0;
             long bails = nav.counter("waterPillarCeilingBails") - bails0;
             long topRise = nav.counter("waterPillarTopRise");
-            rows.put("pillar.engages", engages == 0
-                    ? "0 — this run never took the pillar takeover path, so it measured nothing about that path"
-                    : String.valueOf(engages));
-            rows.put("pillar.ceilingBails", engages == 0
-                    ? "unavailable/the takeover never happened; 0 does not mean the guard did not fire, it"
-                            + " means the guard was never consulted"
-                    : bails + " times past the ceiling at +" + 5 + " above the feet at engage");
-            rows.put("pillar.topRise", engages == 0
-                    ? "unavailable/same as above"
-                    : topRise + " blocks (" + (5 - topRise) + " blocks short of the ceiling)");
+            rows.put(
+                    "pillar.engages",
+                    engages == 0
+                            ? "0 — this run never took the pillar takeover path, so it measured nothing about that path"
+                            : String.valueOf(engages));
+            rows.put(
+                    "pillar.ceilingBails",
+                    engages == 0
+                            ? "unavailable/the takeover never happened; 0 does not mean the guard did not fire, it"
+                                    + " means the guard was never consulted"
+                            : bails + " times past the ceiling at +" + 5 + " above the feet at engage");
+            rows.put(
+                    "pillar.topRise",
+                    engages == 0
+                            ? "unavailable/same as above"
+                            : topRise + " blocks (" + (5 - topRise) + " blocks short of the ceiling)");
             if (!onPlateau)
                 fails.add("buoyantWall: BUOYANT +5 wall: Navigator failed to mount from water: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
@@ -229,16 +261,19 @@ class WaterBankTest {
         report(reporter, rows, fails);
     }
 
-    /** TOOLLESS tall-bank climb-out (live 2026-06-20 deep-water stone-bank). +3 SOLID hill the bot digs a
-     *  diagonal staircase up THROUGH; the bot holds only SAND (FallingBlock → no pillar). {@code faithfulBreak}
-     *  ON models the ~750-tick/block slow stone-mine. Fallback gate: reach the dry plateau within the tick budget. */
+    /**
+     * TOOLLESS tall-bank climb-out (live 2026-06-20 deep-water stone-bank). +3 SOLID hill the bot digs a diagonal
+     * staircase up THROUGH; the bot holds only SAND (FallingBlock → no pillar). {@code faithfulBreak} ON models the
+     * ~750-tick/block slow stone-mine. Fallback gate: reach the dry plateau within the tick budget.
+     */
     @Test
-    void tallBankDigClimb(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot, TestReporter reporter) {
+    void tallBankDigClimb(
+            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 6;
-        int surface = floorY + depth;            // water surface
-        int plateauTop = surface + 3;            // solid hill top
+        int surface = floorY + depth; // water surface
+        int plateauTop = surface + 3; // solid hill top
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -266,17 +301,22 @@ class WaterBankTest {
             for (int dx = -3; dx <= 3; dx++)
                 for (int dz = 2; dz <= 7; dz++)
                     for (int y = floorY + 1; y <= plateauTop; y++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                        level.setBlockAndUpdate(
+                                new BlockPos(cx + dx, y, cz + dz),
                                 (y >= plateauTop ? Blocks.DIRT : Blocks.STONE).defaultBlockState());
         });
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 5);
 
-        Settings.pin(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", true)
+        Settings.pin(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", true)
                 // Bound the A* budget (live-realistic): with faithfulBreak ON the plateau goal stays UNREACHABLE
                 // for hundreds of ticks, so a small cap gives up fast on the not-yet-reachable goal, as the live
                 // client does.
-                .set("pathfinder.sliceMs", 20).set("pathfinder.maxMs", 250)
-                .set("faithfulBreak", true);   // model the live ~750-tick/block slow stone-mine
+                .set("pathfinder.sliceMs", 20)
+                .set("pathfinder.maxMs", 250)
+                .set("faithfulBreak", true); // model the live ~750-tick/block slow stone-mine
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
         Map<String, String> rows = new LinkedHashMap<>();
@@ -285,7 +325,7 @@ class WaterBankTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
-            fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false → must dig
+            fp.getInventory().add(new ItemStack(Items.SAND, 64)); // FallingBlock → holdPlaceable() false → must dig
             fp.getInventory().selected = 0;
 
             bot.goTo(Targets.block(goal));
@@ -300,26 +340,31 @@ class WaterBankTest {
             String st = NavWalk.step(bot);
             bot.cancel();
             boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
-            rows.put("walk", "step=" + st + " ticks=" + t + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
-                    + ") maxY=" + maxY + " onPlateau=" + onPlateau);
+            rows.put(
+                    "walk",
+                    "step=" + st + " ticks=" + t + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY="
+                            + maxY + " onPlateau=" + onPlateau);
             if (!onPlateau)
-                fails.add("tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Navigator failed to dig+mount from water: pos=("
-                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " ticks=" + t + " step=" + st);
+                fails.add(
+                        "tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Navigator failed to dig+mount from water: pos=("
+                                + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " ticks=" + t
+                                + " step=" + st);
         });
         report(reporter, rows, fails);
     }
 
-    /** Live round69 repro — a floating bot wedged at a LOW (+2) bank with NO pickaxe. Break OFF, place ON:
-     *  the only way up is to place ONE throwaway foothold block into the top water cell. Also guards
-     *  {@code isUsableBuildBlock} in a body (falling blocks rejected, mud accepted). Asserts the bot gets OUT
-     *  onto the bank. */
+    /**
+     * Live round69 repro — a floating bot wedged at a LOW (+2) bank with NO pickaxe. Break OFF, place ON: the only way
+     * up is to place ONE throwaway foothold block into the top water cell. Also guards {@code isUsableBuildBlock} in a
+     * body (falling blocks rejected, mud accepted). Asserts the bot gets OUT onto the bank.
+     */
     @Test
     void waterLowBank(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 6;
-        final int surface = floorY + depth;        // water surface (floating foot ~surface)
-        final int bankTop = surface + 1;           // bank rises ONE block above the water top → a +2 climb-out
+        final int surface = floorY + depth; // water surface (floating foot ~surface)
+        final int bankTop = surface + 1; // bank rises ONE block above the water top → a +2 climb-out
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -350,15 +395,16 @@ class WaterBankTest {
             // Dry land behind the bank (the bank top is the walkable surface; stand bankTop+1).
             for (int dx = -3; dx <= 3; dx++)
                 for (int dz = 3; dz <= 6; dz++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
         });
-        BlockPos goal = new BlockPos(cx, bankTop + 1, cz + 4);   // on the dry land behind the +2 bank
+        BlockPos goal = new BlockPos(cx, bankTop + 1, cz + 4); // on the dry land behind the +2 bank
 
         // Deterministic: each repath completes in one go. The predicate-level guard for the root-cause fix
         // (falling blocks rejected, mud accepted) is BuildBlocksTest, a unit test over the same isUsableBuildBlock.
         Settings.pinUntimed(game)
-                .set("allowBreak", false)          // live: bot had NO pickaxe → cannot carve the bank
-                .set("allowPlace", true)           // foothold-place is the only climb-out
+                .set("allowBreak", false) // live: bot had NO pickaxe → cannot carve the bank
+                .set("allowPlace", true) // foothold-place is the only climb-out
                 .set("navigatorDebug", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
@@ -372,11 +418,11 @@ class WaterBankTest {
             fp.getInventory().add(new ItemStack(Items.SAND, 9));
             fp.getInventory().add(new ItemStack(Items.GRAVEL, 37));
             fp.getInventory().add(new ItemStack(Items.MUD, 17));
-            fp.getInventory().selected = 0;     // holding sand (non-usable) like live
+            fp.getInventory().selected = 0; // holding sand (non-usable) like live
 
             bot.goTo(Targets.block(goal));
             double maxY = fp.getY();
-            int bobTicks = 0;                  // ticks floating below the bank top
+            int bobTicks = 0; // ticks floating below the bank top
             boolean walking = true;
             for (int tt = 0; tt < 800 && walking; tt++) {
                 bot.tick();
@@ -387,8 +433,10 @@ class WaterBankTest {
             String st = NavWalk.step(bot);
             bot.cancel();
             boolean onBank = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= bankTop + 1 - 0.4;
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
-                    + " onBank=" + onBank + " bobTicks=" + bobTicks);
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
+                            + " onBank=" + onBank + " bobTicks=" + bobTicks);
             if (!onBank)
                 fails.add("waterLowBank: LOW +2 bank: floating Navigator failed to climb out (foothold-place "
                         + "never lifted it): pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
@@ -398,33 +446,32 @@ class WaterBankTest {
     }
 
     /**
-     * Live-faithful OPEN-WATER +5 sheer-bank wedge (2026-06-09). The bot floats in an open river whose SOUTH
-     * bank is a uniform +5 SHEER wall; the only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No
-     * flanking walls pin the bot onto a pillar — the buoyant drift is free, as on the real river. Break+place
-     * ON. Asserts the bot gets ashore.
+     * Live-faithful OPEN-WATER +5 sheer-bank wedge (2026-06-09). The bot floats in an open river whose SOUTH bank is a
+     * uniform +5 SHEER wall; the only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No flanking walls pin
+     * the bot onto a pillar — the buoyant drift is free, as on the real river. Break+place ON. Asserts the bot gets
+     * ashore.
      *
-     * <p><b>The executor gap it guards.</b> A* ALWAYS returns the correct path ({@code goalReached=true},
-     * endpoint the low bank +5 EAST across open water). But at the wall the committed waypoint sat +5 east /
-     * +2 south / only +1 UP, and the old {@code cwp.y>foot.y} climb intent fired — so the block-less bank dig
-     * trenched the SHEER wall directly beside the bot instead of swimming the last few cells to the flat low
-     * walk-out. Root: a laterally-DISTANT higher waypoint misread as a climb-HERE intent.
+     * <p><b>The executor gap it guards.</b> A* ALWAYS returns the correct path ({@code goalReached=true}, endpoint the
+     * low bank +5 EAST across open water). But at the wall the committed waypoint sat +5 east / +2 south / only +1 UP,
+     * and the old {@code cwp.y>foot.y} climb intent fired — so the block-less bank dig trenched the SHEER wall directly
+     * beside the bot instead of swimming the last few cells to the flat low walk-out. Root: a laterally-DISTANT higher
+     * waypoint misread as a climb-HERE intent.
      *
-     * <p><b>Fix = {@code navigatorWaterClimbLateralGate}</b> (default ON, deliberately not in the test
-     * baseline — a correctness invariant, not a tunable): the floating climb-out (pillar + block-less dig)
-     * engages only when the climb waypoint is horizontally BESIDE the bot ({@code WATER_CLIMB_LATERAL_MAX}=2,
-     * Chebyshev); a farther higher waypoint is the routed corridor exit, reached by the swim-drive (climb
-     * re-arms once adjacent). K≥6 A/B, both loaders: gate OFF 6/6 wedge (wallPressTicks 51, ashore=false),
-     * gate ON 6/6 ashore.
+     * <p><b>Fix = {@code navigatorWaterClimbLateralGate}</b> (default ON, deliberately not in the test baseline — a
+     * correctness invariant, not a tunable): the floating climb-out (pillar + block-less dig) engages only when the
+     * climb waypoint is horizontally BESIDE the bot ({@code WATER_CLIMB_LATERAL_MAX}=2, Chebyshev); a farther higher
+     * waypoint is the routed corridor exit, reached by the swim-drive (climb re-arms once adjacent). K≥6 A/B, both
+     * loaders: gate OFF 6/6 wedge (wallPressTicks 51, ashore=false), gate ON 6/6 ashore.
      */
     @Test
     void riverSheerBank(Game game, @Plot.Centered @Plot.Size(x = 64, y = 40, z = 48) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 6;
-        final int surface = floorY + depth;            // water surface
-        final int wallTop = surface + 5;               // sheer south wall top
-        final int riverLen = 28;                       // east run of the channel
-        final int lowBankX = riverLen - 4;             // dx where the south bank turns low
+        final int surface = floorY + depth; // water surface
+        final int wallTop = surface + 5; // sheer south wall top
+        final int riverLen = 28; // east run of the channel
+        final int lowBankX = riverLen - 4; // dx where the south bank turns low
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -439,7 +486,8 @@ class WaterBankTest {
             for (int dz = -4; dz <= 1; dz++)
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    level.setBlockAndUpdate(new BlockPos(cx + riverLen + 1, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + riverLen + 1, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
             // River water: z cz-3..cz+1, x cx-2..cx+riverLen, depth blocks deep.
             for (int dx = -2; dx <= riverLen; dx++)
@@ -464,7 +512,10 @@ class WaterBankTest {
         // Goal diagonally SE on the low land (live bearing ≈ 40°SE).
         BlockPos goal = new BlockPos(cx + riverLen - 2, surface + 1, cz + 16);
 
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", true);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", true);
 
         // Adjacent to the bank (cz+2), the way waterLowBank spawns. Three blocks out the takeover's entry gate
         // never fires and the arena measures nothing.
@@ -480,21 +531,21 @@ class WaterBankTest {
 
             bot.goTo(Targets.block(goal));
             double maxX = fp.getX();
-            int wallPressTicks = 0;     // in-water ticks spent pressed against the SHEER face
+            int wallPressTicks = 0; // in-water ticks spent pressed against the SHEER face
             boolean walking = true;
             for (int t = 0; t < 1500 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
                 maxX = Math.max(maxX, fp.getX());
-                if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1)
-                    wallPressTicks++;
+                if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1) wallPressTicks++;
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            boolean ashore = !fp.isInWater() && fp.onGround()
-                    && fp.getZ() > cz + 1.5 && fp.getY() >= surface + 1 - 0.4;
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
-                    + " wallPressTicks=" + wallPressTicks + " ashore=" + ashore);
+            boolean ashore = !fp.isInWater() && fp.onGround() && fp.getZ() > cz + 1.5 && fp.getY() >= surface + 1 - 0.4;
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
+                            + " wallPressTicks=" + wallPressTicks + " ashore=" + ashore);
             if (!ashore)
                 fails.add("riverSheerBank: open-river sheer bank: Navigator never climbed out: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
@@ -503,17 +554,19 @@ class WaterBankTest {
         report(reporter, rows, fails);
     }
 
-    /** Deep-water (8-block) open crossing — a floating bot must swim a long straight channel at the SURFACE
-     *  and climb out a low far bank, never diving to the riverbed. Break+place ON. The predicate guard for the
-     *  fall-to-surface fix (a Fall / FallIntoWater onto a submerged bed cell is invalid) is SubmergedLandingTest,
-     *  a unit test over the same channel as a grid; this is the integration half. */
+    /**
+     * Deep-water (8-block) open crossing — a floating bot must swim a long straight channel at the SURFACE and climb
+     * out a low far bank, never diving to the riverbed. Break+place ON. The predicate guard for the fall-to-surface fix
+     * (a Fall / FallIntoWater onto a submerged bed cell is invalid) is SubmergedLandingTest, a unit test over the same
+     * channel as a grid; this is the integration half.
+     */
     @Test
     void deepWaterCross(Game game, @Plot.Centered @Plot.Size(x = 48, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 8;
-        final int surface = floorY + depth;        // water surface (floating foot ~surface)
-        final int span = 16;                       // E-W deep-water crossing length
+        final int surface = floorY + depth; // water surface (floating foot ~surface)
+        final int span = 16; // E-W deep-water crossing length
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -540,12 +593,16 @@ class WaterBankTest {
                 for (int dz = -2; dz <= 2; dz++) {
                     for (int y = floorY + 1; y < surface; y++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, surface, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, surface, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
                 }
         });
-        BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz);   // dry land beyond the far bank
+        BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz); // dry land beyond the far bank
 
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", true);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
         Map<String, String> rows = new LinkedHashMap<>();
@@ -567,10 +624,12 @@ class WaterBankTest {
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            boolean ashore = !fp.isInWater() && fp.onGround()
-                    && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4;
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
-                    + " ashore=" + ashore);
+            boolean ashore =
+                    !fp.isInWater() && fp.onGround() && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4;
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
+                            + " ashore=" + ashore);
             if (!ashore)
                 fails.add("deepWaterCross: floating Navigator failed to cross the deep channel"
                         + " and climb out: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
@@ -579,19 +638,21 @@ class WaterBankTest {
         report(reporter, rows, fails);
     }
 
-    /** DRIFT-ENTRY climb-out (live z1973). The bot arrives at a WIDE +2 bank moving DIAGONALLY (lateral
-     *  momentum) with the goal offset along the face, plus an initial lateral shove. The drift-stable latched
-     *  bank-dig makes it a clean two-step climb (~74t). Bound at 120 catches a pogo regression. */
+    /**
+     * DRIFT-ENTRY climb-out (live z1973). The bot arrives at a WIDE +2 bank moving DIAGONALLY (lateral momentum) with
+     * the goal offset along the face, plus an initial lateral shove. The drift-stable latched bank-dig makes it a clean
+     * two-step climb (~74t). Bound at 120 catches a pogo regression.
+     */
     @Test
-    void deepWaterClimboutDrift(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot,
-                                TestReporter reporter) {
+    void deepWaterClimboutDrift(
+            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 20) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 8;
-        final int surface = floorY + depth;        // water surface
-        final int span = 3;                        // deep-water run up to the bank
-        final int bankTop = surface + 1;           // +2 bank (one above the surface)
-        final int zLo = -2, zHi = 8;               // WIDE in Z so the bot can drift along the face
+        final int surface = floorY + depth; // water surface
+        final int span = 3; // deep-water run up to the bank
+        final int bankTop = surface + 1; // +2 bank (one above the surface)
+        final int zLo = -2, zHi = 8; // WIDE in Z so the bot can drift along the face
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -619,10 +680,13 @@ class WaterBankTest {
                     for (int y = floorY + 1; y <= bankTop; y++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
         });
-        BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz + 6);   // OFFSET along the face → diagonal
+        BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz + 6); // OFFSET along the face → diagonal
 
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true)
-                .set("allowSwimEscapeBreak", true).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("allowSwimEscapeBreak", true)
+                .set("navigatorDebug", false);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
         Map<String, String> rows = new LinkedHashMap<>();
@@ -631,9 +695,9 @@ class WaterBankTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
-            fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false
+            fp.getInventory().add(new ItemStack(Items.SAND, 64)); // FallingBlock → holdPlaceable() false
             fp.getInventory().selected = 0;
-            fp.setDeltaMovement(0, 0, 0.45);                        // lateral shove → drift along the face
+            fp.setDeltaMovement(0, 0, 0.45); // lateral shove → drift along the face
 
             bot.goTo(Targets.block(goal));
             int ashoreTick = -1;
@@ -641,7 +705,10 @@ class WaterBankTest {
             for (int t = 0; t < 400 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                if (ashoreTick < 0 && !fp.isInWater() && fp.onGround() && fp.getY() >= bankTop + 1 - 0.4
+                if (ashoreTick < 0
+                        && !fp.isInWater()
+                        && fp.onGround()
+                        && fp.getY() >= bankTop + 1 - 0.4
                         && fp.getX() >= cx + span - 0.5) {
                     ashoreTick = t;
                     break;
@@ -649,8 +716,10 @@ class WaterBankTest {
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") ashoreTick="
-                    + ashoreTick + " (clean baseline ~22)");
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") ashoreTick="
+                            + ashoreTick + " (clean baseline ~22)");
             if (ashoreTick < 0 || ashoreTick > 120)
                 fails.add("deepWaterClimboutDrift: drifting bot failed a smooth +2 bank climb"
                         + " (ashoreTick=" + ashoreTick + ", want 0..120): pos=(" + fp.getX() + "," + fp.getY()
@@ -659,17 +728,19 @@ class WaterBankTest {
         report(reporter, rows, fails);
     }
 
-    /** Water-divider detour smoke — a buoyant bot shoved straight at a solid DIVIDER between it and the goal
-     *  must round it through a side GAP. Break/place OFF → the ONLY way through is to round it. Regression
-     *  smoke test for the in-water heading/aim path the anti-spin freeze + far-aim override sit on. */
+    /**
+     * Water-divider detour smoke — a buoyant bot shoved straight at a solid DIVIDER between it and the goal must round
+     * it through a side GAP. Break/place OFF → the ONLY way through is to round it. Regression smoke test for the
+     * in-water heading/aim path the anti-spin freeze + far-aim override sit on.
+     */
     @Test
-    void waterFarAimBankCorner(Game game, @Plot.Centered @Plot.Size(x = 32, y = 40, z = 16) Plot plot,
-                               TestReporter reporter) {
+    void waterFarAimBankCorner(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), depth = 5;
-        final int surface = floorY + depth;            // water surface
-        final int top = surface + 3;                   // wall crest (unclimbable for a buoyant bot)
+        final int surface = floorY + depth; // water surface
+        final int top = surface + 3; // wall crest (unclimbable for a buoyant bot)
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Floor.
@@ -681,7 +752,8 @@ class WaterBankTest {
                 for (int z = cz - 5; z <= cz + 5; z++) {
                     boolean ring = x == cx - 2 || x == cx + 12 || z == cz - 5 || z == cz + 5;
                     for (int y = floorY + 1; y <= top; y++) {
-                        BlockState bs = ring ? Blocks.STONE.defaultBlockState()
+                        BlockState bs = ring
+                                ? Blocks.STONE.defaultBlockState()
                                 : (y <= surface ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState());
                         level.setBlockAndUpdate(new BlockPos(x, y, z), bs);
                     }
@@ -691,10 +763,14 @@ class WaterBankTest {
                 for (int y = floorY + 1; y <= top; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + 6, y, z), Blocks.STONE.defaultBlockState());
         });
-        GotoContracts.Target goal = Targets.column(cx + 11, cz, 0);   // east of the wall, SAME Z as the bot
+        GotoContracts.Target goal = Targets.column(cx + 11, cz, 0); // east of the wall, SAME Z as the bot
 
-        Settings.pinUntimed(game).set("allowBreak", false).set("allowPlace", false)
-                .set("allowSwimEscapeBreak", false).set("allowSwimEscapePlace", false).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", false)
+                .set("allowPlace", false)
+                .set("allowSwimEscapeBreak", false)
+                .set("allowSwimEscapePlace", false)
+                .set("navigatorDebug", false);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface, cz + 0.5);
         Map<String, String> rows = new LinkedHashMap<>();
@@ -703,7 +779,7 @@ class WaterBankTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
-            fp.setDeltaMovement(0.45, 0, 0);           // shove +X straight into the divider
+            fp.setDeltaMovement(0.45, 0, 0); // shove +X straight into the divider
 
             bot.goTo(goal);
             int reachedTick = -1;
@@ -711,13 +787,18 @@ class WaterBankTest {
             for (int t = 0; t < 500 && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
+                if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) {
+                    reachedTick = t;
+                    break;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
             double dGoal = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
-            rows.put("walk", "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") reachedTick="
-                    + reachedTick + " dGoal=" + String.format(Locale.ROOT, "%.1f", dGoal));
+            rows.put(
+                    "walk",
+                    "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") reachedTick="
+                            + reachedTick + " dGoal=" + String.format(Locale.ROOT, "%.1f", dGoal));
             // Round the wall via the gap → reach the east goal column.
             if (reachedTick < 0 && walking)
                 fails.add("waterFarAimBankCorner: bot failed to round the divider to the goal"
@@ -748,11 +829,10 @@ class WaterBankTest {
     // ─────────────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * The +2 low bank the two ledger tests both use — deliberately the same shape as
-     * {@link #waterLowBank}, because that is the geometry the climb-out takeover is KNOWN to
-     * engage on. An earlier version built its own basin and parked the bot three blocks off the bank;
-     * the takeover never engaged, both reported {@code engages=0}, and the vacuity guard is what caught
-     * it. Returns the goal on the dry land behind the bank.
+     * The +2 low bank the two ledger tests both use — deliberately the same shape as {@link #waterLowBank}, because
+     * that is the geometry the climb-out takeover is KNOWN to engage on. An earlier version built its own basin and
+     * parked the bot three blocks off the bank; the takeover never engaged, both reported {@code engages=0}, and the
+     * vacuity guard is what caught it. Returns the goal on the dry land behind the bank.
      */
     private static BlockPos buildLedgerBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
         final int bankTop = surface + 1;
@@ -778,7 +858,8 @@ class WaterBankTest {
         }
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = 3; dz <= 6; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                level.setBlockAndUpdate(
+                        new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
         return new BlockPos(cx, bankTop + 1, cz + 4);
     }
 
@@ -801,8 +882,8 @@ class WaterBankTest {
         Settings.pinUntimed(game)
                 .set("allowPlace", true)
                 .set("allowBreak", true)
-                .set("allowSwimEscapeBreak", true)        // digFallbackHere, else placeFutile hands off to nothing
-                .set("allowSwimEscapePlace", true)        // on the takeover's ENTRY gate — pinned explicitly, not inherited
+                .set("allowSwimEscapeBreak", true) // digFallbackHere, else placeFutile hands off to nothing
+                .set("allowSwimEscapePlace", true) // on the takeover's ENTRY gate — pinned explicitly, not inherited
                 // FALSE, explicitly, and not because that is the default. This flag is NOT the gate on the
                 // ledger path; turning it ON would ADD a second placement route — the crest-place, reachable
                 // only once floodedShaft() reports false — which fills cells WITHOUT touching
@@ -819,17 +900,16 @@ class WaterBankTest {
     }
 
     /**
-     * POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to the dig.
-     * Pins the player inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says "go", vanilla
-     * says "no" — and asserts {@code pillarNoPlaceTicks} climbs past {@code NavigatorConstants.PILLAR_FUTILE_TICKS}
-     * anyway.
+     * POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to the dig. Pins the player
+     * inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says "go", vanilla says "no" — and asserts
+     * {@code pillarNoPlaceTicks} climbs past {@code NavigatorConstants.PILLAR_FUTILE_TICKS} anyway.
      *
-     * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum
-     * it ever reached was 1.
+     * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum it ever reached
+     * was 1.
      */
     @Test
-    void pillarLedgerCountsRefusedPlaces(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot,
-                                         TestReporter reporter) {
+    void pillarLedgerCountsRefusedPlaces(
+            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), surface = floorY + 8;
@@ -846,7 +926,7 @@ class WaterBankTest {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
-            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // haveBlock, and NOT a FallingBlock
+            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64)); // haveBlock, and NOT a FallingBlock
             fp.getInventory().selected = 0;
 
             BotDebugContracts.NavigatorReading nav0 = bot.navigator();
@@ -902,11 +982,16 @@ class WaterBankTest {
             rows.put("gate.placeClicksFired", String.valueOf(clicks));
             rows.put("ledger.peakCount", String.valueOf(maxNoPlace));
             rows.put("ledger.everJudgedFutile", String.valueOf(sawFutile));
-            rows.put("pillar.pinnedCell", pinnedAt == null ? "none (the water column was filled)"
-                    : pinnedAt.toShortString() + " bot y=" + String.format(Locale.ROOT, "%.3f", fp.getY()));
+            rows.put(
+                    "pillar.pinnedCell",
+                    pinnedAt == null
+                            ? "none (the water column was filled)"
+                            : pinnedAt.toShortString() + " bot y=" + String.format(Locale.ROOT, "%.3f", fp.getY()));
             rows.put("pillar.pinnedCellSolid", String.valueOf(pinnedSolid));
-            rows.put("band.feetAboveFillCell", String.format(Locale.ROOT, "[%.3f, %.3f]", bandLow, bandHigh)
-                    + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
+            rows.put(
+                    "band.feetAboveFillCell",
+                    String.format(Locale.ROOT, "[%.3f, %.3f]", bandLow, bandHigh)
+                            + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
             rows.put("walk.end", st + " (used " + t + "/400 ticks)");
             rows.put("walk.probe", probe);
 
@@ -926,7 +1011,8 @@ class WaterBankTest {
             // fires — a PASS that says nothing about the refusal band.
             if (bandHigh < 0.9 || bandHigh >= 1.0 || bandLow < 0.9)
                 fails.add("pillarLedger: the bot's height relative to the fill cell was ["
-                        + String.format(Locale.ROOT, "%.3f", bandLow) + ", " + String.format(Locale.ROOT, "%.3f", bandHigh)
+                        + String.format(Locale.ROOT, "%.3f", bandLow) + ", "
+                        + String.format(Locale.ROOT, "%.3f", bandHigh)
                         + "], not within the [0.9, 1.0) band for the whole run — below 0.9 the old crest gate is never"
                         + " entered, and at 1.0 vanilla accepts the placement. In either case this run does not test"
                         + " whether a refused click counts as progress.");
@@ -950,23 +1036,23 @@ class WaterBankTest {
     }
 
     /**
-     * REVERSE: a place that really lands must NOT be counted as futile. Pins the player at
-     * {@code cell.y + 0.95} holding MUD — inside the crest band and above mud's 0.875 collision top,
-     * the one combination vanilla accepts while the player is still in the cell — and asserts the cell
-     * actually filled BEFORE asserting the ledger stayed under the futility line.
+     * REVERSE: a place that really lands must NOT be counted as futile. Pins the player at {@code cell.y + 0.95}
+     * holding MUD — inside the crest band and above mud's 0.875 collision top, the one combination vanilla accepts
+     * while the player is still in the cell — and asserts the cell actually filled BEFORE asserting the ledger stayed
+     * under the futility line.
      *
-     * <p>It used to pin at {@code cell.y + 1.05} holding a full cube. Above 1.0 the foot cell moves up and
-     * the fill cell moves with it, so the gate asked for {@code cell.y + 2.0} and the click could never
-     * fire: the test was unsatisfiable by construction and its every red was about its own staging.
+     * <p>It used to pin at {@code cell.y + 1.05} holding a full cube. Above 1.0 the foot cell moves up and the fill
+     * cell moves with it, so the gate asked for {@code cell.y + 2.0} and the click could never fire: the test was
+     * unsatisfiable by construction and its every red was about its own staging.
      *
-     * <p>The order matters. "nothing was placed and nothing gave up" and "things were placed so
-     * nothing gave up" print the same verdict, so the fill has to be proven first or this test is
-     * 0==0 — and it would then pass just as happily against a ledger that increments unconditionally,
-     * which is the exact regression the positive test's fix could introduce.
+     * <p>The order matters. "nothing was placed and nothing gave up" and "things were placed so nothing gave up" print
+     * the same verdict, so the fill has to be proven first or this test is 0==0 — and it would then pass just as
+     * happily against a ledger that increments unconditionally, which is the exact regression the positive test's fix
+     * could introduce.
      */
     @Test
-    void pillarLedgerClearsOnARealPlace(Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot,
-                                        TestReporter reporter) {
+    void pillarLedgerClearsOnARealPlace(
+            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX(), cz = o.getZ();
         final int floorY = o.getY(), surface = floorY + 8;

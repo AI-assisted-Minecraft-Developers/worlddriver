@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.List;
-
 import net.magicterra.worlddriver.api.game.Mover;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -11,8 +10,8 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 
 /**
- * A goto handed to the entity's own {@link Mover}: each target cell in turn, the mover moving and saying
- * when it got there. The process plans nothing; it reports in the goto slot as a walk does.
+ * A goto handed to the entity's own {@link Mover}: each target cell in turn, the mover moving and saying when it got
+ * there. The process plans nothing; it reports in the goto slot as a walk does.
  */
 final class MoverProcess implements BotProcess {
     private final Mover mover;
@@ -32,19 +31,26 @@ final class MoverProcess implements BotProcess {
         return true;
     }
 
-    @Override public String kind() { return "goto"; }
+    @Override
+    public String kind() {
+        return "goto";
+    }
 
-    @Override public void attach(BotState st) {
+    @Override
+    public void attach(BotState st) {
         Goal last = targets.get(targets.size() - 1);
         st.mc_goto.beginRun(last.toString(), last.targetPos());
     }
 
-    @Override public boolean tick(Body body, WorldView world, BotState st) {
+    @Override
+    public boolean tick(Body body, WorldView world, BotState st) {
         Goal goal = targets.get(next);
         double within = goal instanceof Goal.Near n ? n.radius() : 0.5;
         BlockPos target = goal.targetPos();
         switch (mover.drive(target, within)) {
-            case MOVING -> { return false; }
+            case MOVING -> {
+                return false;
+            }
             case ARRIVED -> {
                 if (++next < targets.size()) return false;
                 st.mc_goto.reset();
@@ -59,7 +65,13 @@ final class MoverProcess implements BotProcess {
         return false;
     }
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 
-    @Override public void onCancelled(String reason) { mover.stop(); }
+    @Override
+    public void onCancelled(String reason) {
+        mover.stop();
+    }
 }

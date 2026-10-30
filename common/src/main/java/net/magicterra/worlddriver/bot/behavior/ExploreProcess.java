@@ -1,27 +1,30 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorSettings;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.LivingEntity;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 import java.util.HashSet;
 import java.util.Set;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
+import net.magicterra.worlddriver.bot.control.Locomotor;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 
 public final class ExploreProcess implements BotProcess, Navigating {
     private final int centerChunkX, centerChunkZ;
     private final int maxChunks;
     private final Set<Long> visited = new HashSet<>();
     private final Navigator navigator = new Navigator(NavigatorSettings.named("explore"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private int visitedCount;
     private BlockPos currentChunkCenter;
     private int currentChunkX, currentChunkZ;
@@ -32,21 +35,31 @@ public final class ExploreProcess implements BotProcess, Navigating {
         this.maxChunks = maxChunks;
     }
 
-    public String kind() { return "explore"; }
+    public String kind() {
+        return "explore";
+    }
 
     /** Chunk centres reached so far. */
-    public int visited() { return visitedCount; }
+    public int visited() {
+        return visitedCount;
+    }
+
     public void attach(BotState st) {
         st.explore.beginRun("explore around chunk (" + centerChunkX + "," + centerChunkZ + ") max=" + maxChunks, null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
         // other exit in this file already stamps; this one was the hole.
-        if (p == null) { failure = st.explore.lastError = "player vanished"; st.explore.reset(); return true; }
+        if (p == null) {
+            failure = st.explore.lastError = "player vanished";
+            st.explore.reset();
+            return true;
+        }
         if (visitedCount >= maxChunks) {
             st.explore.lastError = "done (visited=" + visitedCount + ", missed=" + missed + ")";
             st.explore.reset();
@@ -56,14 +69,16 @@ public final class ExploreProcess implements BotProcess, Navigating {
         if (currentChunkCenter == null) {
             Long next = pickNextChunk();
             if (next == null) {
-                st.explore.lastError = "no more chunks to explore (visited=" + visitedCount + ", missed=" + missed + ")";
+                st.explore.lastError =
+                        "no more chunks to explore (visited=" + visitedCount + ", missed=" + missed + ")";
                 st.explore.reset();
                 failure = incomplete();
                 return true;
             }
             currentChunkX = (int) (next >> 32);
             currentChunkZ = (int) (long) next;
-            currentChunkCenter = new BlockPos(currentChunkX * 16 + 8, (int) Math.floor(p.getY()), currentChunkZ * 16 + 8);
+            currentChunkCenter =
+                    new BlockPos(currentChunkX * 16 + 8, (int) Math.floor(p.getY()), currentChunkZ * 16 + 8);
             navigator.start(new Goal.XZ(currentChunkCenter.getX(), currentChunkCenter.getZ()));
             st.explore.target = currentChunkCenter;
         }
@@ -82,15 +97,20 @@ public final class ExploreProcess implements BotProcess, Navigating {
     /** Chunks tried whose walk fell short of the centre column; {@link #visitedCount} counts every try. */
     private int missed;
 
-    /** Running out of chunks ends an exploration like the budget does; either is short only by the
-     *  chunks it tried and did not reach. */
+    /**
+     * Running out of chunks ends an exploration like the budget does; either is short only by the chunks it tried and
+     * did not reach.
+     */
     private String incomplete() {
         return missed == 0 ? null : "incomplete: " + missed + " of " + visitedCount + " chunks not reached";
     }
 
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     /** Spiral search outward from (centerChunkX, centerChunkZ); skip already-visited. */
     private Long pickNextChunk() {

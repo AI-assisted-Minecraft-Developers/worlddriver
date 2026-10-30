@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -72,8 +71,8 @@ class ReflexTest {
      * ticked itself (it would hit). {@code isBlocking} is vanilla's: five ticks into the use of a shield.
      */
     @Test
-    void autoShieldRaisesTheShieldAgainstAnIncomingArrow(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                                                         TestReporter reporter) {
+    void autoShieldRaisesTheShieldAgainstAnIncomingArrow(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
         game.runOnServer(s -> bot.player().setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD)));
@@ -84,11 +83,14 @@ class ReflexTest {
         reporter.publishEntry("off.usingItem/blocking", off[0] + "/" + off[1]);
         reporter.publishEntry("on.usingItem/blocking", on[0] + "/" + on[1]);
         assertFalse(off[0], "with autoShield off the bot used an item while the arrow came in");
-        assertTrue(on[1], "with autoShield on the shield was not raised against the incoming arrow: usingItem=" + on[0]);
+        assertTrue(
+                on[1], "with autoShield on the shield was not raised against the incoming arrow: usingItem=" + on[0]);
     }
 
-    /** An arrow ten blocks out flying at the bot's chest, closed by half a block per bot tick for twelve ticks;
-     *  whether the bot was using an item, and blocking, at the end. */
+    /**
+     * An arrow ten blocks out flying at the bot's chest, closed by half a block per bot tick for twelve ticks; whether
+     * the bot was using an item, and blocking, at the end.
+     */
     private static boolean[] arrowIn(Game game, SceneBot bot) {
         return game.onServer(s -> {
             ServerPlayer fp = bot.player();
@@ -149,8 +151,10 @@ class ReflexTest {
 
     // ---------------------------------------------------------------- autoEat
 
-    /** Hungry with bread on the hotbar: the bot eats. {@code AutoEat.tick}: food at or below
-     *  {@code autoEatFoodThreshold} (18) and food on the hotbar; it holds the use until food is 20. */
+    /**
+     * Hungry with bread on the hotbar: the bot eats. {@code AutoEat.tick}: food at or below
+     * {@code autoEatFoodThreshold} (18) and food on the hotbar; it holds the use until food is 20.
+     */
     @Test
     void autoEatEatsWhenHungry(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game);
@@ -185,14 +189,24 @@ class ReflexTest {
     void autoEquipPutsOnArmourInAFight(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
-        bot.give(Items.IRON_SWORD, 1).give(Items.IRON_HELMET, 1).give(Items.IRON_CHESTPLATE, 1)
-                .give(Items.IRON_LEGGINGS, 1).give(Items.IRON_BOOTS, 1);
+        bot.give(Items.IRON_SWORD, 1)
+                .give(Items.IRON_HELMET, 1)
+                .give(Items.IRON_CHESTPLATE, 1)
+                .give(Items.IRON_LEGGINGS, 1)
+                .give(Items.IRON_BOOTS, 1);
         var zombie = still(game, EntityType.ZOMBIE, plot.at(2, 1, 0));
         game.runOnServer(s -> zombie.setInvulnerable(true));
 
         int off = game.onServer(s -> {
-            Calls.started("combat kill zombie", bot.tasks().combat(new CombatContracts.Params(bot.ref(),
-                    CombatContracts.Mode.KILL, Optional.of(new CombatContracts.FoeType("minecraft:zombie")), false, 0)));
+            Calls.started(
+                    "combat kill zombie",
+                    bot.tasks()
+                            .combat(new CombatContracts.Params(
+                                    bot.ref(),
+                                    CombatContracts.Mode.KILL,
+                                    Optional.of(new CombatContracts.FoeType("minecraft:zombie")),
+                                    false,
+                                    0)));
             bot.tick(20);
             return armourWorn(bot.player());
         });
@@ -225,7 +239,7 @@ class ReflexTest {
         Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
         plot.fill(2, 1, -1, 2, 3, 1, Blocks.STONE);
-        bot.give(Items.DIRT, 1).give(Items.WOODEN_PICKAXE, 1);   // dirt in slot 0, which is selected
+        bot.give(Items.DIRT, 1).give(Items.WOODEN_PICKAXE, 1); // dirt in slot 0, which is selected
         bot.lookAt(plot.at(2, 2, 0));
 
         int off = game.onServer(s -> {
@@ -240,7 +254,8 @@ class ReflexTest {
         reporter.publishEntry("off.selected", String.valueOf(off));
         reporter.publishEntry("on.mainHand", on);
         assertEquals(0, off, "with autoTool off the bot changed hotbar slot");
-        assertEquals(Items.WOODEN_PICKAXE.toString(), on, "with autoTool on the bot did not take the pickaxe for stone");
+        assertEquals(
+                Items.WOODEN_PICKAXE.toString(), on, "with autoTool on the bot did not take the pickaxe for stone");
     }
 
     // ---------------------------------------------------------------- autoSwim
@@ -255,7 +270,7 @@ class ReflexTest {
         Settings settings = Settings.pin(game).set("smoothLook", true).set("smoothLookDegPerTick", 1.0);
         plot.fill(-3, 0, -3, 3, 7, 3, Blocks.STONE);
         plot.fill(-2, 1, -2, 2, 6, 2, Blocks.WATER);
-        plot.fill(-2, 7, -2, 2, 7, 2, Blocks.AIR);   // open above the water
+        plot.fill(-2, 7, -2, 2, 7, 2, Blocks.AIR); // open above the water
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         double floor = plot.at(0, 1, 0).getY();
 
@@ -264,8 +279,11 @@ class ReflexTest {
             SimProbes.grantWaterEffects(fp);
             // About 180 ticks of turning at a degree a tick: the task outlasts both arms.
             double yaw = fp.getYRot() > 0 ? fp.getYRot() - 180 : fp.getYRot() + 180;
-            Calls.started("look", bot.interact().lookAt(new InteractContracts.LookParams(bot.ref(), Optional.empty(),
-                    Optional.of(yaw), Optional.of(0.0), 0)));
+            Calls.started(
+                    "look",
+                    bot.interact()
+                            .lookAt(new InteractContracts.LookParams(
+                                    bot.ref(), Optional.empty(), Optional.of(yaw), Optional.of(0.0), 0)));
             double maxY = fp.getY();
             for (int t = 0; t < 40; t++) {
                 bot.tick();
@@ -298,13 +316,13 @@ class ReflexTest {
      * Out of a lava pool and still burning, with water a few blocks off: the bot walks into the water, the fire goes
      * out, and the reflex hands back, so an order then moves the bot. Lava sets a bot burning for fifteen seconds
      * ({@code Entity.lavaHurt}), which leaving it does not end. The bot stands in the pool's east edge, where every
-     * cardinal is lava or wall, so the escape takes its fallback east; the water lies to the south of that line, so
-     * the escape's own walk away (some eight blocks) passes it by. With {@code lavaEscapeWaterRadius} 0 the bot is
-     * left burning on the stone.
+     * cardinal is lava or wall, so the escape takes its fallback east; the water lies to the south of that line, so the
+     * escape's own walk away (some eight blocks) passes it by. With {@code lavaEscapeWaterRadius} 0 the bot is left
+     * burning on the stone.
      */
     @Test
-    void lavaEscapeWalksABurningBotIntoWater(Game game, @Plot.Centered @Plot.Size(x = 24, y = 16, z = 16) Plot plot,
-                                             TestReporter reporter) {
+    void lavaEscapeWalksABurningBotIntoWater(
+            Game game, @Plot.Centered @Plot.Size(x = 24, y = 16, z = 16) Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
         plot.fill(-7, -1, -6, 9, 0, 7, Blocks.STONE);
         plot.fill(-5, 0, -1, -3, 0, 1, Blocks.LAVA);
@@ -316,16 +334,22 @@ class ReflexTest {
         settings.set("lavaEscapeWaterRadius", 8);
         double[] on = burnAndRun(game, bot, inLava, 200);
         reporter.publishEntry("off.inLava/inWater/burning/x", off[0] + "/" + off[1] + "/" + off[2] + "/" + off[4]);
-        reporter.publishEntry("on.inLava/inWater/burning/ticksToOut/x", on[0] + "/" + on[1] + "/" + on[2] + "/" + on[3]
-                + "/" + on[4]);
+        reporter.publishEntry(
+                "on.inLava/inWater/burning/ticksToOut/x",
+                on[0] + "/" + on[1] + "/" + on[2] + "/" + on[3] + "/" + on[4]);
         assertTrue(off[0] > 0 && on[0] > 0, "the bot was never in the lava, so nothing set it burning");
-        assertTrue(off[2] > 0 && off[1] == 0, "with lavaEscapeWaterRadius 0 the bot was not left burning out of the water: "
-                + "inWater/burning/ticksToOut/x=" + off[1] + "/" + off[2] + "/" + off[3] + "/" + off[4]);
-        assertTrue(on[1] > 0, "with lavaEscapeWaterRadius 8 the bot did not reach the water in 200 ticks: x/z="
-                + on[4] + "/" + on[5]);
+        assertTrue(
+                off[2] > 0 && off[1] == 0,
+                "with lavaEscapeWaterRadius 0 the bot was not left burning out of the water: "
+                        + "inWater/burning/ticksToOut/x=" + off[1] + "/" + off[2] + "/" + off[3] + "/" + off[4]);
+        assertTrue(
+                on[1] > 0,
+                "with lavaEscapeWaterRadius 8 the bot did not reach the water in 200 ticks: x/z=" + on[4] + "/"
+                        + on[5]);
         assertTrue(on[2] == 0, "with lavaEscapeWaterRadius 8 the bot was still burning after 200 ticks");
 
-        // Handed back: a goto out of the water arrives, which a reflex still holding the bot in it would not let happen.
+        // Handed back: a goto out of the water arrives, which a reflex still holding the bot in it would not let
+        // happen.
         BlockPos dry = plot.at(3, 1, 2);
         double gap = game.onServer(s -> {
             bot.goTo(Targets.block(dry));
@@ -334,13 +358,15 @@ class ReflexTest {
             return bot.player().position().distanceTo(Vec3.atBottomCenterOf(dry));
         });
         reporter.publishEntry("goto.gap", String.valueOf(gap));
-        assertTrue(gap < 1.0, "after the fire was out a goto did not take the bot out of the water: " + gap + " blocks short");
+        assertTrue(
+                gap < 1.0,
+                "after the fire was out a goto did not take the bot out of the water: " + gap + " blocks short");
     }
 
     /**
      * Stand the bot in {@code inLava} and tick it {@code ticks} times. Answers 1/0 for: it was in lava, it ended in
-     * water, it ended burning; then the tick its fire went out (-1 if it did not) and its final x and z relative to
-     * the cell.
+     * water, it ended burning; then the tick its fire went out (-1 if it did not) and its final x and z relative to the
+     * cell.
      */
     private static double[] burnAndRun(Game game, SceneBot bot, BlockPos inLava, int ticks) {
         return game.onServer(s -> {
@@ -355,8 +381,14 @@ class ReflexTest {
                 burned |= fp.isOnFire();
                 if (burned && outAt < 0 && !fp.isOnFire()) outAt = t;
             }
-            return new double[] {wasInLava ? 1 : 0, fp.isInWater() ? 1 : 0, fp.isOnFire() ? 1 : 0, outAt,
-                    fp.getX() - inLava.getX(), fp.getZ() - inLava.getZ()};
+            return new double[] {
+                wasInLava ? 1 : 0,
+                fp.isInWater() ? 1 : 0,
+                fp.isOnFire() ? 1 : 0,
+                outAt,
+                fp.getX() - inLava.getX(),
+                fp.getZ() - inLava.getZ()
+            };
         });
     }
 
@@ -364,8 +396,8 @@ class ReflexTest {
 
     /**
      * Night, under open sky, a zombie close by, nothing to do: the bot digs in. {@code DuskSecureChain.priority}:
-     * {@code exposedAtNight} (the world is frozen at midnight, the plot open to the sky), not cornered, then 20 ticks of
-     * debounce; with {@code duskUrgent} on (the default) the threat-radius veto is skipped and it bids 90, driving a
+     * {@code exposedAtNight} (the world is frozen at midnight, the plot open to the sky), not cornered, then 20 ticks
+     * of debounce; with {@code duskUrgent} on (the default) the threat-radius veto is skipped and it bids 90, driving a
      * {@code BunkerProcess}.
      */
     @Test
@@ -396,7 +428,11 @@ class ReflexTest {
     private static boolean chainSeen(SceneBot bot, int ticks) {
         for (int t = 0; t < ticks; t++) {
             bot.tick();
-            if (bot.status().reflexes().flatMap(r -> r.activeChain()).map("duskSecure"::equals).orElse(false)) return true;
+            if (bot.status()
+                    .reflexes()
+                    .flatMap(r -> r.activeChain())
+                    .map("duskSecure"::equals)
+                    .orElse(false)) return true;
         }
         return false;
     }

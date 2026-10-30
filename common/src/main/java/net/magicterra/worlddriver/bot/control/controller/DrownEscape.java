@@ -1,10 +1,13 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import net.magicterra.worlddriver.bot.control.act.Keys;
-import net.magicterra.worlddriver.bot.control.ResetScope;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
 import java.util.EnumSet;
 import java.util.Set;
-
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -12,22 +15,17 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-
 /**
- * Surfacing for air (navigatorDrowningEscape). A submerged climb-out deadlock can pin the bot under a bank lip
- * until its air runs out — Peaceful does not prevent drowning (live 2026-06-29: died at (-21,60,-42) while
- * the climb-out place spun 26 engage/bail cycles). Air below ~3 s while under water latches a surface-for-air
- * override that outranks every climb, dig and pillar: hold the swim-up jump, and if a solid lip caps the
- * head (or a wall blocks the rise) swim toward open surface. Released once air recovers or out of water;
- * the interrupted climb resumes fresh.
+ * Surfacing for air (navigatorDrowningEscape). A submerged climb-out deadlock can pin the bot under a bank lip until
+ * its air runs out — Peaceful does not prevent drowning (live 2026-06-29: died at (-21,60,-42) while the climb-out
+ * place spun 26 engage/bail cycles). Air below ~3 s while under water latches a surface-for-air override that outranks
+ * every climb, dig and pillar: hold the swim-up jump, and if a solid lip caps the head (or a wall blocks the rise) swim
+ * toward open surface. Released once air recovers or out of water; the interrupted climb resumes fresh.
  *
- * <p>The latch is read from the world, not only from the body's flags: the client's under-water and air
- * flags survive a teleport (and a corpse) un-ticked — a replay put the bot on DRY land with stale
- * under-water and zero air, and the latch froze the whole walk. It engages and holds only while the world
- * has water at the feet or eyes and the bot is alive.
+ * <p>The latch is read from the world, not only from the body's flags: the client's under-water and air flags survive a
+ * teleport (and a corpse) un-ticked — a replay put the bot on DRY land with stale under-water and zero air, and the
+ * latch froze the whole walk. It engages and holds only while the world has water at the feet or eyes and the bot is
+ * alive.
  */
 public final class DrownEscape implements Controller {
 
@@ -42,26 +40,48 @@ public final class DrownEscape implements Controller {
     private boolean latch;
     /** Ticks left holding the current escape heading, and that heading in degrees. */
     private int turnTicks;
+
     private float heading;
-    /** Where the next heading probe starts, rotated each pick so a falsely open direction is not picked
-     *  forever; kept across goals for the same reason. */
+    /**
+     * Where the next heading probe starts, rotated each pick so a falsely open direction is not picked forever; kept
+     * across goals for the same reason.
+     */
     private int probe;
 
-    @Override public String name() { return "drownEscape"; }
-    @Override public Set<Channel> channels() { return CHANNELS; }
-    @Override public int priority() { return 1; }
-    /** As long as the air takes to come back; the latch, not a count, ends it. */
-    @Override public int maxTicks() { return Integer.MAX_VALUE; }
+    @Override
+    public String name() {
+        return "drownEscape";
+    }
 
-    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public Set<Channel> channels() {
+        return CHANNELS;
+    }
+
+    @Override
+    public int priority() {
+        return 1;
+    }
+    /** As long as the air takes to come back; the latch, not a count, ends it. */
+    @Override
+    public int maxTicks() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public void sense(Navigator nav, TickCtx cx, WorldView world) {
         if (!ControlConfig.navigatorDrowningEscape) return;
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         reallyInWater = p.getHealth() > 0 && (world.isWater(foot) || world.isWater(foot.above()));
         if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
             if (!latch && GameConfig.navigatorDebug)
-                LOG.info("[navigator] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
-                        p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
+                LOG.info(
+                        "[navigator] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
+                        p.getAirSupply(),
+                        foot.getX(),
+                        foot.getY(),
+                        foot.getZ());
             latch = true;
         } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
             if (latch && GameConfig.navigatorDebug)
@@ -70,18 +90,21 @@ public final class DrownEscape implements Controller {
         }
     }
 
-    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         if (!ControlConfig.navigatorDrowningEscape) return "switched off";
         if (!latch) return "air is fine";
         if (!reallyInWater || !cx.frame.p.isInWater()) return "not in water";
         return null;
     }
 
-    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
         return whyNot(nav, cx, world) == null;
     }
 
-    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
+    @Override
+    public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         nav.keys.jump(a, true);
@@ -97,7 +120,7 @@ public final class DrownEscape implements Controller {
             // re-picked forever.
             if (turnTicks <= 0) {
                 turnTicks = HEADING_HOLD_TICKS;
-                float pick = p.getYRot() + 180f;   // fallback: straight back
+                float pick = p.getYRot() + 180f; // fallback: straight back
                 for (int i = 0; i < 8; i++) {
                     float cand = ((probe + i) % 8) * 45f;
                     int dx = (int) Math.round(-Math.sin(Math.toRadians(cand)));
@@ -113,7 +136,8 @@ public final class DrownEscape implements Controller {
             }
             turnTicks--;
             p.setYRot(heading);
-            p.yHeadRot = heading; p.yBodyRot = heading;
+            p.yHeadRot = heading;
+            p.yBodyRot = heading;
             p.setXRot(0f);
             Keys.forward(a, true);
         } else {
@@ -122,9 +146,13 @@ public final class DrownEscape implements Controller {
         return true;
     }
 
-    @Override public void stop(String why) { turnTicks = 0; }
+    @Override
+    public void stop(String why) {
+        turnTicks = 0;
+    }
 
-    @Override public void reset(ResetScope scope) {
+    @Override
+    public void reset(ResetScope scope) {
         latch = false;
         turnTicks = 0;
     }

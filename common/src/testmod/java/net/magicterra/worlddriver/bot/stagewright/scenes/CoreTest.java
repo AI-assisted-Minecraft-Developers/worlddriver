@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,10 +19,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -48,8 +47,8 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 /**
- * The Core family, headless half: the body's jump and travel physics, node facts, the path archive's record and
- * replay, and the two {@code mc.observe.player} surfaces. The client-face half is {@link CoreClientTest}.
+ * The Core family, headless half: the body's jump and travel physics, node facts, the path archive's record and replay,
+ * and the two {@code mc.observe.player} surfaces. The client-face half is {@link CoreClientTest}.
  *
  * <p>The physics arenas pose a parked {@link SceneBot} and drive it by held keys and body steps only (no perceiving,
  * reflexes or task), each arm inside one {@code game.runOnServer}, so no world tick falls between a staging and the
@@ -65,8 +64,8 @@ class CoreTest {
 
     /**
      * The pose-fit and hazard facts {@code mc.debug.cells} answers for a node: an open 2-high cell, a 1-high capped
-     * pocket, lava underfoot, and the flips a planned dig ({@code toBreak}) and placement ({@code toPlace}) make to
-     * the pose fit.
+     * pocket, lava underfoot, and the flips a planned dig ({@code toBreak}) and placement ({@code toPlace}) make to the
+     * pose fit.
      */
     @Test
     void nodePhysics(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
@@ -86,15 +85,20 @@ class CoreTest {
                 BlockPos stand = new BlockPos(cx, floorY + 1, cz);
                 BotDebugContracts.NodeFacts f = nodeFacts(game, stand, null, List.of(), List.of());
                 if (!(f.fitStand() && "none".equals(f.ceilingForces())))
-                    fail("nodePhysics: open cell should stand; fitStand=" + f.fitStand() + " ceilingForces=" + f.ceilingForces());
+                    fail("nodePhysics: open cell should stand; fitStand=" + f.fitStand() + " ceilingForces="
+                            + f.ceilingForces());
 
                 BlockPos pocket = new BlockPos(cx + 2, floorY + 1, cz);
                 BotDebugContracts.NodeFacts g = nodeFacts(game, pocket, stand, List.of(), List.of());
-                if (!(!g.fitStand() && ("crouch".equals(g.ceilingForces()) || "crawl".equals(g.ceilingForces())
-                        || "suffocate".equals(g.ceilingForces()))))
-                    fail("nodePhysics: 1-cap pocket should not stand; fitStand=" + g.fitStand() + " ceilingForces=" + g.ceilingForces());
+                if (!(!g.fitStand()
+                        && ("crouch".equals(g.ceilingForces())
+                                || "crawl".equals(g.ceilingForces())
+                                || "suffocate".equals(g.ceilingForces()))))
+                    fail("nodePhysics: 1-cap pocket should not stand; fitStand=" + g.fitStand() + " ceilingForces="
+                            + g.ceilingForces());
 
-                BotDebugContracts.NodeFacts h = nodeFacts(game, new BlockPos(cx + 4, floorY + 1, cz), null, List.of(), List.of());
+                BotDebugContracts.NodeFacts h =
+                        nodeFacts(game, new BlockPos(cx + 4, floorY + 1, cz), null, List.of(), List.of());
                 if (!"lava".equals(h.footHazard()))
                     fail("nodePhysics: lava underfoot should be footHazard=lava; got=" + h.footHazard());
 
@@ -118,11 +122,14 @@ class CoreTest {
      * The facts {@code mc.debug.cells} answers for the node at {@code foot}, entered from {@code prev} (or nowhere),
      * with the entering edge's digs and placements done. Read from the server's overworld.
      */
-    private static BotDebugContracts.NodeFacts nodeFacts(Game game, BlockPos foot, BlockPos prev, List<BlockPos> toBreak,
-                                                         List<BlockPos> toPlace) {
-        BotDebugContracts.NodeQuery q = new BotDebugContracts.NodeQuery(Targets.pos(foot),
-                Optional.ofNullable(prev).map(Targets::pos), Optional.empty(),
-                toBreak.stream().map(Targets::pos).toList(), toPlace.stream().map(Targets::pos).toList());
+    private static BotDebugContracts.NodeFacts nodeFacts(
+            Game game, BlockPos foot, BlockPos prev, List<BlockPos> toBreak, List<BlockPos> toPlace) {
+        BotDebugContracts.NodeQuery q = new BotDebugContracts.NodeQuery(
+                Targets.pos(foot),
+                Optional.ofNullable(prev).map(Targets::pos),
+                Optional.empty(),
+                toBreak.stream().map(Targets::pos).toList(),
+                toPlace.stream().map(Targets::pos).toList());
         BotDebugContracts.CellsReading r = game.api(DebugBlockingApi::of)
                 .cells(new BotDebugContracts.CellsParams(Optional.empty(), List.of(), Optional.of(q)));
         return r.node().orElseThrow(() -> new AssertionError("mc.debug.cells answered no node facts: " + r));
@@ -152,12 +159,16 @@ class CoreTest {
             double startY = fp.getY(), z0 = fp.getZ();
             fp.setSprinting(true);
             bot.press(bot.keys().move(0, 1));
-            for (int i = 0; i < 20; i++) { fp.setYRot(0f); bot.step(); }
+            for (int i = 0; i < 20; i++) {
+                fp.setYRot(0f);
+                bot.step();
+            }
             bot.release();
             double d = fp.getZ() - z0;
             fp.setSprinting(false);
             if (d <= 2.0) fail("physicsParity: flat travel too small: dz=" + d + " (expected >2)");
-            if (Math.abs(fp.getY() - startY) > 0.4) fail("physicsParity: the body left the floor: dy=" + (fp.getY() - startY));
+            if (Math.abs(fp.getY() - startY) > 0.4)
+                fail("physicsParity: the body left the floor: dy=" + (fp.getY() - startY));
             return d;
         });
 
@@ -226,17 +237,21 @@ class CoreTest {
             bot.step();
             double prev = fp.getY(), worstRise = 0, riseAt = -1;
             for (int i = 0; i < 10; i++) {
-                bot.press(bot.keys().jump(true));   // every tick: a step clears the press
+                bot.press(bot.keys().jump(true)); // every tick: a step clears the press
                 bot.step();
                 double rise = fp.getY() - prev;
-                if (rise > worstRise) { worstRise = rise; riseAt = i; }
+                if (rise > worstRise) {
+                    worstRise = rise;
+                    riseAt = i;
+                }
                 prev = fp.getY();
             }
             if (worstRise > 1.0E-9) {
-                fail("airborneJumpInert: a mid-air player was given an upward impulse: worstRise=" + worstRise + " at t="
-                        + riseAt + " (jump held every tick, floor 8+ blocks below)");
+                fail("airborneJumpInert: a mid-air player was given an upward impulse: worstRise=" + worstRise
+                        + " at t=" + riseAt + " (jump held every tick, floor 8+ blocks below)");
             }
-            if (fp.getY() >= standY + 8) fail("airborneJumpInert: the player never fell, so the watch proved nothing: y=" + fp.getY());
+            if (fp.getY() >= standY + 8)
+                fail("airborneJumpInert: the player never fell, so the watch proved nothing: y=" + fp.getY());
         });
     }
 
@@ -253,11 +268,12 @@ class CoreTest {
      *
      * <ul>
      *   <li><b>adjacent</b> — ladder one cell to the side; {@code onClimbable()} reads the FEET cell, so a neighbour
-     *       does not arm the rewrite: ≥ 2 ground jumps. A failure here is the arena, not the gate.</li>
+     *       does not arm the rewrite: ≥ 2 ground jumps. A failure here is the arena, not the gate.
      *   <li><b>underfoot</b> — the ladder in the player's own cell: the first tick must rise ≥ 0.4 (standing in a
      *       climbable cell is still standing), and no later 0.42 from the hover (not footed). If it does come back to
-     *       the floor it MUST jump again: that keeps the original self-lock detectable.</li>
+     *       the floor it MUST jump again: that keeps the original self-lock detectable.
      * </ul>
+     *
      * A single-tick rise {@code > 0.3} can only be the 0.42 ground jump: the rewrite tops out at 0.1176 per tick.
      */
     @Test
@@ -282,16 +298,19 @@ class CoreTest {
         String note = "adjacent=" + adjacent + " underfoot=" + underfoot + " floor=" + standY;
 
         if (adjacent.rises() < 2)
-            fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises() + " time(s), expected >=2. A ladder one "
+            fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises()
+                    + " time(s), expected >=2. A ladder one "
                     + "cell away must not reach the player at all (onClimbable reads the FEET cell) — so this is the "
                     + "arena or the jump gate, not the climbable path. " + note);
         if (!underfoot.climbable())
-            fail("climbableGroundJump: the underfoot player is not on a climbable at all — the ladder did not place, or "
-                    + "the player left its cell. This arm measured plain ground. " + note);
+            fail(
+                    "climbableGroundJump: the underfoot player is not on a climbable at all — the ladder did not place, or "
+                            + "the player left its cell. This arm measured plain ground. " + note);
         if (underfoot.first() < 0.4)
-            fail("climbableGroundJump: a player standing on rock inside a ladder cell did not take the 0.42 ground jump "
-                    + "on its first held tick. Standing in a climbable cell is still standing; refusing every jump on a "
-                    + "climbable is an over-correction, not a fix. " + note);
+            fail(
+                    "climbableGroundJump: a player standing on rock inside a ladder cell did not take the 0.42 ground jump "
+                            + "on its first held tick. Standing in a climbable cell is still standing; refusing every jump on a "
+                            + "climbable is an over-correction, not a fix. " + note);
         boolean landedAgain = underfoot.minY() <= standY + 0.1;
         if (underfoot.later() > 0 && !landedAgain)
             fail("climbableGroundJump: the underfoot player launched " + underfoot.later() + " further ground jump(s) "
@@ -311,18 +330,20 @@ class CoreTest {
      * never asks about support first: with {@code g = getFluidHeight(WATER)} and {@code h = getFluidJumpThreshold()},
      * {@code g > h} sends the player to {@code jumpInLiquid} (+0.04) whether or not it stands on anything, and only
      * {@code onGround() || (inWater && g <= h)} reaches {@code jumpFromGround()} (0.42).
+     *
      * <ul>
-     *   <li><b>afloat</b> — five blocks of water over rock, released at the surface, jump held: bob-sized rises only.
-     *       A support test widened to "solid somewhere below" makes this arm launch a 0.42.</li>
+     *   <li><b>afloat</b> — five blocks of water over rock, released at the surface, jump held: bob-sized rises only. A
+     *       support test widened to "solid somewhere below" makes this arm launch a 0.42.
      *   <li><b>bottomed</b> — a flowing level-3 state (height 3/9, under the 0.4 threshold) over rock: it must still
      *       make a 0.42. A fix that refused all jumps in water passes afloat and fails here. It was once staged on a
-     *       source block, which is 8/9 and already over the threshold: the arm demanded a privilege no player has.</li>
+     *       source block, which is 8/9 and already over the threshold: the arm demanded a privilege no player has.
      *   <li><b>bottomedDeep</b> — afloat's pool, released on its BOTTOM: supported AND deeply submerged, where vanilla
      *       bobs; a controlled A/B once had the server player take +0.420 out of a two-deep swamp cell while the client
-     *       player in the byte-identical cell took +0.035 (see {@code docs/dev/fake-player-parity.md}).</li>
+     *       player in the byte-identical cell took +0.035 (see {@code docs/dev/fake-player-parity.md}).
      * </ul>
-     * Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on
-     * it. All water is placed and measured inside one server task: fluid ticks never run, so the level-3 state cannot
+     *
+     * Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on it.
+     * All water is placed and measured inside one server task: fluid ticks never run, so the level-3 state cannot
      * settle and the pools cannot spill before the arms read them.
      */
     @Test
@@ -342,11 +363,13 @@ class CoreTest {
             for (int dx = -2; dx <= 2; dx++)
                 for (int dz = -5; dz <= -1; dz++)
                     for (int dy = 1; dy <= 5; dy++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.WATER.defaultBlockState());
+                        level.setBlockAndUpdate(
+                                new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.WATER.defaultBlockState());
             // BOTTOMED: genuinely SHALLOW water, a flowing level-3 state under vanilla's 0.4 jump threshold.
             for (int dx = -2; dx <= 2; dx++)
                 for (int dz = 1; dz <= 5; dz++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz),
+                    level.setBlockAndUpdate(
+                            new BlockPos(cx + dx, floorY + 1, cz + dz),
                             Fluids.FLOWING_WATER.getFlowing(3, false).createLegacyBlock());
 
             HeldJump afloatArm = heldJump(afloatBot, "afloat");
@@ -360,8 +383,10 @@ class CoreTest {
             // call, so a non-zero height with the flag false at one instant is unreachable.
             for (HeldJump h : List.of(afloatArm, bottomedArm, deepArm))
                 if (h.inWaterAtRest() != (h.fluidAtRest() > 0.0))
-                    fail("buoyantJumpStaysABob: an arm reported inWaterAtRest=" + h.inWaterAtRest() + " with fluidAtRest="
-                            + h.fluidAtRest() + ", a pair vanilla cannot produce at a single instant: the instrument, not "
+                    fail("buoyantJumpStaysABob: an arm reported inWaterAtRest=" + h.inWaterAtRest()
+                            + " with fluidAtRest="
+                            + h.fluidAtRest()
+                            + ", a pair vanilla cannot produce at a single instant: the instrument, not "
                             + "the gate, is wrong. " + note);
             if (afloatArm.rises() > 0)
                 fail("buoyantJumpStaysABob: a player floating in deep water launched " + afloatArm.rises() + " ground "
@@ -377,14 +402,16 @@ class CoreTest {
                         + "refusing every jump in water is an over-correction, not a fix. " + note);
             if (Math.abs(deepArm.restY() - standY) > 1.0E-6)
                 fail("buoyantJumpStaysABob/bottomedDeep: the player did not come to rest on the pool floor before the "
-                        + "jump was held (expected restY " + standY + "); a player that floated here duplicates afloat. "
+                        + "jump was held (expected restY " + standY
+                        + "); a player that floated here duplicates afloat. "
                         + "The arena, not the gate, is wrong. " + note);
             if (deepArm.fluidAtRest() <= threshold)
                 fail("buoyantJumpStaysABob/bottomedDeep: the player was not deep enough for the question to exist. The "
                         + "arena, not the gate, is wrong. " + note);
             if (deepArm.rises() > 0)
                 fail("buoyantJumpStaysABob/bottomedDeep: a player standing on the bottom of deep water launched "
-                        + deepArm.rises() + " ground jump(s). Above the threshold vanilla takes jumpInLiquid (+0.04) and "
+                        + deepArm.rises()
+                        + " ground jump(s). Above the threshold vanilla takes jumpInLiquid (+0.04) and "
                         + "never reaches jumpFromGround: support does not enter the decision until the water is "
                         + "shallower than the threshold. That is the server player being MORE permissive than a real "
                         + "player: see docs/dev/fake-player-parity.md. " + note);
@@ -399,24 +426,43 @@ class CoreTest {
     /**
      * What one arm of a held-jump arena measured. {@code first} and {@code later} are kept apart because they answer
      * opposite questions: whether a jump is ALLOWED from the starting stance, and whether one is allowed from a stance
-     * reached by moving. {@code minY} (over the ticks AFTER the first jump — seeding it with the start would make
-     * "came back to the floor" true before a tick ran) keeps a silent arm honest. Every field names the instant it was
-     * taken at: {@code inWaterAtRest} and {@code fluidAtRest} are one fact read in one breath before the loop,
+     * reached by moving. {@code minY} (over the ticks AFTER the first jump — seeding it with the start would make "came
+     * back to the floor" true before a tick ran) keeps a silent arm honest. Every field names the instant it was taken
+     * at: {@code inWaterAtRest} and {@code fluidAtRest} are one fact read in one breath before the loop,
      * {@code inWaterAtEnd} where 60 ticks of holding jump left it. {@code fluidAtRest} is vanilla's own input to the
      * water jump rule, a submersion depth of the player (its own two rows), not a depth of the water.
      */
-    private record HeldJump(double first, int later, double minY, int minTick, boolean climbable,
-                            boolean inWaterAtRest, boolean inWaterAtEnd, double fluidAtRest,
-                            double restY, double jumpThreshold) {
+    private record HeldJump(
+            double first,
+            int later,
+            double minY,
+            int minTick,
+            boolean climbable,
+            boolean inWaterAtRest,
+            boolean inWaterAtEnd,
+            double fluidAtRest,
+            double restY,
+            double jumpThreshold) {
         int rises() {
             return (first > 0.3 ? 1 : 0) + later;
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "{rises=%d first=%.4f later=%d minY=%.4f minTick=%d climbable=%s "
-                    + "inWaterAtRest=%s inWaterAtEnd=%s fluidAtRest=%.4f restY=%.4f}", rises(), first, later, minY,
-                    minTick, climbable, inWaterAtRest, inWaterAtEnd, fluidAtRest, restY);
+            return String.format(
+                    Locale.ROOT,
+                    "{rises=%d first=%.4f later=%d minY=%.4f minTick=%d climbable=%s "
+                            + "inWaterAtRest=%s inWaterAtEnd=%s fluidAtRest=%.4f restY=%.4f}",
+                    rises(),
+                    first,
+                    later,
+                    minY,
+                    minTick,
+                    climbable,
+                    inWaterAtRest,
+                    inWaterAtEnd,
+                    fluidAtRest,
+                    restY);
         }
     }
 
@@ -449,8 +495,17 @@ class CoreTest {
             prev = fp.getY();
         }
         // Vanilla's own threshold, read off the player: it is derived from eye height.
-        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), inWaterAtRest,
-                fp.isInWater(), fluidAtRest, restY, fp.getFluidJumpThreshold());
+        HeldJump out = new HeldJump(
+                first,
+                later,
+                minY,
+                minTick,
+                fp.onClimbable(),
+                inWaterAtRest,
+                fp.isInWater(),
+                fluidAtRest,
+                restY,
+                fp.getFluidJumpThreshold());
         TestMod.LOG.info("[held-jump] {} {}{}", arm, out, head);
         return out;
     }
@@ -458,10 +513,10 @@ class CoreTest {
     /**
      * The ground jump waits for {@code onGround}, as vanilla's does, and a refused press costs one step.
      * {@code onGround} means "the move I asked for last was downward and got clipped"; {@code setOnGround(false)}
-     * reproduces a flush landing directly. Two presses: the first is refused and the player does not rise; its own
-     * move clips the next bit of fall, so the bit is true again and the second press jumps. A player that jumps on the
-     * first press reads something other than {@code onGround}; one that refuses the second holds a cooldown a refused
-     * press must not start.
+     * reproduces a flush landing directly. Two presses: the first is refused and the player does not rise; its own move
+     * clips the next bit of fall, so the bit is true again and the second press jumps. A player that jumps on the first
+     * press reads something other than {@code onGround}; one that refuses the second holds a cooldown a refused press
+     * must not start.
      */
     @Test
     void jumpWaitsForOnGround(Game game, @Plot.Centered Plot plot) {
@@ -482,7 +537,7 @@ class CoreTest {
             bot.step();
             double refused = fp.getY() - y0;
             boolean groundAfterRefusal = fp.onGround();
-            bot.press(bot.keys().jump(true));   // the step cleared the first press
+            bot.press(bot.keys().jump(true)); // the step cleared the first press
             bot.step();
             double jumped = fp.getY() - y0;
             if (Math.abs(refused) > 1.0E-6)
@@ -500,20 +555,24 @@ class CoreTest {
 
     /** Where the recorder writes, relative to the server's working directory. */
     private static final Path REPLAYS = Path.of("config", "worlddriver", "replays");
+
     private static final String PLAN_ARCHIVE = "replay-", REPLAY_RUN = "replay-run-";
 
     /**
      * End-to-end proof of record → replay: record a goto archive (segments, and the header's dimension), replay its
      * stored plan on a fresh bot through {@code mc.debug.replay}, and assert the bot reaches the same goal (±2 XZ) with
-     * bounded per-tick deviation. The walks are ticked by the test; the recorder writes each archive on a thread of
-     * its own after the run ends, so those two waits are real.
+     * bounded per-tick deviation. The walks are ticked by the test; the recorder writes each archive on a thread of its
+     * own after the run ends, so those two waits are real.
      */
     @Test
     void replayRoundTrip(Game game, @Plot.Centered @Plot.Size(x = 48, y = 16, z = 16) Plot plot) {
         BlockPos o = plot.at(-10, 0, 0);
         final int cx = o.getX(), cz = o.getZ(), floorY = o.getY();
         plot.fill(-12, 0, -3, 10, 0, 3, Blocks.STONE);
-        Settings.pinUntimed(game).set("pathArchive", true).set("allowBreak", false).set("allowPlace", false);
+        Settings.pinUntimed(game)
+                .set("pathArchive", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
 
         // Phase 1: RECORD a real goto from A to B.
@@ -526,10 +585,14 @@ class CoreTest {
                     + recorder.player().blockPosition().toShortString();
         });
         Archive plan = awaitArchive(game, PLAN_ARCHIVE, plansBefore);
-        if (size(plan.json(), "segments") < 1) fail("replayRoundTrip: plan archive has no segments; record " + recorded);
+        if (size(plan.json(), "segments") < 1)
+            fail("replayRoundTrip: plan archive has no segments; record " + recorded);
         // Folded in from the old wd.pathArchiveCapture: the header names the dimension the plan was made in.
         JsonElement header = plan.json().get("header");
-        game.check(header != null && header.isJsonObject() && header.getAsJsonObject().has("dimension"),
+        game.check(
+                header != null
+                        && header.isJsonObject()
+                        && header.getAsJsonObject().has("dimension"),
                 "the plan archive's header names its dimension: " + header);
 
         // Phase 2: REPLAY the stored plan on a fresh bot, which the replay places at the start. The capture is pinned
@@ -543,10 +606,12 @@ class CoreTest {
             BlockPos arrival = replayer.player().blockPosition();
             String walk = "end=" + replayer.gotoSlot().endReason().orElse("-") + " ticks=" + rt + " arrival="
                     + arrival.toShortString();
-            if (rt >= maxTicks) fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks: " + walk);
+            if (rt >= maxTicks)
+                fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks: " + walk);
             int dgx = Math.abs(arrival.getX() - goal.getX()), dgz = Math.abs(arrival.getZ() - goal.getZ());
             if (!(dgx <= 2 && dgz <= 2))
-                fail("replayRoundTrip: replay arrival not within +/-2 XZ of goal " + goal.toShortString() + ": " + walk);
+                fail("replayRoundTrip: replay arrival not within +/-2 XZ of goal " + goal.toShortString() + ": "
+                        + walk);
         });
 
         Archive run = awaitArchive(game, REPLAY_RUN, runsBefore);
@@ -568,7 +633,8 @@ class CoreTest {
         if (!Files.isDirectory(REPLAYS)) return Set.of();
         try (Stream<Path> files = Files.list(REPLAYS)) {
             return files.map(p -> p.getFileName().toString())
-                    .filter(n -> n.endsWith(".json") && n.startsWith(kind)
+                    .filter(n -> n.endsWith(".json")
+                            && n.startsWith(kind)
                             && (kind.equals(REPLAY_RUN) || !n.startsWith(REPLAY_RUN)))
                     .collect(Collectors.toSet());
         } catch (IOException e) {
@@ -583,7 +649,10 @@ class CoreTest {
             for (String n : archives(kind)) {
                 if (before.contains(n)) continue;
                 try {
-                    found.set(new Archive(n, JsonParser.parseString(Files.readString(REPLAYS.resolve(n))).getAsJsonObject()));
+                    found.set(new Archive(
+                            n,
+                            JsonParser.parseString(Files.readString(REPLAYS.resolve(n)))
+                                    .getAsJsonObject()));
                     return true;
                 } catch (Exception partial) {
                     return false;
@@ -644,8 +713,8 @@ class CoreTest {
 
     /**
      * The melee attack-cooldown surface exists, reads consistently at idle, and follows the weapon — the #45 permanent
-     * assertion. The cooldown {@code CombatProcess} gates every swing on used to reach the agent as zero bytes, so
-     * what is asserted is the SURFACE: the four fields are present, an idle read is internally consistent, and
+     * assertion. The cooldown {@code CombatProcess} gates every swing on used to reach the agent as zero bytes, so what
+     * is asserted is the SURFACE: the four fields are present, an idle read is internally consistent, and
      * {@code fullCooldownTicks} is derived from the held weapon's attack-speed attribute rather than a constant. That
      * {@code strengthScale} dips right after a swing is deliberately not asserted: racy against the ~5-tick bare-hand
      * recharge. The bot is unparked so the server ticks its body, as the old real player's connection did.
@@ -658,13 +727,16 @@ class CoreTest {
         String name = game.onServer(s -> bot.player().getGameProfile().getName());
         bot.unpark();
 
-        game.await().within(60).as("the bare-hand bar reads ready").until(() ->
-                Boolean.TRUE.equals(attackSnap(game, name).get("ready")));
+        game.await()
+                .within(60)
+                .as("the bare-hand bar reads ready")
+                .until(() -> Boolean.TRUE.equals(attackSnap(game, name).get("ready")));
         Map<?, ?> snap = attackSnap(game, name);
-        for (String k : new String[]{"strengthScale", "ready", "cooldownTicks", "fullCooldownTicks"})
+        for (String k : new String[] {"strengthScale", "ready", "cooldownTicks", "fullCooldownTicks"})
             game.check(snap.containsKey(k), "AttackSnap carries " + k + ": " + snap);
         game.check(() -> assertEquals("0", String.valueOf(snap.get("cooldownTicks")), "idle cooldownTicks"));
-        game.check(snap.get("strengthScale") instanceof Number n && n.doubleValue() >= 1.0,
+        game.check(
+                snap.get("strengthScale") instanceof Number n && n.doubleValue() >= 1.0,
                 "idle strengthScale is fully recharged: " + snap);
         int bare = snap.get("fullCooldownTicks") instanceof Number n ? n.intValue() : -1;
         // A live attribute read, not a hardcoded constant: bare-hand attack speed 4.0/s means ceil(20/4) = 5 ticks.
@@ -674,8 +746,11 @@ class CoreTest {
             ServerPlayer p = bot.player();
             p.getInventory().items.set(p.getInventory().selected, new ItemStack(Items.NETHERITE_SWORD));
         });
-        game.await().within(60).as("a slower weapon lengthens fullCooldownTicks").until(() ->
-                attackSnap(game, name).get("fullCooldownTicks") instanceof Number n && n.intValue() > bare);
+        game.await()
+                .within(60)
+                .as("a slower weapon lengthens fullCooldownTicks")
+                .until(() ->
+                        attackSnap(game, name).get("fullCooldownTicks") instanceof Number n && n.intValue() > bare);
     }
 
     /** {@code mc.observe.player}'s AttackSnap for one named player, or empty when absent. */

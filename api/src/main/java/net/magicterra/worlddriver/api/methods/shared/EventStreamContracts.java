@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.api.methods.shared;
 
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.RecordType;
@@ -12,8 +11,8 @@ import net.magicterra.worlddriver.api.schema.annotation.Named;
 import net.magicterra.worlddriver.api.schema.annotation.OnlyTrue;
 
 /**
- * The WebSocket's two connection-control calls. They set which events THIS socket is pushed, so the
- * transport answers them itself and they are not business methods; their shapes are still contracts.
+ * The WebSocket's two connection-control calls. They set which events THIS socket is pushed, so the transport answers
+ * them itself and they are not business methods; their shapes are still contracts.
  */
 public final class EventStreamContracts {
     private EventStreamContracts() {}
@@ -31,7 +30,9 @@ public final class EventStreamContracts {
     public record Subscription(
             @OnlyTrue boolean subscribed,
             @Length(max = 256) List<@Length(min = 1, max = 128) String> types,
-            @Doc("True when types is empty: every type is pushed, not none.") boolean allTypes) {}
+
+            @Doc("True when types is empty: every type is pushed, not none.")
+            boolean allTypes) {}
 
     @Named("Unsubscribed")
     public record Unsubscribed(boolean subscribed) {}

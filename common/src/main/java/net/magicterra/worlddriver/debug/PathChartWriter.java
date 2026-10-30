@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.debug;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
@@ -13,11 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
- * Encodes a chart to PNG and writes it under {@code config/worlddriver/debug/}. Returns
- * metadata (path/width/height/bytes) for the tool response. Headless via ImageIO (same as
- * Screenshots.java). Pure side-effect class; no Minecraft refs.
+ * Encodes a chart to PNG and writes it under {@code config/worlddriver/debug/}. Returns metadata
+ * (path/width/height/bytes) for the tool response. Headless via ImageIO (same as Screenshots.java). Pure side-effect
+ * class; no Minecraft refs.
  */
 public final class PathChartWriter {
     private PathChartWriter() {}
@@ -48,19 +48,21 @@ public final class PathChartWriter {
     }
 
     /**
-     * Cap the debug dir at {@link #MAX_FILES} PNGs by deleting the oldest (by last-modified
-     * time) once the count exceeds the cap. Best-effort: any I/O hiccup is swallowed so a
-     * failed prune never breaks the write that just succeeded.
+     * Cap the debug dir at {@link #MAX_FILES} PNGs by deleting the oldest (by last-modified time) once the count
+     * exceeds the cap. Best-effort: any I/O hiccup is swallowed so a failed prune never breaks the write that just
+     * succeeded.
      */
     private static void prune() {
         try (Stream<Path> s = Files.list(DIR)) {
-            List<Path> pngs = new ArrayList<>(s
-                    .filter(p -> p.getFileName().toString().endsWith(".png"))
-                    .toList());
+            List<Path> pngs = new ArrayList<>(
+                    s.filter(p -> p.getFileName().toString().endsWith(".png")).toList());
             if (pngs.size() <= MAX_FILES) return;
-            pngs.sort(Comparator.comparing(PathChartWriter::mtime));   // oldest first
+            pngs.sort(Comparator.comparing(PathChartWriter::mtime)); // oldest first
             for (int i = 0, n = pngs.size() - MAX_FILES; i < n; i++) {
-                try { Files.deleteIfExists(pngs.get(i)); } catch (Exception ignored) {}
+                try {
+                    Files.deleteIfExists(pngs.get(i));
+                } catch (Exception ignored) {
+                }
             }
         } catch (Exception ignored) {
             // dir missing / listing failed — nothing to prune
@@ -68,7 +70,10 @@ public final class PathChartWriter {
     }
 
     private static FileTime mtime(Path p) {
-        try { return Files.getLastModifiedTime(p); }
-        catch (Exception e) { return FileTime.fromMillis(0); }   // unreadable → treat as oldest
+        try {
+            return Files.getLastModifiedTime(p);
+        } catch (Exception e) {
+            return FileTime.fromMillis(0);
+        } // unreadable → treat as oldest
     }
 }

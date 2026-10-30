@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.application;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientRefusal;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Refused;
@@ -23,8 +22,8 @@ import net.minecraft.world.inventory.ClickType;
 
 /**
  * The menu open on a server player: read it for {@code mc.observe.container} with {@code bot}, click it for
- * {@code mc.client.input.slotClick} with {@code bot}. Both run on the server thread, so neither needs a
- * client. Also the one place a {@link ClickKind} becomes vanilla's {@link ClickType}.
+ * {@code mc.client.input.slotClick} with {@code bot}. Both run on the server thread, so neither needs a client. Also
+ * the one place a {@link ClickKind} becomes vanilla's {@link ClickType}.
  */
 public final class PlayerMenus {
     private static final String PREFIX = "player:";
@@ -52,7 +51,9 @@ public final class PlayerMenus {
     public static PlayerMenu read(MinecraftServer server, String bot) {
         ServerPlayer player = find(server, bot);
         if (player == null) {
-            throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE,
+            throw ApiException.invalidParam(
+                    "/bot",
+                    ApiIssue.Code.INVALID_VALUE,
                     "no player " + bot.substring(PREFIX.length()) + " on this server");
         }
         AbstractContainerMenu menu = player.containerMenu;
@@ -61,9 +62,10 @@ public final class PlayerMenus {
                 ? Optional.empty()
                 : Optional.of(BuiltInRegistries.MENU.getKey(menu.getType()).toString());
         List<SlotRow> rows = new ArrayList<>(menu.slots.size());
-        for (int i = 0; i < menu.slots.size(); i++) rows.add(ItemSnap.slotRow(i, menu.getSlot(i).getItem()));
-        Optional<SlotRow> carried = menu.getCarried().isEmpty()
-                ? Optional.empty() : Optional.of(ItemSnap.slotRow(0, menu.getCarried()));
+        for (int i = 0; i < menu.slots.size(); i++)
+            rows.add(ItemSnap.slotRow(i, menu.getSlot(i).getItem()));
+        Optional<SlotRow> carried =
+                menu.getCarried().isEmpty() ? Optional.empty() : Optional.of(ItemSnap.slotRow(0, menu.getCarried()));
         return new PlayerMenu(bot, type, menu.containerId, menu.getStateId(), rows, carried);
     }
 
@@ -73,7 +75,8 @@ public final class PlayerMenus {
         if (player == null) return new Refused(ClientRefusal.NO_PLAYER, "no such player on this server");
         AbstractContainerMenu menu = player.containerMenu;
         if (p.slot() >= menu.slots.size()) {
-            return new Refused(ClientRefusal.NO_TARGET,
+            return new Refused(
+                    ClientRefusal.NO_TARGET,
                     "slot " + p.slot() + " is past the menu's last slot " + (menu.slots.size() - 1));
         }
         menu.clicked(p.slot(), p.button(), clickType(p.type()), player);

@@ -1,24 +1,21 @@
 package net.magicterra.worlddriver.bot.rules.constraints;
 
 import java.util.List;
-
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Keep the route within {@code radius} of a polyline the caller drew. Hard ({@code forbid}):
- * a cell farther than the radius from the line is pruned; soft ({@code avoid}): it costs
- * {@code penalty} per block beyond the radius. The LLM draws the line, A* still does the
- * per-cell work of getting over the ditch and up the step.
+ * Keep the route within {@code radius} of a polyline the caller drew. Hard ({@code forbid}): a cell farther than the
+ * radius from the line is pruned; soft ({@code avoid}): it costs {@code penalty} per block beyond the radius. The LLM
+ * draws the line, A* still does the per-cell work of getting over the ditch and up the step.
  *
- * <p>Rejoin, as {@link LeashHardRadius}: from outside the corridor only edges that strictly
- * close the distance to the line are allowed, so a bot pushed out walks back in instead of
- * having no successors.
+ * <p>Rejoin, as {@link LeashHardRadius}: from outside the corridor only edges that strictly close the distance to the
+ * line are allowed, so a bot pushed out walks back in instead of having no successors.
  *
  * @param points the polyline's vertices in order; one point is a degenerate line
  * @param radius how far from the line a cell may be, blocks, measured from the cell centre

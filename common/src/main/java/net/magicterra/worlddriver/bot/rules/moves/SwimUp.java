@@ -7,11 +7,14 @@ import net.minecraft.core.BlockPos;
 
 /** Swim straight up in water. */
 public final class SwimUp extends Move {
-    public SwimUp() { super(0, 1, 0, 25); }
+    public SwimUp() {
+        super(0, 1, 0, 25);
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.isWater(from)) return false;
         BlockPos to = apply(from);
-        if (w.isWater(to)) return true;              // still rising WITHIN water — always fine
+        if (w.isWater(to)) return true; // still rising WITHIN water — always fine
         if (!w.isPassable(to)) return false;
         // No swim lifts the feet into the air cell above the surface: a real client bobs to
         // y+0.96 at best and never grounds there. Under the surface-node model the exit out of
@@ -25,7 +28,13 @@ public final class SwimUp extends Move {
         // picked open-water z=60 over wall-adjacent z=61 → 587-tick waterline thrash).
         return Move.hasPlaceSupport(w, to);
     }
-    public String name() { return "swimUp"; }
 
-    @Override public Locomotion.Mode mode() { return Locomotion.Mode.SWIM; }
+    public String name() {
+        return "swimUp";
+    }
+
+    @Override
+    public Locomotion.Mode mode() {
+        return Locomotion.Mode.SWIM;
+    }
 }

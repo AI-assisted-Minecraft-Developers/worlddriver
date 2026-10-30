@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.bot.rules;
 
 /**
- * A box, a sphere or a list of cells in block coordinates, as {@code route.regions[]} describes one. Both answer
- * two questions about a cell centre: how deep inside the region it is ({@link #depth}, 0 when
- * outside — the violation the {@code ForbidRegion} rejoin rule compares), and how strongly an
- * avoid should charge it ({@link #weight}, 0 outside, 1 at the worst point inside).
+ * A box, a sphere or a list of cells in block coordinates, as {@code route.regions[]} describes one. Both answer two
+ * questions about a cell centre: how deep inside the region it is ({@link #depth}, 0 when outside — the violation the
+ * {@code ForbidRegion} rejoin rule compares), and how strongly an avoid should charge it ({@link #weight}, 0 outside, 1
+ * at the worst point inside).
  */
 public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
@@ -16,25 +16,34 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
     boolean contains(double x, double y, double z);
 
-    /** Inclusive on both ends, in block coordinates; a cell {@code (x, y, z)} is inside when its
-     *  integer coordinates are within the bounds. */
+    /**
+     * Inclusive on both ends, in block coordinates; a cell {@code (x, y, z)} is inside when its integer coordinates are
+     * within the bounds.
+     */
     record Box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) implements Region {
         public Box {
             double a = Math.min(minX, maxX), b = Math.max(minX, maxX);
-            minX = a; maxX = b;
-            a = Math.min(minY, maxY); b = Math.max(minY, maxY);
-            minY = a; maxY = b;
-            a = Math.min(minZ, maxZ); b = Math.max(minZ, maxZ);
-            minZ = a; maxZ = b;
+            minX = a;
+            maxX = b;
+            a = Math.min(minY, maxY);
+            b = Math.max(minY, maxY);
+            minY = a;
+            maxY = b;
+            a = Math.min(minZ, maxZ);
+            b = Math.max(minZ, maxZ);
+            minZ = a;
+            maxZ = b;
         }
 
-        @Override public boolean contains(double x, double y, double z) {
+        @Override
+        public boolean contains(double x, double y, double z) {
             // The cell's centre is x+0.5; the inclusive block range [minX, maxX] is the real
             // range [minX, maxX + 1) of centres.
             return x >= minX && x < maxX + 1 && y >= minY && y < maxY + 1 && z >= minZ && z < maxZ + 1;
         }
 
-        @Override public double depth(double x, double y, double z) {
+        @Override
+        public double depth(double x, double y, double z) {
             if (!contains(x, y, z)) return 0;
             double d = Math.min(x - minX, maxX + 1 - x);
             d = Math.min(d, Math.min(y - minY, maxY + 1 - y));
@@ -42,7 +51,8 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
             return Math.max(d, 1e-6);
         }
 
-        @Override public double weight(double x, double y, double z) {
+        @Override
+        public double weight(double x, double y, double z) {
             // A box has no centre to ramp toward; inside is inside.
             return contains(x, y, z) ? 1 : 0;
         }
@@ -54,17 +64,20 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
             return Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
 
-        @Override public boolean contains(double x, double y, double z) {
+        @Override
+        public boolean contains(double x, double y, double z) {
             return radius > 0 && dist(x, y, z) < radius;
         }
 
-        @Override public double depth(double x, double y, double z) {
+        @Override
+        public double depth(double x, double y, double z) {
             if (radius <= 0) return 0;
             double d = dist(x, y, z);
             return d < radius ? radius - d : 0;
         }
 
-        @Override public double weight(double x, double y, double z) {
+        @Override
+        public double weight(double x, double y, double z) {
             if (radius <= 0) return 0;
             double d = dist(x, y, z);
             return d < radius ? (radius - d) / radius : 0;
@@ -83,12 +96,20 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
             return new Cells(keys);
         }
 
-        @Override public boolean contains(double x, double y, double z) {
-            return keys.contains(net.minecraft.core.BlockPos.asLong((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+        @Override
+        public boolean contains(double x, double y, double z) {
+            return keys.contains(
+                    net.minecraft.core.BlockPos.asLong((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
         }
 
-        @Override public double depth(double x, double y, double z) { return contains(x, y, z) ? 1 : 0; }
+        @Override
+        public double depth(double x, double y, double z) {
+            return contains(x, y, z) ? 1 : 0;
+        }
 
-        @Override public double weight(double x, double y, double z) { return contains(x, y, z) ? 1 : 0; }
+        @Override
+        public double weight(double x, double y, double z) {
+            return contains(x, y, z) ? 1 : 0;
+        }
     }
 }

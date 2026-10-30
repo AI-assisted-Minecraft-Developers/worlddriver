@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.api.registry;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 
 /** Adapters from plain functions to {@link ApiHandler}. */
@@ -11,9 +10,9 @@ public final class ApiHandlers {
     private ApiHandlers() {}
 
     /**
-     * A short synchronous service: it runs on the calling thread and its result or exception becomes
-     * a completed stage. "Short" is a property of the service, not something this adapter makes true;
-     * one that hops to a game thread still holds its caller for that hop.
+     * A short synchronous service: it runs on the calling thread and its result or exception becomes a completed stage.
+     * "Short" is a property of the service, not something this adapter makes true; one that hops to a game thread still
+     * holds its caller for that hop.
      */
     public static <P, R> ApiHandler<P, R> immediate(Function<P, R> service) {
         return (p, ctx) -> run(() -> service.apply(p));

@@ -26,13 +26,13 @@ import org.jetbrains.annotations.Nullable;
  * through Fabric API's events plus a few mixins where Fabric API has no event, the NeoForge entry through the game
  * event bus. This class names no loader, so the same handling runs on both.
  *
- * <p>The driver only listens: no hook cancels anything or returns a value. A listener of another mod that cancels
- * the action earlier in the chain still suppresses the report, since the loader then never calls the hook.
+ * <p>The driver only listens: no hook cancels anything or returns a value. A listener of another mod that cancels the
+ * action earlier in the chain still suppresses the report, since the loader then never calls the hook.
  *
  * <p>The external events ({@code block.break}, {@code block.place}, {@code entity.death}, {@code player.join},
- * {@code player.leave}, {@code chat.message}) go out through {@link DriverHost#emitExternal}. All of them are called
- * on the server thread. {@code block.break} is called while the block is still in place, and {@code entity.death}
- * when the death is decided, before the drops.
+ * {@code player.leave}, {@code chat.message}) go out through {@link DriverHost#emitExternal}. All of them are called on
+ * the server thread. {@code block.break} is called while the block is still in place, and {@code entity.death} when the
+ * death is decided, before the drops.
  */
 public final class WorldDriverEvents {
     private WorldDriverEvents() {}
@@ -118,7 +118,9 @@ public final class WorldDriverEvents {
     public static void chatReceived(ServerPlayer player, Component message) {
         DriverHost api = WorldDriver.host();
         if (api == null) return;
-        api.emitExternal(EventCatalog.CHAT_MESSAGE, player.blockPosition(),
+        api.emitExternal(
+                EventCatalog.CHAT_MESSAGE,
+                player.blockPosition(),
                 new EventCatalog.ChatMessage(player.getGameProfile().getName(), message.getString()));
     }
 

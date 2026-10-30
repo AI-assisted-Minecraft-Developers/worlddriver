@@ -17,17 +17,20 @@ public class ApiException extends RuntimeException {
         this.error = Objects.requireNonNull(error, "error");
     }
 
-    public ApiError error() { return error; }
+    public ApiError error() {
+        return error;
+    }
 
     public static ApiException of(ApiError.Code code, String message) {
         return new ApiException(ApiError.of(code, message));
     }
 
     public static ApiException invalidParams(List<ApiIssue> issues) {
-        String first = issues.isEmpty() ? "" : ": " + describe(issues.get(0))
-                + (issues.size() > 1 ? " (and " + (issues.size() - 1) + " more)" : "");
-        return new ApiException(new ApiError(ApiError.Code.INVALID_PARAMS, "invalid params" + first,
-                issues, ApiError.Execution.NOT_STARTED));
+        String first = issues.isEmpty()
+                ? ""
+                : ": " + describe(issues.get(0)) + (issues.size() > 1 ? " (and " + (issues.size() - 1) + " more)" : "");
+        return new ApiException(new ApiError(
+                ApiError.Code.INVALID_PARAMS, "invalid params" + first, issues, ApiError.Execution.NOT_STARTED));
     }
 
     /** One issue the way a single-field rejection reads in a message. */

@@ -1,31 +1,30 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * Step off a ledge and fall {@code drop} blocks. Each block adds a tick of
- * fall time + a damage check. Drops above {@link RulesConfig#pathfinderMaxDryFall}
- * are gated off.
+ * Step off a ledge and fall {@code drop} blocks. Each block adds a tick of fall time + a damage check. Drops above
+ * {@link RulesConfig#pathfinderMaxDryFall} are gated off.
  *
- * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative
- * dry-fall behaviour is what the knob's LOWEST legal value (3) buys; the shipping
- * default deliberately spends damage, so {@code Fall(4)} is LIVE on every default
- * run and the planner takes a real 1 HP hit rather than build a dirt
- * staircase down a steep jungle slope — the smooth-descent lever. Only
- * {@code Fall(5)} is inert by default. Vanilla charges {@code ceil(distance - 3)}
- * HP, so fall4 = 1 HP = 0.5♥ and fall5 = 2 HP = 1♥.
+ * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative dry-fall behaviour is what the knob's
+ * LOWEST legal value (3) buys; the shipping default deliberately spends damage, so {@code Fall(4)} is LIVE on every
+ * default run and the planner takes a real 1 HP hit rather than build a dirt staircase down a steep jungle slope — the
+ * smooth-descent lever. Only {@code Fall(5)} is inert by default. Vanilla charges {@code ceil(distance - 3)} HP, so
+ * fall4 = 1 HP = 0.5♥ and fall5 = 2 HP = 1♥.
  *
  * <p>Landing spot must be a safe stand position; the air column between must be empty.
  */
 public final class Fall extends Move {
     private final int drop;
+
     public Fall(int dx, int dz, int drop) {
         super(dx, -drop, dz, 10 + 5 * drop);
         this.drop = drop;
     }
+
     public boolean valid(WorldView w, BlockPos from) {
         // Live config gate (mirrors WaterBucketFall/FallIntoWater). At the shipping
         // cap of 4 this admits fall2..fall4 and rejects only Fall(5) — it is NOT the
@@ -50,5 +49,8 @@ public final class Fall extends Move {
         // when the foot column is clear.
         return clearFallColumn(w, from, dx, dz, drop);
     }
-    public String name() { return "fall" + drop; }
+
+    public String name() {
+        return "fall" + drop;
+    }
 }

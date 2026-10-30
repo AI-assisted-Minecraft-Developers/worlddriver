@@ -1,43 +1,48 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
-import net.magicterra.worlddriver.game.body.Body;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 
 /**
- * The baseline movement-channel chain: holds the single foreground
- * {@link BotProcess} that the {@code mc.bot.goto/mine/build/...} verbs start.
- * Replaces the old {@code volatile BotProcess current} slot in {@code BotApiImpl}
- * — the process lifecycle (attach, per-tick run, error capture, completion) moved
- * here verbatim, so user-task behaviour is unchanged. The difference is that a
- * higher-priority chain (retreat/combat/panic) can now preempt it: on preempt the
- * keys are released and the held process is left intact, and on resume the process
- * is told to {@link BotProcess#onResume()} (pathers repath from the new position).
+ * The baseline movement-channel chain: holds the single foreground {@link BotProcess} that the
+ * {@code mc.bot.goto/mine/build/...} verbs start. Replaces the old {@code volatile BotProcess current} slot in
+ * {@code BotApiImpl} — the process lifecycle (attach, per-tick run, error capture, completion) moved here verbatim, so
+ * user-task behaviour is unchanged. The difference is that a higher-priority chain (retreat/combat/panic) can now
+ * preempt it: on preempt the keys are released and the held process is left intact, and on resume the process is told
+ * to {@link BotProcess#onResume()} (pathers repath from the new position).
  */
 public final class UserTaskChain implements Chain {
     private final BotState state;
-    /** Volatile: written on the client tick thread, read by status() which may
-     *  run on an RPC handler thread (mirrors the old volatile {@code current}). */
+    /**
+     * Volatile: written on the client tick thread, read by status() which may run on an RPC handler thread (mirrors the
+     * old volatile {@code current}).
+     */
     private volatile BotProcess process;
     /** The slots {@link #process} switched on when it attached; switched off at every ending. */
     private SlotClaim claim = SlotClaim.NONE;
 
-    /** Releases what the process held on the body it drove (null when there is none); a seam so the
-     *  chain runs in a JVM test with no game. */
+    /**
+     * Releases what the process held on the body it drove (null when there is none); a seam so the chain runs in a JVM
+     * test with no game.
+     */
     private final Consumer<Body> keyRelease;
 
-    /** The body the last {@link #tick} drove. A stop that comes from a verb or a cancel arrives
-     *  without one, and what it has to release is held on this body. Null until the first tick. */
+    /**
+     * The body the last {@link #tick} drove. A stop that comes from a verb or a cancel arrives without one, and what it
+     * has to release is held on this body. Null until the first tick.
+     */
     private Body driven;
 
     public UserTaskChain(BotState state) {
-        this(state, b -> { if (b != null) b.releaseControls(); });
+        this(state, b -> {
+            if (b != null) b.releaseControls();
+        });
     }
 
     UserTaskChain(BotState state, Consumer<Body> keyRelease) {
@@ -45,22 +50,26 @@ public final class UserTaskChain implements Chain {
         this.keyRelease = keyRelease;
     }
 
-    /** Start a process, superseding any current one. Mirrors the old
-     *  {@code BotApiImpl.startProcess}, now {@code BotBrain.startProcess}. */
+    /**
+     * Start a process, superseding any current one. Mirrors the old {@code BotApiImpl.startProcess}, now
+     * {@code BotBrain.startProcess}.
+     */
     public void setProcess(BotProcess next) {
         install(next, true, null);
     }
 
     /**
-     * Start a process for the accepted action {@code action}, superseding any current one. The held
-     * action, if any, ends as superseded by this one; this one ends with the process.
+     * Start a process for the accepted action {@code action}, superseding any current one. The held action, if any,
+     * ends as superseded by this one; this one ends with the process.
      */
     public void setProcess(BotProcess next, Ticket action) {
         install(next, true, action);
     }
 
-    /** Start a process nobody asked for (the auto-backfill). It runs like a user task, but its
-     *  ending is not recorded: {@link #lastEnd} answers for the last task a caller started. */
+    /**
+     * Start a process nobody asked for (the auto-backfill). It runs like a user task, but its ending is not recorded:
+     * {@link #lastEnd} answers for the last task a caller started.
+     */
     public void setAmbientProcess(BotProcess next) {
         install(next, false, null);
     }
@@ -68,8 +77,11 @@ public final class UserTaskChain implements Chain {
     private void install(BotProcess next, boolean asked, Ticket nextAction) {
         // An ambient process never replaces a caller's task (the backfill starts only when idle), so a
         // held action without a successor is replaced by a process no caller can name.
-        stop("superseded", nextAction != null ? h -> h.supersede(nextAction.id())
-                : h -> h.fail("replaced by a process started without an action"));
+        stop(
+                "superseded",
+                nextAction != null
+                        ? h -> h.supersede(nextAction.id())
+                        : h -> h.fail("replaced by a process started without an action"));
         claim = SlotClaim.attach(next, state);
         drove = false;
         this.asked = asked;
@@ -82,16 +94,20 @@ public final class UserTaskChain implements Chain {
     private volatile BotProcess lastAsked;
 
     /** The held process if a caller started it, else the last one a caller started; null if none ever was. */
-    public BotProcess lastAsked() { return lastAsked; }
+    public BotProcess lastAsked() {
+        return lastAsked;
+    }
 
     /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
     private volatile Ticket action;
 
-    public Ticket action() { return action; }
+    public Ticket action() {
+        return action;
+    }
 
     /**
-     * Stop the held process if it is still {@code which}'s: what a cancel requested off this thread
-     * comes back to, once it has hopped here. False when {@code which} has already left the slot.
+     * Stop the held process if it is still {@code which}'s: what a cancel requested off this thread comes back to, once
+     * it has hopped here. False when {@code which} has already left the slot.
      */
     public boolean cancelAction(Ticket which, String reason) {
         if (which == null || !which.equals(action)) return false;
@@ -102,13 +118,16 @@ public final class UserTaskChain implements Chain {
     /** Whether the held process was started by a caller, so that its ending is theirs to read. */
     private boolean asked;
 
-    /** Whether the held process has been left running across a tick boundary, i.e. has driven the
-     *  bot. One that ends on its first tick never did, and the keybinds it would release are the
-     *  human's. */
+    /**
+     * Whether the held process has been left running across a tick boundary, i.e. has driven the bot. One that ends on
+     * its first tick never did, and the keybinds it would release are the human's.
+     */
     private boolean drove;
 
-    /** Cancel the held process (if any) with a reason recorded on its slot.
-     *  Mirrors the old {@code BotApiImpl.cancelCurrent}. */
+    /**
+     * Cancel the held process (if any) with a reason recorded on its slot. Mirrors the old
+     * {@code BotApiImpl.cancelCurrent}.
+     */
     public void cancel(String reason) {
         stop(reason, h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
@@ -123,7 +142,7 @@ public final class UserTaskChain implements Chain {
         if (c == null) return;
         Ticket a = action;
         action = null;
-        c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
+        c.onCancelled(reason); // let the process finalize per-session observers (e.g. flush a path archive)
         endClaim(reason);
         recordEnd(c.kind(), reason);
         keyRelease.accept(driven);
@@ -146,10 +165,11 @@ public final class UserTaskChain implements Chain {
         if (asked) end = new End(kind, error);
     }
 
-    /** {@code {kind, error}} of the last ending of a process a caller started, or null if none has
-     *  ended this session. {@code error} is null only when the process did what it was asked; a
-     *  give-up, a throw and a cancel all carry their reason. Surfaced as {@code lastProcessEnd}
-     *  in {@code mc.bot.status}. */
+    /**
+     * {@code {kind, error}} of the last ending of a process a caller started, or null if none has ended this session.
+     * {@code error} is null only when the process did what it was asked; a give-up, a throw and a cancel all carry
+     * their reason. Surfaced as {@code lastProcessEnd} in {@code mc.bot.status}.
+     */
     public Map<String, Object> lastEnd() {
         End e = end;
         if (e == null) return null;
@@ -159,15 +179,18 @@ public final class UserTaskChain implements Chain {
         return m;
     }
 
-    /** The held process, or null when idle. Read by ambient-behaviour gating and
-     *  status reporting. */
+    /** The held process, or null when idle. Read by ambient-behaviour gating and status reporting. */
     public BotProcess process() {
         return process;
     }
 
-    @Override public String name() { return "user"; }
+    @Override
+    public String name() {
+        return "user";
+    }
 
-    @Override public float priority(Body body, WorldView w, BotState st) {
+    @Override
+    public float priority(Body body, WorldView w, BotState st) {
         if (process == null) return 0f;
         // An Agent-invoked bunker (mc.bot.bunker) is a deliberate survival commitment:
         // it must outrank the combat/retreat reflexes, or the combat chain (60) suspends
@@ -179,7 +202,8 @@ public final class UserTaskChain implements Chain {
         return Priorities.USER;
     }
 
-    @Override public void tick(Body body, WorldView w, BotState st) {
+    @Override
+    public void tick(Body body, WorldView w, BotState st) {
         BotProcess c = process;
         if (c == null) return;
         driven = body;
@@ -205,7 +229,11 @@ public final class UserTaskChain implements Chain {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
             Ticket a = action;
             action = null;
-            try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
+            try {
+                c.onCancelled(err);
+            } catch (RuntimeException ignored) {
+                /* finalize must not mask the original */
+            }
             endClaim(err);
             recordEnd(c.kind(), err);
             keyRelease.accept(body);
@@ -214,35 +242,46 @@ public final class UserTaskChain implements Chain {
         }
     }
 
-    /** Set by {@link #onInterrupt}, cleared by {@link #onResume}: whether the channel was TAKEN from
-     *  this chain, as opposed to never held. The scheduler calls {@code onResume()} on every handover,
-     *  including {@code idle -> user} for a process that has never ticked, and forwarding that one
-     *  reaches {@code IntentProcess.onResume} → {@code Navigator.replan}, which drops a route the
-     *  process was handed before it started ({@code mc.bot.goto} with {@code planId}): the adopted
-     *  lane was gone before its first tick and the navigator searched from the foot instead (client
-     *  lane 2026-09-06, "foot-search kickoff: pathNull=true step=0/0"). A fresh process has no stale
-     *  path to drop; only a suspension can make one stale. */
+    /**
+     * Set by {@link #onInterrupt}, cleared by {@link #onResume}: whether the channel was TAKEN from this chain, as
+     * opposed to never held. The scheduler calls {@code onResume()} on every handover, including {@code idle -> user}
+     * for a process that has never ticked, and forwarding that one reaches {@code IntentProcess.onResume} →
+     * {@code Navigator.replan}, which drops a route the process was handed before it started ({@code mc.bot.goto} with
+     * {@code planId}): the adopted lane was gone before its first tick and the navigator searched from the foot instead
+     * (client lane 2026-09-06, "foot-search kickoff: pathNull=true step=0/0"). A fresh process has no stale path to
+     * drop; only a suspension can make one stale.
+     */
     private boolean interrupted;
 
-    /** Preempted by a higher-priority chain: stop in place, keep the process so
-     *  it can resume. With no process held this is the handover to idle after an ending, which
-     *  already settled the keys. */
-    @Override public void onInterrupt(Body body, Chain by) {
+    /**
+     * Preempted by a higher-priority chain: stop in place, keep the process so it can resume. With no process held this
+     * is the handover to idle after an ending, which already settled the keys.
+     */
+    @Override
+    public void onInterrupt(Body body, Chain by) {
         if (process != null) keyRelease.accept(body != null ? body : driven);
         interrupted = true;
     }
 
-    /** Regained the channel after a suspension: let the process repath from the current position
-     *  so it doesn't follow a path that went stale while it was held off. A first activation is
-     *  not a resumption and forwards nothing (see {@link #interrupted}). */
-    @Override public void onResume() {
+    /**
+     * Regained the channel after a suspension: let the process repath from the current position so it doesn't follow a
+     * path that went stale while it was held off. A first activation is not a resumption and forwards nothing (see
+     * {@link #interrupted}).
+     */
+    @Override
+    public void onResume() {
         if (interrupted && process != null) process.onResume();
         interrupted = false;
     }
 
-    @Override public String episodePhase() { BotProcess c = process; return c == null ? null : c.kind(); }
+    @Override
+    public String episodePhase() {
+        BotProcess c = process;
+        return c == null ? null : c.kind();
+    }
 
-    @Override public void cancelEpisode(Body body, String reason) {
+    @Override
+    public void cancelEpisode(Body body, String reason) {
         if (body != null) driven = body;
         cancel(reason);
     }

@@ -1,15 +1,7 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.TestJson;
 import static net.magicterra.worlddriver.application.TestTransports.mcp;
-
-import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.application.DriverApplication;
-
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -20,15 +12,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import net.magicterra.worlddriver.TestJson;
+import net.magicterra.worlddriver.api.ProbeMethods;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.application.DriverApplication;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * The MCP server runs a bounded number of requests and event streams.
  *
- * <p>Its executor was a cached pool: every POST and every open event stream got its own OS
- * thread, a stream for the life of the connection and a {@code mc.wait.*} call for up to two
- * minutes, with no ceiling short of the JVM failing to create a native thread.
+ * <p>Its executor was a cached pool: every POST and every open event stream got its own OS thread, a stream for the
+ * life of the connection and a {@code mc.wait.*} call for up to two minutes, with no ceiling short of the JVM failing
+ * to create a native thread.
  */
 @Timeout(60)
 class McpConcurrencyTest {
@@ -39,7 +35,8 @@ class McpConcurrencyTest {
                 + "\"name\":\"probe.slow\",\"arguments\":{\"ms\":3000}}}";
         return HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
     }
 
     @Test
@@ -74,7 +71,9 @@ class McpConcurrencyTest {
         try (McpServer server = mcp(new DriverApplication())) {
             HttpClient http = HttpClient.newHttpClient();
             HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
-                    .header("Accept", "text/event-stream").GET().build();
+                    .header("Accept", "text/event-stream")
+                    .GET()
+                    .build();
             List<InputStream> open = new ArrayList<>();
             try {
                 for (int i = 0; i < cap; i++) {

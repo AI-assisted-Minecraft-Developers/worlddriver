@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,9 +17,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
  * Settings discipline for the in-game tests: settings are written only under a pin, and a test that drives
@@ -31,27 +30,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ol>
  *   <li><b>No bypass.</b> Outside {@code kit.Settings}, no testmod method builds a {@code mc.test.settings} request
  *       ({@code TestHarnessContracts.Pin}, {@code Unpin}, {@code Write}) or assigns a config class's static field.
- *       Either would change settings that nothing puts back, and the next test would start with them.</li>
- *   <li><b>A driver pins.</b> A method that drives a bot ({@code SceneBot.spawn}, {@code SceneBot.of}) must take a
- *       pin ({@code Settings.pin}, {@code pinUntimed}, {@code untimed}, {@code compiledDefaults}, {@code save}, or
+ *       Either would change settings that nothing puts back, and the next test would start with them.
+ *   <li><b>A driver pins.</b> A method that drives a bot ({@code SceneBot.spawn}, {@code SceneBot.of}) must take a pin
+ *       ({@code Settings.pin}, {@code pinUntimed}, {@code untimed}, {@code compiledDefaults}, {@code save}, or
  *       {@code ClientRig.adopt}, which pins) on every path that reaches it. The old scene gates put the test baseline
  *       in place once at server start, so every scene ran under it; nothing does now, and a test that forgets the pin
- *       runs the bot on whatever settings the JVM holds — another test's, or the shipped defaults.</li>
+ *       runs the bot on whatever settings the JVM holds — another test's, or the shipped defaults.
  * </ol>
  *
  * <h2>Acceptance: this test must be able to go red</h2>
  *
  * <p>Two edits must each turn it red; verify by editing one line, running, and putting the line back:
+ *
  * <ol>
  *   <li>Replace the {@code Settings.pin(game)…} line of {@code SchedulerTest.duskSecureHeldProcessLifecycle} with
  *       {@code Settings.read(game, "allowBreak")}: this test must name that method. Not the positive control's test,
  *       {@code CombatTest}: a sample on the control trips the control, and the rule it exists to exercise never runs.
- *       Measured on 2026-10-28: red, naming exactly that method.</li>
+ *       Measured on 2026-10-28: red, naming exactly that method.
  *   <li>Add {@code TestHarnessContracts.Write.of(Map.of("allowBreak", true))} to any test method: this test must name
- *       it as a bypass. Measured on 2026-10-28: red, naming the method and {@code [Write]}.</li>
+ *       it as a bypass. Measured on 2026-10-28: red, naming the method and {@code [Write]}.
  * </ol>
- * The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers
- * true for everything, reddens them rather than passing quietly.
+ *
+ * The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers true
+ * for everything, reddens them rather than passing quietly.
  *
  * <h2>Why bytecode and not a source scan</h2>
  *
@@ -90,53 +91,72 @@ class ConfigPinDisciplineTest {
 
         // The instrument must be able to see the things it is asserting about. A parser that silently found nothing
         // would otherwise pass: a calibrated guard that never fires.
-        assertTrue(classes.size() > 20, "only " + classes.size() + " testmod classes parsed under "
-                + TESTMOD_CLASSES.toAbsolutePath() + ". This test reads BYTECODE, so :common:testmodClasses must have run.");
+        assertTrue(
+                classes.size() > 20,
+                "only " + classes.size() + " testmod classes parsed under " + TESTMOD_CLASSES.toAbsolutePath()
+                        + ". This test reads BYTECODE, so :common:testmodClasses must have run.");
 
         Scan scan = new Scan();
         for (ClassFile cf : classes) cf.scan(scan);
 
         // Positive control for rule 1: the one class allowed to build settings requests must be seen building them.
-        assertTrue(scan.settingsOps.keySet().stream().anyMatch(k -> k.startsWith(SETTINGS + "#")),
+        assertTrue(
+                scan.settingsOps.keySet().stream().anyMatch(k -> k.startsWith(SETTINGS + "#")),
                 "the scan saw no mc.test.settings request in kit.Settings itself, which builds every one; the scan is "
-                        + "broken, so a green on the rule below would mean nothing. Sites seen: " + scan.settingsOps.keySet());
+                        + "broken, so a green on the rule below would mean nothing. Sites seen: "
+                        + scan.settingsOps.keySet());
 
         Map<String, Set<String>> bypass = new TreeMap<>();
-        scan.settingsOps.forEach((k, v) -> { if (!k.startsWith(SETTINGS + "#")) bypass.put(shortKey(k), v); });
-        scan.configWrites.forEach((k, v) -> bypass.computeIfAbsent(shortKey(k), x -> new TreeSet<>()).addAll(v));
-        assertTrue(bypass.isEmpty(), () -> "testmod methods change settings around the pin:\n" + lines(bypass)
-                + "\nWrite settings through the handle a pin returns: Settings settings = Settings.pin(game); "
-                + "settings.set(key, value). It is put back when the test ends, passed or failed.");
+        scan.settingsOps.forEach((k, v) -> {
+            if (!k.startsWith(SETTINGS + "#")) bypass.put(shortKey(k), v);
+        });
+        scan.configWrites.forEach((k, v) ->
+                bypass.computeIfAbsent(shortKey(k), x -> new TreeSet<>()).addAll(v));
+        assertTrue(
+                bypass.isEmpty(),
+                () -> "testmod methods change settings around the pin:\n" + lines(bypass)
+                        + "\nWrite settings through the handle a pin returns: Settings settings = Settings.pin(game); "
+                        + "settings.set(key, value). It is put back when the test ends, passed or failed.");
 
-        assertFalse(scan.drives.isEmpty(), "found no SceneBot.spawn or SceneBot.of call anywhere in the testmod. "
-                + "Either no test drives a bot (then delete rule 2) or the scan is broken (then fix it).");
-        assertFalse(scan.pins.isEmpty(), "found no pin call. An empty pin set makes every driver below unprotected, so "
-                + "a red here would be the instrument, not the code.");
+        assertFalse(
+                scan.drives.isEmpty(),
+                "found no SceneBot.spawn or SceneBot.of call anywhere in the testmod. "
+                        + "Either no test drives a bot (then delete rule 2) or the scan is broken (then fix it).");
+        assertFalse(
+                scan.pins.isEmpty(),
+                "found no pin call. An empty pin set makes every driver below unprotected, so "
+                        + "a red here would be the instrument, not the code.");
 
         Map<String, Set<String>> callers = new HashMap<>();
         scan.calls.forEach((caller, callees) -> {
             for (String callee : callees) {
-                if (!callee.equals(caller)) callers.computeIfAbsent(callee, k -> new HashSet<>()).add(caller);
+                if (!callee.equals(caller))
+                    callers.computeIfAbsent(callee, k -> new HashSet<>()).add(caller);
             }
         });
         Graph g = new Graph(scan.pins, scan.calls, callers);
 
         // Positive control for rule 2: a method known to pin must come back protected, or every green below is noise.
         String control = TESTMOD_PKG + "/scenes/CombatTest#threatScanHurtAttacker";
-        assertTrue(g.protectedMethod(control, new HashSet<>()), "the positive control is not protected: " + control
-                + " calls Settings.pin in its own body. Reachability is broken; fix it before trusting any verdict here.");
+        assertTrue(
+                g.protectedMethod(control, new HashSet<>()),
+                "the positive control is not protected: " + control
+                        + " calls Settings.pin in its own body. Reachability is broken; fix it before trusting any verdict here.");
 
         Set<String> unprotected = new TreeSet<>();
         for (String driver : scan.drives) {
-            if (driver.startsWith(KIT)) continue;   // the kit's own overloads; their callers are what is judged
+            if (driver.startsWith(KIT)) continue; // the kit's own overloads; their callers are what is judged
             if (!g.protectedMethod(driver, new HashSet<>())) unprotected.add(shortKey(driver));
         }
         Set<String> unexpected = new TreeSet<>(unprotected);
         unexpected.removeAll(ACCOUNTED_FOR.keySet());
-        assertTrue(unexpected.isEmpty(), () -> "testmod methods drive a bot with no pin on every path into them:\n  "
-                + String.join("\n  ", unexpected) + "\n\nThe old gates ran every scene under the test baseline; "
-                + "nothing applies it now. Pin first, normally one line at the top of the test:\n"
-                + "    Settings.pin(game);");
+        assertTrue(
+                unexpected.isEmpty(),
+                () -> "testmod methods drive a bot with no pin on every path into them:\n  "
+                        + String.join("\n  ", unexpected)
+                        + "\n\nThe old gates ran every scene under the test baseline; "
+                        + "nothing applies it now. Pin first, normally one line at the top of the test:\n"
+                        + "    Settings.pin(game);");
 
         // The map must not outlive what it describes.
         Set<String> stale = new TreeSet<>(ACCOUNTED_FOR.keySet());
@@ -199,9 +219,9 @@ class ConfigPinDisciplineTest {
         /** Takes a pin, or EVERY caller is protected: one unpinned entry into a shared helper is a real hole. */
         boolean protectedMethod(String m, Set<String> stack) {
             if (takesPin(m, new HashSet<>())) return true;
-            if (!stack.add(m)) return true;              // cycle: neutral, decided by another edge
+            if (!stack.add(m)) return true; // cycle: neutral, decided by another edge
             Set<String> cs = callers.getOrDefault(m, Set.of());
-            if (cs.isEmpty()) return false;              // an entry point must pin for itself
+            if (cs.isEmpty()) return false; // an entry point must pin for itself
             for (String c : cs) {
                 if (!protectedMethod(c, stack)) return false;
             }
@@ -212,8 +232,10 @@ class ConfigPinDisciplineTest {
     // ------------------------------------------------------------------ class file reading
 
     private List<ClassFile> readAll() {
-        assertTrue(Files.isDirectory(TESTMOD_CLASSES), "compiled testmod classes not found at "
-                + TESTMOD_CLASSES.toAbsolutePath() + " (cwd " + Path.of(".").toAbsolutePath() + ").");
+        assertTrue(
+                Files.isDirectory(TESTMOD_CLASSES),
+                "compiled testmod classes not found at " + TESTMOD_CLASSES.toAbsolutePath() + " (cwd "
+                        + Path.of(".").toAbsolutePath() + ").");
         List<ClassFile> out = new ArrayList<>();
         try (Stream<Path> s = Files.walk(TESTMOD_CLASSES)) {
             for (Path p : s.filter(x -> x.toString().endsWith(".class")).toList()) {
@@ -229,17 +251,17 @@ class ConfigPinDisciplineTest {
     private static final int[] OPLEN = new int[256];
 
     static {
-        for (int o : new int[]{0x10, 0x12, 0x15, 0x16, 0x17, 0x18, 0x19, 0x36, 0x37, 0x38, 0x39,
-                0x3a, 0xa9, 0xbc}) {
+        for (int o : new int[] {0x10, 0x12, 0x15, 0x16, 0x17, 0x18, 0x19, 0x36, 0x37, 0x38, 0x39, 0x3a, 0xa9, 0xbc}) {
             OPLEN[o] = 1;
         }
         for (int o = 0x99; o <= 0xa8; o++) OPLEN[o] = 2;
-        for (int o : new int[]{0x11, 0x13, 0x14, 0x84, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8,
-                0xbb, 0xbd, 0xc0, 0xc1, 0xc6, 0xc7}) {
+        for (int o : new int[] {
+            0x11, 0x13, 0x14, 0x84, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xbb, 0xbd, 0xc0, 0xc1, 0xc6, 0xc7
+        }) {
             OPLEN[o] = 2;
         }
         OPLEN[0xc5] = 3;
-        for (int o : new int[]{0xb9, 0xba, 0xc8, 0xc9}) OPLEN[o] = 4;
+        for (int o : new int[] {0xb9, 0xba, 0xc8, 0xc9}) OPLEN[o] = 4;
     }
 
     private static final class ClassFile {
@@ -279,7 +301,7 @@ class ConfigPinDisciplineTest {
                     case 3, 4 -> bb.getInt();
                     case 5, 6 -> {
                         bb.getLong();
-                        i++;                                  // long/double take two slots
+                        i++; // long/double take two slots
                     }
                     case 9, 10, 11, 12, 17, 18 -> {
                         refA[i] = bb.getShort() & 0xFFFF;
@@ -288,21 +310,21 @@ class ConfigPinDisciplineTest {
                     default -> throw new IllegalStateException("unknown constant tag " + t + " in " + path);
                 }
             }
-            bb.getShort();                                     // access_flags
+            bb.getShort(); // access_flags
             thisClass = className(bb.getShort() & 0xFFFF);
-            bb.getShort();                                     // super_class
+            bb.getShort(); // super_class
             int ifc = bb.getShort() & 0xFFFF;
             bb.position(bb.position() + ifc * 2);
-            skipMembers(bb, false);                            // fields
-            skipMembers(bb, true);                             // methods
+            skipMembers(bb, false); // fields
+            skipMembers(bb, true); // methods
         }
 
         private void skipMembers(ByteBuffer bb, boolean keepCode) {
             int n = bb.getShort() & 0xFFFF;
             for (int i = 0; i < n; i++) {
-                bb.getShort();                                 // access
+                bb.getShort(); // access
                 String name = utf[bb.getShort() & 0xFFFF];
-                bb.getShort();                                 // descriptor
+                bb.getShort(); // descriptor
                 int attrs = bb.getShort() & 0xFFFF;
                 byte[] code = null;
                 for (int a = 0; a < attrs; a++) {
@@ -310,8 +332,8 @@ class ConfigPinDisciplineTest {
                     int alen = bb.getInt();
                     int after = bb.position() + alen;
                     if (keepCode && "Code".equals(an)) {
-                        bb.getShort();                         // max_stack
-                        bb.getShort();                         // max_locals
+                        bb.getShort(); // max_stack
+                        bb.getShort(); // max_locals
                         int clen = bb.getInt();
                         code = new byte[clen];
                         bb.get(code);
@@ -344,20 +366,20 @@ class ConfigPinDisciplineTest {
                 int i = 0;
                 while (i < code.length) {
                     int op = code[i] & 0xFF;
-                    if (op == 0xaa) {                          // tableswitch
+                    if (op == 0xaa) { // tableswitch
                         int j = pad(i + 1);
                         int lo = ByteBuffer.wrap(code, j + 4, 4).getInt();
                         int hi = ByteBuffer.wrap(code, j + 8, 4).getInt();
                         i = j + 12 + (hi - lo + 1) * 4;
                         continue;
                     }
-                    if (op == 0xab) {                          // lookupswitch
+                    if (op == 0xab) { // lookupswitch
                         int j = pad(i + 1);
                         int npairs = ByteBuffer.wrap(code, j + 4, 4).getInt();
                         i = j + 8 + npairs * 8;
                         continue;
                     }
-                    if (op == 0xc4) {                          // wide
+                    if (op == 0xc4) { // wide
                         i += (code[i + 1] & 0xFF) == 0x84 ? 6 : 4;
                         continue;
                     }
@@ -366,8 +388,8 @@ class ConfigPinDisciplineTest {
                         int idx = ((code[i + 1] & 0xFF) << 8) | (code[i + 2] & 0xFF);
                         // Only Fieldref/Methodref/InterfaceMethodref carry a resolvable owner. invokedynamic points
                         // at tag 18, whose first slot is a bootstrap index and NOT a Class index.
-                        boolean resolvable = idx > 0 && idx < tag.length
-                                && (tag[idx] == 9 || tag[idx] == 10 || tag[idx] == 11);
+                        boolean resolvable =
+                                idx > 0 && idx < tag.length && (tag[idx] == 9 || tag[idx] == 10 || tag[idx] == 11);
                         if (resolvable) record(out, key, op, refOwner(idx), refName(idx));
                     }
                     i += 1 + len;
@@ -382,8 +404,9 @@ class ConfigPinDisciplineTest {
             } else if (invoke && SETTINGS_OPS.contains(owner)) {
                 out.settingsOps.computeIfAbsent(key, k -> new TreeSet<>()).add(owner.substring(CONTRACTS.length()));
             }
-            if (op == 0xb8 && ((SETTINGS.equals(owner) && PINS.contains(name)) || (CLIENT_RIG.equals(owner)
-                    && "adopt".equals(name)))) {
+            if (op == 0xb8
+                    && ((SETTINGS.equals(owner) && PINS.contains(name))
+                            || (CLIENT_RIG.equals(owner) && "adopt".equals(name)))) {
                 out.pins.add(key);
             } else if (op == 0xb8 && SCENE_BOT.equals(owner) && DRIVES.contains(name)) {
                 out.drives.add(key);
@@ -395,8 +418,14 @@ class ConfigPinDisciplineTest {
 
         /** invokedynamic (0xba) is deliberately absent — lambdas are folded, not resolved. */
         private static boolean isRefOp(int op) {
-            return op == 0xb2 || op == 0xb3 || op == 0xb4 || op == 0xb5
-                    || op == 0xb6 || op == 0xb7 || op == 0xb8 || op == 0xb9;
+            return op == 0xb2
+                    || op == 0xb3
+                    || op == 0xb4
+                    || op == 0xb5
+                    || op == 0xb6
+                    || op == 0xb7
+                    || op == 0xb8
+                    || op == 0xb9;
         }
 
         private static int pad(int i) {

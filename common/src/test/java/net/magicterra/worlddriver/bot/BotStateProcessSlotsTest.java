@@ -7,14 +7,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.junit.jupiter.api.Test;
 import net.magicterra.worlddriver.bot.behavior.BotState;
+import org.junit.jupiter.api.Test;
 
 /**
- * {@link BotState#processSlots()} is written out by hand, and a slot claim only sees the slots it
- * lists: a slot added to {@link BotState} but not to that list is one a process can switch on and
- * no ending will ever switch off. The field list is the truth; this reads it.
+ * {@link BotState#processSlots()} is written out by hand, and a slot claim only sees the slots it lists: a slot added
+ * to {@link BotState} but not to that list is one a process can switch on and no ending will ever switch off. The field
+ * list is the truth; this reads it.
  */
 class BotStateProcessSlotsTest {
 
@@ -34,7 +33,9 @@ class BotStateProcessSlotsTest {
     @Test
     void everyProcessSlotFieldIsListed() throws IllegalAccessException {
         BotState st = new BotState();
-        assertEquals(List.of(), unlisted(st, st.processSlots()),
+        assertEquals(
+                List.of(),
+                unlisted(st, st.processSlots()),
                 "BotState.processSlots() must list every ProcessSlot field, or a slot claim cannot release it");
     }
 

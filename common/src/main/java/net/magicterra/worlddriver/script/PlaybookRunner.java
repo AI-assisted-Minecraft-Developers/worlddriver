@@ -1,11 +1,12 @@
 package net.magicterra.worlddriver.script;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.call.RunContext;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.CancelPlaybook;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookCancelled;
@@ -15,22 +16,19 @@ import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookSta
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookState;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookStatus;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.StartPlaybook;
-
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 
 /**
- * Runs a named boss playbook (a script under {@code /data/worlddriver/scripts/playbooks/}) in the
- * background, so {@code mc.bot.playbook} answers at once and the fight outlives {@code mc.script.eval}'s
- * budget. One at a time. The playbook is a run of its own, not part of the call that started it: the
- * caller going away does not stop it; {@code cancel} or its budget does, which also cancels the actions
- * it started.
+ * Runs a named boss playbook (a script under {@code /data/worlddriver/scripts/playbooks/}) in the background, so
+ * {@code mc.bot.playbook} answers at once and the fight outlives {@code mc.script.eval}'s budget. One at a time. The
+ * playbook is a run of its own, not part of the call that started it: the caller going away does not stop it;
+ * {@code cancel} or its budget does, which also cancels the actions it started.
  *
- * <p>It runs through the same {@link ScriptEvaluator} as {@code mc.script.eval}, so under the same class
- * filter, which is off unless {@code -Dworlddriver.sandbox=on}: scripts are a first-party capability and
- * the caller owns the trust boundary, here as there.
+ * <p>It runs through the same {@link ScriptEvaluator} as {@code mc.script.eval}, so under the same class filter, which
+ * is off unless {@code -Dworlddriver.sandbox=on}: scripts are a first-party capability and the caller owns the trust
+ * boundary, here as there.
  */
 public final class PlaybookRunner {
     private static final String DIR = "/data/worlddriver/scripts/playbooks/";
@@ -52,7 +50,9 @@ public final class PlaybookRunner {
             this.run = run;
         }
 
-        boolean active() { return outcome == null; }
+        boolean active() {
+            return outcome == null;
+        }
     }
 
     public PlaybookRunner(ScriptEvaluator evaluator) {
@@ -70,28 +70,39 @@ public final class PlaybookRunner {
     private synchronized PlaybookReply start(StartPlaybook s) {
         Playbook cur = current;
         if (cur != null && cur.active()) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+            throw ApiException.of(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE,
                     "playbook " + cur.name + " (" + cur.run.runId() + ") is running; cancel it first");
         }
         String body = load(s.name());
-        if (body == null) throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no playbook named " + s.name());
+        if (body == null)
+            throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no playbook named " + s.name());
         // On the body's first line, so the lines an error names are the playbook's own.
         String full = "var PLAYBOOK = " + s.args().map(a -> a.json().toString()).orElse("{}") + "; " + body;
         Playbook p = new Playbook(s.name(), RunContext.start("playbook-" + s.name()));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(s.budgetMs());
-        CallContext own = new CallContext(deadline, CancellationToken.NEVER, Optional.of(p.run), CallContext.SHARED_WAITS, true);
-        evaluator.runOwned(full, s.budgetMs(), own).whenComplete((o, t) -> p.outcome = o != null ? o
-                : ScriptEvaluator.failed(p.run, t));
-        current = p;   // only once it started: a run refused as busy is no playbook to report
+        CallContext own =
+                new CallContext(deadline, CancellationToken.NEVER, Optional.of(p.run), CallContext.SHARED_WAITS, true);
+        evaluator
+                .runOwned(full, s.budgetMs(), own)
+                .whenComplete((o, t) -> p.outcome = o != null ? o : ScriptEvaluator.failed(p.run, t));
+        current = p; // only once it started: a run refused as busy is no playbook to report
         return new PlaybookStarted(s.name(), p.run.runId());
     }
 
     private PlaybookReply status() {
         Playbook cur = current;
-        if (cur == null) return new PlaybookState(false, Optional.empty(), Optional.empty(), Optional.empty(), false, Optional.empty());
+        if (cur == null)
+            return new PlaybookState(
+                    false, Optional.empty(), Optional.empty(), Optional.empty(), false, Optional.empty());
         boolean active = cur.active();
-        return new PlaybookState(active, Optional.of(cur.name), Optional.of(cur.run.runId()), Optional.of(cur.startedAtMs),
-                active && cur.run.stopped().isCancelled(), Optional.ofNullable(cur.outcome));
+        return new PlaybookState(
+                active,
+                Optional.of(cur.name),
+                Optional.of(cur.run.runId()),
+                Optional.of(cur.startedAtMs),
+                active && cur.run.stopped().isCancelled(),
+                Optional.ofNullable(cur.outcome));
     }
 
     private PlaybookReply cancel() {

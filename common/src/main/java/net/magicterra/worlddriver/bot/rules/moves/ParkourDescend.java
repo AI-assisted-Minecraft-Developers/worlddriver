@@ -3,38 +3,37 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.minecraft.core.BlockPos;
 
 /**
- * Parkour DESCEND -- Baritone {@code MovementParkour} with a lower landing: a
- * sprint-jump across a 2-3 block cardinal gap that lands {@code drop} blocks
- * BELOW the launch. (A distance-1 drop is a {@link Fall}/{@link StepDown}; a
- * same-level leap is {@link Parkour2}/{@link Parkour3}.) Drops stay <=3 so
- * there is never fall damage, and the extra airtime of falling while moving
- * forward makes this physically EASIER than a flat leap of the same distance
- * -- yet A* had no move for it, so a gap with a lower far side forced a long
- * detour. Each intermediate gap column is required clear over a generous box
- * (apex y+1 down to the landing level) so neither the jump apex nor the
- * descending arc clips, with no stand-able floor at launch level (else a
- * cheaper Walk/StepDown chain wins); the column above the landing must be
- * clear for the bot to fall through. Distance-2 is always in the catalog;
- * distance-3 shares the {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4}
- * gate like the other long leaps. Cost = flat-parkour + 4/drop (falling is
- * cheap, as in {@link Fall}). The {@code parkourDescend} name starts with
- * "parkour" so the Navigator's existing parkour actuator drives it unchanged.
+ * Parkour DESCEND -- Baritone {@code MovementParkour} with a lower landing: a sprint-jump across a 2-3 block cardinal
+ * gap that lands {@code drop} blocks BELOW the launch. (A distance-1 drop is a {@link Fall}/{@link StepDown}; a
+ * same-level leap is {@link Parkour2}/{@link Parkour3}.) Drops stay <=3 so there is never fall damage, and the extra
+ * airtime of falling while moving forward makes this physically EASIER than a flat leap of the same distance -- yet A*
+ * had no move for it, so a gap with a lower far side forced a long detour. Each intermediate gap column is required
+ * clear over a generous box (apex y+1 down to the landing level) so neither the jump apex nor the descending arc clips,
+ * with no stand-able floor at launch level (else a cheaper Walk/StepDown chain wins); the column above the landing must
+ * be clear for the bot to fall through. Distance-2 is always in the catalog; distance-3 shares the
+ * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} gate like the other long leaps. Cost =
+ * flat-parkour + 4/drop (falling is cheap, as in {@link Fall}). The {@code parkourDescend} name starts with "parkour"
+ * so the Navigator's existing parkour actuator drives it unchanged.
  */
 public final class ParkourDescend extends Move {
     private final int dist, drop;
+
     public ParkourDescend(int dx, int dz, int dist, int drop) {
         super(dx * dist, -drop, dz * dist, (dist == 2 ? 22 : 32) + 4 * drop);
         this.dist = dist;
         this.drop = drop;
     }
-    @Override public boolean availableInSearch(WorldView w) {
+
+    @Override
+    public boolean availableInSearch(WorldView w) {
         return !(dist >= 3 || drop >= 2) || RulesConfig.allowParkour4;
     }
+
     public boolean valid(WorldView w, BlockPos from) {
         // Only the shallow drop-1 descend lands reliably on a 1-wide block:
         // the extra airtime of a deeper drop (or a longer dist-3 gap) carries
@@ -48,13 +47,13 @@ public final class ParkourDescend extends Move {
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         // A leap longer than 2 needs the full sprint run-up, as every long leap does (Move.hasRunway).
         if (!(dist >= 3 ? Move.hasRunway(w, from, dx, dz) : Move.hasRunway(w, from))) return false;
-        BlockPos to = apply(from);                 // (sx*dist, -drop, sz*dist)
+        BlockPos to = apply(from); // (sx*dist, -drop, sz*dist)
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
-                && Move.overTheVoid(w, from, to)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+            return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
@@ -87,6 +86,13 @@ public final class ParkourDescend extends Move {
         }
         return true;
     }
-    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
-    public String name() { return "parkourDescend" + dist + "d" + drop; }
+
+    @Override
+    public Capability requiredCapability() {
+        return Capability.PARKOUR;
+    }
+
+    public String name() {
+        return "parkourDescend" + dist + "d" + drop;
+    }
 }

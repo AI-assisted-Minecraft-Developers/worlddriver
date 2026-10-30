@@ -1,10 +1,16 @@
 package net.magicterra.worlddriver.debug;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import net.magicterra.worlddriver.config.ControlConfig;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import net.magicterra.worlddriver.bot.control.BotLevelHolder;
+import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.PathTrace;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -19,37 +25,30 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import net.magicterra.worlddriver.bot.control.BotLevelHolder;
 
 /**
- * {@link PathTrace} implementation that records a complete goto session into a
- * {@link PathArchive} and writes it to disk as JSON under
- * {@code config/worlddriver/replays/}.
+ * {@link PathTrace} implementation that records a complete goto session into a {@link PathArchive} and writes it to
+ * disk as JSON under {@code config/worlddriver/replays/}.
  *
- * <p>Gated by {@link ControlConfig#pathArchive}: when false every callback returns
- * immediately. Session boundary is the first {@code onSearchBegin} when none is
- * open; a second begin while a session is open (i.e. a repath) accumulates into
- * the same session without resetting it. The archive is finalised and flushed on
- * {@code onTerminal}.</p>
+ * <p>Gated by {@link ControlConfig#pathArchive}: when false every callback returns immediately. Session boundary is the
+ * first {@code onSearchBegin} when none is open; a second begin while a session is open (i.e. a repath) accumulates
+ * into the same session without resetting it. The archive is finalised and flushed on {@code onTerminal}.
  *
- * <p>All callbacks fire on the Navigator's tick thread. Block reads use
- * {@link BotLevelHolder#current} (set by Navigator each tick), which works on both
- * the client and the dedicated/GameTest server without referencing the
- * client-only {@code Minecraft} class. The only off-thread work is the final
- * disk write, which is dispatched to a daemon thread exactly like
- * {@link PathDebugRecorder}'s auto-dump.</p>
+ * <p>All callbacks fire on the Navigator's tick thread. Block reads use {@link BotLevelHolder#current} (set by
+ * Navigator each tick), which works on both the client and the dedicated/GameTest server without referencing the
+ * client-only {@code Minecraft} class. The only off-thread work is the final disk write, which is dispatched to a
+ * daemon thread exactly like {@link PathDebugRecorder}'s auto-dump.
  */
 public final class PathArchiveRecorder implements PathTrace {
     private static volatile PathArchiveRecorder active;
 
-    public static PathArchiveRecorder active() { return active; }
-    public static void activate(PathArchiveRecorder recorder) { active = recorder; }
+    public static PathArchiveRecorder active() {
+        return active;
+    }
 
+    public static void activate(PathArchiveRecorder recorder) {
+        active = recorder;
+    }
 
     private static final Logger LOG = LoggerFactory.getLogger("agent-patharchive");
 
@@ -65,31 +64,32 @@ public final class PathArchiveRecorder implements PathTrace {
     private String goalDesc;
     /** Best-effort goal position for the header {@code goal} field. May equal start. */
     private int[] goalCoords;
+
     private int[] startCoords;
-    private Long seed;             // null when world seed is unknown
+    private Long seed; // null when world seed is unknown
     private String dimension;
 
     private int repathIndex;
-    private final List<PathArchive.Segment>     segments    = new ArrayList<>();
-    private final Long2ObjectOpenHashMap<PathArchive.EnvelopeCell> envelopeMap
-            = new Long2ObjectOpenHashMap<>();
-    private final List<PathArchive.Tick>        ticks       = new ArrayList<>();
+    private final List<PathArchive.Segment> segments = new ArrayList<>();
+    private final Long2ObjectOpenHashMap<PathArchive.EnvelopeCell> envelopeMap = new Long2ObjectOpenHashMap<>();
+    private final List<PathArchive.Tick> ticks = new ArrayList<>();
 
     // ---- replay-capture state (mc.debug.replay) ----------------------------
 
-    /** True while the open session is a replay run (armed by {@link #armReplay}),
-     *  so {@link #onSearchBegin} can't clobber it and {@link #onTerminal} writes a
-     *  {@code replay-run-*.json} (kind="replay") instead of a plan archive. */
+    /**
+     * True while the open session is a replay run (armed by {@link #armReplay}), so {@link #onSearchBegin} can't
+     * clobber it and {@link #onTerminal} writes a {@code replay-run-*.json} (kind="replay") instead of a plan archive.
+     */
     private boolean replayArmed;
-    /** Entity id the armed replay run belongs to (null = unpinned). The trace SINK is a
-     *  GLOBAL static shared by every Navigator on every thread — in the integrated (T1)
-     *  topology the client bot's navigator ticks CONCURRENTLY with a server-side scene
-     *  navigator (live 2026-07-19: the JS validation suite's {@code mc.debug.replay} drove
-     *  the HOST player at the same arena while {@code wd.replayRoundTrip} had its replay
-     *  session armed — one client-thread sample of the falling host (y=126, 95 blocks
-     *  under the floor) landed inside the armed session and blew the 4.0 deviation gate
-     *  while the replay walk itself was byte-identical). Pinning the session to the
-     *  replaying avatar's entity id drops foreign-navigator samples at the source. */
+    /**
+     * Entity id the armed replay run belongs to (null = unpinned). The trace SINK is a GLOBAL static shared by every
+     * Navigator on every thread — in the integrated (T1) topology the client bot's navigator ticks CONCURRENTLY with a
+     * server-side scene navigator (live 2026-07-19: the JS validation suite's {@code mc.debug.replay} drove the HOST
+     * player at the same arena while {@code wd.replayRoundTrip} had its replay session armed — one client-thread sample
+     * of the falling host (y=126, 95 blocks under the floor) landed inside the armed session and blew the 4.0 deviation
+     * gate while the replay walk itself was byte-identical). Pinning the session to the replaying avatar's entity id
+     * drops foreign-navigator samples at the source.
+     */
     private Integer replayEntityId;
     /** Plan nodes the replay executes — used to compute per-tick deviation. */
     private List<BlockPos> replayPlan = List.of();
@@ -98,11 +98,11 @@ public final class PathArchiveRecorder implements PathTrace {
 
     /** Path of the last file written; readable via {@link #lastWrittenPath()}. */
     private volatile String lastWritten;
-    /** Path of the last {@code replay-run-*.json} written (kind="replay"); readable
-     *  via {@link #lastReplayRunPath()}. Distinct from {@link #lastWritten} so a test
-     *  that records a plan archive THEN a replay run can find the replay file
-     *  unambiguously. Set by the background write thread shortly after a replay
-     *  {@link #onTerminal}. */
+    /**
+     * Path of the last {@code replay-run-*.json} written (kind="replay"); readable via {@link #lastReplayRunPath()}.
+     * Distinct from {@link #lastWritten} so a test that records a plan archive THEN a replay run can find the replay
+     * file unambiguously. Set by the background write thread shortly after a replay {@link #onTerminal}.
+     */
     private volatile String lastReplayRun;
 
     // -----------------------------------------------------------------------
@@ -115,15 +115,14 @@ public final class PathArchiveRecorder implements PathTrace {
     // -----------------------------------------------------------------------
 
     /**
-     * Open a replay-capture session for {@code mc.debug.replay}. Replay execution
-     * disables A*, so {@link #onSearchBegin}/{@link #onSearchResult} never fire and
-     * the normal session would never start — this is the explicit entry point.
+     * Open a replay-capture session for {@code mc.debug.replay}. Replay execution disables A*, so
+     * {@link #onSearchBegin}/{@link #onSearchResult} never fire and the normal session would never start — this is the
+     * explicit entry point.
      *
-     * <p>The session is flagged {@code kind="replay"}: it stores the plan nodes (for
-     * per-tick deviation) and a reference to the plan archive the run replays.
-     * Subsequent {@link #onNavigatorTick} ticks accumulate into this session and
-     * {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores
-     * {@link ControlConfig#pathArchive} (the replay tool always wants the run captured).</p>
+     * <p>The session is flagged {@code kind="replay"}: it stores the plan nodes (for per-tick deviation) and a
+     * reference to the plan archive the run replays. Subsequent {@link #onNavigatorTick} ticks accumulate into this
+     * session and {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores {@link ControlConfig#pathArchive}
+     * (the replay tool always wants the run captured).
      */
     public void armReplay(List<BlockPos> planNodes, String planRefFile, int replayEntityId) {
         sessionOpen = true;
@@ -139,9 +138,9 @@ public final class PathArchiveRecorder implements PathTrace {
         ticks.clear();
 
         BlockPos start = replayPlan.isEmpty() ? BlockPos.ZERO : replayPlan.get(0);
-        startCoords = new int[]{ start.getX(), start.getY(), start.getZ() };
+        startCoords = new int[] {start.getX(), start.getY(), start.getZ()};
         BlockPos goalPos = replayPlan.isEmpty() ? start : replayPlan.get(replayPlan.size() - 1);
-        goalCoords = new int[]{ goalPos.getX(), goalPos.getY(), goalPos.getZ() };
+        goalCoords = new int[] {goalPos.getX(), goalPos.getY(), goalPos.getZ()};
         goalDesc = "replay:" + planRefFile;
 
         Level level = BotLevelHolder.current;
@@ -157,7 +156,7 @@ public final class PathArchiveRecorder implements PathTrace {
     @Override
     public void onSearchBegin(BlockPos start, Goal goal) {
         if (!ControlConfig.pathArchive) return;
-        if (sessionOpen) return;   // repath into same session OR replay armed — do NOT reset
+        if (sessionOpen) return; // repath into same session OR replay armed — do NOT reset
 
         sessionOpen = true;
         startMs = System.currentTimeMillis();
@@ -166,15 +165,15 @@ public final class PathArchiveRecorder implements PathTrace {
         envelopeMap.clear();
         ticks.clear();
 
-        startCoords = new int[]{ start.getX(), start.getY(), start.getZ() };
+        startCoords = new int[] {start.getX(), start.getY(), start.getZ()};
         goalDesc = goal.toString();
 
         // Derive goal coordinates from known Goal types (best-effort).
         BlockPos goalPos = GoalMarker.of(goal);
         if (goalPos != null) {
-            goalCoords = new int[]{ goalPos.getX(), goalPos.getY(), goalPos.getZ() };
+            goalCoords = new int[] {goalPos.getX(), goalPos.getY(), goalPos.getZ()};
         } else {
-            goalCoords = startCoords;   // open goal — use start as placeholder
+            goalCoords = startCoords; // open goal — use start as placeholder
         }
 
         // Resolve dimension + seed from the bot's own level (dist-neutral: works on
@@ -197,8 +196,8 @@ public final class PathArchiveRecorder implements PathTrace {
     }
 
     @Override
-    public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
-                               int expanded, long ms, double finalCost) {
+    public void onSearchResult(
+            List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
         if (!ControlConfig.pathArchive || !sessionOpen) return;
 
         Level level = BotLevelHolder.current;
@@ -206,18 +205,18 @@ public final class PathArchiveRecorder implements PathTrace {
         // Build node list (int[3] per node).
         List<int[]> pathCoords = new ArrayList<>(path.size());
         for (BlockPos bp : path) {
-            pathCoords.add(new int[]{ bp.getX(), bp.getY(), bp.getZ() });
+            pathCoords.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
         }
 
         // Build edge records.  edges[0] is always null (start node has no entering edge);
         // null sentinels are skipped so the serialiser never receives a null EdgeRec.
         List<PathArchive.EdgeRec> edgeRecs = new ArrayList<>(edges.size());
         for (Move.Edge e : edges) {
-            if (e == null) continue;   // start-node sentinel — no entering edge
+            if (e == null) continue; // start-node sentinel — no entering edge
             List<int[]> breakCells = new ArrayList<>();
-            for (BlockPos bp : e.toBreak) breakCells.add(new int[]{ bp.getX(), bp.getY(), bp.getZ() });
+            for (BlockPos bp : e.toBreak) breakCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
             List<int[]> placeCells = new ArrayList<>();
-            for (BlockPos bp : e.toPlace) placeCells.add(new int[]{ bp.getX(), bp.getY(), bp.getZ() });
+            for (BlockPos bp : e.toPlace) placeCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
             edgeRecs.add(new PathArchive.EdgeRec(e.move, e.cost, breakCells, placeCells));
         }
 
@@ -239,18 +238,23 @@ public final class PathArchiveRecorder implements PathTrace {
                         ? NodePhysics.compute(level, foot, prev, next, entering.toBreak, entering.toPlace)
                         : NodePhysics.compute(level, foot, prev, next);
                 nr = new PathArchive.NodeRec(
-                        f.fitStand(), f.fitCrouch(), f.fitCrawl(),
-                        f.collidesStanding(), f.ceilingForces(),
-                        f.inWaterFoot(), f.submergedEye(), f.underfootSolid(),
+                        f.fitStand(),
+                        f.fitCrouch(),
+                        f.fitCrawl(),
+                        f.collidesStanding(),
+                        f.ceilingForces(),
+                        f.inWaterFoot(),
+                        f.submergedEye(),
+                        f.underfootSolid(),
                         f.footHazard(),
-                        f.fallFromPrev(), f.fallSurvivable(),
-                        f.jumpNeeded(), f.jumpFeasible());
+                        f.fallFromPrev(),
+                        f.fallSurvivable(),
+                        f.jumpNeeded(),
+                        f.jumpFeasible());
             } else {
                 // Level unavailable — write a neutral placeholder so the schema stays valid.
                 nr = new PathArchive.NodeRec(
-                        false, false, false, false, "none",
-                        false, false, false, null,
-                        0.0, true, false, false);
+                        false, false, false, false, "none", false, false, false, null, 0.0, true, false, false);
             }
             nodeRecs.add(nr);
 
@@ -275,8 +279,7 @@ public final class PathArchiveRecorder implements PathTrace {
         }
 
         segments.add(new PathArchive.Segment(
-                repathIndex++, goalReached, expanded, ms, finalCost,
-                pathCoords, edgeRecs, nodeRecs));
+                repathIndex++, goalReached, expanded, ms, finalCost, pathCoords, edgeRecs, nodeRecs));
     }
 
     @Override
@@ -294,10 +297,17 @@ public final class PathArchiveRecorder implements PathTrace {
         double deviation = replayArmed ? minDeviation(s.x(), s.y(), s.z()) : Double.NaN;
 
         ticks.add(new PathArchive.Tick(
-                s.tick(), s.x(), s.y(), s.z(), s.yawActual(),
-                s.stepIndex(), s.moveType(),
-                s.onGround(), s.inWater(),
-                s.pose(), s.aabbOverlap(),
+                s.tick(),
+                s.x(),
+                s.y(),
+                s.z(),
+                s.yawActual(),
+                s.stepIndex(),
+                s.moveType(),
+                s.onGround(),
+                s.inWater(),
+                s.pose(),
+                s.aabbOverlap(),
                 deviation));
     }
 
@@ -325,18 +335,23 @@ public final class PathArchiveRecorder implements PathTrace {
 
         // Snapshot all mutable state before handing off to the background thread.
         PathArchive.Header header = new PathArchive.Header(
-                seed, dimension, startMs, goalDesc,
-                startCoords, goalCoords,
-                outcome.name(), reason == null ? "" : reason);
+                seed,
+                dimension,
+                startMs,
+                goalDesc,
+                startCoords,
+                goalCoords,
+                outcome.name(),
+                reason == null ? "" : reason);
 
         // A replay-run carries only trajectory+deviation (with a planRef pointing at
         // the plan archive that holds the per-step facts); a plan archive carries the
         // full segments + envelope. Snapshot accordingly.
-        List<PathArchive.Segment>      segSnap = replay ? List.of() : List.copyOf(segments);
+        List<PathArchive.Segment> segSnap = replay ? List.of() : List.copyOf(segments);
         List<PathArchive.EnvelopeCell> envSnap = replay ? List.of() : List.copyOf(envelopeMap.values());
-        List<PathArchive.Tick>         tickSnap = List.copyOf(ticks);
+        List<PathArchive.Tick> tickSnap = List.copyOf(ticks);
         String planRef = replay ? replayPlanRef : null;
-        String kind    = replay ? "replay" : "plan";
+        String kind = replay ? "replay" : "plan";
 
         segments.clear();
         envelopeMap.clear();
@@ -344,14 +359,12 @@ public final class PathArchiveRecorder implements PathTrace {
         replayPlan = List.of();
         replayPlanRef = null;
 
-        PathArchive archive = new PathArchive(
-                PathArchive.SCHEMA_VERSION, kind, header,
-                segSnap, envSnap, tickSnap, planRef);
+        PathArchive archive =
+                new PathArchive(PathArchive.SCHEMA_VERSION, kind, header, segSnap, envSnap, tickSnap, planRef);
 
         // Write off the client thread so onTerminal never stalls a game tick.
         String prefix = replay ? "replay-run" : "replay";
-        String fileName = String.format("%s-%04d-%d",
-                prefix, SEQ.incrementAndGet(), System.currentTimeMillis());
+        String fileName = String.format("%s-%04d-%d", prefix, SEQ.incrementAndGet(), System.currentTimeMillis());
         Util.nonCriticalIoPool().execute(() -> {
             try {
                 Files.createDirectories(REPLAY_DIR);
@@ -360,8 +373,13 @@ public final class PathArchiveRecorder implements PathTrace {
                 Files.writeString(out, json);
                 lastWritten = out.toAbsolutePath().toString();
                 if (replay) lastReplayRun = lastWritten;
-                LOG.info("[patharchive] wrote {} ({} segs, {} ticks, {} envelope cells, outcome={})",
-                        lastWritten, segSnap.size(), tickSnap.size(), envSnap.size(), outcome);
+                LOG.info(
+                        "[patharchive] wrote {} ({} segs, {} ticks, {} envelope cells, outcome={})",
+                        lastWritten,
+                        segSnap.size(),
+                        tickSnap.size(),
+                        envSnap.size(),
+                        outcome);
             } catch (Exception e) {
                 LOG.warn("[patharchive] write failed: {}", e.toString());
             }
@@ -373,20 +391,18 @@ public final class PathArchiveRecorder implements PathTrace {
     // -----------------------------------------------------------------------
 
     /**
-     * Returns the absolute path of the last replay file written, or {@code null}
-     * if none has been written yet in this session. The value is set by the
-     * background write thread shortly after {@link #onTerminal} returns.
+     * Returns the absolute path of the last replay file written, or {@code null} if none has been written yet in this
+     * session. The value is set by the background write thread shortly after {@link #onTerminal} returns.
      */
     public String lastWrittenPath() {
         return lastWritten;
     }
 
     /**
-     * Returns the absolute path of the last {@code replay-run-*.json} (kind="replay")
-     * written, or {@code null} if none has been written yet. Distinct from
-     * {@link #lastWrittenPath()} so a caller that records a plan archive and then
-     * replays it can locate the replay-run file unambiguously. Set by the background
-     * write thread shortly after a replay {@link #onTerminal} returns.
+     * Returns the absolute path of the last {@code replay-run-*.json} (kind="replay") written, or {@code null} if none
+     * has been written yet. Distinct from {@link #lastWrittenPath()} so a caller that records a plan archive and then
+     * replays it can locate the replay-run file unambiguously. Set by the background write thread shortly after a
+     * replay {@link #onTerminal} returns.
      */
     public String lastReplayRunPath() {
         return lastReplayRun;
@@ -397,23 +413,21 @@ public final class PathArchiveRecorder implements PathTrace {
     // -----------------------------------------------------------------------
 
     /**
-     * Samples one envelope cell.  The "solid" flag is true when the block has a
-     * non-empty collision shape that is also a full 1×1×1 cube (so partial shapes
-     * like slabs and fences read {@code solid=false}).  The "shape" field is
-     * populated only for blocks with a non-empty, non-full-cube collision shape,
-     * to keep the JSON compact.  The "fluid" field is the registry key of the
-     * fluid type, or {@code null} for empty fluid.
+     * Samples one envelope cell. The "solid" flag is true when the block has a non-empty collision shape that is also a
+     * full 1×1×1 cube (so partial shapes like slabs and fences read {@code solid=false}). The "shape" field is
+     * populated only for blocks with a non-empty, non-full-cube collision shape, to keep the JSON compact. The "fluid"
+     * field is the registry key of the fluid type, or {@code null} for empty fluid.
      */
     private static PathArchive.EnvelopeCell sampleCell(Level level, BlockPos pos) {
-        int[] posArr = new int[]{ pos.getX(), pos.getY(), pos.getZ() };
+        int[] posArr = new int[] {pos.getX(), pos.getY(), pos.getZ()};
 
         BlockState st = level.getBlockState(pos);
         String block = BuiltInRegistries.BLOCK.getKey(st.getBlock()).toString();
 
         VoxelShape colShape = st.getCollisionShape(level, pos);
-        boolean empty  = colShape.isEmpty();
+        boolean empty = colShape.isEmpty();
         boolean fullCube = !empty && st.isCollisionShapeFullBlock(level, pos);
-        boolean solid  = fullCube;
+        boolean solid = fullCube;
 
         // Only store shape AABB list for partial (non-empty, non-full-cube) shapes.
         List<double[]> shape = null;
@@ -421,8 +435,10 @@ public final class PathArchiveRecorder implements PathTrace {
             List<AABB> aabbs = colShape.toAabbs();
             shape = new ArrayList<>(aabbs.size());
             for (AABB box : aabbs) {
-                shape.add(new double[]{ box.minX, box.minY, box.minZ,
-                                        box.maxX, box.maxY, box.maxZ });
+                shape.add(new double[] {
+                    box.minX, box.minY, box.minZ,
+                    box.maxX, box.maxY, box.maxZ
+                });
             }
         }
 

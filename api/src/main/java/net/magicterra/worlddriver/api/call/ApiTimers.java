@@ -6,8 +6,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * The one timer thread behind every deadline the API sets: a wait that runs out, a hop that is given
- * up. A task here only completes a future; it never encodes, writes to a socket or touches the game.
+ * The one timer thread behind every deadline the API sets: a wait that runs out, a hop that is given up. A task here
+ * only completes a future; it never encodes, writes to a socket or touches the game.
  */
 public final class ApiTimers {
     private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(

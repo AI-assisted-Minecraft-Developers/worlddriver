@@ -32,26 +32,34 @@ class JupiterPlotTest {
     void aPlotIsHandedOverEmpty(Game game, @Plot.Size(8) Plot plot) {
         firstOrigin = plot.origin();
         assertEquals(new Vec3i(8, 8, 8), plot.size());
-        boolean empty = game.onServer(server -> server.overworld().getBlockStates(
-                AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7))).allMatch(s -> s.isAir()));
+        boolean empty = game.onServer(server -> server.overworld()
+                .getBlockStates(AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7)))
+                .allMatch(s -> s.isAir()));
         assertTrue(empty, "every cell of " + plot + " is air");
 
         plot.fill(0, 0, 0, 7, 0, 7, Blocks.STONE).place(3, 1, 3, Blocks.CHEST);
-        boolean spawned = game.onServer(server ->
-                EntityType.PIG.spawn(server.overworld(), plot.at(4, 1, 4), MobSpawnType.COMMAND) != null);
+        boolean spawned = game.onServer(
+                server -> EntityType.PIG.spawn(server.overworld(), plot.at(4, 1, 4), MobSpawnType.COMMAND) != null);
         assertTrue(spawned, "a pig stands in the plot");
-        assertEquals("minecraft:chest", game.onServer(server -> BuiltInRegistries.BLOCK.getKey(
-                server.overworld().getBlockState(plot.at(3, 1, 3)).getBlock()).toString()));
+        assertEquals(
+                "minecraft:chest",
+                game.onServer(server -> BuiltInRegistries.BLOCK
+                        .getKey(server.overworld()
+                                .getBlockState(plot.at(3, 1, 3))
+                                .getBlock())
+                        .toString()));
     }
 
     @Test
     @DependsOn("aPlotIsHandedOverEmpty")
     void theNextLeasePutsTheFirstOneBack(Game game, @Plot.Size(8) Plot plot) {
         assertEquals(firstOrigin, plot.origin(), "the freed cell is leased again");
-        boolean chestGone = game.onServer(server -> server.overworld().getBlockState(plot.at(3, 1, 3)).isAir());
+        boolean chestGone = game.onServer(
+                server -> server.overworld().getBlockState(plot.at(3, 1, 3)).isAir());
         assertTrue(chestGone, "the chest the last test placed is gone");
-        int pigs = game.onServer(server -> server.overworld().getEntities(EntityType.PIG,
-                AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7)), pig -> true).size());
+        int pigs = game.onServer(server -> server.overworld()
+                .getEntities(EntityType.PIG, AABB.encapsulatingFullBlocks(plot.origin(), plot.at(7, 7, 7)), pig -> true)
+                .size());
         assertEquals(0, pigs, "the pig the last test spawned is gone");
         assertThrows(IllegalArgumentException.class, () -> plot.at(8, 0, 0));
     }

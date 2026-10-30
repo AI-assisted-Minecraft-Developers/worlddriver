@@ -1,21 +1,21 @@
 package net.magicterra.worlddriver.script;
 
+import dev.latvian.mods.rhino.CachedClassStorage;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-import dev.latvian.mods.rhino.CachedClassStorage;
-
 /**
  * The methods a script sees on a Java class: Rhino's, less two kinds that only make an overloaded call ambiguous.
  *
- * <p>Rhino picks among overloads by how easily each argument converts, and calls the choice ambiguous when no
- * overload wins on every argument. fastutil's specialised collections offer three {@code put}s for one call:
- * {@code put(int, V)}, a deprecated boxed {@code put(Integer, V)}, and the compiler's erasure bridge
- * {@code put(Object, Object)}. Rhino reads the {@code V} of a generic method and the {@code Object} of its bridge as
- * different types that a string converts to equally well, and the {@code V} of the class and the {@code V} of the
- * interface likewise, so {@code map.put(3, 'x')} matched all three and threw. Hidden here:
+ * <p>Rhino picks among overloads by how easily each argument converts, and calls the choice ambiguous when no overload
+ * wins on every argument. fastutil's specialised collections offer three {@code put}s for one call: {@code put(int,
+ * V)}, a deprecated boxed {@code put(Integer, V)}, and the compiler's erasure bridge {@code put(Object, Object)}. Rhino
+ * reads the {@code V} of a generic method and the {@code Object} of its bridge as different types that a string
+ * converts to equally well, and the {@code V} of the class and the {@code V} of the interface likewise, so
+ * {@code map.put(3, 'x')} matched all three and threw. Hidden here:
+ *
  * <ul>
  *   <li>A bridge, when the class also has the method it bridges to, public on a public type. A bridge that a public
  *       class gets for a public method of a non-public superclass is the only way to reach that method, and stays.

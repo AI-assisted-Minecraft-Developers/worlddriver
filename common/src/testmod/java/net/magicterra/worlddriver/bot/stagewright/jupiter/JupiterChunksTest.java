@@ -39,13 +39,13 @@ class JupiterChunksTest {
         BlockPosition pos = new BlockPosition(at.getX(), at.getY(), at.getZ());
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
 
-        var unloaded = assertInstanceOf(ChunksContracts.Unloaded.class,
-                queries.chunks(new ChunksContracts.Unload(pos, Optional.empty(), 400)));
+        var unloaded = assertInstanceOf(
+                ChunksContracts.Unloaded.class, queries.chunks(new ChunksContracts.Unload(pos, Optional.empty(), 400)));
         assertTrue(unloaded.done(), "unloaded: " + unloaded.heldBy().orElse(""));
         assertNull(game.onServer(server -> server.overworld().getEntity(pig)), "the pig left memory with its chunk");
 
-        var reloaded = assertInstanceOf(ChunksContracts.Reloaded.class,
-                queries.chunks(new ChunksContracts.Reload(pos, Optional.empty(), 400)));
+        var reloaded = assertInstanceOf(
+                ChunksContracts.Reloaded.class, queries.chunks(new ChunksContracts.Reload(pos, Optional.empty(), 400)));
         assertTrue(reloaded.done(), "reloaded");
         assertTrue(reloaded.entities() >= 1, reloaded.entities() + " entities in the chunk");
         String name = game.onServer(server -> {

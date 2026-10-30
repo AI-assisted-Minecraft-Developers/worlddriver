@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.api.gen;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,30 +11,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
+import net.magicterra.worlddriver.api.methods.CoreMethods;
+import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.DecodeContext;
-import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.TsContext;
-import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
-import net.magicterra.worlddriver.api.methods.event.EventCatalog;
-import net.magicterra.worlddriver.api.methods.CoreMethods;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import net.magicterra.worlddriver.api.schema.WireName;
 
 /**
  * Writes what the method descriptions imply, at build time, into one directory:
  *
  * <ul>
- *   <li>{@code worlddriver.d.ts}: the types, the {@code Methods} table and the {@code Driver} namespaces;</li>
- *   <li>{@code driver-function.d.ts}: StageWright's {@code driver(method, params)} over the same table;</li>
- *   <li>{@code driver-api.js}: the named wrappers the script prelude loads;</li>
- *   <li>{@code methods.json}: each method's schemas and execution profile, for clients outside the JVM;</li>
- *   <li>{@code events.json}: each built-in event type's payload schema, severity and trust;</li>
- *   <li>{@code api-reference.md}: the same for a person;</li>
- *   <li>{@code skill-methods.md}: the agent skill's method manual, with the settings and events tables.</li>
+ *   <li>{@code worlddriver.d.ts}: the types, the {@code Methods} table and the {@code Driver} namespaces;
+ *   <li>{@code driver-function.d.ts}: StageWright's {@code driver(method, params)} over the same table;
+ *   <li>{@code driver-api.js}: the named wrappers the script prelude loads;
+ *   <li>{@code methods.json}: each method's schemas and execution profile, for clients outside the JVM;
+ *   <li>{@code events.json}: each built-in event type's payload schema, severity and trust;
+ *   <li>{@code api-reference.md}: the same for a person;
+ *   <li>{@code skill-methods.md}: the agent skill's method manual, with the settings and events tables.
  * </ul>
  *
  * <p>Runs with the contract classes and DataFixerUpper only; it never starts Minecraft.
@@ -43,7 +42,7 @@ public final class ApiArtifacts {
     public static void main(String[] args) throws IOException {
         if (args.length != 1) throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
         List<MethodSpec<?, ?>> methods = new ArrayList<>(CoreMethods.all());
-        methods.addAll(DebugApiBinding.specs());   // published only where the debug subsystem is
+        methods.addAll(DebugApiBinding.specs()); // published only where the debug subsystem is
         write(Path.of(args[0]), methods);
     }
 
@@ -54,7 +53,8 @@ public final class ApiArtifacts {
         Files.writeString(dir.resolve("driver-api.js"), wrappers(methods), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("methods.json"), methodTable(methods).toString(), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("events.json"), eventTable().toString(), StandardCharsets.UTF_8);
-        Files.writeString(dir.resolve("api-reference.md"), reference(methods) + eventReference(), StandardCharsets.UTF_8);
+        Files.writeString(
+                dir.resolve("api-reference.md"), reference(methods) + eventReference(), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("skill-methods.md"), SkillManual.render(methods), StandardCharsets.UTF_8);
     }
 
@@ -78,11 +78,20 @@ public final class ApiArtifacts {
         for (EventCatalog.Entry<?> e : EventCatalog.all()) {
             TsContext ts = new TsContext();
             String payload = e.payload().ts(ts);
-            out.append("\n## `").append(e.type()).append("`\n\n").append(e.description()).append("\n\n");
-            out.append("- Payload: `").append(payload).append("`; level: ").append(e.level().wireName())
-                    .append(e.untrusted() ? "; untrusted: the text is a player's or a server's" : "").append("\n");
+            out.append("\n## `")
+                    .append(e.type())
+                    .append("`\n\n")
+                    .append(e.description())
+                    .append("\n\n");
+            out.append("- Payload: `")
+                    .append(payload)
+                    .append("`; level: ")
+                    .append(e.level().wireName())
+                    .append(e.untrusted() ? "; untrusted: the text is a player's or a server's" : "")
+                    .append("\n");
             String decls = ts.render("    ");
-            if (!decls.isEmpty()) out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
+            if (!decls.isEmpty())
+                out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
         }
         return out.toString();
     }
@@ -127,30 +136,45 @@ public final class ApiArtifacts {
     static String declarations(List<MethodSpec<?, ?>> methods) {
         TsContext ts = new TsContext();
         Map<MethodSpec<?, ?>, String[]> types = new LinkedHashMap<>();
-        for (MethodSpec<?, ?> m : methods) types.put(m, new String[] {m.input().ts(ts), m.output().ts(ts)});
+        for (MethodSpec<?, ?> m : methods)
+            types.put(m, new String[] {m.input().ts(ts), m.output().ts(ts)});
         Map<String, String> events = new LinkedHashMap<>();
-        for (EventCatalog.Entry<?> e : EventCatalog.all()) events.put(e.type(), e.payload().ts(ts));
+        for (EventCatalog.Entry<?> e : EventCatalog.all())
+            events.put(e.type(), e.payload().ts(ts));
 
         StringBuilder out = new StringBuilder();
         out.append("// Generated from the WorldDriver method descriptions. Do not edit.\n");
         out.append("declare namespace WorldDriver {\n");
         out.append(ts.render("    "));
         out.append("    interface ApiIssue {\n        path: string;\n        code: ")
-                .append(literals(ApiIssue.Code.values())).append(";\n        message: string;\n    }\n");
-        out.append("    /** What a failed call throws in a script (DriverApiError) and carries as JSON-RPC error.data. */\n");
-        out.append("    interface ApiError {\n        code: ").append(literals(ApiError.Code.values()))
+                .append(literals(ApiIssue.Code.values()))
+                .append(";\n        message: string;\n    }\n");
+        out.append(
+                "    /** What a failed call throws in a script (DriverApiError) and carries as JSON-RPC error.data. */\n");
+        out.append("    interface ApiError {\n        code: ")
+                .append(literals(ApiError.Code.values()))
                 .append(";\n        message: string;\n        issues: ApiIssue[];\n        execution: ")
-                .append(literals(ApiError.Execution.values())).append(";\n    }\n");
+                .append(literals(ApiError.Execution.values()))
+                .append(";\n    }\n");
         out.append("    interface Methods {\n");
         for (Map.Entry<MethodSpec<?, ?>, String[]> e : types.entrySet()) {
-            out.append("        ").append(TsContext.literal(e.getKey().name())).append(": { params: ")
-                    .append(e.getValue()[0]).append("; result: ").append(e.getValue()[1]).append(" };\n");
+            out.append("        ")
+                    .append(TsContext.literal(e.getKey().name()))
+                    .append(": { params: ")
+                    .append(e.getValue()[0])
+                    .append("; result: ")
+                    .append(e.getValue()[1])
+                    .append(" };\n");
         }
         out.append("    }\n");
         out.append("    /** The payload of each event type the driver emits itself. */\n");
         out.append("    interface Events {\n");
         for (Map.Entry<String, String> e : events.entrySet()) {
-            out.append("        ").append(TsContext.literal(e.getKey())).append(": ").append(e.getValue()).append(";\n");
+            out.append("        ")
+                    .append(TsContext.literal(e.getKey()))
+                    .append(": ")
+                    .append(e.getValue())
+                    .append(";\n");
         }
         out.append("    }\n");
         out.append("""
@@ -171,24 +195,37 @@ public final class ApiArtifacts {
         return String.join(" | ", out);
     }
 
-    private static void writeNamespace(StringBuilder out, List<String> path, Ns ns,
-                                       Map<MethodSpec<?, ?>, String[]> types, boolean root) {
+    private static void writeNamespace(
+            StringBuilder out, List<String> path, Ns ns, Map<MethodSpec<?, ?>, String[]> types, boolean root) {
         String name = root ? "DriverRoot" : namespaceInterface(path);
         out.append("    interface ").append(name).append(" {\n");
         if (root) {
-            out.append("        invoke<M extends keyof Methods>(method: M, ...params: ParamsOf<M>): Methods[M]['result'];\n");
+            out.append(
+                    "        invoke<M extends keyof Methods>(method: M, ...params: ParamsOf<M>): Methods[M]['result'];\n");
         }
         for (Map.Entry<String, Ns> c : ns.children.entrySet()) {
             List<String> childPath = new ArrayList<>(path);
             childPath.add(c.getKey());
-            out.append("        ").append(TsContext.key(c.getKey())).append(": ").append(namespaceInterface(childPath)).append(";\n");
+            out.append("        ")
+                    .append(TsContext.key(c.getKey()))
+                    .append(": ")
+                    .append(namespaceInterface(childPath))
+                    .append(";\n");
         }
         for (Map.Entry<String, MethodSpec<?, ?>> m : ns.methods.entrySet()) {
             String[] t = types.get(m.getValue());
-            out.append("        /** ").append(m.getValue().description().replace("*/", "* /")).append(" */\n");
-            out.append("        ").append(TsContext.key(m.getKey())).append("(params")
-                    .append(paramsOptional(m.getValue()) ? "?" : "").append(": ").append(t[0]).append("): ")
-                    .append(t[1]).append(";\n");
+            out.append("        /** ")
+                    .append(m.getValue().description().replace("*/", "* /"))
+                    .append(" */\n");
+            out.append("        ")
+                    .append(TsContext.key(m.getKey()))
+                    .append("(params")
+                    .append(paramsOptional(m.getValue()) ? "?" : "")
+                    .append(": ")
+                    .append(t[0])
+                    .append("): ")
+                    .append(t[1])
+                    .append(";\n");
         }
         out.append("    }\n");
         for (Map.Entry<String, Ns> c : ns.children.entrySet()) {
@@ -206,8 +243,8 @@ public final class ApiArtifacts {
             """;
 
     /**
-     * Each wrapper forwards to {@code Driver.invoke} with its own full method name and the params as
-     * given: omitted stays omitted, and null or false reach the server to be judged there.
+     * Each wrapper forwards to {@code Driver.invoke} with its own full method name and the params as given: omitted
+     * stays omitted, and null or false reach the server to be judged there.
      */
     static String wrappers(List<MethodSpec<?, ?>> methods) {
         StringBuilder out = new StringBuilder();
@@ -224,8 +261,11 @@ public final class ApiArtifacts {
                     out.append(at).append(" = ").append(at).append(" || {};\n");
                 }
             }
-            out.append(at).append('.').append(path.get(path.size() - 1))
-                    .append(" = function (params) { return Driver.invoke(").append(TsContext.literal(m.name()))
+            out.append(at)
+                    .append('.')
+                    .append(path.get(path.size() - 1))
+                    .append(" = function (params) { return Driver.invoke(")
+                    .append(TsContext.literal(m.name()))
                     .append(", params); };\n");
         }
         return out.toString();
@@ -259,20 +299,35 @@ public final class ApiArtifacts {
         for (MethodSpec<?, ?> m : methods) {
             TsContext ts = new TsContext();
             String in = m.input().ts(ts), res = m.output().ts(ts);
-            out.append("\n## `").append(m.name()).append("`\n\n").append(m.description()).append("\n\n");
-            out.append("- Script: `Driver.").append(String.join(".", scriptPath(m.name()))).append("(params")
-                    .append(paramsOptional(m) ? "?" : "").append(")`\n");
-            out.append("- Params: `").append(in).append("`; result: `").append(res).append("`\n");
+            out.append("\n## `")
+                    .append(m.name())
+                    .append("`\n\n")
+                    .append(m.description())
+                    .append("\n\n");
+            out.append("- Script: `Driver.")
+                    .append(String.join(".", scriptPath(m.name())))
+                    .append("(params")
+                    .append(paramsOptional(m) ? "?" : "")
+                    .append(")`\n");
+            out.append("- Params: `")
+                    .append(in)
+                    .append("`; result: `")
+                    .append(res)
+                    .append("`\n");
             List<String> effects = new ArrayList<>();
             for (MethodSpec.Effect f : m.effects()) effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
             effects.sort(null);
-            out.append("- Effects: ").append(String.join(", ", effects))
-                    .append("; execution: ").append(m.executionClass().name().toLowerCase(java.util.Locale.ROOT))
+            out.append("- Effects: ")
+                    .append(String.join(", ", effects))
+                    .append("; execution: ")
+                    .append(m.executionClass().name().toLowerCase(java.util.Locale.ROOT))
                     .append(m.blocking() == MethodSpec.Blocking.MAY_WAIT ? "; may wait" : "")
                     .append(m.pollable() ? "; pollable" : "")
-                    .append(m.listedInMcp() ? "" : "; hidden from MCP tools/list").append("\n");
+                    .append(m.listedInMcp() ? "" : "; hidden from MCP tools/list")
+                    .append("\n");
             String decls = ts.render("    ");
-            if (!decls.isEmpty()) out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
+            if (!decls.isEmpty())
+                out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
         }
         return out.toString();
     }

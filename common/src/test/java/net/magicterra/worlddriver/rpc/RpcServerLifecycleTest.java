@@ -1,12 +1,8 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.application.DriverApplication;
-
-import net.magicterra.worlddriver.application.WaitService;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -15,10 +11,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.TestJson;
+import net.magicterra.worlddriver.api.ProbeMethods;
+import net.magicterra.worlddriver.application.DriverApplication;
+import net.magicterra.worlddriver.application.WaitService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /** What an {@link RpcServer} leaves behind when it does not come up. */
 @Timeout(60)
@@ -36,16 +34,18 @@ class RpcServerLifecycleTest {
         // loops leaves a selector thread alive for the life of the JVM.
         Set<Thread> before = rpcThreads();
         try (ServerSocket taken = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
-            assertThrows(Exception.class,
-                    () -> {
-                        DriverApplication app = new DriverApplication();
-                        new RpcServer(app.registry(), app, "127.0.0.1", taken.getLocalPort());
-                    });
+            assertThrows(Exception.class, () -> {
+                DriverApplication app = new DriverApplication();
+                new RpcServer(app.registry(), app, "127.0.0.1", taken.getLocalPort());
+            });
         }
         List<String> leaked = List.of();
         long deadline = System.nanoTime() + 20_000_000_000L;
         while (System.nanoTime() < deadline) {
-            leaked = rpcThreads().stream().filter(t -> !before.contains(t)).map(Thread::getName).toList();
+            leaked = rpcThreads().stream()
+                    .filter(t -> !before.contains(t))
+                    .map(Thread::getName)
+                    .toList();
             if (leaked.isEmpty()) break;
             Thread.sleep(100);
         }
@@ -57,8 +57,9 @@ class RpcServerLifecycleTest {
         // A half-open peer never errors a write the kernel can still buffer, so without
         // a liveness check its connection and subscription live as long as the JVM.
         try (RpcServer server = impatient(new DriverApplication());
-             WsTestClient silent = new WsTestClient(server.port())) {
-            assertTrue(silent.channel.closeFuture().await(10, TimeUnit.SECONDS),
+                WsTestClient silent = new WsTestClient(server.port())) {
+            assertTrue(
+                    silent.channel.closeFuture().await(10, TimeUnit.SECONDS),
                     "a peer silent past the window must be closed");
             assertTrue(silent.pingsSeen.get() >= 1, "it must have been pinged first");
         }
@@ -69,7 +70,7 @@ class RpcServerLifecycleTest {
         // Stands in for a client blocked on a long mc.wait.*: its library answers pings
         // while the application sends nothing.
         try (RpcServer server = impatient(new DriverApplication());
-             WsTestClient alive = new WsTestClient(server.port())) {
+                WsTestClient alive = new WsTestClient(server.port())) {
             alive.answerPings = true;
             Thread.sleep(3_000);
             assertTrue(alive.channel.isActive(), "a peer answering pings was closed");
@@ -82,16 +83,18 @@ class RpcServerLifecycleTest {
         // Driver.invokeRpc opens one RpcClient per call, and an awaitMs call may block for
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
         try (RpcServer server = impatient(ProbeMethods.install(new DriverApplication()));
-             RpcClient client = new RpcClient("127.0.0.1", server.port())) {
-            Object r = TestJson.plain(client.call("mc.wait.condition", TestJson.obj(Map.of("invoke", "probe.echo",
-                    "field", "nope", "timeoutMs", 2_500, "pollMs", 100))));
+                RpcClient client = new RpcClient("127.0.0.1", server.port())) {
+            Object r = TestJson.plain(client.call(
+                    "mc.wait.condition",
+                    TestJson.obj(Map.of("invoke", "probe.echo", "field", "nope", "timeoutMs", 2_500, "pollMs", 100))));
             assertEquals(Boolean.FALSE, ((Map<?, ?>) r).get("satisfied"), String.valueOf(r));
         }
     }
 
     @Test
     void theSilenceWindowOutlastsTheLongestWait() {
-        assertTrue(TransportLimits.WS_IDLE_CLOSE_MS > WaitService.MAX_BUDGET_MS + TransportLimits.WS_PING_INTERVAL_MS,
+        assertTrue(
+                TransportLimits.WS_IDLE_CLOSE_MS > WaitService.MAX_BUDGET_MS + TransportLimits.WS_PING_INTERVAL_MS,
                 "a client blocked on mc.wait.* would be cut off before its wait returns");
     }
 

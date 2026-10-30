@@ -8,9 +8,9 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 
 /**
- * One-shot events on the rising edges of what a bot perceives: {@code duskExposed} and
- * {@code cornered} from the world model, {@code threat.appeared} from the threat scan. Each fires
- * once per transition, so the agent learns of them without polling {@code mc.client.scene}.
+ * One-shot events on the rising edges of what a bot perceives: {@code duskExposed} and {@code cornered} from the world
+ * model, {@code threat.appeared} from the threat scan. Each fires once per transition, so the agent learns of them
+ * without polling {@code mc.client.scene}.
  */
 final class PerceptionEvents {
 
@@ -43,7 +43,10 @@ final class PerceptionEvents {
         ThreatScanner.Threat top = scan.top();
         int topId = top != null ? top.id() : -1;
         if (topId != -1 && topId != lastThreatId) {
-            BotBrain.emit(events, EventCatalog.THREAT_APPEARED, top.entity().blockPosition(),
+            BotBrain.emit(
+                    events,
+                    EventCatalog.THREAT_APPEARED,
+                    top.entity().blockPosition(),
                     new EventCatalog.ThreatAppeared(top.type(), topId, top.distance(), top.score()));
         }
         lastThreatId = topId;

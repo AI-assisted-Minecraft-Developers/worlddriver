@@ -6,18 +6,31 @@ import java.util.Map;
 
 public final class TestContext {
     public final String name;
-    public TestContext(String name) { this.name = name; }
 
-    public void assertTrue(boolean cond) { assertTrue(cond, "expected true"); }
+    public TestContext(String name) {
+        this.name = name;
+    }
+
+    public void assertTrue(boolean cond) {
+        assertTrue(cond, "expected true");
+    }
+
     public void assertTrue(boolean cond, String msg) {
         if (!cond) throw new AssertionError("[" + name + "] " + msg);
     }
-    public void assertFalse(boolean cond) { assertFalse(cond, "expected false"); }
+
+    public void assertFalse(boolean cond) {
+        assertFalse(cond, "expected false");
+    }
+
     public void assertFalse(boolean cond, String msg) {
         if (cond) throw new AssertionError("[" + name + "] " + msg);
     }
 
-    public void assertEqual(Object a, Object b) { assertEqual(a, b, ""); }
+    public void assertEqual(Object a, Object b) {
+        assertEqual(a, b, "");
+    }
+
     public void assertEqual(Object a, Object b, String msg) {
         boolean eq;
         if (a instanceof Number na && b instanceof Number nb) {
@@ -25,10 +38,9 @@ public final class TestContext {
         } else {
             eq = (a == null) ? b == null : a.equals(b);
         }
-        if (!eq) throw new AssertionError(
-            "[" + name + "] not equal" + (msg.isEmpty() ? "" : ": " + msg)
-            + "\n  expected: " + a + "\n  actual:   " + b
-        );
+        if (!eq)
+            throw new AssertionError("[" + name + "] not equal" + (msg.isEmpty() ? "" : ": " + msg) + "\n  expected: "
+                    + a + "\n  actual:   " + b);
     }
 
     public void assertHasKey(Object obj, String key) {
@@ -43,10 +55,8 @@ public final class TestContext {
 
     public void assertDeepEqual(Object a, Object b, String msg) {
         if (!deepEq(a, b)) {
-            throw new AssertionError(
-                "[" + name + "] deep not equal" + (msg.isEmpty() ? "" : ": " + msg)
-                + "\n  A: " + a + "\n  B: " + b
-            );
+            throw new AssertionError("[" + name + "] deep not equal" + (msg.isEmpty() ? "" : ": " + msg) + "\n  A: " + a
+                    + "\n  B: " + b);
         }
     }
 

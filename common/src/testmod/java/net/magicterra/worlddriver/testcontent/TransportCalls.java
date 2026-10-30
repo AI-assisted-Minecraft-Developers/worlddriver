@@ -1,5 +1,11 @@
 package net.magicterra.worlddriver.testcontent;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -12,13 +18,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.schema.ApiError;
 
@@ -33,7 +32,8 @@ final class TransportCalls {
     private TransportCalls() {}
 
     private static final long BUDGET_MS = 30_000L;
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static final HttpClient HTTP =
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private static final AtomicInteger SEQ = new AtomicInteger();
 
     /** An error the server reported, carried to the envelope. */
@@ -59,7 +59,8 @@ final class TransportCalls {
             req.add("_meta", meta);
             String id = req.get("id").toString();
             CompletableFuture<JsonObject> reply = new CompletableFuture<>();
-            WebSocket ws = HTTP.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(10))
+            WebSocket ws = HTTP.newWebSocketBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
                     .buildAsync(URI.create("ws://127.0.0.1:" + port + "/rpc"), new WebSocket.Listener() {
                         private final StringBuilder text = new StringBuilder();
 
@@ -68,7 +69,8 @@ final class TransportCalls {
                             text.append(data);
                             if (last) {
                                 // A frame without our id is a notification the server pushed.
-                                if (JsonParser.parseString(text.toString()) instanceof JsonObject m && m.has("id")
+                                if (JsonParser.parseString(text.toString()) instanceof JsonObject m
+                                        && m.has("id")
                                         && m.get("id").toString().equals(id)) {
                                     reply.complete(m);
                                 }
@@ -85,10 +87,12 @@ final class TransportCalls {
 
                         @Override
                         public CompletionStage<?> onClose(WebSocket socket, int status, String reason) {
-                            reply.completeExceptionally(new IllegalStateException("ws closed: " + status + " " + reason));
+                            reply.completeExceptionally(
+                                    new IllegalStateException("ws closed: " + status + " " + reason));
                             return null;
                         }
-                    }).get(10, TimeUnit.SECONDS);
+                    })
+                    .get(10, TimeUnit.SECONDS);
             try {
                 ws.sendText(req.toString(), true).get(10, TimeUnit.SECONDS);
                 JsonObject resp = reply.get(BUDGET_MS, TimeUnit.MILLISECONDS);
@@ -96,8 +100,12 @@ final class TransportCalls {
                     return resp.has("result") ? resp.get("result") : JsonNull.INSTANCE;
                 }
                 ApiError api = ApiErrors.fromTree(e.get("data"));
-                throw new Refused(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR,
-                        "rpc error " + e.get("code") + ": " + string(e.get("message"))));
+                throw new Refused(
+                        api != null
+                                ? api
+                                : ApiError.of(
+                                        ApiError.Code.INTERNAL_ERROR,
+                                        "rpc error " + e.get("code") + ": " + string(e.get("message"))));
             } finally {
                 ws.sendClose(WebSocket.NORMAL_CLOSURE, "").exceptionally(t -> null);
             }
@@ -120,16 +128,22 @@ final class TransportCalls {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(req.toString(), StandardCharsets.UTF_8))
                     .build();
-            String body = HTTP.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
+            String body = HTTP.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .body();
             if (!(JsonParser.parseString(body) instanceof JsonObject m)) {
                 throw new IllegalStateException("MCP response not an object: " + body);
             }
             if (m.get("error") instanceof JsonObject err) {
                 ApiError api = ApiErrors.fromTree(err.get("data"));
-                throw new Refused(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR,
-                        "MCP error " + err.get("code") + ": " + string(err.get("message"))));
+                throw new Refused(
+                        api != null
+                                ? api
+                                : ApiError.of(
+                                        ApiError.Code.INTERNAL_ERROR,
+                                        "MCP error " + err.get("code") + ": " + string(err.get("message"))));
             }
-            if (!(m.get("result") instanceof JsonObject rm)) throw new IllegalStateException("MCP result not an object");
+            if (!(m.get("result") instanceof JsonObject rm))
+                throw new IllegalStateException("MCP result not an object");
             JsonObject textBlock = null, imageBlock = null;
             if (rm.get("content") instanceof JsonArray blocks) {
                 for (JsonElement b : blocks) {
@@ -142,9 +156,11 @@ final class TransportCalls {
             String text = textBlock == null ? null : string(textBlock.get("text"));
             if (rm.get("isError") instanceof JsonPrimitive e && e.isBoolean() && e.getAsBoolean()) {
                 ApiError api = text == null ? null : ApiErrors.fromTree(JsonParser.parseString(text));
-                throw new Refused(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR, "MCP tool error: " + text));
+                throw new Refused(
+                        api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR, "MCP tool error: " + text));
             }
-            JsonElement inner = rm.has("structuredContent") ? rm.get("structuredContent")
+            JsonElement inner = rm.has("structuredContent")
+                    ? rm.get("structuredContent")
                     : (text == null || text.isEmpty()) ? JsonNull.INSTANCE : JsonParser.parseString(text);
             if (imageBlock != null && inner instanceof JsonObject dm) {
                 JsonObject merged = dm.deepCopy();
@@ -167,8 +183,13 @@ final class TransportCalls {
         } catch (Refused e) {
             envelope.add("error", ApiErrors.toTree(e.error));
         } catch (Exception e) {
-            envelope.add("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
-                    what + " failed: " + e, List.of(), ApiError.Execution.UNKNOWN)));
+            envelope.add(
+                    "error",
+                    ApiErrors.toTree(new ApiError(
+                            ApiError.Code.OUTCOME_UNKNOWN,
+                            what + " failed: " + e,
+                            List.of(),
+                            ApiError.Execution.UNKNOWN)));
         }
         return envelope.toString();
     }

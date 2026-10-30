@@ -5,31 +5,29 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
+import net.magicterra.worlddriver.api.methods.setting.WorldSettings.AvoidPoint;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
-import net.magicterra.worlddriver.api.methods.setting.WorldSettings.AvoidPoint;
-import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.config.SettingsRegistry;
+import net.magicterra.worlddriver.config.WorldConfig;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 /**
- * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the
- * contract's ({@link SettingsContracts}), so a value that reaches {@link #commit} is already the right
- * type and in range; what is left here is the check the contract cannot make without the game (that a
- * block id names a registered block) and the writes themselves.
+ * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the contract's
+ * ({@link SettingsContracts}), so a value that reaches {@link #commit} is already the right type and in range; what is
+ * left here is the check the contract cannot make without the game (that a block id names a registered block) and the
+ * writes themselves.
  *
- * <p>Server-safe: it names no client class. {@code paused} and {@code debugFly}, the two controls, are
- * this client's bot's and are applied through {@link BotApi}, not here.
+ * <p>Server-safe: it names no client class. {@code paused} and {@code debugFly}, the two controls, are this client's
+ * bot's and are applied through {@link BotApi}, not here.
  *
- * <p><b>What "together" means.</b> {@link #commit} writes every update in one run on the thread that owns
- * the settings, so the bot that thread advances never sees half a patch. The settings are static and
- * read by every bot in the JVM, so a bot advanced by the other game thread can still read between two
- * writes of one commit.
+ * <p><b>What "together" means.</b> {@link #commit} writes every update in one run on the thread that owns the settings,
+ * so the bot that thread advances never sees half a patch. The settings are static and read by every bot in the JVM, so
+ * a bot advanced by the other game thread can still read between two writes of one commit.
  */
 public final class SettingsCommand {
 
@@ -68,8 +66,8 @@ public final class SettingsCommand {
     }
 
     /**
-     * The block ids among {@code updates} that name no registered block, as issues at
-     * {@code <path>/<key>[/<j>]}. Empty when the patch can be committed.
+     * The block ids among {@code updates} that name no registered block, as issues at {@code <path>/<key>[/<j>]}. Empty
+     * when the patch can be committed.
      */
     public static List<ApiIssue> check(List<Entry> updates, String path) {
         List<ApiIssue> issues = new ArrayList<>();
@@ -90,11 +88,14 @@ public final class SettingsCommand {
                     for (int j = 0; j < ids.size(); j++) {
                         String id = (String) ids.get(j);
                         if (!RegistryIds.registered(BuiltInRegistries.ENTITY_TYPE, id)) {
-                            issues.add(new ApiIssue(at + "/" + j, ApiIssue.Code.INVALID_VALUE, "no entity type is registered as " + id));
+                            issues.add(new ApiIssue(
+                                    at + "/" + j,
+                                    ApiIssue.Code.INVALID_VALUE,
+                                    "no entity type is registered as " + id));
                         }
                     }
                 }
-                default -> { }
+                default -> {}
             }
         }
         return issues;
@@ -109,8 +110,8 @@ public final class SettingsCommand {
     }
 
     /**
-     * Write every update; {@link #check} has passed. Turning {@code autoBackfill} off also drops the
-     * queue of cells {@code bot} was going to refill, so a later on does not refill stale ones.
+     * Write every update; {@link #check} has passed. Turning {@code autoBackfill} off also drops the queue of cells
+     * {@code bot} was going to refill, so a later on does not refill stale ones.
      */
     @SuppressWarnings("unchecked")
     public static void commit(BotApi bot, List<Entry> updates) {
@@ -126,7 +127,7 @@ public final class SettingsCommand {
                     double[][] zones = new double[points.size()][];
                     for (int i = 0; i < zones.length; i++) {
                         AvoidPoint p = points.get(i);
-                        zones[i] = new double[]{ p.x(), p.y(), p.z(), p.radius() };
+                        zones[i] = new double[] {p.x(), p.y(), p.z(), p.radius()};
                     }
                     WorldConfig.avoidZones = zones;
                 }
@@ -134,7 +135,8 @@ public final class SettingsCommand {
                 case BOT_PAUSED -> throw new IllegalArgumentException("paused is a control, applied through the bot");
             }
         }
-        if (bot != null && updates.stream().anyMatch(u -> u.key().equals("autoBackfill") && Boolean.FALSE.equals(u.value()))) {
+        if (bot != null
+                && updates.stream().anyMatch(u -> u.key().equals("autoBackfill") && Boolean.FALSE.equals(u.value()))) {
             bot.forgetBackfill();
         }
     }

@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Collects the named TypeScript declarations a set of types needs, each once, in first-use order.
- * Two different types asking for one name is a definition error, not a silent merge.
+ * Collects the named TypeScript declarations a set of types needs, each once, in first-use order. Two different types
+ * asking for one name is a definition error, not a silent merge.
  */
 public final class TsContext {
     private final Map<String, String> declarations = new LinkedHashMap<>();
@@ -15,8 +15,8 @@ public final class TsContext {
     private final Map<Object, String> inProgress = new IdentityHashMap<>();
 
     /**
-     * Declare {@code name} for {@code owner} with the body {@code declaration} produces (the whole
-     * {@code interface …} or {@code type … = …;} text) and return the name to reference.
+     * Declare {@code name} for {@code owner} with the body {@code declaration} produces (the whole {@code interface …}
+     * or {@code type … = …;} text) and return the name to reference.
      */
     public String declare(String name, Object owner, Supplier<String> declaration) {
         Object existing = owners.get(name);
@@ -26,7 +26,7 @@ public final class TsContext {
             }
             return name;
         }
-        if (inProgress.containsKey(owner)) return name;   // a self-reference while the body is written
+        if (inProgress.containsKey(owner)) return name; // a self-reference while the body is written
         inProgress.put(owner, name);
         owners.put(name, owner);
         try {
@@ -41,7 +41,8 @@ public final class TsContext {
     public String render(String indent) {
         StringBuilder out = new StringBuilder();
         for (String d : declarations.values()) {
-            for (String line : d.split("\n", -1)) out.append(indent).append(line).append('\n');
+            for (String line : d.split("\n", -1))
+                out.append(indent).append(line).append('\n');
         }
         return out.toString();
     }

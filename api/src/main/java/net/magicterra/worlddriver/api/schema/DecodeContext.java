@@ -1,14 +1,13 @@
 package net.magicterra.worlddriver.api.schema;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonPrimitive;
-
 /**
- * Where a decode is (a JSON Pointer) and the issues found so far, shared by every level of one
- * decode so a single request reports all of its independent problems.
+ * Where a decode is (a JSON Pointer) and the issues found so far, shared by every level of one decode so a single
+ * request reports all of its independent problems.
  */
 public final class DecodeContext {
     private final String path;
@@ -19,11 +18,17 @@ public final class DecodeContext {
         this.issues = issues;
     }
 
-    public static DecodeContext root() { return new DecodeContext("", new ArrayList<>()); }
+    public static DecodeContext root() {
+        return new DecodeContext("", new ArrayList<>());
+    }
 
-    public String path() { return path; }
+    public String path() {
+        return path;
+    }
 
-    public List<ApiIssue> issues() { return issues; }
+    public List<ApiIssue> issues() {
+        return issues;
+    }
 
     /** The member {@code name} of the object here. */
     public DecodeContext field(String name) {
@@ -31,7 +36,9 @@ public final class DecodeContext {
     }
 
     /** Element {@code index} of the array here. */
-    public DecodeContext index(int index) { return new DecodeContext(path + "/" + index, issues); }
+    public DecodeContext index(int index) {
+        return new DecodeContext(path + "/" + index, issues);
+    }
 
     /** Record a problem here; returns null so a reader can {@code return at.fail(...)}. */
     public <T> T fail(ApiIssue.Code code, String message) {
@@ -60,5 +67,7 @@ public final class DecodeContext {
         return "string \"" + clip(s) + "\"";
     }
 
-    private static String clip(String s) { return s.length() > 40 ? s.substring(0, 40) + "…" : s; }
+    private static String clip(String s) {
+        return s.length() > 40 ? s.substring(0, 40) + "…" : s;
+    }
 }

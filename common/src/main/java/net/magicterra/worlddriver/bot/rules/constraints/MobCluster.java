@@ -3,50 +3,50 @@ package net.magicterra.worlddriver.bot.rules.constraints;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.ThreatAvoidance;
+import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
  * Hostile mobs as a route condition, {@code route.mobs}. Two halves on one snapshot:
  *
  * <ul>
- *   <li><b>Per-mob berth</b> (the cost modifier): every hostile in the search's
- *       {@link ThreatSnapshot} charges a cost that ramps from {@code penalty} at the mob to 0 at
- *       {@code radius} ({@code rangedRadius} for one that shoots) — the curve of
- *       {@link ThreatAvoidance#cost}, which is what {@code ClientWorldView.dangerCost} used to
- *       apply from its own client-only snapshot. Costs add, so three mobs together are dearer
- *       than one, and the server-side player avoids mobs now too.</li>
- *   <li><b>Cluster threshold</b> (the constraint, optional): a cell with {@code cluster.count} or
- *       more hostiles within {@code cluster.radius} is a cluster cell. {@code forbid} prunes it;
- *       {@code avoid} adds {@code cluster.penalty} flat. This is the qualitative step the ramp
- *       cannot make: however far the detour, a plain sum can be out-bid by it.</li>
+ *   <li><b>Per-mob berth</b> (the cost modifier): every hostile in the search's {@link ThreatSnapshot} charges a cost
+ *       that ramps from {@code penalty} at the mob to 0 at {@code radius} ({@code rangedRadius} for one that shoots) —
+ *       the curve of {@link ThreatAvoidance#cost}, which is what {@code ClientWorldView.dangerCost} used to apply from
+ *       its own client-only snapshot. Costs add, so three mobs together are dearer than one, and the server-side player
+ *       avoids mobs now too.
+ *   <li><b>Cluster threshold</b> (the constraint, optional): a cell with {@code cluster.count} or more hostiles within
+ *       {@code cluster.radius} is a cluster cell. {@code forbid} prunes it; {@code avoid} adds {@code cluster.penalty}
+ *       flat. This is the qualitative step the ramp cannot make: however far the detour, a plain sum can be out-bid by
+ *       it.
  * </ul>
  *
- * <p><b>Rejoin from inside a cluster.</b> The violation here is a COUNT, and from the middle of
- * four mobs every neighbour usually counts four as well, so "strictly less" would leave no
- * legal edge. So the rule has two parts: the count may not rise, and the distance to the nearest
- * mob must strictly grow. The distance guarantees progress on every step; the count guarantees
- * the step does not go somewhere worse. Once the count is under the threshold, normal pruning.
+ * <p><b>Rejoin from inside a cluster.</b> The violation here is a COUNT, and from the middle of four mobs every
+ * neighbour usually counts four as well, so "strictly less" would leave no legal edge. So the rule has two parts: the
+ * count may not rise, and the distance to the nearest mob must strictly grow. The distance guarantees progress on every
+ * step; the count guarantees the step does not go somewhere worse. Once the count is under the threshold, normal
+ * pruning.
  *
- * @param radius       berth of a melee mob, blocks
+ * @param radius berth of a melee mob, blocks
  * @param rangedRadius berth of a mob that shoots, blocks
- * @param penalty      peak cost at zero distance; 0 disables the ramp
- * @param cluster      the threshold, or null for the ramp alone
- * @param types        registry names to consider, empty for every hostile
+ * @param penalty peak cost at zero distance; 0 disables the ramp
+ * @param cluster the threshold, or null for the ramp alone
+ * @param types registry names to consider, empty for every hostile
  */
 public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
-    /** @param count how many mobs make a cluster; @param radius within how many blocks of the
-     *  cell; @param hard prune (forbid) or charge (avoid); @param penalty the flat charge when soft */
+    /**
+     * @param count how many mobs make a cluster; @param radius within how many blocks of the cell; @param hard prune
+     *     (forbid) or charge (avoid); @param penalty the flat charge when soft
+     */
     public record Cluster(int count, double radius, boolean hard, double penalty) {}
 
     private final double radius, rangedRadius, penalty;
@@ -66,19 +66,35 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         this.types = types == null ? Set.of() : Set.copyOf(types);
     }
 
-    public double radius() { return radius; }
-    public double rangedRadius() { return rangedRadius; }
-    public double penalty() { return penalty; }
-    public Cluster cluster() { return cluster; }
-    public Set<String> types() { return types; }
+    public double radius() {
+        return radius;
+    }
 
-    @Override public int scanRadius() {
+    public double rangedRadius() {
+        return rangedRadius;
+    }
+
+    public double penalty() {
+        return penalty;
+    }
+
+    public Cluster cluster() {
+        return cluster;
+    }
+
+    public Set<String> types() {
+        return types;
+    }
+
+    @Override
+    public int scanRadius() {
         double r = Math.max(radius, rangedRadius);
         if (cluster != null) r = Math.max(r, cluster.radius());
         return (int) Math.ceil(r);
     }
 
-    @Override public void beginSearch(SearchScope scope) {
+    @Override
+    public void beginSearch(SearchScope scope) {
         List<ThreatSnapshot.Threat> picked = new ArrayList<>();
         for (ThreatSnapshot.Threat t : scope.threats().threats()) {
             if (!t.hostile()) continue;
@@ -89,9 +105,13 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         double[] xyz = new double[picked.size() * 3];
         int i = 0, j = 0;
         for (ThreatSnapshot.Threat t : picked) {
-            xyzr[i++] = (float) t.pos().x; xyzr[i++] = (float) t.pos().y; xyzr[i++] = (float) t.pos().z;
+            xyzr[i++] = (float) t.pos().x;
+            xyzr[i++] = (float) t.pos().y;
+            xyzr[i++] = (float) t.pos().z;
             xyzr[i++] = (float) (t.ranged() ? rangedRadius : radius);
-            xyz[j++] = t.pos().x; xyz[j++] = t.pos().y; xyz[j++] = t.pos().z;
+            xyz[j++] = t.pos().x;
+            xyz[j++] = t.pos().y;
+            xyz[j++] = t.pos().z;
         }
         mobXyzr = xyzr;
         mobs = xyz;
@@ -142,8 +162,9 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         return c;
     }
 
-    @Override public String toString() {
-        return "MobCluster[radius=" + radius + ", rangedRadius=" + rangedRadius + ", penalty=" + penalty
-                + ", cluster=" + cluster + ", types=" + types + "]";
+    @Override
+    public String toString() {
+        return "MobCluster[radius=" + radius + ", rangedRadius=" + rangedRadius + ", penalty=" + penalty + ", cluster="
+                + cluster + ", types=" + types + "]";
     }
 }

@@ -1,9 +1,10 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -19,18 +20,16 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 /**
  * Vanilla water mobs driven by the server bot stack:
  *
  * <ul>
- *   <li>the ones that only swim cross a sealed tank whose middle is walled off except for a gap in one bottom
- *       corner, so the way turns and dives: cod (factor 1), dolphin (smooth-swimming factors), squid (its own
- *       {@code driveSquid});</li>
- *   <li>the ones that walk and swim walk a stone course with a pool across its middle, swimming the pool: axolotl
- *       (its own factor branch), frog (amphibious navigation and smooth-swimming factors), drowned (the default
- *       walk-and-swim branch).</li>
+ *   <li>the ones that only swim cross a sealed tank whose middle is walled off except for a gap in one bottom corner,
+ *       so the way turns and dives: cod (factor 1), dolphin (smooth-swimming factors), squid (its own
+ *       {@code driveSquid});
+ *   <li>the ones that walk and swim walk a stone course with a pool across its middle, swimming the pool: axolotl (its
+ *       own factor branch), frog (amphibious navigation and smooth-swimming factors), drowned (the default
+ *       walk-and-swim branch).
  * </ul>
  *
  * <p>No player entity is created. The mobs are invulnerable.
@@ -40,6 +39,7 @@ class WaterMobTest {
 
     /** The ref of a mob an order takes over by its uuid. */
     private static final String ENTITY = "entity:";
+
     private static final int COURSE = 10;
     /** Where the tank's dividing wall stands, and the first and last pool column. */
     private static final int WALL_X = 5, POOL_FROM = 4, POOL_TO = 7;
@@ -51,38 +51,38 @@ class WaterMobTest {
     private static final int TRAIL = 24;
 
     @Test
-    void mobCodSwimsUnderAWall(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                               TestReporter reporter) {
+    void mobCodSwimsUnderAWall(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         swimsUnderAWall(game, plot, reporter, EntityType.COD);
     }
 
     @Test
-    void mobDolphinSwimsUnderAWall(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                                   TestReporter reporter) {
+    void mobDolphinSwimsUnderAWall(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         swimsUnderAWall(game, plot, reporter, EntityType.DOLPHIN);
     }
 
     @Test
-    void mobSquidSwimsUnderAWall(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                                 TestReporter reporter) {
+    void mobSquidSwimsUnderAWall(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         swimsUnderAWall(game, plot, reporter, EntityType.SQUID);
     }
 
     @Test
-    void mobAxolotlWalksAndSwims(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                                 TestReporter reporter) {
+    void mobAxolotlWalksAndSwims(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         walksAndSwims(game, plot, reporter, EntityType.AXOLOTL);
     }
 
     @Test
-    void mobFrogWalksAndSwims(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                              TestReporter reporter) {
+    void mobFrogWalksAndSwims(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         walksAndSwims(game, plot, reporter, EntityType.FROG);
     }
 
     @Test
-    void mobDrownedWalksAndSwims(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot,
-                                 TestReporter reporter) {
+    void mobDrownedWalksAndSwims(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         walksAndSwims(game, plot, reporter, EntityType.DROWNED);
     }
 
@@ -99,7 +99,9 @@ class WaterMobTest {
         String ref = ENTITY + mob.getUUID();
         ByName.releaseAtEnd(game, ref);
 
-        game.await().within(SETTLE_TICKS).as("the " + type.toShortString() + " is ticked in the water")
+        game.await()
+                .within(SETTLE_TICKS)
+                .as("the " + type.toShortString() + " is ticked in the water")
                 .until(() -> mob.tickCount > 5 && mob.isInWater());
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
@@ -107,22 +109,28 @@ class WaterMobTest {
         int[] ticks = {0};
         int[] lowest = {game.onServer(s -> mob.blockPosition().getY())};
         Deque<String> trail = new ArrayDeque<>();
-        game.await().within(DEADLINE + 50).as("the " + type.toShortString() + "'s swim ends").until(() -> {
-            lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
-            if (ticks[0] % 5 == 0) {
-                trail.addLast("t" + ticks[0] + ": " + ByName.lastTickTrace(api, ref));
-                if (trail.size() > TRAIL) trail.removeFirst();
-            }
-            return !ByName.busy(api, ref) || ++ticks[0] >= DEADLINE;
-        });
+        game.await()
+                .within(DEADLINE + 50)
+                .as("the " + type.toShortString() + "'s swim ends")
+                .until(() -> {
+                    lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
+                    if (ticks[0] % 5 == 0) {
+                        trail.addLast("t" + ticks[0] + ": " + ByName.lastTickTrace(api, ref));
+                        if (trail.size() > TRAIL) trail.removeFirst();
+                    }
+                    return !ByName.busy(api, ref) || ++ticks[0] >= DEADLINE;
+                });
         BlockPos stoppedAt = game.onServer(s -> mob.blockPosition());
         Map<?, ?> action = ByName.read(api, ByName.actionId(go));
-        reporter.publishEntry("arrived", stoppedAt.toShortString() + " ticks=" + ticks[0]
-                + " lowestY=" + (lowest[0] - o.getY()) + " " + action);
+        reporter.publishEntry(
+                "arrived",
+                stoppedAt.toShortString() + " ticks=" + ticks[0] + " lowestY=" + (lowest[0] - o.getY()) + " " + action);
         if (!"succeeded".equals(action.get("state"))) reporter.publishEntry("trail", String.join(" | ", trail));
-        game.check(stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && lowest[0] <= o.getY() - 2,
+        game.check(
+                stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && lowest[0] <= o.getY() - 2,
                 "the " + type.toShortString() + " swims down through the gap under the wall to the goal: stopped at "
-                        + stoppedAt.toShortString() + ", lowest y " + (lowest[0] - o.getY()) + " below the start, " + action);
+                        + stoppedAt.toShortString() + ", lowest y " + (lowest[0] - o.getY()) + " below the start, "
+                        + action);
     }
 
     /** A mob that walks and swims crosses the course, through the pool in its middle, and the order succeeds. */
@@ -139,28 +147,36 @@ class WaterMobTest {
         String ref = ENTITY + mob.getUUID();
         ByName.releaseAtEnd(game, ref);
 
-        game.await().within(SETTLE_TICKS).as("the " + type.toShortString() + " settles").until(() -> Staging.settled(mob));
+        game.await()
+                .within(SETTLE_TICKS)
+                .as("the " + type.toShortString() + " settles")
+                .until(() -> Staging.settled(mob));
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         if (ByName.actionId(go) == null) fail("a goto naming the " + type.toShortString() + " did not start: " + go);
         int[] ticks = {0};
         boolean[] swam = {false};
-        game.await().within(1100).as("the " + type.toShortString() + "'s walk ends").until(() -> {
-            swam[0] |= mob.isInWater();
-            ticks[0]++;
-            return !ByName.busy(api, ref);
-        });
+        game.await()
+                .within(1100)
+                .as("the " + type.toShortString() + "'s walk ends")
+                .until(() -> {
+                    swam[0] |= mob.isInWater();
+                    ticks[0]++;
+                    return !ByName.busy(api, ref);
+                });
         BlockPos stoppedAt = game.onServer(s -> mob.blockPosition());
         Map<?, ?> action = ByName.read(api, ByName.actionId(go));
-        reporter.publishEntry("arrived", stoppedAt.toShortString() + " ticks=" + ticks[0] + " swam=" + swam[0] + " " + action);
-        game.check(stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && swam[0],
+        reporter.publishEntry(
+                "arrived", stoppedAt.toShortString() + " ticks=" + ticks[0] + " swam=" + swam[0] + " " + action);
+        game.check(
+                stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && swam[0],
                 "the " + type.toShortString() + " walks the course and swims the pool to the goal: stopped at "
                         + stoppedAt.toShortString() + ", swam=" + swam[0] + ", " + action);
     }
 
     /**
-     * A sealed stone tank along +x: water five wide and five deep from {@code y-3} to {@code y+1}, one
-     * cell of air above it, and stone all round, rim included.
+     * A sealed stone tank along +x: water five wide and five deep from {@code y-3} to {@code y+1}, one cell of air
+     * above it, and stone all round, rim included.
      */
     private static void tank(Game game, Plot plot) {
         pin(game);
@@ -170,7 +186,9 @@ class WaterMobTest {
     }
 
     private static void pin(Game game) {
-        Settings.pin(game).set("allowBreak", false).set("allowPlace", false)
+        Settings.pin(game)
+                .set("allowBreak", false)
+                .set("allowPlace", false)
                 // The shipped arrival rule, which the pinned baseline turns off.
                 .set("navigatorHoldLastNodeUntilStanding", true);
     }

@@ -1,10 +1,12 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -12,19 +14,18 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-
 public final class BridgeProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
     private static final int STUCK_TICKS = 80;
-    /** Max |player yaw − bridge yaw| before the forward key is allowed: the raw
-     *  forward impulse walks along the CAMERA yaw, and on the client the LookController
-     *  re-clamps the camera to ~30°/tick AFTER this process writes it — so the first
-     *  WALKING ticks used to drive up to 180° off the bridge axis, over a 1×1 pillar top
-     *  that is a walk into the void. Gate on the PRE-write yaw (the rendered truth). */
+    /**
+     * Max |player yaw − bridge yaw| before the forward key is allowed: the raw forward impulse walks along the CAMERA
+     * yaw, and on the client the LookController re-clamps the camera to ~30°/tick AFTER this process writes it — so the
+     * first WALKING ticks used to drive up to 180° off the bridge axis, over a 1×1 pillar top that is a walk into the
+     * void. Gate on the PRE-write yaw (the rendered truth).
+     */
     private static final float YAW_ALIGN_DEG = 20f;
 
     private final Direction face;
@@ -34,15 +35,26 @@ public final class BridgeProcess implements BotProcess {
     private int placed;
     private String failure;
 
-    @Override public String failure() { return failure; }
-    /** Cell our last placeOn click targeted, pending world confirmation — `placed` counts
-     *  only cells OBSERVED solid afterwards (gap #75-a family audit: a blind placed++ on a
-     *  silently no-op'd click decouples the counter from the world). */
+    @Override
+    public String failure() {
+        return failure;
+    }
+    /**
+     * Cell our last placeOn click targeted, pending world confirmation — `placed` counts only cells OBSERVED solid
+     * afterwards (gap #75-a family audit: a blind placed++ on a silently no-op'd click decouples the counter from the
+     * world).
+     */
     private BlockPos pendingPlaceCell;
+
     private int stuckTicks;
     private int lastProgress;
     private Phase phase = Phase.WALKING;
-    private enum Phase { WALKING, PLACING, DONE }
+
+    private enum Phase {
+        WALKING,
+        PLACING,
+        DONE
+    }
 
     public BridgeProcess(Direction face, int distance, String preferredBlockId) {
         this.face = face;
@@ -50,21 +62,36 @@ public final class BridgeProcess implements BotProcess {
         this.preferredBlockId = preferredBlockId;
     }
 
-    public String kind() { return "builder"; }
-
-    public int placed() { return placed; }
-
-    public void attach(BotState st) {
-        st.builder.beginRun("bridge " + face.getName() + " ×" + distance
-                + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
+    public String kind() {
+        return "builder";
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    public int placed() {
+        return placed;
+    }
+
+    public void attach(BotState st) {
+        st.builder.beginRun(
+                "bridge " + face.getName() + " ×" + distance
+                        + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""),
+                null);
+    }
+
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) {
+            failure = st.builder.lastError = "player vanished";
+            st.builder.reset();
+            return true;
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) { failure = st.builder.lastError = Readiness.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (equipment == null || blocks == null) {
+            failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
+            st.builder.reset();
+            return true;
+        }
         Level lvl = p.level();
         // Player yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
@@ -83,9 +110,12 @@ public final class BridgeProcess implements BotProcess {
             a.releaseInputs();
             return true;
         }
-        if (progress > lastProgress) { lastProgress = progress; stuckTicks = 0; }
-        else if (++stuckTicks > STUCK_TICKS) {
-            failure = st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
+        if (progress > lastProgress) {
+            lastProgress = progress;
+            stuckTicks = 0;
+        } else if (++stuckTicks > STUCK_TICKS) {
+            failure =
+                    st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -103,11 +133,12 @@ public final class BridgeProcess implements BotProcess {
         p.setShiftKeyDown(true);
 
         // Always face the travel direction.
-        float yaw = face == Direction.SOUTH ? 0f
-                  : face == Direction.WEST  ? 90f
-                  : face == Direction.NORTH ? 180f
-                  : /* EAST */                270f;
-        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
+        float yaw = face == Direction.SOUTH
+                ? 0f
+                : face == Direction.WEST ? 90f : face == Direction.NORTH ? 180f : /* EAST */ 270f;
+        p.setYRot(yaw);
+        p.yHeadRot = yaw;
+        p.yBodyRot = yaw;
 
         // The cell directly ahead of our feet, one step in `face`.
         BlockPos aheadFoot = foot.offset(face.getStepX(), 0, face.getStepZ());
@@ -163,11 +194,13 @@ public final class BridgeProcess implements BotProcess {
                 // Look slightly down and toward the forward face.
                 p.setXRot(45f);
                 blocks.placeOn(currentSupport, face);
-                pendingPlaceCell = aheadSupport;   // credited once OBSERVED solid
+                pendingPlaceCell = aheadSupport; // credited once OBSERVED solid
                 // Stay in PLACING; next tick checks aheadSupportSolid again
                 // and either switches back to WALKING (success) or retries.
             }
-            case DONE -> { return true; }
+            case DONE -> {
+                return true;
+            }
         }
         return false;
     }
@@ -175,16 +208,14 @@ public final class BridgeProcess implements BotProcess {
     /**
      * The support-bearing feet cell — {@code floor(center)} re-anchored to the AABB.
      *
-     * <p>{@code floor(center)} alone killed live death #24 (gap #75-a): vanilla's sneak
-     * edge-clamp ({@code Player.maybeBackOffFromEdge}) deliberately lets a sneaking player
-     * OVERHANG a ledge until only a sliver of the 0.6-wide AABB still touches support, so
-     * the center legally crosses into the unsupported neighbour column (a tower finish on a
-     * 1×1 pillar top routinely parks the bot there). Anchoring on that column read
-     * "support under feet = air" while the bot stood perfectly safe; the terminal then
-     * released the sneak that was pinning it to the edge — the actual fall. If the center
-     * cell has support it wins unchanged; otherwise the supported cell under the AABB with
-     * the largest footprint overlap is the anchor. Returns the center cell when nothing
-     * under the AABB has support (genuinely airborne — the caller's fell-off terminal).
+     * <p>{@code floor(center)} alone killed live death #24 (gap #75-a): vanilla's sneak edge-clamp
+     * ({@code Player.maybeBackOffFromEdge}) deliberately lets a sneaking player OVERHANG a ledge until only a sliver of
+     * the 0.6-wide AABB still touches support, so the center legally crosses into the unsupported neighbour column (a
+     * tower finish on a 1×1 pillar top routinely parks the bot there). Anchoring on that column read "support under
+     * feet = air" while the bot stood perfectly safe; the terminal then released the sneak that was pinning it to the
+     * edge — the actual fall. If the center cell has support it wins unchanged; otherwise the supported cell under the
+     * AABB with the largest footprint overlap is the anchor. Returns the center cell when nothing under the AABB has
+     * support (genuinely airborne — the caller's fell-off terminal).
      */
     private static BlockPos anchoredFoot(LivingEntity p, Level lvl) {
         BlockPos foot = blockPosOf(p);
@@ -198,8 +229,11 @@ public final class BridgeProcess implements BotProcess {
                 if ((x == foot.getX() && z == foot.getZ())
                         || !lvl.getBlockState(cell.offset(0, -1, 0)).blocksMotion()) continue;
                 double ov = (Math.min(box.maxX, x + 1) - Math.max(box.minX, x))
-                          * (Math.min(box.maxZ, z + 1) - Math.max(box.minZ, z));
-                if (ov > bestOverlap) { bestOverlap = ov; best = cell; }
+                        * (Math.min(box.maxZ, z + 1) - Math.max(box.minZ, z));
+                if (ov > bestOverlap) {
+                    bestOverlap = ov;
+                    best = cell;
+                }
             }
         }
         return best != null ? best : foot;

@@ -3,13 +3,13 @@ package net.magicterra.worlddriver.bot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Observer;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -18,33 +18,34 @@ import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.world.HazardCell;
 import net.magicterra.worlddriver.bot.world.HazardField;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
- * The {@code sight} and {@code mobDensity} overlays of {@code mc.observe.scene}: per standable
- * cell of the hazard grid, how many observers see it and how many hostiles stand within the
- * cluster radius of it. Computed at observation time by the SAME components the planner avoids
- * with ({@link SightExposure#seen}, {@link MobCluster#count}) over a fresh
- * {@link SearchScope#gather}: the danger the LLM sees on the map and the danger a route avoids are
- * one judgement, not one snapshot — no search is running when the scene is observed.
+ * The {@code sight} and {@code mobDensity} overlays of {@code mc.observe.scene}: per standable cell of the hazard grid,
+ * how many observers see it and how many hostiles stand within the cluster radius of it. Computed at observation time
+ * by the SAME components the planner avoids with ({@link SightExposure#seen}, {@link MobCluster#count}) over a fresh
+ * {@link SearchScope#gather}: the danger the LLM sees on the map and the danger a route avoids are one judgement, not
+ * one snapshot — no search is running when the scene is observed.
  *
- * <p>Which observers and mobs: the caller's {@code route.sight} / {@code route.mobs} (the goto
- * keys, parsed by {@link RouteParams}), else the {@code risk: safe} defaults — ranged hostiles,
- * cluster radius 6. Rows are laid out like the ASCII hazard map: one string per dz from
- * {@code -radius}, one glyph per dx from {@code -radius}, space-separated; {@code .} is a cell
- * with no footing, {@code ?} one the ray budget did not reach, {@code +} ten or more.
+ * <p>Which observers and mobs: the caller's {@code route.sight} / {@code route.mobs} (the goto keys, parsed by
+ * {@link RouteParams}), else the {@code risk: safe} defaults — ranged hostiles, cluster radius 6. Rows are laid out
+ * like the ASCII hazard map: one string per dz from {@code -radius}, one glyph per dx from {@code -radius},
+ * space-separated; {@code .} is a cell with no footing, {@code ?} one the ray budget did not reach, {@code +} ten or
+ * more.
  */
 public final class SceneOverlays {
     private SceneOverlays() {}
 
-    /** The grid an overlay is drawn over: the standable surface of each (dx, dz), or
-     *  {@link #NONE} without footing. The hazard field in production, a lambda in a test. */
+    /**
+     * The grid an overlay is drawn over: the standable surface of each (dx, dz), or {@link #NONE} without footing. The
+     * hazard field in production, a lambda in a test.
+     */
     @FunctionalInterface
     public interface Surface {
         int NONE = Integer.MIN_VALUE;
+
         int surfaceY(int dx, int dz);
     }
 
@@ -60,13 +61,20 @@ public final class SceneOverlays {
     public record Result(Optional<SightOverlay> sight, Optional<DensityOverlay> mobDensity) {}
 
     /**
-     * The requested overlays, counting the observers and mobs {@code route} names.
-     * Runs on the server thread: one entity scan, then the rays.
+     * The requested overlays, counting the observers and mobs {@code route} names. Runs on the server thread: one
+     * entity scan, then the rays.
      *
      * @param selfId the entity the scene is centred on, excluded from the snapshot; -1 for none
      */
-    public static Result apply(Level level, BlockPos center, int radius, Surface surface, boolean wantSight,
-                               boolean wantMobs, Route route, int selfId) {
+    public static Result apply(
+            Level level,
+            BlockPos center,
+            int radius,
+            Surface surface,
+            boolean wantSight,
+            boolean wantMobs,
+            Route route,
+            int selfId) {
         if (!wantSight && !wantMobs) return new Result(Optional.empty(), Optional.empty());
         RouteParams.Parsed parsed = RouteParams.parse(route);
         SightExposure sight = wantSight ? sightOf(parsed.profile(), radius) : null;
@@ -78,15 +86,28 @@ public final class SceneOverlays {
         SearchScope scope = SearchScope.gather(level, selfId, center, new Goal.Block(center), probe);
         for (CostModifier m : parts) ((SearchAware) m).beginSearch(scope);
         return new Result(
-                sight == null ? Optional.empty() : Optional.of(sightOverlay(sight, center, radius, surface, scope.truncated())),
-                mobs == null ? Optional.empty() : Optional.of(densityOverlay(mobs, center, radius, surface, scope.truncated())));
+                sight == null
+                        ? Optional.empty()
+                        : Optional.of(sightOverlay(sight, center, radius, surface, scope.truncated())),
+                mobs == null
+                        ? Optional.empty()
+                        : Optional.of(densityOverlay(mobs, center, radius, surface, scope.truncated())));
     }
 
     /** The route's sight component, or the {@code risk: safe} one; with a budget for the whole grid. */
     static SightExposure sightOf(SearchProfile profile, int radius) {
         SightExposure s = null;
-        for (CostModifier m : profile.bias()) if (m instanceof SightExposure se) { s = se; break; }
-        if (s == null) for (Constraint c : profile.constraints()) if (c instanceof SightExposure se) { s = se; break; }
+        for (CostModifier m : profile.bias())
+            if (m instanceof SightExposure se) {
+                s = se;
+                break;
+            }
+        if (s == null)
+            for (Constraint c : profile.constraints())
+                if (c instanceof SightExposure se) {
+                    s = se;
+                    break;
+                }
         if (s == null) s = RouteParams.rangedSight();
         int cells = (2 * radius + 1) * (2 * radius + 1);
         // Enough for every cell against a handful of observers; past that the rows say '?'.
@@ -100,8 +121,8 @@ public final class SceneOverlays {
     }
 
     /** Who sees each standable cell; the name only when it is more than the type. */
-    public static SightOverlay sightOverlay(SightExposure sight, BlockPos center, int radius, Surface surface,
-                                            boolean truncated) {
+    public static SightOverlay sightOverlay(
+            SightExposure sight, BlockPos center, int radius, Surface surface, boolean truncated) {
         List<Observer> observers = new ArrayList<>();
         for (ThreatSnapshot.Threat t : sight.observers()) {
             boolean named = t.name() != null && !t.name().isEmpty() && !t.name().equals(t.type());
@@ -136,8 +157,8 @@ public final class SceneOverlays {
     }
 
     /** How many hostiles stand within the cluster radius of each standable cell. */
-    public static DensityOverlay densityOverlay(MobCluster mobs, BlockPos center, int radius, Surface surface,
-                                                boolean truncated) {
+    public static DensityOverlay densityOverlay(
+            MobCluster mobs, BlockPos center, int radius, Surface surface, boolean truncated) {
         MobCluster.Cluster cl = mobs.cluster();
         double r = cl != null ? cl.radius() : RouteParams.SAFE_CLUSTER.radius();
         int count = cl != null ? cl.count() : RouteParams.SAFE_CLUSTER.count();

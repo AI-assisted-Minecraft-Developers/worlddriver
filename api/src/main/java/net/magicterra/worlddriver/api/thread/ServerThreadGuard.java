@@ -3,17 +3,15 @@ package net.magicterra.worlddriver.api.thread;
 import java.util.function.BooleanSupplier;
 
 /**
- * Refuses a call that would block the server thread waiting for something only the server thread
- * can do.
+ * Refuses a call that would block the server thread waiting for something only the server thread can do.
  *
- * <p>User scripts and {@code ScriptEvents} callbacks run on the server thread. A round-trip through
- * the local RPC or MCP endpoint lands in a route that hops back onto that thread, and an
- * {@code awaitMs} or {@code mc.wait.*} poll waits for ticks it is itself holding up; either way the
- * game froze until a timeout and the caller got an error that named the timeout, not the cause.
- * Failing at once with this message names the cause.
+ * <p>User scripts and {@code ScriptEvents} callbacks run on the server thread. A round-trip through the local RPC or
+ * MCP endpoint lands in a route that hops back onto that thread, and an {@code awaitMs} or {@code mc.wait.*} poll waits
+ * for ticks it is itself holding up; either way the game froze until a timeout and the caller got an error that named
+ * the timeout, not the cause. Failing at once with this message names the cause.
  *
- * <p>Global because the RPC and MCP clients hold no server; the host's {@code attachServer} installs
- * the check and its {@code detachServer} removes it.
+ * <p>Global because the RPC and MCP clients hold no server; the host's {@code attachServer} installs the check and its
+ * {@code detachServer} removes it.
  */
 public final class ServerThreadGuard {
     private static final BooleanSupplier NONE = () -> false;
@@ -22,13 +20,19 @@ public final class ServerThreadGuard {
     private ServerThreadGuard() {}
 
     /** Use {@code check} to tell whether the calling thread is the server thread. */
-    public static void install(BooleanSupplier check) { onServerThread = check == null ? NONE : check; }
+    public static void install(BooleanSupplier check) {
+        onServerThread = check == null ? NONE : check;
+    }
 
     /** No server thread to protect any more. */
-    public static void uninstall() { onServerThread = NONE; }
+    public static void uninstall() {
+        onServerThread = NONE;
+    }
 
     /** Whether the calling thread is the attached server's thread. */
-    public static boolean onServerThread() { return onServerThread.getAsBoolean(); }
+    public static boolean onServerThread() {
+        return onServerThread.getAsBoolean();
+    }
 
     /** Throw when called on the server thread; {@code what} names the blocking call being refused. */
     public static void refuseBlocking(String what) {

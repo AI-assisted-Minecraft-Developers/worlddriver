@@ -3,8 +3,10 @@ package net.magicterra.worlddriver.debug;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.minecraft.core.BlockPos;
 
-/** Derive a representative goal cell for the chart marker. Open goals
- *  (RunAway/Inverted/StrictDirection/Axis) have no single point → null. */
+/**
+ * Derive a representative goal cell for the chart marker. Open goals (RunAway/Inverted/StrictDirection/Axis) have no
+ * single point → null.
+ */
 final class GoalMarker {
     private GoalMarker() {}
 

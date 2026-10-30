@@ -8,5 +8,4 @@ import java.lang.annotation.Target;
 /** A boolean that may only be {@code true}: an acknowledgement. */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
-public @interface OnlyTrue {
-}
+public @interface OnlyTrue {}

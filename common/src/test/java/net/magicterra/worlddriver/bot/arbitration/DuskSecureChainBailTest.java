@@ -11,10 +11,10 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
 import org.junit.jupiter.api.Test;
 
 /**
- * Dusk shelter at an unsafe site: the bunker process bails with {@code unsafe-site} on its first
- * tick without changing anything, the bot is still exposed at night, and the chain's debounce had
- * already run out, so it bid 90 again on the next tick and restarted the process every tick all
- * night, above the user task. A failed verdict must take the chain out of the bid.
+ * Dusk shelter at an unsafe site: the bunker process bails with {@code unsafe-site} on its first tick without changing
+ * anything, the bot is still exposed at night, and the chain's debounce had already run out, so it bid 90 again on the
+ * next tick and restarted the process every tick all night, above the user task. A failed verdict must take the chain
+ * out of the bid.
  */
 class DuskSecureChainBailTest {
 

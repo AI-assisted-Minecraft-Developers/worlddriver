@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Locks;
@@ -36,9 +35,14 @@ class JupiterSmokeTest {
         BlockPos spawn = game.onServer(server -> server.overworld().getSharedSpawnPos());
         BlockPosition at = new BlockPosition(spawn.getX(), 300, spawn.getZ());
         ActionBlockingApi action = game.api(ActionBlockingApi::of);
-        assertEquals(1, action.fill(new FillParams(at, at, "minecraft:stone", false)).placed());
+        assertEquals(
+                1, action.fill(new FillParams(at, at, "minecraft:stone", false)).placed());
         try {
-            assertEquals("minecraft:stone", game.api(WorldBlockingApi::of).block(new BlockParams(at, false, Optional.empty())).type());
+            assertEquals(
+                    "minecraft:stone",
+                    game.api(WorldBlockingApi::of)
+                            .block(new BlockParams(at, false, Optional.empty()))
+                            .type());
         } finally {
             action.fill(new FillParams(at, at, "minecraft:air", false));
         }
@@ -50,9 +54,13 @@ class JupiterSmokeTest {
         BlockPos cell = nether.at(1, 1, 1);
         BlockPosition at = new BlockPosition(cell.getX(), cell.getY(), cell.getZ());
         WorldBlockingApi world = game.api(WorldBlockingApi::of);
-        assertEquals("minecraft:gold_block",
-                world.block(new BlockParams(at, false, Optional.of("minecraft:the_nether"))).type());
-        assertNotEquals("minecraft:gold_block", world.block(new BlockParams(at, false, Optional.empty())).type(),
+        assertEquals(
+                "minecraft:gold_block",
+                world.block(new BlockParams(at, false, Optional.of("minecraft:the_nether")))
+                        .type());
+        assertNotEquals(
+                "minecraft:gold_block",
+                world.block(new BlockParams(at, false, Optional.empty())).type(),
                 "with no dimension the overworld is read");
     }
 
@@ -81,8 +89,8 @@ class JupiterSmokeTest {
         game.runOnServer(server -> game.check(server.isSameThread(), "the task runs on the server thread"));
         assertTrue(game.onServerHolds(server -> server.isSameThread()));
         // What the test must undo when it ends is still only for its own thread.
-        IllegalStateException refused = assertThrows(IllegalStateException.class,
-                () -> game.runOnServer(server -> game.afterTest(s -> {})));
+        IllegalStateException refused =
+                assertThrows(IllegalStateException.class, () -> game.runOnServer(server -> game.afterTest(s -> {})));
         assertTrue(refused.getMessage().contains("own thread"), refused.getMessage());
     }
 
@@ -102,7 +110,10 @@ class JupiterSmokeTest {
     @Test
     void perfMeasuresEachPhaseAfterItsSetup(Game game) {
         int[] ran = {0};
-        Map<String, Perf.Window> r = game.perf(Perf.phases().warmup(5).sample(20).repeat(1)
+        Map<String, Perf.Window> r = game.perf(Perf.phases()
+                .warmup(5)
+                .sample(20)
+                .repeat(1)
                 .phase("baseline", () -> {})
                 .phase("after", () -> ran[0]++));
         assertEquals(1, ran[0]);
@@ -114,7 +125,8 @@ class JupiterSmokeTest {
 
     @Test
     void anAwaitThatNeverHoldsFails(Game game) {
-        AssertionError e = assertThrows(AssertionError.class,
+        AssertionError e = assertThrows(
+                AssertionError.class,
                 () -> game.await().within(3).as("a condition that never holds").until(() -> false));
         assertTrue(e.getMessage().contains("a condition that never holds"), e.getMessage());
     }

@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.schema.ApiError;
@@ -21,18 +20,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * What a caller may conclude from a server-thread hop that timed out. A task still sitting in the
- * queue when the waiter gives up must never run, so "not executed" is true and a retry cannot
- * apply it twice; a task the server thread already started cannot be withdrawn, so that caller is
- * told the outcome is unknown instead.
+ * What a caller may conclude from a server-thread hop that timed out. A task still sitting in the queue when the waiter
+ * gives up must never run, so "not executed" is true and a retry cannot apply it twice; a task the server thread
+ * already started cannot be withdrawn, so that caller is told the outcome is unknown instead.
  */
 class ServerThreadHopTest {
 
     /** A server thread that has not got round to its queue yet: tasks run only when drained. */
     private static final class ParkedExecutor implements Executor {
         final Queue<Runnable> queued = new ArrayDeque<>();
-        @Override public synchronized void execute(Runnable r) { queued.add(r); }
-        synchronized void drain() { Runnable r; while ((r = queued.poll()) != null) r.run(); }
+
+        @Override
+        public synchronized void execute(Runnable r) {
+            queued.add(r);
+        }
+
+        synchronized void drain() {
+            Runnable r;
+            while ((r = queued.poll()) != null) r.run();
+        }
     }
 
     /** A server thread that picks every task up at once, on a thread of its own. */
@@ -50,12 +56,14 @@ class ServerThreadHopTest {
         ServerThreadHop hop = new ServerThreadHop(server, () -> false, 50);
 
         RuntimeException e = assertThrows(RuntimeException.class, () -> hop.call(runs::incrementAndGet));
-        ServerThreadHop.NotExecutedException ne = assertInstanceOf(ServerThreadHop.NotExecutedException.class, e,
+        ServerThreadHop.NotExecutedException ne = assertInstanceOf(
+                ServerThreadHop.NotExecutedException.class,
+                e,
                 "a timed-out queued task must report not-executed, got " + e);
         assertEquals(ApiError.Code.NOT_EXECUTED, ne.code());
         assertTrue(e.getMessage().contains("will not run"), e.getMessage());
 
-        server.drain();   // the tick frees up and reaches the stale task
+        server.drain(); // the tick frees up and reaches the stale task
         assertEquals(0, runs.get(), "the withdrawn task ran after its caller was told it had not");
     }
 
@@ -67,13 +75,21 @@ class ServerThreadHopTest {
         AtomicInteger runs = new AtomicInteger();
         ServerThreadHop hop = new ServerThreadHop(PROMPT, () -> false, 200);
 
-        RuntimeException e = assertThrows(RuntimeException.class, () -> hop.call(() -> {
-            started.countDown();
-            try { release.await(); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-            return runs.incrementAndGet();
-        }));
+        RuntimeException e = assertThrows(
+                RuntimeException.class,
+                () -> hop.call(() -> {
+                    started.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return runs.incrementAndGet();
+                }));
         assertTrue(started.await(1, TimeUnit.SECONDS));
-        ServerThreadHop.OutcomeUnknownException ou = assertInstanceOf(ServerThreadHop.OutcomeUnknownException.class, e,
+        ServerThreadHop.OutcomeUnknownException ou = assertInstanceOf(
+                ServerThreadHop.OutcomeUnknownException.class,
+                e,
                 "a task the server thread already started must report outcome-unknown, got " + e);
         assertEquals(ApiError.Code.OUTCOME_UNKNOWN, ou.code());
         assertTrue(e.getMessage().contains("observe"), e.getMessage());
@@ -90,14 +106,19 @@ class ServerThreadHopTest {
         assertEquals(42, hop.call(() -> 42));
 
         IllegalArgumentException bad = new IllegalArgumentException("bad param");
-        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-                () -> hop.call(() -> { throw bad; }));
+        IllegalArgumentException thrown = assertThrows(
+                IllegalArgumentException.class,
+                () -> hop.call(() -> {
+                    throw bad;
+                }));
         assertSame(bad, thrown, "the task's own exception reaches the caller unwrapped");
     }
 
     @Test
     void onTheServerThreadTheTaskRunsInline() {
-        Executor refuses = r -> { throw new AssertionError("must not queue a task from the server thread"); };
+        Executor refuses = r -> {
+            throw new AssertionError("must not queue a task from the server thread");
+        };
         ServerThreadHop hop = new ServerThreadHop(refuses, () -> true, 1);
         assertEquals("inline", hop.call(() -> "inline"));
     }
@@ -105,10 +126,16 @@ class ServerThreadHopTest {
     /** A server thread busy for {@code ms}, then working through its queue. */
     private static ParkedExecutor busyFor(long ms) {
         ParkedExecutor server = new ParkedExecutor();
-        Thread t = new Thread(() -> {
-            try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
-            server.drain();
-        }, "test-busy-server");
+        Thread t = new Thread(
+                () -> {
+                    try {
+                        Thread.sleep(ms);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    server.drain();
+                },
+                "test-busy-server");
         t.setDaemon(true);
         t.start();
         return server;
@@ -130,11 +157,14 @@ class ServerThreadHopTest {
         ParkedExecutor server = busyFor(600);
         ServerThreadHop hop = new ServerThreadHop(server, () -> false, 200);
         long start = System.nanoTime();
-        ExecutionException e = assertThrows(ExecutionException.class,
-                () -> hop.submit(runs::incrementAndGet, CallContext.standalone()).get(5, TimeUnit.SECONDS));
+        ExecutionException e = assertThrows(
+                ExecutionException.class,
+                () -> hop.submit(runs::incrementAndGet, CallContext.standalone())
+                        .get(5, TimeUnit.SECONDS));
         long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         assertInstanceOf(ServerThreadHop.NotExecutedException.class, e.getCause());
-        assertTrue(e.getCause().getMessage().contains("within 200ms"), e.getCause().getMessage());
+        assertTrue(
+                e.getCause().getMessage().contains("within 200ms"), e.getCause().getMessage());
         assertTrue(tookMs < 600, "gave up after " + tookMs + "ms, not at the hop's 200ms");
         server.drain();
         assertEquals(0, runs.get(), "the withdrawn task ran");
@@ -144,9 +174,10 @@ class ServerThreadHopTest {
     @Timeout(10)
     void theDeadlineStillBoundsTheThreadWait() {
         ServerThreadHop hop = new ServerThreadHop(busyFor(2_000), () -> false, 200);
-        CallContext ctx = CallContext.withBudget(300, CancellationToken.NEVER, CallContext.SHARED_WAITS).withThreadWait(5_000);
-        ExecutionException e = assertThrows(ExecutionException.class,
-                () -> hop.submit(() -> 1, ctx).get(5, TimeUnit.SECONDS));
+        CallContext ctx = CallContext.withBudget(300, CancellationToken.NEVER, CallContext.SHARED_WAITS)
+                .withThreadWait(5_000);
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> hop.submit(() -> 1, ctx).get(5, TimeUnit.SECONDS));
         assertInstanceOf(ServerThreadHop.NotExecutedException.class, e.getCause());
     }
 

@@ -8,13 +8,15 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * 3-block cardinal leap (sprint-jump max distance). Same gap-requirement as
- * Parkour2: both intermediate cells must be air at foot+head with no
- * stand-able floor below either, or A* should chain cheaper moves instead.
- * Cost ≈ 32 (3×walk + jump+sprint overhead).
+ * 3-block cardinal leap (sprint-jump max distance). Same gap-requirement as Parkour2: both intermediate cells must be
+ * air at foot+head with no stand-able floor below either, or A* should chain cheaper moves instead. Cost ≈ 32 (3×walk +
+ * jump+sprint overhead).
  */
 public final class Parkour3 extends Move {
-    public Parkour3(int dx, int dz) { super(dx * 3, 0, dz * 3, 32); }
+    public Parkour3(int dx, int dz) {
+        super(dx * 3, 0, dz * 3, 32);
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
@@ -24,8 +26,8 @@ public final class Parkour3 extends Move {
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
         // the leap stays available rather than leaving the bot with no move at all.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
-                && Move.overTheVoid(w, from, to)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+            return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
@@ -44,6 +46,13 @@ public final class Parkour3 extends Move {
         }
         return w.isPassable(to.offset(0, 1, 0));
     }
-    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
-    public String name() { return "parkour3"; }
+
+    @Override
+    public Capability requiredCapability() {
+        return Capability.PARKOUR;
+    }
+
+    public String name() {
+        return "parkour3";
+    }
 }

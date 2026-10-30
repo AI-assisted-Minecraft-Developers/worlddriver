@@ -1,10 +1,5 @@
 package net.magicterra.worlddriver.script;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import dev.latvian.mods.rhino.BaseFunction;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
@@ -19,14 +14,18 @@ import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.WrappedException;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Scripting;
 
 /**
- * {@link Scripting} over the engine {@code mc.script.eval} uses, without its run, budget or result envelope: the
- * caller owns the thread and decides how long a script may take. Each function call enters a context of its own,
- * since a script's function is called later and from whichever thread the caller is on. Every scope also holds the
- * {@code Java} global ({@link #installJava}).
+ * {@link Scripting} over the engine {@code mc.script.eval} uses, without its run, budget or result envelope: the caller
+ * owns the thread and decides how long a script may take. Each function call enters a context of its own, since a
+ * script's function is called later and from whichever thread the caller is on. Every scope also holds the {@code Java}
+ * global ({@link #installJava}).
  */
 public final class HostedScripts implements Scripting {
     private final ApiRegistry api;
@@ -53,9 +52,9 @@ public final class HostedScripts implements Scripting {
     }
 
     /**
-     * The {@code Java} global: {@code Java.type(name)} answers the class with that binary name as a script sees a
-     * Java class (its static members, {@code new}), and {@code Java.loadClass(name)} is the same under the name
-     * KubeJS-style scripts use. An unknown name throws an error a script can catch.
+     * The {@code Java} global: {@code Java.type(name)} answers the class with that binary name as a script sees a Java
+     * class (its static members, {@code new}), and {@code Java.loadClass(name)} is the same under the name KubeJS-style
+     * scripts use. An unknown name throws an error a script can catch.
      *
      * <p>Classes load through this mod's class loader, so a Minecraft class is named as the running game names it:
      * intermediary ({@code net.minecraft.class_2338}) in a Fabric production game, Mojang names on NeoForge and in
@@ -76,7 +75,8 @@ public final class HostedScripts implements Scripting {
         public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             String name = args.length == 0 ? "undefined" : ScriptRuntime.toString(cx, args[0]);
             if (!cx.visibleToScripts(name, ClassVisibilityContext.CLASS_IN_PACKAGE)) {
-                throw ScriptRuntime.constructError(cx, "Error", "the Java class " + name + " is not visible to scripts");
+                throw ScriptRuntime.constructError(
+                        cx, "Error", "the Java class " + name + " is not visible to scripts");
             }
             Class<?> cls;
             try {
@@ -104,7 +104,7 @@ public final class HostedScripts implements Scripting {
         }
         // Spelled out: inside this class the bare name is the inherited Scripting.Function.
         if (js instanceof dev.latvian.mods.rhino.Function f) return new ScriptFunction(f, scope);
-        if (js instanceof Map<?, ?> map) {           // NativeObject implements Map in this fork
+        if (js instanceof Map<?, ?> map) { // NativeObject implements Map in this fork
             Map<String, Object> out = new LinkedHashMap<>();
             map.forEach((k, v) -> out.put(String.valueOf(k), toJava(v, scope)));
             return out;
@@ -143,7 +143,8 @@ public final class HostedScripts implements Scripting {
         Object value = js.getValue();
         // A script that caught a Java exception and threw it again: the catch value is the engine's error object,
         // which keeps the Java exception under javaException.
-        if (value instanceof Scriptable s && !(value instanceof NativeJavaObject)
+        if (value instanceof Scriptable s
+                && !(value instanceof NativeJavaObject)
                 && ScriptableObject.hasProperty(s, "javaException", cx)) {
             value = ScriptableObject.getProperty(s, "javaException", cx);
         }
@@ -152,8 +153,8 @@ public final class HostedScripts implements Scripting {
     }
 
     /**
-     * What the Java code that started the script should see: a Java exception as itself, however many times the
-     * engine wrapped it on the way out (including a script that caught and rethrew it), else the script's error.
+     * What the Java code that started the script should see: a Java exception as itself, however many times the engine
+     * wrapped it on the way out (including a script that caught and rethrew it), else the script's error.
      */
     private static RuntimeException unwrap(RuntimeException e, Context cx) {
         Throwable current = e;
@@ -172,7 +173,9 @@ public final class HostedScripts implements Scripting {
     }
 
     private static String describe(Object js) {
-        return js instanceof Scriptable s ? "a " + s.getClassName() : "a " + js.getClass().getName();
+        return js instanceof Scriptable s
+                ? "a " + s.getClassName()
+                : "a " + js.getClass().getName();
     }
 
     /** A script's function, held for Java to call. */
@@ -199,10 +202,10 @@ public final class HostedScripts implements Scripting {
     }
 
     /**
-     * A Java function, handed to a script. An exception it throws goes through the engine as a {@link WrappedException},
-     * which a script's {@code catch} receives as an error whose message carries the Java one; thrown raw, Rhino would
-     * run only the script's {@code finally} blocks. An {@link Error} stays raw and so stays uncatchable. {@link #unwrap}
-     * hands the Java caller the original either way.
+     * A Java function, handed to a script. An exception it throws goes through the engine as a
+     * {@link WrappedException}, which a script's {@code catch} receives as an error whose message carries the Java one;
+     * thrown raw, Rhino would run only the script's {@code finally} blocks. An {@link Error} stays raw and so stays
+     * uncatchable. {@link #unwrap} hands the Java caller the original either way.
      */
     private final class JavaFunction extends BaseFunction {
         final Scripting.Function target;

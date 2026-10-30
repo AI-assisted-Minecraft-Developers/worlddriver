@@ -1,9 +1,8 @@
 package net.magicterra.worlddriver.application;
 
 import java.util.Optional;
+import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
@@ -11,11 +10,12 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.game.body.Attack;
-import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BotUtil;
-import net.magicterra.worlddriver.api.game.HandWords;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
@@ -32,17 +32,17 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@code mc.bot.lookAt}, {@code holdItem}, {@code useItem} and {@code attackEntity} on a registered bot, run on
- * the server thread.
+ * {@code mc.bot.lookAt}, {@code holdItem}, {@code useItem} and {@code attackEntity} on a registered bot, run on the
+ * server thread.
  *
- * <p>The client's versions send what a click sends and leave the rest to the server's packet handlers.
- * A server-side bot has no connection to send through, so these do what those handlers do with the
- * packet, reach check included, and answer with what came of it. Two answers differ for that reason: a
- * use or an attack out of reach is refused here where the client's is ignored, and a use on an entity
- * names the open {@code menu} where the client names its {@code screen}.
+ * <p>The client's versions send what a click sends and leave the rest to the server's packet handlers. A server-side
+ * bot has no connection to send through, so these do what those handlers do with the packet, reach check included, and
+ * answer with what came of it. Two answers differ for that reason: a use or an attack out of reach is refused here
+ * where the client's is ignored, and a use on an entity names the open {@code menu} where the client names its
+ * {@code screen}.
  *
- * <p>A bot without hands, an NPC, refuses all but {@code lookAt} as {@code unsupported_capability}. Nothing
- * here may name a client class.
+ * <p>A bot without hands, an NPC, refuses all but {@code lookAt} as {@code unsupported_capability}. Nothing here may
+ * name a client class.
  */
 final class BodyInteractions {
 
@@ -53,7 +53,10 @@ final class BodyInteractions {
 
     /** Yaw and pitch from {@code self}'s eyes to {@code p}'s block or angles. */
     static float[] aim(LivingEntity self, InteractContracts.LookParams p) {
-        if (p.pos().isEmpty()) return new float[]{p.yaw().orElseThrow().floatValue(), p.pitch().orElseThrow().floatValue()};
+        if (p.pos().isEmpty())
+            return new float[] {
+                p.yaw().orElseThrow().floatValue(), p.pitch().orElseThrow().floatValue()
+            };
         BlockPosition at = p.pos().get();
         return HandVerbs.anglesTo(self.getEyePosition(), at.x() + 0.5, at.y() + 0.5, at.z() + 0.5);
     }
@@ -69,9 +72,11 @@ final class BodyInteractions {
     static ImmediateResponse holdItem(Bot host, InteractContracts.HoldParams p) {
         Equipment hands = host.body().equipment().orElse(null);
         if (hands == null) return noHands(host);
-        Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
-                "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
-        return hands.holdItemOrEmptyHand(item) ? new Responses.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
+        Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item())
+                .orElseThrow(() -> ApiException.invalidParam(
+                        "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
+        return hands.holdItemOrEmptyHand(item)
+                ? new Responses.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, host.id()));
     }
 
@@ -84,12 +89,14 @@ final class BodyInteractions {
         sp.setShiftKeyDown(false);
         InteractionResult result = sp.gameMode.useItem(sp, sp.serverLevel(), sp.getItemInHand(hand), hand);
         if (result.consumesAction()) sp.swing(hand, true);
-        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
+        return new Responses.Used(
+                p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
 
     private static ImmediateResponse useOnBlock(ServerPlayer sp, InteractContracts.UseParams p, BlockPosition at) {
         BlockPos pos = Positions.blockPos(at);
-        Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
+        Direction face =
+                p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
         InteractionHand hand = HandWords.hand(p.hand());
         Vec3 hit = HandVerbs.faceCentre(pos, face);
         if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesTo(sp.getEyePosition(), hit.x, hit.y, hit.z));
@@ -97,10 +104,13 @@ final class BodyInteractions {
         if (!sp.canInteractWithBlock(pos, REACH_SLACK)) {
             return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "pos " + pos.toShortString() + " is out of reach");
         }
-        InteractionResult result = sp.gameMode.useItemOn(sp, sp.serverLevel(), sp.getItemInHand(hand), hand,
-                new BlockHitResult(hit, face, pos, false));
+        InteractionResult result = sp.gameMode.useItemOn(
+                sp, sp.serverLevel(), sp.getItemInHand(hand), hand, new BlockHitResult(hit, face, pos, false));
         if (result.consumesAction()) sp.swing(hand, true);
-        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(),
+        return new Responses.Used(
+                p.hand(),
+                HandWords.interaction(result),
+                result.consumesAction(),
                 new InteractContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
@@ -112,7 +122,8 @@ final class BodyInteractions {
         if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesAt(sp, target));
         double distance = Math.sqrt(sp.distanceToSqr(target));
         if (!sp.canInteractWithEntity(target, REACH_SLACK)) {
-            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "entity " + entityId + " is out of reach at " + distance);
+            return new Refused<>(
+                    RefusalReason.INVALID_WORLD_TARGET, "entity " + entityId + " is out of reach at " + distance);
         }
         // Sneak-gated interactions read the shift flag during this call only.
         sp.setShiftKeyDown(p.sneak());
@@ -123,10 +134,18 @@ final class BodyInteractions {
             if (!result.consumesAction()) result = sp.interactOn(target, hand);
             if (result.consumesAction()) sp.swing(hand, true);
             Entity vehicle = sp.getVehicle();
-            return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(),
-                    new InteractContracts.OnEntity(entityId, RegistryIds.typeId(target), distance,
-                            vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)), Optional.empty(),
-                            sp.containerMenu == sp.inventoryMenu ? Optional.empty()
+            return new Responses.Used(
+                    p.hand(),
+                    HandWords.interaction(result),
+                    result.consumesAction(),
+                    new InteractContracts.OnEntity(
+                            entityId,
+                            RegistryIds.typeId(target),
+                            distance,
+                            vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)),
+                            Optional.empty(),
+                            sp.containerMenu == sp.inventoryMenu
+                                    ? Optional.empty()
                                     : Optional.of(sp.containerMenu.getClass().getSimpleName())));
         } finally {
             sp.setShiftKeyDown(false);
@@ -139,11 +158,13 @@ final class BodyInteractions {
         if (hands == null) return noHands(host);
         LivingEntity self = host.entity();
         Entity target = self.level().getEntity(p.entityId());
-        if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
+        if (target == null)
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
         if (target == self) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
         double distance = Math.sqrt(self.distanceToSqr(target));
         if (self instanceof Player player && !player.canInteractWithEntity(target, REACH_SLACK)) {
-            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "entity " + p.entityId() + " is out of reach at " + distance);
+            return new Refused<>(
+                    RefusalReason.INVALID_WORLD_TARGET, "entity " + p.entityId() + " is out of reach at " + distance);
         }
         // Swung before the aim, so a refusal leaves the bot not yet turned toward what it declined to hit.
         hands.attackEntity(target);

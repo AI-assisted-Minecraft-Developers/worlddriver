@@ -1,20 +1,18 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
-
 import java.util.HashMap;
 import java.util.Map;
+import net.magicterra.worlddriver.config.WorldConfig;
+import net.minecraft.core.BlockPos;
 
 /**
- * A bounded grid of {@link HazardCell} around a center, computed purely from a
- * {@link WorldView} (server or client) + scalar inputs. No Minecraft client types,
- * so it is unit-testable headless via a synthetic WorldView or the server view.
+ * A bounded grid of {@link HazardCell} around a center, computed purely from a {@link WorldView} (server or client) +
+ * scalar inputs. No Minecraft client types, so it is unit-testable headless via a synthetic WorldView or the server
+ * view.
  *
- * Coordinates: keyed by packed (dx,dz) offsets from center within [-radius,radius].
- * Vertical: for each (dx,dz) we find the standable foot near center.y by scanning a
- * small vertical band, then measure drop/water/contact at that foot.
+ * <p>Coordinates: keyed by packed (dx,dz) offsets from center within [-radius,radius]. Vertical: for each (dx,dz) we
+ * find the standable foot near center.y by scanning a small vertical band, then measure drop/water/contact at that
+ * foot.
  */
 public final class HazardField {
     public final BlockPos center;
@@ -23,8 +21,8 @@ public final class HazardField {
     public final int deepWaterMax;
     private final Map<Long, HazardCell> cells;
 
-    private HazardField(BlockPos center, int radius, int survivableFall, int deepWaterMax,
-                        Map<Long, HazardCell> cells) {
+    private HazardField(
+            BlockPos center, int radius, int survivableFall, int deepWaterMax, Map<Long, HazardCell> cells) {
         this.center = center;
         this.radius = radius;
         this.survivableFall = survivableFall;
@@ -32,7 +30,9 @@ public final class HazardField {
         this.cells = cells;
     }
 
-    public static long key(int dx, int dz) { return ((long) dx << 32) ^ (dz & 0xffffffffL); }
+    public static long key(int dx, int dz) {
+        return ((long) dx << 32) ^ (dz & 0xffffffffL);
+    }
 
     public HazardCell at(int dx, int dz) {
         return cells.getOrDefault(key(dx, dz), HazardCell.unknown());
@@ -41,8 +41,7 @@ public final class HazardField {
     /** How far down we probe for a drop before calling it "void/large". */
     private static final int DROP_PROBE = 24;
 
-    public static HazardField compute(WorldView w, BlockPos center, int radius,
-                                      int survivableFall, int deepWaterMax) {
+    public static HazardField compute(WorldView w, BlockPos center, int radius, int survivableFall, int deepWaterMax) {
         Map<Long, HazardCell> cells = new HashMap<>();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
@@ -52,8 +51,8 @@ public final class HazardField {
         return new HazardField(center, radius, survivableFall, deepWaterMax, cells);
     }
 
-    private static HazardCell cellAt(WorldView w, BlockPos center, int dx, int dz,
-                                     int survivableFall, int deepWaterMax) {
+    private static HazardCell cellAt(
+            WorldView w, BlockPos center, int dx, int dz, int survivableFall, int deepWaterMax) {
         int cx = center.getX() + dx, cz = center.getZ() + dz;
         BlockPos body = new BlockPos(cx, center.getY(), cz);
         if (!w.isKnown(body)) return HazardCell.unknown();
@@ -82,7 +81,10 @@ public final class HazardField {
                 int d = Math.max(0, center.getY() - f.getY());
                 return new HazardCell(d, 0, true, false, true);
             }
-            if (w.canStandAt(f)) { foot = f; break; }
+            if (w.canStandAt(f)) {
+                foot = f;
+                break;
+            }
         }
         if (foot == null) {
             // blocked column or bottomless within probe: not a walkable step target.
@@ -93,17 +95,21 @@ public final class HazardField {
         if (w.isWater(foot)) {
             int depth = 0;
             BlockPos p = foot;
-            while (depth < DROP_PROBE && w.isKnown(p) && w.isWater(p)) { depth++; p = p.below(); }
+            while (depth < DROP_PROBE && w.isKnown(p) && w.isWater(p)) {
+                depth++;
+                p = p.below();
+            }
             return new HazardCell(drop, depth, contact, true, contact || depth >= deepWaterMax);
         }
         boolean lethal = contact || drop > survivableFall;
         return new HazardCell(drop, 0, contact, true, lethal);
     }
 
-    /** Huge-but-finite avoidance cost for entering a lethal cell. Never Infinity (keeps A* feasible).
-     *  Deep water is the one lethal verdict the planner does not pay for
-     *  ({@link WorldConfig#pathfinderDeepWaterPriced}): its surface cell is a swim the water taxes
-     *  price, and charging it 10 000 sent every crossing to the nearest rim. */
+    /**
+     * Huge-but-finite avoidance cost for entering a lethal cell. Never Infinity (keeps A* feasible). Deep water is the
+     * one lethal verdict the planner does not pay for ({@link WorldConfig#pathfinderDeepWaterPriced}): its surface cell
+     * is a swim the water taxes price, and charging it 10 000 sent every crossing to the nearest rim.
+     */
     public double lethalPenalty(BlockPos foot) {
         int dx = foot.getX() - center.getX();
         int dz = foot.getZ() - center.getZ();

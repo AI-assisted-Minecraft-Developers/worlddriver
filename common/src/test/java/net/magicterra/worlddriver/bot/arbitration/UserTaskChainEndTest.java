@@ -4,16 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.Map;
-
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code lastProcessEnd.error} comes from the process's own verdict, not from its slot: a builder
- * writes its success summary into {@code lastError}, and a goto that gave up writes nothing there.
+ * {@code lastProcessEnd.error} comes from the process's own verdict, not from its slot: a builder writes its success
+ * summary into {@code lastError}, and a goto that gave up writes nothing there.
  */
 class UserTaskChainEndTest {
 
@@ -27,10 +26,23 @@ class UserTaskChainEndTest {
             this.failure = failure;
         }
 
-        @Override public String kind() { return "builder"; }
-        @Override public String failure() { return failure; }
-        @Override public void attach(BotState st) { st.builder.active = true; }
-        @Override public boolean tick(Body a, WorldView w, BotState st) {
+        @Override
+        public String kind() {
+            return "builder";
+        }
+
+        @Override
+        public String failure() {
+            return failure;
+        }
+
+        @Override
+        public void attach(BotState st) {
+            st.builder.active = true;
+        }
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
             st.builder.lastError = slotText;
             st.builder.reset();
             return true;
@@ -38,7 +50,7 @@ class UserTaskChainEndTest {
     }
 
     private final BotState st = new BotState();
-    private final UserTaskChain chain = new UserTaskChain(st, b -> { });
+    private final UserTaskChain chain = new UserTaskChain(st, b -> {});
 
     private Map<String, Object> endOf(BotProcess p) {
         chain.setProcess(p);
@@ -72,7 +84,9 @@ class UserTaskChainEndTest {
         endOf(new Ender(null, "goal not reached (churn-giveup, about 6.0 blocks short)"));
         chain.setAmbientProcess(new Ender("backfill done", "incomplete: 2 cells could not be filled"));
         chain.tick(null, null, st);
-        assertEquals("goal not reached (churn-giveup, about 6.0 blocks short)", chain.lastEnd().get("error"));
+        assertEquals(
+                "goal not reached (churn-giveup, about 6.0 blocks short)",
+                chain.lastEnd().get("error"));
     }
 
     @Test

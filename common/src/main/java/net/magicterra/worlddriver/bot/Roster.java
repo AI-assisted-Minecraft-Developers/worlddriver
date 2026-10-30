@@ -7,14 +7,15 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Which bots exist: spawning a player bot, taking a mob over, and letting either go. What
- * {@code mc.bot.roster} and the {@code /worlddriver} commands both call, on the server thread.
+ * Which bots exist: spawning a player bot, taking a mob over, and letting either go. What {@code mc.bot.roster} and the
+ * {@code /worlddriver} commands both call, on the server thread.
  */
 public final class Roster {
     private Roster() {}
 
     /** What a roster change answers: the bot's ref, or why nothing changed. */
     public sealed interface Outcome permits Done, Refusal {}
+
     public record Done(String bot) implements Outcome {}
     /** {@code unknown} when the ref names no bot; otherwise the request names something that cannot be a bot. */
     public record Refusal(String message, boolean unknown) implements Outcome {}
@@ -55,9 +56,9 @@ public final class Roster {
     }
 
     /**
-     * Let {@code id} go: its running action ends as {@code bot_removed}, a mob gets its own AI back, and
-     * a player bot leaves the world. Leaving goes through {@code PlayerList.remove} ({@code JoinedBody.remove}), which
-     * saves the player as a disconnect does, so spawning the name again in this game finds it where it left.
+     * Let {@code id} go: its running action ends as {@code bot_removed}, a mob gets its own AI back, and a player bot
+     * leaves the world. Leaving goes through {@code PlayerList.remove} ({@code JoinedBody.remove}), which saves the
+     * player as a disconnect does, so spawning the name again in this game finds it where it left.
      */
     public static Outcome remove(String id) {
         Bot bot = BotRegistry.get(id);

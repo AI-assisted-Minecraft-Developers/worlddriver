@@ -3,22 +3,26 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.minecraft.core.BlockPos;
 
 /**
- * 3-block 45° diagonal leap — gated behind the same
- * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} switch as
- * {@link Parkour4} since this is an even longer reach (~4.24 blocks
- * horizontal) at the absolute edge of sprint-jump physics. Cost 47.
- * The player sweeps the entire 2×2 corner column at foot+head; no stand-able
- * cell along the diagonal interior or A* should pick a cheaper
- * walk-and-diagonal chain.
+ * 3-block 45° diagonal leap — gated behind the same {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4}
+ * switch as {@link Parkour4} since this is an even longer reach (~4.24 blocks horizontal) at the absolute edge of
+ * sprint-jump physics. Cost 47. The player sweeps the entire 2×2 corner column at foot+head; no stand-able cell along
+ * the diagonal interior or A* should pick a cheaper walk-and-diagonal chain.
  */
 public final class Parkour3Diagonal extends Move {
-    public Parkour3Diagonal(int dx, int dz) { super(dx * 3, 0, dz * 3, 47); }
-    @Override public boolean availableInSearch(WorldView w) { return RulesConfig.allowParkour4; }
+    public Parkour3Diagonal(int dx, int dz) {
+        super(dx * 3, 0, dz * 3, 47);
+    }
+
+    @Override
+    public boolean availableInSearch(WorldView w) {
+        return RulesConfig.allowParkour4;
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         if (!RulesConfig.allowParkour4) return false;
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
@@ -30,8 +34,8 @@ public final class Parkour3Diagonal extends Move {
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
-                && Move.overTheVoid(w, from, to)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+            return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
@@ -60,6 +64,13 @@ public final class Parkour3Diagonal extends Move {
         }
         return w.isPassable(to.offset(0, 1, 0));
     }
-    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
-    public String name() { return "parkour3d"; }
+
+    @Override
+    public Capability requiredCapability() {
+        return Capability.PARKOUR;
+    }
+
+    public String name() {
+        return "parkour3d";
+    }
 }

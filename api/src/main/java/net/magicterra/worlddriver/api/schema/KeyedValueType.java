@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.api.schema;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -8,18 +12,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-
 /**
- * An object whose members are drawn from a fixed key table, each member's value typed by its key:
- * {@code {autoEat: true, autoEatFoodThreshold: 14}}. Every member is optional, so a table of a hundred
- * keys is one object type rather than a hundred-field record. Decoded as entries in the order sent.
+ * An object whose members are drawn from a fixed key table, each member's value typed by its key: {@code {autoEat:
+ * true, autoEatFoodThreshold: 14}}. Every member is optional, so a table of a hundred keys is one object type rather
+ * than a hundred-field record. Decoded as entries in the order sent.
  *
- * <p>A key's default is looked up when the schema or the declaration is rendered, not when the type is
- * built: the values may live in a layer the contract cannot name, which installs the lookup at startup.
+ * <p>A key's default is looked up when the schema or the declaration is rendered, not when the type is built: the
+ * values may live in a layer the contract cannot name, which installs the lookup at startup.
  */
 public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
@@ -39,13 +38,25 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     /** Shared with {@link #atLeast} copies: the TypeScript declaration is the same one. */
     private final Object tsOwner;
 
-    KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs, Function<String, Object> defaults) {
-        this(name, Collections.unmodifiableMap(new LinkedHashMap<>(types)), Map.copyOf(docs), defaults, 0, new Object());
+    KeyedValueType(
+            String name, Map<String, ApiType<?>> types, Map<String, String> docs, Function<String, Object> defaults) {
+        this(
+                name,
+                Collections.unmodifiableMap(new LinkedHashMap<>(types)),
+                Map.copyOf(docs),
+                defaults,
+                0,
+                new Object());
         if (types.isEmpty()) throw new IllegalArgumentException(name + " has no keys");
     }
 
-    private KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs,
-                           Function<String, Object> defaults, int minEntries, Object tsOwner) {
+    private KeyedValueType(
+            String name,
+            Map<String, ApiType<?>> types,
+            Map<String, String> docs,
+            Function<String, Object> defaults,
+            int minEntries,
+            Object tsOwner) {
         this.name = Objects.requireNonNull(name);
         this.types = types;
         this.docs = docs;
@@ -54,27 +65,41 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
         this.tsOwner = tsOwner;
     }
 
-    public Map<String, ApiType<?>> types() { return types; }
+    public Map<String, ApiType<?>> types() {
+        return types;
+    }
 
     /** The same key table, refusing an object with fewer than {@code min} members. */
-    public KeyedValueType atLeast(int min) { return new KeyedValueType(name, types, docs, defaults, min, tsOwner); }
+    public KeyedValueType atLeast(int min) {
+        return new KeyedValueType(name, types, docs, defaults, min, tsOwner);
+    }
 
-    @Override public String expected() {
-        return "a " + name + " object" + (minEntries > 0 ? " with at least " + minEntries + " known key" : " of known keys");
+    @Override
+    public String expected() {
+        return "a " + name + " object"
+                + (minEntries > 0 ? " with at least " + minEntries + " known key" : " of known keys");
     }
 
     @Override
     protected List<Entry> read(JsonElement value, DecodeContext at) {
         if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
-        if (map.size() < minEntries) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got none");
+        if (map.size() < minEntries)
+            return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got none");
         int before = at.issues().size();
         List<Entry> out = new ArrayList<>(map.size());
         for (Map.Entry<String, JsonElement> e : map.entrySet()) {
             String key = e.getKey();
             DecodeContext here = at.field(key);
             ApiType<?> type = types.get(key);
-            if (type == null) { here.fail(ApiIssue.Code.UNKNOWN_FIELD, "unknown key \"" + key + "\""); continue; }
-            if (e.getValue().isJsonNull()) { here.fail(ApiIssue.Code.TYPE_MISMATCH, "null is not a value here; " + key + " takes " + type.expected()); continue; }
+            if (type == null) {
+                here.fail(ApiIssue.Code.UNKNOWN_FIELD, "unknown key \"" + key + "\"");
+                continue;
+            }
+            if (e.getValue().isJsonNull()) {
+                here.fail(
+                        ApiIssue.Code.TYPE_MISMATCH, "null is not a value here; " + key + " takes " + type.expected());
+                continue;
+            }
             Object v = type.decode(e.getValue(), here);
             if (v != null) out.add(new Entry(key, v));
         }
@@ -95,9 +120,9 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     }
 
     /**
-     * {@code value} in wire form when it is the Java type {@code type} holds; a plain scalar of another type
-     * as itself, so read() judges it as it would a request's. An entry's value is an Object, so a Java caller
-     * can hand an Integer to a long setting, and the generic write would cast it before any check ran.
+     * {@code value} in wire form when it is the Java type {@code type} holds; a plain scalar of another type as itself,
+     * so read() judges it as it would a request's. An entry's value is an Object, so a Java caller can hand an Integer
+     * to a long setting, and the generic write would cast it before any check ran.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static JsonElement wireForm(ApiType type, Object value) {
@@ -152,7 +177,8 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
                 JsonElement d = defaultOf(key);
                 String doc = docs.containsKey(key) ? docs.get(key) : null;
                 if (d != null) doc = (doc == null ? "" : doc + " ") + "@default " + d;
-                if (doc != null) b.append("/** ").append(doc.replace("*/", "* /")).append(" */\n    ");
+                if (doc != null)
+                    b.append("/** ").append(doc.replace("*/", "* /")).append(" */\n    ");
                 b.append(TsContext.key(key)).append("?: ").append(type.ts(ts)).append(';');
             });
             return b.append("\n}").toString();

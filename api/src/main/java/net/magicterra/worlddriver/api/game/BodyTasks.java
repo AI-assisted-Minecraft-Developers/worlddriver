@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-
 import net.magicterra.worlddriver.api.methods.shared.ActionResults;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
@@ -17,10 +16,9 @@ import net.magicterra.worlddriver.api.schema.UnionType;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Body tasks other mods add: a method that starts a {@link TaskStep} on a bot and answers as every
- * {@code mc.bot.*} task does, accepted with an action, or refused. Process-wide and static, like
- * {@link EntityDrivers}, so a mod registers during its own setup, before the driver exists; the driver
- * publishes each one as a method once it does.
+ * Body tasks other mods add: a method that starts a {@link TaskStep} on a bot and answers as every {@code mc.bot.*}
+ * task does, accepted with an action, or refused. Process-wide and static, like {@link EntityDrivers}, so a mod
+ * registers during its own setup, before the driver exists; the driver publishes each one as a method once it does.
  */
 public final class BodyTasks {
     private BodyTasks() {}
@@ -48,7 +46,9 @@ public final class BodyTasks {
             this.reason = Objects.requireNonNull(reason);
         }
 
-        public RefusalReason reason() { return reason; }
+        public RefusalReason reason() {
+            return reason;
+        }
     }
 
     /** One registered task: its method and what starts it. */
@@ -59,9 +59,9 @@ public final class BodyTasks {
 
     /**
      * Register the method {@code name} ({@code <modid>.<verb>}, never {@code mc.}). Its answer is the usual
-     * accepted-or-refused union around {@code result}, whose variant tags join every other action result's
-     * kinds and must not repeat one. A result is told apart by its class, so each variant needs a class no other
-     * action result uses. Returns the method's spec, for calling it through the registry.
+     * accepted-or-refused union around {@code result}, whose variant tags join every other action result's kinds and
+     * must not repeat one. A result is told apart by its class, so each variant needs a class no other action result
+     * uses. Returns the method's spec, for calling it through the registry.
      *
      * @throws IllegalArgumentException when the name, a result kind or a result class is already taken
      */
@@ -72,8 +72,10 @@ public final class BodyTasks {
         if (dot <= 0 || dot == name.length() - 1 || name.startsWith("mc.")) {
             throw new IllegalArgumentException(name + ": a registered task is named <modid>.<verb>, outside mc.");
         }
-        if (TASKS.containsKey(name)) throw new IllegalArgumentException("a body task named " + name + " is already registered");
-        MethodSpec<P, ActionResponse<R>> spec = MethodSpec.of(name, params, Responses.response(typeName(name), result), description)
+        if (TASKS.containsKey(name))
+            throw new IllegalArgumentException("a body task named " + name + " is already registered");
+        MethodSpec<P, ActionResponse<R>> spec = MethodSpec.of(
+                        name, params, Responses.response(typeName(name), result), description)
                 .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
                 .mayWait();
         ActionResults.add(result);
@@ -87,13 +89,16 @@ public final class BodyTasks {
     private static String typeName(String name) {
         StringBuilder out = new StringBuilder();
         for (String part : name.split("[^A-Za-z0-9]+")) {
-            if (!part.isEmpty()) out.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            if (!part.isEmpty())
+                out.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
         }
         return out.toString();
     }
 
     /** Every task registered so far, in registration order. */
-    public static synchronized List<Entry<?, ?>> all() { return List.copyOf(TASKS.values()); }
+    public static synchronized List<Entry<?, ?>> all() {
+        return List.copyOf(TASKS.values());
+    }
 
     /** Told of every task registered so far, then of each one as it is registered. */
     public static synchronized void listen(Consumer<Entry<?, ?>> listener) {

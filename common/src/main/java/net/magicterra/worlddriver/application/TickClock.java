@@ -2,17 +2,16 @@ package net.magicterra.worlddriver.application;
 
 import java.util.Arrays;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.system.SystemContracts.TickTimes;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * The work time of the last {@value #SIZE} server ticks, as vanilla times them: from the start of a tick to
- * its end, not counting the wait for the next one. Vanilla keeps only the last 100 in a private array that
- * the call that ends a wait would find half overwritten, so each tick's figure is copied here as it is made.
+ * The work time of the last {@value #SIZE} server ticks, as vanilla times them: from the start of a tick to its end,
+ * not counting the wait for the next one. Vanilla keeps only the last 100 in a private array that the call that ends a
+ * wait would find half overwritten, so each tick's figure is copied here as it is made.
  *
- * <p>Written on the server thread from the post-tick hook, read on whatever thread finishes a wait, hence the
- * lock. One clock per JVM, since a JVM runs one server at a time.
+ * <p>Written on the server thread from the post-tick hook, read on whatever thread finishes a wait, hence the lock. One
+ * clock per JVM, since a JVM runs one server at a time.
  */
 public final class TickClock {
     static final int SIZE = 4096;
@@ -25,7 +24,9 @@ public final class TickClock {
     TickClock() {}
 
     /** The clock the server's post-tick hook feeds and a wait reads. */
-    public static TickClock server() { return SERVER; }
+    public static TickClock server() {
+        return SERVER;
+    }
 
     /** Copies the figure vanilla has just stored for the tick that ended. */
     public void record(MinecraftServer server) {
@@ -39,10 +40,14 @@ public final class TickClock {
     }
 
     /** Ticks recorded since the server started; the start mark of a wait. */
-    public synchronized long tickCount() { return count; }
+    public synchronized long tickCount() {
+        return count;
+    }
 
     /** Forgets everything, as a stopping server does. */
-    public synchronized void reset() { count = 0; }
+    public synchronized void reset() {
+        count = 0;
+    }
 
     /** The ticks recorded after {@code fromTickCount}, at most the last {@value #SIZE}; empty when there were none. */
     public Optional<TickTimes> since(long fromTickCount) {

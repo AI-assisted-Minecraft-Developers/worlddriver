@@ -1,34 +1,36 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.RulesConfig;
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.minecraft.core.BlockPos;
 
-import java.util.List;
-
 /**
- * Bridge one cardinal cell over a gap by placing a block in the floor, then
- * walking onto it — Baritone's {@code MovementTraverse} with a non-empty
- * {@code toPlace}. The destination foot/head must be clear and its floor an
+ * Bridge one cardinal cell over a gap by placing a block in the floor, then walking onto it — Baritone's
+ * {@code MovementTraverse} with a non-empty {@code toPlace}. The destination foot/head must be clear and its floor an
  * open, safe gap (air, not lava/water for v1). Cost = walk + place.
  *
- * <p>Chains across an arbitrarily wide gap: like {@link PillarUp}, this does
- * NOT re-check the static world for a solid support under the bot's feet.
- * Every node A* reaches already has a real-or-placed block beneath it
- * ({@link WorldView#canStandAt} guarantees it for walked nodes; a preceding
- * BridgePlace placed it for chained ones), and that block is a horizontal
- * neighbour of the gap floor we place — so the Navigator's place actuator
- * always finds a face to click at execution time. Re-checking the immutable
- * view here would reject bridge&nbsp;#2+ (its support is the block #1 just
- * placed, still seen as air), so a single BridgePlace could only ever reach
- * one block out from solid ground. Dropping the check lets the bot bridge a
- * whole chasm one block at a time.
+ * <p>Chains across an arbitrarily wide gap: like {@link PillarUp}, this does NOT re-check the static world for a solid
+ * support under the bot's feet. Every node A* reaches already has a real-or-placed block beneath it
+ * ({@link WorldView#canStandAt} guarantees it for walked nodes; a preceding BridgePlace placed it for chained ones),
+ * and that block is a horizontal neighbour of the gap floor we place — so the Navigator's place actuator always finds a
+ * face to click at execution time. Re-checking the immutable view here would reject bridge&nbsp;#2+ (its support is the
+ * block #1 just placed, still seen as air), so a single BridgePlace could only ever reach one block out from solid
+ * ground. Dropping the check lets the bot bridge a whole chasm one block at a time.
  */
 public final class BridgePlace extends Move {
-    public BridgePlace(int dx, int dz) { super(dx, 0, dz, 10); }
-    @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
-    @Override public Edge eval(WorldView w, BlockPos from) {
+    public BridgePlace(int dx, int dz) {
+        super(dx, 0, dz, 10);
+    }
+
+    @Override
+    public boolean valid(WorldView w, BlockPos from) {
+        return eval(w, from) != null;
+    }
+
+    @Override
+    public Edge eval(WorldView w, BlockPos from) {
         if (!w.canPlace()) return null;
         // Can't bridge off a VINE cling. A* may reach `from` by climbing a vine — that node is
         // "standable" only because the vine is climbable, NOT because the bot is grounded on a
@@ -44,7 +46,7 @@ public final class BridgePlace extends Move {
         if (w.isClimbable(from) && !w.isSolid(from.offset(0, -1, 0))) return null;
         BlockPos to = apply(from);
         BlockPos floor = to.offset(0, -1, 0);
-        if (w.isSolid(floor)) return null;                         // already has ground → Walk handles it
+        if (w.isSolid(floor)) return null; // already has ground → Walk handles it
         // Never bridge over water. The "open air only" guard below tests isPassable, but water
         // IS passable, so without this a buoyant bot routes a plank-over-water path it cannot
         // execute: a block dropped into deep water washes/bobs out and the floating bot cannot stand
@@ -55,7 +57,7 @@ public final class BridgePlace extends Move {
         // air-gap-on-water residual is a bridge-EXECUTION fault (bot drops into the gap mid-place),
         // not a routing one, so the extra cell was reverted. See memory fix G/H.
         if (w.isWater(floor)) return null;
-        if (!w.isPassable(floor) || w.isHazard(floor)) return null;// only bridge over open air
+        if (!w.isPassable(floor) || w.isHazard(floor)) return null; // only bridge over open air
         if (!w.isPassable(to) || w.isHazard(to)) return null;
         BlockPos head = to.offset(0, 1, 0);
         if (!w.isPassable(head) || w.isHazard(head)) return null;
@@ -64,6 +66,13 @@ public final class BridgePlace extends Move {
         // can be A/B-tuned live without a rebuild.)
         return new Edge(to, RulesConfig.pathfinderBridgeCost, List.of(), List.of(floor), name());
     }
-    public String name() { return "bridgePlace"; }
-    @Override public boolean placesBlock() { return true; }
+
+    public String name() {
+        return "bridgePlace";
+    }
+
+    @Override
+    public boolean placesBlock() {
+        return true;
+    }
 }

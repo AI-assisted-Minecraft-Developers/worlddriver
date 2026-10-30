@@ -3,28 +3,22 @@ package net.magicterra.worlddriver.script;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 
 /**
- * Optional JS class-access filter (process spawn, reflection, raw file/socket
- * IO, jdk internals). Used by {@link ScriptContextFactory} which installs it on
- * every Rhino Context.
+ * Optional JS class-access filter (process spawn, reflection, raw file/socket IO, jdk internals). Used by
+ * {@link ScriptContextFactory} which installs it on every Rhino Context.
  *
- * <p><b>OFF BY DEFAULT</b> (user directive, 2026-07-17): Rhino scripts are a
- * first-party automation surface — restricting what they can call restricts the
- * driver's own capability, and the scripts' security is the CALLER's
- * responsibility (same trust model as the RPC socket itself: whoever can reach
- * the endpoint already owns the process). Set {@code -Dworlddriver.sandbox=on} to
- * opt back into filtering for hardened deployments.
+ * <p><b>OFF BY DEFAULT</b> (user directive, 2026-07-17): Rhino scripts are a first-party automation surface —
+ * restricting what they can call restricts the driver's own capability, and the scripts' security is the CALLER's
+ * responsibility (same trust model as the RPC socket itself: whoever can reach the endpoint already owns the process).
+ * Set {@code -Dworlddriver.sandbox=on} to opt back into filtering for hardened deployments.
  *
- * Approach is a denylist with explicit prefix matching. We could allowlist
- * instead, but our scripts intentionally lean on java.util.* / java.lang.*
- * shapes through wrapped API return values, so listing the dangerous
- * pieces is far less error-prone.
+ * <p>Approach is a denylist with explicit prefix matching. We could allowlist instead, but our scripts intentionally
+ * lean on java.util.* / java.lang.* shapes through wrapped API return values, so listing the dangerous pieces is far
+ * less error-prone.
  */
 public final class ScriptClassFilter {
     private static final boolean DISABLED = !"on".equalsIgnoreCase(System.getProperty("worlddriver.sandbox", "off"));
 
-    /**
-     * Exact-name denies. Hit before prefix denies.
-     */
+    /** Exact-name denies. Hit before prefix denies. */
     private static final String[] DENY_EXACT = {
         "java.lang.Runtime",
         "java.lang.ProcessBuilder",

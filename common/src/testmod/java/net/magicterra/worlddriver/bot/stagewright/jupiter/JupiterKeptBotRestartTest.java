@@ -13,8 +13,8 @@ import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 /**
- * A bot kept with {@code @Bot.Keep} crosses a restart: the test after it takes the same player, in the dimension and
- * at the place the game before left it, with what it carried. In {@code wd.scenes}, which restarts already.
+ * A bot kept with {@code @Bot.Keep} crosses a restart: the test after it takes the same player, in the dimension and at
+ * the place the game before left it, with what it carried. In {@code wd.scenes}, which restarts already.
  */
 @Scene("wd.scenes")
 class JupiterKeptBotRestartTest {
@@ -32,7 +32,9 @@ class JupiterKeptBotRestartTest {
     @Test
     @DependsOn(value = "aKeptBotIsLeftInTheNetherWithAnItem", afterRestart = true)
     void isTakenAfterTheRestartWhereItWasLeft(Game game, @Bot.Name("wdCarried") @Bot.Kept @Bot.Parked Bot bot) {
-        assertEquals(game.store().get("carried.uuid", String.class), bot.<String>onServer(p -> p.getUUID().toString()),
+        assertEquals(
+                game.store().get("carried.uuid", String.class),
+                bot.<String>onServer(p -> p.getUUID().toString()),
                 "the same player");
         assertEquals(Level.NETHER, bot.dimension(), "the dimension the game before left it in");
         assertEquals(LEFT_AT, bot.blockPos(), "where the game before left it");

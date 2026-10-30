@@ -1,9 +1,10 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -25,8 +26,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 /**
  * The real client's player as the {@code wd.client*} families drive it: staged in the test's plot, driven through the
  * <b>client's</b> registry as {@link #SELF} — the client navigator, on the client thread, with vanilla client physics —
@@ -45,9 +44,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * }</pre>
  *
  * <p>The class carries {@code @Requires(CLIENT)} and runs in the client scene file. {@link Player} is shared by every
- * test of the run and keeps whatever a test leaves on it; {@link #adopt} saves its game mode and position and puts
- * them back when the test ends (respawning it first if the test left it dead), and its {@link Settings} pin makes
- * client tests run one at a time.
+ * test of the run and keeps whatever a test leaves on it; {@link #adopt} saves its game mode and position and puts them
+ * back when the test ends (respawning it first if the test left it dead), and its {@link Settings} pin makes client
+ * tests run one at a time.
  *
  * <p>Methods named for the client ({@link #tasks}, {@link #control}, {@link #debug}) answer from the client: never call
  * them inside {@code game.runOnServer}, where the server thread would wait on the network. Readings of the server's
@@ -73,16 +72,16 @@ public final class ClientRig {
     /**
      * Put the real player standing in the centre of {@code feet} (overworld), facing {@code yaw}, in survival with an
      * empty inventory and full health and hunger, with the settings pinned to the test baseline in both JVMs. Fails
-     * when the player is dead or the server paused: the run set out to drive this player and it is not there to
-     * drive. Only from the test's own thread.
+     * when the player is dead or the server paused: the run set out to drive this player and it is not there to drive.
+     * Only from the test's own thread.
      */
     public static ClientRig adopt(Game game, Client client, Player player, BlockPos feet, float yaw) {
         return adopt(game, client, player, Level.OVERWORLD, feet, yaw);
     }
 
     /** {@link #adopt(Game, Client, Player, BlockPos, float)} in {@code dimension}. */
-    public static ClientRig adopt(Game game, Client client, Player player, ResourceKey<Level> dimension, BlockPos feet,
-                                  float yaw) {
+    public static ClientRig adopt(
+            Game game, Client client, Player player, ResourceKey<Level> dimension, BlockPos feet, float yaw) {
         Boolean dead = player.onServer(p -> p.isDeadOrDying() || p.isRemoved());
         if (dead) fail("the client's player is dead (on the death screen); respawn it before driving it");
         if (game.<Boolean>onServer(s -> s.isPaused())) {
@@ -92,17 +91,23 @@ public final class ClientRig {
         ClientRig rig = new ClientRig(game, client, player, settings);
 
         record Was(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch, GameType mode) {}
-        Was was = player.onServer(p -> new Was(p.level().dimension(), p.getX(), p.getY(), p.getZ(), p.getYRot(),
-                p.getXRot(), p.gameMode.getGameModeForPlayer()));
+        Was was = player.onServer(p -> new Was(
+                p.level().dimension(),
+                p.getX(),
+                p.getY(),
+                p.getZ(),
+                p.getYRot(),
+                p.getXRot(),
+                p.gameMode.getGameModeForPlayer()));
         game.afterTest(server -> {
             // Not waited for: the answer comes from the client, which this server thread must not wait on.
-            ControlApi.of(client.registry()).cancel(new ControlContracts.CancelParams(Optional.empty(),
-                    Optional.of(SELF), Optional.empty()));
+            ControlApi.of(client.registry())
+                    .cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(SELF), Optional.empty()));
             // A respawn replaces the ServerPlayer; the handle finds the player by name, so this is the one there now.
             player.runOnServer(p -> {
                 if (p.isDeadOrDying()) {
-                    p.connection.handleClientCommand(new ServerboundClientCommandPacket(
-                            ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+                    p.connection.handleClientCommand(
+                            new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
                 }
             });
             player.runOnServer(p -> {
@@ -125,22 +130,36 @@ public final class ClientRig {
     // ---------------------------------------------------------------- handles
 
     /** The settings pin {@link #adopt} took, mirrored to the client: write through it, both JVMs follow. */
-    public Settings settings() { return settings; }
+    public Settings settings() {
+        return settings;
+    }
 
-    public Game game() { return game; }
+    public Game game() {
+        return game;
+    }
 
-    public Client client() { return client; }
+    public Client client() {
+        return client;
+    }
 
-    public Player player() { return player; }
+    public Player player() {
+        return player;
+    }
 
     /** The task verbs on the client's registry; name {@link #SELF}. */
-    public BotTaskBlockingApi tasks() { return client.api(BotTaskBlockingApi::of); }
+    public BotTaskBlockingApi tasks() {
+        return client.api(BotTaskBlockingApi::of);
+    }
 
     /** Status and cancel on the client's registry. */
-    public ControlBlockingApi control() { return client.api(ControlBlockingApi::of); }
+    public ControlBlockingApi control() {
+        return client.api(ControlBlockingApi::of);
+    }
 
     /** The client navigator's readings ({@code mc.debug.*} on the client's registry). */
-    public DebugBlockingApi debug() { return client.api(DebugBlockingApi::of); }
+    public DebugBlockingApi debug() {
+        return client.api(DebugBlockingApi::of);
+    }
 
     /** Run {@code work} on the server thread with the server's copy of the player. */
     public <T> T onServer(java.util.function.Function<ServerPlayer, T> work) {
@@ -151,8 +170,17 @@ public final class ClientRig {
 
     /** Start a walk to {@code target} on the client's player; a refusal fails the test. */
     public Responses.ActionSnapshot<GotoContracts.Result> startGoTo(GotoContracts.Target target) {
-        return Calls.started("goto " + target, tasks().goTo(new GotoContracts.Params(SELF, Optional.of(target), false,
-                Optional.empty(), Optional.empty(), false, Optional.empty(), 0)));
+        return Calls.started(
+                "goto " + target,
+                tasks().goTo(new GotoContracts.Params(
+                        SELF,
+                        Optional.of(target),
+                        false,
+                        Optional.empty(),
+                        Optional.empty(),
+                        false,
+                        Optional.empty(),
+                        0)));
     }
 
     /** {@link #startGoTo}, then {@link #awaitIdle} with {@code watcher}. */
@@ -203,7 +231,9 @@ public final class ClientRig {
         return s.status().get();
     }
 
-    public boolean busy() { return status().busy(); }
+    public boolean busy() {
+        return status().busy();
+    }
 
     /** Stop whatever the client's player is doing, and wait for the client to say so. */
     public void cancel() {
@@ -227,15 +257,24 @@ public final class ClientRig {
     // ---------------------------------------------------------------- readings
 
     /** The server copy's feet height. */
-    public double y() { return player.onServer(ServerPlayer::getY); }
+    public double y() {
+        return player.onServer(ServerPlayer::getY);
+    }
 
     /** Where the player is, with the block under its feet, as one string for a failure message. */
     public String where() {
         return player.onServer(p -> {
             BlockPos at = p.blockPosition();
-            return String.format(Locale.ROOT, "at %.2f,%.2f,%.2f (block %s, below feet=%s, onGround=%s, inWater=%s)",
-                    p.getX(), p.getY(), p.getZ(), at.toShortString(), p.level().getBlockState(at.below()).getBlock(),
-                    p.onGround(), p.isInWater());
+            return String.format(
+                    Locale.ROOT,
+                    "at %.2f,%.2f,%.2f (block %s, below feet=%s, onGround=%s, inWater=%s)",
+                    p.getX(),
+                    p.getY(),
+                    p.getZ(),
+                    at.toShortString(),
+                    p.level().getBlockState(at.below()).getBlock(),
+                    p.onGround(),
+                    p.isInWater());
         });
     }
 

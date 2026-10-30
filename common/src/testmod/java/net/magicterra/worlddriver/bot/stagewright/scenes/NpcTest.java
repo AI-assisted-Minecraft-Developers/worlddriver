@@ -8,7 +8,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Npc;
 import net.magicterra.stagewright.test.Plot;
@@ -34,10 +33,10 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LadderBlock;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestReporter;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
-import org.junit.jupiter.api.TestReporter;
 
 /**
  * The NPC bot on five terrains: down a staircase, over a one-block gap, across open water, out of the water onto a
@@ -54,7 +53,7 @@ import org.junit.jupiter.api.TestReporter;
  * measure the refusal rather than the movement.
  */
 @Scene("wd.scenes")
-@Isolated   // see ProcessTest: these tests hold the server thread for long spans
+@Isolated // see ProcessTest: these tests hold the server thread for long spans
 @Execution(ExecutionMode.SAME_THREAD)
 class NpcTest {
 
@@ -69,7 +68,13 @@ class NpcTest {
         for (int i = 0; i <= steps; i++) plot.fill(i, -steps - 1, -1, i, -i, 1, Blocks.STONE);
         plot.fill(steps + 1, -steps - 1, -1, steps + 2, -steps, 1, Blocks.STONE);
         BlockPos bottom = plot.at(steps + 1, -steps + 1, 0);
-        compare(game, reporter, "walk down a staircase of " + steps + " steps", plot.at(0, 1, 0), bottom, 400,
+        compare(
+                game,
+                reporter,
+                "walk down a staircase of " + steps + " steps",
+                plot.at(0, 1, 0),
+                bottom,
+                400,
                 e -> e.blockPosition().equals(bottom) && e.onGround());
     }
 
@@ -82,7 +87,13 @@ class NpcTest {
         plot.fill(2, 0, -1, 5, 0, 1, Blocks.STONE);
         BlockPos o = plot.at(0, 0, 0);
         BlockPos goal = plot.at(4, 1, 0);
-        compare(game, reporter, "jump across a one-block-wide gap", plot.at(-2, 1, 0), goal, 300,
+        compare(
+                game,
+                reporter,
+                "jump across a one-block-wide gap",
+                plot.at(-2, 1, 0),
+                goal,
+                300,
                 e -> e.blockPosition().getX() >= o.getX() + 2 && e.onGround() && e.getY() >= goal.getY() - 0.01);
     }
 
@@ -98,7 +109,13 @@ class NpcTest {
         plot.fill(span, -2, -1, span + 3, 0, 1, Blocks.STONE);
         plot.fill(0, -2, -1, span - 1, 0, 1, Blocks.WATER);
         BlockPos goal = plot.at(span - 1, 0, 0);
-        compare(game, reporter, "swim across " + span + " blocks of open water", plot.at(-2, 1, 0), goal, 400,
+        compare(
+                game,
+                reporter,
+                "swim across " + span + " blocks of open water",
+                plot.at(-2, 1, 0),
+                goal,
+                400,
                 e -> e.blockPosition().getX() >= goal.getX() && e.isInWater());
     }
 
@@ -114,7 +131,13 @@ class NpcTest {
         plot.fill(-2, -2, -2, 2, 0, 1, Blocks.WATER);
         BlockPos o = plot.at(0, 0, 0);
         BlockPos goal = plot.at(0, 1, 4);
-        compare(game, reporter, "climb out of the water onto a flush bank", o, goal, 400,
+        compare(
+                game,
+                reporter,
+                "climb out of the water onto a flush bank",
+                o,
+                goal,
+                400,
                 e -> e.blockPosition().getZ() >= o.getZ() + 3 && e.onGround() && e.getY() >= goal.getY() - 0.01);
     }
 
@@ -132,8 +155,16 @@ class NpcTest {
         });
         BlockPos o = plot.at(0, 0, 0);
         BlockPos goal = plot.at(2, rise + 1, 0);
-        compare(game, reporter, "climb a ladder " + rise + " blocks high", plot.at(-1, 1, 0), goal, 400,
-                e -> e.getY() >= goal.getY() - 0.01 && e.onGround() && e.blockPosition().getX() >= o.getX() + 1);
+        compare(
+                game,
+                reporter,
+                "climb a ladder " + rise + " blocks high",
+                plot.at(-1, 1, 0),
+                goal,
+                400,
+                e -> e.getY() >= goal.getY() - 0.01
+                        && e.onGround()
+                        && e.blockPosition().getX() >= o.getX() + 1);
     }
 
     /**
@@ -151,25 +182,50 @@ class NpcTest {
         Map<String, Responses.ActionResponse<?>> orders = game.onServer(s -> {
             BotTaskBlockingApi tasks = game.api(BotTaskBlockingApi::of);
             Map<String, Responses.ActionResponse<?>> out = new LinkedHashMap<>();
-            out.put("construct bridge", tasks.construct(new BuildContracts.ConstructParams(ref,
-                    new BuildContracts.Bridge(BuildContracts.BridgeDirection.EAST, 3, Optional.of("minecraft:cobblestone")), 0)));
-            out.put("construct tower", tasks.construct(new BuildContracts.ConstructParams(ref,
-                    new BuildContracts.Tower(Optional.empty(), Optional.of(towerTop), Optional.of("minecraft:cobblestone"), false), 0)));
-            out.put("mine", tasks.mine(new GatherContracts.MineParams(ref, List.of("minecraft:stone"),
-                    Optional.empty(), 1, 4, 0)));
+            out.put(
+                    "construct bridge",
+                    tasks.construct(new BuildContracts.ConstructParams(
+                            ref,
+                            new BuildContracts.Bridge(
+                                    BuildContracts.BridgeDirection.EAST, 3, Optional.of("minecraft:cobblestone")),
+                            0)));
+            out.put(
+                    "construct tower",
+                    tasks.construct(new BuildContracts.ConstructParams(
+                            ref,
+                            new BuildContracts.Tower(
+                                    Optional.empty(),
+                                    Optional.of(towerTop),
+                                    Optional.of("minecraft:cobblestone"),
+                                    false),
+                            0)));
+            out.put(
+                    "mine",
+                    tasks.mine(new GatherContracts.MineParams(
+                            ref, List.of("minecraft:stone"), Optional.empty(), 1, 4, 0)));
             out.put("craft", tasks.craft(new GatherContracts.CraftParams(ref, "minecraft:stick", 1, 0)));
-            out.put("smelt", tasks.smelt(new GatherContracts.SmeltParams(ref, "minecraft:raw_iron", 1,
-                    Optional.of("minecraft:coal"), 0)));
-            out.put("combat", tasks.combat(new CombatContracts.Params(ref, CombatContracts.Mode.KILL,
-                    Optional.of(new CombatContracts.FoeType("minecraft:zombie")), false, 0)));
+            out.put(
+                    "smelt",
+                    tasks.smelt(new GatherContracts.SmeltParams(
+                            ref, "minecraft:raw_iron", 1, Optional.of("minecraft:coal"), 0)));
+            out.put(
+                    "combat",
+                    tasks.combat(new CombatContracts.Params(
+                            ref,
+                            CombatContracts.Mode.KILL,
+                            Optional.of(new CombatContracts.FoeType("minecraft:zombie")),
+                            false,
+                            0)));
             return out;
         });
         for (Map.Entry<String, Responses.ActionResponse<?>> order : orders.entrySet()) {
             Responses.ActionResponse<?> r = order.getValue();
             boolean refused = r instanceof Responses.Refused<?> no
                     && no.reason() == Responses.RefusalReason.UNSUPPORTED_CAPABILITY;
-            game.check(refused, order.getKey() + " on an entity without hands is refused as unsupported_capability "
-                    + "before it starts: " + r);
+            game.check(
+                    refused,
+                    order.getKey() + " on an entity without hands is refused as unsupported_capability "
+                            + "before it starts: " + r);
         }
         boolean busy = game.onServer(s -> status(game, ref).busy());
         game.check(!busy, "the NPC is on no task after the refusals: busy=" + busy);
@@ -185,36 +241,54 @@ class NpcTest {
 
     /** The bot {@code ref}'s own status. Server thread. */
     private static ControlContracts.BotStatus status(Game game, String ref) {
-        Responses.ImmediateResponse r = game.api(ControlBlockingApi::of).status(
-                new ControlContracts.StatusParams(Optional.of(ref)));
-        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) return fail("mc.bot.status " + ref + " answered " + r);
+        Responses.ImmediateResponse r =
+                game.api(ControlBlockingApi::of).status(new ControlContracts.StatusParams(Optional.of(ref)));
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty())
+            return fail("mc.bot.status " + ref + " answered " + r);
         return s.status().get();
     }
 
     private record Leg(int ticks, boolean arrived, String ended) {}
 
     /**
-     * Both arms on the course just staged; the NPC's arrival is the test's verdict. The NPC walks on the server's
-     * ticks (a mob moves in its own entity tick); the player arm then walks within one server task, the bot ticked by
-     * hand.
+     * Both arms on the course just staged; the NPC's arrival is the test's verdict. The NPC walks on the server's ticks
+     * (a mob moves in its own entity tick); the player arm then walks within one server task, the bot ticked by hand.
      */
-    private static void compare(Game game, TestReporter reporter, String what, BlockPos start, BlockPos goal,
-                                int maxTicks, Predicate<LivingEntity> arrived) {
+    private static void compare(
+            Game game,
+            TestReporter reporter,
+            String what,
+            BlockPos start,
+            BlockPos goal,
+            int maxTicks,
+            Predicate<LivingEntity> arrived) {
         Npc npc = Staging.drivenPiglin(game, start);
         game.ticks(SETTLE_STEPS);
-        game.runOnServer(s -> Calls.started("goto " + goal.toShortString(), game.api(BotTaskBlockingApi::of).goTo(
-                new GotoContracts.Params(npc.ref(), Optional.of(Targets.block(goal)), false, Optional.empty(),
-                        Optional.empty(), false, Optional.empty(), 0))));
+        game.runOnServer(s -> Calls.started(
+                "goto " + goal.toShortString(),
+                game.api(BotTaskBlockingApi::of)
+                        .goTo(new GotoContracts.Params(
+                                npc.ref(),
+                                Optional.of(Targets.block(goal)),
+                                false,
+                                Optional.empty(),
+                                Optional.empty(),
+                                false,
+                                Optional.empty(),
+                                0))));
         int[] t = {0};
         double[] minY = {npc.onServer(Mob::getY)};
         boolean[] at = {false};
-        game.await().within(maxTicks + 20).as("the NPC arrives or spends its " + maxTicks + " ticks").until(() -> {
-            Mob e = npc.onServer(m -> m);
-            t[0]++;
-            minY[0] = Math.min(minY[0], e.getY());
-            at[0] = arrived.test(e);
-            return at[0] || t[0] >= maxTicks;
-        });
+        game.await()
+                .within(maxTicks + 20)
+                .as("the NPC arrives or spends its " + maxTicks + " ticks")
+                .until(() -> {
+                    Mob e = npc.onServer(m -> m);
+                    t[0]++;
+                    minY[0] = Math.min(minY[0], e.getY());
+                    at[0] = arrived.test(e);
+                    return at[0] || t[0] >= maxTicks;
+                });
         Leg n = game.onServer(s -> {
             Mob e = npc.onServer(m -> m);
             Leg leg = new Leg(t[0], at[0], ended(t[0], e, minY[0], status(game, npc.ref()), at[0]));
@@ -254,13 +328,24 @@ class NpcTest {
 
     private static String ended(int ticks, LivingEntity e, double minY, ControlContracts.BotStatus status, boolean at) {
         ControlContracts.Slot go = status.slots().goTo();
-        return String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, busy=%b, goto=%s, arrived=%b",
-                ticks, e.getX(), e.getY(), e.getZ(), minY, status.busy(),
-                go.endReason().orElse(go.active() ? "running" : "-"), at);
+        return String.format(
+                Locale.ROOT,
+                "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, busy=%b, goto=%s, arrived=%b",
+                ticks,
+                e.getX(),
+                e.getY(),
+                e.getZ(),
+                minY,
+                status.busy(),
+                go.endReason().orElse(go.active() ? "running" : "-"),
+                at);
     }
 
     /** Pin the untimed baseline with break and place off. */
     private static Settings stage(Game game) {
-        return Settings.pinUntimed(game).set("allowBreak", false).set("allowPlace", false).set("navigatorDebug", true);
+        return Settings.pinUntimed(game)
+                .set("allowBreak", false)
+                .set("allowPlace", false)
+                .set("navigatorDebug", true);
     }
 }

@@ -23,29 +23,39 @@ public final class StandInTasks {
     public record TallyParams(
             @Default("self") @BotRef String bot,
             @Range(min = 1, max = 200) int ticks,
-            @Default("0") @AwaitMs int awaitMs) implements BodyTasks.Params {}
+            @Default("0") @AwaitMs int awaitMs)
+            implements BodyTasks.Params {}
 
     @Variant("tally")
     public record Tallied(@Range(min = 1, max = 200) int ticks, boolean onGround) {}
 
     private static final ApiType<TallyParams> PARAMS = ApiTypes.record(TallyParams.class);
 
-    private static final UnionType<Tallied> RESULT = ApiTypes.union("TallyResult", "kind", ApiTypes.record(Tallied.class));
+    private static final UnionType<Tallied> RESULT =
+            ApiTypes.union("TallyResult", "kind", ApiTypes.record(Tallied.class));
 
     public static MethodSpec<TallyParams, ActionResponse<Tallied>> TALLY;
 
     public static void register() {
-        TALLY = BodyTasks.register("testmod.tally", PARAMS, RESULT, "Count ticks on the bot, then succeed.",
+        TALLY = BodyTasks.register(
+                "testmod.tally",
+                PARAMS,
+                RESULT,
+                "Count ticks on the bot, then succeed.",
                 (p, body) -> new TaskStep<>() {
                     int counted;
                     boolean onGround;
 
-                    @Override public Progress tick(LivingEntity self) {
+                    @Override
+                    public Progress tick(LivingEntity self) {
                         onGround = self.onGround();
                         return ++counted >= p.ticks() ? Progress.SUCCEEDED : Progress.RUNNING;
                     }
 
-                    @Override public Tallied result() { return new Tallied(counted, onGround); }
+                    @Override
+                    public Tallied result() {
+                        return new Tallied(counted, onGround);
+                    }
                 });
     }
 }

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -49,10 +48,13 @@ class CommandTest {
         // "<name> has the following entity data: [x, y, z]": the name says whose.
         CommandResult asBot = action.runCommand(cmd("data get entity @s Pos", Optional.of(bot.ref())));
         assertTrue(asBot.success(), "data get entity @s as " + bot.ref() + " did not succeed: " + asBot.feedback());
-        assertTrue(String.join("\n", asBot.feedback()).contains(profile),
+        assertTrue(
+                String.join("\n", asBot.feedback()).contains(profile),
                 "data get entity @s as " + bot.ref() + " did not read " + profile + ": " + asBot.feedback());
 
-        assertThrows(ApiException.class, () -> action.runCommand(cmd("time query daytime", Optional.of("player:nobody_here"))),
+        assertThrows(
+                ApiException.class,
+                () -> action.runCommand(cmd("time query daytime", Optional.of("player:nobody_here"))),
                 "a command as a player who is not on the server was not refused");
     }
 }

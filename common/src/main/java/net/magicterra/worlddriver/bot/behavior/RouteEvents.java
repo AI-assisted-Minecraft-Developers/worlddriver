@@ -1,37 +1,33 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import com.google.gson.JsonObject;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.RiskAt;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * The three route events an {@link IntentProcess} pushes to the LLM when "the conditions it gave
- * no longer solve well": {@code route.blocked}, {@code route.detour}, {@code route.exposed}. Judged
- * once per finished deep search (the navigator replans on its own cadence; each search's snapshot is
- * the tracking of the world, so the LLM is only disturbed when a result is bad, not on every
- * replan). Every event needs its condition in the {@code route}: no declared hard constraint, no
- * {@code route.blocked}; no {@code route.sight}, no {@code route.exposed}; a plain goto without
- * conditions raises nothing, as before. Debounced: one event per (type, culprit) within
+ * The three route events an {@link IntentProcess} pushes to the LLM when "the conditions it gave no longer solve well":
+ * {@code route.blocked}, {@code route.detour}, {@code route.exposed}. Judged once per finished deep search (the
+ * navigator replans on its own cadence; each search's snapshot is the tracking of the world, so the LLM is only
+ * disturbed when a result is bad, not on every replan). Every event needs its condition in the {@code route}: no
+ * declared hard constraint, no {@code route.blocked}; no {@code route.sight}, no {@code route.exposed}; a plain goto
+ * without conditions raises nothing, as before. Debounced: one event per (type, culprit) within
  * {@link BehaviorConfig#routeEventCooldownTicks}.
  *
- * <p>Pure on purpose: the process hands in the result, the goal, a {@link RiskAt}
- * over its profile, and a supplier of the tax totals; the emitter is a seam so a test reads the
- * events off a list. The exposure summary of the previous plan lives here, and this object lives
- * on the intent — it dies with it.
+ * <p>Pure on purpose: the process hands in the result, the goal, a {@link RiskAt} over its profile, and a supplier of
+ * the tax totals; the emitter is a seam so a test reads the events off a list. The exposure summary of the previous
+ * plan lives here, and this object lives on the intent — it dies with it.
  */
 public final class RouteEvents {
 
@@ -40,10 +36,13 @@ public final class RouteEvents {
         void emit(String type, BlockPos pos, JsonObject data);
     }
 
-    /** {@code route.blocked} reasons besides {@code constraint:<name>}: the node or time budget ran
-     *  out, or nothing the caller declared pruned anything and the budget held — the terrain (or a
-     *  built-in filter such as {@code NoWater}) walls the goal in. */
+    /**
+     * {@code route.blocked} reasons besides {@code constraint:<name>}: the node or time budget ran out, or nothing the
+     * caller declared pruned anything and the budget held — the terrain (or a built-in filter such as {@code NoWater})
+     * walls the goal in.
+     */
     public static final String BUDGET = "budget";
+
     public static final String TERRAIN = "terrain";
 
     private final List<String> declared;
@@ -54,12 +53,13 @@ public final class RouteEvents {
     private final Map<String, Integer> lastFired = new HashMap<>();
     /** Observer id → cells of the previous plan it saw; what "was not exposed last time" is judged against. */
     private Map<Integer, Integer> lastExposed = Map.of();
+
     private int tick;
 
     /**
-     * @param declared      the intent's {@link Intent#constraintNames()}
+     * @param declared the intent's {@link Intent#constraintNames()}
      * @param hasConditions the route declared any bias or constraint (gates {@code route.detour})
-     * @param hasSight      the route has a {@link SightExposure} component (gates {@code route.exposed})
+     * @param hasSight the route has a {@link SightExposure} component (gates {@code route.exposed})
      */
     public RouteEvents(List<String> declared, boolean hasConditions, boolean hasSight, Emitter emitter) {
         this.declared = List.copyOf(declared);
@@ -69,18 +69,27 @@ public final class RouteEvents {
     }
 
     /** One process tick has passed; the debounce clock. */
-    public void tick() { tick++; }
+    public void tick() {
+        tick++;
+    }
 
     /** The observers seeing the last judged plan, id → cells. Read by tests and the status line. */
-    public Map<Integer, Integer> lastExposed() { return lastExposed; }
+    public Map<Integer, Integer> lastExposed() {
+        return lastExposed;
+    }
 
     /**
-     * A deep search finished with {@code res} toward {@code goal}, the bot at {@code foot}, on
-     * route segment {@code leg}. {@code risk} may be null (no profile to ask); {@code taxes} is
-     * only called when a detour is being reported.
+     * A deep search finished with {@code res} toward {@code goal}, the bot at {@code foot}, on route segment
+     * {@code leg}. {@code risk} may be null (no profile to ask); {@code taxes} is only called when a detour is being
+     * reported.
      */
-    public void onSearch(PathFinder.Result res, Goal goal, BlockPos foot, int leg,
-                         RiskAt risk, Supplier<Map<String, Double>> taxes) {
+    public void onSearch(
+            PathFinder.Result res,
+            Goal goal,
+            BlockPos foot,
+            int leg,
+            RiskAt risk,
+            Supplier<Map<String, Double>> taxes) {
         if (res == null) return;
         blocked(res, foot, leg);
         detour(res, goal, foot, leg, taxes);
@@ -91,7 +100,8 @@ public final class RouteEvents {
         if (res.goalReached() || declared.isEmpty()) return;
         String reason = res.blockedBy(declared);
         if (reason == null) {
-            boolean budget = res.expanded() >= PlanningConfig.pathfinderMaxNodes || res.ms() >= PlanningConfig.pathfinderMaxMs;
+            boolean budget =
+                    res.expanded() >= PlanningConfig.pathfinderMaxNodes || res.ms() >= PlanningConfig.pathfinderMaxMs;
             reason = budget ? BUDGET : TERRAIN;
         }
         if (!fire("route.blocked", reason)) return;
@@ -123,7 +133,10 @@ public final class RouteEvents {
         Map<String, Double> totals = taxes == null ? null : taxes.get();
         if (totals != null) {
             for (Map.Entry<String, Double> e : totals.entrySet()) {
-                if (e.getValue() > most) { most = e.getValue(); tax = e.getKey(); }
+                if (e.getValue() > most) {
+                    most = e.getValue();
+                    tax = e.getKey();
+                }
             }
         }
         if (tax != null) {
@@ -152,7 +165,7 @@ public final class RouteEvents {
                 }
             }
         } catch (SightExposure.RayBudgetExhausted e) {
-            return;     // the search itself already reported sightBudgetExhausted; nothing to add
+            return; // the search itself already reported sightBudgetExhausted; nothing to add
         }
         for (Map.Entry<Integer, Integer> e : now.entrySet()) {
             if (lastExposed.containsKey(e.getKey())) continue;

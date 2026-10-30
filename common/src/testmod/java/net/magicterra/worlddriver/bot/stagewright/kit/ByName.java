@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright.kit;
 
 import java.util.List;
 import java.util.Map;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.minecraft.core.BlockPos;
@@ -28,7 +27,8 @@ public final class ByName {
     /** The id of the action an accepted reply started, or null when it was refused. */
     public static String actionId(Map<String, Object> reply) {
         return "accepted".equals(reply.get("outcome")) && reply.get("action") instanceof Map<?, ?> a
-                ? String.valueOf(a.get("actionId")) : null;
+                ? String.valueOf(a.get("actionId"))
+                : null;
     }
 
     /** Whether {@code reply} is a refusal for {@code reason}. */
@@ -39,8 +39,11 @@ public final class ByName {
     /** The action as {@code mc.wait.result} reads it now; empty for a null id. */
     public static Map<?, ?> read(ApiRegistry api, String actionId) {
         if (actionId == null) return Map.of();
-        return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId)).get("action")
-                instanceof Map<?, ?> a ? a : Map.of();
+        return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId))
+                                .get("action")
+                        instanceof Map<?, ?> a
+                ? a
+                : Map.of();
     }
 
     /** What {@code mc.bot.status} lists for {@code ref}: id, kind, entityId, busy; empty when no bot answers to it. */
@@ -64,7 +67,8 @@ public final class ByName {
     /** The navigator's last per-tick trace for the bot {@code ref}, from {@code mc.debug.navigator}. */
     public static String lastTickTrace(ApiRegistry api, String ref) {
         return call(api, "mc.debug.navigator", Map.of("bot", ref)).get("traces") instanceof Map<?, ?> t
-                ? String.valueOf(t.get("lastTickTrace")) : "no navigator reading";
+                ? String.valueOf(t.get("lastTickTrace"))
+                : "no navigator reading";
     }
 
     /**

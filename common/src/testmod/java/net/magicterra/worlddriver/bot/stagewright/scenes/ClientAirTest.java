@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -24,9 +23,9 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Walks that begin with the client's REAL player in the air — falling off something, knocked back, or simply asked to
- * go somewhere before it has landed — or that must leave the ground to get anywhere. The navigator's search starts
- * from a foot cell that has nothing under it, and everything downstream of that (the first path, the first
- * step-advance, the first stall clock) has to survive the landing.
+ * go somewhere before it has landed — or that must leave the ground to get anywhere. The navigator's search starts from
+ * a foot cell that has nothing under it, and everything downstream of that (the first path, the first step-advance, the
+ * first stall clock) has to survive the landing.
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
@@ -35,9 +34,11 @@ class ClientAirTest {
 
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
     private static final int GROUND = 0;
+
     private static final int HALF = 12;
     /** Blocks of air under the player's feet at the start — a fall that hurts but does not kill. */
     private static final int DROP = 5;
+
     private static final int SHAFT_DEPTH = 6;
     private static final int LEG_TICKS = 600;
     private static final int SETTLE_TICKS = 10;
@@ -48,8 +49,8 @@ class ClientAirTest {
      * one repath, not for a search that keeps starting from a cell the player has already left.
      */
     @Test
-    void clientGotoStartsMidAir(Game game, Client client, Player player,
-                                @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientGotoStartsMidAir(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         stageSlab(plot);
         BlockPos start = plot.at(0, GROUND + 1 + DROP, 0);
         BlockPos goal = plot.at(6, GROUND + 1, 0);
@@ -68,9 +69,9 @@ class ClientAirTest {
         }
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] firstGround = { -1 };
-        int[] arrived = { -1 };
-        double[] minY = { before.y() };
+        int[] firstGround = {-1};
+        int[] arrived = {-1};
+        double[] minY = {before.y()};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
             if (firstGround[0] < 0 && s.onGround()) firstGround[0] = walk.tick(s);
             if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = walk.tick(s);
@@ -80,8 +81,10 @@ class ClientAirTest {
         String progress = "first touched the ground at tick " + at(firstGround[0]) + ", reached the goal at tick "
                 + at(arrived[0]) + ", lowest y=" + f(minY[0]) + ", health " + end.health() + "; " + rig.where();
         game.check(end.onGround() && !end.inWater(), "A: the player ends standing on dry ground: " + progress);
-        game.check(end.flat(goal) <= 1.5,
-                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; " + progress);
+        game.check(
+                end.flat(goal) <= 1.5,
+                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                        + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= arriveBy, "C: arrives within " + arriveBy + " ticks: " + progress);
         game.check(end.health() > 0, "D: the player is alive: " + progress);
     }
@@ -92,8 +95,8 @@ class ClientAirTest {
      * player must never reach.
      */
     @Test
-    void clientParkourOverChasm(Game game, Client client, Player player,
-                                @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientParkourOverChasm(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         stageSlab(plot);
         plot.fill(2, GROUND - 5, -HALF, 3, GROUND, HALF, Blocks.AIR);
         BlockPos start = plot.at(-2, GROUND + 1, 0);
@@ -103,18 +106,20 @@ class ClientAirTest {
         rig.sync(30);
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] arrived = { -1 };
-        double[] minY = { ClientWalk.sample(rig).y() };
+        int[] arrived = {-1};
+        double[] minY = {ClientWalk.sample(rig).y()};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
             if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = walk.tick(s);
             minY[0] = Math.min(minY[0], s.y());
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int foot = goal.getY();
-        String progress = "reached the goal at tick " + at(arrived[0]) + ", lowest y=" + f(minY[0]) + " (ground foot level "
-                + foot + "), health " + end.health() + "; " + rig.where();
-        game.check(end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; " + progress);
+        String progress = "reached the goal at tick " + at(arrived[0]) + ", lowest y=" + f(minY[0])
+                + " (ground foot level " + foot + "), health " + end.health() + "; " + rig.where();
+        game.check(
+                end.flat(goal) <= 1.5,
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                        + progress);
         game.check(minY[0] >= foot - 0.05, "B: never falls into the chasm: " + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 150, "C: arrives within 150 ticks: " + progress);
     }
@@ -125,8 +130,8 @@ class ClientAirTest {
      * the budget is those plus the walk, not a search that rediscovers the shaft every rung.
      */
     @Test
-    void clientPillarOutOfShaft(Game game, Client client, Player player,
-                                @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientPillarOutOfShaft(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         stageSlab(plot);
         plot.fill(0, GROUND - SHAFT_DEPTH + 1, 0, 0, GROUND, 0, Blocks.AIR);
         BlockPos start = plot.at(0, GROUND + 1 - SHAFT_DEPTH, 0);
@@ -137,8 +142,8 @@ class ClientAirTest {
         rig.sync(30);
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] arrived = { -1 };
-        int[] surfaced = { -1 };
+        int[] arrived = {-1};
+        int[] surfaced = {-1};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
             // After tick 5: on the first ticks of the goto the server's copy can still show the pre-teleport surface
             // position, which would read as "surfaced at tick 0".
@@ -150,8 +155,10 @@ class ClientAirTest {
         int used = 30 - ClientWalk.count(rig, Items.DIRT);
         String progress = "left the shaft at tick " + at(surfaced[0]) + ", reached the goal at tick " + at(arrived[0])
                 + ", dirt used " + used + "; " + rig.where();
-        game.check(end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; " + progress);
+        game.check(
+                end.flat(goal) <= 1.5,
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                        + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 300, "B: arrives within 300 ticks: " + progress);
         game.check(used <= SHAFT_DEPTH + 1, "C: uses no more dirt than the shaft depth plus one: " + progress);
     }

@@ -6,41 +6,36 @@ import java.util.Map;
 /**
  * The one place a world's {@code dayTime} is turned into an API row.
  *
- * <p><b>"API row" is load-bearing, and a fourth caller is the reason to say so.</b>
- * {@code bot/world/WorldModel} also calls {@link #timeOfDay} — it shares the {@code % 24000}
- * folding and deliberately keeps its OWN day phase, because the BOT's phase and the phase the
- * agent is told are different questions (its javadoc tabulates the two side by side). So a grep
- * finds four consumers, not the three below, and the fourth is a partial one ON PURPOSE. Do not
- * "finish" the unification by pointing {@code WorldModel} at {@link #phase}: that would change
- * what the bot decides on, not merely where a constant lives.
+ * <p><b>"API row" is load-bearing, and a fourth caller is the reason to say so.</b> {@code bot/world/WorldModel} also
+ * calls {@link #timeOfDay} — it shares the {@code % 24000} folding and deliberately keeps its OWN day phase, because
+ * the BOT's phase and the phase the agent is told are different questions (its javadoc tabulates the two side by side).
+ * So a grep finds four consumers, not the three below, and the fourth is a partial one ON PURPOSE. Do not "finish" the
+ * unification by pointing {@code WorldModel} at {@link #phase}: that would change what the bot decides on, not merely
+ * where a constant lives.
  *
- * <p>Same reason {@link AttackSnap} exists, and the same three consumers were already
- * disagreeing before it did. The day-phase bucketing was written three times:
+ * <p>Same reason {@link AttackSnap} exists, and the same three consumers were already disagreeing before it did. The
+ * day-phase bucketing was written three times:
  *
  * <ul>
- *   <li>{@code ObserveService.playerSnapshot} — {@code ((dt % 24000) + 24000) % 24000}</li>
- *   <li>{@code ClientEventDetector}'s {@code time.phase} event —
- *       {@code dt % 24000; if (tod &lt; 0) tod += 24000}</li>
- *   <li>{@code ClientObserve.observePlayer} — {@code dt % 24000}, and nothing else</li>
+ *   <li>{@code ObserveService.playerSnapshot} — {@code ((dt % 24000) + 24000) % 24000}
+ *   <li>{@code ClientEventDetector}'s {@code time.phase} event — {@code dt % 24000; if (tod &lt; 0) tod += 24000}
+ *   <li>{@code ClientObserve.observePlayer} — {@code dt % 24000}, and nothing else
  * </ul>
  *
- * <p>Java's {@code %} keeps the sign of the dividend, so the third one returns
- * {@code (-24000, 0]} for a negative {@code dayTime}, where {@code tod < 12000} is
- * unconditionally true — it reports {@code "day"} for every negative time. Two of the three
- * authors guarded against that independently and the third did not, which is the whole
- * argument for this class: <b>one of the three is wrong and reading the code cannot say
- * which</b>, because either negative dayTime is reachable and the third is broken, or it is
- * not and the other two carry dead defensive code. A single implementation makes the question
- * answerable — and moot.
+ * <p>Java's {@code %} keeps the sign of the dividend, so the third one returns {@code (-24000, 0]} for a negative
+ * {@code dayTime}, where {@code tod < 12000} is unconditionally true — it reports {@code "day"} for every negative
+ * time. Two of the three authors guarded against that independently and the third did not, which is the whole argument
+ * for this class: <b>one of the three is wrong and reading the code cannot say which</b>, because either negative
+ * dayTime is reachable and the third is broken, or it is not and the other two carry dead defensive code. A single
+ * implementation makes the question answerable — and moot.
  *
- * <p>{@code ClientEventDetector} promised this in a comment ("Buckets match
- * observe.player.time.phase so the Agent reads the same vocabulary") and kept the promise by
- * copying. A comment that says "I agree with that other code" is a constraint that needs
- * enforcing, not a statement that needs reading.
+ * <p>{@code ClientEventDetector} promised this in a comment ("Buckets match observe.player.time.phase so the Agent
+ * reads the same vocabulary") and kept the promise by copying. A comment that says "I agree with that other code" is a
+ * constraint that needs enforcing, not a statement that needs reading.
  *
- * <p><b>Deliberately preserved, not fixed:</b> {@code dayOfWorld} stays {@code dt / 24000},
- * plain truncating division, so a negative {@code dayTime} rounds toward zero. Both original
- * copies did that; changing it here would be a behaviour change smuggled into a de-duplication.
+ * <p><b>Deliberately preserved, not fixed:</b> {@code dayOfWorld} stays {@code dt / 24000}, plain truncating division,
+ * so a negative {@code dayTime} rounds toward zero. Both original copies did that; changing it here would be a
+ * behaviour change smuggled into a de-duplication.
  */
 public final class TimeSnap {
     private TimeSnap() {}
@@ -54,8 +49,8 @@ public final class TimeSnap {
     }
 
     /**
-     * The agent-facing bucket: {@code day} / {@code sunset} / {@code night} / {@code sunrise}.
-     * Boundaries are vanilla's: mobs start spawning at 13000 and burn from 23000.
+     * The agent-facing bucket: {@code day} / {@code sunset} / {@code night} / {@code sunrise}. Boundaries are
+     * vanilla's: mobs start spawning at 13000 and burn from 23000.
      */
     public static String phase(long dayTime) {
         long tod = timeOfDay(dayTime);
@@ -66,9 +61,9 @@ public final class TimeSnap {
     }
 
     /**
-     * The {@code time} row of {@code mc.observe.player}: {@code dayTime} (raw, absolute),
-     * {@code dayOfWorld}, {@code timeOfDay} (folded), {@code phase}. Key order is the order
-     * both hand-written copies used, so the JSON is byte-identical to what shipped.
+     * The {@code time} row of {@code mc.observe.player}: {@code dayTime} (raw, absolute), {@code dayOfWorld},
+     * {@code timeOfDay} (folded), {@code phase}. Key order is the order both hand-written copies used, so the JSON is
+     * byte-identical to what shipped.
      */
     public static Map<String, Object> snapshot(long dayTime) {
         Map<String, Object> time = new LinkedHashMap<>();

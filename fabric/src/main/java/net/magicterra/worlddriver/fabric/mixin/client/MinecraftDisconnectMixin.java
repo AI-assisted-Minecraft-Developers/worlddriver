@@ -9,14 +9,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The client's player leaving its server, on Fabric: in {@code Minecraft.disconnect}, on the render thread, just
- * before the narrator is cleared, the point where NeoForge posts its logging-out event. Fabric API's client
- * disconnect event can come from a network thread instead.
+ * The client's player leaving its server, on Fabric: in {@code Minecraft.disconnect}, on the render thread, just before
+ * the narrator is cleared, the point where NeoForge posts its logging-out event. Fabric API's client disconnect event
+ * can come from a network thread instead.
  */
 @Mixin(Minecraft.class)
 abstract class MinecraftDisconnectMixin {
 
-    @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
+    @Inject(
+            method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/GameNarrator;clear()V"))
     private void worlddriver$reportLeave(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
         WorldDriverClientEvents.clientPlayerLeft();

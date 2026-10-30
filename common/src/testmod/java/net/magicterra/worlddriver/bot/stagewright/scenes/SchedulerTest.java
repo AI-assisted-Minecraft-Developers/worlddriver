@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -42,7 +41,8 @@ class SchedulerTest {
      */
     @Test
     void duskSecureHeldProcessLifecycle(Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot) {
-        Settings.pin(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", false);        final int floorY = 0;
+        Settings.pin(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", false);
+        final int floorY = 0;
 
         // Dirt slab with a 1×2 standing slot at the centre (serverBunkerArena shape), deep enough for the re-armed
         // dig to deepen and carve an embedded niche.
@@ -50,7 +50,7 @@ class SchedulerTest {
         plot.place(0, floorY + 1, 0, Blocks.AIR);
 
         SceneBot bot = SceneBot.spawn(game, plot.at(0, floorY + 1, 0));
-        bot.give(Items.DIRT, 64);   // server breaks drop nothing → pre-stock plug blocks
+        bot.give(Items.DIRT, 64); // server breaks drop nothing → pre-stock plug blocks
         int floor = plot.at(0, floorY, 0).getY();
 
         // The whole incident inside one server task, as the old scene ran it: no world tick between the bot's own.
@@ -59,8 +59,9 @@ class SchedulerTest {
             bot.bunker(2);
             int t = 0;
             for (; t < 400 && bot.player().blockPosition().getY() > floor; t++) bot.tick();
-            assertTrue(bot.player().blockPosition().getY() <= floor, "rig: the dig never went a block down in " + t
-                    + " ticks");
+            assertTrue(
+                    bot.player().blockPosition().getY() <= floor,
+                    "rig: the dig never went a block down in " + t + " ticks");
 
             // ② cut off mid-dig (live: endReason=INTERRUPTED "preempted by user").
             bot.cancel();
@@ -72,17 +73,23 @@ class SchedulerTest {
             BlockPos foot = bot.player().blockPosition();
             List<BlockPos> above = new ArrayList<>();
             for (int y = foot.getY() + 1; y <= floor + 6; y++) above.add(new BlockPos(foot.getX(), y, foot.getZ()));
-            assertTrue(bot.cells(above).stream().noneMatch(BotDebugContracts.Cell::solid),
+            assertTrue(
+                    bot.cells(above).stream().noneMatch(BotDebugContracts.Cell::solid),
                     "rig: the unsealed shaft must still be open to the sky — foot=" + foot + ", cut off at tick " + t);
 
             // ④ re-arm exactly as duskSecure would: a fresh bunker from the pit floor must finish the job — dig on,
             // carve, step in, plug: genuinely SEALED.
             bot.bunker(2);
-            for (int i = 0; i < 800 && !"SEALED".equals(bunkerSlot(bot).endReason().orElse(null)); i++) bot.tick();
+            for (int i = 0;
+                    i < 800 && !"SEALED".equals(bunkerSlot(bot).endReason().orElse(null));
+                    i++) bot.tick();
             ControlContracts.Slot slot = bunkerSlot(bot);
             BlockPos end = bot.player().blockPosition();
-            assertTrue("SEALED".equals(slot.endReason().orElse(null)), "gap#75-b: the re-armed bunker failed to seal — "
-                    + "endReason=" + slot.endReason().orElse(null) + " lastError=" + slot.lastError().orElse(null));
+            assertTrue(
+                    "SEALED".equals(slot.endReason().orElse(null)),
+                    "gap#75-b: the re-armed bunker failed to seal — " + "endReason="
+                            + slot.endReason().orElse(null) + " lastError="
+                            + slot.lastError().orElse(null));
             assertTrue(enclosed(bot, end), "gap#75-b: SEALED verdict but the pocket is not enclosed at " + end);
         });
     }
@@ -97,8 +104,18 @@ class SchedulerTest {
      */
     private static boolean enclosed(SceneBot bot, BlockPos foot) {
         BlockPos head = foot.above();
-        return bot.cells(List.of(foot.north(), foot.south(), foot.east(), foot.west(),
-                head.north(), head.south(), head.east(), head.west(), head.above()))
-                .stream().allMatch(BotDebugContracts.Cell::solid);
+        return bot
+                .cells(List.of(
+                        foot.north(),
+                        foot.south(),
+                        foot.east(),
+                        foot.west(),
+                        head.north(),
+                        head.south(),
+                        head.east(),
+                        head.west(),
+                        head.above()))
+                .stream()
+                .allMatch(BotDebugContracts.Cell::solid);
     }
 }

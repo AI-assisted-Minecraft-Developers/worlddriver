@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 class VerticalDigEndingTest {
 
     /** A body over no entity: both processes end on their first tick with "no player". */
-    private static final Body BODY = (Body) Proxy.newProxyInstance(Body.class.getClassLoader(), new Class<?>[]{Body.class},
-            (p, m, a) -> null);
+    private static final Body BODY =
+            (Body) Proxy.newProxyInstance(Body.class.getClassLoader(), new Class<?>[] {Body.class}, (p, m, a) -> null);
 
     private static void assertEndedClean(BotState st) {
         BotState.ProcessSlot s = st.escape;

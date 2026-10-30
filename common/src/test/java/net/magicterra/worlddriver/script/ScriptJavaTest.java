@@ -1,24 +1,34 @@
 package net.magicterra.worlddriver.script;
 
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.ScriptableObject;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** javaClassName against the values a script can actually hold, in the real prelude. */
 class ScriptJavaTest {
 
     /** Each return shape reaches a script differently: wrapped, or as a bare JS value. */
     public static final class Probe {
-        public String str() { return "s"; }
-        public Long boxedLong() { return 5L; }
-        public long primLong() { return 5L; }
-        public List<Object> list() { return List.of(5L, "x"); }
+        public String str() {
+            return "s";
+        }
+
+        public Long boxedLong() {
+            return 5L;
+        }
+
+        public long primLong() {
+            return 5L;
+        }
+
+        public List<Object> list() {
+            return List.of(5L, "x");
+        }
     }
 
     private Context cx;

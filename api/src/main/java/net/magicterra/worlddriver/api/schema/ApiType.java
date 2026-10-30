@@ -1,9 +1,5 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
@@ -12,21 +8,24 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
- * One wire type: how a JSON value becomes a {@code T}, how a {@code T} goes back, and the JSON Schema
- * and TypeScript that describe both. Every rule lives here once; decoding, encoding, {@link #validate}
- * and the generated artifacts all read the same object.
+ * One wire type: how a JSON value becomes a {@code T}, how a {@code T} goes back, and the JSON Schema and TypeScript
+ * that describe both. Every rule lives here once; decoding, encoding, {@link #validate} and the generated artifacts all
+ * read the same object.
  *
- * <p>Values are Gson trees. A JSON {@code null} is {@link JsonNull}; a Java {@code null} handed to
- * {@link #decode} reads as one.
+ * <p>Values are Gson trees. A JSON {@code null} is {@link JsonNull}; a Java {@code null} handed to {@link #decode}
+ * reads as one.
  */
 public abstract class ApiType<T> {
     private String description;
 
     /**
-     * Read {@code value}, or record why not at {@code at} and return null. Never throws for bad
-     * input; collecting every independent problem is the point. {@code value} is never Java null.
+     * Read {@code value}, or record why not at {@code at} and return null. Never throws for bad input; collecting every
+     * independent problem is the point. {@code value} is never Java null.
      */
     protected abstract T read(JsonElement value, DecodeContext at);
 
@@ -48,7 +47,9 @@ public abstract class ApiType<T> {
         return this;
     }
 
-    public final String description() { return description; }
+    public final String description() {
+        return description;
+    }
 
     /** The JSON Schema for this type, with its description first. */
     public final JsonObject schema() {
@@ -77,11 +78,13 @@ public abstract class ApiType<T> {
         return at.issues().size() == before ? v : null;
     }
 
-    private static JsonElement orNull(JsonElement tree) { return tree == null ? JsonNull.INSTANCE : tree; }
+    private static JsonElement orNull(JsonElement tree) {
+        return tree == null ? JsonNull.INSTANCE : tree;
+    }
 
     /**
-     * The JSON for {@code value}, checked against this type. A response that breaks its own contract
-     * is a bug in the server, so it is an {@link IllegalStateException}, never a request error.
+     * The JSON for {@code value}, checked against this type. A response that breaks its own contract is a bug in the
+     * server, so it is an {@link IllegalStateException}, never a request error.
      */
     public final JsonElement encode(T value) {
         JsonElement tree = write(value);
@@ -98,7 +101,10 @@ public abstract class ApiType<T> {
         return decode(write(value));
     }
 
-    /** The same rules as a DataFixerUpper {@link Codec}, so a contract value can round-trip through any {@link DynamicOps}. */
+    /**
+     * The same rules as a DataFixerUpper {@link Codec}, so a contract value can round-trip through any
+     * {@link DynamicOps}.
+     */
     public final Codec<T> codec() {
         ApiType<T> self = this;
         return new Codec<>() {

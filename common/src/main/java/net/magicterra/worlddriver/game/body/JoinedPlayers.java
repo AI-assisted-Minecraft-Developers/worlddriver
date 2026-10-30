@@ -1,14 +1,13 @@
 package net.magicterra.worlddriver.game.body;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
@@ -39,55 +38,49 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>Why this exists</h2>
  *
- * Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does
- * the thing in a method this player never runs. Blocks dropped nothing
- * ({@code Level#destroyBlock}'s flag), drops were never picked up (the entity-touch loop in
- * {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
- * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling
- * {@code broadcastChanges}). Each was fixed by hand-copying one more piece of vanilla into the
- * server-side player's mirror of {@code Player.tick()} — and that list only grew, because it was a
- * re-implementation maintained by discovering what was missing.
+ * Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does the thing in a method
+ * this player never runs. Blocks dropped nothing ({@code Level#destroyBlock}'s flag), drops were never picked up (the
+ * entity-touch loop in {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
+ * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling {@code broadcastChanges}).
+ * Each was fixed by hand-copying one more piece of vanilla into the server-side player's mirror of
+ * {@code Player.tick()} — and that list only grew, because it was a re-implementation maintained by discovering what
+ * was missing.
  *
  * <p>A {@code FakePlayer} is a {@code ServerPlayer} that was never <i>placed</i>. The join path —
- * {@code PlayerList.placeNewPlayer} — is what attaches the inventory-menu listener that awards
- * advancements, puts the player in {@code ServerLevel.players()} so the level keeps ticking and mob
- * AI can see it, registers it with the {@code ChunkMap} so it loads the chunks it walks into, and
- * fires the loader's login event that modpack mods hook. None of that is reachable by copying
- * methods; it is reachable by joining.
+ * {@code PlayerList.placeNewPlayer} — is what attaches the inventory-menu listener that awards advancements, puts the
+ * player in {@code ServerLevel.players()} so the level keeps ticking and mob AI can see it, registers it with the
+ * {@code ChunkMap} so it loads the chunks it walks into, and fires the loader's login event that modpack mods hook.
+ * None of that is reachable by copying methods; it is reachable by joining.
  *
  * <h2>Joined first, then ticked by vanilla</h2>
  *
- * This landed in two halves, so that no gate had to tell "the player is real now" apart from
- * "movement moved". The first joined the player and left its {@code tick()} empty while the driver
- * still integrated locomotion by hand. The second is {@link JoinedBody#pump}: each step runs
- * vanilla's player tick on the input a client writes, and {@code tick()} stays empty only for the
- * level's entity loop, which must not move a bot on a schedule of its own.
+ * This landed in two halves, so that no gate had to tell "the player is real now" apart from "movement moved". The
+ * first joined the player and left its {@code tick()} empty while the driver still integrated locomotion by hand. The
+ * second is {@link JoinedBody#pump}: each step runs vanilla's player tick on the input a client writes, and
+ * {@code tick()} stays empty only for the level's entity loop, which must not move a bot on a schedule of its own.
  *
  * <h2>The only server-side player</h2>
  *
  * {@link #BOTS} hands out these and nothing else. This player was first armed with
- * {@code -Dworlddriver.realPlayerBodies=true} in place of each loader's fake player, which turned
- * the dogfood scenes and the journey ladder into an A/B harness for the two player kinds. Once
- * every gate and every ladder topology ran on this one, the switch and the fake players were
- * deleted.
+ * {@code -Dworlddriver.realPlayerBodies=true} in place of each loader's fake player, which turned the dogfood scenes
+ * and the journey ladder into an A/B harness for the two player kinds. Once every gate and every ladder topology ran on
+ * this one, the switch and the fake players were deleted.
  *
  * <h2>The trap in the connection</h2>
  *
- * The fake players this replaced swallowed outbound packets by overriding {@code send} on their
- * <i>packet listener</i>. That does not survive here: {@code placeNewPlayer} constructs vanilla's
- * own {@code ServerGamePacketListenerImpl} and installs it, so the listener is not ours to
- * override. The swallow has to move down to the {@link Connection}, and it has to also report
- * {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it
- * queues them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
+ * The fake players this replaced swallowed outbound packets by overriding {@code send} on their <i>packet listener</i>.
+ * That does not survive here: {@code placeNewPlayer} constructs vanilla's own {@code ServerGamePacketListenerImpl} and
+ * installs it, so the listener is not ours to override. The swallow has to move down to the {@link Connection}, and it
+ * has to also report {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it queues
+ * them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
  */
 public final class JoinedPlayers {
 
     /**
-     * Where the bots' players come from. Common rather than per loader because joining is vanilla:
-     * nothing here needs a loader API, which is also what lets another mod create a driven player
-     * the same way on either loader. Until 2026-09-14 each loader installed a fake-player factory in
-     * its place (NeoForge's {@code FakePlayerFactory}, and a Fabric copy of it); this was a separate
-     * {@code ServerAvatarBodies} holder until the layering rework.
+     * Where the bots' players come from. Common rather than per loader because joining is vanilla: nothing here needs a
+     * loader API, which is also what lets another mod create a driven player the same way on either loader. Until
+     * 2026-09-14 each loader installed a fake-player factory in its place (NeoForge's {@code FakePlayerFactory}, and a
+     * Fabric copy of it); this was a separate {@code ServerAvatarBodies} holder until the layering rework.
      */
     public static final JoinedPlayers BOTS = new JoinedPlayers();
 
@@ -106,8 +99,8 @@ public final class JoinedPlayers {
 
     /**
      * The player for {@code profile} on {@code level}'s server: the one already joined under that name, in whatever
-     * dimension it now is, or a new one joined starting in {@code level}. A caller that needs it in {@code level}
-     * moves it there.
+     * dimension it now is, or a new one joined starting in {@code level}. A caller that needs it in {@code level} moves
+     * it there.
      */
     public ServerPlayer unique(ServerLevel level, GameProfile profile) {
         return body(level, profile);
@@ -116,16 +109,14 @@ public final class JoinedPlayers {
     /**
      * The cached player for this profile, re-joining when the last one left.
      *
-     * <p>Not {@code computeIfAbsent}: a player that has been discarded is no longer in the player
-     * list, and handing it back would drive a corpse. Sweeping the removed ones here, rather than
-     * from a removal callback, keeps the cache self-healing — players are only ever created on the
-     * server thread, so the sweep-then-put is not racing anything.
+     * <p>Not {@code computeIfAbsent}: a player that has been discarded is no longer in the player list, and handing it
+     * back would drive a corpse. Sweeping the removed ones here, rather than from a removal callback, keeps the cache
+     * self-healing — players are only ever created on the server thread, so the sweep-then-put is not racing anything.
      *
-     * <p>The sweep is not optional. Scenes create players under names unique within the process,
-     * so a stale entry is never overwritten by a re-join; it just stays, and the map was the last
-     * thing holding each departed {@code ServerPlayer} with its advancements, stats and inventory.
-     * Measured on the dedicated Fabric suite: 255 players retained after 300 scenes, and the 2 GB
-     * server heap ran out around scene 290 in two of three runs.
+     * <p>The sweep is not optional. Scenes create players under names unique within the process, so a stale entry is
+     * never overwritten by a re-join; it just stays, and the map was the last thing holding each departed
+     * {@code ServerPlayer} with its advancements, stats and inventory. Measured on the dedicated Fabric suite: 255
+     * players retained after 300 scenes, and the 2 GB server heap ran out around scene 290 in two of three runs.
      */
     private JoinedBody body(ServerLevel level, GameProfile profile) {
         // A player of a server that has stopped (an integrated server's earlier world) is removed with it, so the
@@ -145,8 +136,9 @@ public final class JoinedPlayers {
         // mobs can see it), ChunkMap registration (it loads what it walks into), and the loader's
         // login event.
         try {
-            level.getServer().getPlayerList().placeNewPlayer(
-                    body.silentConnection(), body, CommonListenerCookie.createInitial(profile, false));
+            level.getServer()
+                    .getPlayerList()
+                    .placeNewPlayer(body.silentConnection(), body, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names
@@ -160,15 +152,18 @@ public final class JoinedPlayers {
         // happened to ask: peak = max over the joins, leak = the last value at shutdown.
         // body.level(), not level: placeNewPlayer reads the player's save and moves a returning player to the
         // dimension it was saved in, so the level asked for is only where a new player starts.
-        Mod.LOG.info("[realbody] {} joined {} at {} (players={})", profile.getName(),
-                body.level().dimension().location(), CellText.of(body.blockPosition()),
+        Mod.LOG.info(
+                "[realbody] {} joined {} at {} (players={})",
+                profile.getName(),
+                body.level().dimension().location(),
+                CellText.of(body.blockPosition()),
                 level.getServer().getPlayerList().getPlayerCount());
         return body;
     }
 
     /**
-     * The joined player itself. Deliberately thin: what made it different from the fake players it
-     * replaced was not what it overrides, it is that it was placed.
+     * The joined player itself. Deliberately thin: what made it different from the fake players it replaced was not
+     * what it overrides, it is that it was placed.
      */
     public static final class JoinedBody extends ServerPlayer {
 
@@ -179,33 +174,31 @@ public final class JoinedPlayers {
             super(level.getServer(), level, profile, ClientInformation.createDefault());
         }
 
-        Connection silentConnection() { return wire; }
+        Connection silentConnection() {
+            return wire;
+        }
 
         /**
          * Leaving the world means leaving the <b>player list</b>, not just the level.
          *
-         * <p>Every scene already disposes its player with {@code fp.discard()}, which is enough for a
-         * fake player — it was never in a list to begin with. A placed player discarded that way
-         * stops ticking but stays in {@code PlayerList}, where the next scene's
-         * {@code ctx.player()} picks it up as "a connected player". Measured on the first armed
-         * Fabric run: 79 joins, 0 departures, and thirteen scenes that should have skipped ran
+         * <p>Every scene already disposes its player with {@code fp.discard()}, which is enough for a fake player — it
+         * was never in a list to begin with. A placed player discarded that way stops ticking but stays in
+         * {@code PlayerList}, where the next scene's {@code ctx.player()} picks it up as "a connected player". Measured
+         * on the first armed Fabric run: 79 joins, 0 departures, and thirteen scenes that should have skipped ran
          * against a stranded corpse instead.
          *
-         * <p>{@code PlayerList.remove} routes back here through
-         * {@code ServerLevel.removePlayerImmediately}, hence the guard — without it this recurses
-         * until the stack gives out.
+         * <p>{@code PlayerList.remove} routes back here through {@code ServerLevel.removePlayerImmediately}, hence the
+         * guard — without it this recurses until the stack gives out.
          *
-         * <p><b>Why this logs at all.</b> A departure here is REQUIRED to be silent in the vanilla
-         * channel, and that silence has already been misread once as a leak. The chat line
-         * "X left the game" is broadcast from {@code ServerGamePacketListenerImpl}'s
-         * {@code removePlayerFromWorld()}, reached only from {@code onDisconnect} — a socket path
-         * this player deliberately never enters. {@code PlayerList.remove} itself broadcasts a
-         * {@code ClientboundPlayerInfoRemovePacket} and logs nothing. Meanwhile the ARRIVAL is
-         * announced by vanilla, from {@code PlayerList.placeNewPlayer}, which this player does call.
-         * So counting "joined" against "left" in a server log compares two unrelated channels and
-         * will report a totally healthy run as 239 joins and 0 departures. The line below is this
-         * class's own leave channel, deliberately shaped like the join line, so the comparison is
-         * finally between two things that answer the same question.
+         * <p><b>Why this logs at all.</b> A departure here is REQUIRED to be silent in the vanilla channel, and that
+         * silence has already been misread once as a leak. The chat line "X left the game" is broadcast from
+         * {@code ServerGamePacketListenerImpl}'s {@code removePlayerFromWorld()}, reached only from
+         * {@code onDisconnect} — a socket path this player deliberately never enters. {@code PlayerList.remove} itself
+         * broadcasts a {@code ClientboundPlayerInfoRemovePacket} and logs nothing. Meanwhile the ARRIVAL is announced
+         * by vanilla, from {@code PlayerList.placeNewPlayer}, which this player does call. So counting "joined" against
+         * "left" in a server log compares two unrelated channels and will report a totally healthy run as 239 joins and
+         * 0 departures. The line below is this class's own leave channel, deliberately shaped like the join line, so
+         * the comparison is finally between two things that answer the same question.
          */
         @Override
         public void remove(RemovalReason reason) {
@@ -217,13 +210,17 @@ public final class JoinedPlayers {
                 leaving = true;
                 try {
                     getServer().getPlayerList().remove(this);
-                    Mod.LOG.info("[realbody] {} left {} (players={})",
-                            getGameProfile().getName(), level().dimension().location(),
+                    Mod.LOG.info(
+                            "[realbody] {} left {} (players={})",
+                            getGameProfile().getName(),
+                            level().dimension().location(),
                             getServer().getPlayerList().getPlayerCount());
                     return;
                 } catch (RuntimeException e) {
-                    Mod.LOG.warn("[realbody] {} could not leave the player list: {}",
-                            getGameProfile().getName(), e.toString());
+                    Mod.LOG.warn(
+                            "[realbody] {} could not leave the player list: {}",
+                            getGameProfile().getName(),
+                            e.toString());
                 }
             }
             super.remove(reason);
@@ -232,15 +229,14 @@ public final class JoinedPlayers {
         /**
          * Set by the level's entity loop, read and cleared by {@link #pump}.
          *
-         * <p>{@code ServerLevel.tickNonPassenger} does {@code setOldPosAndRot()} and {@code tickCount++}
-         * itself and then calls {@link #tick()}; neither is in {@code ServerPlayer.tick()} or
-         * {@code doTick()}. A player pumped once per server tick gets both from the loop, but scenes
-         * pump one player hundreds of times inside a single server tick, and each of those steps needs
-         * its own: {@code xo}/{@code zo} feed the body yaw and the walk animation, and every
-         * {@code tickCount % N} rule would otherwise fire on all of them or on none. A flag rather
-         * than a game-time comparison, because a scene may re-enter {@code level.tick} between steps
-         * and a portal scene moves the player to another level mid-loop; the flag answers "did a loop
-         * tick this player since the last step" for whichever loop it was.
+         * <p>{@code ServerLevel.tickNonPassenger} does {@code setOldPosAndRot()} and {@code tickCount++} itself and
+         * then calls {@link #tick()}; neither is in {@code ServerPlayer.tick()} or {@code doTick()}. A player pumped
+         * once per server tick gets both from the loop, but scenes pump one player hundreds of times inside a single
+         * server tick, and each of those steps needs its own: {@code xo}/{@code zo} feed the body yaw and the walk
+         * animation, and every {@code tickCount % N} rule would otherwise fire on all of them or on none. A flag rather
+         * than a game-time comparison, because a scene may re-enter {@code level.tick} between steps and a portal scene
+         * moves the player to another level mid-loop; the flag answers "did a loop tick this player since the last
+         * step" for whichever loop it was.
          */
         private boolean levelTicked;
 
@@ -250,32 +246,32 @@ public final class JoinedPlayers {
         private long lastJumpGameTime = -1;
 
         /**
-         * The level's entity loop. Records that it came and does nothing else: the player moves when its
-         * driver pumps it, never on the loop's schedule, so a player no driver steps stands still.
+         * The level's entity loop. Records that it came and does nothing else: the player moves when its driver pumps
+         * it, never on the loop's schedule, so a player no driver steps stands still.
          */
-        @Override public void tick() { levelTicked = true; }
+        @Override
+        public void tick() {
+            levelTicked = true;
+        }
 
         /**
          * One tick of this player, driven the way a connected client drives one.
          *
-         * <p>The order is a real player's. First the input a client would have sent. Then
-         * {@code ServerPlayer.tick()} (game mode, menu validity, the invulnerability countdown,
-         * advancements) and {@code doTick()}, which enters {@code Player.tick} by
-         * {@code invokespecial} and so runs the whole vanilla chain past this class's empty
-         * {@link #tick()}: {@code baseTick}, item use, equipment attributes, {@link #aiStep()} with
-         * its jump gate and {@code noJumpDelay}, {@code travel} (whose {@code ServerPlayer} override
-         * counts the movement statistics), food, pose.
-         * Then the tail of {@code ServerGamePacketListenerImpl.handleMovePlayer}, which is where a
-         * server learns that a player moved: fall distance ({@code ServerPlayer.checkFallDamage} is
-         * empty, so only {@code doCheckFallDamage} reaches the landing rules), the known movement,
-         * the fall-distance reset on upward movement, the impulse-context reset, and
-         * {@code ChunkMap.move}. The handler's own {@code checkMovementStatistics} call is the one
-         * piece of that tail left out: this player's {@code travel} runs above and already counted the
-         * same displacement, so a second call doubles the statistics and the food that swimming and
-         * sprinting cost.
+         * <p>The order is a real player's. First the input a client would have sent. Then {@code ServerPlayer.tick()}
+         * (game mode, menu validity, the invulnerability countdown, advancements) and {@code doTick()}, which enters
+         * {@code Player.tick} by {@code invokespecial} and so runs the whole vanilla chain past this class's empty
+         * {@link #tick()}: {@code baseTick}, item use, equipment attributes, {@link #aiStep()} with its jump gate and
+         * {@code noJumpDelay}, {@code travel} (whose {@code ServerPlayer} override counts the movement statistics),
+         * food, pose. Then the tail of {@code ServerGamePacketListenerImpl.handleMovePlayer}, which is where a server
+         * learns that a player moved: fall distance ({@code ServerPlayer.checkFallDamage} is empty, so only
+         * {@code doCheckFallDamage} reaches the landing rules), the known movement, the fall-distance reset on upward
+         * movement, the impulse-context reset, and {@code ChunkMap.move}. The handler's own
+         * {@code checkMovementStatistics} call is the one piece of that tail left out: this player's {@code travel}
+         * runs above and already counted the same displacement, so a second call doubles the statistics and the food
+         * that swimming and sprinting cost.
          *
-         * <p>Nothing here may be called a second time from outside — not {@code baseTick},
-         * {@code travel} nor {@code checkMovementStatistics}; each already runs once inside.
+         * <p>Nothing here may be called a second time from outside — not {@code baseTick}, {@code travel} nor
+         * {@code checkMovementStatistics}; each already runs once inside.
          */
         public void pump(float left, float forward, boolean jump, boolean sneak) {
             moveLeft = left;
@@ -295,7 +291,11 @@ public final class JoinedPlayers {
             doCheckFallDamage(moved.x, moved.y, moved.z, onGround());
             setKnownMovement(moved);
             if (moved.y > 0) resetFallDistance();
-            if (onGround() || hasLandedInLiquid() || onClimbable() || isSpectator() || wasFallFlying
+            if (onGround()
+                    || hasLandedInLiquid()
+                    || onClimbable()
+                    || isSpectator()
+                    || wasFallFlying
                     || isAutoSpinAttack()) {
                 tryResetCurrentImpulseContext();
             }
@@ -308,24 +308,25 @@ public final class JoinedPlayers {
         }
 
         /**
-         * The half of {@code LocalPlayer.aiStep} that turns a client's input into movement, then
-         * vanilla's own {@code aiStep}.
+         * The half of {@code LocalPlayer.aiStep} that turns a client's input into movement, then vanilla's own
+         * {@code aiStep}.
          *
-         * <p>A server never does this for a player; the client does it and sends the result, so a
-         * player that is its own client has to. Ported in {@code LocalPlayer}'s order: the crouch
-         * decision and the {@code SNEAKING_SPEED} scale, the 0.2 scale while using an item, the push
-         * out of a block a corner of the hitbox is inside, the rules that stop sprinting, and the sink
-         * while sneaking in water. The crouch is decided from THIS tick's shift key, not last tick's
-         * pose: {@code LocalPlayer.isCrouching()} returns the field computed at the top of its
+         * <p>A server never does this for a player; the client does it and sends the result, so a player that is its
+         * own client has to. Ported in {@code LocalPlayer}'s order: the crouch decision and the {@code SNEAKING_SPEED}
+         * scale, the 0.2 scale while using an item, the push out of a block a corner of the hitbox is inside, the rules
+         * that stop sprinting, and the sink while sneaking in water. The crouch is decided from THIS tick's shift key,
+         * not last tick's pose: {@code LocalPlayer.isCrouching()} returns the field computed at the top of its
          * {@code aiStep}, so a client slows on the tick it presses sneak.
          *
-         * <p>Not ported, because the driver does these another way or not at all: starting a sprint
-         * (the driver sets the flag, as it does on the client player), creative flight, starting an
-         * elytra glide from the jump key (the driver calls {@code startFallFlying}), and riding jumps.
+         * <p>Not ported, because the driver does these another way or not at all: starting a sprint (the driver sets
+         * the flag, as it does on the client player), creative flight, starting an elytra glide from the jump key (the
+         * driver calls {@code startFallFlying}), and riding jumps.
          */
         @Override
         public void aiStep() {
-            boolean crouching = !getAbilities().flying && !isSwimming() && !isPassenger()
+            boolean crouching = !getAbilities().flying
+                    && !isSwimming()
+                    && !isPassenger()
                     && canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING)
                     && (isShiftKeyDown() || !isSleeping() && !canPlayerFitWithinBlocksAndEntitiesWhen(Pose.STANDING));
             float left = moveLeft, forward = moveForward;
@@ -350,7 +351,8 @@ public final class JoinedPlayers {
                         || !(isPassenger() || getFoodData().getFoodLevel() > 6 || getAbilities().mayfly);
                 if (isSwimming()) {
                     if (!onGround() && !isShiftKeyDown() && spent || !isInWater()) setSprinting(false);
-                } else if (spent || horizontalCollision && !minorHorizontalCollision
+                } else if (spent
+                        || horizontalCollision && !minorHorizontalCollision
                         || isInWater() && !isUnderWater()) {
                     setSprinting(false);
                 }
@@ -370,7 +372,7 @@ public final class JoinedPlayers {
             double fx = x - cell.getX(), fz = z - cell.getZ();
             Direction nearest = null;
             double gap = Double.MAX_VALUE;
-            for (Direction side : new Direction[]{Direction.WEST, Direction.EAST, Direction.NORTH, Direction.SOUTH}) {
+            for (Direction side : new Direction[] {Direction.WEST, Direction.EAST, Direction.NORTH, Direction.SOUTH}) {
                 double along = side.getAxis().choose(fx, 0.0, fz);
                 double toSide = side.getAxisDirection() == Direction.AxisDirection.POSITIVE ? 1.0 - along : along;
                 if (toSide < gap && !suffocatesAt(cell.relative(side))) {
@@ -394,10 +396,10 @@ public final class JoinedPlayers {
         /**
          * {@code LocalPlayer}'s answer, which a server player never gives.
          *
-         * <p>{@code Entity} returns false, so on a server {@code minorHorizontalCollision} is always
-         * false and the sprint rule in {@link #aiStep()} would stop a sprint on every glancing touch
-         * of a wall and every riser. The test is the client's: the angle between the direction the
-         * input pushes and the direction the move went, under 8 degrees.
+         * <p>{@code Entity} returns false, so on a server {@code minorHorizontalCollision} is always false and the
+         * sprint rule in {@link #aiStep()} would stop a sprint on every glancing touch of a wall and every riser. The
+         * test is the client's: the angle between the direction the input pushes and the direction the move went, under
+         * 8 degrees.
          */
         @Override
         protected boolean isHorizontalCollisionMinor(Vec3 movement) {
@@ -420,46 +422,56 @@ public final class JoinedPlayers {
         }
 
         /** Game time of this player's last jump, or -1 before the first. */
-        public long lastJumpGameTime() { return lastJumpGameTime; }
+        public long lastJumpGameTime() {
+            return lastJumpGameTime;
+        }
 
-        /** Scenes and the journey rig both assume a player that cannot die; keeping that here means
-         *  the A/B measures the join and nothing else. A survival-fidelity run wants this gone. */
-        @Override public boolean isInvulnerableTo(DamageSource source) { return true; }
+        /**
+         * Scenes and the journey rig both assume a player that cannot die; keeping that here means the A/B measures the
+         * join and nothing else. A survival-fidelity run wants this gone.
+         */
+        @Override
+        public boolean isInvulnerableTo(DamageSource source) {
+            return true;
+        }
 
-        @Override public boolean canHarmPlayer(Player other) { return false; }
+        @Override
+        public boolean canHarmPlayer(Player other) {
+            return false;
+        }
 
-        @Override public void die(DamageSource cause) { }
+        @Override
+        public void die(DamageSource cause) {}
 
-        @Override public void displayClientMessage(Component message, boolean actionBar) { }
+        @Override
+        public void displayClientMessage(Component message, boolean actionBar) {}
     }
 
     /**
      * A connection that is "up" and goes nowhere.
      *
-     * <p>{@code isConnected()} must be true: {@code Connection.send} only drops a packet when it
-     * believes it is connected — otherwise it appends to {@code pendingActions}, unboundedly, for
-     * a client that will never arrive.
+     * <p>{@code isConnected()} must be true: {@code Connection.send} only drops a packet when it believes it is
+     * connected — otherwise it appends to {@code pendingActions}, unboundedly, for a client that will never arrive.
      */
     private static final class SilentConnection extends Connection {
 
         /**
          * A real netty channel that throws its writes away.
          *
-         * <p>Vanilla's join path never touches {@code channel()} — every reach for it goes through
-         * {@code send}, which this class swallows. NeoForge's does: it stores the connection type as
-         * a <b>channel attribute</b>, so {@code placeNewPlayer} dies on
-         * {@code Connection.channel().attr(...)} before the player exists. Measured: the whole armed
-         * NeoForge suite fell to 76 executed scenes, every avatar scene reporting the same NPE.
+         * <p>Vanilla's join path never touches {@code channel()} — every reach for it goes through {@code send}, which
+         * this class swallows. NeoForge's does: it stores the connection type as a <b>channel attribute</b>, so
+         * {@code placeNewPlayer} dies on {@code Connection.channel().attr(...)} before the player exists. Measured: the
+         * whole armed NeoForge suite fell to 76 executed scenes, every avatar scene reporting the same NPE.
          *
-         * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues
-         * outbound messages forever — a silent leak in place of a loud crash. The handler discards
-         * and completes each write instead of letting it reach that queue.
+         * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues outbound messages
+         * forever — a silent leak in place of a loud crash. The handler discards and completes each write instead of
+         * letting it reach that queue.
          *
-         * <p>One packet never reaches {@code send}: NeoForge refuses a modded payload above the
-         * connection, for a channel no client negotiated, and this connection negotiated none. The
-         * mixin on {@code ServerCommonPacketListenerImpl.send} drops those first; see its javadoc.
+         * <p>One packet never reaches {@code send}: NeoForge refuses a modded payload above the connection, for a
+         * channel no client negotiated, and this connection negotiated none. The mixin on
+         * {@code ServerCommonPacketListenerImpl.send} drops those first; see its javadoc.
          */
-        @SuppressWarnings("unused")     // held so the channel is not collected out from under us
+        @SuppressWarnings("unused") // held so the channel is not collected out from under us
         private final EmbeddedChannel wire;
 
         SilentConnection() {
@@ -481,33 +493,58 @@ public final class JoinedPlayers {
             };
         }
 
-        @Override public void send(Packet<?> packet) { }
-        @Override public void send(Packet<?> packet, @Nullable PacketSendListener listener) { }
-        @Override public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) { }
-        @Override public boolean isConnected() { return true; }
-        @Override public void tick() { }
-        @Override public void disconnect(Component reason) { }
-        @Override public void disconnect(DisconnectionDetails details) { }
-        @Override public void setListenerForServerboundHandshake(PacketListener listener) { }
-        @Override public void setReadOnly() { }
-        @Override public void setupCompression(int threshold, boolean validate) { }
+        @Override
+        public void send(Packet<?> packet) {}
 
-        /** Called every server tick from {@code ServerCommonPacketListenerImpl.resumeFlushing}, and
-         *  it reaches for {@code channel.eventLoop()} directly rather than going through send. */
-        @Override public void flushChannel() { }
-        @Override public void handleDisconnection() { }
+        @Override
+        public void send(Packet<?> packet, @Nullable PacketSendListener listener) {}
+
+        @Override
+        public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) {}
+
+        @Override
+        public boolean isConnected() {
+            return true;
+        }
+
+        @Override
+        public void tick() {}
+
+        @Override
+        public void disconnect(Component reason) {}
+
+        @Override
+        public void disconnect(DisconnectionDetails details) {}
+
+        @Override
+        public void setListenerForServerboundHandshake(PacketListener listener) {}
+
+        @Override
+        public void setReadOnly() {}
+
+        @Override
+        public void setupCompression(int threshold, boolean validate) {}
 
         /**
-         * The two that a swallowed {@code send} does not cover, and the reason the first attempt
-         * still died: a protocol switch is not a packet, it is a pipeline edit, and
-         * {@code setupInboundProtocol} writes a marker straight to the channel rather than through
-         * {@code send}. The join sequence changes protocol twice (login → configuration → play),
-         * so this NPEs before the player is usable and after vanilla has already printed
-         * "logged in", which reads as if the join succeeded.
+         * Called every server tick from {@code ServerCommonPacketListenerImpl.resumeFlushing}, and it reaches for
+         * {@code channel.eventLoop()} directly rather than going through send.
+         */
+        @Override
+        public void flushChannel() {}
+
+        @Override
+        public void handleDisconnection() {}
+
+        /**
+         * The two that a swallowed {@code send} does not cover, and the reason the first attempt still died: a protocol
+         * switch is not a packet, it is a pipeline edit, and {@code setupInboundProtocol} writes a marker straight to
+         * the channel rather than through {@code send}. The join sequence changes protocol twice (login → configuration
+         * → play), so this NPEs before the player is usable and after vanilla has already printed "logged in", which
+         * reads as if the join succeeded.
          *
-         * <p>Recording the listener is not optional: {@code setupInboundProtocol} is also where
-         * vanilla installs the packet listener, and {@code getPacketListener()} is read during the
-         * join. Dropping the pipeline work while keeping the assignment is the whole trick.
+         * <p>Recording the listener is not optional: {@code setupInboundProtocol} is also where vanilla installs the
+         * packet listener, and {@code getPacketListener()} is read during the join. Dropping the pipeline work while
+         * keeping the assignment is the whole trick.
          */
         @Override
         public <T extends PacketListener> void setupInboundProtocol(
@@ -515,9 +552,13 @@ public final class JoinedPlayers {
             this.inbound = listener;
         }
 
-        @Override public void setupOutboundProtocol(net.minecraft.network.ProtocolInfo<?> protocol) { }
+        @Override
+        public void setupOutboundProtocol(net.minecraft.network.ProtocolInfo<?> protocol) {}
 
-        @Override public PacketListener getPacketListener() { return inbound; }
+        @Override
+        public PacketListener getPacketListener() {
+            return inbound;
+        }
 
         private PacketListener inbound;
     }

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeSet;
-
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartOutcome;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import org.junit.jupiter.api.Test;
@@ -15,9 +14,11 @@ class ChartOutcomeTest {
 
     @Test
     void everyTraceOutcomeHasAChartOutcome() {
-        Set<String> trace = new TreeSet<>(Arrays.stream(PathTrace.Outcome.values()).map(Enum::name).toList());
+        Set<String> trace = new TreeSet<>(
+                Arrays.stream(PathTrace.Outcome.values()).map(Enum::name).toList());
         trace.add(ChartOutcome.RUNNING.name());
-        Set<String> chart = new TreeSet<>(Arrays.stream(ChartOutcome.values()).map(Enum::name).toList());
+        Set<String> chart = new TreeSet<>(
+                Arrays.stream(ChartOutcome.values()).map(Enum::name).toList());
         assertEquals(trace, chart);
     }
 }

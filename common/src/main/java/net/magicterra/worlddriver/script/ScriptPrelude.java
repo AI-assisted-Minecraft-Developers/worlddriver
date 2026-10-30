@@ -1,22 +1,21 @@
 package net.magicterra.worlddriver.script;
 
+import dev.latvian.mods.rhino.Context;
+import dev.latvian.mods.rhino.ScriptableObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-import dev.latvian.mods.rhino.Context;
-import dev.latvian.mods.rhino.ScriptableObject;
-
 /**
- * prelude.js, the generated method wrappers, and the globals they read, installed the same way in every
- * scope that runs them: the {@code mc.script.eval} scope and the validation harness scope. A scope that
- * set up one of these globals itself and missed another would fail only when a script reached the
- * helper that reads it.
+ * prelude.js, the generated method wrappers, and the globals they read, installed the same way in every scope that runs
+ * them: the {@code mc.script.eval} scope and the validation harness scope. A scope that set up one of these globals
+ * itself and missed another would fail only when a script reached the helper that reads it.
  */
 final class ScriptPrelude {
     private static final String RESOURCE = "/data/worlddriver/scripts/prelude.js";
     /** Built from the method descriptions by {@code generateApiArtifacts}; see docs/dev/api-artifacts.md. */
     private static final String GENERATED = "/data/worlddriver/scripts/generated/driver-api.js";
+
     private static final String SOURCE = load(RESOURCE);
     private static final String WRAPPERS = load(GENERATED);
 

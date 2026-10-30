@@ -1,27 +1,33 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 
-import java.util.List;
-import net.magicterra.worlddriver.config.WorldConfig;
-
 /**
- * Dig straight down one block and drop into the hole — Baritone's
- * mine-down. The block under the feet must be breakable and the block
- * <em>two</em> below must be a safe solid floor to land on (so we don't
- * open a long fall or drop into lava). Cost = step + break time.
+ * Dig straight down one block and drop into the hole — Baritone's mine-down. The block under the feet must be breakable
+ * and the block <em>two</em> below must be a safe solid floor to land on (so we don't open a long fall or drop into
+ * lava). Cost = step + break time.
  */
 public final class DownBreak extends Move {
     private static final int[][] HORIZ = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-    public DownBreak() { super(0, -1, 0, 10); }
-    @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
-    @Override public Edge eval(WorldView w, BlockPos from) {
+    public DownBreak() {
+        super(0, -1, 0, 10);
+    }
+
+    @Override
+    public boolean valid(WorldView w, BlockPos from) {
+        return eval(w, from) != null;
+    }
+
+    @Override
+    public Edge eval(WorldView w, BlockPos from) {
         if (!WorldConfig.allowBreak) return null;
-        BlockPos below = apply(from);                              // the cell we dig + drop into
-        if (!w.isSolid(below)) return null;                        // air → Fall / StepDown handle it
+        BlockPos below = apply(from); // the cell we dig + drop into
+        if (!w.isSolid(below)) return null; // air → Fall / StepDown handle it
         double c = w.breakCost(below, from);
         if (Double.isInfinite(c)) return null;
         BlockPos landFloor = below.offset(0, -1, 0);
@@ -35,9 +41,12 @@ public final class DownBreak extends Move {
         // from = head) for horizontally adjacent water.
         for (int[] h : HORIZ) {
             if (w.isWater(below.offset(h[0], 0, h[1]))) return null;
-            if (w.isWater(from.offset(h[0], 0, h[1])))  return null;
+            if (w.isWater(from.offset(h[0], 0, h[1]))) return null;
         }
         return new Edge(below, cost + c, List.of(below), List.of(), name());
     }
-    public String name() { return "downBreak"; }
+
+    public String name() {
+        return "downBreak";
+    }
 }

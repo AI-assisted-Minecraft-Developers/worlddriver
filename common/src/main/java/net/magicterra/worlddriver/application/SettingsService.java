@@ -4,20 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
-import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.BotConfigFile;
-import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApiBinding;
-import net.magicterra.worlddriver.bot.SettingsCommand;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Applied;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Apply;
@@ -27,16 +16,28 @@ import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Read;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.SettingsOp;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.SettingsReply;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Values;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
+import net.magicterra.worlddriver.bot.BotApi;
+import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.SettingsCommand;
+import net.magicterra.worlddriver.config.BotConfigFile;
 
 /**
- * {@code mc.bot.setting}. The settings are read and written on the thread of the bot that reads them
- * most: this client's when there is one, else the server's, where the named bots run. The controls act
- * on this client's player, so they need a client.
+ * {@code mc.bot.setting}. The settings are read and written on the thread of the bot that reads them most: this
+ * client's when there is one, else the server's, where the named bots run. The controls act on this client's player, so
+ * they need a client.
  */
 final class SettingsService implements SettingsApi {
     private final DriverApplication app;
 
-    SettingsService(DriverApplication app) { this.app = app; }
+    SettingsService(DriverApplication app) {
+        this.app = app;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return SettingsApiBinding.methods(this);
@@ -50,7 +51,8 @@ final class SettingsService implements SettingsApi {
             case Patch p -> owner(bot).<SettingsReply>submit(() -> patch(bot, p), ctx);
             case Apply a -> {
                 if (bot == null) {
-                    throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    throw ApiException.of(
+                            ApiError.Code.CAPABILITY_UNAVAILABLE,
                             a.control() + " acts on this client's player, and there is no client here");
                 }
                 yield bot.clientHop().<SettingsReply>submit(() -> apply(bot, a), ctx);
@@ -62,7 +64,8 @@ final class SettingsService implements SettingsApi {
     private ServerThreadHop owner(BotApi bot) {
         if (bot != null) return bot.clientHop();
         ServerThreadHop hop = app.serverHop();
-        if (hop == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no game is running to hold the settings");
+        if (hop == null)
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no game is running to hold the settings");
         return hop;
     }
 
@@ -72,7 +75,9 @@ final class SettingsService implements SettingsApi {
         for (int i = 0; i < keys.size(); i++) {
             String k = keys.get(i);
             if (bot == null && k.equals("paused")) {
-                throw ApiException.invalidParam("/keys/" + i, ApiIssue.Code.INVALID_VALUE,
+                throw ApiException.invalidParam(
+                        "/keys/" + i,
+                        ApiIssue.Code.INVALID_VALUE,
                         "paused is this client's bot's, and there is no client here");
             }
             values.add(new Entry(k, SettingsCommand.read(bot, k)));

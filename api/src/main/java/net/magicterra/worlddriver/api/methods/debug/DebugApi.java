@@ -1,21 +1,21 @@
 package net.magicterra.worlddriver.api.methods.debug;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
  * The debug methods, {@code mc.debug.*}: the path debugging ({@code pathChart}, {@code plan}, {@code walkPlan},
- * {@code replay}) and the
- * readings of a server-side bot's insides ({@code navigator}, {@code body}, {@code cells}). Registered only where the
- * debug subsystem is.
+ * {@code replay}) and the readings of a server-side bot's insides ({@code navigator}, {@code body}, {@code cells}).
+ * Registered only where the debug subsystem is.
  */
 public interface DebugApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static DebugStubApi of(ApiRegistry registry) { return DebugApiBinding.calls(registry); }
+    static DebugStubApi of(ApiRegistry registry) {
+        return DebugApiBinding.calls(registry);
+    }
 
     @Spec(value = DebugContracts.class, spec = "PATH_CHART")
     CompletionStage<DebugContracts.Chart> pathChart(DebugContracts.ChartParams p, CallContext ctx);

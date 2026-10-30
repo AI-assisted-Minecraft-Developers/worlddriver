@@ -4,7 +4,6 @@ import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -12,17 +11,14 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * KubeJS-style event group exposed to scripts as the global {@code ScriptEvents}.
  *
- * Scripts register callbacks at load time:
- *   ScriptEvents.onAttach(function () { console.log("ready"); });
- *   ScriptEvents.tick(function () { ... });
+ * <p>Scripts register callbacks at load time: ScriptEvents.onAttach(function () { console.log("ready"); });
+ * ScriptEvents.tick(function () { ... });
  *
- * The mod fires {@link #fireTick()} from the platform's server tick event and
- * {@link #fireAttach()} once after the script manager finishes loading. All
- * callbacks run on whatever thread the firing platform hook uses (the server
+ * <p>The mod fires {@link #fireTick()} from the platform's server tick event and {@link #fireAttach()} once after the
+ * script manager finishes loading. All callbacks run on whatever thread the firing platform hook uses (the server
  * thread for tick) — Rhino's ContextFactory is per-thread, so we re-enter().
  *
- * State is per-load: {@link #install} stores the factory/scope, {@link #clear}
- * wipes registered callbacks on reload.
+ * <p>State is per-load: {@link #install} stores the factory/scope, {@link #clear} wipes registered callbacks on reload.
  */
 public final class ScriptEvents {
     private static final List<Function> tickCallbacks = new CopyOnWriteArrayList<>();
@@ -56,9 +52,8 @@ public final class ScriptEvents {
     }
 
     /**
-     * Register a callback to run when the script loader finishes wiring up the
-     * scope. If the attach phase has already happened (e.g., scripts loaded
-     * before the first hook fires), the callback runs immediately.
+     * Register a callback to run when the script loader finishes wiring up the scope. If the attach phase has already
+     * happened (e.g., scripts loaded before the first hook fires), the callback runs immediately.
      */
     public static void onAttach(Function cb) {
         if (cb == null) return;
@@ -84,10 +79,14 @@ public final class ScriptEvents {
     }
 
     /** Visible to JS: total ticks observed since install. Useful for tests. */
-    public static long tickCount() { return tickCount.get(); }
+    public static long tickCount() {
+        return tickCount.get();
+    }
 
     /** Visible to JS: how many callbacks are registered (for introspection). */
-    public static int tickListenerCount() { return tickCallbacks.size(); }
+    public static int tickListenerCount() {
+        return tickCallbacks.size();
+    }
 
     private static void invoke(Function cb) {
         ContextFactory f = factory;
@@ -95,7 +94,7 @@ public final class ScriptEvents {
         if (f == null || s == null) return;
         Context cx = f.enter();
         try {
-            cb.call(cx, s, s, new Object[]{});
+            cb.call(cx, s, s, new Object[] {});
         } catch (Throwable t) {
             System.err.println("[agent-events] callback failed: " + t.getMessage());
         }

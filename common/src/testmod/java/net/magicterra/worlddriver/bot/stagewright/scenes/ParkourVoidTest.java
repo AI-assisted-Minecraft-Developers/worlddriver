@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -49,18 +48,18 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * }</pre>
  *
  * so a <b>rising</b> parkour kept its sprint next to a killer edge and a <b>flat</b> one did not. {@code lethalNear} is
- * ANY of the foot cell's eight horizontal neighbours dropping further than {@code SurvivalMath#survivableFall} —
- * which on the rim of a small platform over void is true on <i>every grounded tick</i>. Observed on the End arrival
- * platform (rung 20): the bot met the first {@code parkour3} across two cells of void and fell out of the world,
- * {@code h:0.1530 -> 0.1382} across the takeoff — exactly the x0.91 decay of a player with no impulse at all.
+ * ANY of the foot cell's eight horizontal neighbours dropping further than {@code SurvivalMath#survivableFall} — which
+ * on the rim of a small platform over void is true on <i>every grounded tick</i>. Observed on the End arrival platform
+ * (rung 20): the bot met the first {@code parkour3} across two cells of void and fell out of the world, {@code h:0.1530
+ * -> 0.1382} across the takeoff — exactly the x0.91 decay of a player with no impulse at all.
  *
  * <h2>The two tests</h2>
  *
  * <ul>
  *   <li>{@code parkourVoidLongRunway} — the anti-overfit arm. <b>Without it, "forbid every parkour and always bridge
- *       instead" is a full-marks answer.</b></li>
+ *       instead" is a full-marks answer.</b>
  *   <li>{@code parkourVoidRunwayGate} — planner-only. It pins the run-up threshold ITSELF as a criterion, which is the
- *       thing {@code Move.hasRunway} claims to model and does not.</li>
+ *       thing {@code Move.hasRunway} claims to model and does not.
  * </ul>
  *
  * <h2>Rig rules this family keeps</h2>
@@ -68,11 +67,11 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * <ul>
  *   <li><b>The drop must READ as lethal, or the test measures nothing.</b> The catch floor hangs {@value #VOID_DEPTH}
  *       blocks under the pad: deep enough that the gap columns are unambiguously lethal. A shallower rig would silently
- *       turn the sprint gate OFF and every test here would pass while proving nothing.</li>
+ *       turn the sprint gate OFF and every test here would pass while proving nothing.
  *   <li><b>{@link SimProbes#grantWaterEffects} is granted</b>, matching {@code parkourAscend}. It cannot weaken the
- *       gate: {@code survivableFall(float health)} takes health alone and never reads a resistance modifier.</li>
+ *       gate: {@code survivableFall(float health)} takes health alone and never reads a resistance modifier.
  *   <li><b>Evidence is published on both outcomes</b>, because "the green run placed no blocks" is the reading that
- *       separates a leap from a bridge.</li>
+ *       separates a leap from a bridge.
  * </ul>
  */
 @Scene("wd.scenes")
@@ -82,16 +81,22 @@ class ParkourVoidTest {
     /** Cells of pure void between the launch lip and the landing deck — {@code parkour3}'s gap. */
     private static final int GAP = 2;
 
-    /** How far the landing deck runs past the gap, in cells, so "arrived" cannot be satisfied by hanging on the deck's
-     *  first block. */
+    /**
+     * How far the landing deck runs past the gap, in cells, so "arrived" cannot be satisfied by hanging on the deck's
+     * first block.
+     */
     private static final int DECK_LEN = 8;
 
-    /** Depth of the catch floor below the pad: the 30 cells directly under the gap hold nothing solid, and the column
-     *  still exceeds {@code survivableFall} (about 22 at full HP) so {@code lethalDropAdjacent} reads TRUE. */
+    /**
+     * Depth of the catch floor below the pad: the 30 cells directly under the gap hold nothing solid, and the column
+     * still exceeds {@code survivableFall} (about 22 at full HP) so {@code lethalDropAdjacent} reads TRUE.
+     */
     private static final int VOID_DEPTH = 32;
 
-    /** Ticks allowed between "foot cell reaches the lip column" and "standing on the deck". A sprint-jump arc is about
-     *  12 ticks; a two-cell bridge is two aim+place rounds and an order of magnitude more. */
+    /**
+     * Ticks allowed between "foot cell reaches the lip column" and "standing on the deck". A sprint-jump arc is about
+     * 12 ticks; a two-cell bridge is two aim+place rounds and an order of magnitude more.
+     */
     private static final int LEAP_TICKS = 40;
 
     /** The pad's own y, plot-relative. Standing y is one above; the catch floor is {@link #VOID_DEPTH} below. */
@@ -123,7 +128,8 @@ class ParkourVoidTest {
         for (int i = 1; i <= GAP; i++)
             for (int dz = -halfW; dz <= halfW; dz++)
                 for (int dy = 0; dy <= 1; dy++)
-                    if (!level.getBlockState(new BlockPos(cx - i, padY + dy, cz + dz)).isAir()) n++;
+                    if (!level.getBlockState(new BlockPos(cx - i, padY + dy, cz + dz))
+                            .isAir()) n++;
         return n;
     }
 
@@ -134,29 +140,29 @@ class ParkourVoidTest {
      * <b>The anti-overfit arm.</b> A 12-cell launch pad and ten cells of run-up over two cells of lethal void.
      *
      * <ol>
-     *   <li>it arrives at deck level without falling;</li>
-     *   <li><b>it spent no blocks</b> — it must not have bridged;</li>
+     *   <li>it arrives at deck level without falling;
+     *   <li><b>it spent no blocks</b> — it must not have bridged;
      *   <li><b>it crossed within {@value #LEAP_TICKS} ticks of reaching the lip.</b> The block count alone is fooled by
      *       a bot that places a block and then does not cross on it; the clock is what distinguishes them. Written so
-     *       it <b>cannot be satisfied vacuously</b>: a run that never reaches the deck is a violation.</li>
+     *       it <b>cannot be satisfied vacuously</b>: a run that never reaches the deck is a violation.
      * </ol>
      *
      * <p><b>If this arm is RED, the premise "a long run-up gets across" is itself false</b> — a finding about the
      * product. Do not lengthen the pad, shrink the gap or widen the tolerance to make it green.
      */
     @Test
-    void parkourVoidLongRunway(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot,
-                               TestReporter reporter) {
-        final int padLen = 12, spawnDx = 10, halfW = 1;   // 3 cells wide: the End platform is not a plank
+    void parkourVoidLongRunway(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
+        final int padLen = 12, spawnDx = 10, halfW = 1; // 3 cells wide: the End platform is not a plank
         final int standY = PAD_Y + 1;
         catchFloor(plot, halfW + 1);
         buildPadGapDeck(plot, 0, padLen, halfW);
         BlockPos goal = plot.at(-GAP - 6, standY, 0);
 
         Settings.pinUntimed(game)
-                .set("allowPlace", true)               // bridging is a legitimate way across
-                .set("allowBreak", false)              // digging around it is not
-                .set("allowParkour4", false)           // the gap is a parkour3; 4-cell leaps stay off
+                .set("allowPlace", true) // bridging is a legitimate way across
+                .set("allowBreak", false) // digging around it is not
+                .set("allowParkour4", false) // the gap is a parkour3; 4-cell leaps stay off
                 .set("navigatorDebug", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.at(spawnDx, standY, 0));
@@ -187,15 +193,24 @@ class ParkourVoidTest {
                 if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0)
                     firstPlan = NavWalk.trace(nav, "planTally");
                 if (tLip < 0 && Mth.floor(fp.getX()) <= cx) tLip = t;
-                if (gapMove == null && fp.getX() < cx) gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
+                if (gapMove == null && fp.getX() < cx)
+                    gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
                 if (takeoffTick < 0 && fp.getY() > standAbs + 0.05) {
-                    takeoffTick = t; takeoffX = prevX; takeoffHBefore = prevH; takeoffHAfter = h;
+                    takeoffTick = t;
+                    takeoffX = prevX;
+                    takeoffHBefore = prevH;
+                    takeoffHAfter = h;
                 }
-                if (tDeck < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4) tDeck = t;
+                if (tDeck < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4)
+                    tDeck = t;
                 // Stop the moment the player is in the void: a player that has fallen off spends the rest of the
                 // budget asking A* about terrain 30 blocks down.
-                if (fp.getY() < padAbs - 3) { tFell = t; break; }
-                prevX = fp.getX(); prevH = h;
+                if (fp.getY() < padAbs - 3) {
+                    tFell = t;
+                    break;
+                }
+                prevX = fp.getX();
+                prevH = h;
             }
 
             int spent = cobbleBefore - carrying(fp, Items.COBBLESTONE);
@@ -203,40 +218,107 @@ class ParkourVoidTest {
             String st = NavWalk.step(bot);
             BotDebugContracts.Hands hands = bot.body().hands();
 
-            reporter.publishEntry("rig", String.format(Locale.ROOT, "pad y=%d stand y=%d | pad x=[%d,%d] (%d cells) |"
-                    + " gap x=%d..%d (%d clear cells below, catch floor y=%d) | deck x<=%d | goal %s",
-                    padAbs, standAbs, cx, cx + padLen - 1, padLen, cx - 1, cx - GAP, VOID_DEPTH - 1,
-                    padAbs - VOID_DEPTH, cx - GAP - 1, goal.toShortString()));
-            reporter.publishEntry("takeoff.x", takeoffTick < 0 ? "never jumped" : String.format(Locale.ROOT,
-                    "%.4f (lip cell x=%d, so the jump fired %.4f cells short of the lip)", takeoffX, cx, takeoffX - cx));
-            reporter.publishEntry("takeoff.h", takeoffTick < 0 ? "never jumped" : String.format(Locale.ROOT,
-                    "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure air decay)",
-                    takeoffHBefore, takeoffHAfter));
-            reporter.publishEntry("takeoff.navigator", nav.plan().flatMap(PlanCursor::parkourTakeoff).orElse("none"));
+            reporter.publishEntry(
+                    "rig",
+                    String.format(
+                            Locale.ROOT,
+                            "pad y=%d stand y=%d | pad x=[%d,%d] (%d cells) |"
+                                    + " gap x=%d..%d (%d clear cells below, catch floor y=%d) | deck x<=%d | goal %s",
+                            padAbs,
+                            standAbs,
+                            cx,
+                            cx + padLen - 1,
+                            padLen,
+                            cx - 1,
+                            cx - GAP,
+                            VOID_DEPTH - 1,
+                            padAbs - VOID_DEPTH,
+                            cx - GAP - 1,
+                            goal.toShortString()));
+            reporter.publishEntry(
+                    "takeoff.x",
+                    takeoffTick < 0
+                            ? "never jumped"
+                            : String.format(
+                                    Locale.ROOT,
+                                    "%.4f (lip cell x=%d, so the jump fired %.4f cells short of the lip)",
+                                    takeoffX,
+                                    cx,
+                                    takeoffX - cx));
+            reporter.publishEntry(
+                    "takeoff.h",
+                    takeoffTick < 0
+                            ? "never jumped"
+                            : String.format(
+                                    Locale.ROOT,
+                                    "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure air decay)",
+                                    takeoffHBefore,
+                                    takeoffHAfter));
+            reporter.publishEntry(
+                    "takeoff.navigator",
+                    nav.plan().flatMap(PlanCursor::parkourTakeoff).orElse("none"));
             reporter.publishEntry("gap.move", gapMove == null ? "never got past the lip" : gapMove);
             reporter.publishEntry("gap.solidCells", String.valueOf(gapSolidCells(level, cx, cz, padAbs, halfW)));
             reporter.publishEntry("plan.first", firstPlan == null ? "none - the run never held a path" : firstPlan);
             reporter.publishEntry("plan.last", NavWalk.trace(nav, "planTally"));
             reporter.publishEntry("place.spent", spent + " cobblestone (started with " + cobbleBefore + ")");
-            reporter.publishEntry("ticks", String.format(Locale.ROOT, "ran %d | reached lip cell t=%s | stood on deck"
-                    + " t=%s | left the pad t=%s", t, tLip < 0 ? "never" : String.valueOf(tLip),
-                    tDeck < 0 ? "never" : String.valueOf(tDeck), tFell < 0 ? "no" : String.valueOf(tFell)));
-            TestMod.LOG.info("[wd.parkourVoidLongRunway] step={} pos=({},{},{}) minY={} crossed={} spent={} takeoffX={}"
-                    + " takeoffH={}->{} gapMove={} tLip={} tDeck={}", st, fp.getX(), fp.getY(), fp.getZ(), minY,
-                    crossed, spent, takeoffX, takeoffHBefore, takeoffHAfter, gapMove, tLip, tDeck);
-            return new Leap(minY, crossed, spent, tLip, tDeck, hands.placeTally()
-                    + String.format(Locale.ROOT, " | end step=%s pos=(%.3f,%.3f,%.3f)", st, fp.getX(), fp.getY(), fp.getZ()));
+            reporter.publishEntry(
+                    "ticks",
+                    String.format(
+                            Locale.ROOT,
+                            "ran %d | reached lip cell t=%s | stood on deck" + " t=%s | left the pad t=%s",
+                            t,
+                            tLip < 0 ? "never" : String.valueOf(tLip),
+                            tDeck < 0 ? "never" : String.valueOf(tDeck),
+                            tFell < 0 ? "no" : String.valueOf(tFell)));
+            TestMod.LOG.info(
+                    "[wd.parkourVoidLongRunway] step={} pos=({},{},{}) minY={} crossed={} spent={} takeoffX={}"
+                            + " takeoffH={}->{} gapMove={} tLip={} tDeck={}",
+                    st,
+                    fp.getX(),
+                    fp.getY(),
+                    fp.getZ(),
+                    minY,
+                    crossed,
+                    spent,
+                    takeoffX,
+                    takeoffHBefore,
+                    takeoffHAfter,
+                    gapMove,
+                    tLip,
+                    tDeck);
+            return new Leap(
+                    minY,
+                    crossed,
+                    spent,
+                    tLip,
+                    tDeck,
+                    hands.placeTally()
+                            + String.format(
+                                    Locale.ROOT,
+                                    " | end step=%s pos=(%.3f,%.3f,%.3f)",
+                                    st,
+                                    fp.getX(),
+                                    fp.getY(),
+                                    fp.getZ()));
         });
 
         // Soft checks so every verdict is reported: "fell into the void" and "stood still on the lip" are opposite
         // outcomes and one merged line prints them the same.
-        game.check(leap.minY() > padAbs - 3, "A must not fall: lowest y of the whole run " + leap.minY() + " (pad y="
-                + padAbs + ", criterion minY > " + (padAbs - 3) + ")");
-        game.check(leap.crossed(), "B must get across (criterion x < " + (cx - GAP - 0.5) + " and |y - " + standAbs
-                + "| <= 0.4; leaping and bridging both count, standing still does not): " + leap.tally());
-        game.check(leap.spent() == 0, "C must have LEAPT, not bridged: " + leap.spent() + " cobblestone spent"
-                + " (place.tally=" + leap.tally() + ")");
-        game.check(leap.tDeck() >= 0 && leap.tLip() >= 0 && leap.tDeck() - leap.tLip() <= LEAP_TICKS,
+        game.check(
+                leap.minY() > padAbs - 3,
+                "A must not fall: lowest y of the whole run " + leap.minY() + " (pad y=" + padAbs
+                        + ", criterion minY > " + (padAbs - 3) + ")");
+        game.check(
+                leap.crossed(),
+                "B must get across (criterion x < " + (cx - GAP - 0.5) + " and |y - " + standAbs
+                        + "| <= 0.4; leaping and bridging both count, standing still does not): " + leap.tally());
+        game.check(
+                leap.spent() == 0,
+                "C must have LEAPT, not bridged: " + leap.spent() + " cobblestone spent" + " (place.tally="
+                        + leap.tally() + ")");
+        game.check(
+                leap.tDeck() >= 0 && leap.tLip() >= 0 && leap.tDeck() - leap.tLip() <= LEAP_TICKS,
                 "D must have leapt FAST: from reaching the lip cell t=" + (leap.tLip() < 0 ? "never" : leap.tLip())
                         + " to standing on the deck t=" + (leap.tDeck() < 0 ? "never" : leap.tDeck()) + ", budget "
                         + LEAP_TICKS + " ticks (never reaching the deck is a violation too)");
@@ -248,26 +330,26 @@ class ParkourVoidTest {
      *
      * <p>A leap over two cells of void is priced at {@code Parkour3}'s cost 32 — <b>the sprint-jump maximum</b>. The
      * only precondition the move enforces about the run-up is {@code Move.hasRunway}, whose entire body is
-     * {@code return w.isSolid(from.offset(0, -1, 0));} — which a 1x1 pillar top satisfies exactly as well as a twelve-cell
-     * runway. So the planner proposes, from a standing start on an isolated block, a leap costed for a player at full
-     * sprint. This test asserts a DIFFERENCE between the two searches; its long half must stay green through any fix,
-     * since a run-up model that refuses both pads has deleted the move.
+     * {@code return w.isSolid(from.offset(0, -1, 0));} — which a 1x1 pillar top satisfies exactly as well as a
+     * twelve-cell runway. So the planner proposes, from a standing start on an isolated block, a leap costed for a
+     * player at full sprint. This test asserts a DIFFERENCE between the two searches; its long half must stay green
+     * through any fix, since a run-up model that refuses both pads has deleted the move.
      *
      * <p><b>The inventory is cleared</b>, so the bot's view answers {@code canPlace} false and no bridge can appear in
      * either plan; otherwise the short half could go green by routing a bridge.
      */
     @Test
-    void parkourVoidRunwayGate(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot,
-                               TestReporter reporter) {
+    void parkourVoidRunwayGate(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = PAD_Y + 1;
-        final int shortDz = -4, longDz = 4;        // two 1-wide lanes, 8 cells apart across the void
+        final int shortDz = -4, longDz = 4; // two 1-wide lanes, 8 cells apart across the void
 
         Settings.pinUntimed(game).set("allowBreak", false).set("allowParkour4", false);
         catchFloor(plot, 6);
         buildPadGapDeck(plot, shortDz, 1, 0);
         buildPadGapDeck(plot, longDz, 6, 0);
 
-        SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, shortDz));   // spawned empty: no bridge bypass
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, shortDz)); // spawned empty: no bridge bypass
         final int cx = plot.origin().getX();
 
         SinglePlan shortPlan = bot.plan(PlanParams.of(bot.ref(), Targets.block(plot.at(-GAP - 6, standY, shortDz)))
@@ -287,14 +369,24 @@ class ParkourVoidTest {
         reporter.publishEntry("long.plan", planShape(longPlan));
         reporter.publishEntry("hasRunway", "short lip " + shortRunway + ", long lip " + longRunway);
         reporter.publishEntry("canPlace", hands.canPlace() + ", placeableBlockCount " + hands.placeableBlocks());
-        TestMod.LOG.info("[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} long.reached={} long.parkour={}"
-                        + " hasRunway(short)={} hasRunway(long)={}", shortPlan.goalReached(), shortLeaps,
-                longPlan.goalReached(), longLeaps, shortRunway, longRunway);
+        TestMod.LOG.info(
+                "[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} long.reached={} long.parkour={}"
+                        + " hasRunway(short)={} hasRunway(long)={}",
+                shortPlan.goalReached(),
+                shortLeaps,
+                longPlan.goalReached(),
+                longLeaps,
+                shortRunway,
+                longRunway);
 
-        game.check(!shortLeaps, "A a 1-cell launch pad must NOT plan a parkour across the void (a standing start, priced"
-                + " at the sprint-jump maximum 32): " + planShape(shortPlan));
-        game.check(longLeaps, "B a 6-cell launch pad MUST plan a parkour across the void (otherwise 'model the run-up'"
-                + " has deleted the move rather than given it a precondition): " + planShape(longPlan));
+        game.check(
+                !shortLeaps,
+                "A a 1-cell launch pad must NOT plan a parkour across the void (a standing start, priced"
+                        + " at the sprint-jump maximum 32): " + planShape(shortPlan));
+        game.check(
+                longLeaps,
+                "B a 6-cell launch pad MUST plan a parkour across the void (otherwise 'model the run-up'"
+                        + " has deleted the move rather than given it a precondition): " + planShape(longPlan));
     }
 
     /**
@@ -307,12 +399,12 @@ class ParkourVoidTest {
      * walk ends on the goal having spent one block, which sits under the landing cell.
      */
     @Test
-    void parkourPlaceLeapsOntoItsOwnBlock(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot,
-                                          TestReporter reporter) {
+    void parkourPlaceLeapsOntoItsOwnBlock(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = PAD_Y + 1;
         catchFloor(plot, 2);
-        plot.fill(0, PAD_Y, 0, 9, PAD_Y, 0, Blocks.STONE);        // launch pad, lip at x=0; x=-1 is void
-        plot.place(-2, PAD_Y, 1, Blocks.STONE);                   // the support beside the landing floor, and the goal
+        plot.fill(0, PAD_Y, 0, 9, PAD_Y, 0, Blocks.STONE); // launch pad, lip at x=0; x=-1 is void
+        plot.place(-2, PAD_Y, 1, Blocks.STONE); // the support beside the landing floor, and the goal
         BlockPos floor = plot.at(-2, PAD_Y, 0);
         BlockPos goal = plot.at(-2, standY, 1);
 
@@ -326,9 +418,11 @@ class ParkourVoidTest {
         SinglePlan on = bot.plan(ask);
         reporter.publishEntry("plan.off", planShape(off));
         reporter.publishEntry("plan.on", planShape(on));
-        game.check(off.edges().stream().noneMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
+        game.check(
+                off.edges().stream().noneMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
                 "with allowParkourPlace off the plan holds a parkourPlace edge: " + planShape(off));
-        game.check(on.edges().stream().anyMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
+        game.check(
+                on.edges().stream().anyMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
                 "with allowParkourPlace on the plan holds no parkourPlace edge: " + planShape(on));
 
         int padAbs = plot.at(0, PAD_Y, 0).getY();
@@ -345,25 +439,40 @@ class ParkourVoidTest {
                 bot.tick();
                 minY = Math.min(minY, fp.getY());
                 if (gapMove[0] == null && fp.getX() < lipX)
-                    gapMove[0] = bot.navigator().plan().flatMap(PlanCursor::move).orElse("none");
+                    gapMove[0] =
+                            bot.navigator().plan().flatMap(PlanCursor::move).orElse("none");
                 if (fp.getY() < padAbs - 3) break;
             }
             bot.park();
             return new double[] {minY, fp.getX(), fp.getY(), fp.getZ(), 16 - carrying(fp, Items.COBBLESTONE), t};
         });
-        boolean floorPlaced = game.onServer(s -> bot.level().getBlockState(floor).is(Blocks.COBBLESTONE));
-        String walked = String.format(Locale.ROOT, "minY=%.2f end=(%.2f,%.2f,%.2f) spent=%d ticks=%d move past the lip=%s",
-                walk[0], walk[1], walk[2], walk[3], (int) walk[4], (int) walk[5], gapMove[0]);
+        boolean floorPlaced =
+                game.onServer(s -> bot.level().getBlockState(floor).is(Blocks.COBBLESTONE));
+        String walked = String.format(
+                Locale.ROOT,
+                "minY=%.2f end=(%.2f,%.2f,%.2f) spent=%d ticks=%d move past the lip=%s",
+                walk[0],
+                walk[1],
+                walk[2],
+                walk[3],
+                (int) walk[4],
+                (int) walk[5],
+                gapMove[0]);
         reporter.publishEntry("walk", walked);
         game.check(walk[0] > padAbs - 1, "the bot fell during the leap: lowest y " + walk[0] + ", pad y " + padAbs);
         // Within a block of the goal's centre, at its height: the navigator calls a walk arrived at the edge of the
         // cell before it, which here is the placed block itself.
-        game.check(Math.hypot(walk[1] - (goal.getX() + 0.5), walk[3] - (goal.getZ() + 0.5)) <= 1.0
+        game.check(
+                Math.hypot(walk[1] - (goal.getX() + 0.5), walk[3] - (goal.getZ() + 0.5)) <= 1.0
                         && Math.abs(walk[2] - goal.getY()) <= 0.4,
                 "the bot did not end standing at the goal " + goal.toShortString() + ": " + walked);
-        game.check((int) walk[4] == 1, "the leap spent " + (int) walk[4] + " blocks, not the one landing block: " + walked);
-        game.check(floorPlaced, "no cobblestone under the landing cell " + floor.toShortString() + ": " + walked
-                + " | " + planShape(on));
+        game.check(
+                (int) walk[4] == 1,
+                "the leap spent " + (int) walk[4] + " blocks, not the one landing block: " + walked);
+        game.check(
+                floorPlaced,
+                "no cobblestone under the landing cell " + floor.toShortString() + ": " + walked + " | "
+                        + planShape(on));
     }
 
     /** True when the plan gets from the pad side to the deck side in ONE parkour edge. */
@@ -383,8 +492,11 @@ class ParkourVoidTest {
         for (PlanEdge e : plan.edges()) e.move().ifPresent(m -> byMove.merge(m, 1, Integer::sum));
         List<BlockPosition> path = plan.cells();
         return "goalReached=" + plan.goalReached() + " nodes=" + path.size()
-                + " cost=" + String.format(Locale.ROOT, "%.1f", (double) plan.search().finalCost())
+                + " cost="
+                + String.format(Locale.ROOT, "%.1f", (double) plan.search().finalCost())
                 + " moves " + (byMove.isEmpty() ? "{}" : byMove.toString())
-                + (path.isEmpty() ? "" : " last=" + Targets.cell(path.get(path.size() - 1)).toShortString());
+                + (path.isEmpty()
+                        ? ""
+                        : " last=" + Targets.cell(path.get(path.size() - 1)).toShortString());
     }
 }

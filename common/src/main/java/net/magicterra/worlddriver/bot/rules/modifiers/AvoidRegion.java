@@ -1,18 +1,17 @@
 package net.magicterra.worlddriver.bot.rules.modifiers;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.Region;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * Per-intent "route around this region" cost. A sphere charges a linear ramp from
- * {@code penalty} at the centre to 0 at the radius, matching the global {@code avoidPoints} ramp
- * in ClientWorldView so intent-scoped and global avoid behave identically; a box charges the
- * full {@code penalty} anywhere inside, having no centre to ramp toward. Admissible (>= 0).
- * Cells outside add nothing. {@code route.regions[].mode: "avoid"}.
+ * Per-intent "route around this region" cost. A sphere charges a linear ramp from {@code penalty} at the centre to 0 at
+ * the radius, matching the global {@code avoidPoints} ramp in ClientWorldView so intent-scoped and global avoid behave
+ * identically; a box charges the full {@code penalty} anywhere inside, having no centre to ramp toward. Admissible (>=
+ * 0). Cells outside add nothing. {@code route.regions[].mode: "avoid"}.
  */
 public record AvoidRegion(Region region, double penalty) implements CostModifier {
 

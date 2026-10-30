@@ -1,11 +1,10 @@
 package net.magicterra.worlddriver.testcontent;
 
+import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import com.google.gson.JsonObject;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Step;
 import net.magicterra.worlddriver.api.game.Positions;
@@ -56,8 +55,10 @@ public final class ValidationSteps {
             ServerPlayer player = players.get(0);
             player.teleportTo(s.overworld(), tx, ty, tz, Set.of(), 0f, 0f);
             double d = player.position().distanceTo(new Vec3(tx, ty, tz));
-            return d > 1.0 ? "asked for (" + tx + ", " + ty + ", " + tz + "), ended at " + player.position() + " ("
-                    + String.format(Locale.ROOT, "%.2f", d) + " away)" : null;
+            return d > 1.0
+                    ? "asked for (" + tx + ", " + ty + ", " + tz + "), ended at " + player.position() + " ("
+                            + String.format(Locale.ROOT, "%.2f", d) + " away)"
+                    : null;
         });
         if (drift != null) {
             throw new AssertionError("could not stand the player on the seeded test pad: " + drift + "; the scripts'"
@@ -65,7 +66,9 @@ public final class ValidationSteps {
         }
     }
 
-    /** {@code wd.validation.dedicated}: whether this game is a dedicated server, which decides a script's check count. */
+    /**
+     * {@code wd.validation.dedicated}: whether this game is a dedicated server, which decides a script's check count.
+     */
     @Step("wd.validation.dedicated")
     public static boolean dedicated(Game game) {
         return game.onServer(MinecraftServer::isDedicatedServer);
@@ -92,15 +95,17 @@ public final class ValidationSteps {
 
     private static String notListening(String server) {
         JsonObject envelope = new JsonObject();
-        envelope.add("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INTERNAL_ERROR,
-                "the " + server + " server is not listening")));
+        envelope.add(
+                "error",
+                ApiErrors.toTree(
+                        ApiError.of(ApiError.Code.INTERNAL_ERROR, "the " + server + " server is not listening")));
         return envelope.toString();
     }
 
     /**
      * {@code wd.validation.end}: logs a script's checks as a table, and stands down whatever it started. The scripts
-     * start real processes on the client and most never cancel them, which handed the next script a busy scheduler.
-     * A dedicated server has no bot to stand down.
+     * start real processes on the client and most never cancel them, which handed the next script a busy scheduler. A
+     * dedicated server has no bot to stand down.
      */
     @Step("wd.validation.end")
     public static void end(Game game, Map<String, Object> args) {
@@ -110,7 +115,11 @@ public final class ValidationSteps {
             Map<?, ?> check = (Map<?, ?>) o;
             boolean passed = Boolean.TRUE.equals(check.get("passed"));
             if (!passed) failed++;
-            LOG.info(String.format(Locale.ROOT, "  [%s] %-60s %5.0f ms", passed ? "PASS" : "FAIL", check.get("name"),
+            LOG.info(String.format(
+                    Locale.ROOT,
+                    "  [%s] %-60s %5.0f ms",
+                    passed ? "PASS" : "FAIL",
+                    check.get("name"),
                     ((Number) check.get("ms")).doubleValue()));
             if (!passed) LOG.error("        {}", check.get("error"));
         }

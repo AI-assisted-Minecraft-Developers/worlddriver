@@ -1,16 +1,14 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.application.DriverApplication;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 /**
- * The transports outlive a world: a client holding cursor N across a reload keeps asking for
- * {@code seq > N}. A counter that restarts at 1 answers that with silence until N new events have
- * been emitted, so dropping the buffer must never rewind the seq.
+ * The transports outlive a world: a client holding cursor N across a reload keeps asking for {@code seq > N}. A counter
+ * that restarts at 1 answers that with silence until N new events have been emitted, so dropping the buffer must never
+ * rewind the seq.
  */
 class EventSeqMonotonicTest {
 

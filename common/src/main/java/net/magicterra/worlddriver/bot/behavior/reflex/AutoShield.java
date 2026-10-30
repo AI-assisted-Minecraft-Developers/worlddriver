@@ -9,14 +9,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Phase B reflex — raise a shield against an incoming projectile or a meleeing
- * mob that's facing us, turning to face the threat (a shield only blocks from the
- * direction you look). Contends for the use key; the host arbitrates shield over
- * heal over eat. Creepers are NOT shielded (the blast goes through) — those are
- * the PanicChain's job, so this skips them.
+ * Phase B reflex — raise a shield against an incoming projectile or a meleeing mob that's facing us, turning to face
+ * the threat (a shield only blocks from the direction you look). Contends for the use key; the host arbitrates shield
+ * over heal over eat. Creepers are NOT shielded (the blast goes through) — those are the PanicChain's job, so this
+ * skips them.
  *
- * <p>Holds the use intent while raised; a shield in the offhand raises even with a
- * weapon in the main hand, otherwise we select a hotbar shield first.
+ * <p>Holds the use intent while raised; a shield in the offhand raises even with a weapon in the main hand, otherwise
+ * we select a hotbar shield first.
  */
 public final class AutoShield {
     private boolean raising;
@@ -28,14 +27,16 @@ public final class AutoShield {
         return focus(scan) != null;
     }
 
-    /** Pick the thing to face: a projectile predicted to hit, else a facing melee
-     *  mob within reach. Returns its position, or null if nothing to block. */
+    /**
+     * Pick the thing to face: a projectile predicted to hit, else a facing melee mob within reach. Returns its
+     * position, or null if nothing to block.
+     */
     private Vec3 focus(ThreatScanner.Scan scan) {
         for (ThreatScanner.Incoming in : scan.projectiles()) {
             if (in.willHit()) return in.pos();
         }
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.creeperSwell() > 0) continue;            // panic handles creepers
+            if (t.creeperSwell() > 0) continue; // panic handles creepers
             if (t.distance() <= 3.5 && t.facingMe()) return t.entity().position();
         }
         return null;
@@ -63,8 +64,7 @@ public final class AutoShield {
     }
 
     private boolean hasShield(Player p) {
-        return p.getInventory().offhand.get(0).is(Items.SHIELD)
-                || Hotbar.slotOf(p, Items.SHIELD) >= 0;
+        return p.getInventory().offhand.get(0).is(Items.SHIELD) || Hotbar.slotOf(p, Items.SHIELD) >= 0;
     }
 
     private void faceTowards(Player p, Vec3 at) {

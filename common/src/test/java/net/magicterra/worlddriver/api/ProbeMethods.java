@@ -3,42 +3,44 @@ package net.magicterra.worlddriver.api;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiHandler;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.annotation.Default;
 import net.magicterra.worlddriver.api.schema.annotation.Named;
 import net.magicterra.worlddriver.api.schema.annotation.Range;
-import net.magicterra.worlddriver.api.registry.ApiBatch;
-import net.magicterra.worlddriver.api.registry.ApiHandler;
-import net.magicterra.worlddriver.api.registry.ApiHandlers;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 /**
- * Two methods a JVM test can call without a world: {@code probe.echo}, a pollable read answering
- * {@code {value}}, and {@code probe.slow}, a request that holds its thread for {@code ms} the way a
- * slow read on a game thread would.
+ * Two methods a JVM test can call without a world: {@code probe.echo}, a pollable read answering {@code {value}}, and
+ * {@code probe.slow}, a request that holds its thread for {@code ms} the way a slow read on a game thread would.
  */
 public final class ProbeMethods {
     private ProbeMethods() {}
 
     @Named("ProbeEcho")
-    public record Echo(@Default("1") @Range(min = 0, max = 1_000_000) int value) {}
+    public record Echo(
+            @Default("1") @Range(min = 0, max = 1_000_000) int value) {}
 
     @Named("ProbeSlow")
     public record Slow(@Range(min = 0, max = 60_000) int ms) {}
 
     private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class);
 
-    public static final MethodSpec<Echo, Echo> ECHO = MethodSpec.of("probe.echo", ECHO_TYPE, ECHO_TYPE,
-            "Answers its own value.").asPollable();
+    public static final MethodSpec<Echo, Echo> ECHO = MethodSpec.of(
+                    "probe.echo", ECHO_TYPE, ECHO_TYPE, "Answers its own value.")
+            .asPollable();
 
-    public static final MethodSpec<Slow, Echo> SLOW = MethodSpec.of("probe.slow",
+    public static final MethodSpec<Slow, Echo> SLOW = MethodSpec.of(
+            "probe.slow",
             ApiTypes.record(Slow.class),
-            ECHO_TYPE, "Holds the calling thread for ms, then answers {value: ms}.");
+            ECHO_TYPE,
+            "Holds the calling thread for ms, then answers {value: ms}.");
 
     @Named("ProbeNone")
     public record None() {}
@@ -47,10 +49,14 @@ public final class ProbeMethods {
 
     /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
     public static void failing(ApiRegistry api, String name, Supplier<? extends RuntimeException> failure) {
-        publish(api, name, ApiHandlers.immediate((None p) -> { throw failure.get(); }));
+        publish(api, name, ApiHandlers.immediate((None p) -> {
+            throw failure.get();
+        }));
     }
 
-    /** Publish {@code name} on {@code api}: no parameters; each call counts into {@code calls} and answers the count. */
+    /**
+     * Publish {@code name} on {@code api}: no parameters; each call counts into {@code calls} and answers the count.
+     */
     public static void counting(ApiRegistry api, String name, AtomicInteger calls) {
         publish(api, name, ApiHandlers.immediate((None p) -> new Echo(calls.incrementAndGet())));
     }
@@ -79,16 +85,19 @@ public final class ProbeMethods {
 
     /** {@code api} with both probes registered. */
     public static ApiRegistry install(ApiRegistry api) {
-        api.registerBatch(new ApiBatch("probe", "probe", List.of(
-                new ApiMethod<>(ECHO, ApiHandlers.immediate(p -> p)),
-                new ApiMethod<>(SLOW, ApiHandlers.immediate(p -> {
-                    try {
-                        Thread.sleep(p.ms());
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                    return new Echo(p.ms());
-                })))));
+        api.registerBatch(new ApiBatch(
+                "probe",
+                "probe",
+                List.of(
+                        new ApiMethod<>(ECHO, ApiHandlers.immediate(p -> p)),
+                        new ApiMethod<>(SLOW, ApiHandlers.immediate(p -> {
+                            try {
+                                Thread.sleep(p.ms());
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return new Echo(p.ms());
+                        })))));
         return api;
     }
 }

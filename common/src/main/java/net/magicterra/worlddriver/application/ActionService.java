@@ -1,13 +1,11 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletionStage;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.action.ActionApi;
 import net.magicterra.worlddriver.api.methods.action.ActionApiBinding;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts;
@@ -18,76 +16,94 @@ import net.magicterra.worlddriver.api.methods.action.ActionContracts.Filled;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.PlaceManyParams;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.Placed;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.Via;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.game.edit.BlockEdits;
 import net.magicterra.worlddriver.game.edit.ServerCommands;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletionStage;
 
 /**
- * {@code mc.action.*} handlers, extracted from {@code DriverApplication}. Every write runs on the
- * server thread and emits through the shared event ring buffer; {@code returnEvents} answers what
- * was emitted from the call's start to its end.
+ * {@code mc.action.*} handlers, extracted from {@code DriverApplication}. Every write runs on the server thread and
+ * emits through the shared event ring buffer; {@code returnEvents} answers what was emitted from the call's start to
+ * its end.
  */
 public final class ActionService implements ActionApi {
     private final DriverApplication api;
-    ActionService(DriverApplication api) { this.api = api; }
+
+    ActionService(DriverApplication api) {
+        this.api = api;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return ActionApiBinding.methods(this);
     }
 
     /**
-     * Fill an axis-aligned box with one block type in a single server-thread hop. The contract
-     * refuses a box over the cell budget rather than clamping it, so a caller never believes a
-     * truncated region was filled. Emits one {@code block.fill} event for the box — not one per
-     * cell, so listeners aren't flooded.
+     * Fill an axis-aligned box with one block type in a single server-thread hop. The contract refuses a box over the
+     * cell budget rather than clamping it, so a caller never believes a truncated region was filled. Emits one
+     * {@code block.fill} event for the box — not one per cell, so listeners aren't flooded.
      */
     @Override
     public CompletionStage<Filled> fill(FillParams p, CallContext ctx) {
-        BlockPos min = new BlockPos(Math.min(p.from().x(), p.to().x()), Math.min(p.from().y(), p.to().y()),
+        BlockPos min = new BlockPos(
+                Math.min(p.from().x(), p.to().x()),
+                Math.min(p.from().y(), p.to().y()),
                 Math.min(p.from().z(), p.to().z()));
-        BlockPos max = new BlockPos(Math.max(p.from().x(), p.to().x()), Math.max(p.from().y(), p.to().y()),
+        BlockPos max = new BlockPos(
+                Math.max(p.from().x(), p.to().x()),
+                Math.max(p.from().y(), p.to().y()),
                 Math.max(p.from().z(), p.to().z()));
         BlockPos from = Positions.blockPos(p.from());
         ServerLevel level = api.level();
         // An unknown id is refused here, before anything is written.
         BlockState state = block("/type", p.type());
         long cursor = api.eventCursor();
-        return api.requireServerHop().submit(() -> {
-            int n = BlockEdits.fill(level, min, max, state);
-            api.emit(EventCatalog.BLOCK_FILL, from, new EventCatalog.BlockFill(p.type(), p.from(), p.to()));
-            return new Filled(n, api.eventsAfter(cursor, p.returnEvents()));
-        }, ctx);
+        return api.requireServerHop()
+                .submit(
+                        () -> {
+                            int n = BlockEdits.fill(level, min, max, state);
+                            api.emit(
+                                    EventCatalog.BLOCK_FILL,
+                                    from,
+                                    new EventCatalog.BlockFill(p.type(), p.from(), p.to()));
+                            return new Filled(n, api.eventsAfter(cursor, p.returnEvents()));
+                        },
+                        ctx);
     }
 
     /**
-     * Place a list of {pos, type} entries in one server-thread hop, cheaper than one call per
-     * block for scripted construction. Every id is resolved first, so an unknown one writes
-     * nothing. Emits one {@code block.place} event per cell.
+     * Place a list of {pos, type} entries in one server-thread hop, cheaper than one call per block for scripted
+     * construction. Every id is resolved first, so an unknown one writes nothing. Emits one {@code block.place} event
+     * per cell.
      */
     @Override
     public CompletionStage<Placed> placeMany(PlaceManyParams p, CallContext ctx) {
         List<BlockState> states = new ArrayList<>(p.blocks().size());
-        for (int i = 0; i < p.blocks().size(); i++) states.add(block("/blocks/" + i + "/type", p.blocks().get(i).type()));
+        for (int i = 0; i < p.blocks().size(); i++)
+            states.add(block("/blocks/" + i + "/type", p.blocks().get(i).type()));
         ServerLevel level = api.level();
         long cursor = api.eventCursor();
-        return api.requireServerHop().submit(() -> {
-            for (int i = 0; i < states.size(); i++) {
-                ActionContracts.Placement row = p.blocks().get(i);
-                BlockPos bp = Positions.blockPos(row.pos());
-                BlockEdits.set(level, bp, states.get(i));
-                api.emit(EventCatalog.BLOCK_PLACE, bp, row.type());
-            }
-            return new Placed(states.size(), api.eventsAfter(cursor, p.returnEvents()));
-        }, ctx);
+        return api.requireServerHop()
+                .submit(
+                        () -> {
+                            for (int i = 0; i < states.size(); i++) {
+                                ActionContracts.Placement row = p.blocks().get(i);
+                                BlockPos bp = Positions.blockPos(row.pos());
+                                BlockEdits.set(level, bp, states.get(i));
+                                api.emit(EventCatalog.BLOCK_PLACE, bp, row.type());
+                            }
+                            return new Placed(states.size(), api.eventsAfter(cursor, p.returnEvents()));
+                        },
+                        ctx);
     }
 
     /** The default state of block {@code id}, or invalid_params at {@code path}: the registry's default is air. */
@@ -100,19 +116,15 @@ public final class ActionService implements ActionApi {
     }
 
     /**
-     * Run a server command through Brigadier with operator-level permission, as the
-     * server or, with {@code as}, as that player ({@link ServerCommands#run}).
-     * Any verb is accepted (the command allow-list was removed). The legacy
-     * setblock fast-path (used pre-Brigadier wiring) is preserved so existing
-     * scripts and event consumers see the same {@code block.place} /
-     * {@code block.break} events as before.
+     * Run a server command through Brigadier with operator-level permission, as the server or, with {@code as}, as that
+     * player ({@link ServerCommands#run}). Any verb is accepted (the command allow-list was removed). The legacy
+     * setblock fast-path (used pre-Brigadier wiring) is preserved so existing scripts and event consumers see the same
+     * {@code block.place} / {@code block.break} events as before.
      *
-     * <p>Beyond dispatch status ({@code ok}), the result carries the command's own
-     * outcome so callers can assert on it: {@code success}/{@code value} come from
-     * the Brigadier result callback ({@code execute if entity} → match count), and
-     * {@code feedback} collects the chat lines the command would have shown
-     * ({@code data get} → the NBT text). {@code ok:true, success:false} means the
-     * command dispatched but reported failure (e.g. selector matched nothing).
+     * <p>Beyond dispatch status ({@code ok}), the result carries the command's own outcome so callers can assert on it:
+     * {@code success}/{@code value} come from the Brigadier result callback ({@code execute if entity} → match count),
+     * and {@code feedback} collects the chat lines the command would have shown ({@code data get} → the NBT text).
+     * {@code ok:true, success:false} means the command dispatched but reported failure (e.g. selector matched nothing).
      */
     @Override
     public CompletionStage<CommandResult> runCommand(CommandParams p, CallContext ctx) {
@@ -149,36 +161,59 @@ public final class ActionService implements ActionApi {
                 // erased: the registry's fallback for an unknown id is air.
                 boolean isAir = type.equals("air") || type.equals("minecraft:air");
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : block("/cmd", type);
-                return api.requireServerHop().submit(() -> {
-                    String prev = RegistryIds.blockId(BlockEdits.set(level, pos, newState));
-                    // The registry's id, not the command's text: "stone" is not a resource id.
-                    if (isAir) api.emit(EventCatalog.BLOCK_BREAK, pos, prev);
-                    else api.emit(EventCatalog.BLOCK_PLACE, pos, RegistryIds.blockId(newState));
-                    return new CommandResult(true, Optional.of(Via.FAST_PATH), Optional.empty(), true, 1, List.of(),
-                            api.eventsAfter(cursor, p.returnEvents()));
-                }, ctx);
+                return api.requireServerHop()
+                        .submit(
+                                () -> {
+                                    String prev = RegistryIds.blockId(BlockEdits.set(level, pos, newState));
+                                    // The registry's id, not the command's text: "stone" is not a resource id.
+                                    if (isAir) api.emit(EventCatalog.BLOCK_BREAK, pos, prev);
+                                    else api.emit(EventCatalog.BLOCK_PLACE, pos, RegistryIds.blockId(newState));
+                                    return new CommandResult(
+                                            true,
+                                            Optional.of(Via.FAST_PATH),
+                                            Optional.empty(),
+                                            true,
+                                            1,
+                                            List.of(),
+                                            api.eventsAfter(cursor, p.returnEvents()));
+                                },
+                                ctx);
             }
             // else fall through to Brigadier
         }
 
         String finalCmd = trimmed;
         MinecraftServer s = api.server();
-        return api.requireServerHop().submit(() -> {
-            ServerPlayer as = null;
-            if (p.as().isPresent()) {
-                as = BotRegistry.serverPlayer(s, p.as().get());
-                if (as == null) {
-                    throw ApiException.invalidParam("/as", ApiIssue.Code.INVALID_VALUE,
-                            "no player " + p.as().get().substring("player:".length()) + " on this server");
-                }
-            }
-            ServerCommands.Outcome o = ServerCommands.run(s, finalCmd, as);
-            // Push a command.result event so subscribers see commands run by any
-            // agent/transport (the synchronous return only reaches the caller).
-            api.emit(EventCatalog.COMMAND_RESULT, null, new EventCatalog.CommandResult(finalCmd, o.ok(), o.success()));
-            return new CommandResult(o.ok(), o.ok() ? Optional.of(Via.BRIGADIER) : Optional.empty(),
-                    Optional.ofNullable(o.error()), o.success(), o.value(), o.feedback(),
-                    api.eventsAfter(cursor, p.returnEvents()));
-        }, ctx);
+        return api.requireServerHop()
+                .submit(
+                        () -> {
+                            ServerPlayer as = null;
+                            if (p.as().isPresent()) {
+                                as = BotRegistry.serverPlayer(s, p.as().get());
+                                if (as == null) {
+                                    throw ApiException.invalidParam(
+                                            "/as",
+                                            ApiIssue.Code.INVALID_VALUE,
+                                            "no player " + p.as().get().substring("player:".length())
+                                                    + " on this server");
+                                }
+                            }
+                            ServerCommands.Outcome o = ServerCommands.run(s, finalCmd, as);
+                            // Push a command.result event so subscribers see commands run by any
+                            // agent/transport (the synchronous return only reaches the caller).
+                            api.emit(
+                                    EventCatalog.COMMAND_RESULT,
+                                    null,
+                                    new EventCatalog.CommandResult(finalCmd, o.ok(), o.success()));
+                            return new CommandResult(
+                                    o.ok(),
+                                    o.ok() ? Optional.of(Via.BRIGADIER) : Optional.empty(),
+                                    Optional.ofNullable(o.error()),
+                                    o.success(),
+                                    o.value(),
+                                    o.feedback(),
+                                    api.eventsAfter(cursor, p.returnEvents()));
+                        },
+                        ctx);
     }
 }

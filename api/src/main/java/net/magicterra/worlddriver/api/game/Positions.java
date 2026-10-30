@@ -9,9 +9,15 @@ import net.minecraft.world.phys.Vec3;
 public final class Positions {
     private Positions() {}
 
-    public static BlockPosition position(BlockPos p) { return new BlockPosition(p.getX(), p.getY(), p.getZ()); }
+    public static BlockPosition position(BlockPos p) {
+        return new BlockPosition(p.getX(), p.getY(), p.getZ());
+    }
 
-    public static BlockPos blockPos(BlockPosition p) { return new BlockPos(p.x(), p.y(), p.z()); }
+    public static BlockPos blockPos(BlockPosition p) {
+        return new BlockPos(p.x(), p.y(), p.z());
+    }
 
-    public static Point point(Vec3 v) { return new Point(v.x, v.y, v.z); }
+    public static Point point(Vec3 v) {
+        return new Point(v.x, v.y, v.z);
+    }
 }

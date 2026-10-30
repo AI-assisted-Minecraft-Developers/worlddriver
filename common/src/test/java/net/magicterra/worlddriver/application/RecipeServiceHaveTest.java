@@ -5,13 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import java.util.Optional;
-
 import net.minecraft.world.entity.player.Player;
 import org.junit.jupiter.api.Test;
 
 /**
- * What a recipe plan is planned against when nobody's bag can be read (gap #44). The bag itself, read when
- * {@code have} is omitted for a bot, is held by the scene {@code wd.serverPlanHaveDefaultsToBag}.
+ * What a recipe plan is planned against when nobody's bag can be read (gap #44). The bag itself, read when {@code have}
+ * is omitted for a bot, is held by the scene {@code wd.serverPlanHaveDefaultsToBag}.
  */
 class RecipeServiceHaveTest {
 
@@ -22,8 +21,10 @@ class RecipeServiceHaveTest {
 
     @Test
     void anExplicitHaveIsUsedVerbatimEvenWithNobody() {
-        assertEquals(Map.of("minecraft:cobblestone", 3),
+        assertEquals(
+                Map.of("minecraft:cobblestone", 3),
                 RecipeService.resolveHave(Optional.of(Map.of("minecraft:cobblestone", 3)), (Player) null));
-        assertTrue(RecipeService.resolveHave(Optional.of(Map.of()), (Player) null).isEmpty());
+        assertTrue(
+                RecipeService.resolveHave(Optional.of(Map.of()), (Player) null).isEmpty());
     }
 }

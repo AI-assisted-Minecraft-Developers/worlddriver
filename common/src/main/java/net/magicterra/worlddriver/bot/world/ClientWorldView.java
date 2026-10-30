@@ -1,55 +1,48 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.world.CellRules;
-import net.magicterra.worlddriver.bot.world.HazardField;
-import net.magicterra.worlddriver.bot.world.StateWorldView;
-import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.minecraft.core.BlockPos;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.phys.Vec3;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.function.Supplier;
-
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.BlockItem;
-import java.util.ArrayList;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.Vec3;
 
-/** Reads the live client {@link Level} for the pathfinder: passability, solidity,
- *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. The cell predicates are
- *  {@link StateWorldView}'s, shared with the server views so the wd.* suite plans on the rules the
- *  shipped client plans on ({@code wd.clientWorldViewParity}); this view supplies the cached state.
- *  The level and the player come from whoever builds it — the client wiring hands in the client's
- *  own — so the view names no client class. */
-
+/**
+ * Reads the live client {@link Level} for the pathfinder: passability, solidity, fluids, climbables, hazards and
+ * break-cost. Extracted from BotApiImpl. The cell predicates are {@link StateWorldView}'s, shared with the server views
+ * so the wd.* suite plans on the rules the shipped client plans on ({@code wd.clientWorldViewParity}); this view
+ * supplies the cached state. The level and the player come from whoever builds it — the client wiring hands in the
+ * client's own — so the view names no client class.
+ */
 public final class ClientWorldView implements StateWorldView {
-    /** Read afresh on every call: either may be null (title screen, a world being torn down) and
-     *  both change across a dimension hop or a reconnect. */
+    /**
+     * Read afresh on every call: either may be null (title screen, a world being torn down) and both change across a
+     * dimension hop or a reconnect.
+     */
     private final Supplier<? extends Level> level;
+
     private final Supplier<? extends Player> player;
 
     public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
@@ -70,27 +63,48 @@ public final class ClientWorldView implements StateWorldView {
     private volatile CellRules.DigSnapshot dig = CellRules.DigSnapshot.BARE;
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
-    @Override public void diveSearch(boolean on) { diveSearch = on; }
-    @Override public boolean surfaceWaterNodes() { return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
-    /** The bot's WorldModel, injected by the client wiring so dangerCost can query the
-     *  per-tick HazardField; null until wired (headless / unit tests). */
+
+    @Override
+    public void diveSearch(boolean on) {
+        diveSearch = on;
+    }
+
+    @Override
+    public boolean surfaceWaterNodes() {
+        return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch;
+    }
+    /**
+     * The bot's WorldModel, injected by the client wiring so dangerCost can query the per-tick HazardField; null until
+     * wired (headless / unit tests).
+     */
     private WorldModel worldModel;
-    /** HazardField snapshotted at the start of each search (beginSearch) so
-     *  dangerCost queries are consistent across the whole A* run and don't
-     *  race the per-tick WorldModel update. */
+    /**
+     * HazardField snapshotted at the start of each search (beginSearch) so dangerCost queries are consistent across the
+     * whole A* run and don't race the per-tick WorldModel update.
+     */
     private HazardField hazardSnapshot;
-    /** Flee-context, snapshotted at beginSearch: when true (a RunAwayProcess is
-     *  driving this search) water/ledge danger is boosted so the flee won't dive
-     *  into water or off a cliff. Consistent for the whole A* run. */
+    /**
+     * Flee-context, snapshotted at beginSearch: when true (a RunAwayProcess is driving this search) water/ledge danger
+     * is boosted so the flee won't dive into water or off a cliff. Consistent for the whole A* run.
+     */
     private volatile boolean fleeSearch;
+
     private final MoveSignals signals = new MoveSignals();
-    @Override public MoveSignals signals() { return signals; }
-    /** Survivable fall depth (blocks) for the controlled entity's CURRENT health,
-     *  snapshotted per search. The ledge penalty fires only for drops DEEPER than
-     *  this (a genuinely lethal lip) — a healthy bot descends hillsides freely; a
-     *  fragile one avoids dangerous drops. Default a full-HP value until snapshotted. */
+
+    @Override
+    public MoveSignals signals() {
+        return signals;
+    }
+    /**
+     * Survivable fall depth (blocks) for the controlled entity's CURRENT health, snapshotted per search. The ledge
+     * penalty fires only for drops DEEPER than this (a genuinely lethal lip) — a healthy bot descends hillsides freely;
+     * a fragile one avoids dangerous drops. Default a full-HP value until snapshotted.
+     */
     private volatile int ledgeSafeDepth = 22;
-    public void setWorldModel(WorldModel wm) { this.worldModel = wm; }
+
+    public void setWorldModel(WorldModel wm) {
+        this.worldModel = wm;
+    }
 
     // ── Per-search blockstate cache ──────────────────────────────────────────
     // Node expansion is the hot path: each candidate move re-reads the SAME cells
@@ -112,28 +126,33 @@ public final class ClientWorldView implements StateWorldView {
     // directly.
     private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
     private boolean cacheActive = false;
-    /** Toggled true by the time-sliced search around its node-expansion work, false
-     *  otherwise (Navigator per-tick reads). When false, {@link #state} bypasses the
-     *  cache entirely so live reads stay fresh.
-     *  <p>Every slice starts empty. The map used to live for the whole search, and a search
-     *  from a tunnel spans tens to hundreds of ticks while the bot digs: the cells it dug
-     *  stayed solid in the search's eyes, and cells it placed stayed air. A slice is a few
-     *  milliseconds of a static world; a search is not. */
-    @Override public void cacheActive(boolean on) {
+    /**
+     * Toggled true by the time-sliced search around its node-expansion work, false otherwise (Navigator per-tick
+     * reads). When false, {@link #state} bypasses the cache entirely so live reads stay fresh.
+     *
+     * <p>Every slice starts empty. The map used to live for the whole search, and a search from a tunnel spans tens to
+     * hundreds of ticks while the bot digs: the cells it dug stayed solid in the search's eyes, and cells it placed
+     * stayed air. A slice is a few milliseconds of a static world; a search is not.
+     */
+    @Override
+    public void cacheActive(boolean on) {
         if (on) stateCache.clear();
         this.cacheActive = on;
     }
-    /** No level yet (title screen, or a world being torn down) means no tick to group by,
-     *  and the default sentinel disables the accounting rather than folding every search
-     *  into one imaginary tick. */
-    @Override public long tickMarker() {
+    /**
+     * No level yet (title screen, or a world being torn down) means no tick to group by, and the default sentinel
+     * disables the accounting rather than folding every search into one imaginary tick.
+     */
+    @Override
+    public long tickMarker() {
         Level lvl = level.get();
         return lvl == null ? Long.MIN_VALUE : lvl.getGameTime();
     }
-    /** Single funnel for every world blockstate read in this class. Cached only
-     *  while {@link #cacheActive} (a search slice) AND {@link WorldConfig#pathfinderCacheEnabled};
-     *  otherwise reads straight through. Returns AIR when the level is gone so callers
-     *  behave as for an unloaded cell. */
+    /**
+     * Single funnel for every world blockstate read in this class. Cached only while {@link #cacheActive} (a search
+     * slice) AND {@link WorldConfig#pathfinderCacheEnabled}; otherwise reads straight through. Returns AIR when the
+     * level is gone so callers behave as for an unloaded cell.
+     */
     private BlockState state(BlockPos p) {
         Level lvl = level.get();
         if (lvl == null) return Blocks.AIR.defaultBlockState();
@@ -146,10 +165,19 @@ public final class ClientWorldView implements StateWorldView {
         }
         return s;
     }
-    @Override public BlockState blockState(BlockPos p) { return state(p); }
-    @Override public Level stateLevel() { return level.get(); }
 
-    @Override public boolean isKnown(BlockPos p) {
+    @Override
+    public BlockState blockState(BlockPos p) {
+        return state(p);
+    }
+
+    @Override
+    public Level stateLevel() {
+        return level.get();
+    }
+
+    @Override
+    public boolean isKnown(BlockPos p) {
         Level lvl = level.get();
         if (lvl == null) return false;
         // ClientChunkCache.hasChunk → the chunk is actually loaded client-side
@@ -157,14 +185,18 @@ public final class ClientWorldView implements StateWorldView {
         // very ambiguity isKnown disambiguates for the long-distance planner).
         return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
-    @Override public Vec3 waterFlow(BlockPos p) {
+
+    @Override
+    public Vec3 waterFlow(BlockPos p) {
         Level lvl = level.get();
         if (lvl == null) return Vec3.ZERO;
         FluidState fs = state(p).getFluidState();
         if (!fs.is(FluidTags.WATER)) return Vec3.ZERO;
-        return fs.getFlow(lvl, p);   // (x,y,z) velocity; zero for a still source
+        return fs.getFlow(lvl, p); // (x,y,z) velocity; zero for a still source
     }
-    @Override public double directionalCost(BlockPos from, BlockPos to) {
+
+    @Override
+    public double directionalCost(BlockPos from, BlockPos to) {
         double dc = 0;
         // §91 steep-ascent chain tax (#15 smoothness: the slow-map showed 74% of a
         // mixed journey's samples under 1.5 b/s, 220s/300s burned in THREE steep-climb
@@ -188,16 +220,18 @@ public final class ClientWorldView implements StateWorldView {
         Vec3 flow = waterFlow(to);
         double fx = flow.x, fz = flow.z;
         double fm = Math.sqrt(fx * fx + fz * fz);
-        if (fm < 1e-3) return dc;                              // still water → no current
+        if (fm < 1e-3) return dc; // still water → no current
         double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
         double dm = Math.sqrt(dx * dx + dz * dz);
-        if (dm < 1e-6) return dc;                              // pure vertical move
+        if (dm < 1e-6) return dc; // pure vertical move
         // Component of travel AGAINST the current (>0 only when heading upstream).
-        double upstream = -(fx * dx + fz * dz) / dm;          // = |flow|·cos(angle to downstream), signed
-        if (upstream <= 0) return dc;                          // crossing or with the flow → no extra cost
-        return dc + WorldConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
+        double upstream = -(fx * dx + fz * dz) / dm; // = |flow|·cos(angle to downstream), signed
+        if (upstream <= 0) return dc; // crossing or with the flow → no extra cost
+        return dc + WorldConfig.waterFlowPenalty * upstream; // |flow|·cosθ scaled
     }
-    @Override public double breakCost(BlockPos p) {
+
+    @Override
+    public double breakCost(BlockPos p) {
         // Hopeless-dig poison (see BreakFeasibility): cells the executor proved
         // unfinishable price +INF so the next search routes around (live 2026-07-21:
         // quick-start stub kept re-adopting a bare-hand submerged bank carve,
@@ -218,15 +252,16 @@ public final class ClientWorldView implements StateWorldView {
         }
         return rawBreakCost(p);
     }
-    /** Vanilla's underwater mining multiplier (no Aqua Affinity): eyes in water
-     *  while digging = ÷5 destroy speed. Applied when the move's from-node has
-     *  its EYE cell (from+1) in water — then the dig genuinely happens submerged
-     *  and the stance-free estimate is 5× too cheap, which is exactly how A*
-     *  chose a lake-bed deepslate tunnel over a surface swim (round37). The
-     *  extra ×5 for not-on-ground is left out: from-nodes are standable cells,
-     *  the swimming-while-floating case is rarer and the single ×5 already
-     *  reprices a 7.5s dig to 37.5s — far past any swim detour. */
-    @Override public double breakCost(BlockPos p, BlockPos from) {
+    /**
+     * Vanilla's underwater mining multiplier (no Aqua Affinity): eyes in water while digging = ÷5 destroy speed.
+     * Applied when the move's from-node has its EYE cell (from+1) in water — then the dig genuinely happens submerged
+     * and the stance-free estimate is 5× too cheap, which is exactly how A* chose a lake-bed deepslate tunnel over a
+     * surface swim (round37). The extra ×5 for not-on-ground is left out: from-nodes are standable cells, the
+     * swimming-while-floating case is rarer and the single ×5 already reprices a 7.5s dig to 37.5s — far past any swim
+     * detour.
+     */
+    @Override
+    public double breakCost(BlockPos p, BlockPos from) {
         double c = breakCost(p);
         if (c > 0 && Double.isFinite(c) && isWater(from.offset(0, 1, 0))) {
             // pathfinderFloatingBreakTax (§81, ultra#1): when the FROM cell itself is
@@ -239,26 +274,29 @@ public final class ClientWorldView implements StateWorldView {
         }
         return c;
     }
-    /** Search origin (the bot's block pos when this findPath began), snapshotted
-     *  in {@link #beginSearch}. Water-escape breaks are only priced finite within
-     *  {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}. */
+    /**
+     * Search origin (the bot's block pos when this findPath began), snapshotted in {@link #beginSearch}. Water-escape
+     * breaks are only priced finite within {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}.
+     */
     private volatile BlockPos escapeOrigin = null;
-    /** Chebyshev radius around the search origin in which water-escape breaks are
-     *  allowed. WHY this exists: the swim-escape break moves let A* mine through
-     *  ANY bank, which — applied to every water cell of an open ocean — explodes
-     *  the branching factor (observed: 16k+ nodes, search never completes, bot
-     *  drowns waiting for a path). The escape use-case is purely LOCAL ("I'm stuck
-     *  HERE, dig out HERE"), so confining break candidates to a small bubble around
-     *  the stuck bot keeps the search tractable while still digging out of a pit /
-     *  high bank. Beyond it, water pathing uses only swim/walk/normal moves. */
+    /**
+     * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
+     * swim-escape break moves let A* mine through ANY bank, which — applied to every water cell of an open ocean —
+     * explodes the branching factor (observed: 16k+ nodes, search never completes, bot drowns waiting for a path). The
+     * escape use-case is purely LOCAL ("I'm stuck HERE, dig out HERE"), so confining break candidates to a small bubble
+     * around the stuck bot keeps the search tractable while still digging out of a pit / high bank. Beyond it, water
+     * pathing uses only swim/walk/normal moves.
+     */
     private static final int ESCAPE_RADIUS = 6;
-    @Override public double escapeBreakCost(BlockPos p) {
+
+    @Override
+    public double escapeBreakCost(BlockPos p) {
         if (!WorldConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
         BlockPos o = escapeOrigin;
         boolean nearOrigin = o == null
                 || (Math.abs(p.getX() - o.getX()) <= ESCAPE_RADIUS
-                 && Math.abs(p.getY() - o.getY()) <= ESCAPE_RADIUS
-                 && Math.abs(p.getZ() - o.getZ()) <= ESCAPE_RADIUS);
+                        && Math.abs(p.getY() - o.getY()) <= ESCAPE_RADIUS
+                        && Math.abs(p.getZ() - o.getZ()) <= ESCAPE_RADIUS);
         // Allow a break either inside the local bubble around the (stuck) bot OR
         // on a BANK FACE that rises out of nearby water within a bounded depth.
         // WHY the second clause: a bot that must SWIM a wide river (>ESCAPE_RADIUS)
@@ -285,78 +323,80 @@ public final class ClientWorldView implements StateWorldView {
         return rawBreakCost(p);
     }
 
-    /** True if the candidate break cell {@code p} is part of a bank face rising
-     *  out of water within {@code maxDepth} blocks: water straight DOWN (the
-     *  waterline) OR water down an OPEN cardinal-neighbour face (the exposed sheet
-     *  of a sheer cliff over the water the bot escaped — the case that a strict
-     *  straight-down scan misses once the staircase has carved up into the cliff).
-     *  Mirrors {@link net.magicterra.worlddriver.bot.rules.Move#bankClimbContext}
-     *  so a break the move would emit is also priced finite. Each face scan stops
-     *  at the first solid cell, never tunnelling down through rock to unrelated
-     *  water. ≤5·maxDepth reads, only for cells outside the origin bubble. */
+    /**
+     * True if the candidate break cell {@code p} is part of a bank face rising out of water within {@code maxDepth}
+     * blocks: water straight DOWN (the waterline) OR water down an OPEN cardinal-neighbour face (the exposed sheet of a
+     * sheer cliff over the water the bot escaped — the case that a strict straight-down scan misses once the staircase
+     * has carved up into the cliff). Mirrors {@link net.magicterra.worlddriver.bot.rules.Move#bankClimbContext} so a
+     * break the move would emit is also priced finite. Each face scan stops at the first solid cell, never tunnelling
+     * down through rock to unrelated water. ≤5·maxDepth reads, only for cells outside the origin bubble.
+     */
     private boolean risesFromWater(BlockPos p, int maxDepth) {
         BlockPos c = p.offset(0, -1, 0);
         for (int d = 1; d <= maxDepth; d++, c = c.offset(0, -1, 0)) {
             if (isWater(c)) return true;
-            if (!isSolid(c)) break;                       // gap under the column → try the open faces
+            if (!isSolid(c)) break; // gap under the column → try the open faces
         }
         for (int[] off : ESCAPE_FACE_OFFSETS) {
             BlockPos face = p.offset(off[0], 0, off[1]);
-            if (isSolid(face)) continue;                  // solid neighbour = into the cliff, not a face
+            if (isSolid(face)) continue; // solid neighbour = into the cliff, not a face
             BlockPos f = face;
             for (int d = 0; d <= maxDepth; d++, f = f.offset(0, -1, 0)) {
                 if (isWater(f)) return true;
-                if (isSolid(f)) break;                    // face interrupted by solid → not the open water face
+                if (isSolid(f)) break; // face interrupted by solid → not the open water face
             }
         }
         return false;
     }
     /** Cardinal offsets for {@link #risesFromWater}'s open-face probe. */
     private static final int[][] ESCAPE_FACE_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    /** Tool-aware mining cost, independent of which break-gate authorised it
-     *  (general allowBreak vs the water-escape allowSwimEscapeBreak). */
+    /**
+     * Tool-aware mining cost, independent of which break-gate authorised it (general allowBreak vs the water-escape
+     * allowSwimEscapeBreak).
+     */
     private double rawBreakCost(BlockPos p) {
         Level lvl = level.get();
         Player pl = player.get();
         if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
         return CellRules.breakCost(lvl, p, state(p), pl, dig);
     }
-    @Override public boolean canPlace() {
+
+    @Override
+    public boolean canPlace() {
         return WorldConfig.allowPlace && hasPlaceableBlock();
     }
-    @Override public boolean canParkourPlace() {
+
+    @Override
+    public boolean canParkourPlace() {
         return WorldConfig.allowParkourPlace && hasPlaceableBlock();
     }
-    /** A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull
-     *  from anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded:
-     *  a BRIDGE or PARKOUR place sets a block over air/water, where a falling block
-     *  immediately drops away — so it can never form the footing those moves rely on.
-     *  Counting sand as placeable made A* plan a pillar-up the bot then couldn't
-     *  build (it bobbed in place forever). With none, A* falls back to the
-     *  break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no
-     *  placed blocks.
+    /**
+     * A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull from anywhere). Falling blocks
+     * (sand/gravel/concrete_powder) are excluded: a BRIDGE or PARKOUR place sets a block over air/water, where a
+     * falling block immediately drops away — so it can never form the footing those moves rely on. Counting sand as
+     * placeable made A* plan a pillar-up the bot then couldn't build (it bobbed in place forever). With none, A* falls
+     * back to the break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no placed blocks.
      *
-     *  <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A
-     *  pillar sets its block on the solid rung the bot is standing on, so nothing
-     *  drops away — {@code BuildBlocks#isUsablePillarBlock} exists precisely to say so
-     *  ("that hazard does not exist for an in-place pillar") and accepts sand/gravel.
-     *  Two separate things follow, and only the first is a real divergence:
-     *  <ul>
-     *    <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while
-     *        the navigator's pillar actuators gate on {@code net.magicterra.worlddriver.game.body.Equipment#holdPillarBlock} →
-     *        {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks
-     *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a bot
-     *        carrying only sand — deserts, beaches, rivers — gets zero planned PillarUp
-     *        edges for a climb its own recovery path would pillar out of.
-     *        {@code DrivePhase} and {@code StallDetectPhase} both already say
-     *        in so many words "gate on holdPillarBlock (not world.canPlace)"; that
-     *        knowledge simply never reached this javadoc.</li>
-     *    <li>The "bobbed in place forever" measurement is still real, but it dates from
-     *        before {@code isUsablePillarBlock} existed and does not license the stated
-     *        reason.</li>
-     *  </ul>
-     *  Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A*
-     *  will plan, which is the direction that needs a gate run rather than a tidy-up. */
+     * <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A pillar sets its block on the solid
+     * rung the bot is standing on, so nothing drops away — {@code BuildBlocks#isUsablePillarBlock} exists precisely to
+     * say so ("that hazard does not exist for an in-place pillar") and accepts sand/gravel. Two separate things follow,
+     * and only the first is a real divergence:
+     *
+     * <ul>
+     *   <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while the navigator's pillar
+     *       actuators gate on {@code net.magicterra.worlddriver.game.body.Equipment#holdPillarBlock} →
+     *       {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks AND reaches menu slots 9-35
+     *       through {@code swapFromMainInv}. So a bot carrying only sand — deserts, beaches, rivers — gets zero planned
+     *       PillarUp edges for a climb its own recovery path would pillar out of. {@code DrivePhase} and
+     *       {@code StallDetectPhase} both already say in so many words "gate on holdPillarBlock (not world.canPlace)";
+     *       that knowledge simply never reached this javadoc.
+     *   <li>The "bobbed in place forever" measurement is still real, but it dates from before
+     *       {@code isUsablePillarBlock} existed and does not license the stated reason.
+     * </ul>
+     *
+     * Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A* will plan, which is the direction
+     * that needs a gate run rather than a tidy-up.
+     */
     private boolean hasPlaceableBlock() {
         Player pl = player.get();
         if (pl == null) return false;
@@ -365,14 +405,17 @@ public final class ClientWorldView implements StateWorldView {
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue; // falling/thin/non-cube → no footing
             return true;
         }
         return false;
     }
-    /** Total count of placeable, non-falling blocks on the hotbar — the placement
-     *  budget (see {@link WorldView#placeableBlockCount}). Creative = unbounded. */
-    @Override public int placeableBlockCount() {
+    /**
+     * Total count of placeable, non-falling blocks on the hotbar — the placement budget (see
+     * {@link WorldView#placeableBlockCount}). Creative = unbounded.
+     */
+    @Override
+    public int placeableBlockCount() {
         Player pl = player.get();
         if (pl == null) return 0;
         if (pl.isCreative()) return Integer.MAX_VALUE;
@@ -384,23 +427,38 @@ public final class ClientWorldView implements StateWorldView {
     // are already hard-rejected by isHazard/canStandAt, and 12 face reads
     // keep the per-node cost cheap.
     private static final int[][] DANGER_OFFSETS = {
-            { 1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1},   // foot ring
-            { 1, 1, 0}, {-1, 1, 0}, {0, 1, 1}, {0, 1, -1},   // head ring
-            { 1,-1, 0}, {-1,-1, 0}, {0,-1, 1}, {0,-1, -1},   // below-feet ring
-            // Diagonals + straight-up: a swim route hugging a lava shore kept its
-            // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide player
-            // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
-            // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
-            // res masked what would kill a naked bot). Charging the diagonal and
-            // overhead cells makes A* keep a 1-cell margin whenever any detour
-            // exists; a true single-file lava channel still prices in, not out.
-            { 0, 1, 0},
-            { 1, 0, 1}, { 1, 0,-1}, {-1, 0, 1}, {-1, 0,-1},  // foot diagonals
-            { 1, 1, 1}, { 1, 1,-1}, {-1, 1, 1}, {-1, 1,-1},  // head diagonals
+        {1, 0, 0},
+        {-1, 0, 0},
+        {0, 0, 1},
+        {0, 0, -1}, // foot ring
+        {1, 1, 0},
+        {-1, 1, 0},
+        {0, 1, 1},
+        {0, 1, -1}, // head ring
+        {1, -1, 0},
+        {-1, -1, 0},
+        {0, -1, 1},
+        {0, -1, -1}, // below-feet ring
+        // Diagonals + straight-up: a swim route hugging a lava shore kept its
+        // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide player
+        // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
+        // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
+        // res masked what would kill a naked bot). Charging the diagonal and
+        // overhead cells makes A* keep a 1-cell margin whenever any detour
+        // exists; a true single-file lava channel still prices in, not out.
+        {0, 1, 0},
+        {1, 0, 1},
+        {1, 0, -1},
+        {-1, 0, 1},
+        {-1, 0, -1}, // foot diagonals
+        {1, 1, 1},
+        {1, 1, -1},
+        {-1, 1, 1},
+        {-1, 1, -1}, // head diagonals
     };
     // The 4 cardinal horizontal neighbours, for the cliff-edge probe below.
     private static final int[][] HORIZONTAL_4 = {
-            { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
     };
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
@@ -412,25 +470,24 @@ public final class ClientWorldView implements StateWorldView {
     // entry; beginSearch prunes expired ones and snapshots the rest into
     // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
     private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
-    private final Map<BlockPos, Integer> stuckStrength = new HashMap<>();   // accumulated wedge count per node
-    private float[] stuckAvoidXyz = new float[0];     // flat [x,y,z,strength, ...] (stride-4), snapshot per search
-    private static final long STUCK_AVOID_MS = 15_000;        // entries decay after 15s
-    private static final double STUCK_AVOID_PENALTY = 600;    // soft, finite — a sole route is still taken
-    private static final double STUCK_AVOID_RADIUS = 2.5;     // blocks; smooth bump around the failed node
-    private static final int STUCK_AVOID_MAX_STRENGTH = 6;    // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
+    private final Map<BlockPos, Integer> stuckStrength = new HashMap<>(); // accumulated wedge count per node
+    private float[] stuckAvoidXyz = new float[0]; // flat [x,y,z,strength, ...] (stride-4), snapshot per search
+    private static final long STUCK_AVOID_MS = 15_000; // entries decay after 15s
+    private static final double STUCK_AVOID_PENALTY = 600; // soft, finite — a sole route is still taken
+    private static final double STUCK_AVOID_RADIUS = 2.5; // blocks; smooth bump around the failed node
+    private static final int STUCK_AVOID_MAX_STRENGTH = 6; // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
     /**
-     * Blacklist a node the Navigator couldn't execute a move at. Penalty ACCUMULATES:
-     * a flat one-shot bump (the original behaviour) doesn't route around a wedge
-     * whose only forward move (e.g. a parkour leap the bot rams without run-up) is
-     * cheaper-than-the-detour by MORE than the bump — A* re-picks it every repath,
-     * and escape was only ever non-deterministic physical drift (a ~31 s, 6-wedge-
-     * cycle stall observed at a steep mountain parkour gap). Escalating the bump
-     * each time the SAME node re-wedges within its live window makes the reroute
-     * deterministic in 2–3 cycles: a node the Navigator fails repeatedly is almost
-     * certainly unexecutable, so it should get progressively more expensive. Capped
-     * + still 15 s-decaying, so a genuinely sole route reopens and is taken later.
+     * Blacklist a node the Navigator couldn't execute a move at. Penalty ACCUMULATES: a flat one-shot bump (the
+     * original behaviour) doesn't route around a wedge whose only forward move (e.g. a parkour leap the bot rams
+     * without run-up) is cheaper-than-the-detour by MORE than the bump — A* re-picks it every repath, and escape was
+     * only ever non-deterministic physical drift (a ~31 s, 6-wedge- cycle stall observed at a steep mountain parkour
+     * gap). Escalating the bump each time the SAME node re-wedges within its live window makes the reroute
+     * deterministic in 2–3 cycles: a node the Navigator fails repeatedly is almost certainly unexecutable, so it should
+     * get progressively more expensive. Capped + still 15 s-decaying, so a genuinely sole route reopens and is taken
+     * later.
      */
-    @Override public void penalizeStuckNode(BlockPos pos) {
+    @Override
+    public void penalizeStuckNode(BlockPos pos) {
         long now = System.currentTimeMillis();
         BlockPos key = pos.immutable();
         Long exp = stuckAvoid.get(key);
@@ -444,7 +501,8 @@ public final class ClientWorldView implements StateWorldView {
         stuckStrength.put(key, strength);
     }
 
-    @Override public boolean hasStuckPenalties() {
+    @Override
+    public boolean hasStuckPenalties() {
         long now = System.currentTimeMillis();
         for (Long exp : stuckAvoid.values()) if (exp > now) return true;
         return false;
@@ -453,43 +511,73 @@ public final class ClientWorldView implements StateWorldView {
     // Controlled-entity movement attributes, snapshotted once per search so the
     // whole A* run sees a consistent capability (and the Navigator reads the same).
     // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
-    private volatile int stepUpBlocks = 0;     // floor(STEP_HEIGHT): full blocks walkable-up without a jump
-    private volatile int jumpUpBlocks = 1;     // floor(jump apex): full blocks reachable WITH a jump
+    private volatile int stepUpBlocks = 0; // floor(STEP_HEIGHT): full blocks walkable-up without a jump
+    private volatile int jumpUpBlocks = 1; // floor(jump apex): full blocks reachable WITH a jump
     private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
-    @Override public int maxStepUpBlocks() { return stepUpBlocks; }
-    @Override public int maxJumpUpBlocks() { return jumpUpBlocks; }
-    @Override public Set<Locomotion.Mode> moveModes() { return moveModes; }
 
-    /** Refresh {@link #stepUpBlocks}/{@link #jumpUpBlocks} from the entity the
-     *  player is actually controlling (itself, or its vehicle when riding). */
+    @Override
+    public int maxStepUpBlocks() {
+        return stepUpBlocks;
+    }
+
+    @Override
+    public int maxJumpUpBlocks() {
+        return jumpUpBlocks;
+    }
+
+    @Override
+    public Set<Locomotion.Mode> moveModes() {
+        return moveModes;
+    }
+
+    /**
+     * Refresh {@link #stepUpBlocks}/{@link #jumpUpBlocks} from the entity the player is actually controlling (itself,
+     * or its vehicle when riding).
+     */
     private void snapshotMovementCaps() {
         Player pl = player.get();
         Entity mover = pl;
         if (pl != null && pl.getControlledVehicle() != null) mover = pl.getControlledVehicle();
-        if (mover == null) { stepUpBlocks = 0; jumpUpBlocks = 1; moveModes = Locomotion.WALK_AND_SWIM; return; }
+        if (mover == null) {
+            stepUpBlocks = 0;
+            jumpUpBlocks = 1;
+            moveModes = Locomotion.WALK_AND_SWIM;
+            return;
+        }
         Locomotion loco = Locomotion.of(mover);
         stepUpBlocks = loco.stepUpBlocks();
         jumpUpBlocks = loco.jumpUpBlocks();
         moveModes = loco.modes();
     }
-    @Override public boolean canWaterBucketFall() { return bucketFallReady; }
-    @Override public int maxWaterBucketFall() { return WorldConfig.maxWaterBucketFall; }
-    @Override public boolean isMlgFloor(BlockPos p) {
+
+    @Override
+    public boolean canWaterBucketFall() {
+        return bucketFallReady;
+    }
+
+    @Override
+    public int maxWaterBucketFall() {
+        return WorldConfig.maxWaterBucketFall;
+    }
+
+    @Override
+    public boolean isMlgFloor(BlockPos p) {
         Level lvl = level.get();
         if (lvl == null) return false;
         BlockPos bp = p;
         BlockState s = state(bp);
-        if (!s.getFluidState().isEmpty()) return false;          // not a fluid
+        if (!s.getFluidState().isEmpty()) return false; // not a fluid
         // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
         // the block instead of filling the air cell above → fall not broken.
-        if (s.hasProperty(BlockStateProperties.WATERLOGGED))
-            return false;
+        if (s.hasProperty(BlockStateProperties.WATERLOGGED)) return false;
         // Must be a full cube so the player lands flat on top and the water
         // source fills the whole landing cell (end rods / torches / partial
         // blocks have a thin collision the player slides off).
         return s.isCollisionShapeFullBlock(lvl, bp);
     }
-    @Override public void beginSearch() {
+
+    @Override
+    public void beginSearch() {
         // Fresh world per search: drop any blockstates memoised for the previous run
         // (the bot/world may have changed between searches).
         stateCache.clear();
@@ -502,8 +590,7 @@ public final class ClientWorldView implements StateWorldView {
         }
         bucketFallReady = WorldConfig.allowWaterBucketFall
                 && player.get() != null
-                && hotbarSlotOf(player.get(),
-                                Items.WATER_BUCKET) >= 0;
+                && hotbarSlotOf(player.get(), Items.WATER_BUCKET) >= 0;
         dig = CellRules.DigSnapshot.of(player.get(), level.get());
         // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
         // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
@@ -516,12 +603,17 @@ public final class ClientWorldView implements StateWorldView {
             long now = System.currentTimeMillis();
             for (Iterator<Map.Entry<BlockPos, Long>> it = stuckAvoid.entrySet().iterator(); it.hasNext(); ) {
                 Map.Entry<BlockPos, Long> e = it.next();
-                if (e.getValue() < now) { stuckStrength.remove(e.getKey()); it.remove(); }
+                if (e.getValue() < now) {
+                    stuckStrength.remove(e.getKey());
+                    it.remove();
+                }
             }
             float[] arr = new float[stuckAvoid.size() * 4];
             int i = 0;
             for (BlockPos b : stuckAvoid.keySet()) {
-                arr[i++] = b.getX() + 0.5f; arr[i++] = b.getY(); arr[i++] = b.getZ() + 0.5f;
+                arr[i++] = b.getX() + 0.5f;
+                arr[i++] = b.getY();
+                arr[i++] = b.getZ() + 0.5f;
                 arr[i++] = stuckStrength.getOrDefault(b, 1);
             }
             stuckAvoidXyz = arr;
@@ -541,7 +633,9 @@ public final class ClientWorldView implements StateWorldView {
         // for the full A* run. Null-safe: headless tests have no worldModel wired.
         hazardSnapshot = worldModel != null ? worldModel.hazard() : null;
     }
-    @Override public double dangerCost(BlockPos foot) {
+
+    @Override
+    public double dangerCost(BlockPos foot) {
         double penalty = 0;
         if (WorldConfig.avoidDanger) {
             Level lvl = level.get();
@@ -551,7 +645,7 @@ public final class ClientWorldView implements StateWorldView {
                 // and ignored the contact blocks entirely.
                 for (int[] o : DANGER_OFFSETS) {
                     BlockState s = state(foot.offset(o[0], o[1], o[2]));
-                    if (s.getFluidState().is(FluidTags.LAVA)) {   // tag: source AND flowing (lake edges)
+                    if (s.getFluidState().is(FluidTags.LAVA)) { // tag: source AND flowing (lake edges)
                         penalty += WorldConfig.lavaDangerPenalty;
                     } else if (s.is(BlockTags.FIRE)) {
                         penalty += WorldConfig.dangerPenaltyPerCell;
@@ -574,19 +668,23 @@ public final class ClientWorldView implements StateWorldView {
                     int scanCap = lethalDepth + 1;
                     for (int[] h : HORIZONTAL_4) {
                         BlockPos n = foot.offset(h[0], 0, h[1]);
-                        if (!isPassable(n) || isHazard(n)) continue;   // neighbour blocked → not an open edge
+                        if (!isPassable(n) || isHazard(n)) continue; // neighbour blocked → not an open edge
                         // Measure the TRUE drop depth below the neighbour. Water ends
                         // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
                         // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
                         int depth = 0;
                         boolean water = false;
                         for (BlockPos pr = n.offset(0, -1, 0); depth < scanCap; pr = pr.offset(0, -1, 0)) {
-                            if (isWater(pr)) { water = true; break; }
+                            if (isWater(pr)) {
+                                water = true;
+                                break;
+                            }
                             if (!isPassable(pr) || isHazard(pr)) break;
                             depth++;
                         }
                         if (!water && depth >= lethalDepth) {
-                            penalty += WorldConfig.ledgeDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
+                            penalty +=
+                                    WorldConfig.ledgeDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
                             break;
                         }
                     }
@@ -660,8 +758,7 @@ public final class ClientWorldView implements StateWorldView {
                 // happens. Fix for the bot routing y70→y22 into a cave and dying
                 // (GAP #17, strengthened).
                 if (WorldConfig.deepDarkPenalty > 0) {
-                    int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                            foot.getX(), foot.getZ());
+                    int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, foot.getX(), foot.getZ());
                     int depthBelow = surfaceY - foot.getY();
                     if (depthBelow >= WorldConfig.deepDarkMinDepth) {
                         penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);

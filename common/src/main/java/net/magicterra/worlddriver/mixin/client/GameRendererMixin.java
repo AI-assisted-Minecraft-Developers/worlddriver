@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Counts drawn frames for {@link FrameClock}, so a capture can say which frame it is.
  *
- * <p>This method rather than the window's buffer swap: vanilla calls {@code updateDisplay} on ticks
- * where {@code noRender} skipped this call entirely, and a counter that moved then would promise a
- * fresh frame that was never drawn — the exact lie the counter exists to prevent.
+ * <p>This method rather than the window's buffer swap: vanilla calls {@code updateDisplay} on ticks where
+ * {@code noRender} skipped this call entirely, and a counter that moved then would promise a fresh frame that was never
+ * drawn — the exact lie the counter exists to prevent.
  */
 @Mixin(GameRenderer.class)
 abstract class GameRendererMixin {

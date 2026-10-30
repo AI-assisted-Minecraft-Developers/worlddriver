@@ -1,66 +1,68 @@
 package net.magicterra.worlddriver.application.client;
 
-import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.game.HandWords;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.GotoOrders;
 import net.magicterra.worlddriver.bot.WorldReadings;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.ClientIntents;
+import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.game.body.HandVerbs;
-
-import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
-import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
-import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts;
-import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
-import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
-import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.magicterra.worlddriver.game.ui.ClientChatLog;
+import net.magicterra.worlddriver.game.ui.ClientScreen;
+import net.magicterra.worlddriver.game.ui.FocusPolicy;
+import net.magicterra.worlddriver.game.ui.MouseYield;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.BlockHitResult;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import net.magicterra.worlddriver.game.ui.ClientChatLog;
-import net.magicterra.worlddriver.game.ui.ClientScreen;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.game.ui.FocusPolicy;
-import net.magicterra.worlddriver.game.ui.MouseYield;
 
 /**
- * The client's own player as a bot: the {@link BotBrain} that decides, ticked from the platform's
- * client-tick hook, and the client-only work around it — the mouse and focus policies, the death
- * screen and auto-respawn, the stray-screen watchdog, the client's events, the camera slew — plus
- * the {@code mc.bot.*} and test verbs that read the client directly.
+ * The client's own player as a bot: the {@link BotBrain} that decides, ticked from the platform's client-tick hook, and
+ * the client-only work around it — the mouse and focus policies, the death screen and auto-respawn, the stray-screen
+ * watchdog, the client's events, the camera slew — plus the {@code mc.bot.*} and test verbs that read the client
+ * directly.
  *
- * Threading: every {@code mc.bot.*} call marshals to the client thread via
- * {@code onClient}; {@link #clientTick} runs on it already.
+ * <p>Threading: every {@code mc.bot.*} call marshals to the client thread via {@code onClient}; {@link #clientTick}
+ * runs on it already.
  */
 public final class ClientBot implements BotApi {
 
     private final BotBrain brain;
-    /** Consecutive ticks a stray container screen has been blocking input while a
-     *  movement process is live — the gap #58 screen-watchdog counter. */
+    /**
+     * Consecutive ticks a stray container screen has been blocking input while a movement process is live — the gap #58
+     * screen-watchdog counter.
+     */
     private int screenBlockTicks = 0;
 
     /** {@code brain} plans over the client's world view; the wiring builds both. */
@@ -70,21 +72,31 @@ public final class ClientBot implements BotApi {
     }
 
     /** The brain, for the debug tools that install processes on it directly. */
-    public BotBrain brain() { return brain; }
+    public BotBrain brain() {
+        return brain;
+    }
 
-    @Override public ClientScene scene() { return brain.scene(); }
-    @Override public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius) {
+    @Override
+    public ClientScene scene() {
+        return brain.scene();
+    }
+
+    @Override
+    public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius) {
         Minecraft mc = Minecraft.getInstance();
         return WorldReadings.threats(mc.level, mc.player, radius, brain.threatVelocities());
     }
-    /** The body this bot steers: the client's own player. A cancel or stand-down that arrives off
-     *  the tick releases what the chains held on it. */
-    private static Body body() { return new ClientPlayerBody(Minecraft.getInstance()); }
+    /**
+     * The body this bot steers: the client's own player. A cancel or stand-down that arrives off the tick releases what
+     * the chains held on it.
+     */
+    private static Body body() {
+        return new ClientPlayerBody(Minecraft.getInstance());
+    }
 
     /**
-     * The nearest entity of {@code typeId} this client has loaded, for {@code goto entity:}. It reads
-     * the client's render list, so it lives here and not in the goto resolver, which a
-     * server-side bot runs too.
+     * The nearest entity of {@code typeId} this client has loaded, for {@code goto entity:}. It reads the client's
+     * render list, so it lives here and not in the goto resolver, which a server-side bot runs too.
      */
     private static Entity nearestRenderedEntity(LocalPlayer self, String typeId) {
         Minecraft mc = Minecraft.getInstance();
@@ -96,7 +108,10 @@ public final class ClientBot implements BotApi {
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
             if (!typeId.equals(id)) continue;
             double d = e.distanceToSqr(self);
-            if (d < bestD) { bestD = d; best = e; }
+            if (d < bestD) {
+                bestD = d;
+                best = e;
+            }
         }
         return best;
     }
@@ -130,15 +145,23 @@ public final class ClientBot implements BotApi {
         return brain.equip(body(), params);
     }
 
-    @Override public Map<String, Object> bodyRefusal() {
+    @Override
+    public Map<String, Object> bodyRefusal() {
         return onClient(() -> BotBrain.refusal(body(), ClientScreen.now()));
     }
 
-    @Override public Map<String, Object> status() { return brain.status(); }
+    @Override
+    public Map<String, Object> status() {
+        return brain.status();
+    }
 
-    @Override public ControlContracts.BotStatus botStatus() { return brain.botStatus(BotRegistry.SELF); }
+    @Override
+    public ControlContracts.BotStatus botStatus() {
+        return brain.botStatus(BotRegistry.SELF);
+    }
 
-    @Override public List<String> cancel(String which) {
+    @Override
+    public List<String> cancel(String which) {
         return onClient(() -> brain.cancel(body(), which));
     }
 
@@ -164,7 +187,10 @@ public final class ClientBot implements BotApi {
         return InteractionCommands.attackEntity(params);
     }
 
-    @Override public boolean paused() { return brain.paused(); }
+    @Override
+    public boolean paused() {
+        return brain.paused();
+    }
 
     @Override
     public void setPaused(boolean pause) {
@@ -181,22 +207,24 @@ public final class ClientBot implements BotApi {
         p.onUpdateAbilities();
     }
 
-    @Override public void forgetBackfill() { brain.forgetBackfill(); }
+    @Override
+    public void forgetBackfill() {
+        brain.forgetBackfill();
+    }
 
     /**
-     * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}.
-     * Reuses the existing client primitives (no new behaviour): {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()},
-     * the {@code mc.client.screen.close} {@code setScreen(null)} path, {@link ClientChatLog#clear()}
-     * and the scheduler's user-slot cancel. The {@code reset[]} list names exactly what changed so
-     * P2b's reuse acceptance can diff it. Kept minimal — completeness is P2b's acceptance concern.
+     * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}. Reuses the existing client
+     * primitives (no new behaviour): {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()}, the
+     * {@code mc.client.screen.close} {@code setScreen(null)} path, {@link ClientChatLog#clear()} and the scheduler's
+     * user-slot cancel. The {@code reset[]} list names exactly what changed so P2b's reuse acceptance can diff it. Kept
+     * minimal — completeness is P2b's acceptance concern.
      *
-     * <p><b>Every token reports an EFFECT, and that is a correction.</b> {@code chat:N} always did;
-     * {@code keys} did not — it was appended after {@code releaseKeys()} returned, so it
-     * said the release code ran and nothing about whether anything was released, and a
-     * {@code releaseKeys()} that became a no-op would have kept it green forever. It is now
-     * {@code keys:<names>}, read off {@link KeyMapping#isDown()} on the same client hop, before and
-     * after; it is absent when nothing was down. {@code screen} likewise names the screen class it
-     * closed, so "there was no screen" and "the close did nothing" stop reading alike.
+     * <p><b>Every token reports an EFFECT, and that is a correction.</b> {@code chat:N} always did; {@code keys} did
+     * not — it was appended after {@code releaseKeys()} returned, so it said the release code ran and nothing about
+     * whether anything was released, and a {@code releaseKeys()} that became a no-op would have kept it green forever.
+     * It is now {@code keys:<names>}, read off {@link KeyMapping#isDown()} on the same client hop, before and after; it
+     * is absent when nothing was down. {@code screen} likewise names the screen class it closed, so "there was no
+     * screen" and "the close did nothing" stop reading alike.
      */
     @Override
     public List<String> resetClientEntry() {
@@ -217,24 +245,26 @@ public final class ClientBot implements BotApi {
             // Named rather than counted, and the surviving names named too: "keys:up" and
             // "keys:up→still:up" are the difference between a release that worked and one that
             // did not, and a bare count cannot tell them apart.
-            if (!wereDown.isEmpty())
-                reset.add("keys:" + wereDown + (stillDown.isEmpty() ? "" : "→still:" + stillDown));
+            if (!wereDown.isEmpty()) reset.add("keys:" + wereDown + (stillDown.isEmpty() ? "" : "→still:" + stillDown));
             if (mc.screen != null) {
                 String was = mc.screen.getClass().getSimpleName();
                 mc.setScreen(null);
-                reset.add("screen:" + was + (mc.screen == null ? "" : "→still:"
-                        + mc.screen.getClass().getSimpleName()));
+                reset.add("screen:" + was
+                        + (mc.screen == null
+                                ? ""
+                                : "→still:" + mc.screen.getClass().getSimpleName()));
             }
             return Map.of();
         });
-        int chatCleared = ClientChatLog.clear();   // pure JVM buffer, no client thread needed
+        int chatCleared = ClientChatLog.clear(); // pure JVM buffer, no client thread needed
         reset.add("chat:" + chatCleared);
         return List.copyOf(reset);
     }
 
-    /** The movement keys {@code releaseKeys()} clears that are down right now, comma
-     *  separated in the same order {@link #heldKeys()} reports them. Client thread only — the
-     *  caller is already inside the hop. */
+    /**
+     * The movement keys {@code releaseKeys()} clears that are down right now, comma separated in the same order
+     * {@link #heldKeys()} reports them. Client thread only — the caller is already inside the hop.
+     */
     private static String heldKeyNames(Minecraft mc) {
         if (mc.options == null) return "";
         StringBuilder sb = new StringBuilder();
@@ -244,7 +274,10 @@ public final class ClientBot implements BotApi {
         appendIfDown(sb, "right", mc.options.keyRight);
         appendIfDown(sb, "jump", mc.options.keyJump);
         appendIfDown(sb, "sprint", mc.options.keySprint);
-        if (ClientIntents.digHeld()) { if (!sb.isEmpty()) sb.append(','); sb.append("attack"); }
+        if (ClientIntents.digHeld()) {
+            if (!sb.isEmpty()) sb.append(',');
+            sb.append("attack");
+        }
         appendIfDown(sb, "shift", mc.options.keyShift);
         return sb.toString();
     }
@@ -256,32 +289,35 @@ public final class ClientBot implements BotApi {
     }
 
     /**
-     * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads
-     * {@link KeyMapping#isDown()} on the client thread for exactly what
-     * {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()} clears, in the same
-     * order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}.
-     * {@code attack} is the bot's dig latch ({@link ClientIntents#digHeld()}), not a keybind —
-     * the bot stopped pressing the attack key on 2026-09-14 — but it keeps its slot so the
-     * instrument's shape is stable. Pure observation — mutates nothing.
+     * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads {@link KeyMapping#isDown()} on the client
+     * thread for exactly what {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()} clears, in the
+     * same order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}. {@code attack} is the
+     * bot's dig latch ({@link ClientIntents#digHeld()}), not a keybind — the bot stopped pressing the attack key on
+     * 2026-09-14 — but it keeps its slot so the instrument's shape is stable. Pure observation — mutates nothing.
      */
     @Override
     public TestInputContracts.HeldKeys heldKeys() {
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.options == null) throw new IllegalStateException("no client options");
-            return new TestInputContracts.HeldKeys(mc.options.keyUp.isDown(), mc.options.keyDown.isDown(),
-                    mc.options.keyLeft.isDown(), mc.options.keyRight.isDown(), mc.options.keyJump.isDown(),
-                    mc.options.keySprint.isDown(), ClientIntents.digHeld(), mc.options.keyShift.isDown());
+            return new TestInputContracts.HeldKeys(
+                    mc.options.keyUp.isDown(),
+                    mc.options.keyDown.isDown(),
+                    mc.options.keyLeft.isDown(),
+                    mc.options.keyRight.isDown(),
+                    mc.options.keyJump.isDown(),
+                    mc.options.keySprint.isDown(),
+                    ClientIntents.digHeld(),
+                    mc.options.keyShift.isDown());
         });
     }
 
     /**
-     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock}. Instrument-grade:
-     * the ONLY state change is the {@code gameMode.useItemOn} right-click itself. The face is
-     * the one nearest the player's eye ({@code faceTowardEye}) and the hit Vec3 is that
-     * face's centre — the exact synthetic-hit shape {@code mc.bot.useItemOn} builds — but unlike
-     * the behaviour verb it does NOT aim (no yaw/pitch write), NOT move, and NOT toggle sneak, so
-     * nothing in the path/aim pipeline runs. Opening a block-entity container (empty hand +
+     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock}. Instrument-grade: the ONLY state change is the
+     * {@code gameMode.useItemOn} right-click itself. The face is the one nearest the player's eye
+     * ({@code faceTowardEye}) and the hit Vec3 is that face's centre — the exact synthetic-hit shape
+     * {@code mc.bot.useItemOn} builds — but unlike the behaviour verb it does NOT aim (no yaw/pitch write), NOT move,
+     * and NOT toggle sneak, so nothing in the path/aim pipeline runs. Opening a block-entity container (empty hand +
      * right-click) does not need any of those.
      */
     @Override
@@ -296,29 +332,31 @@ public final class ClientBot implements BotApi {
             BlockHitResult hit = new BlockHitResult(HandVerbs.faceCentre(block, face), face, block, false);
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
             if (r.consumesAction()) p.swing(hand);
-            return new TestInputContracts.UsedOnBlock(HandWords.interaction(r), r.consumesAction(),
-                    params.hand(), InteractContracts.Face.valueOf(face.name()));
+            return new TestInputContracts.UsedOnBlock(
+                    HandWords.interaction(r),
+                    r.consumesAction(),
+                    params.hand(),
+                    InteractContracts.Face.valueOf(face.name()));
         });
     }
 
-    /** Driver→agent client-tick push-event detection (hurt/death, fluid entry, day-phase,
-     *  item pickup, advancements, chat/title). Owns its own cross-tick edge state;
-     *  {@link #clientTick()} drives it. */
+    /**
+     * Driver→agent client-tick push-event detection (hurt/death, fluid entry, day-phase, item pickup, advancements,
+     * chat/title). Owns its own cross-tick edge state; {@link #clientTick()} drives it.
+     */
     private final ClientEventDetector eventDetector;
 
     /**
-     * The two policies that key off "is the bot currently driving", applied at the very top of
-     * every client tick — ahead of all of {@code clientTick}'s early returns (no world, bot
-     * paused, clutch owning the tick), because each one's FALLING edge has to be honoured on
-     * exactly those ticks too. Handing the cursor back, or handing the human's pause setting
-     * back, must not be skipped just because there is nothing else to do this tick.
+     * The two policies that key off "is the bot currently driving", applied at the very top of every client tick —
+     * ahead of all of {@code clientTick}'s early returns (no world, bot paused, clutch owning the tick), because each
+     * one's FALLING edge has to be honoured on exactly those ticks too. Handing the cursor back, or handing the human's
+     * pause setting back, must not be skipped just because there is nothing else to do this tick.
      *
      * <ul>
-     *   <li><b>Mouse coexistence</b> — marked from the PREVIOUS tick's ownership
-     *       (the scheduler's current chain is last tick's decision): a 1-tick lag on a 20-tick
-     *       linger, so it never flickers.</li>
-     *   <li><b>Focus</b> — while the bot drives, vanilla's pause-on-lost-focus is suppressed so
-     *       an alt-tab cannot freeze the world mid-task (see {@link FocusPolicy}).</li>
+     *   <li><b>Mouse coexistence</b> — marked from the PREVIOUS tick's ownership (the scheduler's current chain is last
+     *       tick's decision): a 1-tick lag on a 20-tick linger, so it never flickers.
+     *   <li><b>Focus</b> — while the bot drives, vanilla's pause-on-lost-focus is suppressed so an alt-tab cannot
+     *       freeze the world mid-task (see {@link FocusPolicy}).
      * </ul>
      */
     private void applyTakeoverPolicies(Minecraft mc) {
@@ -344,7 +382,10 @@ public final class ClientBot implements BotApi {
         // we want to skip past it ASAP. Done first so the rest of the tick sees
         // the post-respawn world state.
         if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
-        if (mc.level == null || mc.player == null || brain.paused()) { brain.releaseIfDriven(body()); return; }
+        if (mc.level == null || mc.player == null || brain.paused()) {
+            brain.releaseIfDriven(body());
+            return;
+        }
         // The client's player as the body every reflex and chain below steers; built fresh per
         // tick for the reason clientAvatar() gives.
         ClientPlayerBody body = new ClientPlayerBody(mc);
@@ -352,7 +393,10 @@ public final class ClientBot implements BotApi {
         // The clutch owns the whole tick when it fires (look-down + place + return), so
         // it is a bot drive in its own right — mark it for the mouse gate, which no
         // process slot would report (the clutch is slot-less by design).
-        if (brain.clutch(body)) { MouseYield.markDriving("clutch"); return; }
+        if (brain.clutch(body)) {
+            MouseYield.markDriving("clutch");
+            return;
+        }
         // Screen watchdog (gap #58): an unexpectedly-open container GUI swallows
         // every movement input, paralysing the navigator AND all reflex chains (live
         // death #3: a stray place-click opened a FurnaceScreen; the pinned navigator's
@@ -367,10 +411,11 @@ public final class ClientBot implements BotApi {
                 String type = mc.screen.getClass().getSimpleName();
                 mc.player.closeContainer();
                 mc.setScreen(null);
-                brain.emit(EventCatalog.SCREEN_AUTO_CLOSED, mc.player.blockPosition(),
+                brain.emit(
+                        EventCatalog.SCREEN_AUTO_CLOSED,
+                        mc.player.blockPosition(),
                         new EventCatalog.ScreenAutoClosed(type, screenBlockTicks));
-                LOG.warn(
-                        "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
+                LOG.warn("[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
                 screenBlockTicks = 0;
             }
         } else {
@@ -394,31 +439,48 @@ public final class ClientBot implements BotApi {
         net.magicterra.worlddriver.game.body.LookController.apply(mc.player);
     }
 
-    /** Start a foreground user task for an accepted action, which the user task chain ends with the process. Client thread only. */
-    @Override public void startAction(BotProcess next, ActionHandle action) {
+    /**
+     * Start a foreground user task for an accepted action, which the user task chain ends with the process. Client
+     * thread only.
+     */
+    @Override
+    public void startAction(BotProcess next, ActionHandle action) {
         brain.startAction(next, action);
     }
 
     /** Client thread only. */
-    @Override public boolean cancelAction(ActionHandle action, String reason) {
+    @Override
+    public boolean cancelAction(ActionHandle action, String reason) {
         return brain.cancelAction(body(), action, reason);
     }
 
-    @Override public net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop() {
+    @Override
+    public net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop() {
         return net.magicterra.worlddriver.game.ClientHop.hop();
     }
 
-    @Override public java.util.concurrent.Executor clientExecutor() { return Minecraft.getInstance(); }
+    @Override
+    public java.util.concurrent.Executor clientExecutor() {
+        return Minecraft.getInstance();
+    }
 
-    @Override public net.minecraft.world.entity.LivingEntity selfEntity() { return Minecraft.getInstance().player; }
-    @Override public BotProcess lastAskedProcess() { return brain.lastAskedProcess(); }
+    @Override
+    public net.minecraft.world.entity.LivingEntity selfEntity() {
+        return Minecraft.getInstance().player;
+    }
+
+    @Override
+    public BotProcess lastAskedProcess() {
+        return brain.lastAskedProcess();
+    }
 
     /** The client left its server. Client thread only. */
     public void onDisconnect() {
         brain.onDisconnect(body());
     }
 
-    @Override public Map<String, Object> runProcess(BotProcess process) {
+    @Override
+    public Map<String, Object> runProcess(BotProcess process) {
         long seq = brain.publishLeg(process);
         Runnable install = () -> brain.installLeg(process, seq);
         Minecraft mc = Minecraft.getInstance();
@@ -426,7 +488,8 @@ public final class ClientBot implements BotApi {
         // caller this exists for is the server thread of an INTEGRATED server — the same JVM, the
         // other side of a tick handshake. Blocking it for a client frame is the stall a
         // fire-and-forget start exists to avoid.
-        if (mc.isSameThread()) install.run(); else mc.execute(install);
+        if (mc.isSameThread()) install.run();
+        else mc.execute(install);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("started", true);
         out.put("kind", process.kind());
@@ -434,16 +497,20 @@ public final class ClientBot implements BotApi {
         return out;
     }
 
-    @Override public Map<String, Object> userTaskLeg() { return brain.userTaskLeg(); }
+    @Override
+    public Map<String, Object> userTaskLeg() {
+        return brain.userTaskLeg();
+    }
 
     /**
-     * Built fresh per call rather than cached, because {@code ClientPlayerBody} binds
-     * {@code mc.player} in its constructor and that reference dies on every respawn and dimension
-     * change. A cached one would keep actuating a stale player — the same "the world view does not
-     * follow the player entity" shape the driver has already paid for once, where a view built at construction planned over the old
-     * dimension's terrain for every rung after the portal.
+     * Built fresh per call rather than cached, because {@code ClientPlayerBody} binds {@code mc.player} in its
+     * constructor and that reference dies on every respawn and dimension change. A cached one would keep actuating a
+     * stale player — the same "the world view does not follow the player entity" shape the driver has already paid for
+     * once, where a view built at construction planned over the old dimension's terrain for every rung after the
+     * portal.
      */
-    @Override public net.magicterra.worlddriver.game.body.Body clientAvatar() {
+    @Override
+    public net.magicterra.worlddriver.game.body.Body clientAvatar() {
         Minecraft mc = Minecraft.getInstance();
         return mc.player == null ? null : new net.magicterra.worlddriver.game.body.ClientPlayerBody(mc);
     }

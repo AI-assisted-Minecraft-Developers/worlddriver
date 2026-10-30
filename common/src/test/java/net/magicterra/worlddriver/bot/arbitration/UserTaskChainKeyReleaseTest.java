@@ -2,17 +2,16 @@ package net.magicterra.worlddriver.bot.arbitration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * The movement keybinds are the human's too, so clearing them is only right when the bot pressed
- * them. A process that ends on the very tick it first runs (nothing to backfill, no bed in range)
- * never drove the player, and releasing on its ending dropped whatever the human was holding; so did
- * the idle handover that follows it.
+ * The movement keybinds are the human's too, so clearing them is only right when the bot pressed them. A process that
+ * ends on the very tick it first runs (nothing to backfill, no bed in range) never drove the player, and releasing on
+ * its ending dropped whatever the human was holding; so did the idle handover that follows it.
  */
 class UserTaskChainKeyReleaseTest {
 
@@ -20,11 +19,30 @@ class UserTaskChainKeyReleaseTest {
     private static final class Finisher implements BotProcess {
         final int finishOnTick;
         int ticks;
-        Finisher(int finishOnTick) { this.finishOnTick = finishOnTick; }
-        @Override public String kind() { return "builder"; }
-        @Override public String failure() { return null; }
-        @Override public void attach(BotState st) { st.builder.active = true; }
-        @Override public boolean tick(Body a, WorldView w, BotState st) { return ++ticks >= finishOnTick; }
+
+        Finisher(int finishOnTick) {
+            this.finishOnTick = finishOnTick;
+        }
+
+        @Override
+        public String kind() {
+            return "builder";
+        }
+
+        @Override
+        public String failure() {
+            return null;
+        }
+
+        @Override
+        public void attach(BotState st) {
+            st.builder.active = true;
+        }
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
+            return ++ticks >= finishOnTick;
+        }
     }
 
     private final BotState st = new BotState();
@@ -36,9 +54,10 @@ class UserTaskChainKeyReleaseTest {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(chain);
         chain.setProcess(new Finisher(1));
-        sched.tick(null, null, st);   // runs and ends on its first tick
-        sched.tick(null, null, st);   // the chain now bids 0: handover to idle
-        assertEquals(0, keyReleases, "the process never took the keys, so neither its ending nor the handover clears them");
+        sched.tick(null, null, st); // runs and ends on its first tick
+        sched.tick(null, null, st); // the chain now bids 0: handover to idle
+        assertEquals(
+                0, keyReleases, "the process never took the keys, so neither its ending nor the handover clears them");
     }
 
     @Test

@@ -7,7 +7,10 @@ import net.minecraft.core.BlockPos;
 
 /** Swim straight down in water. */
 public final class SwimDown extends Move {
-    public SwimDown() { super(0, -1, 0, 25); }
+    public SwimDown() {
+        super(0, -1, 0, 25);
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.isWater(from) || !w.isWater(apply(from))) return false;
         // A buoyant bot can't controllably dive from the SURFACE — buoyancy floats
@@ -20,7 +23,13 @@ public final class SwimDown extends Move {
         // underwater, isSubmergedFoot).
         return w.isSubmergedFoot(from);
     }
-    public String name() { return "swimDown"; }
 
-    @Override public Locomotion.Mode mode() { return Locomotion.Mode.SWIM; }
+    public String name() {
+        return "swimDown";
+    }
+
+    @Override
+    public Locomotion.Mode mode() {
+        return Locomotion.Mode.SWIM;
+    }
 }

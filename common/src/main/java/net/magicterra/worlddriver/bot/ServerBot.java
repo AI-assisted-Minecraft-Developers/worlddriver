@@ -1,51 +1,51 @@
 package net.magicterra.worlddriver.bot;
 
-import net.minecraft.world.phys.Vec3;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts;
-import java.util.function.Function;
-import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
-import net.minecraft.world.entity.Entity;
 import java.util.Map;
+import java.util.function.Function;
 import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * A bot the server ticks: one {@link BotBrain} — the scheduler, chains and reflexes the client's own
- * player runs under — over one body, with the task bookkeeping every server-side bot shares.
- * {@link PlayerBot} steers a joined server player, {@link MobBot} a mob.
+ * A bot the server ticks: one {@link BotBrain} — the scheduler, chains and reflexes the client's own player runs under
+ * — over one body, with the task bookkeeping every server-side bot shares. {@link PlayerBot} steers a joined server
+ * player, {@link MobBot} a mob.
  *
- * <p>A bot stays on {@link BotTicker}'s list after its task ends, and its reflexes keep running,
- * until it is unregistered, its entity is removed, or its tick throws. {@link #start} registers it
- * again in case it was taken off.
+ * <p>A bot stays on {@link BotTicker}'s list after its task ends, and its reflexes keep running, until it is
+ * unregistered, its entity is removed, or its tick throws. {@link #start} registers it again in case it was taken off.
  */
 public abstract class ServerBot implements Bot {
 
     /**
      * Not final: the bot can change dimension, and a view does not follow it.
      *
-     * <p>This was built once in the constructor from the bot's creation level and handed to every
-     * {@code BotProcess} forever. The moment the bot stepped through a nether portal, every
-     * pathfind was planning across <b>overworld</b> terrain at <b>nether</b> coordinates — and
-     * nothing says so from outside: the navigator plans, drives, and reports an ordinary failure to
-     * arrive. See {@link #world()}, which rebuilds when the bot has moved on.
+     * <p>This was built once in the constructor from the bot's creation level and handed to every {@code BotProcess}
+     * forever. The moment the bot stepped through a nether portal, every pathfind was planning across <b>overworld</b>
+     * terrain at <b>nether</b> coordinates — and nothing says so from outside: the navigator plans, drives, and reports
+     * an ordinary failure to arrive. See {@link #world()}, which rebuilds when the bot has moved on.
      */
     private volatile LevelWorldView world;
-    /** Events go nowhere yet: the agent's stream carries no bot id, so a server bot's
-     *  {@code threat.appeared} would read as the client player's. */
+    /**
+     * Events go nowhere yet: the agent's stream carries no bot id, so a server bot's {@code threat.appeared} would read
+     * as the client player's.
+     */
     protected final BotBrain brain;
+
     protected volatile Locomotor.Status last = Locomotor.Status.MOVING;
     private volatile boolean finished;
     /**
-     * Whether an entry point has given the bot a task. A bot is registered before any order, and it
-     * ticks from then on; that is not a task, whatever the navigator makes of having no goal, so
-     * {@link #activeKind()} must not report one.
+     * Whether an entry point has given the bot a task. A bot is registered before any order, and it ticks from then on;
+     * that is not a task, whatever the navigator makes of having no goal, so {@link #activeKind()} must not report one.
      */
     private volatile boolean tasked;
 
@@ -53,24 +53,33 @@ public abstract class ServerBot implements Bot {
         this.brain = new BotBrain((type, pos, data) -> {}, this::world);
     }
 
-    @Override public abstract Body body();
+    @Override
+    public abstract Body body();
 
-    /** The view the bot plans in when it is in {@code level}. Built on first use rather than in the
-     *  constructor, so an override may read the subclass's fields. */
+    /**
+     * The view the bot plans in when it is in {@code level}. Built on first use rather than in the constructor, so an
+     * override may read the subclass's fields.
+     */
     protected LevelWorldView view(Level level, LivingEntity entity) {
         return LevelWorldView.forBody(level, entity);
     }
 
-    /** Advance the body one tick on the input the brain left: a player body steps its physics now,
-     *  a mob hands the input to its own controls for its next AI step. */
+    /**
+     * Advance the body one tick on the input the brain left: a player body steps its physics now, a mob hands the input
+     * to its own controls for its next AI step.
+     */
     protected abstract void step();
 
     /** {@link #step()} alone, with no perceiving, reflexes or task: a test harness moving a posed body. */
-    public void stepBody() { step(); }
+    public void stepBody() {
+        step();
+    }
 
-    /** Run a real {@link BotProcess} headless on the server tick: the SAME process the client
-     *  runs (e.g. {@link net.magicterra.worlddriver.bot.behavior.IntentProcess}), held in the
-     *  brain's user task chain, so the reflex chains preempt it as they preempt the client's. */
+    /**
+     * Run a real {@link BotProcess} headless on the server tick: the SAME process the client runs (e.g.
+     * {@link net.magicterra.worlddriver.bot.behavior.IntentProcess}), held in the brain's user task chain, so the
+     * reflex chains preempt it as they preempt the client's.
+     */
     public ServerBot runProcess(BotProcess p) {
         return runProcess(p, null);
     }
@@ -84,8 +93,12 @@ public abstract class ServerBot implements Bot {
         return this;
     }
 
-    /** Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes back to. */
-    @Override public boolean cancelAction(ActionHandle action, String reason) {
+    /**
+     * Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes
+     * back to.
+     */
+    @Override
+    public boolean cancelAction(ActionHandle action, String reason) {
         if (!brain.cancelAction(body(), action, reason)) return false;
         finished = true;
         last = Locomotor.Status.FAILED;
@@ -93,7 +106,8 @@ public abstract class ServerBot implements Bot {
     }
 
     /** The tick threw: the task ends with the error, and its action fails. */
-    @Override public void crashed(Throwable t) {
+    @Override
+    public void crashed(Throwable t) {
         brain.crashed(body(), t.getClass().getSimpleName() + ": " + t.getMessage());
         finished = true;
         last = Locomotor.Status.FAILED;
@@ -134,25 +148,29 @@ public abstract class ServerBot implements Bot {
     }
 
     /** The velocities the bot's threat scan last saw on each projectile, by entity id. */
-    public Map<Integer, Vec3> threatVelocities() { return brain.threatVelocities(); }
+    public Map<Integer, Vec3> threatVelocities() {
+        return brain.threatVelocities();
+    }
 
     /** A bot that is off the tick list is not moving, whatever it last held. */
-    @Override public boolean busy() {
+    @Override
+    public boolean busy() {
         return activeKind() != null && BotTicker.isRegistered(this);
     }
 
-    @Override public void start(BotProcess process, ActionHandle action) {
+    @Override
+    public void start(BotProcess process, ActionHandle action) {
         runProcess(process, action);
         BotTicker.register(this);
     }
 
     /**
-     * Stop the task the way the client's {@code mc.bot.cancel} does: the process hears
-     * {@code onCancelled}, and the slots it switched on keep the reason as their error and go
-     * inactive, so a status read tells a cancelled order from a running one. Null when there was
-     * nothing to stop.
+     * Stop the task the way the client's {@code mc.bot.cancel} does: the process hears {@code onCancelled}, and the
+     * slots it switched on keep the reason as their error and go inactive, so a status read tells a cancelled order
+     * from a running one. Null when there was nothing to stop.
      */
-    @Override public String cancel(String process) {
+    @Override
+    public String cancel(String process) {
         String kind = busy() ? activeKind() : null;
         if (kind == null || !("all".equals(process) || kind.equals(process))) return null;
         brain.cancel(body(), "all".equals(process) ? "all" : kind);
@@ -173,23 +191,43 @@ public abstract class ServerBot implements Bot {
         return current;
     }
 
-    public Locomotor.Status lastStatus() { return last; }
-    /** The last ending of a process this bot ran, with its own verdict. {@link #lastStatus()} says
-     *  REACHED for any process that stopped by itself, so this is what says whether it did the job. */
-    @Override public Map<String, Object> lastProcessEnd() { return brain.lastProcessEnd(); }
-    @Override public boolean finished() { return finished; }
-    @Override public BotState botState() { return brain.state; }
+    public Locomotor.Status lastStatus() {
+        return last;
+    }
+    /**
+     * The last ending of a process this bot ran, with its own verdict. {@link #lastStatus()} says REACHED for any
+     * process that stopped by itself, so this is what says whether it did the job.
+     */
+    @Override
+    public Map<String, Object> lastProcessEnd() {
+        return brain.lastProcessEnd();
+    }
+
+    @Override
+    public boolean finished() {
+        return finished;
+    }
+
+    @Override
+    public BotState botState() {
+        return brain.state;
+    }
 
     /**
-     * One server tick: the brain's phases over the body in the client's order — perceive, the
-     * clutch (which owns the tick when it fires), the threat scan over every entity in the bot's
-     * level, then the reflexes and the scheduler — and the body's step. Runs on a finished bot
-     * too: an idle bot still floats when it drowns and steps out of a cactus.
+     * One server tick: the brain's phases over the body in the client's order — perceive, the clutch (which owns the
+     * tick when it fires), the threat scan over every entity in the bot's level, then the reflexes and the scheduler —
+     * and the body's step. Runs on a finished bot too: an idle bot still floats when it drowns and steps out of a
+     * cactus.
      */
-    @Override public Locomotor.Status tick() { return tick(true); }
+    @Override
+    public Locomotor.Status tick() {
+        return tick(true);
+    }
 
     /** {@link #tick()} without the body's step: a test harness that changes the input before {@link #stepBody}. */
-    public Locomotor.Status think() { return tick(false); }
+    public Locomotor.Status think() {
+        return tick(false);
+    }
 
     private Locomotor.Status tick(boolean step) {
         Body body = body();

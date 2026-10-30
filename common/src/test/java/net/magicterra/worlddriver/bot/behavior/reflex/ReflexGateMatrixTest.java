@@ -13,35 +13,43 @@ class ReflexGateMatrixTest {
     void antiSuffocateTriggersOnEitherSignal() {
         // (a) THE death-#16 case: client geometry says NOT in a wall, but the server
         // damage attribution says we ARE taking inWall damage — must trigger.
-        assertTrue(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true),
+        assertTrue(
+                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true),
                 "gap#69(a): isInWall=false but lastDamage=inWall must trigger (death #16 desync)");
         // (b) existing behavior preserved: client geometry alone still triggers.
-        assertTrue(AntiSuffocateGate.shouldTrigger(true, null, true, true),
+        assertTrue(
+                AntiSuffocateGate.shouldTrigger(true, null, true, true),
                 "gap#69(b): isInWall=true (no damage signal yet) must still trigger");
         // (c) negative control: neither signal present → must NOT trigger.
-        assertFalse(AntiSuffocateGate.shouldTrigger(false, null, true, true),
+        assertFalse(
+                AntiSuffocateGate.shouldTrigger(false, null, true, true),
                 "gap#69(c): no isInWall and no inWall damage must NOT trigger");
         // (d) allowBreak gate preserved: even with the damage fallback firing, a
         // disabled allowBreak must still suppress the reflex (it mines the block).
-        assertFalse(AntiSuffocateGate.shouldTrigger(false, "inWall", true, false),
+        assertFalse(
+                AntiSuffocateGate.shouldTrigger(false, "inWall", true, false),
                 "gap#69(d): allowBreak=false must suppress even the damage fallback");
         // (e) antiSuffocate config gate preserved: cfg off must suppress everything.
-        assertFalse(AntiSuffocateGate.shouldTrigger(true, "inWall", false, true),
+        assertFalse(
+                AntiSuffocateGate.shouldTrigger(true, "inWall", false, true),
                 "gap#69(e): antiSuffocate=false must suppress even isInWall+damage both true");
         // (f) an unrelated damage source (e.g. a mob hit) must NOT trigger the reflex.
-        assertFalse(AntiSuffocateGate.shouldTrigger(false, "mob", true, true),
+        assertFalse(
+                AntiSuffocateGate.shouldTrigger(false, "mob", true, true),
                 "gap#69(f): a non-inWall lastDamage msgId must NOT trigger");
 
         // M1: resolveHead's foot/horizontal fallback branches additionally require hurtTime>0 —
         // shouldTrigger stays a coarse ~40t damage-window gate, but the proximity fallback must go
         // quiet as soon as the bot is actually freed, well before the 40t window itself lapses.
         // (g) a real, ongoing desync burial: damage signal AND hurtTime hot → fallback stays armed.
-        assertTrue(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+        assertTrue(
+                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
                         && AntiSuffocateGate.allowProximityFallback(10),
                 "M1(g): damage-signal fresh (death-#16 desync) AND hurtTime=10 (still being hurt) must arm the fallback branches");
         // (h) THE M1 case: damage signal still fresh but hurtTime already 0 (freed) → the fallback
         // must NOT arm, even though shouldTrigger itself is still true.
-        assertTrue(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+        assertTrue(
+                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
                         && !AntiSuffocateGate.allowProximityFallback(0),
                 "M1(h): damage-signal fresh but hurtTime==0 (freed) must NOT arm foot/horizontal fallback (eye/above-only)");
     }
@@ -61,6 +69,7 @@ class ReflexGateMatrixTest {
         assertEquals(99, AutoTool.stepGrace(0, 100), "fresh arm with config 100 -> 99 left after this tick");
         assertEquals(0, AutoTool.stepGrace(1, 100), "last armed tick -> 0 = expired, re-arms cleanly");
         assertEquals(0, AutoTool.stepGrace(0, 0), "config 0 clamps to single-tick grace that expires (no -1 wedge)");
-        assertEquals(0, AutoTool.stepGrace(0, -7), "negative config clamps to single-tick grace that expires (no wedge)");
+        assertEquals(
+                0, AutoTool.stepGrace(0, -7), "negative config clamps to single-tick grace that expires (no wedge)");
     }
 }

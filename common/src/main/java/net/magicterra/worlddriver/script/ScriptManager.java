@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.test.ScriptTest;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.NativeJavaClass;
@@ -12,21 +10,22 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.test.ScriptTest;
 
 /**
  * Tiny Rhino-backed script manager.
  *
- * Canonical call form, used by all scripts:
- *   Driver.invoke(method, params)     // in-JVM via ScriptCalls.invokeJson
- *   Driver.invokeRpc(method, params)  // TCP round-trip via RpcBridge.callJson
+ * <p>Canonical call form, used by all scripts: Driver.invoke(method, params) // in-JVM via ScriptCalls.invokeJson
+ * Driver.invokeRpc(method, params) // TCP round-trip via RpcBridge.callJson
  *
- * Both paths write the same Gson tree, so results are byte-identical on success.
+ * <p>Both paths write the same Gson tree, so results are byte-identical on success.
  */
 public final class ScriptManager {
     private final ApiRegistry api;
     private final Path scriptsDir;
-    private final RpcBridge bridge;     // may be null if RPC server isn't up
-    private final McpBridge mcpBridge;  // may be null if MCP server isn't up
+    private final RpcBridge bridge; // may be null if RPC server isn't up
+    private final McpBridge mcpBridge; // may be null if MCP server isn't up
 
     public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge) {
         this(api, scriptsDir, bridge, null);
@@ -46,10 +45,8 @@ public final class ScriptManager {
         ScriptableObject scope = cx.initStandardObjects();
         ScriptEvents.install(factory, scope);
 
-        ScriptableObject.putProperty(scope, "ScriptTest",
-                new NativeJavaClass(cx, scope, ScriptTest.class), cx);
-        ScriptableObject.putProperty(scope, "ScriptEvents",
-                new NativeJavaClass(cx, scope, ScriptEvents.class), cx);
+        ScriptableObject.putProperty(scope, "ScriptTest", new NativeJavaClass(cx, scope, ScriptTest.class), cx);
+        ScriptableObject.putProperty(scope, "ScriptEvents", new NativeJavaClass(cx, scope, ScriptEvents.class), cx);
         if (bridge != null) {
             ScriptableObject.putProperty(scope, "__rpc", cx.javaToJS(bridge, scope), cx);
         }
@@ -75,35 +72,34 @@ public final class ScriptManager {
         // (Driver.invokeRpc/invokeMcp + Driver.system.rpcRoundtrip/mcpRoundtrip)
         // and a console that prints to the
         // server log instead of prelude.js's in-scope __log buffer.
-        String harnessExtras =
-            "var console = {" +
-            "  log:   function(m){ System.out.println('[js] ' + m); }," +
-            "  error: function(m){ System.err.println('[js] ' + m); }" +
-            "};" +
-            // Same envelope as Driver.invoke, so a transport-parity check sees the same
-            // DriverApiError (code, issues, execution) whichever way the call went.
-            "function __viaBridge(bridge, method, params) {" +
-            "  var reply = JSON.parse(String(bridge.callJson(method, params === undefined ? null : JSON.stringify(params))));" +
-            "  if (reply.error) throw new DriverApiError(reply.error);" +
-            "  return reply.result;" +
-            "}" +
-            "Driver.invokeRpc = function(method, params) {" +
-            "  if (typeof __rpc === 'undefined') throw new Error('RPC bridge not installed');" +
-            "  return __viaBridge(__rpc, method, params);" +
-            "};" +
-            "Driver.invokeMcp = function(method, params) {" +
-            "  if (typeof __mcp === 'undefined') throw new Error('MCP bridge not installed');" +
-            "  return __viaBridge(__mcp, method, params);" +
-            "};" +
-            "Driver.system.rpcRoundtrip = function(m, p) { return Driver.invokeRpc(m, p); };" +
-            "Driver.system.mcpRoundtrip = function(m, p) { return Driver.invokeMcp(m, p); };";
+        String harnessExtras = "var console = {" + "  log:   function(m){ System.out.println('[js] ' + m); },"
+                + "  error: function(m){ System.err.println('[js] ' + m); }"
+                + "};"
+                +
+                // Same envelope as Driver.invoke, so a transport-parity check sees the same
+                // DriverApiError (code, issues, execution) whichever way the call went.
+                "function __viaBridge(bridge, method, params) {"
+                + "  var reply = JSON.parse(String(bridge.callJson(method, params === undefined ? null : JSON.stringify(params))));"
+                + "  if (reply.error) throw new DriverApiError(reply.error);"
+                + "  return reply.result;"
+                + "}"
+                + "Driver.invokeRpc = function(method, params) {"
+                + "  if (typeof __rpc === 'undefined') throw new Error('RPC bridge not installed');"
+                + "  return __viaBridge(__rpc, method, params);"
+                + "};"
+                + "Driver.invokeMcp = function(method, params) {"
+                + "  if (typeof __mcp === 'undefined') throw new Error('MCP bridge not installed');"
+                + "  return __viaBridge(__mcp, method, params);"
+                + "};"
+                + "Driver.system.rpcRoundtrip = function(m, p) { return Driver.invokeRpc(m, p); };"
+                + "Driver.system.mcpRoundtrip = function(m, p) { return Driver.invokeMcp(m, p); };";
         cx.evaluateString(scope, harnessExtras, "<harness-extras>", 1, null);
 
         List<Path> files = new ArrayList<>();
         try (Stream<Path> s = Files.list(scriptsDir)) {
             s.filter(p -> p.getFileName().toString().endsWith(".js"))
-             .sorted(Comparator.comparing(p -> p.getFileName().toString()))
-             .forEach(files::add);
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .forEach(files::add);
         }
         int loaded = 0;
         for (Path p : files) {

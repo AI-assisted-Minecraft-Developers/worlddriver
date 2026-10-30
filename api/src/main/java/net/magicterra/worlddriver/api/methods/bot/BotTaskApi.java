@@ -1,21 +1,22 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.registry.Spec;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
 import net.magicterra.worlddriver.api.methods.wait.WaitApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
- * The {@code mc.bot.*} verbs that run a task on a body. Each answers when the task is accepted or
- * refused, or later with {@code awaitMs}; read its end with {@link WaitApi#result}.
+ * The {@code mc.bot.*} verbs that run a task on a body. Each answers when the task is accepted or refused, or later
+ * with {@code awaitMs}; read its end with {@link WaitApi#result}.
  */
 public interface BotTaskApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static BotTaskStubApi of(ApiRegistry registry) { return BotTaskApiBinding.calls(registry); }
+    static BotTaskStubApi of(ApiRegistry registry) {
+        return BotTaskApiBinding.calls(registry);
+    }
 
     @Spec(GotoContracts.class)
     CompletionStage<ActionResponse<GotoContracts.Result>> goTo(GotoContracts.Params p, CallContext ctx);
@@ -39,7 +40,8 @@ public interface BotTaskApi {
     CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildContracts.BuildParams p, CallContext ctx);
 
     @Spec(value = BuildContracts.class, spec = "CONSTRUCT")
-    CompletionStage<ActionResponse<BuildContracts.Constructed>> construct(BuildContracts.ConstructParams p, CallContext ctx);
+    CompletionStage<ActionResponse<BuildContracts.Constructed>> construct(
+            BuildContracts.ConstructParams p, CallContext ctx);
 
     @Spec(value = BuildContracts.class, spec = "BUNKER")
     CompletionStage<ActionResponse<BuildContracts.Bunkered>> bunker(BuildContracts.BunkerParams p, CallContext ctx);

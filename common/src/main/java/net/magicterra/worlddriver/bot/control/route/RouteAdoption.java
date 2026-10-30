@@ -1,9 +1,15 @@
 package net.magicterra.worlddriver.bot.control.route;
 
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isOpenWaterLine;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalkable;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.stringPull;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing.SmoothResult;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -12,32 +18,24 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.minecraft.core.BlockPos;
 
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalkable;
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.stringPull;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isOpenWaterLine;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorInspector;
-
 /**
- * Turning a search result into the walk's plan: anchor it to where the body is, straighten it, cut a
- * best-effort tail back to firm ground, skip the prefix already walked, and install it — or refuse it,
- * and say why. The answer is a {@link Route.Adoption} the caller has to look at: a refused result leaves
- * the old plan in place, which is a different situation from "adopted" for everything that comes after.
+ * Turning a search result into the walk's plan: anchor it to where the body is, straighten it, cut a best-effort tail
+ * back to firm ground, skip the prefix already walked, and install it — or refuse it, and say why. The answer is a
+ * {@link Route.Adoption} the caller has to look at: a refused result leaves the old plan in place, which is a different
+ * situation from "adopted" for everything that comes after.
  */
 public final class RouteAdoption {
     private RouteAdoption() {}
 
     /**
-     * Adopt {@code res} as the plan, judged against {@code foot}; a null {@code foot} skips the anchor
-     * gate and the fast-forward (a stub built at the feet, or a test that stages its own step).
+     * Adopt {@code res} as the plan, judged against {@code foot}; a null {@code foot} skips the anchor gate and the
+     * fast-forward (a stub built at the feet, or a test that stages its own step).
      *
-     * <p>Refused when its start is nowhere near the feet. A continuation is computed from the previous
-     * segment's commitEnd; when the bot never actually made it there (fumbled the climb, fell off the
-     * route) the spliced path STARTS in mid-air several blocks away — step 1 is unreachable,
-     * fast-forward finds nothing near, and the bot just hangs against the wall until the wedge timer
-     * fires (live 2026-06-09: cave pocket, step1 4 blocks up / 4.5 away, 15 s freeze). Refused too when
-     * the world changed under its first edge while the search ran.
+     * <p>Refused when its start is nowhere near the feet. A continuation is computed from the previous segment's
+     * commitEnd; when the bot never actually made it there (fumbled the climb, fell off the route) the spliced path
+     * STARTS in mid-air several blocks away — step 1 is unreachable, fast-forward finds nothing near, and the bot just
+     * hangs against the wall until the wedge timer fires (live 2026-06-09: cave pocket, step1 4 blocks up / 4.5 away,
+     * 15 s freeze). Refused too when the world changed under its first edge while the search ran.
      */
     public static Route.Adoption adopt(Navigator nav, PathFinder.Result res, WorldView world, BlockPos foot) {
         Route route = nav.route;
@@ -61,7 +59,7 @@ public final class RouteAdoption {
                 edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
             }
         }
-        nav.search.gov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
+        nav.search.gov.noPathWaitTicks = 0; // a segment was found → the no-path wait starts over
         // A segment that ends FARTHER from the goal than it starts can only be
         // the last-resort ESCAPE (every other selector is strictly goal-ward):
         // its start is a PROVEN dead pocket. Charge it now so subsequent searches
@@ -69,7 +67,8 @@ public final class RouteAdoption {
         // is fully deterministic (live 2026-06-09: escape→high route→fall→free
         // h-improving corridors all funnel back to the same pocket, ~3 min/lap,
         // and nothing on the lap ever calls penalizeStuckNode).
-        if (nav.goal != null && path.size() > 1
+        if (nav.goal != null
+                && path.size() > 1
                 && nav.goal.estimate(path.get(path.size() - 1)) > nav.goal.estimate(path.get(0))) {
             world.penalizeStuckNode(path.get(0));
             world.penalizeStuckNode(path.get(0).above());
@@ -83,8 +82,16 @@ public final class RouteAdoption {
             StringBuilder sbp = new StringBuilder();
             for (int i = 0; i < path.size(); i++) {
                 Move.Edge e = i < edges.size() ? edges.get(i) : null;
-                sbp.append(i).append(':').append(path.get(i).getX()).append(',').append(path.get(i).getY())
-                   .append(',').append(path.get(i).getZ()).append('[').append(e != null ? e.move : "-").append("] ");
+                sbp.append(i)
+                        .append(':')
+                        .append(path.get(i).getX())
+                        .append(',')
+                        .append(path.get(i).getY())
+                        .append(',')
+                        .append(path.get(i).getZ())
+                        .append('[')
+                        .append(e != null ? e.move : "-")
+                        .append("] ");
             }
             LOG.info("[navigator] path = {}", sbp);
         }
@@ -110,7 +117,10 @@ public final class RouteAdoption {
             Move.Edge e = i < res.edges().size() ? res.edges().get(i) : null;
             if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
             double d2 = raw.get(i).distSqr(foot);
-            if (d2 < anchorD) { anchorD = d2; anchor = i; }
+            if (d2 < anchorD) {
+                anchorD = d2;
+                anchor = i;
+            }
         }
         // In WATER the gate must absorb CURRENT drift: a river pushes the
         // bot ~1.5 b/s downstream while it holds path-less, so by the time
@@ -152,29 +162,40 @@ public final class RouteAdoption {
                 && isOpenWaterLine(world, foot, raw.get(anchor));
         if (!openWaterBeeline
                 && (anchorD > rejectGate
-                    || Math.abs(raw.get(anchor).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2)) {
-            String why = String.format(java.util.Locale.ROOT,
+                        || Math.abs(raw.get(anchor).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2)) {
+            String why = String.format(
+                    java.util.Locale.ROOT,
                     "mis-anchored: nearest prefix node %d,%d,%d (d2=%d) vs foot %d,%d,%d",
-                    raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
-                    (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
+                    raw.get(anchor).getX(),
+                    raw.get(anchor).getY(),
+                    raw.get(anchor).getZ(),
+                    (int) anchorD,
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ());
             if (GameConfig.navigatorDebug) LOG.info("[navigator] reject {}", why);
             return why;
         }
         if (openWaterBeeline && anchorD > rejectGate && GameConfig.navigatorDebug)
-            LOG.info("[navigator] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
-                    raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
-                    (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
+            LOG.info(
+                    "[navigator] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
+                    raw.get(anchor).getX(),
+                    raw.get(anchor).getY(),
+                    raw.get(anchor).getZ(),
+                    (int) anchorD,
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ());
         return null;
     }
 
     /**
-     * The node to head for first. Fast-forward past a prefix the bot has already covered. A quick-start
-     * stub (progressive pathfinding) carries the bot a few blocks ahead of where the superseding big
-     * search was LAUNCHED, so the fresh path can start behind the feet — without this the bot visibly
-     * walks BACKWARD to rejoin at path[0]. Skip to the nearest on-path node in the first few steps, but
-     * never across an edge that still needs to break/place blocks (skipping its action would desync the
-     * build state). Only jump when a node is genuinely at the feet; a normal foot-search has
-     * path[0] == foot and is untouched.
+     * The node to head for first. Fast-forward past a prefix the bot has already covered. A quick-start stub
+     * (progressive pathfinding) carries the bot a few blocks ahead of where the superseding big search was LAUNCHED, so
+     * the fresh path can start behind the feet — without this the bot visibly walks BACKWARD to rejoin at path[0]. Skip
+     * to the nearest on-path node in the first few steps, but never across an edge that still needs to break/place
+     * blocks (skipping its action would desync the build state). Only jump when a node is genuinely at the feet; a
+     * normal foot-search has path[0] == foot and is untouched.
      */
     private static int fastForward(WorldView world, List<BlockPos> path, List<Move.Edge> edges, BlockPos foot) {
         int step = 1;
@@ -216,19 +237,23 @@ public final class RouteAdoption {
             if (ffDy < -1 && world.isWater(path.get(i))) break;
             if (Math.abs(ffDy) > 1) continue;
             double d2 = path.get(i).distSqr(foot);
-            if (d2 < nearestD) { nearestD = d2; nearest = i; }
+            if (d2 < nearestD) {
+                nearestD = d2;
+                nearest = i;
+            }
         }
         return nearestD <= accept ? nearest : step;
     }
 
     /**
-     * Restart what the follower measured against the old geometry. These counters belong to whoever
-     * follows the plan, not to the plan, and they restart because the cells they were timing are gone.
+     * Restart what the follower measured against the old geometry. These counters belong to whoever follows the plan,
+     * not to the plan, and they restart because the cells they were timing are gone.
      */
     private static void restartFollowing(Navigator nav, boolean stub) {
         nav.stuckTicks = 0;
-        nav.progress.stepProg.stuckStep = -1;        // new path geometry → restart the progress window
-        nav.progress.stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
+        nav.progress.stepProg.stuckStep = -1; // new path geometry → restart the progress window
+        nav.progress.stepProg.noStepProgressTicks =
+                0; // new path → restart the wedge timer (else a same-index step re-triggers instantly)
         nav.progress.stepProg.noProgressStep = -1;
         // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
         // the only adopts with foot==null) is a brand-new runway in a NEW
@@ -244,18 +269,26 @@ public final class RouteAdoption {
         // same-segment deadlock breaker and must not be reset away.
         if (stub) nav.recovery.dropWedgeAnchor();
         nav.progress.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
-        nav.progress.stepProg.stuckStepHigh = nav.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
+        nav.progress.stepProg.stuckStepHigh = nav.route.step()
+                - 1; // new path, new index semantics: one fresh window on the first tick, then high-water applies
         nav.actionTicks = 0;
     }
 
-    /** Where a best-effort segment's commit stops, which is where the continuation launches from; 0 to
-     *  keep the whole segment. Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
+    /**
+     * Where a best-effort segment's commit stops, which is where the continuation launches from; 0 to keep the whole
+     * segment. Ridge retreat: see {@link PathSmoothing#sunkTailCut}.
+     */
     private static int commitTailCut(List<BlockPos> path) {
         int cut = ControlConfig.navigatorCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
         if (cut <= 0 || cut >= path.size() - 1) return 0;
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] commit-tail retreat: {} -> {} (ridge {},{},{})", path.size() - 1, cut,
-                    path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
+            LOG.info(
+                    "[navigator] commit-tail retreat: {} -> {} (ridge {},{},{})",
+                    path.size() - 1,
+                    cut,
+                    path.get(cut).getX(),
+                    path.get(cut).getY(),
+                    path.get(cut).getZ());
         return cut;
     }
 }

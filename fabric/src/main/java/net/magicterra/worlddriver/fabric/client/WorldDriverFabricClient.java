@@ -14,10 +14,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.PlayerChatMessage;
 
 /**
- * Fabric client entry. Only loaded under Dist.CLIENT — Fabric Loader skips client entrypoints on
- * a dedicated-server install — so referencing {@link WorldDriverClientEvents} here doesn't drag
- * client classes into dedi-server classloading. The client entrypoint already runs on the render
- * thread, so the client API is installed here directly, then the client hooks are subscribed.
+ * Fabric client entry. Only loaded under Dist.CLIENT — Fabric Loader skips client entrypoints on a dedicated-server
+ * install — so referencing {@link WorldDriverClientEvents} here doesn't drag client classes into dedi-server
+ * classloading. The client entrypoint already runs on the render thread, so the client API is installed here directly,
+ * then the client hooks are subscribed.
  */
 public final class WorldDriverFabricClient implements ClientModInitializer {
     @Override
@@ -46,8 +46,12 @@ public final class WorldDriverFabricClient implements ClientModInitializer {
         ClientChat.recordReceived(message, null, overlay);
     }
 
-    private static void onChatMessage(Component message, PlayerChatMessage signedMessage,
-            GameProfile sender, ChatType.Bound params, Instant receptionTimestamp) {
+    private static void onChatMessage(
+            Component message,
+            PlayerChatMessage signedMessage,
+            GameProfile sender,
+            ChatType.Bound params,
+            Instant receptionTimestamp) {
         ClientChat.recordReceived(message, sender != null ? sender.getId() : null, false);
     }
 }

@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses.BotRef;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -23,8 +22,8 @@ import net.magicterra.worlddriver.api.schema.annotation.Range;
 /**
  * What a server-side bot's insides read right now: {@code mc.debug.navigator}, {@code mc.debug.body} and
  * {@code mc.debug.cells}. For a program checking the driver itself, a test above all; an agent steers on
- * {@code mc.bot.status}, which is why these are hidden. The counter and trace names are the driver's own and
- * change with it.
+ * {@code mc.bot.status}, which is why these are hidden. The counter and trace names are the driver's own and change
+ * with it.
  */
 public final class BotDebugContracts {
     private BotDebugContracts() {}
@@ -35,15 +34,25 @@ public final class BotDebugContracts {
     @Named("NavigatorParams")
     public record NavigatorParams(
             @BotRef String bot,
-            @Doc("Start a new leg on the telemetry before reading it.") @Default("false") boolean newLeg) {
-        public static NavigatorParams of(String bot) { return new NavigatorParams(bot, false); }
+
+            @Doc("Start a new leg on the telemetry before reading it.") @Default("false")
+            boolean newLeg) {
+        public static NavigatorParams of(String bot) {
+            return new NavigatorParams(bot, false);
+        }
     }
 
     /** Where the plan steers now: the node at {@code step}, the move entering it, and which drive branch ran. */
     @Named("PlanCursor")
-    public record PlanCursor(Optional<BlockPosition> node, Optional<String> move, int step, int len,
-                             Optional<String> parkourTakeoff, Optional<String> driveTag, Optional<String> jumpTag,
-                             Optional<String> aimTag) {}
+    public record PlanCursor(
+            Optional<BlockPosition> node,
+            Optional<String> move,
+            int step,
+            int len,
+            Optional<String> parkourTakeoff,
+            Optional<String> driveTag,
+            Optional<String> jumpTag,
+            Optional<String> aimTag) {}
 
     /** The last deep search any navigator on this body finished. */
     @Named("LastSearch")
@@ -58,9 +67,9 @@ public final class BotDebugContracts {
 
     /**
      * {@code process}: the kind of the task whose navigator answered, the running one or else the last a caller
-     * started; {@code running} whether it still runs. {@code plan} and the navigator's own counters are absent
-     * when no such task owns a navigator. {@code counters}, {@code flags} and {@code traces} hold the
-     * navigator's tallies, the body's telemetry and the driver-wide counters, by name.
+     * started; {@code running} whether it still runs. {@code plan} and the navigator's own counters are absent when no
+     * such task owns a navigator. {@code counters}, {@code flags} and {@code traces} hold the navigator's tallies, the
+     * body's telemetry and the driver-wide counters, by name.
      */
     @Named("NavigatorReading")
     public record NavigatorReading(
@@ -77,11 +86,13 @@ public final class BotDebugContracts {
             if (v == null) throw new IllegalArgumentException("no counter " + name + " in " + counters.keySet());
             return v;
         }
+
         public boolean flag(String name) {
             Boolean v = flags.get(name);
             if (v == null) throw new IllegalArgumentException("no flag " + name + " in " + flags.keySet());
             return v;
         }
+
         public String trace(String name) {
             String v = traces.get(name);
             if (v == null) throw new IllegalArgumentException("no trace " + name + " in " + traces.keySet());
@@ -93,8 +104,10 @@ public final class BotDebugContracts {
 
     public static final RecordType<NavigatorReading> NAVIGATOR_READING = ApiTypes.record(NavigatorReading.class);
 
-    public static final MethodSpec<NavigatorParams, NavigatorReading> NAVIGATOR = MethodSpec.of("mc.debug.navigator",
-                    NAVIGATOR_PARAMS, NAVIGATOR_READING,
+    public static final MethodSpec<NavigatorParams, NavigatorReading> NAVIGATOR = MethodSpec.of(
+                    "mc.debug.navigator",
+                    NAVIGATOR_PARAMS,
+                    NAVIGATOR_READING,
                     "A server-side bot's navigator as it stands: the plan cursor, the last search, and every tally, "
                             + "telemetry counter and trace by name. Read on the server thread.")
             .hidden();
@@ -102,8 +115,8 @@ public final class BotDebugContracts {
     // ------------------------------------------------------------------ mc.debug.body
 
     /**
-     * {@code reach}: also answer whether the bot could break that block from where it stands. {@code blastFrom}:
-     * also answer whether a swing at that entity would be refused for the blast, and the stands that would not be.
+     * {@code reach}: also answer whether the bot could break that block from where it stands. {@code blastFrom}: also
+     * answer whether a swing at that entity would be refused for the blast, and the stands that would not be.
      * {@code rise}: also answer which cells stop the bot's own box from rising that many blocks.
      */
     @Named("BodyParams")
@@ -115,19 +128,28 @@ public final class BotDebugContracts {
         public BodyParams(String bot, Optional<BlockPosition> reach, Optional<Integer> blastFrom) {
             this(bot, reach, blastFrom, Optional.empty());
         }
-        public static BodyParams of(String bot) { return new BodyParams(bot, Optional.empty(), Optional.empty()); }
+
+        public static BodyParams of(String bot) {
+            return new BodyParams(bot, Optional.empty(), Optional.empty());
+        }
+
         public static BodyParams rise(String bot, double blocks) {
             return new BodyParams(bot, Optional.empty(), Optional.empty(), Optional.of(blocks));
         }
     }
 
     /**
-     * What the bot stands on as the navigator's guards see it: the solid area under the sole (of
-     * {@code footingMin} needed), the row of cells under it, its foot cell and whether a lethal drop is beside it.
+     * What the bot stands on as the navigator's guards see it: the solid area under the sole (of {@code footingMin}
+     * needed), the row of cells under it, its foot cell and whether a lethal drop is beside it.
      */
     @Named("Footing")
-    public record Footing(boolean onGround, double soleOnSolid, double footingMin, String soleRow, BlockPosition foot,
-                          boolean lethalDropAdjacent) {}
+    public record Footing(
+            boolean onGround,
+            double soleOnSolid,
+            double footingMin,
+            String soleRow,
+            BlockPosition foot,
+            boolean lethalDropAdjacent) {}
 
     /** The hands: the dig held and on which cell, the placements so far, and what the planner may place. */
     @Named("Hands")
@@ -144,8 +166,8 @@ public final class BotDebugContracts {
     public record Reach(BlockPosition pos, boolean canBreak, boolean exposedFace, double eyeToCentre, double reach) {}
 
     /**
-     * {@code refusal}: why a swing now would be refused for the blast, absent when it would not be. {@code stands}:
-     * the cells within {@code surveyRadius} of the foot whose footing withstands it.
+     * {@code refusal}: why a swing now would be refused for the blast, absent when it would not be. {@code stands}: the
+     * cells within {@code surveyRadius} of the foot whose footing withstands it.
      */
     @Named("Blast")
     public record Blast(
@@ -157,8 +179,8 @@ public final class BotDebugContracts {
 
     /**
      * {@code dimension}: of the bot's world view, which follows the bot across a portal one tick late.
-     * {@code riseBlockers}: the cells in the way of {@code rise}, lowest first, empty when the rise is clear; an
-     * entity that blocks has no cell, so an empty list is also what a rise blocked only by an entity answers.
+     * {@code riseBlockers}: the cells in the way of {@code rise}, lowest first, empty when the rise is clear; an entity
+     * that blocks has no cell, so an empty list is also what a rise blocked only by an entity answers.
      */
     @Named("BodyReading")
     public record BodyReading(
@@ -175,7 +197,10 @@ public final class BotDebugContracts {
 
     public static final RecordType<BodyReading> BODY_READING = ApiTypes.record(BodyReading.class);
 
-    public static final MethodSpec<BodyParams, BodyReading> BODY = MethodSpec.of("mc.debug.body", BODY_PARAMS, BODY_READING,
+    public static final MethodSpec<BodyParams, BodyReading> BODY = MethodSpec.of(
+                    "mc.debug.body",
+                    BODY_PARAMS,
+                    BODY_READING,
                     "A bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on "
                             + "request whether a block is in reach, a swing is blast-safe or its box can rise. A "
                             + "server-side bot's on the server thread; self's on the client thread, from its own body.")
@@ -184,30 +209,36 @@ public final class BotDebugContracts {
     // ------------------------------------------------------------------ mc.debug.cells
 
     /**
-     * {@code node}: also answer the pose and fall facts of standing at that cell. {@code side}: whose view
-     * classifies the cells — {@code client} for self only, {@code server} for self on a world a client here hosts,
-     * or for a player on this server named by {@code bot}, which is how a dedicated server reads its view of a
-     * joined client's player.
+     * {@code node}: also answer the pose and fall facts of standing at that cell. {@code side}: whose view classifies
+     * the cells — {@code client} for self only, {@code server} for self on a world a client here hosts, or for a player
+     * on this server named by {@code bot}, which is how a dedicated server reads its view of a joined client's player.
      */
     @Named("CellsParams")
     public record CellsParams(
-            @Doc("Omitted: the overworld as the server level reads it.") Optional<@BotRef String> bot,
+            @Doc("Omitted: the overworld as the server level reads it.")
+            Optional<@BotRef String> bot,
+
             @Doc("With bot self: client (omitted), the view self plans with; server, the view of the server a client "
                     + "here hosts, over the same player. server with bot player:<name>, a player on this server: the "
                     + "server's view over that player.")
             Optional<Side> side,
+
             @Default("[]") @Length(max = 4096) List<BlockPosition> cells,
-            Optional<NodeQuery> node) implements SelfChecked {
+            Optional<NodeQuery> node)
+            implements SelfChecked {
         /** {@code bot}'s own view. */
         public CellsParams(Optional<String> bot, List<BlockPosition> cells, Optional<NodeQuery> node) {
             this(bot, Optional.empty(), cells, node);
         }
 
-        @Override public void check(DecodeContext at) {
+        @Override
+        public void check(DecodeContext at) {
             if (side.isPresent() && bot.isEmpty()) {
                 at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "a side is a player's view, and bot names no one");
-            } else if (side.orElse(null) == Side.CLIENT && !bot.map("self"::equals).orElse(false)) {
-                at.field("side").fail(ApiIssue.Code.INVALID_VALUE, "the client side is self's, and bot does not name self");
+            } else if (side.orElse(null) == Side.CLIENT
+                    && !bot.map("self"::equals).orElse(false)) {
+                at.field("side")
+                        .fail(ApiIssue.Code.INVALID_VALUE, "the client side is self's, and bot does not name self");
             }
         }
     }
@@ -215,8 +246,13 @@ public final class BotDebugContracts {
     /** self's two views: the client's, which self plans with, and the server's of the same player. */
     @Named("CellSide")
     public enum Side implements WireName {
-        CLIENT, SERVER;
-        @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
+        CLIENT,
+        SERVER;
+
+        @Override
+        public String wireName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     /** A node between {@code prev} and {@code next}, with the entering edge's digs and placements already done. */
@@ -231,9 +267,9 @@ public final class BotDebugContracts {
     /**
      * One cell as the world view classifies it. {@code breakCost}: what digging it costs a search; absent when it
      * cannot be. {@code buildBlock}, {@code valuable} and {@code throwaway} are about the block standing there as
-     * something to place: footing the bot may build with, a gathered resource it does not spend as filler, and an
-     * item it spends as filler first. {@code suffocates}: a head in this cell suffocates, the test the
-     * anti-suffocation reflex picks the block it breaks by.
+     * something to place: footing the bot may build with, a gathered resource it does not spend as filler, and an item
+     * it spends as filler first. {@code suffocates}: a head in this cell suffocates, the test the anti-suffocation
+     * reflex picks the block it breaks by.
      */
     @Named("DebugCell")
     public record Cell(
@@ -251,14 +287,29 @@ public final class BotDebugContracts {
             boolean standAt,
             Optional<Double> breakCost,
             @Doc("The block here may be placed as footing.") boolean buildBlock,
-            @Doc("The block here is a gathered resource, never spent as filler.") boolean valuable,
-            @Doc("The block's item is filler the bot spends first.") boolean throwaway,
+
+            @Doc("The block here is a gathered resource, never spent as filler.")
+            boolean valuable,
+
+            @Doc("The block's item is filler the bot spends first.")
+            boolean throwaway,
+
             @Doc("A head in this cell suffocates.") boolean suffocates) {}
 
     @Named("NodeFacts")
-    public record NodeFacts(boolean fitStand, boolean fitCrouch, boolean fitCrawl, String ceilingForces,
-                            boolean inWaterFoot, boolean submergedEye, boolean underfootSolid, String footHazard,
-                            double fallFromPrev, boolean fallSurvivable, boolean jumpNeeded, boolean jumpFeasible) {}
+    public record NodeFacts(
+            boolean fitStand,
+            boolean fitCrouch,
+            boolean fitCrawl,
+            String ceilingForces,
+            boolean inWaterFoot,
+            boolean submergedEye,
+            boolean underfootSolid,
+            String footHazard,
+            double fallFromPrev,
+            boolean fallSurvivable,
+            boolean jumpNeeded,
+            boolean jumpFeasible) {}
 
     /** {@code view}: whose view classified the cells, the bot's or the server level's. */
     @Named("CellsReading")
@@ -272,7 +323,10 @@ public final class BotDebugContracts {
 
     public static final RecordType<CellsReading> CELLS_READING = ApiTypes.record(CellsReading.class);
 
-    public static final MethodSpec<CellsParams, CellsReading> CELLS = MethodSpec.of("mc.debug.cells", CELLS_PARAMS, CELLS_READING,
+    public static final MethodSpec<CellsParams, CellsReading> CELLS = MethodSpec.of(
+                    "mc.debug.cells",
+                    CELLS_PARAMS,
+                    CELLS_READING,
                     "Cells as the planner's world view classifies them, a bot's or the server level's, and on request "
                             + "the pose and fall facts of standing at one. Read on the server thread; self's client view "
                             + "on the client thread.")

@@ -1,8 +1,10 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.game.UnloadedAreaException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;
@@ -15,16 +17,14 @@ import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRows;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Query;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.Rows;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.world.level.ChunkPos;
 
 /**
- * {@code mc.query} on a client JVM with no server attached (connected to a remote dedicated
- * server): scans ClientLevel through the client impl instead of the server level, under the
- * server path's contract. Runs on the client thread, where the client scans run inline.
+ * {@code mc.query} on a client JVM with no server attached (connected to a remote dedicated server): scans ClientLevel
+ * through the client impl instead of the server level, under the server path's contract. Runs on the client thread,
+ * where the client scans run inline.
  */
 final class ClientQueryFallback {
     private ClientQueryFallback() {}
@@ -36,14 +36,20 @@ final class ClientQueryFallback {
         };
     }
 
-    /** The client scan as the server's rows, refusing an unloaded area as the server does: ClientLevel reads
-     *  those cells as air. */
+    /**
+     * The client scan as the server's rows, refusing an unloaded area as the server does: ClientLevel reads those cells
+     * as air.
+     */
     private static Rows blocks(ClientDriverApi c, Blocks b) {
         BlockQuery rules = BlockQuery.of(b);
         Point center = b.center().map(p -> new Point(p.x(), p.y(), p.z())).orElse(null);
         Set<String> ids = b.filter().type().map(Set::of).orElse(null);
-        BlockScan scan = c.scanBlocks(rules.radius(), center == null ? null : center.x(),
-                center == null ? null : center.y(), center == null ? null : center.z(), ids);
+        BlockScan scan = c.scanBlocks(
+                rules.radius(),
+                center == null ? null : center.x(),
+                center == null ? null : center.y(),
+                center == null ? null : center.z(),
+                ids);
         List<ChunkRef> missing = scan.unloaded().orElse(List.of());
         if (!missing.isEmpty()) {
             List<ChunkPos> chunks = new ArrayList<>();
@@ -55,13 +61,19 @@ final class ClientQueryFallback {
         return new BlockRows(out);
     }
 
-    /** The client scan as the server's rows, with the filters the scan itself does not take applied here. The
-     *  client knows what the server does not (hostile, maxHealth, distance) and is not told other entities' effects. */
+    /**
+     * The client scan as the server's rows, with the filters the scan itself does not take applied here. The client
+     * knows what the server does not (hostile, maxHealth, distance) and is not told other entities' effects.
+     */
     private static Rows entities(ClientDriverApi c, Entities e) {
         EntityFilter f = e.filter();
         Point center = e.center().map(p -> new Point(p.x(), p.y(), p.z())).orElse(null);
-        List<EntityRow> scan = c.queryEntities(f.inRadius(), center == null ? null : center.x(),
-                center == null ? null : center.y(), center == null ? null : center.z(), f.isHostile().orElse(null));
+        List<EntityRow> scan = c.queryEntities(
+                f.inRadius(),
+                center == null ? null : center.x(),
+                center == null ? null : center.y(),
+                center == null ? null : center.z(),
+                f.isHostile().orElse(null));
         String wantType = f.type().map(RegistryIds::qualified).orElse(null);
         List<EntityRow> out = new ArrayList<>();
         for (EntityRow row : scan) {

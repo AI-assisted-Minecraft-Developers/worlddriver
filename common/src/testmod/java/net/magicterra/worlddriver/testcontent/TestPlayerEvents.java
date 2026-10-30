@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.testcontent;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-
 import net.minecraft.server.level.ServerPlayer;
 
 /**

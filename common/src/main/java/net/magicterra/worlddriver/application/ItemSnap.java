@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.application;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -7,40 +12,30 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
 /**
  * The one place item WEAR is projected into an API row.
  *
- * <p>Before this existed the agent could not see tool durability at all: every item the
- * driver reported was {@code {id, count}}, so a pickaxe with 5 uses left looked exactly
- * like a fresh one. The engine itself has always known — AutoEquip swaps on
- * {@code equipDurabilityThreshold}, ElytraProcess aborts on a durability margin — but
- * none of it reached the agent, which therefore could only learn a tool was gone AFTER
- * {@code tool.broke} fired. Everything a driver-driven agent might do BEFORE the break
- * (switch to the spare, head home while it can still dig, decide a 90-block tunnel is
- * affordable) needs this number.
+ * <p>Before this existed the agent could not see tool durability at all: every item the driver reported was {@code {id,
+ * count}}, so a pickaxe with 5 uses left looked exactly like a fresh one. The engine itself has always known —
+ * AutoEquip swaps on {@code equipDurabilityThreshold}, ElytraProcess aborts on a durability margin — but none of it
+ * reached the agent, which therefore could only learn a tool was gone AFTER {@code tool.broke} fired. Everything a
+ * driver-driven agent might do BEFORE the break (switch to the spare, head home while it can still dig, decide a
+ * 90-block tunnel is affordable) needs this number.
  *
- * <p>It is a helper rather than four copy-pasted blocks because the driver builds item
- * rows in five different shapes (with {@code empty}, with {@code slot}, with
- * {@code index}, server-side and client-side). Duplicating the wear fields into each is
- * exactly how a field ends up meaning two things — see gap #41, where server and client
- * {@code inventory} drifted apart.
+ * <p>It is a helper rather than four copy-pasted blocks because the driver builds item rows in five different shapes
+ * (with {@code empty}, with {@code slot}, with {@code index}, server-side and client-side). Duplicating the wear fields
+ * into each is exactly how a field ends up meaning two things — see gap #41, where server and client {@code inventory}
+ * drifted apart.
  */
 public final class ItemSnap {
     private ItemSnap() {}
 
     /**
-     * Adds {@code maxDamage}, {@code damage} and {@code durability} (points REMAINING,
-     * {@code maxDamage - damage} — the number decisions actually turn on) to an already-built
-     * item row, for damageable items only. Note points are not uses: Unbreaking makes a single
-     * point survive several uses, so treat {@code durability} as a floor on remaining work.
-     * Stackables (cobblestone, coal) carry no wear and get no fields, so the payload stays
-     * small and the presence of {@code durability} itself means "this is a thing that wears out".
+     * Adds {@code maxDamage}, {@code damage} and {@code durability} (points REMAINING, {@code maxDamage - damage} — the
+     * number decisions actually turn on) to an already-built item row, for damageable items only. Note points are not
+     * uses: Unbreaking makes a single point survive several uses, so treat {@code durability} as a floor on remaining
+     * work. Stackables (cobblestone, coal) carry no wear and get no fields, so the payload stays small and the presence
+     * of {@code durability} itself means "this is a thing that wears out".
      */
     public static ClientContracts.Wear wear(ItemStack s) {
         if (s == null || s.isEmpty() || !s.isDamageableItem()) return ClientContracts.Wear.NONE;
@@ -50,8 +45,11 @@ public final class ItemSnap {
     /** One {@code mc.observe.container} slot, read from a block entity or from a client's menu. */
     public static ScreenContracts.SlotRow slotRow(int index, ItemStack s) {
         if (s == null || s.isEmpty()) return ScreenContracts.SlotRow.empty(index);
-        return new ScreenContracts.SlotRow(index, Optional.of(BuiltInRegistries.ITEM.getKey(s.getItem()).toString()),
-                Optional.of(s.getCount()), wear(s));
+        return new ScreenContracts.SlotRow(
+                index,
+                Optional.of(BuiltInRegistries.ITEM.getKey(s.getItem()).toString()),
+                Optional.of(s.getCount()),
+                wear(s));
     }
 
     public static void putWear(Map<String, Object> row, ItemStack s) {
@@ -64,23 +62,21 @@ public final class ItemSnap {
     }
 
     /**
-     * The whole bag as API rows — non-empty slots only, in vanilla
-     * {@link Player#getInventory()} indexing (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand),
-     * each row {@code {slot, id, count}} plus whatever {@link #putWear} adds.
+     * The whole bag as API rows — non-empty slots only, in vanilla {@link Player#getInventory()} indexing (0-8 hotbar,
+     * 9-35 main, 36-39 armor, 40 offhand), each row {@code {slot, id, count}} plus whatever {@link #putWear} adds.
      *
-     * <p><b>Why this is here and not written out twice.</b> This class's own header cites gap #41
-     * — server and client {@code inventory} drifting apart — as the reason the WEAR fields were
-     * centralised. The enumeration that produces the rows those fields go into was left copied:
-     * {@code ObserveService.playerSnapshot} and {@code ClientObserve.observePlayer} each carried this
-     * loop, byte-identical but for the local's declared type. The server one's comment states the
-     * contract outright — "Shape is deliberately byte-identical to the client's — same verb, same
-     * field, same rows — so an agent never has to know which side answered" — and a contract of
-     * the form "these two places must be identical word for word" that is maintained by hand is a
-     * drift waiting for its first one-sided edit. It is the same field, so it has one writer.
+     * <p><b>Why this is here and not written out twice.</b> This class's own header cites gap #41 — server and client
+     * {@code inventory} drifting apart — as the reason the WEAR fields were centralised. The enumeration that produces
+     * the rows those fields go into was left copied: {@code ObserveService.playerSnapshot} and
+     * {@code ClientObserve.observePlayer} each carried this loop, byte-identical but for the local's declared type. The
+     * server one's comment states the contract outright — "Shape is deliberately byte-identical to the client's — same
+     * verb, same field, same rows — so an agent never has to know which side answered" — and a contract of the form
+     * "these two places must be identical word for word" that is maintained by hand is a drift waiting for its first
+     * one-sided edit. It is the same field, so it has one writer.
      *
-     * <p>Slot INDEXING is vanilla's and is the load-bearing part: {@code getItem(i)} maps the flat
-     * index onto items/armor/offhand itself, so the total is the three list sizes summed rather
-     * than a hardcoded 41 — a modded inventory size follows automatically.
+     * <p>Slot INDEXING is vanilla's and is the load-bearing part: {@code getItem(i)} maps the flat index onto
+     * items/armor/offhand itself, so the total is the three list sizes summed rather than a hardcoded 41 — a modded
+     * inventory size follows automatically.
      */
     public static List<Map<String, Object>> inventoryRows(Player p) {
         List<Map<String, Object>> inv = new ArrayList<>();

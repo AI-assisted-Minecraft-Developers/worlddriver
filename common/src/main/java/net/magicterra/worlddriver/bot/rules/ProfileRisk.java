@@ -3,15 +3,16 @@ package net.magicterra.worlddriver.bot.rules;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
 import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
 import net.minecraft.core.BlockPos;
 
-/** {@link RiskAt} over a profile's components: every {@link SightExposure} and
- *  {@link MobCluster} in it, and the regions in declaration order. */
+/**
+ * {@link RiskAt} over a profile's components: every {@link SightExposure} and {@link MobCluster} in it, and the regions
+ * in declaration order.
+ */
 public final class ProfileRisk implements RiskAt {
     private final List<SightExposure> sight = new ArrayList<>();
     private final List<MobCluster> mobs = new ArrayList<>();
@@ -30,21 +31,25 @@ public final class ProfileRisk implements RiskAt {
         }
     }
 
-    @Override public List<ThreatSnapshot.Threat> seeing(BlockPos cell) {
+    @Override
+    public List<ThreatSnapshot.Threat> seeing(BlockPos cell) {
         List<ThreatSnapshot.Threat> out = new ArrayList<>();
         for (SightExposure s : sight) for (ThreatSnapshot.Threat t : s.seeing(cell)) if (!out.contains(t)) out.add(t);
         return out;
     }
 
-    @Override public double nearestMob(BlockPos cell) {
+    @Override
+    public double nearestMob(BlockPos cell) {
         double best = Double.POSITIVE_INFINITY;
         for (MobCluster m : mobs) best = Math.min(best, m.nearest(cell));
         return best;
     }
 
-    @Override public List<String> regions(BlockPos cell) {
+    @Override
+    public List<String> regions(BlockPos cell) {
         List<String> out = new ArrayList<>();
-        for (var e : regions) if (e.getValue().contains(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5)) out.add(e.getKey());
+        for (var e : regions)
+            if (e.getValue().contains(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5)) out.add(e.getKey());
         return out;
     }
 }

@@ -7,10 +7,13 @@ public final class Drops {
     private Drops() {}
 
     /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
-    public static final int[][] EDGE_NEIGHBOURS = {
-            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+    public static final int[][] EDGE_NEIGHBOURS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
 
-    /** Whether a neighbour of {@code foot} opens onto a fall deeper than {@code threshold}, or onto a hazard at any depth. */
+    /**
+     * Whether a neighbour of {@code foot} opens onto a fall deeper than {@code threshold}, or onto a hazard at any
+     * depth.
+     */
     public static boolean adjacentExceeds(WorldView world, BlockPos foot, int threshold) {
         for (int[] o : EDGE_NEIGHBOURS) {
             BlockPos n = foot.offset(o[0], 0, o[1]);

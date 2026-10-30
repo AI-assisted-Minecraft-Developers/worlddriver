@@ -4,13 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
 /** A {key: value} object whose members are typed by their key. */
@@ -27,7 +26,9 @@ class KeyedValueTypeTest {
     }
 
     private static List<ApiIssue> issues(KeyedValueType type, String json) {
-        return assertThrows(ApiException.class, () -> type.decode(JsonParser.parseString(json))).error().issues();
+        return assertThrows(ApiException.class, () -> type.decode(JsonParser.parseString(json)))
+                .error()
+                .issues();
     }
 
     @Test
@@ -43,23 +44,39 @@ class KeyedValueTypeTest {
         List<ApiIssue> got = issues(KNOBS, "{\"flag\":\"yes\",\"depth\":99,\"nope\":1,\"dotted.name\":null}");
         Map<String, ApiIssue.Code> byPath = new LinkedHashMap<>();
         for (ApiIssue i : got) byPath.put(i.path(), i.code());
-        assertEquals(Map.of("/flag", ApiIssue.Code.TYPE_MISMATCH, "/depth", ApiIssue.Code.OUT_OF_RANGE,
-                "/nope", ApiIssue.Code.UNKNOWN_FIELD, "/dotted.name", ApiIssue.Code.TYPE_MISMATCH), byPath);
+        assertEquals(
+                Map.of(
+                        "/flag",
+                        ApiIssue.Code.TYPE_MISMATCH,
+                        "/depth",
+                        ApiIssue.Code.OUT_OF_RANGE,
+                        "/nope",
+                        ApiIssue.Code.UNKNOWN_FIELD,
+                        "/dotted.name",
+                        ApiIssue.Code.TYPE_MISMATCH),
+                byPath);
     }
 
     @Test
     void aJavaCallerMayHandAnIntegerToALongOrDoubleKey() {
-        KeyedValueType wide = ApiTypes.keyedValues("Wide",
-                Map.of("seed", ApiTypes.int64(0, Long.MAX_VALUE), "scale", ApiTypes.number()), Map.of());
+        KeyedValueType wide = ApiTypes.keyedValues(
+                "Wide", Map.of("seed", ApiTypes.int64(0, Long.MAX_VALUE), "scale", ApiTypes.number()), Map.of());
         List<Entry> checked = wide.validate(List.of(new Entry("seed", 7), new Entry("scale", 2)));
         assertEquals(List.of(new Entry("seed", 7L), new Entry("scale", 2.0)), checked);
-        assertEquals(ApiIssue.Code.TYPE_MISMATCH, assertThrows(ApiException.class,
-                () -> wide.validate(List.of(new Entry("seed", "7")))).error().issues().get(0).code());
+        assertEquals(
+                ApiIssue.Code.TYPE_MISMATCH,
+                assertThrows(ApiException.class, () -> wide.validate(List.of(new Entry("seed", "7"))))
+                        .error()
+                        .issues()
+                        .get(0)
+                        .code());
     }
 
     @Test
     void aMinimumRefusesTheEmptyObject() {
-        assertEquals(ApiIssue.Code.OUT_OF_RANGE, issues(KNOBS.atLeast(1), "{}").get(0).code());
+        assertEquals(
+                ApiIssue.Code.OUT_OF_RANGE,
+                issues(KNOBS.atLeast(1), "{}").get(0).code());
         assertEquals(ApiIssue.Code.TYPE_MISMATCH, issues(KNOBS, "[]").get(0).code());
     }
 
@@ -70,7 +87,8 @@ class KeyedValueTypeTest {
         assertEquals(1, schema.get("minProperties").getAsInt());
         JsonObject props = schema.getAsJsonObject("properties");
         assertEquals(List.of("flag", "depth", "dotted.name"), List.copyOf(props.keySet()));
-        assertEquals("On or off.", props.getAsJsonObject("flag").get("description").getAsString());
+        assertEquals(
+                "On or off.", props.getAsJsonObject("flag").get("description").getAsString());
     }
 
     @Test

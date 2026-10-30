@@ -13,20 +13,20 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
 
 /**
- * Phase B reflex — when health is at/below {@link BehaviorConfig#healHpThreshold} and
- * the hotbar holds a healing item (enchanted/plain golden apple, or a drinkable
- * potion granting Instant Health / Regeneration), select it and hold the use intent
- * to consume it. Sibling of {@link AutoEat}; the host arbitrates the use intent with
- * shield (shield wins) and eat (heal wins). Releases once healed above threshold
- * or the item runs out.
+ * Phase B reflex — when health is at/below {@link BehaviorConfig#healHpThreshold} and the hotbar holds a healing item
+ * (enchanted/plain golden apple, or a drinkable potion granting Instant Health / Regeneration), select it and hold the
+ * use intent to consume it. Sibling of {@link AutoEat}; the host arbitrates the use intent with shield (shield wins)
+ * and eat (heal wins). Releases once healed above threshold or the item runs out.
  */
 public final class AutoHeal {
     private boolean healing;
 
     public boolean wants(Body body) {
         Player p = body.asPlayer();
-        return p != null && body.equipment().isPresent()
-                && p.getHealth() <= BehaviorConfig.healHpThreshold && healSlot(p) >= 0;
+        return p != null
+                && body.equipment().isPresent()
+                && p.getHealth() <= BehaviorConfig.healHpThreshold
+                && healSlot(p) >= 0;
     }
 
     public void engage(Body body) {
@@ -34,7 +34,10 @@ public final class AutoHeal {
         Equipment hands = body.equipment().orElse(null);
         if (p == null || hands == null) return;
         int slot = healSlot(p);
-        if (slot < 0) { release(body); return; }
+        if (slot < 0) {
+            release(body);
+            return;
+        }
         if (p.getInventory().selected != slot) {
             // Switch first; defer the use hold a tick so the held item change
             // reaches the server before we start consuming (mirrors AutoEat).

@@ -5,13 +5,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Which {@code Origin} header either transport accepts, in one place so the MCP POST and
- * the WebSocket handshake cannot disagree.
+ * Which {@code Origin} header either transport accepts, in one place so the MCP POST and the WebSocket handshake cannot
+ * disagree.
  *
- * <p>An absent header passes: non-browser clients (curl, MCP SDKs, {@code rpc.py}) never
- * send one, and a browser always does. The literal {@code null} is refused even though it
- * looks like "no origin": it is what a sandboxed iframe or a {@code data:} page sends, so
- * letting it through reopens exactly the browser path this check exists to close.
+ * <p>An absent header passes: non-browser clients (curl, MCP SDKs, {@code rpc.py}) never send one, and a browser always
+ * does. The literal {@code null} is refused even though it looks like "no origin": it is what a sandboxed iframe or a
+ * {@code data:} page sends, so letting it through reopens exactly the browser path this check exists to close.
  */
 public final class OriginPolicy {
     private OriginPolicy() {}

@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.game.edit;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import net.minecraft.commands.CommandResultCallback;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
@@ -16,21 +15,20 @@ public final class ServerCommands {
 
     /**
      * What one command did. {@code ok} is whether it dispatched ({@code error} says why not);
-     * {@code success}/{@code value} come from the Brigadier result callback ({@code execute if entity} →
-     * match count); {@code feedback} collects the chat lines the command would have shown ({@code data get}
-     * → the NBT text). {@code ok:true, success:false} means the command dispatched but reported failure
-     * (e.g. selector matched nothing).
+     * {@code success}/{@code value} come from the Brigadier result callback ({@code execute if entity} → match count);
+     * {@code feedback} collects the chat lines the command would have shown ({@code data get} → the NBT text).
+     * {@code ok:true, success:false} means the command dispatched but reported failure (e.g. selector matched nothing).
      */
     public record Outcome(boolean ok, String error, boolean success, int value, List<String> feedback) {}
 
     /**
-     * Run {@code cmd} (no leading slash) as an operator: as the server, at the overworld spawn, or as {@code as}
-     * when it is not null.
+     * Run {@code cmd} (no leading slash) as an operator: as the server, at the overworld spawn, or as {@code as} when
+     * it is not null.
      *
-     * <p>The server is the default, not whichever player happens to be first in the list. That player is often a
-     * bot: a permission mod (LuckPerms) then gates every command node by the bot's own permissions, which
-     * {@code withPermission(4)} does not lift, and under concurrent tests {@code @s}/{@code @p} resolved to some
-     * other test's bot. A caller that needs {@code @s} names the player.
+     * <p>The server is the default, not whichever player happens to be first in the list. That player is often a bot: a
+     * permission mod (LuckPerms) then gates every command node by the bot's own permissions, which
+     * {@code withPermission(4)} does not lift, and under concurrent tests {@code @s}/{@code @p} resolved to some other
+     * test's bot. A caller that needs {@code @s} names the player.
      */
     public static Outcome run(MinecraftServer s, String cmd, ServerPlayer as) {
         // Collect feedback instead of suppressing it: parse errors and command

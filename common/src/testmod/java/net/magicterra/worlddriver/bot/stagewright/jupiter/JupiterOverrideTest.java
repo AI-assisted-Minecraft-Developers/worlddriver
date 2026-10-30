@@ -20,8 +20,8 @@ class JupiterOverrideTest {
 
     @Test
     void anOverrideWithoutItsLockIsRefused(Game game) {
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> game.override(GameRules.RULE_DOFIRETICK, false));
+        IllegalStateException e =
+                assertThrows(IllegalStateException.class, () -> game.override(GameRules.RULE_DOFIRETICK, false));
         assertTrue(e.getMessage().contains("@ResourceLock(Locks.WORLD_RULES)"), e.getMessage());
     }
 
@@ -32,13 +32,15 @@ class JupiterOverrideTest {
         game.override(GameRules.RULE_DOFIRETICK, !fireTickBefore);
         game.override(GameRules.RULE_DOFIRETICK, fireTickBefore);
         game.override(GameRules.RULE_DOFIRETICK, !fireTickBefore);
-        assertEquals(!fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
+        assertEquals(
+                !fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
     }
 
     @Test
     @DependsOn("anOverrideHoldsForTheTest")
     @ResourceLock(Locks.WORLD_RULES)
     void andIsUndoneWhenItEnds(Game game) {
-        assertEquals(fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
+        assertEquals(
+                fireTickBefore, game.onServer(server -> server.getGameRules().getBoolean(GameRules.RULE_DOFIRETICK)));
     }
 }

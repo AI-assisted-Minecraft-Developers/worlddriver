@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -31,10 +30,10 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 
 /**
- * Arenas whose purpose is to exercise navigator execution paths the outcome-focused families never enter, so a
- * refactor has a regression net over them. Each still asserts a real behavioural outcome — coverage without an
- * assertion is not a sensor. Every flag below is one the test baseline turns off and production ships on, so each
- * test turns its own back on.
+ * Arenas whose purpose is to exercise navigator execution paths the outcome-focused families never enter, so a refactor
+ * has a regression net over them. Each still asserts a real behavioural outcome — coverage without an assertion is not
+ * a sensor. Every flag below is one the test baseline turns off and production ships on, so each test turns its own
+ * back on.
  *
  * <p>Each course is a server bot sent through {@code mc.bot.goto} and ticked by the test, the navigator read through
  * {@code mc.debug.navigator}. Several mutate the world mid-walk (a ceiling slammed and lifted, a trench filled, a wall
@@ -49,18 +48,21 @@ class CoverageTest {
      * JUMP-noRise expectation alarm: a clean +1 step-up course is PLANNED first; once the bot closes on the riser a
      * bedrock CEILING is slammed over the launch cells, so every step-up jump is height-capped and the alarm fires
      * ({@code expectAlarmsFired}); the ceiling is then lifted and the navigator must still finish on the plateau.
-     * Earlier shapes were defeated by the stack itself: a wall slam re-routed around it; bare-hand obsidian is
-     * rejected by the planner's tool gate; and server-body digs are instant, so the DIG observers cannot fire here. A
-     * blocked JUMP is the observer a server body can pin.
+     * Earlier shapes were defeated by the stack itself: a wall slam re-routed around it; bare-hand obsidian is rejected
+     * by the planner's tool gate; and server-body digs are instant, so the DIG observers cannot fire here. A blocked
+     * JUMP is the observer a server body can pin.
      */
     @Test
     void expectAlarmBlockedJump(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, 0, 0);
         final int cx = o.getX(), cz = o.getZ(), floorY = o.getY(), standY = floorY + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
-        plot.fill(1, 1, -5, 5, 1, 5, Blocks.STONE);   // +1 plateau over the east half
+        plot.fill(1, 1, -5, 5, 1, 5, Blocks.STONE); // +1 plateau over the east half
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
-        Settings.pin(game).set("navigatorExpectAlarm", true).set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("navigatorExpectAlarm", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 4 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -84,9 +86,16 @@ class CoverageTest {
             String end = ending(bot);
             long fired = alarmsFired(bot) - firedBefore;
             boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5 && fp.getY() >= standY + 1 - 0.4;
-            TestMod.LOG.warn("[wd.expectAlarmBlockedJump] step={} ticks={} fired={} capped={} lifted={} reached={}",
-                    end, t, fired, capped, lifted, reached);
+                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
+                    && fp.getY() >= standY + 1 - 0.4;
+            TestMod.LOG.warn(
+                    "[wd.expectAlarmBlockedJump] step={} ticks={} fired={} capped={} lifted={} reached={}",
+                    end,
+                    t,
+                    fired,
+                    capped,
+                    lifted,
+                    reached);
             if (fired == 0)
                 fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + end
                         + " lastStats=" + lastSearch(bot) + " capped=" + capped + " pos=" + fp.position());
@@ -117,8 +126,12 @@ class CoverageTest {
             plot.fill(dx, 1 - depth, -2, dx, 0, 2, Blocks.WATER);
         }
         BlockPos goal = new BlockPos(cx + 4, standY, cz);
-        Settings.pin(game).set("navigatorDrowningEscape", true).set("allowBreak", false).set("allowPlace", false)
-                .set("autoDrownEscape", false).set("autoFloatWhenDrowning", false);
+        Settings.pin(game)
+                .set("navigatorDrowningEscape", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false)
+                .set("autoDrownEscape", false)
+                .set("autoFloatWhenDrowning", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 3 + 0.5, floorY - 3, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -138,10 +151,15 @@ class CoverageTest {
                 maxAir = Math.max(maxAir, airSim);
             }
             String end = ending(bot);
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.warn("[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
-                    end, t, minAir, maxAir, fp.position());
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            TestMod.LOG.warn(
+                    "[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
+                    end,
+                    t,
+                    minAir,
+                    maxAir,
+                    fp.position());
             if (minAir <= 0 || !fp.isAlive())
                 fail("drownEscapeSurface: body drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
             if (maxAir < 200)
@@ -149,15 +167,15 @@ class CoverageTest {
                         + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                         + " blockAtFeet=" + level.getBlockState(fp.blockPosition()));
             if (!reached)
-                fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step=" + end
-                        + " pos=" + fp.position());
+                fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step=" + end + " pos="
+                        + fp.position());
         });
     }
 
     /**
-     * Best-effort / continuation splice: a 20-block corridor with the A* node budget far below what the distance
-     * needs, so every search returns a best-effort PARTIAL segment — the navigator must commit to it, search on from
-     * the committed end, splice, and still arrive. Covers the machinery clean full-path arenas never touch.
+     * Best-effort / continuation splice: a 20-block corridor with the A* node budget far below what the distance needs,
+     * so every search returns a best-effort PARTIAL segment — the navigator must commit to it, search on from the
+     * committed end, splice, and still arrive. Covers the machinery clean full-path arenas never touch.
      */
     @Test
     void bestEffortSpliceCourse(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
@@ -165,15 +183,18 @@ class CoverageTest {
         final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
         plot.fill(-8, 0, -2, 13, 0, 2, Blocks.STONE);
         BlockPos goal = new BlockPos(cx + 12, standY, cz);
-        Settings.pin(game).set("pathfinder.maxNodes", 120).set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("pathfinder.maxNodes", 120)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
             ServerPlayer fp = walkTo(bot, goal);
             int t = bot.tickUntilIdle(600);
             String end = ending(bot);
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", end, t, fp.position());
             if (!reached)
                 fail("bestEffortSpliceCourse: navigator failed the corridor under a starved node budget "
@@ -193,7 +214,10 @@ class CoverageTest {
         // Staircase: floor height +1 per column from x=0..3, landing at +4.
         for (int i = 0; i <= 3; i++) plot.fill(i, 1 + i, -5, 5, 1 + i, 5, Blocks.STONE);
         BlockPos goal = new BlockPos(cx + 5, standY + 4, cz);
-        Settings.pin(game).set("navigatorAscendMovement", true).set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("navigatorAscendMovement", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 4 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -201,10 +225,12 @@ class CoverageTest {
             int t = bot.tickUntilIdle(400);
             String end = ending(bot);
             boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5 && fp.getY() >= standY + 4 - 0.4;
+                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
+                    && fp.getY() >= standY + 4 - 0.4;
             TestMod.LOG.warn("[wd.ascendMovementStairs] step={} ticks={} pos={}", end, t, fp.position());
             if (!reached)
-                fail("ascendMovementStairs: AscendMovement-delegated staircase failed: step=" + end + " pos=" + fp.position());
+                fail("ascendMovementStairs: AscendMovement-delegated staircase failed: step=" + end + " pos="
+                        + fp.position());
         });
     }
 
@@ -212,10 +238,10 @@ class CoverageTest {
      * Boxed-pocket churn and escalation: the goal sits behind a bedrock pocket sealed except its west mouth — no
      * around-route — so the horizon-committed search drives the bot in and it churns at the dead end until the
      * anti-churn escape fires (blacklist charge + sticky escalation, read from the progress probe). Once TWO churn
-     * windows have fired, the east wall is OPENED and the run must still arrive through it. The release is
-     * deliberate: self-escape geometries were each defeated by the stack (an around-corridor near the pocket snaps
-     * the adopted escape's carrot THROUGH the thin wall; a sharp convex corner on the way out pins the drive in a
-     * micro-orbit). A 3-tall perimeter rim keeps a best-effort route from walking the bot off the platform.
+     * windows have fired, the east wall is OPENED and the run must still arrive through it. The release is deliberate:
+     * self-escape geometries were each defeated by the stack (an around-corridor near the pocket snaps the adopted
+     * escape's carrot THROUGH the thin wall; a sharp convex corner on the way out pins the drive in a micro-orbit). A
+     * 3-tall perimeter rim keeps a best-effort route from walking the bot off the platform.
      */
     @Test
     void boxedChurnEscalate(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 32) Plot plot) {
@@ -232,9 +258,14 @@ class CoverageTest {
         BlockPos goal = new BlockPos(cx + 9, standY, cz);
         // Horizon soft-commit: a short receding horizon best-effort-commits INTO the pocket. In a truly sealed pocket
         // the futile-search cap races the churn windows, so it gets headroom: this test is about the churn machinery.
-        Settings.pin(game).set("navigatorDebug", true).set("pathfinderHorizonBlocks", 8)
-                .set("navigatorFasterChurnRepath", true).set("navigatorWallCornerFastChurn", true)
-                .set("navigatorFutileSearchCap", 60).set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("navigatorDebug", true)
+                .set("pathfinderHorizonBlocks", 8)
+                .set("navigatorFasterChurnRepath", true)
+                .set("navigatorWallCornerFastChurn", true)
+                .set("navigatorFutileSearchCap", 60)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -253,18 +284,30 @@ class CoverageTest {
                     for (int dx = 4; dx <= 5; dx++)
                         for (int dz = -2; dz <= 2; dz++)
                             for (int dy = 1; dy <= 4; dy++)
-                                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                                level.setBlockAndUpdate(
+                                        new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
                     released = true;
                 }
                 if (t % 100 == 0)
-                    trace.append(String.format(Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                            t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
+                    trace.append(String.format(
+                            Locale.ROOT,
+                            " t%d:(%.1f,%.1f,%.1f)[%s]",
+                            t,
+                            fp.getX() - cx,
+                            fp.getY() - standY,
+                            fp.getZ() - cz,
+                            progressProbe(bot)));
             }
             String end = ending(bot);
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.warn("[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
-                    end, t, enteredPocket, churnSeen, fp.position());
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            TestMod.LOG.warn(
+                    "[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
+                    end,
+                    t,
+                    enteredPocket,
+                    churnSeen,
+                    fp.position());
             String why = " step=" + end + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot)
                     + " trace=" + trace;
             if (!enteredPocket)
@@ -281,9 +324,9 @@ class CoverageTest {
      * Quick-start stub ({@code Navigator.tryQuickStart} and the land bee-line's REJECT path): a 1-deep water trench
      * across the course makes the same-Y bee-line reject (it refuses water cells), and slice budgets of 0 keep the big
      * search in flight across ticks — so the pre-path branch falls through to the synchronous mini-A*, adopts its stub
-     * (which swims the trench), and walks it while the big search lands and supersedes it. BOTH slice knobs are
-     * pinned: with no path the search runs at max(slice, idle slice). Walls and gaps were tried first: the bot
-     * corner-wedged on the gap edge every run; water gives the drive no corner.
+     * (which swims the trench), and walks it while the big search lands and supersedes it. BOTH slice knobs are pinned:
+     * with no path the search runs at max(slice, idle slice). Walls and gaps were tried first: the bot corner-wedged on
+     * the gap edge every run; water gives the drive no corner.
      */
     @Test
     void quickStartStub(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
@@ -293,8 +336,12 @@ class CoverageTest {
         plot.fill(-4, -1, -4, -3, -1, 4, Blocks.STONE);
         plot.fill(-4, 0, -4, -3, 0, 4, Blocks.WATER);
         BlockPos goal = new BlockPos(cx + 12, standY, cz);
-        Settings settings = Settings.pin(game).set("navigatorDebug", true).set("pathfinder.sliceMs", 0)
-                .set("pathfinder.idleSliceMs", 0).set("allowBreak", false).set("allowPlace", false);
+        Settings settings = Settings.pin(game)
+                .set("navigatorDebug", true)
+                .set("pathfinder.sliceMs", 0)
+                .set("pathfinder.idleSliceMs", 0)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -307,12 +354,18 @@ class CoverageTest {
                 if (t == 40) settings.set("pathfinder.sliceMs", 6).set("pathfinder.idleSliceMs", 30);
                 bot.tick();
                 if (t % 60 == 0)
-                    trace.append(String.format(Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                            t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, progressProbe(bot)));
+                    trace.append(String.format(
+                            Locale.ROOT,
+                            " t%d:(%.1f,%.1f,%.1f)[%s]",
+                            t,
+                            fp.getX() - cx,
+                            fp.getY() - standY,
+                            fp.getZ() - cz,
+                            progressProbe(bot)));
             }
             String end = ending(bot);
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn("[wd.quickStartStub] step={} ticks={} pos={}", end, t, fp.position());
             if (!reached)
                 fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): step=" + end
@@ -323,8 +376,8 @@ class CoverageTest {
     /**
      * {@code navigatorAboveNodeStallRecover}: a 2-deep stepped trench crosses the course; once the bot has committed
      * the descending route and closes on the west rim, the trench is FILLED flush, so the bot walks level ground while
-     * its step pointer holds a node 2 below the new surface. The fold must fire before the wedge burst and the
-     * re-route must finish the crossing.
+     * its step pointer holds a node 2 below the new surface. The fold must fire before the wedge burst and the re-route
+     * must finish the crossing.
      */
     @Test
     void aboveNodeStallPitFill(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
@@ -336,8 +389,11 @@ class CoverageTest {
         plot.fill(4, 0, -3, 4, 0, 3, Blocks.AIR);
         plot.fill(1, -1, -3, 3, 0, 3, Blocks.AIR);
         BlockPos goal = new BlockPos(cx + 7, standY, cz);
-        Settings.pin(game).set("navigatorDebug", true).set("navigatorAboveNodeStallRecover", true)
-                .set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("navigatorDebug", true)
+                .set("navigatorAboveNodeStallRecover", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -351,20 +407,23 @@ class CoverageTest {
                     for (int dz = -3; dz <= 3; dz++)
                         for (int dx = 0; dx <= 4; dx++)
                             for (int dy = 0; dy >= -1; dy--)
-                                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                                level.setBlockAndUpdate(
+                                        new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
                     filled = true;
                 }
                 bot.tick();
             }
             String end = ending(bot);
-            boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.warn("[wd.aboveNodeStallPitFill] step={} ticks={} filled={} pos={}", end, t, filled, fp.position());
+            boolean reached =
+                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            TestMod.LOG.warn(
+                    "[wd.aboveNodeStallPitFill] step={} ticks={} filled={} pos={}", end, t, filled, fp.position());
             if (!filled)
                 fail("aboveNodeStallPitFill: rig broken — the bot never reached the west rim (no fill): step=" + end
                         + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot));
             if (!reached)
-                fail("aboveNodeStallPitFill: no recovery off the buried node: step=" + end + " t=" + t + " pos=" + fp.position());
+                fail("aboveNodeStallPitFill: no recovery off the buried node: step=" + end + " t=" + t + " pos="
+                        + fp.position());
         });
     }
 
@@ -381,8 +440,11 @@ class CoverageTest {
         SceneArena.buildFloor(plot, 0, 0, 0);
         plot.fill(1, 1, -5, 5, 1, 5, Blocks.STONE);
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
-        Settings.pin(game).set("navigatorDebug", true).set("navigatorStepUpBackoffRetry", true)
-                .set("allowBreak", false).set("allowPlace", false);
+        Settings.pin(game)
+                .set("navigatorDebug", true)
+                .set("navigatorStepUpBackoffRetry", true)
+                .set("allowBreak", false)
+                .set("allowPlace", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 4 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -402,8 +464,10 @@ class CoverageTest {
             }
             String end = ending(bot);
             boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5 && fp.getY() >= standY + 1 - 0.4;
-            TestMod.LOG.warn("[wd.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", end, t, capped, fp.position());
+                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
+                    && fp.getY() >= standY + 1 - 0.4;
+            TestMod.LOG.warn(
+                    "[wd.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", end, t, capped, fp.position());
             if (!capped)
                 fail("stepUpBackoffCeiling: rig broken — the bot never approached the riser: step=" + end + " t=" + t
                         + " pos=" + fp.position());
@@ -423,8 +487,8 @@ class CoverageTest {
      *
      * <p>TWO pillar steps, not one: a pillarUp's destination is always support+1, and vanilla will not place into a
      * cell the player still overlaps, so "high enough to place" and "standing on the destination" are the same
-     * inequality — a plan ENDING at the destination returns ARRIVED before the climb phase can place anything. The
-     * goal is the crest, one above. Pre-registered outcomes: support placed ⇒ PASS; not placed and pointer past ⇒ FAIL
+     * inequality — a plan ENDING at the destination returns ARRIVED before the climb phase can place anything. The goal
+     * is the crest, one above. Pre-registered outcomes: support placed ⇒ PASS; not placed and pointer past ⇒ FAIL
      * (product defect); neither ⇒ the bot never rose to the placement threshold, which tested nothing and is logged,
      * not failed. Production runs with the flags ON; the test baseline turns them off, so this turns them back on.
      */
@@ -435,23 +499,27 @@ class CoverageTest {
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Two-deep column whose TOP cell is the surface: water at standY and standY+1, air above.
         plot.fill(0, 1, 0, 0, 2, 0, Blocks.WATER);
-        final BlockPos foot = new BlockPos(cx, standY, cz);        // where the bot starts
-        final BlockPos dest = new BlockPos(cx, standY + 1, cz);    // the first pillarUp's waypoint
-        final BlockPos support = foot;                             // its toPlace
-        final BlockPos crest = dest.above();                       // node 2 — the goal
+        final BlockPos foot = new BlockPos(cx, standY, cz); // where the bot starts
+        final BlockPos dest = new BlockPos(cx, standY + 1, cz); // the first pillarUp's waypoint
+        final BlockPos support = foot; // its toPlace
+        final BlockPos crest = dest.above(); // node 2 — the goal
         // navigatorPillarReachGoalNoSnap: production ON, and the subject is pillaring.
-        Settings settings = Settings.pin(game).set("navigatorPillarSurfacePlace", true).set("allowPlace", true)
-                .set("allowBreak", false).set("navigatorPillarReachGoalNoSnap", true);
+        Settings settings = Settings.pin(game)
+                .set("navigatorPillarSurfacePlace", true)
+                .set("allowPlace", true)
+                .set("allowBreak", false)
+                .set("navigatorPillarReachGoalNoSnap", true);
         if (!settings.flag("navigatorPillarSurfacePlace"))
-            fail("surfacePillar: navigatorPillarSurfacePlace is off, so the climb phase's carve-out is dead code and the "
-                    + "two phases must agree by construction.");
+            fail(
+                    "surfacePillar: navigatorPillarSurfacePlace is off, so the climb phase's carve-out is dead code and the "
+                            + "two phases must agree by construction.");
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
-            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // something to place
+            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64)); // something to place
             // Vacuity guards: each names a way this arena could go green while staging a DIFFERENT case.
             if (!level.getFluidState(dest).is(FluidTags.WATER))
                 fail("surfacePillar: the destination cell " + dest.toShortString() + " is not water; there is no "
@@ -461,11 +529,14 @@ class CoverageTest {
                         + "water-surface one; the carve-out condition does not hold.");
             // Follow mode, adopted as a search result with recovery on, goalReached=true: a best-effort segment is one
             // the navigator may replace, and on the first run it did, inside tick one.
-            List<DebugContracts.PlanEdge> plan = ScenePlan.syntheticPlan(foot, List.of(
-                    ScenePlan.edge(dest, "pillarUp", List.of(support)),
-                    ScenePlan.edge(crest, "pillarUp", List.of(dest))));
+            List<DebugContracts.PlanEdge> plan = ScenePlan.syntheticPlan(
+                    foot,
+                    List.of(
+                            ScenePlan.edge(dest, "pillarUp", List.of(support)),
+                            ScenePlan.edge(crest, "pillarUp", List.of(dest))));
             bot.walkPlan(DebugContracts.WalkPlanParams.follow(bot.ref(), plan, true)
-                    .goal(Targets.block(crest)).from(Targets.pos(foot)));
+                    .goal(Targets.block(crest))
+                    .from(Targets.pos(foot)));
 
             final double startY = fp.getY();
             double maxY = startY;
@@ -510,9 +581,11 @@ class CoverageTest {
                         + "water-surface shaft that needs a support placed, but the progress phase still treats it as a "
                         + "buoyant pillar whose unfilled place cell is not really pending: " + readings);
             if (!placed)
-                TestMod.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass and the "
-                        + "support was not placed. This run did not test the divergence; it only shows that the bot did "
-                        + "not rise. Not a failure, but not a pass either: {}", readings);
+                TestMod.LOG.warn(
+                        "[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass and the "
+                                + "support was not placed. This run did not test the divergence; it only shows that the bot did "
+                                + "not rise. Not a failure, but not a pass either: {}",
+                        readings);
         });
     }
 
@@ -526,7 +599,8 @@ class CoverageTest {
     }
 
     /** The bedrock (or air) cap over the launch cells of the +1 riser at dx 1. */
-    private static void ceiling(ServerLevel level, int cx, int floorY, int cz, net.minecraft.world.level.block.Block block) {
+    private static void ceiling(
+            ServerLevel level, int cx, int floorY, int cz, net.minecraft.world.level.block.Block block) {
         for (int dz = -5; dz <= 5; dz++)
             for (int dx = -1; dx <= 0; dx++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), block.defaultBlockState());
@@ -536,7 +610,8 @@ class CoverageTest {
     private static String ending(SceneBot bot) {
         if (bot.busy()) return "walking";
         ControlContracts.Slot g = bot.gotoSlot();
-        return g.endReason().orElse("no end reason") + g.lastError().map(e -> " (" + e + ")").orElse("");
+        return g.endReason().orElse("no end reason")
+                + g.lastError().map(e -> " (" + e + ")").orElse("");
     }
 
     /** The navigator's last search, as {@code mc.debug.navigator} reads it. */
@@ -551,7 +626,10 @@ class CoverageTest {
 
     /** The move entering the node the plan steers at now, or null without a plan. */
     private static String move(SceneBot bot) {
-        return bot.navigator().plan().flatMap(BotDebugContracts.PlanCursor::move).orElse(null);
+        return bot.navigator()
+                .plan()
+                .flatMap(BotDebugContracts.PlanCursor::move)
+                .orElse(null);
     }
 
     /** The plan's step pointer, 0 without a plan. */

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
@@ -23,8 +22,8 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 /**
- * The preview's pure parts: cutting a route into risk segments, discretising a drawn line, the
- * detour ratio, and a profile's regions read back by name. No search, no level.
+ * The preview's pure parts: cutting a route into risk segments, discretising a drawn line, the detour ratio, and a
+ * profile's regions read back by name. No search, no level.
  */
 class PreviewSearchTest {
     private static final int Y = 64;
@@ -41,11 +40,20 @@ class PreviewSearchTest {
 
     /** A table: cells 3..5 seen by skeleton 7, cells 8..9 in avoid#1, mob 2 blocks from cell 4. */
     private static final RiskAt TABLE = new RiskAt() {
-        @Override public List<ThreatSnapshot.Threat> seeing(BlockPos c) {
+        @Override
+        public List<ThreatSnapshot.Threat> seeing(BlockPos c) {
             return c.getX() >= 3 && c.getX() <= 5 ? List.of(skel(7)) : List.of();
         }
-        @Override public double nearestMob(BlockPos c) { return c.getX() == 4 ? 2.0 : 9.5; }
-        @Override public List<String> regions(BlockPos c) { return c.getX() >= 8 ? List.of("avoid#1") : List.of(); }
+
+        @Override
+        public double nearestMob(BlockPos c) {
+            return c.getX() == 4 ? 2.0 : 9.5;
+        }
+
+        @Override
+        public List<String> regions(BlockPos c) {
+            return c.getX() >= 8 ? List.of("avoid#1") : List.of();
+        }
     };
 
     @Test
@@ -77,26 +85,35 @@ class PreviewSearchTest {
 
     @Test
     void aSegmentEncodesToTheDeclaredShape() {
-        Object wire = GotoContracts.SEGMENT.encode(PreviewSearch.segments(line(10), TABLE, 2).get(1));
+        Object wire = GotoContracts.SEGMENT.encode(
+                PreviewSearch.segments(line(10), TABLE, 2).get(1));
         // Compared as text: the encoder's number classes are its own business, the order and values are not.
-        assertEquals("{\"leg\":2,\"from\":3,\"to\":6,\"risk\":{\"exposedTo\":[{\"id\":7,\"type\":\"minecraft:skeleton\",\"cells\":3}],"
-                + "\"nearestMob\":2.0,\"regions\":[]}}", String.valueOf(wire));
+        assertEquals(
+                "{\"leg\":2,\"from\":3,\"to\":6,\"risk\":{\"exposedTo\":[{\"id\":7,\"type\":\"minecraft:skeleton\",\"cells\":3}],"
+                        + "\"nearestMob\":2.0,\"regions\":[]}}",
+                String.valueOf(wire));
     }
 
     @Test
     void polylineCellsStepOneCellAlongTheLongestAxis() {
-        List<BlockPos> cells = PreviewSearch.polylineCells(List.of(new BlockPos(0, 0, 0), new BlockPos(4, 0, 2), new BlockPos(4, 3, 2)));
+        List<BlockPos> cells = PreviewSearch.polylineCells(
+                List.of(new BlockPos(0, 0, 0), new BlockPos(4, 0, 2), new BlockPos(4, 3, 2)));
         assertEquals(new BlockPos(0, 0, 0), cells.get(0));
         assertEquals(new BlockPos(4, 0, 2), cells.get(4));
         assertEquals(new BlockPos(4, 3, 2), cells.get(cells.size() - 1));
         assertEquals(8, cells.size(), cells.toString());
         for (int i = 1; i < cells.size(); i++) {
             BlockPos a = cells.get(i - 1), b = cells.get(i);
-            assertTrue(Math.abs(a.getX() - b.getX()) <= 1 && Math.abs(a.getY() - b.getY()) <= 1 && Math.abs(a.getZ() - b.getZ()) <= 1);
+            assertTrue(Math.abs(a.getX() - b.getX()) <= 1
+                    && Math.abs(a.getY() - b.getY()) <= 1
+                    && Math.abs(a.getZ() - b.getZ()) <= 1);
             assertFalse(a.equals(b));
         }
         assertTrue(PreviewSearch.polylineCells(List.of()).isEmpty());
-        assertEquals(1, PreviewSearch.polylineCells(List.of(new BlockPos(1, 1, 1), new BlockPos(1, 1, 1))).size());
+        assertEquals(
+                1,
+                PreviewSearch.polylineCells(List.of(new BlockPos(1, 1, 1), new BlockPos(1, 1, 1)))
+                        .size());
     }
 
     @Test
@@ -110,7 +127,9 @@ class PreviewSearchTest {
     @Test
     void profileRiskNamesRegionsInDeclarationOrder() {
         SearchProfile profile = new SearchProfile(
-                List.of(new AvoidRegion(new Region.Sphere(0.5, Y, 0.5, 2), 10), new AvoidRegion(new Region.Box(5, Y - 1, -1, 6, Y + 1, 1), 10)),
+                List.of(
+                        new AvoidRegion(new Region.Sphere(0.5, Y, 0.5, 2), 10),
+                        new AvoidRegion(new Region.Box(5, Y - 1, -1, 6, Y + 1, 1), 10)),
                 CapabilityProfile.ALL,
                 List.of(new ForbidRegion(new Region.Box(9, Y - 1, -1, 9, Y + 1, 1))));
         ProfileRisk risk = new ProfileRisk(profile);

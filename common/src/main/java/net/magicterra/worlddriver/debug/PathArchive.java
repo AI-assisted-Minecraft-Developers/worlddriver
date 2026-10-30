@@ -10,17 +10,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * On-disk archive for path planning sessions: captures the planner output and
- * navigator trajectory so a Python post-processor can replay, visualise, and
- * analyse them without a running Minecraft instance.
+ * On-disk archive for path planning sessions: captures the planner output and navigator trajectory so a Python
+ * post-processor can replay, visualise, and analyse them without a running Minecraft instance.
  *
- * <p>Schema version: 1.  All names are kept exactly as specified so the Python
- * analyser can parse the JSON by key name without a translation table.</p>
+ * <p>Schema version: 1. All names are kept exactly as specified so the Python analyser can parse the JSON by key name
+ * without a translation table.
  *
- * <p>Serialisation is Gson over plain maps and lists.  Numbers decode as
- * {@code Long} (no decimal point) or {@code Double} (decimal / scientific), so a
- * 64-bit seed keeps every digit; the {@code asXxx} helpers tolerate any
- * {@link Number} subtype.</p>
+ * <p>Serialisation is Gson over plain maps and lists. Numbers decode as {@code Long} (no decimal point) or
+ * {@code Double} (decimal / scientific), so a 64-bit seed keeps every digit; the {@code asXxx} helpers tolerate any
+ * {@link Number} subtype.
  */
 public final class PathArchive {
 
@@ -33,124 +31,112 @@ public final class PathArchive {
     public static final int SCHEMA_VERSION = 2;
 
     /** Nulls written as null, not dropped: a v1 reader tells "absent" from "none" by them. */
-    private static final Gson GSON = new GsonBuilder().serializeNulls().disableHtmlEscaping()
-            .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE).create();
+    private static final Gson GSON = new GsonBuilder()
+            .serializeNulls()
+            .disableHtmlEscaping()
+            .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+            .create();
 
     // -----------------------------------------------------------------------
     // Nested record types
     // -----------------------------------------------------------------------
 
     /**
-     * Session-level metadata.  {@code seed} is boxed {@link Long} so it can be
-     * {@code null} when the world seed is unknown or irrelevant (e.g. a replay
-     * produced from a server-side capture that never exposed the seed to the
+     * Session-level metadata. {@code seed} is boxed {@link Long} so it can be {@code null} when the world seed is
+     * unknown or irrelevant (e.g. a replay produced from a server-side capture that never exposed the seed to the
      * client).
      */
     public record Header(
-            Long   seed,
+            Long seed,
             String dimension,
-            long   startMs,
+            long startMs,
             String goalDesc,
-            int[]  start,
-            int[]  goal,
+            int[] start,
+            int[] goal,
             String outcome,
-            String reason
-    ) {}
+            String reason) {}
 
     /** One edge in the A*-planned graph, stored without live-world references. */
-    public record EdgeRec(
-            String       move,
-            double       cost,
-            List<int[]>  breakCells,
-            List<int[]>  placeCells
-    ) {}
+    public record EdgeRec(String move, double cost, List<int[]> breakCells, List<int[]> placeCells) {}
 
     /**
-     * Per-node physics snapshot.  All 13 {@link NodePhysics.Facts} fields are
-     * stored flat; the jump fields are written nested as
-     * {@code {"needed":bool,"feasible":bool}} under the key {@code "jumpToNext"}.
+     * Per-node physics snapshot. All 13 {@link NodePhysics.Facts} fields are stored flat; the jump fields are written
+     * nested as {@code {"needed":bool,"feasible":bool}} under the key {@code "jumpToNext"}.
      */
     public record NodeRec(
             boolean fitStand,
             boolean fitCrouch,
             boolean fitCrawl,
             boolean collidesStanding,
-            String  ceilingForces,
+            String ceilingForces,
             boolean inWaterFoot,
             boolean submergedEye,
             boolean underfootSolid,
-            String  footHazard,        // nullable
-            double  fallFromPrev,      // stored as "fall"
+            String footHazard, // nullable
+            double fallFromPrev, // stored as "fall"
             boolean fallSurvivable,
             boolean jumpNeeded,
-            boolean jumpFeasible
-    ) {}
+            boolean jumpFeasible) {}
 
     /** One adopted path segment (i.e. one repath). */
     public record Segment(
-            int           repathIndex,
-            boolean       goalReached,
-            int           expanded,
-            long          ms,
-            double        finalCost,
-            List<int[]>   path,
+            int repathIndex,
+            boolean goalReached,
+            int expanded,
+            long ms,
+            double finalCost,
+            List<int[]> path,
             List<EdgeRec> edges,
-            List<NodeRec> nodes
-    ) {}
+            List<NodeRec> nodes) {}
 
     /**
-     * One block in the spatial envelope sampled around the path.
-     * {@code shape} is nullable (e.g. non-solid blocks have no collision shape);
-     * {@code fluid} is nullable for non-fluid blocks.
+     * One block in the spatial envelope sampled around the path. {@code shape} is nullable (e.g. non-solid blocks have
+     * no collision shape); {@code fluid} is nullable for non-fluid blocks.
      *
-     * <p>{@code state} is the FULL block state as SNBT ({@code NbtUtils.writeBlockState}
-     * → {@code {Name,Properties}}) so a faithful replay restores stair facing, slab
-     * half, snow layers, water level, waterlogged, ... — not just the block type.
-     * {@code nbt} is the block-entity contents as SNBT ({@code saveWithFullMetadata}),
-     * null for cells without a block entity. Both are nullable: schema-v1 archives
-     * (block id only) decode them as null and the replayer falls back to
-     * {@code defaultBlockState()}.</p>
+     * <p>{@code state} is the FULL block state as SNBT ({@code NbtUtils.writeBlockState} → {@code {Name,Properties}})
+     * so a faithful replay restores stair facing, slab half, snow layers, water level, waterlogged, ... — not just the
+     * block type. {@code nbt} is the block-entity contents as SNBT ({@code saveWithFullMetadata}), null for cells
+     * without a block entity. Both are nullable: schema-v1 archives (block id only) decode them as null and the
+     * replayer falls back to {@code defaultBlockState()}.
      */
     public record EnvelopeCell(
-            int[]           pos,
-            String          block,
-            boolean         solid,
-            List<double[]>  shape,   // nullable
-            String          fluid,   // nullable
-            String          state,   // nullable — full block state SNBT (NbtUtils.writeBlockState)
-            String          nbt      // nullable — block-entity SNBT (saveWithFullMetadata)
-    ) {}
+            int[] pos,
+            String block,
+            boolean solid,
+            List<double[]> shape, // nullable
+            String fluid, // nullable
+            String state, // nullable — full block state SNBT (NbtUtils.writeBlockState)
+            String nbt // nullable — block-entity SNBT (saveWithFullMetadata)
+            ) {}
 
     /**
-     * One navigator tick sample.  {@code deviation} is {@link Double#NaN} for plan
-     * archives where no execution trajectory exists; the codec emits {@code null}
-     * for NaN so the JSON stays valid.
+     * One navigator tick sample. {@code deviation} is {@link Double#NaN} for plan archives where no execution
+     * trajectory exists; the codec emits {@code null} for NaN so the JSON stays valid.
      */
     public record Tick(
-            long    tick,
-            double  x,
-            double  y,
-            double  z,
-            float   yaw,
-            int     step,
-            String  move,
+            long tick,
+            double x,
+            double y,
+            double z,
+            float yaw,
+            int step,
+            String move,
             boolean onGround,
             boolean inWater,
-            String  pose,
+            String pose,
             boolean aabbOverlap,
-            double  deviation
-    ) {}
+            double deviation) {}
 
     // -----------------------------------------------------------------------
     // Top-level fields
     // -----------------------------------------------------------------------
-    private final int              version;
-    private final String           kind;
-    private final Header           header;
-    private final List<Segment>    segments;
+    private final int version;
+    private final String kind;
+    private final Header header;
+    private final List<Segment> segments;
     private final List<EnvelopeCell> envelope;
-    private final List<Tick>       trajectory;
-    private final String           planRef;   // nullable
+    private final List<Tick> trajectory;
+    private final String planRef; // nullable
 
     public PathArchive(
             int version,
@@ -160,25 +146,45 @@ public final class PathArchive {
             List<EnvelopeCell> envelope,
             List<Tick> trajectory,
             String planRef) {
-        this.version    = version;
-        this.kind       = kind;
-        this.header     = header;
-        this.segments   = segments;
-        this.envelope   = envelope;
+        this.version = version;
+        this.kind = kind;
+        this.header = header;
+        this.segments = segments;
+        this.envelope = envelope;
         this.trajectory = trajectory;
-        this.planRef    = planRef;
+        this.planRef = planRef;
     }
 
     // -----------------------------------------------------------------------
     // Accessors
     // -----------------------------------------------------------------------
-    public int               version()    { return version; }
-    public String            kind()       { return kind; }
-    public Header            header()     { return header; }
-    public List<Segment>     segments()   { return segments; }
-    public List<EnvelopeCell> envelope()  { return envelope; }
-    public List<Tick>        trajectory() { return trajectory; }
-    public String            planRef()    { return planRef; }
+    public int version() {
+        return version;
+    }
+
+    public String kind() {
+        return kind;
+    }
+
+    public Header header() {
+        return header;
+    }
+
+    public List<Segment> segments() {
+        return segments;
+    }
+
+    public List<EnvelopeCell> envelope() {
+        return envelope;
+    }
+
+    public List<Tick> trajectory() {
+        return trajectory;
+    }
+
+    public String planRef() {
+        return planRef;
+    }
 
     // -----------------------------------------------------------------------
     // Serialisation: toMap / toJson
@@ -188,12 +194,12 @@ public final class PathArchive {
     public Map<String, Object> toMap() {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("version", version);
-        root.put("kind",    kind);
-        root.put("header",  headerToMap(header));
+        root.put("kind", kind);
+        root.put("header", headerToMap(header));
         root.put("segments", segmentsToList(segments));
         root.put("envelope", envelopeToList(envelope));
         root.put("trajectory", trajectoryToList(trajectory));
-        root.put("planRef",  planRef);   // null is written as null
+        root.put("planRef", planRef); // null is written as null
         return root;
     }
 
@@ -205,14 +211,14 @@ public final class PathArchive {
 
     private static Map<String, Object> headerToMap(Header h) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("seed",      h.seed());          // boxed Long or null
+        m.put("seed", h.seed()); // boxed Long or null
         m.put("dimension", h.dimension());
-        m.put("startMs",   h.startMs());
-        m.put("goalDesc",  h.goalDesc());
-        m.put("start",     posToList(h.start()));
-        m.put("goal",      posToList(h.goal()));
-        m.put("outcome",   h.outcome());
-        m.put("reason",    h.reason());
+        m.put("startMs", h.startMs());
+        m.put("goalDesc", h.goalDesc());
+        m.put("start", posToList(h.start()));
+        m.put("goal", posToList(h.goal()));
+        m.put("outcome", h.outcome());
+        m.put("reason", h.reason());
         return m;
     }
 
@@ -228,12 +234,12 @@ public final class PathArchive {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("repathIndex", s.repathIndex());
         m.put("goalReached", s.goalReached());
-        m.put("expanded",    s.expanded());
-        m.put("ms",          s.ms());
-        m.put("finalCost",   s.finalCost());
-        m.put("path",        posListToList(s.path()));
-        m.put("edges",       edgesToList(s.edges()));
-        m.put("nodes",       nodesToList(s.nodes()));
+        m.put("expanded", s.expanded());
+        m.put("ms", s.ms());
+        m.put("finalCost", s.finalCost());
+        m.put("path", posListToList(s.path()));
+        m.put("edges", edgesToList(s.edges()));
+        m.put("nodes", nodesToList(s.nodes()));
         return m;
     }
 
@@ -247,8 +253,8 @@ public final class PathArchive {
 
     private static Map<String, Object> edgeToMap(EdgeRec e) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("move",  e.move());
-        m.put("cost",  e.cost());
+        m.put("move", e.move());
+        m.put("cost", e.cost());
         m.put("break", posListToList(e.breakCells()));
         m.put("place", posListToList(e.placeCells()));
         return m;
@@ -264,21 +270,21 @@ public final class PathArchive {
 
     private static Map<String, Object> nodeToMap(NodeRec n) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("fitStand",        n.fitStand());
-        m.put("fitCrouch",       n.fitCrouch());
-        m.put("fitCrawl",        n.fitCrawl());
-        m.put("collidesStanding",n.collidesStanding());
-        m.put("ceilingForces",   n.ceilingForces());
-        m.put("inWaterFoot",     n.inWaterFoot());
-        m.put("submergedEye",    n.submergedEye());
-        m.put("underfootSolid",  n.underfootSolid());
-        m.put("footHazard",      n.footHazard());   // null → "null"
-        m.put("fall",            n.fallFromPrev());
-        m.put("fallSurvivable",  n.fallSurvivable());
+        m.put("fitStand", n.fitStand());
+        m.put("fitCrouch", n.fitCrouch());
+        m.put("fitCrawl", n.fitCrawl());
+        m.put("collidesStanding", n.collidesStanding());
+        m.put("ceilingForces", n.ceilingForces());
+        m.put("inWaterFoot", n.inWaterFoot());
+        m.put("submergedEye", n.submergedEye());
+        m.put("underfootSolid", n.underfootSolid());
+        m.put("footHazard", n.footHazard()); // null → "null"
+        m.put("fall", n.fallFromPrev());
+        m.put("fallSurvivable", n.fallSurvivable());
         Map<String, Object> jump = new LinkedHashMap<>();
-        jump.put("needed",   n.jumpNeeded());
+        jump.put("needed", n.jumpNeeded());
         jump.put("feasible", n.jumpFeasible());
-        m.put("jumpToNext",  jump);
+        m.put("jumpToNext", jump);
         return m;
     }
 
@@ -292,7 +298,7 @@ public final class PathArchive {
 
     private static Map<String, Object> cellToMap(EnvelopeCell c) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("pos",   posToList(c.pos()));
+        m.put("pos", posToList(c.pos()));
         m.put("block", c.block());
         m.put("solid", c.solid());
         if (c.shape() != null) {
@@ -306,9 +312,9 @@ public final class PathArchive {
         } else {
             m.put("shape", null);
         }
-        m.put("fluid", c.fluid());   // null → "null"
-        m.put("state", c.state());   // null for v1-style cells
-        m.put("nbt",   c.nbt());     // null when no block entity
+        m.put("fluid", c.fluid()); // null → "null"
+        m.put("state", c.state()); // null for v1-style cells
+        m.put("nbt", c.nbt()); // null when no block entity
         return m;
     }
 
@@ -322,19 +328,19 @@ public final class PathArchive {
 
     private static Map<String, Object> tickToMap(Tick t) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("tick",        t.tick());
-        m.put("x",           t.x());
-        m.put("y",           t.y());
-        m.put("z",           t.z());
-        m.put("yaw",         (double) t.yaw());
-        m.put("step",        t.step());
-        m.put("move",        t.move());
-        m.put("onGround",    t.onGround());
-        m.put("inWater",     t.inWater());
-        m.put("pose",        t.pose());
+        m.put("tick", t.tick());
+        m.put("x", t.x());
+        m.put("y", t.y());
+        m.put("z", t.z());
+        m.put("yaw", (double) t.yaw());
+        m.put("step", t.step());
+        m.put("move", t.move());
+        m.put("onGround", t.onGround());
+        m.put("inWater", t.inWater());
+        m.put("pose", t.pose());
         m.put("aabbOverlap", t.aabbOverlap());
         // NaN is "not measured" here, and the reader maps null back to it; JSON has no NaN.
-        m.put("deviation",   Double.isNaN(t.deviation()) ? null : t.deviation());
+        m.put("deviation", Double.isNaN(t.deviation()) ? null : t.deviation());
         return m;
     }
 
@@ -349,12 +355,12 @@ public final class PathArchive {
 
     @SuppressWarnings("unchecked")
     public static PathArchive fromMap(Map<String, Object> m) {
-        int    version    = asInt(m.get("version"));
-        String kind       = asStr(m.get("kind"));
-        Header header     = headerFromMap((Map<String, Object>) m.get("header"));
-        List<Segment>      segments   = segmentsFromList((List<Object>) m.get("segments"));
-        List<EnvelopeCell> envelope   = envelopeFromList((List<Object>) m.get("envelope"));
-        List<Tick>         trajectory = trajectoryFromList((List<Object>) m.get("trajectory"));
+        int version = asInt(m.get("version"));
+        String kind = asStr(m.get("kind"));
+        Header header = headerFromMap((Map<String, Object>) m.get("header"));
+        List<Segment> segments = segmentsFromList((List<Object>) m.get("segments"));
+        List<EnvelopeCell> envelope = envelopeFromList((List<Object>) m.get("envelope"));
+        List<Tick> trajectory = trajectoryFromList((List<Object>) m.get("trajectory"));
         String planRef = asStrNullable(m.get("planRef"));
         return new PathArchive(version, kind, header, segments, envelope, trajectory, planRef);
     }
@@ -373,8 +379,7 @@ public final class PathArchive {
                 posFromList((List<Object>) m.get("start")),
                 posFromList((List<Object>) m.get("goal")),
                 asStr(m.get("outcome")),
-                asStr(m.get("reason"))
-        );
+                asStr(m.get("reason")));
     }
 
     // -- segments --
@@ -396,8 +401,7 @@ public final class PathArchive {
                 asDouble(m.get("finalCost")),
                 posListFromList((List<Object>) m.get("path")),
                 edgesFromList((List<Object>) m.get("edges")),
-                nodesFromList((List<Object>) m.get("nodes"))
-        );
+                nodesFromList((List<Object>) m.get("nodes")));
     }
 
     // -- edges --
@@ -415,8 +419,7 @@ public final class PathArchive {
                 asStr(m.get("move")),
                 asDouble(m.get("cost")),
                 posListFromList((List<Object>) m.get("break")),
-                posListFromList((List<Object>) m.get("place"))
-        );
+                posListFromList((List<Object>) m.get("place")));
     }
 
     // -- nodes --
@@ -444,8 +447,7 @@ public final class PathArchive {
                 asDouble(m.get("fall")),
                 asBool(m.get("fallSurvivable")),
                 asBool(jump.get("needed")),
-                asBool(jump.get("feasible"))
-        );
+                asBool(jump.get("feasible")));
     }
 
     // -- envelope --
@@ -476,9 +478,8 @@ public final class PathArchive {
                 asBool(m.get("solid")),
                 shape,
                 asStrNullable(m.get("fluid")),
-                asStrNullable(m.get("state")),   // null for v1 archives
-                asStrNullable(m.get("nbt"))
-        );
+                asStrNullable(m.get("state")), // null for v1 archives
+                asStrNullable(m.get("nbt")));
     }
 
     // -- trajectory --
@@ -500,13 +501,12 @@ public final class PathArchive {
                 asDouble(m.get("z")),
                 (float) asDouble(m.get("yaw")),
                 asInt(m.get("step")),
-                asStrNullable(m.get("move")),   // null when the tick is at/past the terminal node (no entering edge)
+                asStrNullable(m.get("move")), // null when the tick is at/past the terminal node (no entering edge)
                 asBool(m.get("onGround")),
                 asBool(m.get("inWater")),
                 asStr(m.get("pose")),
                 asBool(m.get("aabbOverlap")),
-                deviation
-        );
+                deviation);
     }
 
     // -----------------------------------------------------------------------
@@ -551,13 +551,15 @@ public final class PathArchive {
     /** Encode {@code int[3]} → {@code List<Integer>}. */
     private static List<Object> posToList(int[] p) {
         List<Object> l = new ArrayList<>(3);
-        l.add(p[0]); l.add(p[1]); l.add(p[2]);
+        l.add(p[0]);
+        l.add(p[1]);
+        l.add(p[2]);
         return l;
     }
 
     /** Decode {@code List<Object>} → {@code int[3]}. */
     private static int[] posFromList(List<Object> l) {
-        return new int[]{ asInt(l.get(0)), asInt(l.get(1)), asInt(l.get(2)) };
+        return new int[] {asInt(l.get(0)), asInt(l.get(1)), asInt(l.get(2))};
     }
 
     /** Encode a list of {@code int[3]} arrays. */
@@ -580,14 +582,14 @@ public final class PathArchive {
     // -----------------------------------------------------------------------
 
     /**
-     * Returns a fixed {@link PathArchive} instance with enough data to exercise
-     * every field in the JSON round-trip test.
+     * Returns a fixed {@link PathArchive} instance with enough data to exercise every field in the JSON round-trip
+     * test.
      *
      * <ul>
-     *   <li>Header: seed 3257840388L, dimension "minecraft:overworld"</li>
-     *   <li>1 Segment with a 2-node path, 1 edge, 2 NodeRecs</li>
-     *   <li>1 EnvelopeCell</li>
-     *   <li>2 Ticks (deviation=NaN for plan archive)</li>
+     *   <li>Header: seed 3257840388L, dimension "minecraft:overworld"
+     *   <li>1 Segment with a 2-node path, 1 edge, 2 NodeRecs
+     *   <li>1 EnvelopeCell
+     *   <li>2 Ticks (deviation=NaN for plan archive)
      * </ul>
      */
     public static PathArchive demo() {
@@ -597,63 +599,44 @@ public final class PathArchive {
                 "minecraft:overworld",
                 1718400000000L,
                 "goto(100,64,200)",
-                new int[]{0, 64, 0},
-                new int[]{100, 64, 200},
+                new int[] {0, 64, 0},
+                new int[] {100, 64, 200},
                 "ARRIVED",
-                ""
-        );
+                "");
 
         // One edge: Walk move, cost 10.0, one break cell, one place cell
-        EdgeRec edge = new EdgeRec(
-                "Walk",
-                10.0,
-                List.of(new int[]{1, 64, 0}),
-                List.of(new int[]{0, 63, 0})
-        );
+        EdgeRec edge = new EdgeRec("Walk", 10.0, List.of(new int[] {1, 64, 0}), List.of(new int[] {0, 63, 0}));
 
         // Two NodeRecs
-        NodeRec node0 = new NodeRec(
-                true, true, true, false, "none",
-                false, false, true, null,
-                0.0, true, false, true
-        );
-        NodeRec node1 = new NodeRec(
-                true, true, true, false, "none",
-                false, false, true, null,
-                0.0, true, false, true
-        );
+        NodeRec node0 = new NodeRec(true, true, true, false, "none", false, false, true, null, 0.0, true, false, true);
+        NodeRec node1 = new NodeRec(true, true, true, false, "none", false, false, true, null, 0.0, true, false, true);
 
         // One Segment: path of 2 nodes
         Segment seg = new Segment(
-                0, true, 42, 18L, 10.0,
-                List.of(new int[]{0, 64, 0}, new int[]{1, 64, 0}),
+                0,
+                true,
+                42,
+                18L,
+                10.0,
+                List.of(new int[] {0, 64, 0}, new int[] {1, 64, 0}),
                 List.of(edge),
-                List.of(node0, node1)
-        );
+                List.of(node0, node1));
 
         // One EnvelopeCell
         EnvelopeCell cell = new EnvelopeCell(
-                new int[]{0, 63, 0},
+                new int[] {0, 63, 0},
                 "minecraft:stone",
                 true,
-                List.of(new double[]{0.0, 0.0, 0.0, 1.0, 1.0, 1.0}),
+                List.of(new double[] {0.0, 0.0, 0.0, 1.0, 1.0, 1.0}),
                 null,
                 "{Name:\"minecraft:oak_stairs\",Properties:{facing:\"east\",half:\"bottom\",shape:\"straight\",waterlogged:\"true\"}}",
-                "{id:\"minecraft:chest\",Items:[{Slot:0b,id:\"minecraft:stone\",Count:1b}]}"
-        );
+                "{id:\"minecraft:chest\",Items:[{Slot:0b,id:\"minecraft:stone\",Count:1b}]}");
 
         // Two Ticks (plan archive: deviation=NaN)
         Tick tick0 = new Tick(100L, 0.5, 64.0, 0.5, 90.0f, 0, "Walk", true, false, "STANDING", false, Double.NaN);
         Tick tick1 = new Tick(101L, 0.7, 64.0, 0.5, 88.0f, 0, "Walk", true, false, "STANDING", false, Double.NaN);
 
         return new PathArchive(
-                SCHEMA_VERSION,
-                "plan",
-                header,
-                List.of(seg),
-                List.of(cell),
-                List.of(tick0, tick1),
-                null
-        );
+                SCHEMA_VERSION, "plan", header, List.of(seg), List.of(cell), List.of(tick0, tick1), null);
     }
 }

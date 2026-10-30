@@ -10,15 +10,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Logs a server-side block change into {@link BlockChanges}, at the call where vanilla asks each mob's
- * navigation whether the change made its path stale, so a navigator can ask the same question of its route.
+ * Logs a server-side block change into {@link BlockChanges}, at the call where vanilla asks each mob's navigation
+ * whether the change made its path stale, so a navigator can ask the same question of its route.
  */
 @Mixin(ServerLevel.class)
 abstract class ServerLevelMixin {
 
     @Inject(method = "sendBlockUpdated", at = @At("HEAD"))
-    private void worlddriver$noteBlockChange(BlockPos pos, BlockState before, BlockState after, int flags,
-                                             CallbackInfo ci) {
+    private void worlddriver$noteBlockChange(
+            BlockPos pos, BlockState before, BlockState after, int flags, CallbackInfo ci) {
         BlockChanges.record((ServerLevel) (Object) this, pos, before, after);
     }
 }

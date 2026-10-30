@@ -1,7 +1,14 @@
 package net.magicterra.worlddriver.application;
 
+import java.util.*;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.game.BodyTasks;
 import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
@@ -12,38 +19,29 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
+import net.magicterra.worlddriver.application.client.ClientDriverApi;
+import net.magicterra.worlddriver.application.client.ClientHooks;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import java.util.*;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import net.magicterra.worlddriver.application.client.ClientHooks;
-import net.magicterra.worlddriver.application.client.ClientDriverApi;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
  * is still retained. */
 
 /**
- * The core methods' handlers, bound to their contracts and published as the {@code worlddriver/core}
- * batch. Operates on the live ServerLevel, dispatching writes to the server thread.
+ * The core methods' handlers, bound to their contracts and published as the {@code worlddriver/core} batch. Operates on
+ * the live ServerLevel, dispatching writes to the server thread.
  *
- * The {@code mc.system/observe/action/wait} verb groups are implemented in the
- * sibling {@link SystemService} / {@link ObserveService} / {@link ActionService} /
- * {@link WaitService} handlers (each holding a back-reference to this instance for
- * the shared server handle, event ring buffer, and server-thread hop); pure
- * parse/encode helpers live in {@link ApiSupport}. Every transport dispatches
- * through the {@link ApiRegistry} this holds, so a core method is wired here
- * and in {@link net.magicterra.worlddriver.api.methods.CoreMethods}, nowhere else.
+ * <p>The {@code mc.system/observe/action/wait} verb groups are implemented in the sibling {@link SystemService} /
+ * {@link ObserveService} / {@link ActionService} / {@link WaitService} handlers (each holding a back-reference to this
+ * instance for the shared server handle, event ring buffer, and server-thread hop); pure parse/encode helpers live in
+ * {@link ApiSupport}. Every transport dispatches through the {@link ApiRegistry} this holds, so a core method is wired
+ * here and in {@link net.magicterra.worlddriver.api.methods.CoreMethods}, nowhere else.
  */
 public final class DriverApplication implements DriverHost {
     private final ApiRegistry registry = new ApiRegistry();
@@ -70,11 +68,13 @@ public final class DriverApplication implements DriverHost {
     final AtomicLong eventSeq = new AtomicLong();
     final long startNanos = System.nanoTime();
 
-    /** Live push listeners (the WebSocket and SSE transports register here). Every
-     *  {@link #emit} hands the new event to each, off the caller's thread via
-     *  {@link #eventDispatch} so neither the server tick nor a client tick ever
-     *  blocks on socket I/O. Copy-on-write: registration is rare, iteration frequent. */
+    /**
+     * Live push listeners (the WebSocket and SSE transports register here). Every {@link #emit} hands the new event to
+     * each, off the caller's thread via {@link #eventDispatch} so neither the server tick nor a client tick ever blocks
+     * on socket I/O. Copy-on-write: registration is rare, iteration frequent.
+     */
     private final List<Consumer<EventContracts.Event>> eventListeners = new CopyOnWriteArrayList<>();
+
     private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().name("agent-event-dispatch").daemon().factory());
     private volatile ScriptHost scriptHost;
@@ -86,13 +86,15 @@ public final class DriverApplication implements DriverHost {
         // another mod's method holds) leaves the others standing.
         BodyTasks.listen(e -> {
             String name = e.spec().name();
-            registry.registerBatch(new ApiBatch(name.substring(0, name.indexOf('.')), "task:" + name,
-                    List.of(tasks.registered(e))));
+            registry.registerBatch(
+                    new ApiBatch(name.substring(0, name.indexOf('.')), "task:" + name, List.of(tasks.registered(e))));
         });
     }
 
     /** Every method this driver answers, core and published alike; what every transport dispatches through. */
-    public ApiRegistry registry() { return registry; }
+    public ApiRegistry registry() {
+        return registry;
+    }
 
     /** The core methods, published once; a retry would hand over this same object. */
     private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
@@ -114,8 +116,8 @@ public final class DriverApplication implements DriverHost {
     }
 
     /**
-     * Bind what answers {@code mc.script.eval}, {@code mc.skill} and {@code mc.bot.playbook}. Called from the
-     * platform bootstrap, so this package never loads the script engine.
+     * Bind what answers {@code mc.script.eval}, {@code mc.skill} and {@code mc.bot.playbook}. Called from the platform
+     * bootstrap, so this package never loads the script engine.
      */
     public void setScriptHost(ScriptHost host) {
         this.scriptHost = host;
@@ -137,17 +139,19 @@ public final class DriverApplication implements DriverHost {
     }
 
     /**
-     * Write a list of cells into the attached server's overworld on the server
-     * thread. Public seam for the path-replay debug tool ({@code mc.debug.replay}),
-     * which restores a recorded block envelope before re-executing a plan. Completes
-     * with the number of cells written. Throws if no server is attached.
+     * Write a list of cells into the attached server's overworld on the server thread. Public seam for the path-replay
+     * debug tool ({@code mc.debug.replay}), which restores a recorded block envelope before re-executing a plan.
+     * Completes with the number of cells written. Throws if no server is attached.
      */
     public CompletionStage<Integer> restoreCellsOnServer(List<WorldCell> cells, CallContext ctx) {
         ServerLevel level = level();
-        return requireServerHop().submit(() -> {
-            WorldService.restoreCells(level, cells);
-            return cells.size();
-        }, ctx);
+        return requireServerHop()
+                .submit(
+                        () -> {
+                            WorldService.restoreCells(level, cells);
+                            return cells.size();
+                        },
+                        ctx);
     }
 
     public void detachServer() {
@@ -158,17 +162,20 @@ public final class DriverApplication implements DriverHost {
         world.clearSnapshots();
     }
 
-    /** Drop the buffered events but never rewind the seq: the transports outlive a world, and a
-     *  client still holding cursor N would see nothing until the counter climbed back past N. */
+    /**
+     * Drop the buffered events but never rewind the seq: the transports outlive a world, and a client still holding
+     * cursor N would see nothing until the counter climbed back past N.
+     */
     public void clearEvents() {
         synchronized (eventsLock) {
             events.clear();
         }
     }
 
-    /** Platform event hooks (and client-tick detectors) feed natural (non-API)
-     *  signals — block changes, damage, death, chat, threats — into the event
-     *  stream through here. */
+    /**
+     * Platform event hooks (and client-tick detectors) feed natural (non-API) signals — block changes, damage, death,
+     * chat, threats — into the event stream through here.
+     */
     public void emitExternal(String type, BlockPos pos, JsonValue data) {
         emit(type, pos, data);
     }
@@ -179,8 +186,8 @@ public final class DriverApplication implements DriverHost {
     }
 
     /**
-     * Append an event by name. A catalogued type still has to carry its payload's shape: the emitters
-     * below the bot's facade may not name the catalog, so this is where their payloads are held to it.
+     * Append an event by name. A catalogued type still has to carry its payload's shape: the emitters below the bot's
+     * facade may not name the catalog, so this is where their payloads are held to it.
      */
     long emit(String type, BlockPos pos, JsonValue data) {
         EventCatalog.Entry<?> entry = EventCatalog.byType(type);
@@ -188,11 +195,12 @@ public final class DriverApplication implements DriverHost {
         return append(type, pos, data);
     }
 
-    /** Append an event to the ring buffer (for replay via {@code mc.observe.eventsSince})
-     *  AND fan it out to live push subscribers. The buffer append is synchronous and
-     *  cheap; listener delivery is handed to the single-thread {@link #eventDispatch}
-     *  so the calling thread (server tick / client tick / watcher) never blocks on a
-     *  socket write. Returns the assigned sequence number. */
+    /**
+     * Append an event to the ring buffer (for replay via {@code mc.observe.eventsSince}) AND fan it out to live push
+     * subscribers. The buffer append is synchronous and cheap; listener delivery is handed to the single-thread
+     * {@link #eventDispatch} so the calling thread (server tick / client tick / watcher) never blocks on a socket
+     * write. Returns the assigned sequence number.
+     */
     private long append(String type, BlockPos pos, JsonValue data) {
         DriverEvent e;
         // The seq is taken under the lock: readers advance their cursor to the last seq they
@@ -216,15 +224,21 @@ public final class DriverApplication implements DriverHost {
                 if (BotConfig.mutedEvents.contains(e.type)) return;
                 EventContracts.Event wire = EventWire.dto(e);
                 for (Consumer<EventContracts.Event> l : eventListeners) {
-                    try { l.accept(wire); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
+                    try {
+                        l.accept(wire);
+                    } catch (Throwable ignored) {
+                        /* a bad listener never breaks emission */
+                    }
                 }
             });
         }
         return e.seq;
     }
 
-    /** Register a live push listener (the WebSocket/SSE transports). Idempotent-ish:
-     *  the same consumer may appear twice if added twice — callers add exactly once. */
+    /**
+     * Register a live push listener (the WebSocket/SSE transports). Idempotent-ish: the same consumer may appear twice
+     * if added twice — callers add exactly once.
+     */
     public void addEventListener(Consumer<EventContracts.Event> listener) {
         if (listener != null) eventListeners.add(listener);
     }
@@ -239,12 +253,12 @@ public final class DriverApplication implements DriverHost {
         return s.overworld();
     }
 
-    /** Default budget for waiting on a server-tick hop. Lowered from 30s so a
-     *  stuck tick surfaces as a clear error within ~8s instead of stalling every
-     *  MCP / RPC call for half a minute. Override with
-     *  {@code -Dworlddriver.serverThreadTimeoutMs=N}. */
-    private static final long SERVER_THREAD_TIMEOUT_MS =
-            Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
+    /**
+     * Default budget for waiting on a server-tick hop. Lowered from 30s so a stuck tick surfaces as a clear error
+     * within ~8s instead of stalling every MCP / RPC call for half a minute. Override with
+     * {@code -Dworlddriver.serverThreadTimeoutMs=N}.
+     */
+    private static final long SERVER_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
 
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
@@ -259,7 +273,9 @@ public final class DriverApplication implements DriverHost {
     }
 
     /** The attached server, or null. */
-    public MinecraftServer server() { return server; }
+    public MinecraftServer server() {
+        return server;
+    }
 
     /** The server hop, or the capability error a detached application answers with. */
     ServerThreadHop requireServerHop() {
@@ -269,16 +285,19 @@ public final class DriverApplication implements DriverHost {
     }
 
     /** The last sequence number handed out; a {@code returnEvents} call reads past it once it is done. */
-    long eventCursor() { return eventSeq.get(); }
+    long eventCursor() {
+        return eventSeq.get();
+    }
 
     /**
      * With {@code wanted}, every event emitted after {@code cursor}, as the event stream carries it: what
-     * {@code returnEvents:true} answers, so a caller needs no separate cursor read. Unrelated work emitting in
-     * the same window shows up too, which is rare as the writes run on the server thread.
+     * {@code returnEvents:true} answers, so a caller needs no separate cursor read. Unrelated work emitting in the same
+     * window shows up too, which is rare as the writes run on the server thread.
      */
     Optional<List<EventContracts.Event>> eventsAfter(long cursor, boolean wanted) {
         if (!wanted) return Optional.empty();
         return Optional.of(observe.eventsSince(cursor, null, EVENT_BUFFER_CAP).stream()
-                .map(EventWire::dto).toList());
+                .map(EventWire::dto)
+                .toList());
     }
 }

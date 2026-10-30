@@ -6,22 +6,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import java.util.Set;
-
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * A bot idles in the cells it just dug, and its foot and head cells are exactly the ones the
- * candidate scan skips. An auto-start gated on the tracker's size therefore starts a process on
- * every idle tick that finds nothing and ends at once. The gate must ask the scan's own question.
+ * A bot idles in the cells it just dug, and its foot and head cells are exactly the ones the candidate scan skips. An
+ * auto-start gated on the tracker's size therefore starts a process on every idle tick that finds nothing and ends at
+ * once. The gate must ask the scan's own question.
  */
 class BackfillAutoStartTest {
 
     /** Stone floor at y=63 and below, air above, plus whatever cells a test marks solid. */
     private static final class Flat implements BackfillProcess.Cells {
         final Set<BlockPos> solid = new HashSet<>();
-        @Override public boolean isAir(BlockPos p) { return p.getY() >= 64 && !solid.contains(p); }
-        @Override public boolean isSolid(BlockPos p) { return p.getY() < 64 || solid.contains(p); }
+
+        @Override
+        public boolean isAir(BlockPos p) {
+            return p.getY() >= 64 && !solid.contains(p);
+        }
+
+        @Override
+        public boolean isSolid(BlockPos p) {
+            return p.getY() < 64 || solid.contains(p);
+        }
     }
 
     private static final int RADIUS = 6;
@@ -31,7 +38,8 @@ class BackfillAutoStartTest {
     void anIdleBotWhoseOnlyTrackedCellIsItsOwnFootStartsNothing() {
         BackfillTracker tracker = new BackfillTracker();
         tracker.record(foot);
-        assertFalse(BackfillProcess.autoStartWanted(tracker, foot, RADIUS, new Flat()),
+        assertFalse(
+                BackfillProcess.autoStartWanted(tracker, foot, RADIUS, new Flat()),
                 "the foot cell is never a candidate, so there is nothing to start for");
     }
 
@@ -50,7 +58,9 @@ class BackfillAutoStartTest {
         tracker.record(hole);
         tracker.record(foot);
         assertTrue(BackfillProcess.autoStartWanted(tracker, foot, RADIUS, new Flat()));
-        assertEquals(hole, BackfillProcess.pickCandidate(tracker, foot, RADIUS, Set.of(), new Flat()),
+        assertEquals(
+                hole,
+                BackfillProcess.pickCandidate(tracker, foot, RADIUS, Set.of(), new Flat()),
                 "the gate and the process agree on the cell");
     }
 

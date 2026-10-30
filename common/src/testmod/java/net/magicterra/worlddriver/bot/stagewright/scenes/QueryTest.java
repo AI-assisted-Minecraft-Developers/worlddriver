@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -25,10 +24,10 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code mc.query q=blocks} against a real level: the documented maximum radius answers, one past it is refused, and
- * a cube reaching into an unloaded chunk is refused by name and leaves that chunk unloaded. The last is the half a
- * unit test cannot hold — only a live chunk source can say whether the read loaded anything. The client half checks
- * that the client's own level names what it never received.
+ * {@code mc.query q=blocks} against a real level: the documented maximum radius answers, one past it is refused, and a
+ * cube reaching into an unloaded chunk is refused by name and leaves that chunk unloaded. The last is the half a unit
+ * test cannot hold — only a live chunk source can say whether the read loaded anything. The client half checks that the
+ * client's own level names what it never received.
  *
  * <p>Both scenes: the server half needs no client and runs in each, the client half only where a client joined.
  */
@@ -47,13 +46,16 @@ class QueryTest {
         BlockPos probe = plot.at(3, 2, -2);
         plot.place(3, 2, -2, Blocks.GOLD_BLOCK);
 
-        QueryContracts.Rows rows = query.query(QueryContracts.Blocks.around(position(center), MAX_RADIUS)
-                .ofType("minecraft:gold_block"));
-        game.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(Optional.of(position(probe)))),
+        QueryContracts.Rows rows = query.query(
+                QueryContracts.Blocks.around(position(center), MAX_RADIUS).ofType("minecraft:gold_block"));
+        game.check(
+                rows instanceof BlockRows b
+                        && b.blocks().stream().anyMatch(r -> r.pos().equals(Optional.of(position(probe)))),
                 "A the documented maximum radius answers and finds the probe block: " + rows);
 
         String refused = message(() -> query.query(QueryContracts.Blocks.around(position(center), MAX_RADIUS + 1)));
-        game.check(refused != null && refused.contains("0–" + MAX_RADIUS),
+        game.check(
+                refused != null && refused.contains("0–" + MAX_RADIUS),
                 "B one past the maximum is refused and names the limit (" + refused + ")");
 
         BlockPos far = new BlockPos(center.getX() + FAR, 80, center.getZ() + FAR);
@@ -67,11 +69,14 @@ class QueryTest {
             unloaded = e;
         }
         RuntimeException error = unloaded;
-        game.check(error instanceof ApiException a && a.getCause() instanceof UnloadedAreaException,
+        game.check(
+                error instanceof ApiException a && a.getCause() instanceof UnloadedAreaException,
                 "C a cube in an unloaded chunk is refused with UnloadedAreaException: " + error);
-        game.check(error != null && String.valueOf(error.getMessage()).contains("[" + fcx + ", " + fcz + "]"),
+        game.check(
+                error != null && String.valueOf(error.getMessage()).contains("[" + fcx + ", " + fcz + "]"),
                 "D the refusal names the unloaded chunk: " + error);
-        game.check(game.<Boolean>onServer(s -> s.overworld().getChunkSource().getChunkNow(fcx, fcz) == null),
+        game.check(
+                game.<Boolean>onServer(s -> s.overworld().getChunkSource().getChunkNow(fcx, fcz) == null),
                 "E the query left the chunk unloaded");
     }
 
@@ -91,7 +96,8 @@ class QueryTest {
         BlockPos far = new BlockPos(at.getX() + FAR, 80, at.getZ() + FAR);
         int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
         ClientContracts.BlockScan distant = blocks.blocks(BlocksParams.around(position(far), 1));
-        game.check(distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz),
+        game.check(
+                distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz),
                 "B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded: " + distant);
     }
 

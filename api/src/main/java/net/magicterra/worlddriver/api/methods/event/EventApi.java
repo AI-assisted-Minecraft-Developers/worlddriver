@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.api.methods.event;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
@@ -10,7 +9,9 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface EventApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static EventStubApi of(ApiRegistry registry) { return EventApiBinding.calls(registry); }
+    static EventStubApi of(ApiRegistry registry) {
+        return EventApiBinding.calls(registry);
+    }
 
     @Spec(value = EventContracts.class, spec = "CURSOR")
     CompletionStage<EventContracts.Cursor> cursor(EventContracts.CursorParams p, CallContext ctx);

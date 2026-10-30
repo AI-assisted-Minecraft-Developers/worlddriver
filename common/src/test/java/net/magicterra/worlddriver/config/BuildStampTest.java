@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.config;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,16 +10,14 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The URL shapes a class loader can hand {@link BuildStamp}. The one worth testing here is
- * {@code union:} — it exists only inside NeoForge's modlauncher, so it cannot be reached from a
- * plain JVM, and a stamp that silently failed to parse it would still answer: it would just drop
- * the timestamp on the loader we ship to, which is the only field anyone asks it for.
+ * The URL shapes a class loader can hand {@link BuildStamp}. The one worth testing here is {@code union:} — it exists
+ * only inside NeoForge's modlauncher, so it cannot be reached from a plain JVM, and a stamp that silently failed to
+ * parse it would still answer: it would just drop the timestamp on the loader we ship to, which is the only field
+ * anyone asks it for.
  */
 class BuildStampTest {
     private static final String ENTRY = "net/magicterra/worlddriver/BuildStamp.class";
@@ -43,8 +42,8 @@ class BuildStampTest {
     }
 
     /**
-     * Union joins directories as readily as jars, and a directory's mtime moves whenever any
-     * sibling is written into it — dating it would report someone else's rebuild as this one's.
+     * Union joins directories as readily as jars, and a directory's mtime moves whenever any sibling is written into it
+     * — dating it would report someone else's rebuild as this one's.
      */
     @Test
     void aUnionOverADirectoryIsStampedByTheClassFile(@TempDir Path dir) throws IOException {
@@ -93,7 +92,7 @@ class BuildStampTest {
     private static Path writeJar(Path jar) throws IOException {
         try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
             out.putNextEntry(new ZipEntry(ENTRY));
-            out.write(new byte[] { 1 });
+            out.write(new byte[] {1});
             out.closeEntry();
         }
         return jar;

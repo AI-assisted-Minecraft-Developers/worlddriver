@@ -10,9 +10,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Stands in for a modded mob that moves by code of its own and reads no input, as a squid does: its
- * {@code travel} only falls and slides by its own velocity, and it does not jump. Driven input moves it
- * nowhere. (Vanilla's jump would: a sprinting jump pushes forward, and a stalled walk hops.)
+ * Stands in for a modded mob that moves by code of its own and reads no input, as a squid does: its {@code travel} only
+ * falls and slides by its own velocity, and it does not jump. Driven input moves it nowhere. (Vanilla's jump would: a
+ * sprinting jump pushes forward, and a stalled walk hops.)
  */
 public class SelfMovingMob extends PathfinderMob {
 

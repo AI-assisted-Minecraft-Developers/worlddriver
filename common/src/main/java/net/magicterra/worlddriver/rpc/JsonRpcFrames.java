@@ -6,9 +6,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 /**
- * JSON-RPC 2.0 response objects, the same on the WebSocket and the MCP endpoint. An error is
- * {@code {code, message, data}}: the numeric code classifies it, the message is for a person, and
- * {@code data} carries the API's own error object when there is one.
+ * JSON-RPC 2.0 response objects, the same on the WebSocket and the MCP endpoint. An error is {@code {code, message,
+ * data}}: the numeric code classifies it, the message is for a person, and {@code data} carries the API's own error
+ * object when there is one.
  */
 public final class JsonRpcFrames {
     private JsonRpcFrames() {}
@@ -30,8 +30,8 @@ public final class JsonRpcFrames {
     }
 
     /**
-     * An error. The {@code id} key is always present, null when the request was too malformed to carry
-     * one: a client that tells responses from notifications by "has an id" must be able to classify it.
+     * An error. The {@code id} key is always present, null when the request was too malformed to carry one: a client
+     * that tells responses from notifications by "has an id" must be able to classify it.
      */
     public static JsonObject error(JsonElement id, int code, String message, JsonElement data) {
         JsonObject err = new JsonObject();
@@ -55,5 +55,7 @@ public final class JsonRpcFrames {
         return n.matches("-?(0|[1-9][0-9]*)");
     }
 
-    private static JsonElement orNull(JsonElement v) { return v == null ? JsonNull.INSTANCE : v; }
+    private static JsonElement orNull(JsonElement v) {
+        return v == null ? JsonNull.INSTANCE : v;
+    }
 }

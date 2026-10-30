@@ -12,31 +12,32 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Common-side probe helpers for the scenes: a swing, a hit and the protective effects a
- * movement scene's player wears, all on a vanilla {@link ServerPlayer}.
+ * Common-side probe helpers for the scenes: a swing, a hit and the protective effects a movement scene's player wears,
+ * all on a vanilla {@link ServerPlayer}.
  *
- * <p>Every probe here holds the environment constant so it measures only what it names.
- * {@link #grantWaterEffects} does that for the avatar — drowning, burning and starving
- * cannot enter a movement scene's physics; {@link #probeHurt} zeroes i-frames so the
- * previous probe cannot eat the hit; {@link #probeSwing} does BOTH for its target, which
- * it did not have to before arenas ticked entities. When a probe reads zero, suspect this
- * list first: it is far likelier that the environment ate the measurement than that the
- * driver stopped working.
+ * <p>Every probe here holds the environment constant so it measures only what it names. {@link #grantWaterEffects} does
+ * that for the avatar — drowning, burning and starving cannot enter a movement scene's physics; {@link #probeHurt}
+ * zeroes i-frames so the previous probe cannot eat the hit; {@link #probeSwing} does BOTH for its target, which it did
+ * not have to before arenas ticked entities. When a probe reads zero, suspect this list first: it is far likelier that
+ * the environment ate the measurement than that the driver stopped working.
  *
- * <p>All of them but {@link #probeSwing} touch the world and the player directly: call them on the server
- * thread, inside {@code game.runOnServer(…)}. {@link #probeSwing} waits for server ticks between its two
- * halves, so it is called from the test's own thread and makes its own server calls.
+ * <p>All of them but {@link #probeSwing} touch the world and the player directly: call them on the server thread,
+ * inside {@code game.runOnServer(…)}. {@link #probeSwing} waits for server ticks between its two halves, so it is
+ * called from the test's own thread and makes its own server calls.
  */
 public final class SimProbes {
 
     private SimProbes() {}
 
-    /** One full-strength swing of {@code bot}'s player at a fresh NoAI zombie; returns the health it lost.
-     *  <p>The target is made fire-proof and its i-frames are cleared at the instant of the swing. Both
-     *  lines exist to keep the environment OUT of the measurement — see the comments at each.
-     *  <p>The swing is vanilla's own {@code Player#attack}, the call the bot's body makes once its
-     *  footing rule lets a swing through; that rule refuses only targets that explode when hit, which a
-     *  zombie never does. */
+    /**
+     * One full-strength swing of {@code bot}'s player at a fresh NoAI zombie; returns the health it lost.
+     *
+     * <p>The target is made fire-proof and its i-frames are cleared at the instant of the swing. Both lines exist to
+     * keep the environment OUT of the measurement — see the comments at each.
+     *
+     * <p>The swing is vanilla's own {@code Player#attack}, the call the bot's body makes once its footing rule lets a
+     * swing through; that rule refuses only targets that explode when hit, which a zombie never does.
+     */
     public static float probeSwing(Game game, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
         Zombie z = game.onServer(s -> swingTarget(s.overworld(), bot, weapon, cx, floorY, cz));
         // Real server ticks settle the target. Ticking the level by hand from inside a server task once never
@@ -49,7 +50,9 @@ public final class SimProbes {
     private static Zombie swingTarget(ServerLevel level, SceneBot bot, ItemStack weapon, int cx, int floorY, int cz) {
         ServerPlayer fp = bot.player();
         fp.getInventory().clearContent();
-        if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
+        if (!weapon.isEmpty()) {
+            fp.getInventory().setItem(0, weapon);
+        }
         fp.getInventory().selected = 0;
         var z = new Zombie(level);
         z.setPos(cx + 2 + 0.5, floorY + 1, cz + 0.5);
@@ -86,8 +89,11 @@ public final class SimProbes {
         if (z.invulnerableTime > 0 || !z.isAlive())
             TestMod.LOG.warn(
                     "[probeSwing] target compromised before the swing: weapon={} hp={} fire={} invT={} alive={}",
-                    weapon.isEmpty() ? "bare" : weapon.getItem(), z.getHealth(),
-                    z.getRemainingFireTicks(), z.invulnerableTime, z.isAlive());
+                    weapon.isEmpty() ? "bare" : weapon.getItem(),
+                    z.getHealth(),
+                    z.getRemainingFireTicks(),
+                    z.invulnerableTime,
+                    z.isAlive());
         z.setRemainingFireTicks(0);
         z.invulnerableTime = 0;
         float before = z.getHealth();
@@ -97,9 +103,12 @@ public final class SimProbes {
         return lost;
     }
 
-    /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost.
-     *  <p>Moved verbatim from {@code AgentGameTestServer#probeHurt} (P1.6 Task 2);
-     *  {@code FakePlayer fp} → {@link ServerPlayer fp}. */
+    /**
+     * A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost.
+     *
+     * <p>Moved verbatim from {@code AgentGameTestServer#probeHurt} (P1.6 Task 2); {@code FakePlayer fp} →
+     * {@link ServerPlayer fp}.
+     */
     public static float probeHurt(ServerPlayer fp, boolean armored) {
         fp.getInventory().clearContent();
         if (armored) {
@@ -109,16 +118,19 @@ public final class SimProbes {
             fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
         }
         fp.setHealth(20.0f);
-        fp.invulnerableTime = 0;                       // no i-frames from a previous probe
+        fp.invulnerableTime = 0; // no i-frames from a previous probe
         fp.hurt(fp.damageSources().generic(), 10.0f);
         return 20.0f - fp.getHealth();
     }
 
-    /** Infinite non-locomotion protective effects (matches the harness eval player):
-     *  water-breathing/resistance/regen/fire-resistance keep baseTick survival
-     *  mechanics from skewing the physics — none of these alter movement.
-     *  <p>Moved verbatim from {@code AgentGameTestSupport#grantWaterEffects} (P1.6
-     *  Task 2); its parameter was already vanilla {@link Player}, so no type change. */
+    /**
+     * Infinite non-locomotion protective effects (matches the harness eval player):
+     * water-breathing/resistance/regen/fire-resistance keep baseTick survival mechanics from skewing the physics — none
+     * of these alter movement.
+     *
+     * <p>Moved verbatim from {@code AgentGameTestSupport#grantWaterEffects} (P1.6 Task 2); its parameter was already
+     * vanilla {@link Player}, so no type change.
+     */
     public static void grantWaterEffects(Player p) {
         p.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, -1, 0, false, false));
         p.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, -1, 4, false, false));

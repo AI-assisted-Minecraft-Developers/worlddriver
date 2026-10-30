@@ -8,7 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.Region;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.Corridor;
 import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
 import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
@@ -16,25 +20,27 @@ import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
-import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.rules.Region;
-import net.magicterra.worlddriver.bot.rules.SearchScope;
-import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.rules.SearchProfile;
 
 /**
- * The route conditions on a hand-made {@link SearchScope}: the count and the rejoin rule of
- * {@link MobCluster}, the polyline distance of {@link Corridor}, the depth rule of
- * {@link ForbidRegion}, and {@link SightExposure}'s cache and ray budget against an injected
- * line of sight. No world: every {@code allows}/{@code extraCost} here ignores the edge and the
- * view, which is the contract these components keep (they price cells, not blocks).
+ * The route conditions on a hand-made {@link SearchScope}: the count and the rejoin rule of {@link MobCluster}, the
+ * polyline distance of {@link Corridor}, the depth rule of {@link ForbidRegion}, and {@link SightExposure}'s cache and
+ * ray budget against an injected line of sight. No world: every {@code allows}/{@code extraCost} here ignores the edge
+ * and the view, which is the contract these components keep (they price cells, not blocks).
  */
 class RouteConstraintsTest {
     private static final int Y = 64;
 
     private static ThreatSnapshot.Threat mob(int id, String type, double x, double z, boolean ranged) {
-        return new ThreatSnapshot.Threat(id, type, type, new Vec3(x + 0.5, Y + 1.6, z + 0.5), new Vec3(x + 0.5, Y, z + 0.5),
-                true, ranged, false, ThreatSnapshot.Threat.defaultRange(type, false));
+        return new ThreatSnapshot.Threat(
+                id,
+                type,
+                type,
+                new Vec3(x + 0.5, Y + 1.6, z + 0.5),
+                new Vec3(x + 0.5, Y, z + 0.5),
+                true,
+                ranged,
+                false,
+                ThreatSnapshot.Threat.defaultRange(type, false));
     }
 
     private static ThreatSnapshot.Threat mob(int id, String type, double x, double z) {
@@ -42,24 +48,37 @@ class RouteConstraintsTest {
     }
 
     private static ThreatSnapshot.Threat player(int id, String name, double x, double z) {
-        return new ThreatSnapshot.Threat(id, "minecraft:player", name, new Vec3(x + 0.5, Y + 1.6, z + 0.5),
-                new Vec3(x + 0.5, Y, z + 0.5), false, false, true, ThreatSnapshot.Threat.defaultRange("minecraft:player", true));
+        return new ThreatSnapshot.Threat(
+                id,
+                "minecraft:player",
+                name,
+                new Vec3(x + 0.5, Y + 1.6, z + 0.5),
+                new Vec3(x + 0.5, Y, z + 0.5),
+                false,
+                false,
+                true,
+                ThreatSnapshot.Threat.defaultRange("minecraft:player", true));
     }
 
     private static SearchScope scope(SearchScope.LineOfSight los, ThreatSnapshot.Threat... threats) {
         return SearchScope.of(new BlockPos(0, Y, 0), null, new ThreatSnapshot(List.of(threats)), los);
     }
 
-    private static BlockPos at(int x, int z) { return new BlockPos(x, Y, z); }
+    private static BlockPos at(int x, int z) {
+        return new BlockPos(x, Y, z);
+    }
 
     // ------------------------------------------------------------------ MobCluster
 
     @Test
     void mobClusterCountsHostilesWithinRadiusAndFiltersTypes() {
         MobCluster all = new MobCluster(6, 16, 40, new MobCluster.Cluster(3, 6, true, 0), Set.of());
-        all.beginSearch(scope(SearchScope.ALWAYS_CLEAR,
-                mob(1, "minecraft:zombie", 0, 0), mob(2, "minecraft:zombie", 2, 0),
-                mob(3, "minecraft:skeleton", 0, 2, true), mob(4, "minecraft:zombie", 20, 20)));
+        all.beginSearch(scope(
+                SearchScope.ALWAYS_CLEAR,
+                mob(1, "minecraft:zombie", 0, 0),
+                mob(2, "minecraft:zombie", 2, 0),
+                mob(3, "minecraft:skeleton", 0, 2, true),
+                mob(4, "minecraft:zombie", 20, 20)));
         assertEquals(3, all.count(at(1, 1), 6));
         assertEquals(1, all.count(at(20, 20), 2));
         assertEquals(0, all.count(at(40, 40), 6));
@@ -67,8 +86,8 @@ class RouteConstraintsTest {
         assertEquals(1, all.nearest(at(21, 20)), 1e-9);
 
         MobCluster zombiesOnly = new MobCluster(6, 16, 40, null, Set.of("minecraft:zombie"));
-        zombiesOnly.beginSearch(scope(SearchScope.ALWAYS_CLEAR,
-                mob(1, "minecraft:zombie", 0, 0), mob(3, "minecraft:skeleton", 0, 2, true)));
+        zombiesOnly.beginSearch(scope(
+                SearchScope.ALWAYS_CLEAR, mob(1, "minecraft:zombie", 0, 0), mob(3, "minecraft:skeleton", 0, 2, true)));
         assertEquals(1, zombiesOnly.count(at(0, 1), 6));
     }
 
@@ -85,8 +104,11 @@ class RouteConstraintsTest {
     void mobClusterForbidPrunesClusterCellsOutsideAndRejoinsFromInside() {
         // Three zombies in a row west of the start; the start cell counts all three.
         MobCluster mc = new MobCluster(6, 16, 40, new MobCluster.Cluster(3, 6, true, 0), Set.of());
-        mc.beginSearch(scope(SearchScope.ALWAYS_CLEAR,
-                mob(1, "minecraft:zombie", -1, 0), mob(2, "minecraft:zombie", -2, 0), mob(3, "minecraft:zombie", -3, 0)));
+        mc.beginSearch(scope(
+                SearchScope.ALWAYS_CLEAR,
+                mob(1, "minecraft:zombie", -1, 0),
+                mob(2, "minecraft:zombie", -2, 0),
+                mob(3, "minecraft:zombie", -3, 0)));
         BlockPos start = at(0, 0);
         assertEquals(3, mc.count(start, 6));
         // From a clean cell into the cluster: pruned.
@@ -110,7 +132,8 @@ class RouteConstraintsTest {
     @Test
     void mobClusterSoftChargesTheRampAndTheClusterFlat() {
         MobCluster soft = new MobCluster(6, 16, 40, new MobCluster.Cluster(2, 6, false, 300), Set.of());
-        soft.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(1, "minecraft:zombie", 0, 0), mob(2, "minecraft:zombie", 1, 0)));
+        soft.beginSearch(
+                scope(SearchScope.ALWAYS_CLEAR, mob(1, "minecraft:zombie", 0, 0), mob(2, "minecraft:zombie", 1, 0)));
         assertTrue(soft.allows(at(5, 5), at(0, 0), null, null, null), "a soft cluster never prunes");
         double near = soft.extraCost(null, at(0, 1), null, null, null);
         double far = soft.extraCost(null, at(0, 4), null, null, null);
@@ -119,7 +142,9 @@ class RouteConstraintsTest {
         // A ranged mob's berth is the wider one.
         MobCluster ranged = new MobCluster(2, 16, 40, null, Set.of());
         ranged.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, "minecraft:skeleton", 0, 0, true)));
-        assertTrue(ranged.extraCost(null, at(8, 0), null, null, null) > 0, "8 blocks from a skeleton is inside its 16 berth");
+        assertTrue(
+                ranged.extraCost(null, at(8, 0), null, null, null) > 0,
+                "8 blocks from a skeleton is inside its 16 berth");
         MobCluster melee = new MobCluster(2, 16, 40, null, Set.of());
         melee.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, "minecraft:zombie", 0, 0)));
         assertEquals(0, melee.extraCost(null, at(8, 0), null, null, null), 1e-9);
@@ -135,7 +160,8 @@ class RouteConstraintsTest {
 
     @Test
     void corridorDistanceIsToThePolyline() {
-        Corridor c = new Corridor(List.of(new Vec3(0.5, Y, 0.5), new Vec3(10.5, Y, 0.5), new Vec3(10.5, Y, 10.5)), 2, true, 20);
+        Corridor c = new Corridor(
+                List.of(new Vec3(0.5, Y, 0.5), new Vec3(10.5, Y, 0.5), new Vec3(10.5, Y, 10.5)), 2, true, 20);
         assertEquals(0, c.distance(5.5, Y, 0.5), 1e-9);
         assertEquals(3, c.distance(5.5, Y, 3.5), 1e-9);
         assertEquals(0, c.distance(10.5, Y, 7.5), 1e-9);
@@ -179,12 +205,14 @@ class RouteConstraintsTest {
 
         ForbidRegion sphere = new ForbidRegion(new Region.Sphere(5.5, Y, 5.5, 3));
         assertFalse(sphere.allows(at(9, 5), at(7, 5), null, null, null));
-        assertTrue(sphere.allows(at(9, 5), at(8, 5), null, null, null), "exactly 3 from the centre is on the boundary, outside");
+        assertTrue(
+                sphere.allows(at(9, 5), at(8, 5), null, null, null),
+                "exactly 3 from the centre is on the boundary, outside");
     }
 
     @Test
     void regionDepthAndWeight() {
-        Region.Box box = new Region.Box(10, 0, 10, 0, 5, 0);   // reversed corners normalise
+        Region.Box box = new Region.Box(10, 0, 10, 0, 5, 0); // reversed corners normalise
         assertEquals(0, box.minX(), 1e-9);
         assertEquals(10, box.maxX(), 1e-9);
         assertEquals(0, box.depth(-0.5, 2, 5), 1e-9);
@@ -201,7 +229,9 @@ class RouteConstraintsTest {
     /** A line of sight that counts its calls and hides everything behind a wall at x = 5. */
     private static final class CountingLos implements SearchScope.LineOfSight {
         int calls;
-        @Override public boolean clear(Vec3 from, Vec3 to) {
+
+        @Override
+        public boolean clear(Vec3 from, Vec3 to) {
             calls++;
             return (from.x < 5.5) == (to.x < 5.5);
         }
@@ -222,10 +252,12 @@ class RouteConstraintsTest {
         SightExposure players = new SightExposure(SightExposure.Of.PLAYERS, List.of(), 0, false, 120, 1.62, 100);
         players.beginSearch(sc);
         assertEquals(List.of(steve), players.observers());
-        SightExposure listed = new SightExposure(SightExposure.Of.LISTED, List.of("Steve", "2"), 0, false, 120, 1.62, 100);
+        SightExposure listed =
+                new SightExposure(SightExposure.Of.LISTED, List.of("Steve", "2"), 0, false, 120, 1.62, 100);
         listed.beginSearch(sc);
         assertEquals(List.of(zombie, steve), listed.observers());
-        SightExposure byType = new SightExposure(SightExposure.Of.LISTED, List.of("skeleton"), 0, false, 120, 1.62, 100);
+        SightExposure byType =
+                new SightExposure(SightExposure.Of.LISTED, List.of("skeleton"), 0, false, 120, 1.62, 100);
         byType.beginSearch(sc);
         assertEquals(List.of(skel), byType.observers());
     }

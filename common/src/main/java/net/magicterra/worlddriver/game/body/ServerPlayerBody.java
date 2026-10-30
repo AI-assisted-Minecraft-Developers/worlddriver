@@ -1,13 +1,11 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.magicterra.worlddriver.config.GameConfig;
+import com.mojang.authlib.GameProfile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Predicate;
-import org.jetbrains.annotations.Nullable;
-
-import com.mojang.authlib.GameProfile;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -17,43 +15,39 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * {@link Body} over a server {@link ServerPlayer}. The driver writes what a client's input
- * would hold — impulse, jump, sneak, sprint, yaw — and {@link #step()} hands that to
- * {@code JoinedBody.pump}, which ticks the player through vanilla's own chain the way a connected
- * player is ticked: {@code baseTick}, the jump gate and its cooldown, {@code travel}, item use, food,
- * pose and pickups are the game's code, not a copy of it.
+ * {@link Body} over a server {@link ServerPlayer}. The driver writes what a client's input would hold — impulse, jump,
+ * sneak, sprint, yaw — and {@link #step()} hands that to {@code JoinedBody.pump}, which ticks the player through
+ * vanilla's own chain the way a connected player is ticked: {@code baseTick}, the jump gate and its cooldown,
+ * {@code travel}, item use, food, pose and pickups are the game's code, not a copy of it.
  *
- * <p><b>It used to integrate movement by hand</b> — {@code baseTick}, a hand-written jump gate,
- * {@code travel}, and the pieces of {@code Player.tick} it had been caught missing, mirrored one
- * defect at a time — because the fake player it once drove could not run its own tick.
- * {@code docs/dev/fake-player-parity.md} keeps what that copy got wrong while it stood.
+ * <p><b>It used to integrate movement by hand</b> — {@code baseTick}, a hand-written jump gate, {@code travel}, and the
+ * pieces of {@code Player.tick} it had been caught missing, mirrored one defect at a time — because the fake player it
+ * once drove could not run its own tick. {@code docs/dev/fake-player-parity.md} keeps what that copy got wrong while it
+ * stood.
  *
- * <p>Physics parity is asserted by the {@code wd.physicsParity} and {@code wd.waterPhysicsParity}
- * scenes in the testmod ({@code WorldDriverCoreScenes} / {@code WorldDriverWaterBankScenes}). This
- * line used to name a {@code SimPhysicsParity} GameTest instead; that suite was retired in
- * P4-final and the name now survives nowhere else in the tree.
+ * <p>Physics parity is asserted by the {@code wd.physicsParity} and {@code wd.waterPhysicsParity} scenes in the testmod
+ * ({@code WorldDriverCoreScenes} / {@code WorldDriverWaterBankScenes}). This line used to name a
+ * {@code SimPhysicsParity} GameTest instead; that suite was retired in P4-final and the name now survives nowhere else
+ * in the tree.
  *
- * <p>MIGRATION (P1.6 Task 1): moved verbatim from
- * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the ONLY
- * substantive change is that the player type is now vanilla {@link ServerPlayer}
- * (was NeoForge {@code FakePlayer}) and the player is obtained through the
- * {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
+ * <p>MIGRATION (P1.6 Task 1): moved verbatim from {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the
+ * ONLY substantive change is that the player type is now vanilla {@link ServerPlayer} (was NeoForge {@code FakePlayer})
+ * and the player is obtained through the {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
  *
  * <p><b>Who calls this.</b> {@link #createNamed}, through {@link PlayerBot#createNamed}: every bot
- * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and a named {@code /worlddriver
- * server}; {@link #createUnique}, through {@link PlayerBot#createIsolated}, for an unnamed {@code /worlddriver
- * server} ({@link BotCommand}). The class
- * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
- * used to subclass it was deleted with the fake players.
+ * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and a named {@code /worlddriver server};
+ * {@link #createUnique}, through {@link PlayerBot#createIsolated}, for an unnamed {@code /worlddriver server}
+ * ({@link BotCommand}). The class stays {@code non-final} because it is extension surface for other mods; the NeoForge
+ * shim that used to subclass it was deleted with the fake players.
  *
  * <p>See {@link JoinedPlayers#BOTS} for where the player comes from: always a player that has joined.
  */
@@ -98,7 +92,6 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *   reimplementing it by hand would fork the eat/drink/release semantics.
      */
 
-
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
     private final JumpRelease jumpRelease = new JumpRelease();
@@ -108,12 +101,14 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     private BlockPos breakProgPos;
     private float breakProg;
-    /** The cell a break last advanced on and the player tick it did — the pair that keeps
-     *  {@link #continueDestroy} from advancing a cell {@link #breakHold} already advanced this tick,
-     *  which under {@code GameConfig.faithfulBreak} would dig at double speed. The player's own tick count,
-     *  not the level's: {@link #step()} advances it, and a scene may step a bot many times inside one
-     *  level tick. */
+    /**
+     * The cell a break last advanced on and the player tick it did — the pair that keeps {@link #continueDestroy} from
+     * advancing a cell {@link #breakHold} already advanced this tick, which under {@code GameConfig.faithfulBreak}
+     * would dig at double speed. The player's own tick count, not the level's: {@link #step()} advances it, and a scene
+     * may step a bot many times inside one level tick.
+     */
     private BlockPos advancedCell;
+
     private int advancedTick = -1;
 
     public ServerPlayerBody(ServerPlayer fp) {
@@ -133,24 +128,25 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    /** A bot player at {@code (x, y, z)} in {@code level}, ready to drive, with a player of its OWN — a fresh
-     *  unique GameProfile, so this avatar can never be steered/teleported through another driver's player
-     *  (gap #48). An unnamed {@code /worlddriver server} agent comes from here, as {@code agent-body-N}; a
-     *  bot with a name, which is every {@code mc.bot.roster} bot, comes from {@link #createNamed}, and two
-     *  names are two players the same way.
+    /**
+     * A bot player at {@code (x, y, z)} in {@code level}, ready to drive, with a player of its OWN — a fresh unique
+     * GameProfile, so this avatar can never be steered/teleported through another driver's player (gap #48). An unnamed
+     * {@code /worlddriver server} agent comes from here, as {@code agent-body-N}; a bot with a name, which is every
+     * {@code mc.bot.roster} bot, comes from {@link #createNamed}, and two names are two players the same way.
      *
-     *  <p>There was a factory that shared one player per level. It went because a concurrent scene could
-     *  steal/teleport the shared player, so a solo-RED scene could ride a neighbour's shove to a full-suite
-     *  false green (proven twice: descentOvershootResync, descentDrift).
+     * <p>There was a factory that shared one player per level. It went because a concurrent scene could steal/teleport
+     * the shared player, so a solo-RED scene could ride a neighbour's shove to a full-suite false green (proven twice:
+     * descentOvershootResync, descentDrift).
      *
-     *  <p>What per-player isolation costs, measured 2026-07-12 on the retired GameTest arenas: the suite's
-     *  other cross-arena couplings (shared world regions, server-thread load) surfaced as drifting failures
-     *  (3 isolated runs → failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,
-     *  descentdrift,horizon,rpcsmoke}, 139s vs 41s).
+     * <p>What per-player isolation costs, measured 2026-07-12 on the retired GameTest arenas: the suite's other
+     * cross-arena couplings (shared world regions, server-thread load) surfaced as drifting failures (3 isolated runs →
+     * failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash, descentdrift,horizon,rpcsmoke}, 139s vs
+     * 41s).
      *
-     *  <p>NOTE: the seam caches players by profile name, and each call here mints a new
-     *  profile, so each call joins one more player that stays until it is discarded. Fine for the
-     *  single-demo-agent command; revisit if agents get spawned in bulk. */
+     * <p>NOTE: the seam caches players by profile name, and each call here mints a new profile, so each call joins one
+     * more player that stays until it is discarded. Fine for the single-demo-agent command; revisit if agents get
+     * spawned in bulk.
+     */
     public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         GameProfile profile = new GameProfile(
@@ -161,16 +157,16 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * A bot player whose in-game name is {@code name}, with the UUID an offline-mode server gives that name, so the
      * same name is the same player every time: selectors and {@code /data get entity <name>} find it, and after a
-     * restart it is the player it was. The join loads whatever the world saved for that UUID (bag, health, game
-     * mode, effects, and where it stood) as it does for any player; a name never seen in this world joins fresh. The
-     * caller checks the name is not already on the server.
+     * restart it is the player it was. The join loads whatever the world saved for that UUID (bag, health, game mode,
+     * effects, and where it stood) as it does for any player; a name never seen in this world joins fresh. The caller
+     * checks the name is not already on the server.
      *
      * <p>Where it ends up: at {@code pos} in {@code level} when {@code pos} is given. With no {@code pos}, a player
      * that has a save stays where the save left it, provided {@code level} is null or the save's own dimension;
      * otherwise it goes to the world spawn of {@code level}, or of the overworld when {@code level} is null.
      */
-    public static ServerPlayerBody createNamed(MinecraftServer server, String name, @Nullable ServerLevel level,
-                                               @Nullable Vec3 pos) {
+    public static ServerPlayerBody createNamed(
+            MinecraftServer server, String name, @Nullable ServerLevel level, @Nullable Vec3 pos) {
         GameProfile profile = new GameProfile(UUIDUtil.createOfflinePlayerUUID(name), name);
         // Asked before the join, because the join is what the save is read by, and the player list writes one on
         // the way out (PlayerList.remove saves, as for a disconnect), so after it there always is one.
@@ -203,25 +199,77 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return new ServerPlayerBody(fp);
     }
 
-    public ServerPlayer fakePlayer() { return fp; }
+    public ServerPlayer fakePlayer() {
+        return fp;
+    }
 
-    @Override public ServerPlayer entity() { return fp; }
+    @Override
+    public ServerPlayer entity() {
+        return fp;
+    }
     /** A player has every capability; this class is all of them. */
-    @Override public Optional<Equipment> equipment() { return Optional.of(this); }
-    @Override public Optional<Attack> attack() { return Optional.of(this); }
-    @Override public Optional<BlockInteraction> blockInteraction() { return Optional.of(this); }
-    @Override public Optional<Bag> bag() { return Optional.of(this); }
-    @Override public Optional<Menus> menus() { return Optional.of(this); }
-    @Override public net.minecraft.world.Container contents() { return fp == null ? null : fp.getInventory(); }
+    @Override
+    public Optional<Equipment> equipment() {
+        return Optional.of(this);
+    }
 
-    @Override public void commandMove(float left, float forward) { pendingLeft = left; pendingForward = forward; }
-    @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
-    @Override public void commandJump(boolean v) { pendingJump = v; }
-    @Override public void commandSneak(boolean v) { pendingSneak = v; }
-    /** The flag itself, as the client player sets it. The pump's stop rules can clear it again within
-     *  the same step, as {@code LocalPlayer.aiStep} does on the client. */
-    @Override public void commandSprint(boolean v) { fp.setSprinting(v); }
-    @Override public void commandUseItem(boolean hold) {
+    @Override
+    public Optional<Attack> attack() {
+        return Optional.of(this);
+    }
+
+    @Override
+    public Optional<BlockInteraction> blockInteraction() {
+        return Optional.of(this);
+    }
+
+    @Override
+    public Optional<Bag> bag() {
+        return Optional.of(this);
+    }
+
+    @Override
+    public Optional<Menus> menus() {
+        return Optional.of(this);
+    }
+
+    @Override
+    public net.minecraft.world.Container contents() {
+        return fp == null ? null : fp.getInventory();
+    }
+
+    @Override
+    public void commandMove(float left, float forward) {
+        pendingLeft = left;
+        pendingForward = forward;
+    }
+
+    @Override
+    public void commandForward(float forward) {
+        pendingForward = forward;
+        pendingLeft = 0;
+    }
+
+    @Override
+    public void commandJump(boolean v) {
+        pendingJump = v;
+    }
+
+    @Override
+    public void commandSneak(boolean v) {
+        pendingSneak = v;
+    }
+    /**
+     * The flag itself, as the client player sets it. The pump's stop rules can clear it again within the same step, as
+     * {@code LocalPlayer.aiStep} does on the client.
+     */
+    @Override
+    public void commandSprint(boolean v) {
+        fp.setSprinting(v);
+    }
+
+    @Override
+    public void commandUseItem(boolean hold) {
         // Edge-trigger: start using on the rising edge, release on the falling edge.
         // It must be releaseUsingItem(), not stopUsingItem(): only the former calls
         // ItemStack.releaseUsing, which is where a bow spawns its arrow. stopUsingItem()
@@ -234,62 +282,63 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         useHeld = hold;
     }
 
-    /** The hand the client's use key ends up using: the main hand, unless it holds nothing that can be used and the
-     *  offhand does. Always the main hand left an offhand shield down behind an empty hand or a sword. */
+    /**
+     * The hand the client's use key ends up using: the main hand, unless it holds nothing that can be used and the
+     * offhand does. Always the main hand left an offhand shield down behind an empty hand or a sword.
+     */
     private InteractionHand useHand() {
         return !usable(fp.getMainHandItem()) && usable(fp.getOffhandItem())
-                ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+                ? InteractionHand.OFF_HAND
+                : InteractionHand.MAIN_HAND;
     }
 
     private boolean usable(ItemStack stack) {
         return !stack.isEmpty() && stack.getUseDuration(fp) > 0;
     }
-    @Override public void requestLookSnap() { /* no camera slew server-side */ }
+
+    @Override
+    public void requestLookSnap() {
+        /* no camera slew server-side */
+    }
 
     /**
      * Move the hand AND publish it — the one and only way this class may write {@code selected}.
      *
-     * <p><b>Why publishing is not optional.</b> Every write site here used to carry the comment
-     * that the write was server-authoritative and needed no packet, because this player's
-     * connection swallows packets anyway. That is true of the headless player and <b>false of the
-     * adopted one</b> — the integrated-server
-     * topology adopts the client's real {@code ServerPlayer} and wraps it in this avatar, and that
-     * player's connection reaches a live {@code LocalPlayer}. Nothing on the client can notice the
-     * drift on its own: the driver's own {@code BotInteract.ensureHolding} opens with
-     * {@code if (inv.getSelected().getItem() == item) return true;}, and vanilla's
-     * {@code MultiPlayerGameMode.ensureHasSentCarriedItem} compares against {@code carriedIndex},
-     * which is "what I last sent", not "what the server has". Both look at their OWN copy, so the
-     * two hands never reconverge. Measured: {@code wd.actuatorSplitOnAnAdoptedBody} reports server
-     * slot 4 / client slot 0, identical at the same tick and ten ticks later.
+     * <p><b>Why publishing is not optional.</b> Every write site here used to carry the comment that the write was
+     * server-authoritative and needed no packet, because this player's connection swallows packets anyway. That is true
+     * of the headless player and <b>false of the adopted one</b> — the integrated-server topology adopts the client's
+     * real {@code ServerPlayer} and wraps it in this avatar, and that player's connection reaches a live
+     * {@code LocalPlayer}. Nothing on the client can notice the drift on its own: the driver's own
+     * {@code BotInteract.ensureHolding} opens with {@code if (inv.getSelected().getItem() == item) return true;}, and
+     * vanilla's {@code MultiPlayerGameMode.ensureHasSentCarriedItem} compares against {@code carriedIndex}, which is
+     * "what I last sent", not "what the server has". Both look at their OWN copy, so the two hands never reconverge.
+     * Measured: {@code wd.actuatorSplitOnAnAdoptedBody} reports server slot 4 / client slot 0, identical at the same
+     * tick and ten ticks later.
      *
      * <p><b>What that costs when it is missing.</b> The server is the hand that acts:
-     * {@code ServerboundUseItemOnPacket} carries a hand, never an item, so
-     * {@code handleUseItemOn} resolves {@code getItemInHand} from the SERVER's {@code selected}.
-     * A tower whose client hand holds cobblestone while the server hand still holds the pickaxe a
-     * preceding mine selected right-clicks a block face with a pickaxe: {@code useOn} returns PASS,
-     * legally and silently. Rung 9's exit towers gave up on dry ground with cobblestone x74 before
-     * and x74 after, {@code builder.lastError == null} — the client's own prediction had placed the
-     * block, so the only reading that could have told the truth was the server's stock, which never
-     * moved. One course with no Y gain ends a whole raise.
+     * {@code ServerboundUseItemOnPacket} carries a hand, never an item, so {@code handleUseItemOn} resolves
+     * {@code getItemInHand} from the SERVER's {@code selected}. A tower whose client hand holds cobblestone while the
+     * server hand still holds the pickaxe a preceding mine selected right-clicks a block face with a pickaxe:
+     * {@code useOn} returns PASS, legally and silently. Rung 9's exit towers gave up on dry ground with cobblestone x74
+     * before and x74 after, {@code builder.lastError == null} — the client's own prediction had placed the block, so
+     * the only reading that could have told the truth was the server's stock, which never moved. One course with no Y
+     * gain ends a whole raise.
      *
-     * <p><b>No topology test, deliberately.</b> The joined player's packets end in
-     * {@code SilentConnection.send}, an empty method, so for the headless player this is one
-     * allocation and a short chain of virtual calls. An {@code if (isARealPlayer)} would be a branch that
-     * can be written backwards.
+     * <p><b>No topology test, deliberately.</b> The joined player's packets end in {@code SilentConnection.send}, an
+     * empty method, so for the headless player this is one allocation and a short chain of virtual calls. An {@code if
+     * (isARealPlayer)} would be a branch that can be written backwards.
      *
-     * <p><b>The equality guard is not an optimisation.</b> The client applies the packet but does
-     * NOT update {@code carriedIndex}, so its next tick echoes the value back as a
-     * {@code ServerboundSetCarriedItemPacket}. Normally that echo is convergent — it carries what
-     * the server just published. But an echo already in flight when a SECOND write happens carries
-     * the older value, and {@code handleSetCarriedItem} will roll the hand back to it (and
-     * {@code stopUsingItem()} on the way, cancelling a drawn bow). Bounded by one round trip, and
-     * publishing a value that did not change would open that window for nothing.
+     * <p><b>The equality guard is not an optimisation.</b> The client applies the packet but does NOT update
+     * {@code carriedIndex}, so its next tick echoes the value back as a {@code ServerboundSetCarriedItemPacket}.
+     * Normally that echo is convergent — it carries what the server just published. But an echo already in flight when
+     * a SECOND write happens carries the older value, and {@code handleSetCarriedItem} will roll the hand back to it
+     * (and {@code stopUsingItem()} on the way, cancelling a drawn bow). Bounded by one round trip, and publishing a
+     * value that did not change would open that window for nothing.
      *
-     * <p>Vanilla has no {@code setSelectedSlot(player, slot)} to reuse: {@code Inventory.selected}
-     * is a public field that {@code ServerGamePacketListenerImpl.handlePickItem} writes directly
-     * before sending this packet by hand. What is reusable is the PACKET, not a method. See
-     * {@code docs/dev/fake-player-parity.md} for the full derivation, the jar-wide proof
-     * that no menu path ever syncs this field, and the residuals this does not close.
+     * <p>Vanilla has no {@code setSelectedSlot(player, slot)} to reuse: {@code Inventory.selected} is a public field
+     * that {@code ServerGamePacketListenerImpl.handlePickItem} writes directly before sending this packet by hand. What
+     * is reusable is the PACKET, not a method. See {@code docs/dev/fake-player-parity.md} for the full derivation, the
+     * jar-wide proof that no menu path ever syncs this field, and the residuals this does not close.
      */
     private void carryTo(int slot) {
         var inv = fp.getInventory();
@@ -300,7 +349,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         if (fp.connection != null) fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
     }
 
-    @Override public boolean holdPlaceable() {
+    @Override
+    public boolean holdPlaceable() {
         // The bag counts, and a scan not reaching it is a defect with a measured price. A bot
         // holding 110 cobblestone in slots 9..35 is not out of blocks; it is out of reach of a scan
         // that stops at 8. Two arms of wd.serverWidens* differ by exactly that and nothing else:
@@ -313,21 +363,28 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     }
 
     /**
-     * The first stack {@code want} accepts into the main hand: the held one, else a hotbar slot, else
-     * one swapped up from the bag into an empty hotbar slot, or into the held slot when none is empty.
-     * The client's {@code BotInteract.swapFromMainInv} keeps the same order, so both bodies hold the
-     * same slot. Contents only, so the swap rides broadcastChanges.
+     * The first stack {@code want} accepts into the main hand: the held one, else a hotbar slot, else one swapped up
+     * from the bag into an empty hotbar slot, or into the held slot when none is empty. The client's
+     * {@code BotInteract.swapFromMainInv} keeps the same order, so both bodies hold the same slot. Contents only, so
+     * the swap rides broadcastChanges.
      */
     private boolean holdMatching(java.util.function.Predicate<ItemStack> want) {
         var inv = fp.getInventory();
         if (want.test(inv.getSelected())) return true;
         for (int slot = 0; slot < 9; slot++) {
-            if (want.test(inv.items.get(slot))) { carryTo(slot); return true; }
+            if (want.test(inv.items.get(slot))) {
+                carryTo(slot);
+                return true;
+            }
         }
         for (int slot = 9; slot < inv.items.size(); slot++) {
             if (!want.test(inv.items.get(slot))) continue;
             int to = inv.selected;
-            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { to = h; break; }
+            for (int h = 0; h < 9; h++)
+                if (inv.items.get(h).isEmpty()) {
+                    to = h;
+                    break;
+                }
             ItemStack bag = inv.items.get(slot);
             inv.items.set(slot, inv.items.get(to));
             inv.items.set(to, bag);
@@ -341,7 +398,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     }
 
     private static boolean isSupport(ItemStack stk) {
-        return !stk.isEmpty() && stk.getItem() instanceof BlockItem bi
+        return !stk.isEmpty()
+                && stk.getItem() instanceof BlockItem bi
                 && !(bi.getBlock() instanceof FallingBlock)
                 && bi.getBlock().defaultBlockState().blocksMotion();
     }
@@ -349,28 +407,27 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Put the best tool for this block in the main hand, swapping it up from the bag if need be.
      *
-     * <p>This was a no-op — "arena breaks with hand/held; best-tool optional" — and until blocks
-     * started dropping their harvest it genuinely was optional: nothing the avatar broke produced
-     * anything, so which tool was held could not change an outcome.
+     * <p>This was a no-op — "arena breaks with hand/held; best-tool optional" — and until blocks started dropping their
+     * harvest it genuinely was optional: nothing the avatar broke produced anything, so which tool was held could not
+     * change an outcome.
      *
-     * <p><b>What it decides.</b> Break SPEED, through {@code getDestroyProgress} on the
-     * {@code faithfulBreak} path, and since breaks go through {@code fp.gameMode.destroyBlock}, the
-     * DROP as well: the held stack decides whether a block that needs a tool yields anything, Silk
-     * Touch and Fortune apply, and the tool wears. A wrong tool here is now a reason a bag comes back
-     * empty, as it is for a player.
+     * <p><b>What it decides.</b> Break SPEED, through {@code getDestroyProgress} on the {@code faithfulBreak} path, and
+     * since breaks go through {@code fp.gameMode.destroyBlock}, the DROP as well: the held stack decides whether a
+     * block that needs a tool yields anything, Silk Touch and Fortune apply, and the tool wears. A wrong tool here is
+     * now a reason a bag comes back empty, as it is for a player.
      *
-     * <p><b>Ranking is the client's rule, minus Efficiency.</b> A candidate wins if it is
-     * correct-for-drops when the current pick is not, or if it is equally correct and faster —
-     * exactly {@code BotInteract.selectBestToolFor}'s comparison. That utility cannot be reused
-     * here: it takes a {@code Minecraft} and lives on the client side of the seam. The Efficiency
-     * lookup it does is dropped rather than duplicated, because it only reorders tools that are
+     * <p><b>Ranking is the client's rule, minus Efficiency.</b> A candidate wins if it is correct-for-drops when the
+     * current pick is not, or if it is equally correct and faster — exactly {@code BotInteract.selectBestToolFor}'s
+     * comparison. That utility cannot be reused here: it takes a {@code Minecraft} and lives on the client side of the
+     * seam. The Efficiency lookup it does is dropped rather than duplicated, because it only reorders tools that are
      * already correct-for-drops, and correctness is the half that decides whether anything drops.
      *
-     * <p>The bag is searched as well as the hotbar, and a winner outside the hotbar is SWAPPED into
-     * the selected slot. A player does that by hand; a bot that could only use what happened to be
-     * on its hotbar would fail for a reason no agent could see or fix through the API.
+     * <p>The bag is searched as well as the hotbar, and a winner outside the hotbar is SWAPPED into the selected slot.
+     * A player does that by hand; a bot that could only use what happened to be on its hotbar would fail for a reason
+     * no agent could see or fix through the API.
      */
-    @Override public void selectTool(BlockPos cell) {
+    @Override
+    public void selectTool(BlockPos cell) {
         var state = fp.level().getBlockState(cell);
         if (state.isAir()) return;
         var inv = fp.getInventory();
@@ -406,11 +463,14 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         inv.items.set(bestSlot, inv.items.get(inv.selected));
         inv.items.set(inv.selected, promoted);
     }
-    @Override public void setSelectedSlot(int slot) {
-        carryTo(slot);   // range-checked inside, and published: see carryTo
+
+    @Override
+    public void setSelectedSlot(int slot) {
+        carryTo(slot); // range-checked inside, and published: see carryTo
     }
 
-    @Override public void aimAtBlock(BlockPos cell) {
+    @Override
+    public void aimAtBlock(BlockPos cell) {
         aimTarget = cell.immutable();
         double dx = (cell.getX() + 0.5) - fp.getX();
         double dy = (cell.getY() + 0.5) - fp.getEyeY();
@@ -420,17 +480,23 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         fp.setXRot((float) (-Math.toDegrees(Math.atan2(dy, horiz))));
     }
 
-    @Override public BlockPos lookingAtBlock() {
+    @Override
+    public BlockPos lookingAtBlock() {
         Vec3 eye = fp.getEyePosition();
         // Compute the view vector directly from yRot/xRot rather than
         // getViewVector(1f): the latter lerps from yRotO, which is stale for a
         // FakePlayer that aimAtBlock just rotated without an intervening tick
         // (it returned a +z vector for a -90° yaw — the raycast then missed). The reach is the
         // player's own attribute, as the client's crosshair pick uses.
-        Vec3 end = eye.add(Vec3.directionFromRotation(fp.getXRot(), fp.getYRot()).scale(fp.blockInteractionRange()));
-        var hit = fp.level().clip(new net.minecraft.world.level.ClipContext(
-                eye, end, net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
+        Vec3 end =
+                eye.add(Vec3.directionFromRotation(fp.getXRot(), fp.getYRot()).scale(fp.blockInteractionRange()));
+        var hit = fp.level()
+                .clip(new net.minecraft.world.level.ClipContext(
+                        eye,
+                        end,
+                        net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                        net.minecraft.world.level.ClipContext.Fluid.NONE,
+                        fp));
         return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit.getBlockPos() : null;
     }
 
@@ -454,10 +520,12 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return "bot at " + fp.blockPosition().toShortString() + " → target " + cell.toShortString();
     }
 
-    /** The place actuator's own tally, for a caller that can see "no block was spent" and cannot see
-     *  why. Read it as a partition: {@code calls=0} means the actuator never ran at all (an ordering
-     *  or momentum fault upstream, not a placement one); {@code noFace>0} means it ran and found no
-     *  solid neighbour to click; {@code noBlock>0} means the bot was not holding anything placeable. */
+    /**
+     * The place actuator's own tally, for a caller that can see "no block was spent" and cannot see why. Read it as a
+     * partition: {@code calls=0} means the actuator never ran at all (an ordering or momentum fault upstream, not a
+     * placement one); {@code noFace>0} means it ran and found no solid neighbour to click; {@code noBlock>0} means the
+     * bot was not holding anything placeable.
+     */
     public String placeTally() {
         return "calls=" + placeCalls + " noFace=" + placeNoFace + " noBlock=" + placeNoBlock
                 + "; first call: " + (firstCallAt == null ? "none" : firstCallAt)
@@ -465,12 +533,16 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 + "; first noBlock: " + (firstNoBlockAt == null ? "none" : firstNoBlockAt);
     }
 
-    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) {
+    @Override
+    public void place(Predicate<BlockPos> solid, BlockPos cell) {
         placeCalls++;
         if (firstCallAt == null) firstCallAt = placeSample(cell);
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
-            if (solid.test(against)) { placeOn(against, d.getOpposite()); return; }
+            if (solid.test(against)) {
+                placeOn(against, d.getOpposite());
+                return;
+            }
         }
         // NOTHING TO CLICK. Not an error and not a no-op worth hiding: this player places by clicking a
         // face, so a cell with six non-solid neighbours cannot be placed into at all, however much
@@ -479,7 +551,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         if (firstNoFaceAt == null) firstNoFaceAt = placeSample(cell);
     }
 
-    @Override public void placeOn(BlockPos clickBlock, Direction face) {
+    @Override
+    public void placeOn(BlockPos clickBlock, Direction face) {
         if (!holdPlaceable()) {
             placeNoBlock++;
             if (firstNoBlockAt == null) firstNoBlockAt = placeSample(clickBlock);
@@ -494,21 +567,23 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     }
 
     /**
-     * Swing when a connected player's client would have, and tell this player's own client too
-     * ({@code updateSelf}), which an adopted player has.
+     * Swing when a connected player's client would have, and tell this player's own client too ({@code updateSelf}),
+     * which an adopted player has.
      *
-     * <p>The swing a player's place shows comes from its client: {@code MultiPlayerGameMode.useItemOn}
-     * swings on a {@code shouldSwing()} result and sends the swing packet. Most uses answer
-     * {@code sidedSuccess(isClientSide)}, which is {@code SUCCESS} there and {@code CONSUME} here, so
-     * {@code shouldSwing()} alone on the server result never swings for a placed block; {@code CONSUME} is
-     * read as the client's {@code SUCCESS}. {@code useItemInHand} and {@code attackEntityUnchecked} do not
-     * swing here: their callers already do, and a second swing in the same tick would broadcast twice.
+     * <p>The swing a player's place shows comes from its client: {@code MultiPlayerGameMode.useItemOn} swings on a
+     * {@code shouldSwing()} result and sends the swing packet. Most uses answer {@code sidedSuccess(isClientSide)},
+     * which is {@code SUCCESS} there and {@code CONSUME} here, so {@code shouldSwing()} alone on the server result
+     * never swings for a placed block; {@code CONSUME} is read as the client's {@code SUCCESS}. {@code useItemInHand}
+     * and {@code attackEntityUnchecked} do not swing here: their callers already do, and a second swing in the same
+     * tick would broadcast twice.
      */
     private void swingIf(net.minecraft.world.InteractionResult r) {
-        if (r.shouldSwing() || r == net.minecraft.world.InteractionResult.CONSUME) fp.swing(InteractionHand.MAIN_HAND, true);
+        if (r.shouldSwing() || r == net.minecraft.world.InteractionResult.CONSUME)
+            fp.swing(InteractionHand.MAIN_HAND, true);
     }
 
-    @Override public void breakHold(boolean v) {
+    @Override
+    public void breakHold(boolean v) {
         breakHeld = v;
         if (!v || aimTarget == null) {
             breakProgPos = null;
@@ -519,18 +594,20 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     }
 
     /**
-     * The client's drive on an exact cell, which is how a reflex digs out of a block its eyes are
-     * inside (no crosshair can resolve that). Here it advances the same break {@link #breakHold}
-     * does, on {@code cell}, unless {@code breakHold} advanced that cell this tick already — the
-     * processes call both, one after the other, every tick they dig.
+     * The client's drive on an exact cell, which is how a reflex digs out of a block its eyes are inside (no crosshair
+     * can resolve that). Here it advances the same break {@link #breakHold} does, on {@code cell}, unless
+     * {@code breakHold} advanced that cell this tick already — the processes call both, one after the other, every tick
+     * they dig.
      */
-    @Override public void continueDestroy(BlockPos cell) {
+    @Override
+    public void continueDestroy(BlockPos cell) {
         if (cell == null || (advancedTick == fp.tickCount && cell.equals(advancedCell))) return;
         advanceBreak(cell);
     }
 
     /** Abandon the break in progress, as vanilla's {@code stopDestroyBlock} does. */
-    @Override public void stopDestroy() {
+    @Override
+    public void stopDestroy() {
         breakProgPos = null;
         breakProg = 0f;
     }
@@ -543,7 +620,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
         advancedCell = cell.immutable();
         advancedTick = fp.tickCount;
-        fp.swing(InteractionHand.MAIN_HAND, true);   // every dig tick swings, as the client's continueDestroyBlock does
+        fp.swing(InteractionHand.MAIN_HAND, true); // every dig tick swings, as the client's continueDestroyBlock does
         if (!GameConfig.faithfulBreak) {
             destroyAt(cell);
             return;
@@ -554,7 +631,10 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // a hand-mined stone afloat ticks at ~1/750. breakHold is called once per tick during a
         // dig, so one call == one tick of progress; reset when the target moves to a new block.
         net.minecraft.world.level.block.state.BlockState st = fp.level().getBlockState(cell);
-        if (!cell.equals(breakProgPos)) { breakProgPos = cell.immutable(); breakProg = 0f; }
+        if (!cell.equals(breakProgPos)) {
+            breakProgPos = cell.immutable();
+            breakProg = 0f;
+        }
         breakProg += st.getDestroyProgress(fp, fp.level(), cell);
         if (breakProg >= 1.0f) {
             destroyAt(cell);
@@ -566,20 +646,18 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Break the aimed cell, and say so once if the bot was standing on it.
      *
-     * <p>Asked with {@code soleOnSolid}, the reading the navigator's footing guards use, before and
-     * after, so there is no second notion of "standing" to keep in sync: sole area {@code > 0} then
-     * {@code 0} means the block that vanished was the one carrying this bot. That is a real invariant break — a bot may dig its
-     * own floor deliberately (a descent, a shaft), but it must then FALL, and what the log records is
-     * the tick the fall becomes owed.
+     * <p>Asked with {@code soleOnSolid}, the reading the navigator's footing guards use, before and after, so there is
+     * no second notion of "standing" to keep in sync: sole area {@code > 0} then {@code 0} means the block that
+     * vanished was the one carrying this bot. That is a real invariant break — a bot may dig its own floor deliberately
+     * (a descent, a shaft), but it must then FALL, and what the log records is the tick the fall becomes owed.
      *
-     * <p>Why it earns a line: {@code wd.buriedOre} regressed on exactly this. The disagreement
-     * reading ("airborne but reported as standing") pinned the tick — {@code t=260
-     * soleOnSolid=0.0000 y=223.0000 fallSpeed=-0.0784}, i.e. a bot flush at a block boundary whose fall speed is precisely one tick of gravity from
-     * rest, so it was resting on that cell the tick before and the cell was gone this tick. Under the
-     * old gate vanilla's stale {@code onGround} then handed it a {@code +0.42} it had no standing to
-     * take, and that illegal jump was what carried it up the staircase it had just dug out from under
-     * itself. This line names the cell and the tick so the next run can say WHICH break did it;
-     * without it the evidence stops at "the support was gone" and the planner move stays anonymous.
+     * <p>Why it earns a line: {@code wd.buriedOre} regressed on exactly this. The disagreement reading ("airborne but
+     * reported as standing") pinned the tick — {@code t=260 soleOnSolid=0.0000 y=223.0000 fallSpeed=-0.0784}, i.e. a
+     * bot flush at a block boundary whose fall speed is precisely one tick of gravity from rest, so it was resting on
+     * that cell the tick before and the cell was gone this tick. Under the old gate vanilla's stale {@code onGround}
+     * then handed it a {@code +0.42} it had no standing to take, and that illegal jump was what carried it up the
+     * staircase it had just dug out from under itself. This line names the cell and the tick so the next run can say
+     * WHICH break did it; without it the evidence stops at "the support was gone" and the planner move stays anonymous.
      */
     private void destroyAt(BlockPos target) {
         // Solid as the pathfinder's views read it: the block stops motion.
@@ -596,8 +674,10 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         if (soleBefore <= 0.0) return;
         if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) return;
         loggedDugOwnFloor = true;
-        Mod.LOG.info("[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
-                fp.level().getGameTime(), target.toShortString(),
+        Mod.LOG.info(
+                "[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
+                fp.level().getGameTime(),
+                target.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.4f", soleBefore),
                 String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
                 fp.blockPosition().toShortString());
@@ -608,64 +688,72 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Can a player standing here actually break that block?
      *
-     * <p>{@code ServerPlayerGameMode.destroyBlock} has no reach gate and no visibility gate (the packet
-     * handler that a connected player's break passes through first has the reach one), so without this the
-     * avatar mines through solid rock. That is not merely unfaithful — it is the reason a
-     * playthrough could not gather buried ore. Measured on {@code wd.serverMineHarvestBuried}: the
-     * bot broke two ores under an intact floor and both drops landed in a sealed 1×1×1 pocket,
-     * {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No pathfinder reaches those,
-     * and two rounds of work went into the navigator and the collect sweep before this measurement
-     * existed. The sweep was right to give up; the mine should never have happened.
+     * <p>{@code ServerPlayerGameMode.destroyBlock} has no reach gate and no visibility gate (the packet handler that a
+     * connected player's break passes through first has the reach one), so without this the avatar mines through solid
+     * rock. That is not merely unfaithful — it is the reason a playthrough could not gather buried ore. Measured on
+     * {@code wd.serverMineHarvestBuried}: the bot broke two ores under an intact floor and both drops landed in a
+     * sealed 1×1×1 pocket, {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No pathfinder reaches those,
+     * and two rounds of work went into the navigator and the collect sweep before this measurement existed. The sweep
+     * was right to give up; the mine should never have happened.
      *
      * <p>Two conditions, both of which a real dig satisfies for free:
+     *
      * <ul>
-     *   <li><b>Exposed</b> — at least one of the six neighbours is not a full solid face. A block
-     *       walled in on all sides cannot be hit by any ray from any eye position, so this is the
-     *       cheap exact form of "the client could have aimed at it".</li>
-     *   <li><b>In range</b> — eye to block centre within the player's own
-     *       {@code blockInteractionRange} attribute, plus half a block because the range is
-     *       measured to the nearest face and this measures to the centre. Erring outward keeps the
-     *       gate from rejecting digs vanilla allows.</li>
+     *   <li><b>Exposed</b> — at least one of the six neighbours is not a full solid face. A block walled in on all
+     *       sides cannot be hit by any ray from any eye position, so this is the cheap exact form of "the client could
+     *       have aimed at it".
+     *   <li><b>In range</b> — eye to block centre within the player's own {@code blockInteractionRange} attribute, plus
+     *       half a block because the range is measured to the nearest face and this measures to the centre. Erring
+     *       outward keeps the gate from rejecting digs vanilla allows.
      * </ul>
      *
-     * <p>What this deliberately does NOT do is raycast. A ray from the eye can be blocked by the
-     * very block being mined and by the corner the bot is leaning around, and vanilla's own server
-     * does not raycast either — it trusts the client's aim and checks distance. Exposure plus
-     * distance is the honest server-side approximation; it rejects the impossible dig without
-     * inventing a stricter rule than the game's.
+     * <p>What this deliberately does NOT do is raycast. A ray from the eye can be blocked by the very block being mined
+     * and by the corner the bot is leaning around, and vanilla's own server does not raycast either — it trusts the
+     * client's aim and checks distance. Exposure plus distance is the honest server-side approximation; it rejects the
+     * impossible dig without inventing a stricter rule than the game's.
      */
-    @Override public boolean canBreak(BlockPos pos) { return canBreakFromHere(pos); }
+    @Override
+    public boolean canBreak(BlockPos pos) {
+        return canBreakFromHere(pos);
+    }
 
     private boolean canBreakFromHere(BlockPos pos) {
         boolean exposed = false;
         for (Direction d : Direction.values()) {
             BlockPos n = pos.relative(d);
-            if (!fp.level().getBlockState(n).isSolidRender(fp.level(), n)) { exposed = true; break; }
+            if (!fp.level().getBlockState(n).isSolidRender(fp.level(), n)) {
+                exposed = true;
+                break;
+            }
         }
         if (!exposed) return false;
         double reach = fp.blockInteractionRange() + 0.5;
         return fp.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
     }
 
-    @Override public boolean breakHeld() { return breakHeld; }
+    @Override
+    public boolean breakHeld() {
+        return breakHeld;
+    }
 
     // --- container / recipe interaction ---
-    @Override public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
+    @Override
+    public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
         return fp.getServer() != null ? fp.getServer().getRecipeManager() : null;
     }
 
     /**
-     * Raw {@code useItemOn} (no holdPlaceable gate): places a held block OR triggers the block's
-     * use, and a station's use opens its menu through vanilla's own {@code openMenu}.
+     * Raw {@code useItemOn} (no holdPlaceable gate): places a held block OR triggers the block's use, and a station's
+     * use opens its menu through vanilla's own {@code openMenu}.
      *
-     * <p>There is deliberately no fallback when that declines. One existed while the server-side bots
-     * were fake players whose {@code openMenu} returned empty: it built the station's menu by hand
-     * so a server craft could reach the 3×3 grid. On a joined player it never fired once across
-     * both loaders' dedicated gates, sixteen menu scenes included, and the only places left for it
-     * to fire are the ones vanilla refuses on purpose (a sneaking player holding a block, a blocked
-     * chest), where opening the menu anyway would give this bot what a player cannot have.
+     * <p>There is deliberately no fallback when that declines. One existed while the server-side bots were fake players
+     * whose {@code openMenu} returned empty: it built the station's menu by hand so a server craft could reach the 3×3
+     * grid. On a joined player it never fired once across both loaders' dedicated gates, sixteen menu scenes included,
+     * and the only places left for it to fire are the ones vanilla refuses on purpose (a sneaking player holding a
+     * block, a blocked chest), where opening the menu anyway would give this bot what a player cannot have.
      */
-    @Override public void useBlock(BlockPos cell, Direction face) {
+    @Override
+    public void useBlock(BlockPos cell, Direction face) {
         Vec3 hit = new Vec3(
                 cell.getX() + 0.5 + face.getStepX() * 0.5,
                 cell.getY() + 0.5 + face.getStepY() * 0.5,
@@ -674,7 +762,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         swingIf(fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh));
     }
 
-    @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
+    @Override
+    public void placeRecipe(
+            int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
         // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
         // grid from inventory. Works for the always-present 2×2 inventory grid and for whatever
         // table menu the player has open.
@@ -688,68 +778,100 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
     }
 
-    @Override public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
+    @Override
+    public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
         if (fp.containerMenu != null && fp.containerMenu.containerId == containerId)
             fp.containerMenu.clicked(slot, button, type, fp);
     }
 
-    @Override public void closeContainer() { fp.closeContainer(); }
+    @Override
+    public void closeContainer() {
+        fp.closeContainer();
+    }
 
-    @Override public boolean startFallFlying() {
+    @Override
+    public boolean startFallFlying() {
         // The FALL_FLYING flag is server-authoritative on a ServerPlayer — no packet.
         return fp.tryToStartFallFlying();
     }
 
-    @Override public net.minecraft.world.InteractionResult useItemInHand() {
+    @Override
+    public net.minecraft.world.InteractionResult useItemInHand() {
         return fp.gameMode.useItem(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND);
     }
 
-    @Override public boolean holdItem(net.minecraft.world.item.Item item) {
+    @Override
+    public boolean holdItem(net.minecraft.world.item.Item item) {
         return holdMatching(stk -> stk.is(item));
     }
 
-    @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
-        fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
+    @Override
+    public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
+        fp.attack(target); // server-authoritative: applies damage/knockback/crit directly
     }
 
-    /** Why the last swing was declined by {@code Attack.attackEntity}'s footing guard, or null.
-     *  Unlike the client's, this object outlives the tick — so a stale reading here would be a lie
-     *  the next tick; {@code attackEntity} therefore writes it on EVERY call, pass or refuse. */
+    /**
+     * Why the last swing was declined by {@code Attack.attackEntity}'s footing guard, or null. Unlike the client's,
+     * this object outlives the tick — so a stale reading here would be a lie the next tick; {@code attackEntity}
+     * therefore writes it on EVERY call, pass or refuse.
+     */
     private String lastAttackRefusal;
 
-    @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
-    @Override public String lastAttackRefusal() { return lastAttackRefusal; }
+    @Override
+    public void noteAttackRefusal(String why) {
+        this.lastAttackRefusal = why;
+    }
+
+    @Override
+    public String lastAttackRefusal() {
+        return lastAttackRefusal;
+    }
 
     /** The forward and left impulses the next step moves on, -1 to 1. */
-    public float pendingForward() { return pendingForward; }
-    public float pendingLeft() { return pendingLeft; }
+    public float pendingForward() {
+        return pendingForward;
+    }
 
-    @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
-    @Override public boolean dbgJumping() { return pendingJump; }
-    @Override public boolean dbgSneak() { return pendingSneak; }
+    public float pendingLeft() {
+        return pendingLeft;
+    }
+
+    @Override
+    public boolean dbgForwardImpulse() {
+        return pendingForward != 0;
+    }
+
+    @Override
+    public boolean dbgJumping() {
+        return pendingJump;
+    }
+
+    @Override
+    public boolean dbgSneak() {
+        return pendingSneak;
+    }
     /** When vanilla's jump gate last let a press through — see {@code JoinedBody.jumpFromGround}. */
-    @Override public long dbgLastJumpTick() {
+    @Override
+    public long dbgLastJumpTick() {
         return fp instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1;
     }
 
     /**
      * Advance this player one tick, after the driver has set this tick's input.
      *
-     * <p>Vanilla ticks the player ({@code JoinedBody.pump}); this only hands it the input. The jump ask
-     * keeps the shape it always had: an edge on land, released after one step unless the caller asks
-     * again, and held in water, where a swim upward keeps rising until the caller lets go.
+     * <p>Vanilla ticks the player ({@code JoinedBody.pump}); this only hands it the input. The jump ask keeps the shape
+     * it always had: an edge on land, released after one step unless the caller asks again, and held in water, where a
+     * swim upward keeps rising until the caller lets go.
      *
-     * <p><b>Why a chunk-map move is part of every step.</b> {@code handleMovePlayer} ends in
-     * {@code ChunkSource.move} for every movement packet, and a driven player sends none, so without it
-     * the chunk map keeps the section the player joined in: its chunk tickets, its entity tracking and
-     * {@code DistanceManager.hasPlayersNearby}, the gate in front of {@code NaturalSpawner}. Measured
-     * on the ladder's nether rungs before the move was added: 107 monsters within 128 blocks beside
-     * the portal, 2 at a fortress 360 blocks away, 0 for 7200 ticks in a warped forest. The pump does
-     * it.
+     * <p><b>Why a chunk-map move is part of every step.</b> {@code handleMovePlayer} ends in {@code ChunkSource.move}
+     * for every movement packet, and a driven player sends none, so without it the chunk map keeps the section the
+     * player joined in: its chunk tickets, its entity tracking and {@code DistanceManager.hasPlayersNearby}, the gate
+     * in front of {@code NaturalSpawner}. Measured on the ladder's nether rungs before the move was added: 107 monsters
+     * within 128 blocks beside the portal, 2 at a fortress 360 blocks away, 0 for 7200 ticks in a warped forest. The
+     * pump does it.
      *
-     * @throws IllegalStateException for a player this server did not join, such as the real player
-     *         {@code JourneyRig} adopts: its own connection ticks it, and pumping it here would tick
-     *         it twice
+     * @throws IllegalStateException for a player this server did not join, such as the real player {@code JourneyRig}
+     *     adopts: its own connection ticks it, and pumping it here would tick it twice
      */
     public void step() {
         if (!(fp instanceof JoinedPlayers.JoinedBody joined)) {

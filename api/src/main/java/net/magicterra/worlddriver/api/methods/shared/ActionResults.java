@@ -2,11 +2,6 @@ package net.magicterra.worlddriver.api.methods.shared;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import net.magicterra.worlddriver.api.schema.ApiTypes;
-import net.magicterra.worlddriver.api.schema.OpenUnion;
-import net.magicterra.worlddriver.api.schema.RecordType;
-import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
@@ -14,11 +9,15 @@ import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.OpenUnion;
+import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.UnionType;
 
 /**
- * Every action result there is, as one union on {@code kind}: what {@code mc.wait.result} answers
- * for an action of any method. Each method's own result union contributes its variants, so a new
- * body-task method is one line here; a task another mod registers adds its own through {@link #add}.
+ * Every action result there is, as one union on {@code kind}: what {@code mc.wait.result} answers for an action of any
+ * method. Each method's own result union contributes its variants, so a new body-task method is one line here; a task
+ * another mod registers adds its own through {@link #add}.
  */
 public final class ActionResults {
     private ActionResults() {}
@@ -46,7 +45,9 @@ public final class ActionResults {
 
     /** Make {@code result}'s variants answerable too. Throws, adding nothing, on a kind already taken. */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static void add(UnionType<?> result) { UNION.add((UnionType) result); }
+    public static void add(UnionType<?> result) {
+        UNION.add((UnionType) result);
+    }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static UnionType<Object> union() {

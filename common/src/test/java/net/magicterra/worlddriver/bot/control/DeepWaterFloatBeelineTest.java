@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.debug.GridWorldView;
@@ -15,9 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * A bot floating in deep open water is handed a continuation whose first node is 48 blocks east: the
- * segment anchor gate rejects it, and with {@code navigatorDeepWaterFloatBeeline} on it is accepted as a
- * straight swim, but only from a floating foot and only over a line that is open water.
+ * A bot floating in deep open water is handed a continuation whose first node is 48 blocks east: the segment anchor
+ * gate rejects it, and with {@code navigatorDeepWaterFloatBeeline} on it is accepted as a straight swim, but only from
+ * a floating foot and only over a line that is open water.
  *
  * <p>The continuation is deliberately not anchored at the foot; that gap is what the gate judges.
  */
@@ -25,7 +24,8 @@ class DeepWaterFloatBeelineTest {
     private static final int SURFACE = 8, SPAN = 56;
     private static final BlockPos FOOT = new BlockPos(0, SURFACE, 0);
     private static final BlockPos FAR = new BlockPos(48, SURFACE, 0);
-    private static final List<BlockPos> CONT = List.of(FAR, new BlockPos(52, SURFACE, 0), new BlockPos(SPAN, SURFACE, 0));
+    private static final List<BlockPos> CONT =
+            List.of(FAR, new BlockPos(52, SURFACE, 0), new BlockPos(SPAN, SURFACE, 0));
     private static final List<Move.Edge> EDGES = List.of(
             new Move.Edge(CONT.get(0), 50, List.of(), List.of(), "walk"),
             new Move.Edge(CONT.get(1), 10, List.of(), List.of(), "walk"),
@@ -34,13 +34,19 @@ class DeepWaterFloatBeelineTest {
     private boolean beelineBefore;
 
     @BeforeEach
-    void keep() { beelineBefore = ControlConfig.navigatorDeepWaterFloatBeeline; }
+    void keep() {
+        beelineBefore = ControlConfig.navigatorDeepWaterFloatBeeline;
+    }
 
     @AfterEach
-    void restore() { ControlConfig.navigatorDeepWaterFloatBeeline = beelineBefore; }
+    void restore() {
+        ControlConfig.navigatorDeepWaterFloatBeeline = beelineBefore;
+    }
 
-    /** Stone floor at y=0, an 8-deep channel x -3..56 z -2..2 walled at z ±3 and x -4, air above, and a dry
-     *  3x3 stand at x 67..69 whose foot cell is y=9. */
+    /**
+     * Stone floor at y=0, an 8-deep channel x -3..56 z -2..2 walled at z ±3 and x -4, air above, and a dry 3x3 stand at
+     * x 67..69 whose foot cell is y=9.
+     */
     private static GridWorldView channel() {
         GridWorldView g = new GridWorldView(-6, 0, -5, 80, SURFACE + 9, 11);
         g.fill(-5, 0, -4, 72, 0, 4, GridWorldView.SOLID);
@@ -78,7 +84,8 @@ class DeepWaterFloatBeelineTest {
         ControlConfig.navigatorDeepWaterFloatBeeline = true;
         GridWorldView w = channel();
         BlockPos sunk = FOOT.below(4);
-        assertTrue(w.isWater(sunk) && Math.abs(FAR.getY() - sunk.getY()) > w.maxJumpUpBlocks() + 2,
+        assertTrue(
+                w.isWater(sunk) && Math.abs(FAR.getY() - sunk.getY()) > w.maxJumpUpBlocks() + 2,
                 "the sunk foot is water and past the jump gate");
         assertTrue(adopt(w, sunk), "a swim up to the surface node is not a dry climb");
     }

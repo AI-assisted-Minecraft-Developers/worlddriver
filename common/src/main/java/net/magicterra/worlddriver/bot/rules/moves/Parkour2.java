@@ -8,16 +8,16 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * Baritone-style 2-block parkour leap (same Y, one cardinal axis). The
- * middle cell at foot+head must be air (passable, non-hazard) and the
- * cell below it must NOT be a valid stand position — otherwise A* should
- * just use two cheaper Walks and we'd be over-counting cost. Launch head
- * also needs clearance (foot.y+2) so the jump apex doesn't clip ceiling.
- * Cost ≈ 22 (~2× walk + jump overhead) so plain walking always wins
- * when both are valid.
+ * Baritone-style 2-block parkour leap (same Y, one cardinal axis). The middle cell at foot+head must be air (passable,
+ * non-hazard) and the cell below it must NOT be a valid stand position — otherwise A* should just use two cheaper Walks
+ * and we'd be over-counting cost. Launch head also needs clearance (foot.y+2) so the jump apex doesn't clip ceiling.
+ * Cost ≈ 22 (~2× walk + jump overhead) so plain walking always wins when both are valid.
  */
 public final class Parkour2 extends Move {
-    public Parkour2(int dx, int dz) { super(dx * 2, 0, dz * 2, 22); }
+    public Parkour2(int dx, int dz) {
+        super(dx * 2, 0, dz * 2, 22);
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
@@ -27,8 +27,8 @@ public final class Parkour2 extends Move {
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
         // the leap stays available rather than leaving the bot with no move at all.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
-                && Move.overTheVoid(w, from, to)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+            return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: forbid a parkour that LANDS in submerged water (water at the
         // destination foot AND head). canStandAt accepts any water cell as a floor, so
@@ -58,6 +58,13 @@ public final class Parkour2 extends Move {
         // Destination head clearance.
         return w.isPassable(to.offset(0, 1, 0));
     }
-    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
-    public String name() { return "parkour2"; }
+
+    @Override
+    public Capability requiredCapability() {
+        return Capability.PARKOUR;
+    }
+
+    public String name() {
+        return "parkour2";
+    }
 }

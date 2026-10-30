@@ -10,10 +10,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-
 import net.magicterra.worlddriver.api.methods.shared.Responses.Unready;
 import net.magicterra.worlddriver.api.schema.WireName;
-
 import org.junit.jupiter.api.Test;
 
 /** {@link Readiness#judge}: every refusal, its order, and the shape it is reported in. */
@@ -32,32 +30,47 @@ class ReadinessTest {
 
     @Test
     void noWorldOrPlayerNamesTheScreenItIsOn() {
-        Readiness.Refusal title = Readiness.judge(new Readiness.Facts(false, false, "TitleScreen", false, false, false, false, false));
+        Readiness.Refusal title =
+                Readiness.judge(new Readiness.Facts(false, false, "TitleScreen", false, false, false, false, false));
         assertEquals(Readiness.Reason.NO_PLAYER, title.reason());
         assertTrue(title.error().contains("TitleScreen"), title.error());
-        Readiness.Refusal none = Readiness.judge(new Readiness.Facts(false, false, null, false, false, false, false, false));
+        Readiness.Refusal none =
+                Readiness.judge(new Readiness.Facts(false, false, null, false, false, false, false, false));
         assertEquals(Readiness.Reason.NO_PLAYER, none.reason());
         assertTrue(none.error().contains("no world is open"), none.error());
     }
 
     @Test
     void eachObstacleHasItsOwnWordAndTheOrderIsWhatAPersonWouldFixFirst() {
-        assertEquals(Readiness.Reason.LOADING,
-                Readiness.judge(new Readiness.Facts(true, true, "ReceivingLevelScreen", true, false, true, true, false)).reason());
-        assertEquals(Readiness.Reason.DEAD,
-                Readiness.judge(new Readiness.Facts(true, true, "DeathScreen", false, true, true, true, false)).reason());
-        assertEquals(Readiness.Reason.PAUSED,
-                Readiness.judge(new Readiness.Facts(true, true, "PauseScreen", false, true, false, true, false)).reason());
-        assertEquals(Readiness.Reason.SLEEPING,
-                Readiness.judge(new Readiness.Facts(true, true, "InBedChatScreen", false, false, false, true, false)).reason());
-        assertEquals(Readiness.Reason.CHUNK_UNLOADED,
-                Readiness.judge(new Readiness.Facts(true, true, null, false, false, false, false, false)).reason());
+        assertEquals(
+                Readiness.Reason.LOADING,
+                Readiness.judge(new Readiness.Facts(true, true, "ReceivingLevelScreen", true, false, true, true, false))
+                        .reason());
+        assertEquals(
+                Readiness.Reason.DEAD,
+                Readiness.judge(new Readiness.Facts(true, true, "DeathScreen", false, true, true, true, false))
+                        .reason());
+        assertEquals(
+                Readiness.Reason.PAUSED,
+                Readiness.judge(new Readiness.Facts(true, true, "PauseScreen", false, true, false, true, false))
+                        .reason());
+        assertEquals(
+                Readiness.Reason.SLEEPING,
+                Readiness.judge(new Readiness.Facts(true, true, "InBedChatScreen", false, false, false, true, false))
+                        .reason());
+        assertEquals(
+                Readiness.Reason.CHUNK_UNLOADED,
+                Readiness.judge(new Readiness.Facts(true, true, null, false, false, false, false, false))
+                        .reason());
     }
 
     @Test
     void theDeathScreenIsNamedOnlyWhenItIsUp() {
-        String onScreen = Readiness.judge(new Readiness.Facts(true, true, "DeathScreen", false, false, true, false, true)).error();
-        String noScreen = Readiness.judge(new Readiness.Facts(true, true, null, false, false, true, false, true)).error();
+        String onScreen = Readiness.judge(
+                        new Readiness.Facts(true, true, "DeathScreen", false, false, true, false, true))
+                .error();
+        String noScreen = Readiness.judge(new Readiness.Facts(true, true, null, false, false, true, false, true))
+                .error();
         assertTrue(onScreen.contains("death screen"), onScreen);
         assertTrue(!noScreen.contains("death screen") && noScreen.contains("dead"), noScreen);
     }
@@ -78,7 +91,8 @@ class ReadinessTest {
         for (Field f : Readiness.Reason.class.getDeclaredFields()) {
             if (Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) here.add((String) f.get(null));
         }
-        Set<String> api = new TreeSet<>(Arrays.stream(Unready.values()).map(WireName::wireName).toList());
+        Set<String> api = new TreeSet<>(
+                Arrays.stream(Unready.values()).map(WireName::wireName).toList());
         assertEquals(api, here);
     }
 }

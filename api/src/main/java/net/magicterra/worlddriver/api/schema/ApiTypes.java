@@ -1,5 +1,8 @@
 package net.magicterra.worlddriver.api.schema;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -7,15 +10,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-
 /**
- * Where a contract gets its {@link ApiType}s: read off a Java declaration with {@link #of}, {@link #record}
- * and {@link #union}, or, for the few shapes known only at run time, built by the open-type factories at the
- * end. The scalar factories are the reader's own. Each type reads strictly: no number from a string, no
- * boolean from a number, no integer from a fraction, no {@code null} for absent.
+ * Where a contract gets its {@link ApiType}s: read off a Java declaration with {@link #of}, {@link #record} and
+ * {@link #union}, or, for the few shapes known only at run time, built by the open-type factories at the end. The
+ * scalar factories are the reader's own. Each type reads strictly: no number from a string, no boolean from a number,
+ * no integer from a fraction, no {@code null} for absent.
  */
 public final class ApiTypes {
     private ApiTypes() {}
@@ -38,8 +37,8 @@ public final class ApiTypes {
     }
 
     /**
-     * A 64-bit integer written as a decimal string. JavaScript numbers hold 53 bits, so a sequence
-     * number or seed sent as a number arrives rounded; as a string it survives every client.
+     * A 64-bit integer written as a decimal string. JavaScript numbers hold 53 bits, so a sequence number or seed sent
+     * as a number arrives rounded; as a string it survives every client.
      */
     static ApiType<Long> int64String(long min) {
         return new NumberTypes.Int64StringType(min);
@@ -58,30 +57,53 @@ public final class ApiTypes {
     // ------------------------------------------------------------------ booleans and strings
 
     private static final ApiType<Boolean> BOOL = new ApiType<>() {
-        @Override protected Boolean read(JsonElement value, DecodeContext at) {
+        @Override
+        protected Boolean read(JsonElement value, DecodeContext at) {
             Boolean b = Json.bool(value);
             return b != null ? b : at.mismatch(expected(), value);
         }
-        @Override protected JsonElement write(Boolean value) { return new JsonPrimitive(Objects.requireNonNull(value, "boolean")); }
-        @Override protected JsonObject schemaBody() {
+
+        @Override
+        protected JsonElement write(Boolean value) {
+            return new JsonPrimitive(Objects.requireNonNull(value, "boolean"));
+        }
+
+        @Override
+        protected JsonObject schemaBody() {
             JsonObject s = new JsonObject();
             s.addProperty("type", "boolean");
             return s;
         }
-        @Override public String ts(TsContext ts) { return "boolean"; }
-        @Override public String expected() { return "a boolean"; }
-        @Override ApiType<Boolean> describe(String text) {
+
+        @Override
+        public String ts(TsContext ts) {
+            return "boolean";
+        }
+
+        @Override
+        public String expected() {
+            return "a boolean";
+        }
+
+        @Override
+        ApiType<Boolean> describe(String text) {
             throw new UnsupportedOperationException("describe the field, not the shared boolean type");
         }
     };
 
-    static ApiType<Boolean> bool() { return BOOL; }
+    static ApiType<Boolean> bool() {
+        return BOOL;
+    }
 
     /** Any string. */
-    static StringType string() { return new StringType(0, Integer.MAX_VALUE, null, null); }
+    static StringType string() {
+        return new StringType(0, Integer.MAX_VALUE, null, null);
+    }
 
     /** A string of {@code minLength}–{@code maxLength} characters. */
-    static StringType string(int minLength, int maxLength) { return new StringType(minLength, maxLength, null, null); }
+    static StringType string(int minLength, int maxLength) {
+        return new StringType(minLength, maxLength, null, null);
+    }
 
     /** A string matching {@code regex} entirely; {@code meaning} is how a message describes it ("a block id"). */
     static StringType pattern(String regex, String meaning) {
@@ -91,20 +113,35 @@ public final class ApiTypes {
     /** A boolean that may only be {@code true}: an acknowledgement field. */
     static ApiType<Boolean> trueOnly() {
         return new ApiType<>() {
-            @Override protected Boolean read(JsonElement v, DecodeContext at) {
+            @Override
+            protected Boolean read(JsonElement v, DecodeContext at) {
                 Boolean b = Json.bool(v);
                 if (b == null) return at.mismatch(expected(), v);
                 return b ? b : at.fail(ApiIssue.Code.INVALID_VALUE, "expected true");
             }
-            @Override protected JsonElement write(Boolean v) { return new JsonPrimitive(v); }
-            @Override protected JsonObject schemaBody() {
+
+            @Override
+            protected JsonElement write(Boolean v) {
+                return new JsonPrimitive(v);
+            }
+
+            @Override
+            protected JsonObject schemaBody() {
                 JsonObject s = new JsonObject();
                 s.addProperty("type", "boolean");
                 s.addProperty("const", true);
                 return s;
             }
-            @Override public String ts(TsContext ts) { return "true"; }
-            @Override public String expected() { return "true"; }
+
+            @Override
+            public String ts(TsContext ts) {
+                return "true";
+            }
+
+            @Override
+            public String expected() {
+                return "true";
+            }
         };
     }
 
@@ -146,8 +183,8 @@ public final class ApiTypes {
 
     /**
      * The wire type of {@code type}: a record, read component by component with the annotations in
-     * {@code api.schema.annotation}; an enum implementing {@link WireName}; a sealed interface marked
-     * {@code @Tag}; or a scalar. Built once per class, so every use shares one object.
+     * {@code api.schema.annotation}; an enum implementing {@link WireName}; a sealed interface marked {@code @Tag}; or
+     * a scalar. Built once per class, so every use shares one object.
      */
     public static <T> ApiType<T> of(Class<T> type) {
         return Reflected.of(type);
@@ -155,8 +192,8 @@ public final class ApiTypes {
 
     /**
      * The scalar {@code type} under the constraint annotation {@code constraint} (one whose declaration carries
-     * {@code @Range}, {@code @Pattern}, {@code @Doc}…): the same object a component written {@code @Constraint T}
-     * gets, for code that needs the type itself.
+     * {@code @Range}, {@code @Pattern}, {@code @Doc}…): the same object a component written {@code @Constraint T} gets,
+     * for code that needs the type itself.
      */
     public static <T> ApiType<T> of(Class<T> type, Class<? extends java.lang.annotation.Annotation> constraint) {
         return Reflected.of(type, constraint);
@@ -168,9 +205,9 @@ public final class ApiTypes {
     }
 
     /**
-     * A generic record with its type variables bound: each component named in {@code componentTypes} takes
-     * that type (the content type, for an {@code Optional}), the rest are read as usual. Not shared: every
-     * call builds a new type, so bind once per use and keep the result.
+     * A generic record with its type variables bound: each component named in {@code componentTypes} takes that type
+     * (the content type, for an {@code Optional}), the rest are read as usual. Not shared: every call builds a new
+     * type, so bind once per use and keep the result.
      */
     public static <R extends Record> RecordType<R> record(Class<R> type, Map<String, ApiType<?>> componentTypes) {
         return Reflected.record(type, componentTypes);
@@ -198,16 +235,16 @@ public final class ApiTypes {
     }
 
     /**
-     * An object of optional members, each typed by {@code types} for its key, in that map's order;
-     * {@code docs} describes the keys that have a description.
+     * An object of optional members, each typed by {@code types} for its key, in that map's order; {@code docs}
+     * describes the keys that have a description.
      */
     public static KeyedValueType keyedValues(String name, Map<String, ApiType<?>> types, Map<String, String> docs) {
         return new KeyedValueType(name, types, docs, key -> null);
     }
 
     /** As above, each key's default looked up through {@code defaults} (null for none) when rendered. */
-    public static KeyedValueType keyedValues(String name, Map<String, ApiType<?>> types, Map<String, String> docs,
-                                             Function<String, Object> defaults) {
+    public static KeyedValueType keyedValues(
+            String name, Map<String, ApiType<?>> types, Map<String, String> docs, Function<String, Object> defaults) {
         return new KeyedValueType(name, types, docs, defaults);
     }
 }

@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -26,13 +25,12 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Water walks driven on the client's REAL player — the navigator, the physics and the reflexes that actually ship.
- * Every test here is red until the engine can do the thing; none is softened to what the navigator can already
- * satisfy.
+ * Every test here is red until the engine can do the thing; none is softened to what the navigator can already satisfy.
  *
  * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away between staging and
  * measuring), the player in the water, and one walk to a cell on dry ground. Unit tests ({@code OpenWaterLakeTest},
- * {@code SubmergedLandingTest}, {@code WaterBoundPlanTest}) cover the plans; these cover their execution on real
- * client physics.
+ * {@code SubmergedLandingTest}, {@code WaterBoundPlanTest}) cover the plans; these cover their execution on real client
+ * physics.
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
@@ -41,6 +39,7 @@ class ClientWaterTest {
 
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
     private static final int GROUND = 0;
+
     private static final int HALF = 12;
     private static final int POOL_HALF = 4;
     private static final int POOL_DEPTH = 6;
@@ -66,8 +65,8 @@ class ClientWaterTest {
      * headless twin ended {@code end=path-consumed} one cell short with water under its feet.
      */
     @Test
-    void clientFlushBankClimbOut(Game game, Client client, Player player,
-                                 @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientFlushBankClimbOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 0, Blocks.STONE, POOL_DEPTH, 400, new ItemStack(Items.DIRT, 30));
     }
 
@@ -78,8 +77,8 @@ class ClientWaterTest {
      * ticks; the shortest floating dig does not.
      */
     @Test
-    void clientOneHighBankPlaceOut(Game game, Client client, Player player,
-                                   @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientOneHighBankPlaceOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 1, Blocks.DIRT, POOL_DEPTH, 150, new ItemStack(Items.DIRT, 30));
     }
 
@@ -89,8 +88,8 @@ class ClientWaterTest {
      * arm has a budget of its own.
      */
     @Test
-    void clientOneHighBankDigOut(Game game, Client client, Player player,
-                                 @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientOneHighBankDigOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 1, Blocks.DIRT, POOL_DEPTH, 900);
     }
 
@@ -99,8 +98,8 @@ class ClientWaterTest {
      * going up its own wall-supported column and top out with a walk. Two placements and their hops fit in 250 ticks.
      */
     @Test
-    void clientTwoHighBankPlaceOut(Game game, Client client, Player player,
-                                   @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientTwoHighBankPlaceOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 2, Blocks.DIRT, POOL_DEPTH, 250, new ItemStack(Items.DIRT, 30));
     }
 
@@ -109,20 +108,20 @@ class ClientWaterTest {
      * digs plus the hops between them, nothing more.
      */
     @Test
-    void clientTwoHighBankDigOut(Game game, Client client, Player player,
-                                 @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientTwoHighBankDigOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 2, Blocks.DIRT, POOL_DEPTH, 900);
     }
 
     /**
      * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The player stands on the floor with its eyes
      * out of the water, yet vanilla still swims it (fluid over 0.4 high), so a ground jump onto the rim is not
-     * available; the exit is the swim boost against the rim or a foothold. The old planner called this cell a floor
-     * and jumped; this walk measures what the real player does with the honest plan.
+     * available; the exit is the swim boost against the rim or a foothold. The old planner called this cell a floor and
+     * jumped; this walk measures what the real player does with the honest plan.
      */
     @Test
-    void clientShallowPoolStepOut(Game game, Client client, Player player,
-                                  @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientShallowPoolStepOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
     }
 
@@ -132,8 +131,8 @@ class ClientWaterTest {
      * not selected its tool.
      */
     @Test
-    void clientOneHighStoneBankPickaxeOut(Game game, Client client, Player player,
-                                          @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientOneHighStoneBankPickaxeOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 1, Blocks.STONE, POOL_DEPTH, 400, new ItemStack(Items.IRON_PICKAXE));
     }
 
@@ -144,8 +143,8 @@ class ClientWaterTest {
      * losing blocks to.
      */
     @Test
-    void clientFlowingChannelPlaceOut(Game game, Client client, Player player,
-                                      @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
+    void clientFlowingChannelPlaceOut(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         int depth = 1;
         stageSlab(plot, 1, Blocks.DIRT);
         // Channel x∈[-1,1], z∈[-CHANNEL_HALF,CHANNEL_HALF-1]: floor at GROUND-depth, air above it up to GROUND+1, one
@@ -162,14 +161,14 @@ class ClientWaterTest {
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
         rig.sync(FLOW_SYNC_TICKS);
         Vec3 flow = game.onServer(s -> s.overworld().getFluidState(start).getFlow(s.overworld(), start));
-        if (!ClientWalk.sample(rig).inWater()) fail("test setup invalid: the player is not in water after the sync: "
-                + rig.where());
+        if (!ClientWalk.sample(rig).inWater())
+            fail("test setup invalid: the player is not in water after the sync: " + rig.where());
         if (flow.length() < 0.01) fail("test setup invalid: there is no water flow at the foot cell: " + flow);
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] inWater = { 0 };
-        int[] firstDry = { -1 };
-        double[] maxDrift = { 0 };
+        int[] inWater = {0};
+        int[] firstDry = {-1};
+        double[] maxDrift = {0};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
             if (s.inWater()) inWater[0]++;
             // Ashore = standing at the bank's level. isInWater reads false in a shallow flowing layer far from its
@@ -180,12 +179,16 @@ class ClientWaterTest {
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = inWater[0] + " ticks in water, first landed on dry ground at tick " + at(firstDry[0])
                 + ", drifted at most " + f(maxDrift[0]) + " blocks downstream; " + rig.where();
-        game.check(end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
+        game.check(
+                end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
                 "A: the player ends standing on dry ground: " + progress);
-        game.check(end.flat(goal) <= 1.5, "B: stops within 1.5 blocks of the goal cell: horizontal distance "
-                + f(end.flat(goal)) + "; " + progress);
-        game.check(firstDry[0] >= 0 && firstDry[0] <= FLOW_DRY_BY, "C: gets ashore within " + FLOW_DRY_BY + " ticks: "
-                + progress);
+        game.check(
+                end.flat(goal) <= 1.5,
+                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                        + progress);
+        game.check(
+                firstDry[0] >= 0 && firstDry[0] <= FLOW_DRY_BY,
+                "C: gets ashore within " + FLOW_DRY_BY + " ticks: " + progress);
     }
 
     /**
@@ -194,11 +197,23 @@ class ClientWaterTest {
      * many ticks a straight crossing costs.
      */
     @Test
-    void clientOpenWaterCross(Game game, Client client, Player player,
-                              @Plot.Centered @Plot.Size(x = 64, y = 24, z = 32) Plot plot) {
-        plot.fill(LAKE_X - 4, GROUND - POOL_DEPTH - 2, -LAKE_HALF - 2, LAKE_X + LAKE_LEN + 6, GROUND, LAKE_HALF + 2,
+    void clientOpenWaterCross(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 64, y = 24, z = 32) Plot plot) {
+        plot.fill(
+                LAKE_X - 4,
+                GROUND - POOL_DEPTH - 2,
+                -LAKE_HALF - 2,
+                LAKE_X + LAKE_LEN + 6,
+                GROUND,
+                LAKE_HALF + 2,
                 Blocks.STONE);
-        plot.fill(LAKE_X - 2, GROUND - POOL_DEPTH + 1, -LAKE_HALF, LAKE_X + LAKE_LEN + 2, GROUND, LAKE_HALF,
+        plot.fill(
+                LAKE_X - 2,
+                GROUND - POOL_DEPTH + 1,
+                -LAKE_HALF,
+                LAKE_X + LAKE_LEN + 2,
+                GROUND,
+                LAKE_HALF,
                 Blocks.WATER);
         BlockPos start = plot.at(LAKE_X, GROUND - 1, 0);
         BlockPos goal = plot.at(LAKE_X + LAKE_LEN + 4, GROUND + 1, 0);
@@ -213,9 +228,9 @@ class ClientWaterTest {
         }
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] firstDry = { -1 };
-        double[] minGap = { Double.MAX_VALUE };
-        double[] maxSide = { 0 };
+        int[] firstDry = {-1};
+        double[] minGap = {Double.MAX_VALUE};
+        double[] maxSide = {0};
         walk.go(Targets.block(goal), 2 * LEG_TICKS, SETTLE_TICKS, s -> {
             if (!s.inWater() && s.onGround() && firstDry[0] < 0) firstDry[0] = walk.tick(s);
             minGap[0] = Math.min(minGap[0], s.flat(goal));
@@ -225,12 +240,16 @@ class ClientWaterTest {
         String progress = "first landed on dry ground at tick " + at(firstDry[0]) + ", closest approach to the goal "
                 + f(minGap[0]) + " blocks, largest deviation from the straight line " + f(maxSide[0]) + " blocks; "
                 + rig.where();
-        game.check(end.onGround() && !end.inWater() && end.y() >= footY - 0.05,
+        game.check(
+                end.onGround() && !end.inWater() && end.y() >= footY - 0.05,
                 "A: the player ends standing on dry ground on the far bank: " + progress);
-        game.check(end.flat(goal) <= 1.5, "B: the player stops within 1.5 blocks of the goal cell: horizontal distance "
-                + f(end.flat(goal)) + "; " + progress);
-        game.check(firstDry[0] >= 0 && firstDry[0] <= LAKE_DRY_BY, "C: gets ashore within " + LAKE_DRY_BY + " ticks: "
-                + progress);
+        game.check(
+                end.flat(goal) <= 1.5,
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal))
+                        + "; " + progress);
+        game.check(
+                firstDry[0] >= 0 && firstDry[0] <= LAKE_DRY_BY,
+                "C: gets ashore within " + LAKE_DRY_BY + " ticks: " + progress);
     }
 
     /**
@@ -239,11 +258,20 @@ class ClientWaterTest {
      * walk to the bank; dry ground by tick {@code dryBy}. A one-deep pool stands the player on the floor with its eyes
      * out of the water, the shape the planner used to treat as a floor it could jump off.
      */
-    private static void climbOut(Game game, Client client, Player player, Plot plot, int rimRaise, Block rim,
-                                 int poolDepth, int dryBy, ItemStack... hand) {
+    private static void climbOut(
+            Game game,
+            Client client,
+            Player player,
+            Plot plot,
+            int rimRaise,
+            Block rim,
+            int poolDepth,
+            int dryBy,
+            ItemStack... hand) {
         stageSlab(plot, rimRaise, rim);
         plot.fill(-POOL_HALF, GROUND - poolDepth + 1, -POOL_HALF, POOL_HALF, GROUND, POOL_HALF, Blocks.WATER);
-        if (rimRaise > 0) plot.fill(-POOL_HALF, GROUND + 1, -POOL_HALF, POOL_HALF, GROUND + rimRaise, POOL_HALF, Blocks.AIR);
+        if (rimRaise > 0)
+            plot.fill(-POOL_HALF, GROUND + 1, -POOL_HALF, POOL_HALF, GROUND + rimRaise, POOL_HALF, Blocks.AIR);
         BlockPos start = plot.at(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = plot.at(POOL_HALF + 2, GROUND + 1 + rimRaise, 0);
         int goalY = goal.getY();
@@ -257,10 +285,10 @@ class ClientWaterTest {
         }
 
         ClientWalk walk = new ClientWalk(rig);
-        int[] inWater = { 0 };
-        int[] firstDry = { -1 };
-        double[] maxY = { ClientWalk.sample(rig).y() };
-        double[] minGap = { Double.MAX_VALUE };
+        int[] inWater = {0};
+        int[] firstDry = {-1};
+        double[] maxY = {ClientWalk.sample(rig).y()};
+        double[] minGap = {Double.MAX_VALUE};
         // Judged once the player has come to rest, and sampled until then: a goto that ends on the last hop of a
         // step-up is still in the air for a few ticks, and "arrived" is about where it lands.
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
@@ -273,14 +301,20 @@ class ClientWaterTest {
         String progress = inWater[0] + " ticks in water, first landed on dry ground at tick " + at(firstDry[0])
                 + ", highest y=" + f(maxY[0]) + ", closest approach to the goal " + f(minGap[0]) + " blocks; "
                 + rig.where();
-        game.check(end.onGround() && !end.inWater() && end.y() >= goalY - 0.05, "A: the player ends standing on dry "
-                + "ground (onGround, not in water, feet at bank foot level): " + progress);
-        game.check(end.flat(goal) <= 1.5, "B: the player stops within 1.5 blocks of the goal cell: horizontal distance "
-                + f(end.flat(goal)) + "; " + progress);
+        game.check(
+                end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
+                "A: the player ends standing on dry " + "ground (onGround, not in water, feet at bank foot level): "
+                        + progress);
+        game.check(
+                end.flat(goal) <= 1.5,
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal))
+                        + "; " + progress);
         game.check(firstDry[0] >= 0 && firstDry[0] <= dryBy, "C: gets ashore within " + dryBy + " ticks: " + progress);
     }
 
-    /** The shipped water-exit defaults the pinned baseline turns off; each test here is what notices one going missing. */
+    /**
+     * The shipped water-exit defaults the pinned baseline turns off; each test here is what notices one going missing.
+     */
     private static Map<String, Object> shipped() {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("allowBreak", true);

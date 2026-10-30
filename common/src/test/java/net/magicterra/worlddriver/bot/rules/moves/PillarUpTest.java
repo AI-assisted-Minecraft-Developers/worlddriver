@@ -14,29 +14,65 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * A rung's rising head sweeps the cells beside its ceiling when the body stands off-centre, so a
- * breakable block there — a leaf of a canopy — is listed to break before the jump; a block with a
- * wall under it on that side is not, because the body cannot lean toward a wall.
+ * A rung's rising head sweeps the cells beside its ceiling when the body stands off-centre, so a breakable block there
+ * — a leaf of a canopy — is listed to break before the jump; a block with a wall under it on that side is not, because
+ * the body cannot lean toward a wall.
  */
 class PillarUpTest {
     private boolean allowBreakBefore;
 
     @BeforeEach
-    void keep() { allowBreakBefore = WorldConfig.allowBreak; WorldConfig.allowBreak = true; }
+    void keep() {
+        allowBreakBefore = WorldConfig.allowBreak;
+        WorldConfig.allowBreak = true;
+    }
 
     @AfterEach
-    void restore() { WorldConfig.allowBreak = allowBreakBefore; }
+    void restore() {
+        WorldConfig.allowBreak = allowBreakBefore;
+    }
 
     /** {@code grid} with every solid cell breakable, as a leaf is to a bot with break on. */
     private record Breakable(GridWorldView grid) implements WorldView {
-        @Override public boolean isSolid(BlockPos p) { return grid.isSolid(p); }
-        @Override public boolean isPassable(BlockPos p) { return grid.isPassable(p); }
-        @Override public boolean isHazard(BlockPos p) { return grid.isHazard(p); }
-        @Override public boolean isWater(BlockPos p) { return grid.isWater(p); }
-        @Override public boolean isClimbable(BlockPos p) { return grid.isClimbable(p); }
-        @Override public boolean canPlace() { return grid.canPlace(); }
-        @Override public int placeableBlockCount() { return grid.placeableBlockCount(); }
-        @Override public double breakCost(BlockPos p) { return grid.isSolid(p) ? 10 : 0; }
+        @Override
+        public boolean isSolid(BlockPos p) {
+            return grid.isSolid(p);
+        }
+
+        @Override
+        public boolean isPassable(BlockPos p) {
+            return grid.isPassable(p);
+        }
+
+        @Override
+        public boolean isHazard(BlockPos p) {
+            return grid.isHazard(p);
+        }
+
+        @Override
+        public boolean isWater(BlockPos p) {
+            return grid.isWater(p);
+        }
+
+        @Override
+        public boolean isClimbable(BlockPos p) {
+            return grid.isClimbable(p);
+        }
+
+        @Override
+        public boolean canPlace() {
+            return grid.canPlace();
+        }
+
+        @Override
+        public int placeableBlockCount() {
+            return grid.placeableBlockCount();
+        }
+
+        @Override
+        public double breakCost(BlockPos p) {
+            return grid.isSolid(p) ? 10 : 0;
+        }
     }
 
     /** A floor at y=0 and two leaves stacked at x=4 at the heights of the second rung's ceiling and the one above. */
@@ -59,7 +95,7 @@ class PillarUpTest {
     @Test
     void aBlockAboveAWallBesideTheFeetIsNot() {
         GridWorldView g = canopy();
-        g.set(4, 2, 5, GridWorldView.SOLID);    // a wall at the feet on the leaf's side
+        g.set(4, 2, 5, GridWorldView.SOLID); // a wall at the feet on the leaf's side
         Move.Edge rung = new PillarUp().eval(new Breakable(g), new BlockPos(5, 2, 5));
         assertNotNull(rung);
         assertFalse(rung.toBreak.contains(new BlockPos(4, 4, 5)), "toBreak=" + rung.toBreak);

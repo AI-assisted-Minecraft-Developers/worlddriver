@@ -7,9 +7,9 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * A follow re-aims its navigator every time the target changes block. If that re-aim is a fresh goal,
- * the futile-search counter goes back to zero each time, so a target the bot cannot reach never
- * trips the cap and the navigator runs a full search per tick for as long as the follow lasts.
+ * A follow re-aims its navigator every time the target changes block. If that re-aim is a fresh goal, the futile-search
+ * counter goes back to zero each time, so a target the bot cannot reach never trips the cap and the navigator runs a
+ * full search per tick for as long as the follow lasts.
  */
 class FollowRegoalTest {
 
@@ -30,7 +30,9 @@ class FollowRegoalTest {
         setFutileSearches(follow.navigator(), 3);
 
         follow.regoal(TARGET, new BlockPos(11, 64, 10));
-        assertEquals(3, futileSearches(follow.navigator()),
+        assertEquals(
+                3,
+                futileSearches(follow.navigator()),
                 "a quarry that moved is the same pursuit; zeroing the counter hides an unreachable target");
     }
 
@@ -42,7 +44,9 @@ class FollowRegoalTest {
         setFutileSearches(follow.navigator(), 3);
 
         for (int i = 0; i < 40; i++) follow.regoal(TARGET, cell);
-        assertEquals(3, futileSearches(follow.navigator()),
+        assertEquals(
+                3,
+                futileSearches(follow.navigator()),
                 "a target standing still gives the navigator nothing new to aim at");
     }
 
@@ -53,7 +57,9 @@ class FollowRegoalTest {
         setFutileSearches(follow.navigator(), 3);
 
         follow.regoal(TARGET + 1, new BlockPos(11, 64, 10));
-        assertEquals(0, futileSearches(follow.navigator()),
+        assertEquals(
+                0,
+                futileSearches(follow.navigator()),
                 "a count earned against one entity must not carry over to another");
     }
 }

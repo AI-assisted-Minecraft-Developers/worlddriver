@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.mcp.McpServer.SseSubscriber;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,29 +10,25 @@ import java.io.OutputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.mcp.McpServer.SseSubscriber;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * Pushing to a stalled SSE client must not block the caller.
  *
- * <p>{@code McpServer.onEvent} runs on DriverApplication's single event-dispatch thread, which
- * every listener shares — the WebSocket transport included. It used to write the SSE
- * socket inline, so one client whose TCP receive window had filled blocked that thread
- * inside {@code os.write} and with it every other subscriber, the WebSocket push
- * channel, and the (unbounded) dispatch queue. Netty's asynchronous writes keep the
- * WebSocket side from blocking (its own growth bound is {@code RpcBackpressureTest}); the
- * MCP side had no equivalent.
+ * <p>{@code McpServer.onEvent} runs on DriverApplication's single event-dispatch thread, which every listener shares —
+ * the WebSocket transport included. It used to write the SSE socket inline, so one client whose TCP receive window had
+ * filled blocked that thread inside {@code os.write} and with it every other subscriber, the WebSocket push channel,
+ * and the (unbounded) dispatch queue. Netty's asynchronous writes keep the WebSocket side from blocking (its own growth
+ * bound is {@code RpcBackpressureTest}); the MCP side had no equivalent.
  *
- * <p>These tests wedge the stream directly rather than trying to fill a real receive
- * window, which is why {@code SseSubscriber} is package-private.
+ * <p>These tests wedge the stream directly rather than trying to fill a real receive window, which is why
+ * {@code SseSubscriber} is package-private.
  *
- * <p>Every test here carries a {@link Timeout}: what they assert is that a call
- * RETURNS, so the pre-fix failure mode is not a wrong value but an unbounded park.
- * Verified by reverting the fix — without these annotations the build hangs instead
- * of going red, which in CI is worse than a failure because nothing ever reports.
+ * <p>Every test here carries a {@link Timeout}: what they assert is that a call RETURNS, so the pre-fix failure mode is
+ * not a wrong value but an unbounded park. Verified by reverting the fix — without these annotations the build hangs
+ * instead of going red, which in CI is worse than a failure because nothing ever reports.
  */
 class SseBackpressureTest {
 
@@ -42,9 +38,13 @@ class SseBackpressureTest {
         final CountDownLatch entered = new CountDownLatch(1);
         final AtomicBoolean interrupted = new AtomicBoolean();
 
-        @Override public void write(int b) { throw new UnsupportedOperationException(); }
+        @Override
+        public void write(int b) {
+            throw new UnsupportedOperationException();
+        }
 
-        @Override public void write(byte[] b, int off, int len) throws IOException {
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
             entered.countDown();
             try {
                 release.await();
@@ -61,9 +61,14 @@ class SseBackpressureTest {
     void offerNeverBlocksOnAStalledConsumer() throws Exception {
         StalledStream stream = new StalledStream();
         SseSubscriber sub = new SseSubscriber(stream);
-        Thread pump = new Thread(() -> {
-            try { sub.pumpUntilClosed(); } catch (InterruptedException ignored) { }
-        }, "test-sse-pump");
+        Thread pump = new Thread(
+                () -> {
+                    try {
+                        sub.pumpUntilClosed();
+                    } catch (InterruptedException ignored) {
+                    }
+                },
+                "test-sse-pump");
         pump.setDaemon(true);
         pump.start();
 
@@ -79,8 +84,7 @@ class SseBackpressureTest {
         // The real assertion is "this returned at all" — before the fix the first call
         // would have parked forever on the same latch the pump is parked on. The time
         // bound is deliberately loose so a slow CI box cannot make it flaky.
-        assertTrue(elapsedMs < 5_000,
-                "offering past capacity took " + elapsedMs + "ms — the caller is being blocked");
+        assertTrue(elapsedMs < 5_000, "offering past capacity took " + elapsedMs + "ms — the caller is being blocked");
         assertFalse(sub.alive, "a consumer this far behind must have its stream closed");
 
         stream.release.countDown();
@@ -94,9 +98,14 @@ class SseBackpressureTest {
         // in order. Guards against "fixed the blocking by dropping everything".
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         SseSubscriber sub = new SseSubscriber(sink);
-        Thread pump = new Thread(() -> {
-            try { sub.pumpUntilClosed(); } catch (InterruptedException ignored) { }
-        }, "test-sse-pump-ok");
+        Thread pump = new Thread(
+                () -> {
+                    try {
+                        sub.pumpUntilClosed();
+                    } catch (InterruptedException ignored) {
+                    }
+                },
+                "test-sse-pump-ok");
         pump.setDaemon(true);
         pump.start();
 
@@ -105,7 +114,9 @@ class SseBackpressureTest {
         String written = "";
         for (int i = 0; i < 100 && !written.contains("data: 19"); i++) {
             Thread.sleep(20);
-            synchronized (sub) { written = sink.toString("UTF-8"); }
+            synchronized (sub) {
+                written = sink.toString("UTF-8");
+            }
         }
         assertTrue(written.contains("data: 0\n\n"), "first frame missing: " + written);
         assertTrue(written.contains("data: 19\n\n"), "last frame missing: " + written);

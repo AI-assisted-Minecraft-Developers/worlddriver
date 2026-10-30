@@ -6,8 +6,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declare this record, enum or union to TypeScript under its own name. Without it the type is written
- * inline wherever it is used. Two types may not share a name.
+ * Declare this record, enum or union to TypeScript under its own name. Without it the type is written inline wherever
+ * it is used. Two types may not share a name.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

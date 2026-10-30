@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.application;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.util.List;
+import java.util.Map;
 import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiError;
@@ -7,15 +12,9 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 /**
- * {@code mc.wait.condition} polls only what may be polled, checks the polled call before it starts,
- * and the stream's cursors are strings on the way in as well as out.
+ * {@code mc.wait.condition} polls only what may be polled, checks the polled call before it starts, and the stream's
+ * cursors are strings on the way in as well as out.
  */
 @Timeout(30)
 class WaitConditionTest {
@@ -35,30 +34,43 @@ class WaitConditionTest {
     @Test
     void aWriteIsNotAConditionSource() {
         DriverApplication api = app();
-        refused(api, "mc.wait.condition", Map.of("invoke", "mc.bot.goto", "params",
-                Map.of("target", Map.of("kind", "position", "pos", Map.of("x", 10, "y", 64, "z", 20))),
-                "field", "completed"), "/invoke");
+        refused(
+                api,
+                "mc.wait.condition",
+                Map.of(
+                        "invoke",
+                        "mc.bot.goto",
+                        "params",
+                        Map.of("target", Map.of("kind", "position", "pos", Map.of("x", 10, "y", 64, "z", 20))),
+                        "field",
+                        "completed"),
+                "/invoke");
     }
 
     @Test
     void nestedWaitsScriptsAndUntypedRoutesAreRefused() {
         DriverApplication api = app();
-        for (String target : List.of("mc.wait.condition", "mc.wait.event", "mc.script.eval", "mc.events",
-                "mc.query", "mc.observe.playr")) {
+        for (String target : List.of(
+                "mc.wait.condition", "mc.wait.event", "mc.script.eval", "mc.events", "mc.query", "mc.observe.playr")) {
             refused(api, "mc.wait.condition", Map.of("invoke", target), "/invoke");
         }
     }
 
     @Test
     void thePolledParamsAreCheckedBeforeTheWaitStarts() {
-        refused(app(), "mc.wait.condition", Map.of("invoke", "probe.echo", "params", Map.of("value", -1),
-                "background", true), "/params/value");
+        refused(
+                app(),
+                "mc.wait.condition",
+                Map.of("invoke", "probe.echo", "params", Map.of("value", -1), "background", true),
+                "/params/value");
     }
 
     @Test
     void aSatisfiedConditionAnswersDoneWithTheValue() {
-        Map<?, ?> r = (Map<?, ?>) TestJson.route(app().registry(), "mc.wait.condition", Map.of("invoke", "probe.echo",
-                "params", Map.of("value", 3), "field", "value", "value", 3));
+        Map<?, ?> r = (Map<?, ?>) TestJson.route(
+                app().registry(),
+                "mc.wait.condition",
+                Map.of("invoke", "probe.echo", "params", Map.of("value", 3), "field", "value", "value", 3));
         assertEquals("done", r.get("outcome"), r.toString());
         assertEquals(Boolean.TRUE, r.get("satisfied"), r.toString());
         assertEquals(3L, ((Number) r.get("value")).longValue());
@@ -66,8 +78,10 @@ class WaitConditionTest {
 
     @Test
     void anUnsatisfiedConditionTimesOutWithoutAValue() {
-        Map<?, ?> r = (Map<?, ?>) TestJson.route(app().registry(), "mc.wait.condition", Map.of("invoke", "probe.echo",
-                "field", "nope", "timeoutMs", 300, "pollMs", 50));
+        Map<?, ?> r = (Map<?, ?>) TestJson.route(
+                app().registry(),
+                "mc.wait.condition",
+                Map.of("invoke", "probe.echo", "field", "nope", "timeoutMs", 300, "pollMs", 50));
         assertEquals(Boolean.FALSE, r.get("satisfied"), r.toString());
         assertEquals(false, r.containsKey("value"), "a path that leads nowhere is omitted, not null: " + r);
     }

@@ -1,11 +1,12 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-
 import net.magicterra.stagewright.test.Bot;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
@@ -42,8 +43,6 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 /**
  * A headless server bot a test drives, with the verbs the old scenes called on it. Either one the test
  * {@linkplain #spawn spawns} — anywhere, mid-test, as many as it likes, parked and removed when the test ends — or a
@@ -56,19 +55,19 @@ import static org.junit.jupiter.api.Assertions.fail;
  * game.runOnServer(s -> { for (int t = 0; t < 400 && bot.busy(); t++) bot.tick(); });   // no world tick in between
  * }</pre>
  *
- * <p><b>Threads.</b> Every verb runs on the server thread and answers there and then: from the test thread it hops
- * over and waits for one server task, and inline inside {@code game.runOnServer(…)} it runs at once. So a loop that
- * must see no world tick between the bot's ticks — tick, edit the world, tick — goes inside one
- * {@code game.runOnServer}, exactly as the old scene body ran. {@link #player()} hands out the vanilla player for
- * reading and staging; use it on the server thread only.
+ * <p><b>Threads.</b> Every verb runs on the server thread and answers there and then: from the test thread it hops over
+ * and waits for one server task, and inline inside {@code game.runOnServer(…)} it runs at once. So a loop that must see
+ * no world tick between the bot's ticks — tick, edit the world, tick — goes inside one {@code game.runOnServer},
+ * exactly as the old scene body ran. {@link #player()} hands out the vanilla player for reading and staging; use it on
+ * the server thread only.
  *
  * <p><b>Parked.</b> A spawned bot is off the tick list: it stands where it was put until the test ticks it
- * ({@link #tick}, {@link #step}, {@link #tickUntilIdle}) or a task starts, which puts it back on the list so the
- * server ticks it. {@link #park} takes it off again.
+ * ({@link #tick}, {@link #step}, {@link #tickUntilIdle}) or a task starts, which puts it back on the list so the server
+ * ticks it. {@link #park} takes it off again.
  *
- * <p><b>Settings.</b> Pin before driving ({@link Settings#pin}); the old gates ran every scene under the test
- * baseline. The tick list is shared with every other test of the game, so tick your own bots by name — there is no
- * "tick every bot" here, and no "remove every bot".
+ * <p><b>Settings.</b> Pin before driving ({@link Settings#pin}); the old gates ran every scene under the test baseline.
+ * The tick list is shared with every other test of the game, so tick your own bots by name — there is no "tick every
+ * bot" here, and no "remove every bot".
  */
 public final class SceneBot implements Bot {
 
@@ -109,8 +108,9 @@ public final class SceneBot implements Bot {
         // One server task, so no tick falls between joining, parking and placing.
         game.runOnServer(server -> {
             BlockPos foot = BlockPos.containing(x, y, z);
-            Responses.ImmediateResponse r = game.api(ControlBlockingApi::of).roster(new ControlContracts.Spawn(name,
-                    Optional.of(dimension.location().toString()), Optional.of(Targets.pos(foot))));
+            Responses.ImmediateResponse r = game.api(ControlBlockingApi::of)
+                    .roster(new ControlContracts.Spawn(
+                            name, Optional.of(dimension.location().toString()), Optional.of(Targets.pos(foot))));
             if (!(r instanceof Responses.Rostered)) fail("mc.bot.roster spawn " + name + " answered " + r);
             bot.harness().bots(new TestHarnessContracts.Park(bot.ref()));
             ServerPlayer player = bot.find(server);
@@ -175,7 +175,8 @@ public final class SceneBot implements Bot {
         Responses.ImmediateResponse r = control().status(new ControlContracts.StatusParams(Optional.of(ref())));
         if (r instanceof Responses.Status status) {
             for (ControlContracts.BotSummary b : status.bots()) {
-                if (b.id().equals(ref()) && b.entityId().isPresent()) entityId = b.entityId().get();
+                if (b.id().equals(ref()) && b.entityId().isPresent())
+                    entityId = b.entityId().get();
             }
         }
         player = byId(server, entityId);
@@ -191,7 +192,9 @@ public final class SceneBot implements Bot {
         return null;
     }
 
-    /** The bot's vanilla player, to read and stage directly. <b>Server thread only</b>: inside {@code game.runOnServer}. */
+    /**
+     * The bot's vanilla player, to read and stage directly. <b>Server thread only</b>: inside {@code game.runOnServer}.
+     */
     public ServerPlayer player() {
         return onServer(p -> p);
     }
@@ -212,7 +215,8 @@ public final class SceneBot implements Bot {
             if (level == null) throw new IllegalArgumentException("this game has no dimension " + dimension.location());
             player.setDeltaMovement(Vec3.ZERO);
             player.resetFallDistance();
-            player.teleportTo(level, feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5, player.getYRot(), player.getXRot());
+            player.teleportTo(
+                    level, feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5, player.getYRot(), player.getXRot());
         });
         return this;
     }
@@ -269,8 +273,9 @@ public final class SceneBot implements Bot {
 
     @Override
     public int tickUntilIdle(int maxTicks) {
-        return ((TestHarnessContracts.Ticked) bots(new TestHarnessContracts.Tick(positive(maxTicks), true,
-                Optional.of(ref()), TestHarnessContracts.Part.ALL))).ticks();
+        return ((TestHarnessContracts.Ticked) bots(new TestHarnessContracts.Tick(
+                        positive(maxTicks), true, Optional.of(ref()), TestHarnessContracts.Part.ALL)))
+                .ticks();
     }
 
     /** One body step. */
@@ -291,7 +296,8 @@ public final class SceneBot implements Bot {
     @Override
     public HeldKeys press(UnaryOperator<Press> keys) {
         Press press = keys.apply(Press.of(ref()));
-        if (!press.bot().equals(ref())) throw new IllegalArgumentException("a press for " + ref() + " names " + press.bot());
+        if (!press.bot().equals(ref()))
+            throw new IllegalArgumentException("a press for " + ref() + " names " + press.bot());
         return game.onServer(server -> harness().press(press)).held();
     }
 
@@ -327,26 +333,32 @@ public final class SceneBot implements Bot {
     }
 
     /** Walk to {@code target} with {@code route}. */
-    public Responses.ActionSnapshot<GotoContracts.Result> goTo(GotoContracts.Target target, RouteContracts.Route route) {
+    public Responses.ActionSnapshot<GotoContracts.Result> goTo(
+            GotoContracts.Target target, RouteContracts.Route route) {
         return goTo(target, Optional.of(route));
     }
 
-    private Responses.ActionSnapshot<GotoContracts.Result> goTo(GotoContracts.Target target,
-                                                                 Optional<RouteContracts.Route> route) {
-        return started("goto " + target, () -> tasks().goTo(new GotoContracts.Params(ref(), Optional.of(target), false,
-                route, Optional.empty(), false, Optional.empty(), 0)));
+    private Responses.ActionSnapshot<GotoContracts.Result> goTo(
+            GotoContracts.Target target, Optional<RouteContracts.Route> route) {
+        return started(
+                "goto " + target,
+                () -> tasks().goTo(new GotoContracts.Params(
+                        ref(), Optional.of(target), false, route, Optional.empty(), false, Optional.empty(), 0)));
     }
 
     /** Break {@code cell}, walking within reach first. */
     public Responses.ActionSnapshot<GatherContracts.Mined> mineCell(BlockPos cell) {
-        return started("mine " + cell.toShortString(),
+        return started(
+                "mine " + cell.toShortString(),
                 () -> tasks().mine(GatherContracts.MineParams.cell(ref(), Targets.pos(cell))));
     }
 
     /** Mine {@code quantity} of {@code blocks} within {@code radius}. */
     public Responses.ActionSnapshot<GatherContracts.Mined> mine(List<String> blocks, int quantity, int radius) {
-        return started("mine " + blocks, () -> tasks().mine(new GatherContracts.MineParams(ref(), blocks,
-                Optional.empty(), quantity, radius, 0)));
+        return started(
+                "mine " + blocks,
+                () -> tasks().mine(
+                                new GatherContracts.MineParams(ref(), blocks, Optional.empty(), quantity, radius, 0)));
     }
 
     public Responses.ActionSnapshot<GatherContracts.Crafted> craft(String item, int count) {
@@ -359,35 +371,49 @@ public final class SceneBot implements Bot {
 
     /** Smelt {@code count} of {@code item}, burning {@code fuel}; null picks the fuel itself. */
     public Responses.ActionSnapshot<GatherContracts.Smelted> smelt(String item, int count, String fuel) {
-        return started("smelt " + item, () -> tasks().smelt(new GatherContracts.SmeltParams(ref(), item, count,
-                Optional.ofNullable(fuel), 0)));
+        return started(
+                "smelt " + item,
+                () -> tasks().smelt(new GatherContracts.SmeltParams(ref(), item, count, Optional.ofNullable(fuel), 0)));
     }
 
-    /** Pillar up to feet height {@code targetY} with {@code block}, fetched from the backpack too when {@code fromBag}. */
+    /**
+     * Pillar up to feet height {@code targetY} with {@code block}, fetched from the backpack too when {@code fromBag}.
+     */
     public Responses.ActionSnapshot<BuildContracts.Constructed> tower(int targetY, String block, boolean fromBag) {
-        return started("tower to " + targetY, () -> tasks().construct(new BuildContracts.ConstructParams(ref(),
-                new BuildContracts.Tower(Optional.empty(), Optional.of(targetY), Optional.ofNullable(block), fromBag), 0)));
+        return started(
+                "tower to " + targetY,
+                () -> tasks().construct(new BuildContracts.ConstructParams(
+                        ref(),
+                        new BuildContracts.Tower(
+                                Optional.empty(), Optional.of(targetY), Optional.ofNullable(block), fromBag),
+                        0)));
     }
 
     /** Climb (or dig down) to feet height {@code targetY}. */
     public Responses.ActionSnapshot<BuildContracts.Escaped> escape(int targetY) {
-        return started("escape to " + targetY, () -> tasks().escape(new BuildContracts.EscapeParams(ref(),
-                Optional.of(targetY), 0)));
+        return started(
+                "escape to " + targetY,
+                () -> tasks().escape(new BuildContracts.EscapeParams(ref(), Optional.of(targetY), 0)));
     }
 
     /** Dig a shelter {@code depth} deep and seal its roof. */
     public Responses.ActionSnapshot<BuildContracts.Bunkered> bunker(int depth) {
-        return started("bunker " + depth, () -> tasks().bunker(new BuildContracts.BunkerParams(ref(),
-                Optional.of(depth), 0)));
+        return started(
+                "bunker " + depth, () -> tasks().bunker(new BuildContracts.BunkerParams(ref(), Optional.of(depth), 0)));
     }
 
     /** Get at least {@code minDist} blocks away from {@code from}. */
     public Responses.ActionSnapshot<MoveContracts.RanAway> runAway(BlockPos from, int minDist) {
-        return started("run away from " + from.toShortString(), () -> tasks().runAway(
-                new MoveContracts.RunAwayParams(ref(), Optional.of(Targets.pos(from)), minDist, 0)));
+        return started(
+                "run away from " + from.toShortString(),
+                () -> tasks().runAway(
+                                new MoveContracts.RunAwayParams(ref(), Optional.of(Targets.pos(from)), minDist, 0)));
     }
 
-    /** One left click on entity {@code entityId} through {@code mc.bot.attackEntity}: {@code Attacked}, or {@code Refused}. */
+    /**
+     * One left click on entity {@code entityId} through {@code mc.bot.attackEntity}: {@code Attacked}, or
+     * {@code Refused}.
+     */
     public Responses.ImmediateResponse attack(int entityId) {
         return game.onServer(s -> interact().attackEntity(new InteractContracts.AttackParams(ref(), entityId)));
     }
@@ -399,38 +425,54 @@ public final class SceneBot implements Bot {
 
     /** Stop whatever the bot is doing and let go of its keys. */
     public void cancel() {
-        game.runOnServer(s -> control().cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(ref()),
-                Optional.empty())));
+        game.runOnServer(s -> control()
+                .cancel(new ControlContracts.CancelParams(Optional.empty(), Optional.of(ref()), Optional.empty())));
     }
 
     // ---------------------------------------------------------------- hands
 
     /** Bring {@code item} to the main hand from anywhere in the bag; whether it is there now. */
     public boolean hold(Item item) {
-        return game.onServer(s -> interact().holdItem(new InteractContracts.HoldParams(ref(),
-                BuiltInRegistries.ITEM.getKey(item).toString()))) instanceof Responses.Held;
+        return game.onServer(s -> interact()
+                        .holdItem(new InteractContracts.HoldParams(
+                                ref(), BuiltInRegistries.ITEM.getKey(item).toString())))
+                instanceof Responses.Held;
     }
 
     /** Face the middle of {@code cell} at once. */
     public void lookAt(BlockPos cell) {
-        game.runOnServer(s -> interact().lookAt(new InteractContracts.LookParams(ref(), Optional.of(Targets.pos(cell)),
-                Optional.empty(), Optional.empty(), 0)));
+        game.runOnServer(s -> interact()
+                .lookAt(new InteractContracts.LookParams(
+                        ref(), Optional.of(Targets.pos(cell)), Optional.empty(), Optional.empty(), 0)));
     }
 
     /**
-     * Right-click with the main hand as the bot is aimed, the way a bucket or a flint-and-steel is used: what
-     * vanilla answered ({@code CONSUME}, {@code PASS}, …), or the refusal.
+     * Right-click with the main hand as the bot is aimed, the way a bucket or a flint-and-steel is used: what vanilla
+     * answered ({@code CONSUME}, {@code PASS}, …), or the refusal.
      */
     public String use() {
-        return used(game.onServer(s -> interact().useItem(new InteractContracts.UseParams(ref(), Optional.empty(),
-                Optional.empty(), Optional.empty(), InteractContracts.Hand.MAIN, false, false))));
+        return used(game.onServer(s -> interact()
+                .useItem(new InteractContracts.UseParams(
+                        ref(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        InteractContracts.Hand.MAIN,
+                        false,
+                        false))));
     }
 
     /** Right-click {@code face} of {@code cell} with the main hand, without turning first: what vanilla answered. */
     public String useOn(BlockPos cell, Direction face) {
-        return used(game.onServer(s -> interact().useItem(new InteractContracts.UseParams(ref(),
-                Optional.of(Targets.pos(cell)), Optional.empty(), Optional.of(InteractContracts.Face.valueOf(face.name())),
-                InteractContracts.Hand.MAIN, false, false))));
+        return used(game.onServer(s -> interact()
+                .useItem(new InteractContracts.UseParams(
+                        ref(),
+                        Optional.of(Targets.pos(cell)),
+                        Optional.empty(),
+                        Optional.of(InteractContracts.Face.valueOf(face.name())),
+                        InteractContracts.Hand.MAIN,
+                        false,
+                        false))));
     }
 
     private static String used(Responses.ImmediateResponse r) {
@@ -445,9 +487,10 @@ public final class SceneBot implements Bot {
 
     /** The bot's own status: busy, slots, last ending, reflexes. */
     public ControlContracts.BotStatus status() {
-        Responses.ImmediateResponse r = game.onServer(s -> control().status(
-                new ControlContracts.StatusParams(Optional.of(ref()))));
-        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) fail("mc.bot.status " + ref() + " answered " + r);
+        Responses.ImmediateResponse r =
+                game.onServer(s -> control().status(new ControlContracts.StatusParams(Optional.of(ref()))));
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty())
+            fail("mc.bot.status " + ref() + " answered " + r);
         return ((Responses.Status) r).status().get();
     }
 
@@ -473,8 +516,10 @@ public final class SceneBot implements Bot {
 
     /** The body, with whether {@code cell} is breakable from where it stands. */
     public BotDebugContracts.Reach reach(BlockPos cell) {
-        return game.onServer(s -> debug().body(new BotDebugContracts.BodyParams(ref(), Optional.of(Targets.pos(cell)),
-                Optional.empty()))).reach().orElseThrow();
+        return game.onServer(s -> debug().body(new BotDebugContracts.BodyParams(
+                        ref(), Optional.of(Targets.pos(cell)), Optional.empty())))
+                .reach()
+                .orElseThrow();
     }
 
     /** What the bot's own threat scan sees within {@code radius} blocks now, most dangerous first. */
@@ -485,8 +530,9 @@ public final class SceneBot implements Bot {
     /** {@code cells} as the bot's planner view classifies them, in order, through {@code mc.debug.cells}. */
     public List<BotDebugContracts.Cell> cells(List<BlockPos> cells) {
         if (cells.isEmpty()) return List.of();
-        return game.onServer(s -> debug().cells(new BotDebugContracts.CellsParams(Optional.of(ref()),
-                cells.stream().map(Targets::pos).toList(), Optional.empty()))).cells();
+        return game.onServer(s -> debug().cells(new BotDebugContracts.CellsParams(
+                        Optional.of(ref()), cells.stream().map(Targets::pos).toList(), Optional.empty())))
+                .cells();
     }
 
     /** {@code cell} as the bot's planner view classifies it. */
@@ -508,22 +554,37 @@ public final class SceneBot implements Bot {
 
     // ---------------------------------------------------------------- the callers
 
-    /** The task verbs, for one this class has no shortcut for; call them inside {@code game.onServer} to keep them inline. */
-    public BotTaskBlockingApi tasks() { return game.api(BotTaskBlockingApi::of); }
+    /**
+     * The task verbs, for one this class has no shortcut for; call them inside {@code game.onServer} to keep them
+     * inline.
+     */
+    public BotTaskBlockingApi tasks() {
+        return game.api(BotTaskBlockingApi::of);
+    }
 
-    public ControlBlockingApi control() { return game.api(ControlBlockingApi::of); }
+    public ControlBlockingApi control() {
+        return game.api(ControlBlockingApi::of);
+    }
 
-    public DebugBlockingApi debug() { return game.api(DebugBlockingApi::of); }
+    public DebugBlockingApi debug() {
+        return game.api(DebugBlockingApi::of);
+    }
 
-    public InteractBlockingApi interact() { return game.api(InteractBlockingApi::of); }
+    public InteractBlockingApi interact() {
+        return game.api(InteractBlockingApi::of);
+    }
 
-    public ObserveBlockingApi observe() { return game.api(ObserveBlockingApi::of); }
+    public ObserveBlockingApi observe() {
+        return game.api(ObserveBlockingApi::of);
+    }
 
-    private TestHarnessBlockingApi harness() { return game.api(TestHarnessBlockingApi::of); }
+    private TestHarnessBlockingApi harness() {
+        return game.api(TestHarnessBlockingApi::of);
+    }
 
     /** A verb started on the server thread; a refusal fails the test in the refusal's own words. */
-    private <R> Responses.ActionSnapshot<R> started(String what,
-                                                     java.util.function.Supplier<Responses.ActionResponse<R>> verb) {
+    private <R> Responses.ActionSnapshot<R> started(
+            String what, java.util.function.Supplier<Responses.ActionResponse<R>> verb) {
         return Calls.started(what, game.onServer(s -> verb.get()));
     }
 

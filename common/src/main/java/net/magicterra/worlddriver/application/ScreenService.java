@@ -1,16 +1,15 @@
 package net.magicterra.worlddriver.application;
 
+import static net.magicterra.worlddriver.application.ClientService.onClient;
+import static net.magicterra.worlddriver.application.ClientService.waiting;
+import static net.magicterra.worlddriver.application.ClientService.withClient;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.screen.ScreenApi;
 import net.magicterra.worlddriver.api.methods.screen.ScreenApiBinding;
@@ -21,26 +20,27 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotRow;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
-import net.magicterra.worlddriver.application.ItemSnap;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import static net.magicterra.worlddriver.application.ClientService.onClient;
-import static net.magicterra.worlddriver.application.ClientService.waiting;
-import static net.magicterra.worlddriver.application.ClientService.withClient;
-
 /**
- * {@code mc.client.screen.*}, {@code mc.client.input.*} and {@code mc.observe.container}. Each hops onto the
- * client thread the way {@link ClientService} does and shares its wait pool; a block's container is read on the
- * server thread instead.
+ * {@code mc.client.screen.*}, {@code mc.client.input.*} and {@code mc.observe.container}. Each hops onto the client
+ * thread the way {@link ClientService} does and shares its wait pool; a block's container is read on the server thread
+ * instead.
  */
 final class ScreenService implements ScreenApi {
     private final DriverApplication app;
 
-    ScreenService(DriverApplication app) { this.app = app; }
+    ScreenService(DriverApplication app) {
+        this.app = app;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return ScreenApiBinding.methods(this);
@@ -76,7 +76,9 @@ final class ScreenService implements ScreenApi {
         if (p.bot().isEmpty()) return onClient(ctx, c -> () -> c.slotClick(p));
         MinecraftServer server = app.server();
         if (server == null) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "clicking a player's menu needs a server, and none is attached");
+            throw ApiException.of(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    "clicking a player's menu needs a server, and none is attached");
         }
         return app.serverHop().submit(() -> PlayerMenus.click(server, p), ctx);
     }
@@ -105,13 +107,15 @@ final class ScreenService implements ScreenApi {
     @Override
     public CompletionStage<ClientReply> key(ScreenContracts.KeyParams p, CallContext ctx) {
         return p.action() == KeyAction.CLICK
-                ? waiting(ctx, "a key click", c -> c.key(p, ctx)) : withClient(c -> c.key(p, ctx));
+                ? waiting(ctx, "a key click", c -> c.key(p, ctx))
+                : withClient(c -> c.key(p, ctx));
     }
 
     @Override
     public CompletionStage<ClientReply> keybind(ScreenContracts.KeybindParams p, CallContext ctx) {
         return p.action() == KeyAction.CLICK && p.name().isPresent()
-                ? waiting(ctx, "a keybind click", c -> c.keybind(p, ctx)) : withClient(c -> c.keybind(p, ctx));
+                ? waiting(ctx, "a keybind click", c -> c.keybind(p, ctx))
+                : withClient(c -> c.keybind(p, ctx));
     }
 
     @Override
@@ -119,7 +123,9 @@ final class ScreenService implements ScreenApi {
         if (p.bot().isPresent()) {
             MinecraftServer server = app.server();
             if (server == null) {
-                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "reading a player's menu needs a server, and none is attached");
+                throw ApiException.of(
+                        ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "reading a player's menu needs a server, and none is attached");
             }
             String bot = p.bot().get();
             return app.serverHop().submit(() -> PlayerMenus.read(server, bot), ctx);
@@ -128,7 +134,9 @@ final class ScreenService implements ScreenApi {
         BlockPosition at = p.pos().get();
         ServerThreadHop hop = app.serverHop();
         if (hop == null) {
-            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "reading a block's container needs a server, and none is attached");
+            throw ApiException.of(
+                    ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    "reading a block's container needs a server, and none is attached");
         }
         ServerLevel level = app.level();
         return hop.submit(() -> blockContainer(level, at), ctx);
@@ -143,6 +151,11 @@ final class ScreenService implements ScreenApi {
             for (int i = 0; i < c.getContainerSize(); i++) rows.add(ItemSnap.slotRow(i, c.getItem(i)));
             slots = Optional.of(rows);
         }
-        return new BlockContainer(at, true, Optional.of(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString()), slots);
+        return new BlockContainer(
+                at,
+                true,
+                Optional.of(
+                        BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString()),
+                slots);
     }
 }

@@ -1,12 +1,12 @@
 package net.magicterra.worlddriver.apiprocessor;
 
+import com.google.auto.service.AutoService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -28,13 +28,10 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 
-import com.google.auto.service.AutoService;
-
 /**
- * Checks every {@code @Spec} interface against the specs it names and generates its binding. Every
- * check that can be made here is made here, so a game never starts with a binding that disagrees
- * with its contract: what is left for run time is only what run time knows (the parameter values, the
- * calling thread, who currently answers a method).
+ * Checks every {@code @Spec} interface against the specs it names and generates its binding. Every check that can be
+ * made here is made here, so a game never starts with a binding that disagrees with its contract: what is left for run
+ * time is only what run time knows (the parameter values, the calling thread, who currently answers a method).
  */
 @AutoService(Processor.class)
 @SupportedAnnotationTypes(ApiProcessor.SPEC)
@@ -50,7 +47,9 @@ public final class ApiProcessor extends AbstractProcessor {
     record Bound(ExecutableElement method, TypeElement holder, String field) {}
 
     @Override
-    public SourceVersion getSupportedSourceVersion() { return SourceVersion.latestSupported(); }
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latestSupported();
+    }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
@@ -86,8 +85,10 @@ public final class ApiProcessor extends AbstractProcessor {
             if (!m.getModifiers().contains(Modifier.ABSTRACT)) continue;
             AnnotationMirror mirror = mirrorOf(m, api);
             if (mirror == null) {
-                error(m, "every abstract method of " + iface.getSimpleName() + " needs @Spec: the binding has to "
-                        + "send it somewhere");
+                error(
+                        m,
+                        "every abstract method of " + iface.getSimpleName() + " needs @Spec: the binding has to "
+                                + "send it somewhere");
                 ok = false;
                 continue;
             }
@@ -109,8 +110,8 @@ public final class ApiProcessor extends AbstractProcessor {
         Elements elements = processingEnv.getElementUtils();
         TypeElement holder = null;
         String field = "SPEC";
-        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e
-                : elements.getElementValuesWithDefaults(mirror).entrySet()) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
+                elements.getElementValuesWithDefaults(mirror).entrySet()) {
             String key = e.getKey().getSimpleName().toString();
             Object v = e.getValue().getValue();
             if (key.equals("value") && v instanceof DeclaredType t) holder = (TypeElement) t.asElement();
@@ -134,8 +135,11 @@ public final class ApiProcessor extends AbstractProcessor {
             return null;
         }
         if (!spec.getModifiers().containsAll(Set.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL))) {
-            error(m, mirror, holder.getSimpleName() + "." + field + " must be public static final: the binding "
-                    + "and the registry both need that one instance");
+            error(
+                    m,
+                    mirror,
+                    holder.getSimpleName() + "." + field + " must be public static final: the binding "
+                            + "and the registry both need that one instance");
             return null;
         }
         List<? extends TypeMirror> specArgs = argsOf(spec.asType(), METHOD_SPEC);
@@ -155,14 +159,18 @@ public final class ApiProcessor extends AbstractProcessor {
             return null;
         }
         if (!types.isSameType(params.get(0).asType(), p)) {
-            error(params.get(0), "takes " + params.get(0).asType() + " but " + holder.getSimpleName() + "." + field
-                    + " decodes " + p + "; " + shape);
+            error(
+                    params.get(0),
+                    "takes " + params.get(0).asType() + " but " + holder.getSimpleName() + "." + field + " decodes " + p
+                            + "; " + shape);
             return null;
         }
         List<? extends TypeMirror> result = argsOf(m.getReturnType(), COMPLETION_STAGE);
         if (result == null || !types.isSameType(result.get(0), r)) {
-            error(m, "answers " + m.getReturnType() + " but " + holder.getSimpleName() + "." + field
-                    + " produces " + r + "; " + shape);
+            error(
+                    m,
+                    "answers " + m.getReturnType() + " but " + holder.getSimpleName() + "." + field + " produces " + r
+                            + "; " + shape);
             return null;
         }
         return new Bound(m, holder, field);

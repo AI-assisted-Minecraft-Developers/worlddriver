@@ -6,7 +6,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -30,33 +29,34 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
  * Single-width plank-bridge battery: a systematic sweep of 1-wide elevated walkways — flat runs, hurdles, bypass
- * routing, dead ends, stairs, broken descents, foothold placement and dig-vs-detour economics. The family-wide
- * contract is <b>"traverse (or stop) WITHOUT falling off"</b>: every test tracks the player's minimum Y through the
- * whole run and fails if it ever dropped below the lowest legitimate deck level, and every rig hangs a catch floor 40
- * blocks under the deck so a player that falls off lands inside the plot instead of leaving it (the catch floor is
- * itself a failure detector, not a route).
+ * routing, dead ends, stairs, broken descents, foothold placement and dig-vs-detour economics. The family-wide contract
+ * is <b>"traverse (or stop) WITHOUT falling off"</b>: every test tracks the player's minimum Y through the whole run
+ * and fails if it ever dropped below the lowest legitimate deck level, and every rig hangs a catch floor 40 blocks
+ * under the deck so a player that falls off lands inside the plot instead of leaving it (the catch floor is itself a
+ * failure detector, not a route).
  *
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded exemptions in
  * docs/dev/coverage-exemptions.md):
+ *
  * <ul>
  *   <li><b>Fall damage:</b> the bots' server-side players are damage-immune by contract, so the "damaging drop" test
  *       asserts ROUTING+traversal (the planner accepts a maxDryFall-cap drop), not HP loss — live damage is ~1 HP at
- *       drop 4.</li>
+ *       drop 4.
  *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on {@code ClientWorldView}
  *       (bucketFallReady) and the {@code ClutchController} is ticked from the client tick — a dedicated-server
  *       LevelWorldView can never emit or actuate {@code fallBucket*}. The lethal-gap test therefore covers the
  *       bucket-less case (MUST refuse the drop and hold the lip); the "with bucket → MLG through" case is live
- *       territory (verified live: drop-10/20 onto 1×1).</li>
+ *       territory (verified live: drop-10/20 onto 1×1).
  *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so what the dig-vs-detour tests exercise is the
- *       PLANNER's break-cost economics and the dig fallback chain.</li>
+ *       PLANNER's break-cost economics and the dig fallback chain.
  * </ul>
  *
  * <p>Rig notes: bypass branches sit at |dz|=3 from the mainline (outside the carrot wall-snap adoption radius) and
  * junctions are open-air right angles on flat deck (no wall corners to catch the drive). All strips are genuinely 1
  * block wide: lateral-drift shedding is part of what this family guards.
  *
- * <p>Each walk is ticked by the test, one whole bot tick at a time, inside one server task: no world tick falls
- * between the bot's ticks, as in the scenes these were.
+ * <p>Each walk is ticked by the test, one whole bot tick at a time, inside one server task: no world tick falls between
+ * the bot's ticks, as in the scenes these were.
  *
  * <p>The tests of this class run one after another: a walk ticked inside one server task holds the server thread for
  * seconds, and a sibling leasing its plot meanwhile gives up after 8 s.
@@ -67,9 +67,11 @@ class BridgeTest {
 
     /** Deck height in plot coordinates (deck top at y=20, stand 21). */
     private static final int DECK = 20;
-    /** Catch floor sits this far under the LOWEST deck of the test — deep enough that no legal descent chain can ever
-     *  reach it (it must never enter the search space; a 10-block drop once attracted post-fall best-effort routing
-     *  and muddied triage). */
+    /**
+     * Catch floor sits this far under the LOWEST deck of the test — deep enough that no legal descent chain can ever
+     * reach it (it must never enter the search space; a 10-block drop once attracted post-fall best-effort routing and
+     * muddied triage).
+     */
     private static final int CATCH_DROP = 40;
 
     // ---------------------------------------------------------------- rig helpers ----
@@ -89,8 +91,10 @@ class BridgeTest {
         plot.fill(cx - 1, y, cz - 1, cx + 1, y, cz + 1, Blocks.STONE);
     }
 
-    /** Catch floor: a player that falls off lands here instead of leaving the plot. Reaching it at all is already a
-     *  failure via the minY guard. The 3-tall bedrock rim keeps a fallen player from wandering off. */
+    /**
+     * Catch floor: a player that falls off lands here instead of leaving the plot. Reaching it at all is already a
+     * failure via the minY guard. The 3-tall bedrock rim keeps a fallen player from wandering off.
+     */
     private static void catchFloor(Plot plot, int x0, int x1, int y, int z0, int z1) {
         plot.fill(x0, y, z0, x1, y, z1, Blocks.BEDROCK);
         plot.fill(x0, y + 1, z0, x1, y + 3, z0, Blocks.BEDROCK);
@@ -103,13 +107,27 @@ class BridgeTest {
         return SceneBot.spawn(game, plot.at(x, standY, z));
     }
 
-    /** How one walk went, read on the server thread at its end. {@code end}: the navigator as the walk left it, for
-     *  its probes in a failure message. */
-    private record Run(String step, int ticks, double minY, double maxX, NavigatorReading end, Vec3 pos,
-                       String breach, String journey, String pinWindow, String invEvents, boolean walkedBestEffort,
-                       int dirtLeft) {}
+    /**
+     * How one walk went, read on the server thread at its end. {@code end}: the navigator as the walk left it, for its
+     * probes in a failure message.
+     */
+    private record Run(
+            String step,
+            int ticks,
+            double minY,
+            double maxX,
+            NavigatorReading end,
+            Vec3 pos,
+            String breach,
+            String journey,
+            String pinWindow,
+            String invEvents,
+            boolean walkedBestEffort,
+            int dirtLeft) {}
 
-    private static String progress(Run r) { return NavWalk.trace(r.end(), "progressProbe"); }
+    private static String progress(Run r) {
+        return NavWalk.trace(r.end(), "progressProbe");
+    }
 
     private static int bagCount(ServerPlayer fp) {
         int n = 0;
@@ -117,11 +135,13 @@ class BridgeTest {
         return n;
     }
 
-    /** Drive one navigator journey to {@code goal}, capped at {@code n} bot ticks, in one server task; tracks the
-     *  no-fall guard (minY) and the farthest +x progress (plot-relative). {@code guardStandY}: the test's lowest
-     *  legitimate stand level (plot-relative); the first tick the player dips below it, the navigator's state is
-     *  snapshotted so a fall failure reports WHERE and in WHAT state the player left the deck (the final probe is
-     *  post-fall and has misled triage before). */
+    /**
+     * Drive one navigator journey to {@code goal}, capped at {@code n} bot ticks, in one server task; tracks the
+     * no-fall guard (minY) and the farthest +x progress (plot-relative). {@code guardStandY}: the test's lowest
+     * legitimate stand level (plot-relative); the first tick the player dips below it, the navigator's state is
+     * snapshotted so a fall failure reports WHERE and in WHAT state the player left the deck (the final probe is
+     * post-fall and has misled triage before).
+     */
     private static Run drive(Game game, Plot plot, SceneBot bot, int n, BlockPos goal, int guardStandY) {
         BlockPos o = plot.origin();
         return game.onServer(server -> {
@@ -161,7 +181,8 @@ class BridgeTest {
                 nav = bot.navigator();
                 Optional<PlanCursor> cur = nav.plan();
                 String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
-                if (!walkedBestEffort) walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
+                if (!walkedBestEffort)
+                    walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
                 minY = Math.min(minY, fp.getY());
                 maxX = Math.max(maxX, fp.getX() - o.getX());
                 Vec3 vel = fp.getDeltaMovement();
@@ -170,12 +191,25 @@ class BridgeTest {
                 if (!pid.equals(lastPid) || t < 12) {
                     lastPid = pid;
                     if (journey.size() < 52)
-                        journey.add("t" + t + "@" + String.format("(%.1f,%.1f)", fp.getX() - o.getX(), fp.getZ() - o.getZ())
-                                + (journey.size() < 16 ? " " + NavWalk.trace(nav, "planProbe") : " " + probe));
+                        journey.add(
+                                "t" + t + "@" + String.format("(%.1f,%.1f)", fp.getX() - o.getX(), fp.getZ() - o.getZ())
+                                        + (journey.size() < 16 ? " " + NavWalk.trace(nav, "planProbe") : " " + probe));
                 }
-                trail.addLast(String.format("t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
-                        t, fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ(), vel.x, vel.y, vel.z,
-                        fp.getYRot(), fp.onGround(), fp.isShiftKeyDown(), fp.isSprinting(), fp.horizontalCollision, jumpTag)
+                trail.addLast(String.format(
+                                "t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
+                                t,
+                                fp.getX() - o.getX(),
+                                fp.getY() - o.getY(),
+                                fp.getZ() - o.getZ(),
+                                vel.x,
+                                vel.y,
+                                vel.z,
+                                fp.getYRot(),
+                                fp.onGround(),
+                                fp.isShiftKeyDown(),
+                                fp.isSprinting(),
+                                fp.horizontalCollision,
+                                jumpTag)
                         + " as=" + cur.flatMap(PlanCursor::aimTag).orElse("-")
                         + " dr=[" + cur.flatMap(PlanCursor::driveTag).orElse("EARLY-RETURN") + "]"
                         + " " + probe);
@@ -183,26 +217,42 @@ class BridgeTest {
                 int ic = bagCount(fp);
                 if (ic != invCount) {
                     if (invEvents.size() < 14)
-                        invEvents.add("t" + t + "Δ" + (ic - invCount) + "@" + String.format("(%.1f,%.1f,%.1f)",
-                                fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
+                        invEvents.add("t" + t + "Δ" + (ic - invCount) + "@"
+                                + String.format(
+                                        "(%.1f,%.1f,%.1f)",
+                                        fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
                                 + " jt=" + jumpTag + " " + probe);
                     invCount = ic;
                 }
                 if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) staticTicks++;
-                else { staticTicks = 0; spx = fp.getX(); spz = fp.getZ(); }
-                if (pinWindow == null && t > 60 && staticTicks == 15)
-                    pinWindow = String.join(" ;; ", trail);
+                else {
+                    staticTicks = 0;
+                    spx = fp.getX();
+                    spz = fp.getZ();
+                }
+                if (pinWindow == null && t > 60 && staticTicks == 15) pinWindow = String.join(" ;; ", trail);
                 if (breach == null && fp.getY() < guardAbs) {
-                    breach = "breach@t=" + t + " pos=(" + String.format("%.1f,%.1f,%.1f",
-                            fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ()) + ")rel "
+                    breach = "breach@t=" + t + " pos=("
+                            + String.format(
+                                    "%.1f,%.1f,%.1f", fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
+                            + ")rel "
                             + NavWalk.trace(nav, "progressProbe")
                             + " ;; " + NavWalk.trace(nav, "planProbe")
                             + " ;; shed-window: " + String.join(" ;; ", trail);
                 }
             }
-            return new Run(NavWalk.step(bot), t, minY, maxX, nav, fp.position(), breach, String.join(" ;; ", journey),
+            return new Run(
+                    NavWalk.step(bot),
+                    t,
+                    minY,
+                    maxX,
+                    nav,
+                    fp.position(),
+                    breach,
+                    String.join(" ;; ", journey),
                     pinWindow == null ? "-" : pinWindow,
-                    invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents), walkedBestEffort,
+                    invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents),
+                    walkedBestEffort,
                     fp.getInventory().countItem(Items.DIRT));
         });
     }
@@ -229,28 +279,34 @@ class BridgeTest {
                     + " ;; journey: " + r.journey());
     }
 
-    /** Stopped-short contract (dead-end tests): advanced to the barrier's approach, never crossed it, never fell.
-     *  {@code barrierX}: plot-relative x of the block. */
-    private static void assertHeldAtBarrier(Plot plot, String test, Run r, BlockPos goal, int barrierX, int lowestStandY) {
+    /**
+     * Stopped-short contract (dead-end tests): advanced to the barrier's approach, never crossed it, never fell.
+     * {@code barrierX}: plot-relative x of the block.
+     */
+    private static void assertHeldAtBarrier(
+            Plot plot, String test, Run r, BlockPos goal, int barrierX, int lowestStandY) {
         assertNeverFell(plot, test, r, lowestStandY);
-        if (atGoal(r, goal))
-            fail(test + ": expected to be blocked but ARRIVED — the barrier is not sealing the route");
+        if (atGoal(r, goal)) fail(test + ": expected to be blocked but ARRIVED — the barrier is not sealing the route");
         if (r.maxX() < barrierX - 4)
             fail(test + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
                     + "@t" + r.ticks() + " | " + progress(r) + " ;; journey: " + r.journey());
         if (r.maxX() > barrierX + 1.0)
-            fail(test + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1) + ") | " + progress(r));
+            fail(test + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1) + ") | "
+                    + progress(r));
     }
 
     /** The block at plot cell {@code (x, y, z)} is {@code want}. */
     private static void assertBlock(Game game, Plot plot, int x, int y, int z, Block want) {
-        Block at = game.onServer(s -> s.getLevel(plot.dimension()).getBlockState(plot.at(x, y, z)).getBlock());
+        Block at = game.onServer(s ->
+                s.getLevel(plot.dimension()).getBlockState(plot.at(x, y, z)).getBlock());
         if (at != want) fail("block at rel(" + x + "," + y + "," + z + ") is " + at + ", expected " + want);
     }
 
-    /** Standard course frame: start pad (centre x=-2), 1-wide deck x=0..len, end pad (centre x=len+2), catch floor.
-     *  Returns the goal (end-pad centre stand cell). */
+    /**
+     * Standard course frame: start pad (centre x=-2), 1-wide deck x=0..len, end pad (centre x=len+2), catch floor.
+     * Returns the goal (end-pad centre stand cell).
+     */
     private static BlockPos frame(Plot plot, int len) {
         pad(plot, -2, DECK, 0);
         strip(plot, 0, len, DECK, 0);
@@ -259,18 +315,22 @@ class BridgeTest {
         return plot.at(len + 2, DECK + 1, 0);
     }
 
-    /** Bypass around mainline cells [xa..xb]: a SOLID side platform (z=0..4) spanning [xa-3..xb+3]. Solid on purpose —
-     *  a first cut used 1-wide connector branches two cells apart and the planner immediately found a marginal
-     *  flat-parkour shortcut across the connector gap, then churned at the standing-start takeoff. The scenario under
-     *  test is bypass ROUTING, not marginal parkour (that has its own arenas), so the bypass offers no holes to jump. */
+    /**
+     * Bypass around mainline cells [xa..xb]: a SOLID side platform (z=0..4) spanning [xa-3..xb+3]. Solid on purpose — a
+     * first cut used 1-wide connector branches two cells apart and the planner immediately found a marginal
+     * flat-parkour shortcut across the connector gap, then churned at the standing-start takeoff. The scenario under
+     * test is bypass ROUTING, not marginal parkour (that has its own arenas), so the bypass offers no holes to jump.
+     */
     private static void bypass(Plot plot, int xa, int xb, int y) {
         plot.fill(xa - 3, y, 0, xb + 3, y, 4, Blocks.STONE);
     }
 
-    /** Switch to the LIVE compiled-default stack: this battery's contract is live behaviour, and the test baseline
-     *  disables the very recovery machinery (corner-churn shorteners, monotonic stuck clocks, ...) these courses lean
-     *  on. Break/place are then re-asserted OFF (they default ON live) — tests that want them pin them ON explicitly
-     *  after this call. */
+    /**
+     * Switch to the LIVE compiled-default stack: this battery's contract is live behaviour, and the test baseline
+     * disables the very recovery machinery (corner-churn shorteners, monotonic stuck clocks, ...) these courses lean
+     * on. Break/place are then re-asserted OFF (they default ON live) — tests that want them pin them ON explicitly
+     * after this call.
+     */
     private static Settings liveStack(Game game) {
         return Settings.compiledDefaults(game)
                 .set("allowBreak", false)
@@ -282,19 +342,21 @@ class BridgeTest {
 
     // ---------------------------------------------------------------- tests ----
 
-    /** The same walk on a 1-wide causeway flush with two-deep water on both sides, 104 blocks pad to pad: arriving,
-     *  on the deck, at no less than half a plain walk's pace (2.2 blocks/s), over a course built past the planner's
-     *  horizon so at least one segment is a best-effort partial. Water rather than void, because a bot that steps off
-     *  here swims instead of falling, and the failure this guards against ended with it in the water. */
+    /**
+     * The same walk on a 1-wide causeway flush with two-deep water on both sides, 104 blocks pad to pad: arriving, on
+     * the deck, at no less than half a plain walk's pace (2.2 blocks/s), over a course built past the planner's horizon
+     * so at least one segment is a best-effort partial. Water rather than void, because a bot that steps off here swims
+     * instead of falling, and the failure this guards against ended with it in the water.
+     */
     @Test
-    void bridgeCausewayOverWater(Game game, @Plot.Centered @Plot.Size(x = 128, y = 64, z = 20) Plot plot,
-                                 TestReporter reporter) {
+    void bridgeCausewayOverWater(
+            Game game, @Plot.Centered @Plot.Size(x = 128, y = 64, z = 20) Plot plot, TestReporter reporter) {
         liveStack(game);
         final int half = 52;
         final int end = half + 3;
         plot.fill(-end, DECK - 2, -5, end, DECK - 2, 5, Blocks.STONE);
-        plot.fill(-end, DECK - 1, -5, end, DECK, 5, Blocks.STONE);              // the rim …
-        plot.fill(-end + 1, DECK - 1, -4, end - 1, DECK, 4, Blocks.WATER);      // … and the water inside it
+        plot.fill(-end, DECK - 1, -5, end, DECK, 5, Blocks.STONE); // the rim …
+        plot.fill(-end + 1, DECK - 1, -4, end - 1, DECK, 4, Blocks.WATER); // … and the water inside it
         strip(plot, -end + 1, end - 1, DECK, 0);
         strip(plot, -end + 1, end - 1, DECK - 1, 0);
         pad(plot, -half, DECK, 0);
@@ -309,8 +371,8 @@ class BridgeTest {
         assertArrived(test, r, goal);
         int blocks = 2 * half;
         if (r.ticks() > blocks * 9)
-            fail(test + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9
-                    + ") | journey: " + r.journey());
+            fail(test + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9 + ") | journey: "
+                    + r.journey());
         // Only a best-effort partial has a tail to consume; a search that reaches the goal outright would pass
         // whatever the tail consume does.
         if (!r.walkedBestEffort())
@@ -338,17 +400,19 @@ class BridgeTest {
         assertArrived("bridgeHurdle1", r, goal);
     }
 
-    /** 1.5-high obstacle with a bypass: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline; the |dz|=3
-     *  branch is the only route.
+    /**
+     * 1.5-high obstacle with a bypass: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline; the |dz|=3 branch
+     * is the only route.
      *
-     *  <p>The routing claim is carried by {@code assertArrived}, not by the {@code assertBlock} below:
-     *  {@code bypass()} widens the deck to {@code z=0..4}, the obstacle seals only {@code z=0}, and with break OFF
-     *  there is no way to reach the goal except around it. So "arrived" IS "went around" here.
+     * <p>The routing claim is carried by {@code assertArrived}, not by the {@code assertBlock} below: {@code bypass()}
+     * widens the deck to {@code z=0..4}, the obstacle seals only {@code z=0}, and with break OFF there is no way to
+     * reach the goal except around it. So "arrived" IS "went around" here.
      *
-     *  <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b> {@code liveStack} pins
-     *  {@code allowBreak=false}, so nothing in this arm can remove that stone. The arm that really grades "dig or
-     *  detour" is {@link #bridgeDetourCheap}, whose identical lines mean something because it turns
-     *  {@code allowBreak} back ON. */
+     * <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b> {@code liveStack} pins
+     * {@code allowBreak=false}, so nothing in this arm can remove that stone. The arm that really grades "dig or
+     * detour" is {@link #bridgeDetourCheap}, whose identical lines mean something because it turns {@code allowBreak}
+     * back ON.
+     */
     @Test
     void bridgeHurdleSlabBypass(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game);
@@ -362,8 +426,10 @@ class BridgeTest {
         assertBlock(game, plot, 12, DECK + 1, 0, Blocks.STONE);
     }
 
-    /** A head-height bar with no route around it, on the shipped navigator, whose from-end discard is OFF: the journey
-     *  must still reach the barrier and hold there instead of ping-ponging at the start pad. */
+    /**
+     * A head-height bar with no route around it, on the shipped navigator, whose from-end discard is OFF: the journey
+     * must still reach the barrier and hold there instead of ping-ponging at the start pad.
+     */
     @Test
     void bridgeHeadBlockStopShipped(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("navigatorFromEndNoProgressDiscard", false);
@@ -373,36 +439,40 @@ class BridgeTest {
         assertHeldAtBarrier(plot, "bridgeHeadBlockStopShipped", r, goal, 12, DECK + 1);
     }
 
-    /** Foot-height block with no route: 1-high hurdle UNDER a low ceiling (deck+3 roof spans the hurdle) — the mount
-     *  jump has no headroom, the under-gap is sealed by the hurdle. No route; same hold-the-lip contract. */
+    /**
+     * Foot-height block with no route: 1-high hurdle UNDER a low ceiling (deck+3 roof spans the hurdle) — the mount
+     * jump has no headroom, the under-gap is sealed by the hurdle. No route; same hold-the-lip contract.
+     */
     @Test
     void bridgeFootBlockStop(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game);
         BlockPos goal = frame(plot, 24);
-        plot.place(12, DECK + 1, 0, Blocks.STONE);                     // foot hurdle
-        plot.fill(10, DECK + 3, 0, 14, DECK + 3, 0, Blocks.STONE);     // roof kills the jump
+        plot.place(12, DECK + 1, 0, Blocks.STONE); // foot hurdle
+        plot.fill(10, DECK + 3, 0, 14, DECK + 3, 0, Blocks.STONE); // roof kills the jump
         Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 1500, goal, DECK + 1);
         assertHeldAtBarrier(plot, "bridgeFootBlockStop", r, goal, 12, DECK + 1);
     }
 
-    /** Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge repro: a step-up
-     *  lip over a ceiling-sealed 2-wide shaft whose only continuation is a DESCENDING bridgePlace (support cell below
-     *  the lip's foot). Both A/B arms of navigatorBridgeDescentPlaceAnchor pass here — the live wedge (74×
-     *  climb-slide-repath during the place-aim ticks) needs the async-search/escalation regime a deterministic
-     *  synchronous-search test structurally cannot enter. This test pins the descending-place ROUTE: planner emits
-     *  it, actuator executes it, the bot arrives without entering the shaft, material is spent. The wedge itself is
-     *  validated live via mc.debug.replay{replay-0013}. */
+    /**
+     * Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge repro: a step-up
+     * lip over a ceiling-sealed 2-wide shaft whose only continuation is a DESCENDING bridgePlace (support cell below
+     * the lip's foot). Both A/B arms of navigatorBridgeDescentPlaceAnchor pass here — the live wedge (74×
+     * climb-slide-repath during the place-aim ticks) needs the async-search/escalation regime a deterministic
+     * synchronous-search test structurally cannot enter. This test pins the descending-place ROUTE: planner emits it,
+     * actuator executes it, the bot arrives without entering the shaft, material is spent. The wedge itself is
+     * validated live via mc.debug.replay{replay-0013}.
+     */
     @Test
     void bridgeDescendPlaceLip(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowPlace", true);
         // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the descending place — the wedge
         // fired while the bot was still climbing onto the lip.
         pad(plot, -2, DECK + 2, 0);
-        strip(plot, 0, 6, DECK + 2, 0);                  // approach deck (stand DECK+3)
-        plot.place(7, DECK + 3, 0, Blocks.STONE);        // the LIP: one step UP (stand DECK+4)
-        plot.place(7, DECK + 2, 0, Blocks.STONE);        // solid column under the lip
+        strip(plot, 0, 6, DECK + 2, 0); // approach deck (stand DECK+3)
+        plot.place(7, DECK + 3, 0, Blocks.STONE); // the LIP: one step UP (stand DECK+4)
+        plot.place(7, DECK + 2, 0, Blocks.STONE); // solid column under the lip
         // shaft columns x=8..9: open air straight down to the catch floor
-        strip(plot, 10, 20, DECK + 2, 0);                // continuation deck (stand DECK+3)
+        strip(plot, 10, 20, DECK + 2, 0); // continuation deck (stand DECK+3)
         // Ceiling over the lip and shaft: stand DECK+4 needs head DECK+5 clear — but any jump arc needs +1.25 (head
         // into DECK+6). Sealing DECK+6 over x=6..11 forbids parkour, leaving the descending bridgePlace as the only
         // continuation.
@@ -421,30 +491,36 @@ class BridgeTest {
                     + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
     }
 
-    /** Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge. Live this costs
-     *  ~1 HP; the bot's player is damage-immune by contract, so the test asserts routing+traversal (see class doc). */
+    /**
+     * Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge. Live this costs ~1
+     * HP; the bot's player is damage-immune by contract, so the test asserts routing+traversal (see class doc).
+     */
     @Test
     void bridgeStairDownGapDamage(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         stairGap(game, plot, "bridgeStairDownGapDamage", 4, true);
     }
 
-    /** Descending stair with a gap (lethal, no water bucket): drop-12 break — beyond the dry cap, and the dedicated
-     *  world view can never offer fallBucket (client-only capability, see class doc), so there is NO route: hold the
-     *  lip, do not step off. */
+    /**
+     * Descending stair with a gap (lethal, no water bucket): drop-12 break — beyond the dry cap, and the dedicated
+     * world view can never offer fallBucket (client-only capability, see class doc), so there is NO route: hold the
+     * lip, do not step off.
+     */
     @Test
     void bridgeLethalGapStop(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         stairGap(game, plot, "bridgeLethalGapStop", 12, false);
     }
 
-    /** Shared rig: high approach deck x=0..11 at DECK+8, gap at x=12, resume deck x=12..24 at DECK+8-drop, end pad.
-     *  Catch floor sits under the LOW deck. */
+    /**
+     * Shared rig: high approach deck x=0..11 at DECK+8, gap at x=12, resume deck x=12..24 at DECK+8-drop, end pad.
+     * Catch floor sits under the LOW deck.
+     */
     private static void stairGap(Game game, Plot plot, String name, int drop, boolean expectThrough) {
         liveStack(game);
         int hi = DECK + 8, lo = hi - drop;
         pad(plot, -2, hi, 0);
         strip(plot, 0, 11, hi, 0);
-        strip(plot, 12, 24, lo, 0);   // resume ADJACENT to the lip (x=12) — a Fall edge is dx=1;
-                                      // resuming at x=13 leaves a floorless chasm column instead of a step-off
+        strip(plot, 12, 24, lo, 0); // resume ADJACENT to the lip (x=12) — a Fall edge is dx=1;
+        // resuming at x=13 leaves a floorless chasm column instead of a step-off
         pad(plot, 26, lo, 0);
         catchFloor(plot, -6, 30, lo - CATCH_DROP, -8, 8);
         BlockPos goal = plot.at(26, lo + 1, 0);
@@ -460,8 +536,10 @@ class BridgeTest {
         }
     }
 
-    /** Ascending step that needs a foothold (with material): a +2 cliff splits the deck; allowPlace + dirt in the bag
-     *  → the planner may pillar/foothold through. Assert arrival AND that placement actually happened. */
+    /**
+     * Ascending step that needs a foothold (with material): a +2 cliff splits the deck; allowPlace + dirt in the bag →
+     * the planner may pillar/foothold through. Assert arrival AND that placement actually happened.
+     */
     @Test
     void bridgeFootholdPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowPlace", true);
@@ -499,8 +577,10 @@ class BridgeTest {
         return plot.at(24, DECK + 3, 0);
     }
 
-    /** Two-high step with a bypass (no material spent): the same +2 face, but a |dz|=5 branch climbs it as two +1
-     *  steps. Dirt in the bag + allowPlace ON — the walk detour must win on cost, so the bag stays untouched. */
+    /**
+     * Two-high step with a bypass (no material spent): the same +2 face, but a |dz|=5 branch climbs it as two +1 steps.
+     * Dirt in the bag + allowPlace ON — the walk detour must win on cost, so the bag stays untouched.
+     */
     @Test
     void bridgeStepTwoBypassNoPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowPlace", true);
@@ -526,8 +606,10 @@ class BridgeTest {
                     + r.invEvents() + " ;; journey: " + r.journey());
     }
 
-    /** Digging is faster than the detour: thin wall (2 blocks) vs a LONG |dz|=6 detour (~32 extra walks), iron pickaxe
-     *  in hand → the planner should dig through; assert the wall fell. */
+    /**
+     * Digging is faster than the detour: thin wall (2 blocks) vs a LONG |dz|=6 detour (~32 extra walks), iron pickaxe
+     * in hand → the planner should dig through; assert the wall fell.
+     */
     @Test
     void bridgeDigShortcut(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowBreak", true);
@@ -552,8 +634,10 @@ class BridgeTest {
                     + "where a 2-block pickaxe dig is far cheaper");
     }
 
-    /** The detour is faster than digging: same wall but BARE-HAND (stone ≈150t/block live → huge break cost) vs a
-     *  SHORT |dz|=3 detour (~10 extra walks) → detour must win; wall intact. */
+    /**
+     * The detour is faster than digging: same wall but BARE-HAND (stone ≈150t/block live → huge break cost) vs a SHORT
+     * |dz|=3 detour (~10 extra walks) → detour must win; wall intact.
+     */
     @Test
     void bridgeDetourCheap(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowBreak", true);

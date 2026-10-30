@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
 import net.magicterra.worlddriver.VanillaBoot;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.moves.DiagonalAscend;
@@ -31,9 +30,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * What every leaping move asks of its launch: the cell two above the launch foot passable and not a
- * hazard, which a rising body sweeps on any leap. Each move is staged as a legal leap first, so a
- * refusal comes from the one cell changed and not from the staging.
+ * What every leaping move asks of its launch: the cell two above the launch foot passable and not a hazard, which a
+ * rising body sweeps on any leap. Each move is staged as a legal leap first, so a refusal comes from the one cell
+ * changed and not from the staging.
  */
 class LeapClearanceTest {
 
@@ -42,7 +41,9 @@ class LeapClearanceTest {
     private BotConfig.ConfigPin pin;
 
     @BeforeAll
-    static void boot() { VanillaBoot.boot(); }
+    static void boot() {
+        VanillaBoot.boot();
+    }
 
     @BeforeEach
     void pinBaseline() {
@@ -53,14 +54,20 @@ class LeapClearanceTest {
     }
 
     @AfterEach
-    void restore() { pin.close(); }
+    void restore() {
+        pin.close();
+    }
 
     /** A move, how to stage its landing, and its direction of travel for the run-up behind the launch. */
     private record Leap(Move move, int sx, int sz, Consumer<BlockMapView> landing) {
-        String name() { return move.name(); }
+        String name() {
+            return move.name();
+        }
     }
 
-    private static Consumer<BlockMapView> padAt(int x, int y, int z) { return w -> w.set(x, y, z, Blocks.STONE); }
+    private static Consumer<BlockMapView> padAt(int x, int y, int z) {
+        return w -> w.set(x, y, z, Blocks.STONE);
+    }
 
     private static List<Leap> leaps() {
         List<Leap> l = new ArrayList<>();
@@ -80,8 +87,10 @@ class LeapClearanceTest {
         return l;
     }
 
-    /** A floor three below the launch, so no gap is bottomless; the launch pad; {@code runUp} cells of
-     *  standable ground behind it; the move's landing. */
+    /**
+     * A floor three below the launch, so no gap is bottomless; the launch pad; {@code runUp} cells of standable ground
+     * behind it; the move's landing.
+     */
     private static BlockMapView stage(Leap leap, int runUp) {
         BlockMapView w = new BlockMapView();
         w.fill(-4, 62, -4, 6, 62, 6, Blocks.STONE);
@@ -92,8 +101,10 @@ class LeapClearanceTest {
         return w;
     }
 
-    /** Names of the leaps whose {@code valid} differs from {@code want}, staged with {@code runUp} cells behind
-     *  the launch and {@code overhead} (if not null) two above the launch foot. */
+    /**
+     * Names of the leaps whose {@code valid} differs from {@code want}, staged with {@code runUp} cells behind the
+     * launch and {@code overhead} (if not null) two above the launch foot.
+     */
     private static List<String> disagreeing(int runUp, Block overhead, boolean want) {
         List<String> wrong = new ArrayList<>();
         for (Leap leap : leaps()) {
@@ -116,13 +127,17 @@ class LeapClearanceTest {
 
     @Test
     void powderSnowTwoAboveTheLaunchRefusesEveryLeap() {
-        assertEquals(List.of(), disagreeing(2, Blocks.POWDER_SNOW, false),
+        assertEquals(
+                List.of(),
+                disagreeing(2, Blocks.POWDER_SNOW, false),
                 "these leap with powder snow over the launch head");
     }
 
-    /** Cells of standable ground each leap needs behind its launch. A 2-block gap is inside a standing jump,
-     *  so the short leaps need none; a rising 2-block leap needs one; every leap longer than 2 needs
-     *  {@link Move#RUNUP_CELLS}, the sprint run-up its price assumes. */
+    /**
+     * Cells of standable ground each leap needs behind its launch. A 2-block gap is inside a standing jump, so the
+     * short leaps need none; a rising 2-block leap needs one; every leap longer than 2 needs {@link Move#RUNUP_CELLS},
+     * the sprint run-up its price assumes.
+     */
     private static int runUpNeeded(String name) {
         return switch (name) {
             case "parkour2", "parkour2d", "parkourPlace2", "parkourDescend2d1", "diagUp" -> 0;

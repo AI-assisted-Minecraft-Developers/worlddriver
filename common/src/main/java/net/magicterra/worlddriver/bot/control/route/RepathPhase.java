@@ -1,33 +1,32 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import net.magicterra.worlddriver.bot.control.TickStep;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.ResetScope;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.controller.Recovery;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-import net.magicterra.worlddriver.bot.control.controller.Recovery;
-
-
 /**
- * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 1213–1402): safetyRepath / bridge-hold / periodic re-search kickoff + anti-stuck displacement arming.
- * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
- * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
- * restructure here without live/testkit evidence (this file is state-machine surgery).
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 1213–1402): safetyRepath / bridge-hold /
+ * periodic re-search kickoff + anti-stuck displacement arming. One phase of the per-tick pipeline — see
+ * {@link Navigator#tickInner} for the driver and {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED
+ * from the original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not restructure here
+ * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class RepathPhase {
     public int ticksSinceRepath;
@@ -48,7 +47,9 @@ public final class RepathPhase {
         boolean fellOffPath = cx.stall.fellOffPath;
         boolean fellBelowRoute = cx.stall.fellBelowRoute;
         // ---- original body (byte-identical modulo member prefixes) ----
-        boolean safetyRepath = (nav.route.path() == null) || (nav.stuckTicks > STUCK_TICKS) || wedged
+        boolean safetyRepath = (nav.route.path() == null)
+                || (nav.stuckTicks > STUCK_TICKS)
+                || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
         // navigatorBridgeHoldRepath (§82): a mid-bridge PERIODIC repath swaps the committed
         // bridgePlace chain for a fresh plan whose first node sits elsewhere (arena live:
@@ -61,10 +62,12 @@ public final class RepathPhase {
         boolean bridgingNow = false;
         if (ControlConfig.navigatorBridgeHoldRepath) {
             Move.Edge cbE = nav.route.edgeAt(nav.route.step()), nbE = nav.route.edgeAt(nav.route.step() + 1);
-            bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
-                    || (nbE != null && "bridgePlace".equals(nbE.move));
+            bridgingNow =
+                    (cbE != null && "bridgePlace".equals(cbE.move)) || (nbE != null && "bridgePlace".equals(nbE.move));
         }
-        boolean fullPeriodic = !nav.route.seg.pathBestEffort && nav.route.path() != null && !bridgingNow
+        boolean fullPeriodic = !nav.route.seg.pathBestEffort
+                && nav.route.path() != null
+                && !bridgingNow
                 && ticksSinceRepath > ControlConfig.navigatorRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is
@@ -113,11 +116,16 @@ public final class RepathPhase {
                 if (nav.recovery.countCooldown <= 0) {
                     nav.recovery.countCooldown = 40;
                     if (++nav.recovery.wedgeRepathsHere >= 3) {
-                        BlockPos bwp = (nav.route.path() != null && nav.route.step() < nav.route.path().size()) ? nav.route.path().get(nav.route.step()) : null;
+                        BlockPos bwp = (nav.route.path() != null
+                                        && nav.route.step() < nav.route.path().size())
+                                ? nav.route.path().get(nav.route.step())
+                                : null;
                         nav.recovery.burst(Recovery.WEDGE_BURST_TICKS, p, bwp);
-                        nav.recovery.dropWedgeAnchor();   // displaced → next wedge re-anchors fresh
+                        nav.recovery.dropWedgeAnchor(); // displaced → next wedge re-anchors fresh
                         if (GameConfig.navigatorDebug)
-                            LOG.info("[navigator] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
+                            LOG.info(
+                                    "[navigator] anti-stuck: repeated safety repaths at {} → forced displacement burst",
+                                    foot);
                     }
                 }
             } else {
@@ -137,10 +145,14 @@ public final class RepathPhase {
         // A block on the plan ahead changed shape (someone built across it, broke the bridge, a door
         // shut). Whatever search is in flight was started on the old shape, so it goes too.
         boolean blockChanged = nav.route.blockChangeDue(p)
-                && nav.search.gov.searchBackoffTicks == 0 && !nav.search.gov.futileLatched(foot);
+                && nav.search.gov.searchBackoffTicks == 0
+                && !nav.search.gov.futileLatched(foot);
         if (blockChanged) nav.route.abortSearch();
-        if (!nav.route.replay() && (safetyRepath || fullPeriodic || blockChanged) && nav.route.seg.activeSearch == null
-                && nav.search.gov.searchBackoffTicks == 0 && !nav.search.gov.futileLatched(foot)) {
+        if (!nav.route.replay()
+                && (safetyRepath || fullPeriodic || blockChanged)
+                && nav.route.seg.activeSearch == null
+                && nav.search.gov.searchBackoffTicks == 0
+                && !nav.search.gov.futileLatched(foot)) {
             // Stuck too long on a move the Navigator can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -151,11 +163,15 @@ public final class RepathPhase {
             kickoff(nav, p, world, foot, wedged, fellOffPath, offPath, fellBelowRoute, fullPeriodic);
             PathFinder.Search search = nav.newPathFinder(world).newSearch(searchFoot, nav.goal);
             if (blockChanged) noteBlockChange(nav, nav.route.searchAfterBlockChange(search), foot);
-            else nav.route.searchFromFoot(search, false);   // placing allowed; budget re-checked on result
+            else nav.route.searchFromFoot(search, false); // placing allowed; budget re-checked on result
             ticksSinceRepath = 0;
-        } else if (!nav.route.replay() && nav.route.seg.pathBestEffort && nav.route.seg.commitEnd != null
-                && nav.route.seg.activeSearch == null && nav.route.seg.pendingSegment == null
-                && nav.search.gov.searchBackoffTicks == 0 && !nav.search.gov.futileLatched(foot)
+        } else if (!nav.route.replay()
+                && nav.route.seg.pathBestEffort
+                && nav.route.seg.commitEnd != null
+                && nav.route.seg.activeSearch == null
+                && nav.route.seg.pendingSegment == null
+                && nav.search.gov.searchBackoffTicks == 0
+                && !nav.search.gov.futileLatched(foot)
                 && continuationInLoadedReach(nav, p)) {
             // Eagerly precompute the next best-effort segment from the committed end.
             nav.route.searchFromEnd(nav, world);
@@ -166,64 +182,87 @@ public final class RepathPhase {
     }
 
     /**
-     * A continuation planned from a segment end far ahead of the body searches out past the loaded
-     * chunks, and its commit lands on whichever edge row has loaded by then: R1 committed from
-     * 1526,71,-211 to 1473,66,-319 or, with one chunk row fewer, to 1435,67,-303 — the west branch,
-     * 8-10 s slower. Waiting until the body is within {@code navigatorContinuationMaxLead} of the end
-     * keeps end + horizon inside what the body has loaded.
+     * A continuation planned from a segment end far ahead of the body searches out past the loaded chunks, and its
+     * commit lands on whichever edge row has loaded by then: R1 committed from 1526,71,-211 to 1473,66,-319 or, with
+     * one chunk row fewer, to 1435,67,-303 — the west branch, 8-10 s slower. Waiting until the body is within
+     * {@code navigatorContinuationMaxLead} of the end keeps end + horizon inside what the body has loaded.
      */
     private boolean continuationInLoadedReach(Navigator nav, LivingEntity p) {
         int lead = ControlConfig.navigatorContinuationMaxLead;
         if (lead <= 0) return true;
-        double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX(), dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
+        double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX(),
+                dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
     }
 
-    /** One line per block-change replan, the first few per navigator; {@link NavigatorTallies#blockReplans} counts all. */
+    /**
+     * One line per block-change replan, the first few per navigator; {@link NavigatorTallies#blockReplans} counts all.
+     */
     private void noteBlockChange(Navigator nav, String where, BlockPos foot) {
         if (++nav.tallies.blockReplans <= BLOCK_REPLANS_LOGGED)
-            LOG.info("[navigator] block changed at {} → replanning from {} (owner={})", where, foot.toShortString(), nav.owner);
+            LOG.info(
+                    "[navigator] block changed at {} → replanning from {} (owner={})",
+                    where,
+                    foot.toShortString(),
+                    nav.owner);
     }
 
     private static final int BLOCK_REPLANS_LOGGED = 8;
 
-    /** The foot-search kickoff's front door: names WHICH trigger fired (under navigatorDebug), then the
-     *  wedge penalty. A search that supersedes a route the navigator had just adopted is otherwise
-     *  invisible — the log shows the search, never the reason — and every trigger here looks the
-     *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
-    private void kickoff(Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
-                                boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
+    /**
+     * The foot-search kickoff's front door: names WHICH trigger fired (under navigatorDebug), then the wedge penalty. A
+     * search that supersedes a route the navigator had just adopted is otherwise invisible — the log shows the search,
+     * never the reason — and every trigger here looks the same from outside (client lane 2026-09-06: an adopted lane
+     * re-searched on its first tick).
+     */
+    private void kickoff(
+            Navigator nav,
+            LivingEntity p,
+            WorldView world,
+            BlockPos foot,
+            boolean wedged,
+            boolean fellOffPath,
+            boolean offPath,
+            boolean fellBelowRoute,
+            boolean periodic) {
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
-                    nav.route.path() == null, nav.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
-                    periodic, nav.route.step(), nav.route.path() == null ? 0 : nav.route.path().size());
+            LOG.info(
+                    "[navigator] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
+                    nav.route.path() == null,
+                    nav.stuckTicks > STUCK_TICKS,
+                    wedged,
+                    offPath,
+                    fellOffPath,
+                    fellBelowRoute,
+                    periodic,
+                    nav.route.step(),
+                    nav.route.path() == null ? 0 : nav.route.path().size());
         penalizeWedgeNodes(nav, p, world, foot, wedged, fellOffPath);
     }
 
     /**
-     * Price out the cells a wedged bot keeps re-planning into, so the re-search that follows
-     * routes AROUND the obstruction instead of straight back at it.
+     * Price out the cells a wedged bot keeps re-planning into, so the re-search that follows routes AROUND the
+     * obstruction instead of straight back at it.
      *
-     * <p><b>Where the cut is, and why here.</b> Lifted verbatim out of {@link #run}, which had
-     * drifted two lines over its budget. This is the one block in that method where nothing flows
-     * back out: it reads {@code wk}/{@code world}/{@code foot}, calls only
-     * {@code world.penalizeStuckNode}, declares no local that the rest of the tick reads, and
-     * contains no {@code return} of its own — so the guard became an early return and the call
-     * site became one line. Nothing else in {@code run} separates that cheaply; every other block
-     * either returns a {@link TickStep} that ends the tick, or writes a local the next block
-     * consumes. Bodies are unchanged, which is the standing rule for this file.
+     * <p><b>Where the cut is, and why here.</b> Lifted verbatim out of {@link #run}, which had drifted two lines over
+     * its budget. This is the one block in that method where nothing flows back out: it reads
+     * {@code wk}/{@code world}/{@code foot}, calls only {@code world.penalizeStuckNode}, declares no local that the
+     * rest of the tick reads, and contains no {@code return} of its own — so the guard became an early return and the
+     * call site became one line. Nothing else in {@code run} separates that cheaply; every other block either returns a
+     * {@link TickStep} that ends the tick, or writes a local the next block consumes. Bodies are unchanged, which is
+     * the standing rule for this file.
      *
-     * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already
-     * declared {@code Player} at the call site ({@code cx.frame.p}), so this signature is NOT a
-     * widening. Hard rule 11 exists because handing a client type to a wider formal from a
-     * dual-loaded class kills the dedicated server at class-load time, and "extract a method" is
-     * exactly the tidy-up that disguise hides in — {@code bot/movement/**} is dual-loaded, so this
-     * is safe only because the local was never the client type. Re-check it, do not assume it.
+     * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already declared
+     * {@code Player} at the call site ({@code cx.frame.p}), so this signature is NOT a widening. Hard rule 11 exists
+     * because handing a client type to a wider formal from a dual-loaded class kills the dedicated server at class-load
+     * time, and "extract a method" is exactly the tidy-up that disguise hides in — {@code bot/movement/**} is
+     * dual-loaded, so this is safe only because the local was never the client type. Re-check it, do not assume it.
      */
-    private void penalizeWedgeNodes(Navigator nav, LivingEntity p, WorldView world, BlockPos foot,
-                                           boolean wedged, boolean fellOffPath) {
+    private void penalizeWedgeNodes(
+            Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged, boolean fellOffPath) {
         if (!((nav.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size())) return;
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size())) return;
         // fellOffPath included: the step node the bot FELL AWAY from is a
         // demonstrably fragile traverse (mountain high route) — charge it
         // so the immediate re-search doesn't commit the same brittle line.

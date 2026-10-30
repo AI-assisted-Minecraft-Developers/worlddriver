@@ -1,27 +1,26 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.config.ControlConfig;
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-
-import java.util.List;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.minecraft.core.BlockPos;
 
 /**
  * Arc-length projection of a continuous position onto a path polyline (XZ plane).
  *
- * <p>This is the foundation of the arc-length pursuit executor (refactor #55). A buoyant Minecraft bot
- * <em>bobs</em> vertically every tick, so every legacy step-advance / aim gate keyed on the instantaneous
- * 3-D geometry (within {@code cur2<0.45}, {@code |dyNode|<1.2}, {@code onGround}, a 3-D new-low wedge timer)
- * is defeated one tick at a time by that bob. Projecting the foot onto the <em>horizontal</em> polyline and
- * tracking the cumulative arc-length {@code s} is bob-immune <em>by construction</em>: the vertical
- * oscillation does not move the horizontal projection, so {@code s} only advances when the bot actually
- * progresses along the route, and the path <em>tangent</em> ahead of the projection never flips ~180° on a
- * node overshoot the way the immediate-node bearing does (the cause of the "backward jump").
+ * <p>This is the foundation of the arc-length pursuit executor (refactor #55). A buoyant Minecraft bot <em>bobs</em>
+ * vertically every tick, so every legacy step-advance / aim gate keyed on the instantaneous 3-D geometry (within
+ * {@code cur2<0.45}, {@code |dyNode|<1.2}, {@code onGround}, a 3-D new-low wedge timer) is defeated one tick at a time
+ * by that bob. Projecting the foot onto the <em>horizontal</em> polyline and tracking the cumulative arc-length
+ * {@code s} is bob-immune <em>by construction</em>: the vertical oscillation does not move the horizontal projection,
+ * so {@code s} only advances when the bot actually progresses along the route, and the path <em>tangent</em> ahead of
+ * the projection never flips ~180° on a node overshoot the way the immediate-node bearing does (the cause of the
+ * "backward jump").
  *
- * <p>Deliberately a small, pure, standalone value-holder — it carries no executor state and mutates only its
- * own public result fields — so its logic can be read and reasoned about in full, in isolation, unlike the
- * monolithic {@code Navigator.tick()} it is being carved out of.
+ * <p>Deliberately a small, pure, standalone value-holder — it carries no executor state and mutates only its own public
+ * result fields — so its logic can be read and reasoned about in full, in isolation, unlike the monolithic
+ * {@code Navigator.tick()} it is being carved out of.
  */
 public final class PathProjection {
     /** Projection lies on segment {@code path[segIdx] -> path[segIdx+1]}. */
@@ -34,34 +33,46 @@ public final class PathProjection {
     public double perp;
     /** MC yaw of the path tangent {@code lookahead} blocks of arc-length ahead of the projection. */
     public float tangentYaw;
-    /** MC yaw from the position to the POINT of the path {@code lookahead} blocks ahead of the projection:
-     *  the tangent with a cross-track term. A bot driven at the bare tangent from {@code perp} blocks off
-     *  the path walks PARALLEL to it forever (the offset is never in the heading); this bearing closes the
-     *  offset at atan(perp / lookahead) per tick and becomes the tangent as it closes. Equal to
-     *  {@link #tangentYaw} when the point ahead is degenerate (the path ends at the bot). */
+    /**
+     * MC yaw from the position to the POINT of the path {@code lookahead} blocks ahead of the projection: the tangent
+     * with a cross-track term. A bot driven at the bare tangent from {@code perp} blocks off the path walks PARALLEL to
+     * it forever (the offset is never in the heading); this bearing closes the offset at atan(perp / lookahead) per
+     * tick and becomes the tangent as it closes. Equal to {@link #tangentYaw} when the point ahead is degenerate (the
+     * path ends at the bot).
+     */
     public float pursuitYaw;
-    /** The point {@code lookahead} blocks ahead that {@link #pursuitYaw} bears on, and the index of the node
-     *  that ends its segment. */
+    /**
+     * The point {@code lookahead} blocks ahead that {@link #pursuitYaw} bears on, and the index of the node that ends
+     * its segment.
+     */
     public double aheadX, aheadZ;
+
     public int aheadNode;
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
     public boolean barrierHit;
 
     /**
-     * Project {@code (px,pz)} onto {@code path} within the FORWARD window {@code [step, step+window]} and
-     * fill the result fields. The forward window is what keeps the projection from snapping backward onto a
-     * self-overlapping earlier segment (a dive→ride-bed→climb-out "V" overlaps itself in XZ — the dominant
-     * projection hazard). Two barriers mirror {@code RouteAdoption}'s fast-forward: a node sitting {@code >1} below the
-     * foot that is water is a hard dive barrier (everything beyond is only reachable through the dive), and a
-     * node entered by a still-pending break/place edge stops the scan (don't skim past an unexecuted bridge
-     * lip / dug riser).
+     * Project {@code (px,pz)} onto {@code path} within the FORWARD window {@code [step, step+window]} and fill the
+     * result fields. The forward window is what keeps the projection from snapping backward onto a self-overlapping
+     * earlier segment (a dive→ride-bed→climb-out "V" overlaps itself in XZ — the dominant projection hazard). Two
+     * barriers mirror {@code RouteAdoption}'s fast-forward: a node sitting {@code >1} below the foot that is water is a
+     * hard dive barrier (everything beyond is only reachable through the dive), and a node entered by a still-pending
+     * break/place edge stops the scan (don't skim past an unexecuted bridge lip / dug riser).
      *
      * @param footY the bot's foot block Y (for the submerged-below dive-barrier test)
      */
-    public void compute(List<BlockPos> path, List<Move.Edge> edges, WorldView world,
-                        int step, int footY, double px, double pz, int window, double lookahead) {
+    public void compute(
+            List<BlockPos> path,
+            List<Move.Edge> edges,
+            WorldView world,
+            int step,
+            int footY,
+            double px,
+            double pz,
+            int window,
+            double lookahead) {
         int n = path.size();
-        int scanEnd = Math.min(n - 1, step + window);   // last segment start index considered
+        int scanEnd = Math.min(n - 1, step + window); // last segment start index considered
         int bestSeg = step;
         double bestT = 0, bestD2 = Double.POSITIVE_INFINITY;
         boolean barrier = false;
@@ -79,24 +90,37 @@ public final class PathProjection {
         int from = ControlConfig.navigatorProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
         for (int i = from; i < scanEnd; i++) {
             BlockPos a = path.get(i), b = path.get(i + 1);
-            aboveReach |= i > step && a.getY() - footY >= 2;   // the step's own segment always projects
+            aboveReach |= i > step && a.getY() - footY >= 2; // the step's own segment always projects
             double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
             double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
             double len2 = vx * vx + vz * vz;
             double t = len2 < 1e-9 ? 0.0 : ((px - ax) * vx + (pz - az) * vz) / len2;
-            if (t < 0) t = 0; else if (t > 1) t = 1;
+            if (t < 0) t = 0;
+            else if (t > 1) t = 1;
             double cx = ax + t * vx, cz = az + t * vz;
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
-            if (d2 < bestD2 && !aboveReach) { bestD2 = d2; bestSeg = i; bestT = t; }
+            if (d2 < bestD2 && !aboveReach) {
+                bestD2 = d2;
+                bestSeg = i;
+                bestT = t;
+            }
             if (i < step) continue;
-            // V-shaped submerged-below dive barrier (mirrors RouteAdoption's fast-forward): everything beyond a node that sits
+            // V-shaped submerged-below dive barrier (mirrors RouteAdoption's fast-forward): everything beyond a node
+            // that sits
             // >1 below the foot AND is water is only reachable THROUGH the dive — stop the forward scan.
-            if (b.getY() - footY < -1 && world.isWater(b)) { barrier = true; aheadEnd = i + 1; break; }
+            if (b.getY() - footY < -1 && world.isWater(b)) {
+                barrier = true;
+                aheadEnd = i + 1;
+                break;
+            }
             // Pending break/place edge entering the next node: don't let the projection skim past an
             // unexecuted bridge lip / dug riser.
             Move.Edge e = (edges != null && i + 1 < edges.size()) ? edges.get(i + 1) : null;
-            if (e != null && ((e.toBreak != null && !e.toBreak.isEmpty()) || (e.toPlace != null && !e.toPlace.isEmpty()))) {
-                barrier = true; aheadEnd = i + 1; break;
+            if (e != null
+                    && ((e.toBreak != null && !e.toBreak.isEmpty()) || (e.toPlace != null && !e.toPlace.isEmpty()))) {
+                barrier = true;
+                aheadEnd = i + 1;
+                break;
             }
         }
         // Cumulative XZ arc-length from path[0] to the projection point.
@@ -127,14 +151,16 @@ public final class PathProjection {
         this.aheadZ = ahead[1];
         this.aheadNode = (int) ahead[2];
         double adx = ahead[0] - px, adz = ahead[1] - pz;
-        this.pursuitYaw = adx * adx + adz * adz < 0.09 ? this.tangentYaw
-                : (float) Math.toDegrees(Math.atan2(-adx, adz));
+        this.pursuitYaw =
+                adx * adx + adz * adz < 0.09 ? this.tangentYaw : (float) Math.toDegrees(Math.atan2(-adx, adz));
         this.barrierHit = barrier;
     }
 
-    /** The point {@code lookahead} blocks of arc-length forward of the projection at {@code (seg, frac)},
-     *  along the polyline, as {x, z, index of the node ending its segment}; the scan end's node when the
-     *  path is shorter than that. */
+    /**
+     * The point {@code lookahead} blocks of arc-length forward of the projection at {@code (seg, frac)}, along the
+     * polyline, as {x, z, index of the node ending its segment}; the scan end's node when the path is shorter than
+     * that.
+     */
     private static double[] pointAhead(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
         double remain = lookahead;
         for (int i = seg; i < scanEnd; i++) {
@@ -146,18 +172,18 @@ public final class PathProjection {
             double avail = segLen * (1.0 - from);
             if (segLen > 1e-9 && avail >= remain) {
                 double t = from + remain / segLen;
-                return new double[] { ax + t * vx, az + t * vz, i + 1 };
+                return new double[] {ax + t * vx, az + t * vz, i + 1};
             }
             remain -= avail;
         }
         int j = Math.max(0, Math.min(scanEnd, path.size() - 1));
-        return new double[] { path.get(j).getX() + 0.5, path.get(j).getZ() + 0.5, j };
+        return new double[] {path.get(j).getX() + 0.5, path.get(j).getZ() + 0.5, j};
     }
 
     /**
-     * Heading of the path tangent {@code lookahead} blocks of arc-length forward of the projection at
-     * {@code (seg, frac)}, walking along the polyline. A tangent at {@code s+lookahead} NEVER flips ~180° on
-     * a node overshoot the way the immediate-node bearing does — the structural cure for the backward jump.
+     * Heading of the path tangent {@code lookahead} blocks of arc-length forward of the projection at {@code (seg,
+     * frac)}, walking along the polyline. A tangent at {@code s+lookahead} NEVER flips ~180° on a node overshoot the
+     * way the immediate-node bearing does — the structural cure for the backward jump.
      */
     private static float tangentYawAt(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
         double remain = lookahead;

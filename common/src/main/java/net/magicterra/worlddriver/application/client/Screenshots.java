@@ -2,25 +2,22 @@ package net.magicterra.worlddriver.application.client;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
-import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.Screenshot;
-
 import java.io.IOException;
 import java.util.Base64;
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ImageFormat;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
-
 import net.magicterra.worlddriver.game.ClientHop;
 import net.magicterra.worlddriver.game.ui.FrameClock;
+import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
 
 /**
- * Framebuffer capture + downscale/transcode for {@code mc.client.screenshot}.
- * Stateless; extracted from {@code ClientDriverApiImpl}.
+ * Framebuffer capture + downscale/transcode for {@code mc.client.screenshot}. Stateless; extracted from
+ * {@code ClientDriverApiImpl}.
  */
 public final class Screenshots {
     private Screenshots() {}
@@ -29,19 +26,19 @@ public final class Screenshots {
     private static final long FRESH_FRAME_MS = 1_000;
 
     /**
-     * Waits for a frame drawn AFTER this request arrived, so the capture cannot be the frame that
-     * predates whatever the caller did just before asking for it. A timeout is not an error — it means
-     * the client is not drawing, which `frameWaited:false` reports rather than hides. No thread is held
-     * for the wait.
+     * Waits for a frame drawn AFTER this request arrived, so the capture cannot be the frame that predates whatever the
+     * caller did just before asking for it. A timeout is not an error — it means the client is not drawing, which
+     * `frameWaited:false` reports rather than hides. No thread is held for the wait.
      *
-     * <p>The capture runs on the client thread; the encode, which takes longer than a frame on a large
-     * window, runs off it. The hop is queued from a background thread rather than from the frame hook
-     * that ends the wait, so the capture runs at the client's next task drain like any other task.
+     * <p>The capture runs on the client thread; the encode, which takes longer than a frame on a large window, runs off
+     * it. The hop is queued from a background thread rather than from the frame hook that ends the wait, so the capture
+     * runs at the client's next task drain like any other task.
      */
     public static CompletionStage<ClientContracts.Screenshot> screenshot(ScreenshotParams opts, CallContext ctx) {
         long before = FrameClock.drawn();
         return FrameClock.after(before, FRESH_FRAME_MS)
-                .thenComposeAsync(reached -> ClientHop.hop().submit(() -> capture(reached > before), ctx),
+                .thenComposeAsync(
+                        reached -> ClientHop.hop().submit(() -> capture(reached > before), ctx),
                         Util.backgroundExecutor())
                 .thenApplyAsync(cap -> encode(cap, opts), Util.backgroundExecutor());
     }
@@ -86,8 +83,8 @@ public final class Screenshots {
             // BufferedImage so we can scale with Graphics2D and pass to
             // ImageIO. AWT initialises in headless mode fine — ImageIO PNG
             // and JPEG encoders don't need a display.
-            java.awt.image.BufferedImage src = new java.awt.image.BufferedImage(
-                    srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.image.BufferedImage src =
+                    new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
             int[] argb = new int[srcW * srcH];
             for (int y = 0; y < srcH; y++) {
                 for (int x = 0; x < srcW; x++) {
@@ -105,14 +102,17 @@ public final class Screenshots {
             java.awt.image.BufferedImage out;
             if (dstW != srcW || dstH != srcH) {
                 out = new java.awt.image.BufferedImage(
-                        dstW, dstH,
-                        fmt.equals("png") ? java.awt.image.BufferedImage.TYPE_INT_ARGB
-                                          : java.awt.image.BufferedImage.TYPE_INT_RGB);
+                        dstW,
+                        dstH,
+                        fmt.equals("png")
+                                ? java.awt.image.BufferedImage.TYPE_INT_ARGB
+                                : java.awt.image.BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g2 = out.createGraphics();
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                g2.setRenderingHint(
+                        java.awt.RenderingHints.KEY_INTERPOLATION,
                         java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
-                        java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+                g2.setRenderingHint(
+                        java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
                 g2.drawImage(src, 0, 0, dstW, dstH, null);
                 g2.dispose();
             } else if (fmt.equals("jpeg")) {
@@ -143,20 +143,25 @@ public final class Screenshots {
     /**
      * The capture, plus what it is a capture of.
      *
-     * <p>A window nothing is presenting keeps its last frame: the framebuffer still reads, the
-     * image is the right size and looks entirely plausible, and it can be minutes old — three
-     * captures seven seconds apart of a rainy world came back byte-identical.
+     * <p>A window nothing is presenting keeps its last frame: the framebuffer still reads, the image is the right size
+     * and looks entirely plausible, and it can be minutes old — three captures seven seconds apart of a rainy world
+     * came back byte-identical.
      *
-     * <p>{@code frame} is the one field that settles it, because it is the same quantity the
-     * capture is made of: two replies carrying the same number are the same image, whatever the
-     * picture shows. {@code frameWaited} says this capture waited for a frame of its own, so
-     * anything the caller caused before asking is in it. {@code windowActive} and {@code fps}
-     * stay as context — note that {@code fps} above zero only rules out a renderer that has
-     * stopped, not a frame that is one round-trip out of date.
+     * <p>{@code frame} is the one field that settles it, because it is the same quantity the capture is made of: two
+     * replies carrying the same number are the same image, whatever the picture shows. {@code frameWaited} says this
+     * capture waited for a frame of its own, so anything the caller caused before asking is in it. {@code windowActive}
+     * and {@code fps} stay as context — note that {@code fps} above zero only rules out a renderer that has stopped,
+     * not a frame that is one round-trip out of date.
      */
     private static ClientContracts.Screenshot reply(String format, int width, int height, byte[] bytes, Capture cap) {
-        return new ClientContracts.Screenshot(format.equals("png") ? ImageFormat.PNG : ImageFormat.JPEG, width, height,
-                cap.frame(), cap.frameWaited(), cap.windowActive(), cap.fps(),
+        return new ClientContracts.Screenshot(
+                format.equals("png") ? ImageFormat.PNG : ImageFormat.JPEG,
+                width,
+                height,
+                cap.frame(),
+                cap.frameWaited(),
+                cap.windowActive(),
+                cap.fps(),
                 Base64.getEncoder().encodeToString(bytes));
     }
 

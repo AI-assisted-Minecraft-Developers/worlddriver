@@ -1,8 +1,5 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.application.DriverApplication;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,17 +10,18 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
-
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
+import net.magicterra.worlddriver.application.DriverApplication;
 import org.junit.jupiter.api.Test;
 
 /**
- * A server-thread hop that gave up reaches an MCP client as a JSON-RPC error carrying one of two
- * codes, not as an ordinary tool error: "not executed" is safe to retry, "outcome unknown" is not,
- * and a client reading only {@code isError} text could not tell them apart from a refused argument.
- * An ordinary tool failure stays an {@code isError} result.
+ * A server-thread hop that gave up reaches an MCP client as a JSON-RPC error carrying one of two codes, not as an
+ * ordinary tool error: "not executed" is safe to retry, "outcome unknown" is not, and a client reading only
+ * {@code isError} text could not tell them apart from a refused argument. An ordinary tool failure stays an
+ * {@code isError} result.
  */
 class McpHopTimeoutTest {
 
@@ -33,11 +31,15 @@ class McpHopTimeoutTest {
         ApiRegistry api = app.registry();
         ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
         // A handler may wrap what the hop threw; the classification must survive that.
-        ProbeMethods.failing(api, "probe.outcomeUnknown",
+        ProbeMethods.failing(
+                api,
+                "probe.outcomeUnknown",
                 () -> new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running")));
         ProbeMethods.failing(api, "probe.badArg", () -> new IllegalArgumentException("bad arg"));
         try (McpServer server = new McpServer(api, app, 0)) {
-            HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+            HttpClient http = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
 
             Map<?, ?> ne = call(http, server.port(), 1, "probe.notExecuted");
             Map<?, ?> neErr = assertInstanceOf(Map.class, ne.get("error"), "reply: " + ne);
@@ -56,8 +58,8 @@ class McpHopTimeoutTest {
     }
 
     private static Map<?, ?> call(HttpClient http, int port, int id, String tool) throws Exception {
-        String body = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"tools/call\","
-                + "\"params\":{\"name\":\"" + tool + "\",\"arguments\":{}}}";
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"tools/call\"," + "\"params\":{\"name\":\""
+                + tool + "\",\"arguments\":{}}}";
         HttpRequest req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")

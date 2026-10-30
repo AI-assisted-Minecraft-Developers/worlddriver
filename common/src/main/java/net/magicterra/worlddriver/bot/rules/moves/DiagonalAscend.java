@@ -1,46 +1,51 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * Diagonal step UP one block (foot rises to {@code from + (dx, 1, dz)}) —
- * the diagonal analogue of {@link StepUp}, Baritone's ascending
- * {@code MovementDiagonal}. Executed by the Navigator exactly like a StepUp
- * (it jumps because the waypoint is higher, and aims straight at it), so no
- * actuator change is needed. Cost 19 ≈ diagonal (14) + jump premium (5), so
- * a flat Walk+StepUp pair (10+15=25) is dearer and A* prefers the cut.
+ * Diagonal step UP one block (foot rises to {@code from + (dx, 1, dz)}) — the diagonal analogue of {@link StepUp},
+ * Baritone's ascending {@code MovementDiagonal}. Executed by the Navigator exactly like a StepUp (it jumps because the
+ * waypoint is higher, and aims straight at it), so no actuator change is needed. Cost 19 ≈ diagonal (14) + jump premium
+ * (5), so a flat Walk+StepUp pair (10+15=25) is dearer and A* prefers the cut.
  *
- * Clearance is stricter than a flat {@link Diagonal}: because the player
- * <em>rises</em> through the corner it can clip either side, so BOTH cardinal
- * side columns must be clear at the destination-foot band (and their heads).
+ * <p>Clearance is stricter than a flat {@link Diagonal}: because the player <em>rises</em> through the corner it can
+ * clip either side, so BOTH cardinal side columns must be clear at the destination-foot band (and their heads).
  */
 public final class DiagonalAscend extends Move {
-    public DiagonalAscend(int dx, int dz) { super(dx, 1, dz, 19); }
+    public DiagonalAscend(int dx, int dz) {
+        super(dx, 1, dz, 19);
+    }
 
-    /** Buoyant-wall bob fix (mini-project): a diagonal sprint-jump UP whose miss
-     *  would drop the bot into WATER lands imprecisely on the placed staircase
-     *  and bobs the bot back (the +5 buoyant-wall thrash). Penalise it heavily
-     *  when water sits below within a survivable-fall depth, so A* climbs OUT of
-     *  water with a stable vertical {@link PillarUp} (in-column — can't slide off
-     *  the side) instead of a diagonal staircase over the water. Dry diagonals
-     *  keep the base cost. */
+    /**
+     * Buoyant-wall bob fix (mini-project): a diagonal sprint-jump UP whose miss would drop the bot into WATER lands
+     * imprecisely on the placed staircase and bobs the bot back (the +5 buoyant-wall thrash). Penalise it heavily when
+     * water sits below within a survivable-fall depth, so A* climbs OUT of water with a stable vertical
+     * {@link PillarUp} (in-column — can't slide off the side) instead of a diagonal staircase over the water. Dry
+     * diagonals keep the base cost.
+     */
     @Override
     public Move.Edge eval(WorldView w, BlockPos from) {
         if (!valid(w, from)) return null;
         double c = cost;
         if (waterBelow(w, from, 6)) c += 200;
-        else c += net.magicterra.worlddriver.config.RulesConfig.pathfinderDiagAscendPenalty;  // dry diagUp is unmountable on steep terrain (§30) — route around via cardinal stepUp when penalised
-        if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz))) c += Diagonal.DROP_CORNER_TAX;
+        else
+            c += net.magicterra.worlddriver.config.RulesConfig
+                    .pathfinderDiagAscendPenalty; // dry diagUp is unmountable on steep terrain (§30) — route around via
+        // cardinal stepUp when penalised
+        if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz)))
+            c += Diagonal.DROP_CORNER_TAX;
         return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
     }
 
-    /** An open launch-row corner with a drop under it. The bot runs at the riser corner before it can
-     *  jump and drifts toward the open side: off a 1-wide strip (wd.bridgeStepTwoBypassNoPlace) it
-     *  ended on 0.05 of the strip, where the void-graze veto rightly refused the jump. Taxed past a
-     *  walk and a cardinal stepUp (25), which keep the body over floor. */
+    /**
+     * An open launch-row corner with a drop under it. The bot runs at the riser corner before it can jump and drifts
+     * toward the open side: off a 1-wide strip (wd.bridgeStepTwoBypassNoPlace) it ended on 0.05 of the strip, where the
+     * void-graze veto rightly refused the jump. Taxed past a walk and a cardinal stepUp (25), which keep the body over
+     * floor.
+     */
     private static boolean dropAtLaunch(WorldView w, BlockPos c) {
         return w.isPassable(c) && Move.dropCorner(w, c);
     }
@@ -50,8 +55,7 @@ public final class DiagonalAscend extends Move {
         // directly below each rung, but the water it bridges over sits a few
         // cells further down — stopping at the first solid would read the
         // over-water staircase as "dry" and never redirect it.
-        for (int dy = 1; dy <= depth; dy++)
-            if (w.isWater(from.offset(0, -dy, 0))) return true;
+        for (int dy = 1; dy <= depth; dy++) if (w.isWater(from.offset(0, -dy, 0))) return true;
         return false;
     }
 
@@ -62,7 +66,8 @@ public final class DiagonalAscend extends Move {
         // never plans the unexecutable +1 climb the bot would only bob-stall against.
         if (w.isFloatingWater(from)) return false;
         BlockPos to = apply(from);
-        if (w.isSubmergedAscent(from, to)) return false;   // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
+        if (w.isSubmergedAscent(from, to))
+            return false; // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
         if (!w.canStandAt(to)) return false;
         // Jump clearance over the launch head (foot.y + 2).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
@@ -78,9 +83,12 @@ public final class DiagonalAscend extends Move {
         // crosses, not of the launch row. Gating only the flat Diagonal was an exemption written
         // narrower than its family — the third such in two days; rung 20 kept leaving the world
         // from island rims (-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6) after the flat one closed.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid
-                && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB))
+            return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
-    public String name() { return "diagUp"; }
+
+    public String name() {
+        return "diagUp";
+    }
 }

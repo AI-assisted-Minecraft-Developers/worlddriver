@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -40,13 +39,12 @@ class ClientRouteTest {
      * with its {@code planId} arrives and its result reports {@code adopted}. How many searches the navigator made on
      * the way is reported, not judged: the off-path safety re-search supersedes the adopted route on the first tick of
      * any lane longer than three cells (it measures the distance to the tracked NODE, and after string-pulling a
-     * 12-cell lane is one edge whose far end is 12 cells away; measuring to the edge instead broke the entity-leash
-     * and pillar-ledger walks). Then the player is put six cells off the previewed line, past the adoption gate's
-     * four, and the same call must decline with a reason and search normally.
+     * 12-cell lane is one edge whose far end is 12 cells away; measuring to the edge instead broke the entity-leash and
+     * pillar-ledger walks). Then the player is put six cells off the previewed line, past the adoption gate's four, and
+     * the same call must decline with a reason and search normally.
      */
     @Test
-    void clientRoutePreviewAdopted(Game game, Client client, Player player,
-                                   @Plot.Centered @Plot.Size(32) Plot plot) {
+    void clientRoutePreviewAdopted(Game game, Client client, Player player, @Plot.Centered @Plot.Size(32) Plot plot) {
         floor(plot, -3, 15, -9, 4);
         BlockPos start = plot.at(0, GROUND + 1, 0);
         BlockPos goal = plot.at(12, GROUND + 1, 0);
@@ -60,38 +58,45 @@ class ClientRouteTest {
         game.check(!action(planned).isEmpty(), "A: the preview is accepted as an action: " + planned);
         Map<?, ?> preview = awaitEnd(game, client, actionId(planned), 200, null);
         Map<?, ?> plan = result(preview);
-        game.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")),
+        game.check(
+                "succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")),
                 "B: the preview reaches the goal: " + preview);
 
-        Map<String, Object> walked = Calls.byName(client.registry(), "mc.bot.goto",
-                Map.of("planId", String.valueOf(plan.get("planId"))));
-        int[] arrived = { -1 };
-        int[] t = { 0 };
+        Map<String, Object> walked =
+                Calls.byName(client.registry(), "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))));
+        int[] arrived = {-1};
+        int[] t = {0};
         Map<?, ?> trip = awaitEnd(game, client, actionId(walked), 400, () -> {
             if (arrived[0] < 0 && rig.flatDistance(goal) <= 1.0) arrived[0] = t[0];
             t[0]++;
         });
         // The searches of the goto just ended: its navigator is the last one self was asked to run.
-        long searches = rig.debug().navigator(NavigatorParams.of(ClientRig.SELF)).counter("searches");
+        long searches =
+                rig.debug().navigator(NavigatorParams.of(ClientRig.SELF)).counter("searches");
         Map<?, ?> adoption = result(trip).get("plan") instanceof Map<?, ?> a ? a : Map.of();
         String after = trip + ", " + rig.where() + ", arrived at poll " + arrived[0] + ", full searches: " + searches;
-        game.check(Boolean.TRUE.equals(adoption.get("adopted")), "C: the goto with a planId adopts the preview: "
-                + adoption + "; " + after);
-        game.check(arrived[0] >= 0 || rig.flatDistance(goal) <= 1.5, "D: the player arrives along the adopted route: "
-                + after);
+        game.check(
+                Boolean.TRUE.equals(adoption.get("adopted")),
+                "C: the goto with a planId adopts the preview: " + adoption + "; " + after);
+        game.check(
+                arrived[0] >= 0 || rig.flatDistance(goal) <= 1.5,
+                "D: the player arrives along the adopted route: " + after);
 
         // Part two: preview the way back, then stand six cells off the line.
         Map<String, Object> back = goTo(client, start, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
-        String backId = String.valueOf(result(awaitEnd(game, client, actionId(back), 200, null)).get("planId"));
+        String backId = String.valueOf(
+                result(awaitEnd(game, client, actionId(back), 200, null)).get("planId"));
         BlockPos off = plot.at(12, GROUND + 1, -6);
-        player.runOnServer(p -> p.teleportTo(p.serverLevel(), off.getX() + 0.5, off.getY(), off.getZ() + 0.5, Set.of(),
-                90f, 0f));
+        player.runOnServer(
+                p -> p.teleportTo(p.serverLevel(), off.getX() + 0.5, off.getY(), off.getZ() + 0.5, Set.of(), 90f, 0f));
         rig.sync(20);
         Map<String, Object> declined = Calls.byName(client.registry(), "mc.bot.goto", Map.of("planId", backId));
-        game.check(!action(declined).isEmpty(), "G: when it declines, the goto still starts its own search: " + declined);
+        game.check(
+                !action(declined).isEmpty(), "G: when it declines, the goto still starts its own search: " + declined);
         Map<?, ?> trip2 = awaitEnd(game, client, actionId(declined), 400, null);
         Map<?, ?> adoption2 = result(trip2).get("plan") instanceof Map<?, ?> a ? a : Map.of();
-        game.check(Boolean.FALSE.equals(adoption2.get("adopted")) && adoption2.get("reason") != null,
+        game.check(
+                Boolean.FALSE.equals(adoption2.get("adopted")) && adoption2.get("reason") != null,
                 "F: with the player 6 blocks away from the preview's start, the goto declines to adopt and gives a "
                         + "reason: " + trip2);
     }
@@ -102,8 +107,8 @@ class ClientRouteTest {
      * of its own, ends with a result, and the walk's action is running the whole time.
      */
     @Test
-    void clientRoutePreviewDoesNotInterrupt(Game game, Client client, Player player,
-                                            @Plot.Centered @Plot.Size(x = 64, y = 16, z = 32) Plot plot) {
+    void clientRoutePreviewDoesNotInterrupt(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 64, y = 16, z = 32) Plot plot) {
         int x = -20;
         floor(plot, x - 3, x + 42, -7, 7);
         BlockPos start = plot.at(x, GROUND + 1, 0);
@@ -129,7 +134,8 @@ class ClientRouteTest {
         Map<?, ?> ended = awaitEnd(game, client, actionId(preview), 300, null);
         Object walking = read(client, walkId).get("state");
         game.check("succeeded".equals(ended.get("state")), "E: the preview ends with a result: " + ended);
-        game.check("running".equals(walking) || rig.flatDistance(far) <= 1.5,
+        game.check(
+                "running".equals(walking) || rig.flatDistance(far) <= 1.5,
                 "F: the walk is still in progress (or has arrived) when the preview ends: " + walking + ", player "
                         + rig.where());
     }
@@ -140,30 +146,44 @@ class ClientRouteTest {
      * {@code constraint:ForbidRegion}, not the built-in filter that pruned more.
      */
     @Test
-    void clientRouteBlockedEventFires(Game game, Client client, Player player, @Plot.Centered @Plot.Size(32) Plot plot) {
+    void clientRouteBlockedEventFires(
+            Game game, Client client, Player player, @Plot.Centered @Plot.Size(32) Plot plot) {
         floor(plot, -3, 14, -5, 5);
         BlockPos start = plot.at(0, GROUND + 1, 0);
         BlockPos goal = plot.at(10, GROUND + 1, 0);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         rig.sync(30);
         // The event is the client navigator's, so it is in the client's ring.
-        String cursor = String.valueOf(Calls.byName(client.registry(), "mc.observe.cursor", Map.of()).get("cursor"));
-        Map<String, Object> box = Map.of("shape", "box", "min", pos(goal.offset(-3, -1, -5)),
-                "max", pos(goal.offset(4, 3, 5)), "mode", "forbid");
+        String cursor = String.valueOf(
+                Calls.byName(client.registry(), "mc.observe.cursor", Map.of()).get("cursor"));
+        Map<String, Object> box = Map.of(
+                "shape",
+                "box",
+                "min",
+                pos(goal.offset(-3, -1, -5)),
+                "max",
+                pos(goal.offset(4, 3, 5)),
+                "mode",
+                "forbid");
         Map<String, Object> reply = goTo(client, goal, Map.of("route", Map.of("regions", List.of(box))));
         game.check(!action(reply).isEmpty(), "A: the goto starts: " + reply);
 
         List<Map<?, ?>> got = new ArrayList<>();
         for (int t = 0; t < 300 && got.isEmpty(); t++) {
-            Object evs = Calls.byName(client.registry(), "mc.observe.eventsSince",
-                    Map.of("cursor", cursor, "types", List.of("route.blocked"))).get("events");
+            Object evs = Calls.byName(
+                            client.registry(),
+                            "mc.observe.eventsSince",
+                            Map.of("cursor", cursor, "types", List.of("route.blocked")))
+                    .get("events");
             if (evs instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> e) got.add(e);
             if (got.isEmpty()) game.ticks(1);
         }
         game.check(!got.isEmpty(), "B: a route.blocked event arrives within 300 ticks");
         Object reason = got.isEmpty() || !(got.get(0).get("data") instanceof Map<?, ?> d) ? null : d.get("reason");
-        game.check("constraint:ForbidRegion".equals(reason),
-                "C: the reason names the hard constraint declared by this call: " + (got.isEmpty() ? "none" : got.get(0)));
+        game.check(
+                "constraint:ForbidRegion".equals(reason),
+                "C: the reason names the hard constraint declared by this call: "
+                        + (got.isEmpty() ? "none" : got.get(0)));
     }
 
     // ---------------------------------------------------------------- calls by name
@@ -195,8 +215,8 @@ class ClientRouteTest {
 
     /** The action as {@code mc.wait.result} reads it now. */
     private static Map<?, ?> read(Client client, String actionId) {
-        Map<String, Object> r = Calls.byName(client.registry(), "mc.wait.result",
-                Map.of("kind", "action", "actionId", actionId));
+        Map<String, Object> r =
+                Calls.byName(client.registry(), "mc.wait.result", Map.of("kind", "action", "actionId", actionId));
         return r.get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
 
@@ -204,7 +224,9 @@ class ClientRouteTest {
         return action.get("result") instanceof Map<?, ?> r ? r : Map.of();
     }
 
-    /** The action once it has ended, or as it stands after {@code ticks}; {@code watch} (may be null) runs each poll. */
+    /**
+     * The action once it has ended, or as it stands after {@code ticks}; {@code watch} (may be null) runs each poll.
+     */
     private static Map<?, ?> awaitEnd(Game game, Client client, String actionId, int ticks, Runnable watch) {
         Map<?, ?> last = Map.of();
         for (int waited = 0; waited <= ticks; waited++) {

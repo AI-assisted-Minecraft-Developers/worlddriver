@@ -6,16 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
-
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoTotem.Click;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoTotem.Held;
 import org.junit.jupiter.api.Test;
 
 /**
- * The offhand swap sends whatever the offhand held into the slot the totem came from. AutoShield
- * only looks at the offhand and the hotbar, so a shield that lands in the backpack is a shield the
- * bot never raises again. These tests replay the clicks against a model of the menu and ask where
- * the shield ends up.
+ * The offhand swap sends whatever the offhand held into the slot the totem came from. AutoShield only looks at the
+ * offhand and the hotbar, so a shield that lands in the backpack is a shield the bot never raises again. These tests
+ * replay the clicks against a model of the menu and ask where the shield ends up.
  */
 class AutoTotemPlanTest {
 
@@ -32,7 +30,11 @@ class AutoTotemPlanTest {
     private static final class Inventory {
         final Held[] menu;
         Held offhand;
-        Inventory(Held offhand, Held[] menu) { this.offhand = offhand; this.menu = menu; }
+
+        Inventory(Held offhand, Held[] menu) {
+            this.offhand = offhand;
+            this.menu = menu;
+        }
 
         void apply(Click c) {
             Held clicked = menu[c.slot()];
@@ -57,7 +59,8 @@ class AutoTotemPlanTest {
         }
 
         boolean shieldOnHotbar() {
-            for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++) if (menu[i] == Held.SHIELD) return true;
+            for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++)
+                if (menu[i] == Held.SHIELD) return true;
             return false;
         }
     }
@@ -70,7 +73,9 @@ class AutoTotemPlanTest {
         Inventory inv = new Inventory(Held.SHIELD, menu);
         inv.settle();
         assertEquals(Held.TOTEM, inv.offhand);
-        assertTrue(inv.shieldOnHotbar(), "the displaced shield must stay where AutoShield looks: " + Arrays.toString(inv.menu));
+        assertTrue(
+                inv.shieldOnHotbar(),
+                "the displaced shield must stay where AutoShield looks: " + Arrays.toString(inv.menu));
     }
 
     @Test
@@ -81,7 +86,9 @@ class AutoTotemPlanTest {
         inv.settle();
         assertEquals(Held.TOTEM, inv.offhand);
         assertTrue(inv.shieldOnHotbar(), Arrays.toString(inv.menu));
-        assertEquals(Held.OTHER, inv.menu[AutoTotem.FIRST_HOTBAR + SELECTED],
+        assertEquals(
+                Held.OTHER,
+                inv.menu[AutoTotem.FIRST_HOTBAR + SELECTED],
                 "the main hand's item is not the one to push into the backpack");
     }
 

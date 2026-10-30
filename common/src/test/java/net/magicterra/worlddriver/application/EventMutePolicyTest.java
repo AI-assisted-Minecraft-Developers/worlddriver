@@ -1,40 +1,36 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.application.DriverApplication;
-
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.TestJson;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.config.BotConfig;
+import org.junit.jupiter.api.Test;
 
 /**
- * {@code mc.bot.setting{mutedEvents}} is applied once, by {@link DriverApplication}, before
- * any listener runs.
+ * {@code mc.bot.setting{mutedEvents}} is applied once, by {@link DriverApplication}, before any listener runs.
  *
- * <p>It used to be applied by each transport instead — {@code RpcServer.onEvent} and
- * {@code McpServer.onEvent} each carried their own copy of the same line. Two
- * transports independently re-implementing one policy is the arrangement where a
- * third is muted only if its author remembers to be, and where the two can drift
- * apart without anything failing. AGENTS.md hard rule #1 already says behavior does
- * not live in a transport handler; this is that rule applied to the push path.
+ * <p>It used to be applied by each transport instead — {@code RpcServer.onEvent} and {@code McpServer.onEvent} each
+ * carried their own copy of the same line. Two transports independently re-implementing one policy is the arrangement
+ * where a third is muted only if its author remembers to be, and where the two can drift apart without anything
+ * failing. AGENTS.md hard rule #1 already says behavior does not live in a transport handler; this is that rule applied
+ * to the push path.
  */
 class EventMutePolicyTest {
 
-    /** Emissions are dispatched FIFO on DriverApplication's single-thread executor, so once a
-     *  later event has been delivered every earlier one has already been processed —
-     *  no sleep needed to conclude that a muted event was dropped rather than late. */
-    private static List<String> deliveredAfterEmitting(Set<String> muted, String... types)
-            throws Exception {
+    /**
+     * Emissions are dispatched FIFO on DriverApplication's single-thread executor, so once a later event has been
+     * delivered every earlier one has already been processed — no sleep needed to conclude that a muted event was
+     * dropped rather than late.
+     */
+    private static List<String> deliveredAfterEmitting(Set<String> muted, String... types) throws Exception {
         Set<String> saved = BotConfig.mutedEvents;
         BotConfig.mutedEvents = muted;
         try {
@@ -56,14 +52,14 @@ class EventMutePolicyTest {
 
     @Test
     void mutedTypesNeverReachAListener() throws Exception {
-        assertEquals(List.of("kept"),
-                deliveredAfterEmitting(Set.of("noisy"), "noisy", "kept"));
+        assertEquals(List.of("kept"), deliveredAfterEmitting(Set.of("noisy"), "noisy", "kept"));
     }
 
-    /** An empty set is what {@link BotConfig#mutedEvents} ships as, so this is every
-     *  out-of-the-box client. {@code events.subscribe} reads {@code types:[]} as "all
-     *  types"; the same reading here would mute everything, and no other test here
-     *  mutes nothing. */
+    /**
+     * An empty set is what {@link BotConfig#mutedEvents} ships as, so this is every out-of-the-box client.
+     * {@code events.subscribe} reads {@code types:[]} as "all types"; the same reading here would mute everything, and
+     * no other test here mutes nothing.
+     */
     @Test
     void anEmptyMuteSetDeliversEveryEventInOrder() throws Exception {
         assertEquals(List.of("a", "b"), deliveredAfterEmitting(Set.of(), "a", "b"));
@@ -84,8 +80,7 @@ class EventMutePolicyTest {
             DriverApplication api = new DriverApplication();
             long before = api.eventSeq.get();
             api.emitExternal("noisy", null, JsonValue.of(TestJson.json("payload")));
-            assertEquals(before + 1, api.eventSeq.get(),
-                    "a muted event must still be recorded and numbered");
+            assertEquals(before + 1, api.eventSeq.get(), "a muted event must still be recorded and numbered");
         } finally {
             BotConfig.mutedEvents = saved;
         }

@@ -1,11 +1,15 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import net.magicterra.worlddriver.bot.control.act.Keys;
-import net.magicterra.worlddriver.bot.control.ResetScope;
-import net.magicterra.worlddriver.bot.control.TickStep;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
 import java.util.EnumSet;
 import java.util.Set;
-
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.BreakFeasibility;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -17,38 +21,36 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-
 /**
- * Getting a floating bot out of the water onto a bank it cannot swim up: the foothold takeover, which
- * pillars the bot's own column out of the water with blocks from the hand, and the bank dig, which breaks a
- * notch into the bank for a bot with no block to place (or whose foothold proved futile there). Both catch
- * a bob-stall no matter how A* labelled the climb (plain StepUp, StairUpBreak into the bank, …).
+ * Getting a floating bot out of the water onto a bank it cannot swim up: the foothold takeover, which pillars the bot's
+ * own column out of the water with blocks from the hand, and the bank dig, which breaks a notch into the bank for a bot
+ * with no block to place (or whose foothold proved futile there). Both catch a bob-stall no matter how A* labelled the
+ * climb (plain StepUp, StairUpBreak into the bank, …).
  *
- * <p>A floating bot can't gain height onto a bank whose top sits ABOVE the water surface: swim-up tops out
- * AT the surface (~0.6 short of the step-up grab) and a break/pillar can't actuate from deep water either —
- * so it bob-cycles forever (live trace: y6.2 peak → sinks to y4.7, no NET rise). Once stalled with no
- * vertical progress, this takes over. The stall counter only advances while in the climb context, so a
- * working swim-up that leaves the context never trips it. The pathfinder is unchanged by any of it.
+ * <p>A floating bot can't gain height onto a bank whose top sits ABOVE the water surface: swim-up tops out AT the
+ * surface (~0.6 short of the step-up grab) and a break/pillar can't actuate from deep water either — so it bob-cycles
+ * forever (live trace: y6.2 peak → sinks to y4.7, no NET rise). Once stalled with no vertical progress, this takes
+ * over. The stall counter only advances while in the climb context, so a working swim-up that leaves the context never
+ * trips it. The pathfinder is unchanged by any of it.
  *
- * <p>Its state is its own fields below; what it reads about
- * the climb context each tick is computed in {@link #sense}, whether it runs or not.
+ * <p>Its state is its own fields below; what it reads about the climb context each tick is computed in {@link #sense},
+ * whether it runs or not.
  */
 public final class WaterClimb implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.allOf(Channel.class);
 
-    /** How far above the engage foot the pillar may climb before bailing to the fallback actuators. Named
-     *  so the ceiling and the rise reported by {@link NavigatorTelemetry#waterPillarTopRise} cannot drift
-     *  apart, and so the reader can see it is a CONSTANT above a FIXED anchor — the whole defect this
-     *  replaced was an anchor that moved with the bot. */
+    /**
+     * How far above the engage foot the pillar may climb before bailing to the fallback actuators. Named so the ceiling
+     * and the rise reported by {@link NavigatorTelemetry#waterPillarTopRise} cannot drift apart, and so the reader can
+     * see it is a CONSTANT above a FIXED anchor — the whole defect this replaced was an anchor that moved with the bot.
+     */
     private static final int PILLAR_CEILING_RISE = 5;
 
-    /** The crest gate's bound — {@link #crestClearOf}. Above mud's 0.875 collision top with 0.025 to
-     *  spare, and below the 1.0 a full cube needs, which is exactly the discrimination wanted. */
+    /**
+     * The crest gate's bound — {@link #crestClearOf}. Above mud's 0.875 collision top with 0.025 to spare, and below
+     * the 1.0 a full cube needs, which is exactly the discrimination wanted.
+     */
     private static final double CREST_CLEAR = 0.9;
 
     // ---- this tick's climb context, from sense() ----
@@ -57,33 +59,90 @@ public final class WaterClimb implements Controller {
     private int digStall;
 
     // ---- what the climb-out remembers across ticks; StallDetect reads digging, the inspector more ----
-    int stall;                // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
-    private int touchRecent;          // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
-    private int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
-    public boolean pillaring;        // latched: pillaring up the bot's column to bank stand level
-    public boolean digging;          // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
-    private BlockPos lastDigRiser;    // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
-    private double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
-    public BlockPos digRiser;        // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
-    private int digCommitTicks;       // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
-    public int digFloatTicks;        // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (navigatorFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
-    private int futileBankDigCooldown;    // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (navigatorFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
-    public boolean pillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
-    private BlockPos gaveUpPos;       // where the pillar proved futile (navigatorClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
-    private int gaveUpTtl;            // ticks left on the sticky gave-up latch (navigatorClimbGaveUpSticky); decremented per tick, 0 = expired
-    public int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-    private BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. BlockInteraction.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
-    private int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
-    int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
-    int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
-    float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
-    private boolean sideRung;         // this takeover has placed a side foothold: keys are anticipatory from here (forward only while wet, jump only wet or settled on the ground); cleared at engage
-    private final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit, however dry (navigatorShallowWaterSideFoothold)
-    private int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (navigatorBankDigGroundBlip)
+    int stall; // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
+    private int touchRecent; // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface
+    // breaches (see WATER_TOUCH_STICKY)
+    private int wantClimbRecent; // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath
+    // flicker (see WANT_CLIMB_STICKY)
+    public boolean pillaring; // latched: pillaring up the bot's column to bank stand level
+    public boolean
+            digging; // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the
+    // anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its
+    // own)
+    private BlockPos
+            lastDigRiser; // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so
+    // the camera holds steady instead of juddering off the bobbing eye — the bob keeps the
+    // crosshair on the 1-tall block between re-aims
+    private double lastDigAimEyeY =
+            Double.NaN; // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough
+    // (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only
+    // assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
+    public BlockPos
+            digRiser; // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or
+    // lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a
+    // neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh
+    // (drift-arena over-dig fix)
+    private int
+            digCommitTicks; // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't
+    // disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by
+    // hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
+    public int digFloatTicks; // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT
+    // (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang
+    // early-release (navigatorFutileBankDigRelease): a high count + a >=2-above-foot riser that
+    // breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches
+    // ground and resets this)
+    private int
+            futileBankDigCooldown; // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang
+    // early-release (navigatorFutileBankDigRelease) — gives the reactive back-off burst
+    // time to physically move the bot off the unreachable riser before any dig can
+    // re-latch it; decremented per tick
+    public boolean
+            pillarGaveUp; // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak
+    // never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over
+    // even with a place block in hand; cleared when the climb context ends
+    private BlockPos
+            gaveUpPos; // where the pillar proved futile (navigatorClimbGaveUpSticky) — while the foot stays within 3
+    // blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps)
+    // so the proven-futile pillar can't re-engage in a loop
+    private int
+            gaveUpTtl; // ticks left on the sticky gave-up latch (navigatorClimbGaveUpSticky); decremented per tick, 0 =
+    // expired
+    public int
+            pillarNoPlaceTicks; // ticks the pillar takeover has been engaged without a successful place / height gain —
+    // buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS
+    // the place is hopeless and we fall to the dig
+    private BlockPos
+            placeAttemptCell; // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger
+    // above can ask whether it actually filled. BlockInteraction.place is void — the click
+    // has no verdict — and vanilla refuses any placement whose cell still intersects the
+    // bot's AABB, so "clicked" and "placed" are different events and only the second one is
+    // progress. Cleared once read.
+    private int pillarHighWaterY =
+            Integer.MIN_VALUE; // highest foot.getY() this takeover has reached — the OTHER half of "successful place /
+    // height
+    // gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every
+    // cycle, so "higher than last tick" is true forever and would count buoyancy as progress;
+    // "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at
+    // engagePillar so a re-locked column cannot inherit the previous segment's height.
+    int targetY; // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
+    int colX, colZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
+    float yaw; // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
+    private boolean
+            sideRung; // this takeover has placed a side foothold: keys are anticipatory from here (forward only while
+    // wet, jump only wet or settled on the ground); cleared at engage
+    private final java.util.Set<BlockPos> placedRungs = new java.util
+            .HashSet<>(); // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit,
+    // however dry (navigatorShallowWaterSideFoothold)
+    private int
+            digGroundedStreak; // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must
+    // not break the dig commit (navigatorBankDigGroundBlip)
 
-    /** The climb-out state a new goal or a replan clears. Not cleared: lastDigAimEyeY (re-snapped per dig
-     *  aim), the locked engage column and heading (read only while pillaring), digGroundedStreak (per commit). */
-    @Override public void reset(ResetScope scope) {
+    /**
+     * The climb-out state a new goal or a replan clears. Not cleared: lastDigAimEyeY (re-snapped per dig aim), the
+     * locked engage column and heading (read only while pillaring), digGroundedStreak (per commit).
+     */
+    @Override
+    public void reset(ResetScope scope) {
         stall = 0;
         touchRecent = 0;
         wantClimbRecent = 0;
@@ -102,13 +161,28 @@ public final class WaterClimb implements Controller {
         futileBankDigCooldown = 0;
     }
 
-    @Override public String name() { return "waterClimb"; }
-    @Override public Set<Channel> channels() { return CHANNELS; }
-    @Override public int priority() { return 3; }
-    /** Bounded by its own ledgers: the pillar's futility count and ceiling, the dig's per-riser commit cap. */
-    @Override public int maxTicks() { return Integer.MAX_VALUE; }
+    @Override
+    public String name() {
+        return "waterClimb";
+    }
 
-    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public Set<Channel> channels() {
+        return CHANNELS;
+    }
+
+    @Override
+    public int priority() {
+        return 3;
+    }
+    /** Bounded by its own ledgers: the pillar's futility count and ceiling, the dig's per-riser commit cap. */
+    @Override
+    public int maxTicks() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public void sense(Navigator nav, TickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
@@ -117,7 +191,8 @@ public final class WaterClimb implements Controller {
         // the foot leaves the futile bank (>3 blocks) or the TTL runs out.
         if (nav.waterClimb.gaveUpTtl > 0) {
             nav.waterClimb.gaveUpTtl--;
-            if (nav.waterClimb.gaveUpTtl == 0 || nav.waterClimb.gaveUpPos == null
+            if (nav.waterClimb.gaveUpTtl == 0
+                    || nav.waterClimb.gaveUpPos == null
                     || Math.abs(foot.getX() - nav.waterClimb.gaveUpPos.getX()) > 3
                     || Math.abs(foot.getZ() - nav.waterClimb.gaveUpPos.getZ()) > 3) {
                 nav.waterClimb.gaveUpTtl = 0;
@@ -144,7 +219,8 @@ public final class WaterClimb implements Controller {
         // Treat "afloat + horizontally colliding while touching water" as wanting to climb so the
         // existing climb-out recovery (bank-dig / foothold-pillar) engages over the lip.
         boolean floatingBankRam = ControlConfig.navigatorFloatingBankBobFreeze
-                && !p.onGround() && p.horizontalCollision
+                && !p.onGround()
+                && p.horizontalCollision
                 && (world.isWater(foot) || world.isWater(foot.below()));
         // Water climb-out LATERAL gate (navigatorWaterClimbLateralGate, task#91 structural, default ON,
         // baseline-EXEMPT): a floating bot climbs a bank ONLY when the climb waypoint sits horizontally
@@ -155,8 +231,8 @@ public final class WaterClimb implements Controller {
         // re-arms once swum adjacent. A genuine bank climb-out has cwp directly beside/below the float
         // (Chebyshev 0-1) so it is unchanged. floatingBankRam (a real in-place wall-ram) is exempt.
         int cwpLatDist = Math.max(Math.abs(cwp.getX() - foot.getX()), Math.abs(cwp.getZ() - foot.getZ()));
-        boolean climbTargetBeside = !ControlConfig.navigatorWaterClimbLateralGate
-                || cwpLatDist <= WATER_CLIMB_LATERAL_MAX;
+        boolean climbTargetBeside =
+                !ControlConfig.navigatorWaterClimbLateralGate || cwpLatDist <= WATER_CLIMB_LATERAL_MAX;
         boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
         // THE INTENT IS MEASURED AGAINST THE SURFACE, NOT THE BOBBING FOOT. `cwp.y > foot.y` is
         // true at the bottom of a bob and false at its top, and a bot pressed into a bank rides
@@ -166,7 +242,10 @@ public final class WaterClimb implements Controller {
         // A dry waypoint beside the bot at or above its column's surface cell is a climb-out
         // whatever the foot reads this tick.
         boolean surfaceClimbIntent = false;
-        if (ControlConfig.navigatorClimbIntentFromSurface && edge != null && touchingWater && climbTargetBeside
+        if (ControlConfig.navigatorClimbIntentFromSurface
+                && edge != null
+                && touchingWater
+                && climbTargetBeside
                 && !world.isWater(cwp)) {
             int surfY = foot.getY();
             while (world.isWater(new BlockPos(foot.getX(), surfY + 1, foot.getZ()))) surfY++;
@@ -175,7 +254,8 @@ public final class WaterClimb implements Controller {
         }
         // The surface cruise's dip sinks the foot under its (water) node on purpose; that is not a
         // climb-out, and this takeover's jump + sprint cancel would undo the pose every stroke.
-        wantClimbNow = edge != null && !nav.drive.driveLatch.cruiseOn
+        wantClimbNow = edge != null
+                && !nav.drive.driveLatch.cruiseOn
                 && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam || surfaceClimbIntent);
         if (touchingWater) nav.waterClimb.touchRecent = WATER_TOUCH_STICKY;
         else if (nav.waterClimb.touchRecent > 0) nav.waterClimb.touchRecent--;
@@ -193,11 +273,13 @@ public final class WaterClimb implements Controller {
         // capped per-riser (WATER_CLIMB_DIG_COMMIT_CAP, reset on each fresh riser) so a
         // genuinely stuck dig still releases to repath. Held only while afloat and still
         // beside the riser — grounding out (climbed) or drifting >2 off it ends it.
-        if (p.onGround()) nav.waterClimb.digGroundedStreak++; else nav.waterClimb.digGroundedStreak = 0;
-        boolean digGroundBlipOk = !p.onGround()
-                || (ControlConfig.navigatorBankDigGroundBlip && nav.waterClimb.digGroundedStreak <= 5);
+        if (p.onGround()) nav.waterClimb.digGroundedStreak++;
+        else nav.waterClimb.digGroundedStreak = 0;
+        boolean digGroundBlipOk =
+                !p.onGround() || (ControlConfig.navigatorBankDigGroundBlip && nav.waterClimb.digGroundedStreak <= 5);
         boolean digCommitted = nav.waterClimb.digRiser != null
-                && world.isSolid(nav.waterClimb.digRiser) && digGroundBlipOk
+                && world.isSolid(nav.waterClimb.digRiser)
+                && digGroundBlipOk
                 && Math.abs(foot.getX() - nav.waterClimb.digRiser.getX()) <= 2
                 && Math.abs(foot.getZ() - nav.waterClimb.digRiser.getZ()) <= 2
                 && nav.waterClimb.digCommitTicks < WATER_CLIMB_DIG_COMMIT_CAP;
@@ -217,14 +299,29 @@ public final class WaterClimb implements Controller {
         // pillar↔dig↔repath thrash ~105 s). Ride the isInWater bob-blink with the latch.
         boolean buoyantFloat = !p.onGround() && (p.isInWater() || nav.aim.surfaceWaterLatch > 0);
         deepDig = (world.isWater(foot.below()) || buoyantFloat)
-                && nav.mayBreak() && WorldConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
+                && nav.mayBreak()
+                && WorldConfig.allowSwimEscapeBreak; // mayBreak(): honor per-goto forbidDig, not just the global switch
         // The climb context's inputs, one row per wet tick: the takeover and the bank dig are
         // gated on these, and a bob-stall with no event in the log is unreadable without them.
         if (GameConfig.navigatorDebug && nearWater)
-            LOG.info("[navigator] climb-ctx cwp={},{},{} wantNow={} (foot={} ram={} surface={}) want={} near={} climbing={} stall={} deepDig={} pillaring={} gaveUp={} digging={} riser={}",
-                    cwp.getX(), cwp.getY(), cwp.getZ(), wantClimbNow, cwp.getY() > foot.getY() && climbTargetBeside,
-                    floatingBankRam, surfaceClimbIntent, wantClimb, nearWater, waterClimbing, nav.waterClimb.stall,
-                    deepDig, nav.waterClimb.pillaring, nav.waterClimb.pillarGaveUp, cx.stall.dugLastTick, nav.waterClimb.digRiser);
+            LOG.info(
+                    "[navigator] climb-ctx cwp={},{},{} wantNow={} (foot={} ram={} surface={}) want={} near={} climbing={} stall={} deepDig={} pillaring={} gaveUp={} digging={} riser={}",
+                    cwp.getX(),
+                    cwp.getY(),
+                    cwp.getZ(),
+                    wantClimbNow,
+                    cwp.getY() > foot.getY() && climbTargetBeside,
+                    floatingBankRam,
+                    surfaceClimbIntent,
+                    wantClimb,
+                    nearWater,
+                    waterClimbing,
+                    nav.waterClimb.stall,
+                    deepDig,
+                    nav.waterClimb.pillaring,
+                    nav.waterClimb.pillarGaveUp,
+                    cx.stall.dugLastTick,
+                    nav.waterClimb.digRiser);
         if ((!wantClimb || !nearWater) && !digCommitted) {
             // Left the climb context (grounded on the bank, or A* now routes
             // down/along) → clear the per-attempt accounting AND the "pillar
@@ -234,7 +331,8 @@ public final class WaterClimb implements Controller {
             // latch here is what let the proven-futile pillar re-engage 26× until the bot
             // drowned (live 2026-06-29). While the foot is still at the futile bank, keep it.
             nav.waterClimb.stall = 0;
-            if (!(ControlConfig.navigatorClimbGaveUpSticky && nav.waterClimb.gaveUpTtl > 0)) nav.waterClimb.pillarGaveUp = false;
+            if (!(ControlConfig.navigatorClimbGaveUpSticky && nav.waterClimb.gaveUpTtl > 0))
+                nav.waterClimb.pillarGaveUp = false;
             nav.waterClimb.pillarNoPlaceTicks = 0;
             nav.waterClimb.lastDigRiser = null;
             nav.waterClimb.digRiser = null;
@@ -265,14 +363,20 @@ public final class WaterClimb implements Controller {
             // +1 grounded staircase dig can't reach here: its riser is +1 (below the rise
             // gate), it grounds (resets floatTicks), and the riser breaks (resets the
             // counter via the fresh-riser path).
-            if (ControlConfig.navigatorFutileBankDigRelease && digCommitted
-                    && nav.waterClimb.digRiser != null && world.isSolid(nav.waterClimb.digRiser)
+            if (ControlConfig.navigatorFutileBankDigRelease
+                    && digCommitted
+                    && nav.waterClimb.digRiser != null
+                    && world.isSolid(nav.waterClimb.digRiser)
                     && nav.waterClimb.digFloatTicks > FUTILE_BANK_DIG_TICKS
                     && nav.waterClimb.digRiser.getY() - foot.getY() >= FUTILE_BANK_DIG_MIN_RISE) {
                 if (GameConfig.navigatorDebug)
-                    LOG.info("[navigator] futile bank-dig release: riser {},{},{} (+{} above foot) unbroken for {} afloat ticks → drop dig, hand to recovery",
-                            nav.waterClimb.digRiser.getX(), nav.waterClimb.digRiser.getY(), nav.waterClimb.digRiser.getZ(),
-                            nav.waterClimb.digRiser.getY() - foot.getY(), nav.waterClimb.digFloatTicks);
+                    LOG.info(
+                            "[navigator] futile bank-dig release: riser {},{},{} (+{} above foot) unbroken for {} afloat ticks → drop dig, hand to recovery",
+                            nav.waterClimb.digRiser.getX(),
+                            nav.waterClimb.digRiser.getY(),
+                            nav.waterClimb.digRiser.getZ(),
+                            nav.waterClimb.digRiser.getY() - foot.getY(),
+                            nav.waterClimb.digFloatTicks);
                 world.penalizeStuckNode(foot);
                 world.penalizeStuckNode(foot.above());
                 nav.waterClimb.pillarGaveUp = true;
@@ -294,7 +398,9 @@ public final class WaterClimb implements Controller {
         // ~4 s dig window with NO dig swinging, fall back to the pillar despite deepDig so the
         // placeable lifts the bot onto the bank. Flag-gated; default OFF keeps this byte-identical.
         boolean swimAshorePillarFallback = ControlConfig.navigatorSwimAshorePillarDespiteDeepDig
-                && deepDig && !cx.stall.dugLastTick && nav.waterClimb.stall > WATER_CLIMB_DIG_STALL;
+                && deepDig
+                && !cx.stall.dugLastTick
+                && nav.waterClimb.stall > WATER_CLIMB_DIG_STALL;
         // FOOTHOLD FIRST. `deepDig` used to send a bot holding a block to the dig before the
         // pillar, on the belief that a buoyant bob can never lift its feet clear of the surface
         // fill cell. The real client refutes it: a bot pressed INTO the bank rides vanilla's
@@ -304,9 +410,12 @@ public final class WaterClimb implements Controller {
         // put in front of it. So the pillar goes first whenever a block is in hand; a bank where
         // the place really cannot land hands over to the dig through `placeFutile` (50 ticks),
         // which is still seven times cheaper than the shortest floating dig.
-        if (waterClimbing && nav.waterClimb.stall > WATER_CLIMB_STALL && !nav.waterClimb.pillarGaveUp
+        if (waterClimbing
+                && nav.waterClimb.stall > WATER_CLIMB_STALL
+                && !nav.waterClimb.pillarGaveUp
                 && (!deepDig || swimAshorePillarFallback || ControlConfig.navigatorFootholdBeforeBankDig)
-                && ControlConfig.allowSwimEscapePlace && nav.equipment.holdPlaceable()) {
+                && ControlConfig.allowSwimEscapePlace
+                && nav.equipment.holdPlaceable()) {
             // THIS CONDITION IS SATISFIED ON EVERY TICK OF A PILLAR THAT IS ALREADY RUNNING,
             // so everything latched below has to be gated on the transition rather than on
             // the condition. `nav.waterClimb.stall` is only cleared when the climb context is
@@ -315,15 +424,19 @@ public final class WaterClimb implements Controller {
             // `if` re-enters every tick. Re-entry is the normal case here, not an edge case.
             boolean engaging = !nav.waterClimb.pillaring;
             if (engaging && GameConfig.navigatorDebug)
-                LOG.info("[navigator] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
-                        cwp.getX(), cwp.getY(), cwp.getZ());
+                LOG.info(
+                        "[navigator] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
+                        cwp.getX(),
+                        cwp.getY(),
+                        cwp.getZ());
             nav.waterClimb.pillaring = true;
             if (engaging) engagePillar(nav, p, foot, cwp);
         }
         digStall = deepDig ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
         // Post-release dig lockout (navigatorFutileBankDigRelease). Counted on ticks the takeover is
         // not running, the ticks the dig below could have fired on.
-        if (!nav.waterClimb.pillaring && nav.waterClimb.futileBankDigCooldown > 0) nav.waterClimb.futileBankDigCooldown--;
+        if (!nav.waterClimb.pillaring && nav.waterClimb.futileBankDigCooldown > 0)
+            nav.waterClimb.futileBankDigCooldown--;
         // navigatorBankDigSkipWhenCwpSwims: the committed path's NEXT node (cwp) being a WATER cell
         // means the bot should SWIM into it, not dig — the real climb-out (a stepUp onto land)
         // sits FURTHER along the path, not here. Digging at a water-routed waypoint is premature:
@@ -339,16 +452,19 @@ public final class WaterClimb implements Controller {
         cwpSwims = ControlConfig.navigatorBankDigSkipWhenCwpSwims && world.isWater(cwp);
     }
 
-    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         if (nav.waterClimb.pillaring) return null;
         return whyNoDig(nav);
     }
 
-    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
         return whyNot(nav, cx, world) == null;
     }
 
-    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
+    @Override
+    public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // PILLAR-UP climb-out: place support blocks in the bot's OWN column up to the
@@ -366,24 +482,23 @@ public final class WaterClimb implements Controller {
         return bankDigTick(nav, a, world, p, foot);
     }
 
-    @Override public void stop(String why) {}
+    @Override
+    public void stop(String why) {}
 
     /**
      * Why the bank dig may not fire this tick, or null when it may.
      *
-     * <p>Block-less climb-out fallback: a buoyant bot bob-stalled below a +1 bank with NO usable
-     * (non-falling) support block can't pillar — but it can DIG. Break the single bank riser toward the
-     * climb node at foot level so the +1 mount becomes a flat swim into the notch: the bot enters the freed
-     * cell, grounds on whatever's below, and the next step is a normal grounded climb (or a clean repath
-     * from the lower cell). Gated identically to the pillar takeover (waterClimbing + bob-stalled) so a
-     * grounded land step never triggers it. Fires when there's no place block OR the pillar gave up here
-     * (climbPillarGaveUp) — a buoyant bob can't lift its feet above a surface fill cell, so for a bank whose
-     * top is above the water the DIG is the reliable primitive whether or not blocks are in hand (the live
-     * z1940 deadlock had sand/gravel/cobble yet the place never cleared → 90 s bob; the dig breaks the riser
-     * and the bot swims into the notch). (live 2026-06-15: deep-water +1 dirt bank, sand/gravel-only
-     * inventory → holdPlaceable false → 12.6s bob-stall, move=diagUp with empty toBreak so neither
-     * swimAshore nor the floating-pocket break engaged; bob peak y63.56 sat 0.44 below the y64 ledge, hCol
-     * ramming the riser every tick.)
+     * <p>Block-less climb-out fallback: a buoyant bot bob-stalled below a +1 bank with NO usable (non-falling) support
+     * block can't pillar — but it can DIG. Break the single bank riser toward the climb node at foot level so the +1
+     * mount becomes a flat swim into the notch: the bot enters the freed cell, grounds on whatever's below, and the
+     * next step is a normal grounded climb (or a clean repath from the lower cell). Gated identically to the pillar
+     * takeover (waterClimbing + bob-stalled) so a grounded land step never triggers it. Fires when there's no place
+     * block OR the pillar gave up here (climbPillarGaveUp) — a buoyant bob can't lift its feet above a surface fill
+     * cell, so for a bank whose top is above the water the DIG is the reliable primitive whether or not blocks are in
+     * hand (the live z1940 deadlock had sand/gravel/cobble yet the place never cleared → 90 s bob; the dig breaks the
+     * riser and the bot swims into the notch). (live 2026-06-15: deep-water +1 dirt bank, sand/gravel-only inventory →
+     * holdPlaceable false → 12.6s bob-stall, move=diagUp with empty toBreak so neither swimAshore nor the
+     * floating-pocket break engaged; bob peak y63.56 sat 0.44 below the y64 ledge, hCol ramming the riser every tick.)
      */
     private String whyNoDig(Navigator nav) {
         if (nav.waterClimb.pillaring) return "the foothold takeover is running";
@@ -391,10 +506,12 @@ public final class WaterClimb implements Controller {
         if (nav.waterClimb.stall <= digStall) return "not stalled long enough";
         if (nav.waterClimb.futileBankDigCooldown > 0) return "a futile dig was just released here";
         if (cwpSwims) return "the route swims on";
-        if (!(nav.mayBreak() && WorldConfig.allowSwimEscapeBreak)) return "may not dig";   // mayBreak(): honor per-goto forbidDig, not just the global switch
+        if (!(nav.mayBreak() && WorldConfig.allowSwimEscapeBreak))
+            return "may not dig"; // mayBreak(): honor per-goto forbidDig, not just the global switch
         // deepDig no longer jumps the queue past a block in hand — see the foothold-first
         // note at the pillar takeover; the pillar's own `placeFutile` bail sets pillarGaveUp.
-        if (!(!nav.equipment.holdPlaceable() || nav.waterClimb.pillarGaveUp
+        if (!(!nav.equipment.holdPlaceable()
+                || nav.waterClimb.pillarGaveUp
                 || (deepDig && !ControlConfig.navigatorFootholdBeforeBankDig))) return "a foothold goes first";
         return null;
     }
@@ -424,18 +541,19 @@ public final class WaterClimb implements Controller {
         // points BACKWARD of cwp so the scan re-runs and re-picks a forward exit (or null →
         // no dig → swim the path). cwp follows the planned path, so this respects a path that
         // legitimately routes backward (its cwp points backward too).
-        if (riser != null && ControlConfig.navigatorBankDigForwardExit
+        if (riser != null
+                && ControlConfig.navigatorBankDigForwardExit
                 && (cwp.getX() != foot.getX() || cwp.getZ() != foot.getZ())) {
             int rdx = riser.getX() - foot.getX();
             int rdz = riser.getZ() - foot.getZ();
             int gdx0 = Integer.signum(cwp.getX() - foot.getX());
             int gdz0 = Integer.signum(cwp.getZ() - foot.getZ());
-            if (rdx * gdx0 + rdz * gdz0 < 0) riser = null;   // latched backward → force re-scan
+            if (rdx * gdx0 + rdz * gdz0 < 0) riser = null; // latched backward → force re-scan
         }
         if (riser == null || !world.isSolid(riser)) {
             riser = freshRiser(world, p, foot);
             nav.waterClimb.digRiser = riser;
-            nav.waterClimb.digCommitTicks = 0;   // fresh riser → fresh per-block commit budget
+            nav.waterClimb.digCommitTicks = 0; // fresh riser → fresh per-block commit budget
         }
         // Hopeless-dig gate on the LATCHED riser too: the latch predates the
         // gate (or the stance changed — e.g. the bot sank into deep water), and
@@ -447,14 +565,20 @@ public final class WaterClimb implements Controller {
         if (riser != null && Digging.breathInfeasibleDig(p, riser)) {
             BreakFeasibility.poison(riser, Digging.BREATH_POISON_TTL_MS);
             if (GameConfig.navigatorDebug)
-                LOG.info("[navigator] hopeless bank dig {} — poisoned {}s, latch dropped", riser, Digging.BREATH_POISON_TTL_MS / 1000);
+                LOG.info(
+                        "[navigator] hopeless bank dig {} — poisoned {}s, latch dropped",
+                        riser,
+                        Digging.BREATH_POISON_TTL_MS / 1000);
             nav.waterClimb.digRiser = null;
             riser = null;
         }
         if (riser == null) return false;
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] water climb-out: block-less bank dig (bob-stalled, no place block) riser={},{},{}",
-                    riser.getX(), riser.getY(), riser.getZ());
+            LOG.info(
+                    "[navigator] water climb-out: block-less bank dig (bob-stalled, no place block) riser={},{},{}",
+                    riser.getX(),
+                    riser.getY(),
+                    riser.getZ());
         nav.equipment.selectTool(riser);
         // Re-aim at the riser EVERY tick. The buoyant bot bobs at a bank (and dips underwater),
         // so any tick we SKIP the re-aim the mining ray slips off the riser face and vanilla
@@ -473,7 +597,7 @@ public final class WaterClimb implements Controller {
         BlockPos digCell = Digging.avatarDig(nav, a, riser, false);
         nav.waterClimb.lastDigRiser = digCell;
         nav.waterClimb.lastDigAimEyeY = p.getEyeY();
-        world.signals().digging = true;   // AutoSwim's backstop yields while air is healthy
+        world.signals().digging = true; // AutoSwim's backstop yields while air is healthy
         // Mark the dig active: next tick's breakingEdge holds the leash and
         // exempts the burst so the dig can finish (see the breakingEdge note).
         // Clear any burst count accrued during the pre-dig bob-stall so the
@@ -519,15 +643,15 @@ public final class WaterClimb implements Controller {
     }
 
     /**
-     * The riser to dig when none is latched: climb toward the NEAREST dry-standable EXIT (a cell the bot
-     * can stand on: solid floor, 2 air above, no water), NOT the far lateral goal (cwp). The old cwp
-     * direction made the bot trench the waterline layer SIDEWAYS toward a far goal — tunnelling INTO the
-     * bank at one Y and never stepping up onto the land 1-2 blocks above (live 2026-06-20: buried in the
-     * hill at y63 for 5 min digging +x toward the 2600 goal instead of the +2 to the y65 land). Aim at the
-     * closest way OUT; the onward path resumes once grounded on dry land. Null when no column is diggable.
+     * The riser to dig when none is latched: climb toward the NEAREST dry-standable EXIT (a cell the bot can stand on:
+     * solid floor, 2 air above, no water), NOT the far lateral goal (cwp). The old cwp direction made the bot trench
+     * the waterline layer SIDEWAYS toward a far goal — tunnelling INTO the bank at one Y and never stepping up onto the
+     * land 1-2 blocks above (live 2026-06-20: buried in the hill at y63 for 5 min digging +x toward the 2600 goal
+     * instead of the +2 to the y65 land). Aim at the closest way OUT; the onward path resumes once grounded on dry
+     * land. Null when no column is diggable.
      */
     private BlockPos freshRiser(WorldView world, LivingEntity p, BlockPos foot) {
-        int dx = Integer.signum(cwp.getX() - foot.getX());   // fallback: goal direction
+        int dx = Integer.signum(cwp.getX() - foot.getX()); // fallback: goal direction
         int dz = Integer.signum(cwp.getZ() - foot.getZ());
         int bestExitD2 = Integer.MAX_VALUE;
         // navigatorBankDigForwardExit: the omnidirectional exit scan below picks the NEAREST
@@ -542,18 +666,20 @@ public final class WaterClimb implements Controller {
         // too, so "forward" follows the PATH (the immediate waypoint), not the absolute goal.
         // Independent of navigatorBuoyantSearchFromSurface (which fixes the search START): even
         // a correctly forward path can have its exit scan pick a closer backward exit.
-        boolean fwdExitGuard = ControlConfig.navigatorBankDigForwardExit
-                && (cwp.getX() != foot.getX() || cwp.getZ() != foot.getZ());
+        boolean fwdExitGuard =
+                ControlConfig.navigatorBankDigForwardExit && (cwp.getX() != foot.getX() || cwp.getZ() != foot.getZ());
         int gdx = Integer.signum(cwp.getX() - foot.getX());
         int gdz = Integer.signum(cwp.getZ() - foot.getZ());
         for (int sx = -4; sx <= 4; sx++)
             for (int sz = -4; sz <= 4; sz++) {
                 if (sx == 0 && sz == 0) continue;
-                if (fwdExitGuard && (sx * gdx + sz * gdz) < 0) continue;   // skip backward-hemisphere exits
+                if (fwdExitGuard && (sx * gdx + sz * gdz) < 0) continue; // skip backward-hemisphere exits
                 for (int sy = 1; sy <= 4; sy++) {
                     BlockPos land = new BlockPos(foot.getX() + sx, foot.getY() + sy, foot.getZ() + sz);
-                    if (world.isSolid(land.below()) && !world.isSolid(land)
-                            && !world.isSolid(land.above()) && !world.isWater(land)
+                    if (world.isSolid(land.below())
+                            && !world.isSolid(land)
+                            && !world.isSolid(land.above())
+                            && !world.isWater(land)
                             && !world.isWater(land.below())) {
                         int d2 = sx * sx + sz * sz;
                         if (d2 < bestExitD2) {
@@ -561,14 +687,15 @@ public final class WaterClimb implements Controller {
                             dx = Integer.signum(sx);
                             dz = Integer.signum(sz);
                         }
-                        break;   // nearest (lowest) exit in this column
+                        break; // nearest (lowest) exit in this column
                     }
                 }
             }
         BlockPos[] cands = {
-                (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
-                dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
-                dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null};
+            (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
+            dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
+            dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null
+        };
         // Dig the forward column's LOWEST solid cell ABOVE the waterline — a DRY notch
         // whose floor (the cell below it) stays solid, so the bob-jump can ground on
         // it (the +1 climb-out). Anchored on the bot's water-column surface Y (steady),
@@ -598,8 +725,8 @@ public final class WaterClimb implements Controller {
             // can never finish (bare-hand floating stone &c.) so the scan
             // falls through to a diggable column or to no dig at all —
             // the same gate the latched-riser check below applies.
-            if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang
-                    && !Digging.breathInfeasibleDig(p, riserCand)) return riserCand;
+            if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang && !Digging.breathInfeasibleDig(p, riserCand))
+                return riserCand;
         }
         return null;
     }
@@ -607,27 +734,24 @@ public final class WaterClimb implements Controller {
     /**
      * The climb-out's own crest gate: may the bot click NOW, into the cell it is standing in?
      *
-     * <p><b>Why {@link NavigatorGeometry#feetClearOf} cannot be used here.</b> On the locked column the fill
-     * cell IS the bot's foot cell ({@code colFoot == foot}), so "feet entirely above the cell" expands to
-     * {@code p.getY() >= floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place
-     * fewer blocks, it places NONE, for every bot and every held item; the whole self-column family
-     * goes silent. {@code [cell.y+0.9, cell.y+1.0)} is the ONLY window in which a self-column click
-     * can exist at all.
+     * <p><b>Why {@link NavigatorGeometry#feetClearOf} cannot be used here.</b> On the locked column the fill cell IS
+     * the bot's foot cell ({@code colFoot == foot}), so "feet entirely above the cell" expands to {@code p.getY() >=
+     * floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place fewer blocks, it places NONE, for every
+     * bot and every held item; the whole self-column family goes silent. {@code [cell.y+0.9, cell.y+1.0)} is the ONLY
+     * window in which a self-column click can exist at all.
      *
-     * <p><b>Why a click in that window is not automatically refused.</b> Vanilla intersects the bot
-     * against {@code state.getCollisionShape(...)}, and the blocks this takeover actually carries are
-     * not full cubes: {@code MudBlock.SHAPE = Block.box(0,0,0,16,14,16)} — 14/16 = 0.875 tall, as are
-     * soul sand, farmland and dirt path. (Its {@code getBlockSupportShape} IS the full cube; they are
-     * different shapes and only the collision one is asked here.) A bot at {@code cell.y + 0.95}
-     * clears mud's top by 0.075 and vanilla accepts. That is not a loophole — it is the mechanism the
-     * water-bank climb-out is built on: fill the cell under your own feet, then jump off it, one cell
-     * per cycle.
+     * <p><b>Why a click in that window is not automatically refused.</b> Vanilla intersects the bot against
+     * {@code state.getCollisionShape(...)}, and the blocks this takeover actually carries are not full cubes:
+     * {@code MudBlock.SHAPE = Block.box(0,0,0,16,14,16)} — 14/16 = 0.875 tall, as are soul sand, farmland and dirt
+     * path. (Its {@code getBlockSupportShape} IS the full cube; they are different shapes and only the collision one is
+     * asked here.) A bot at {@code cell.y + 0.95} clears mud's top by 0.075 and vanilla accepts. That is not a loophole
+     * — it is the mechanism the water-bank climb-out is built on: fill the cell under your own feet, then jump off it,
+     * one cell per cycle.
      *
-     * <p><b>What it costs when the hand holds a full cube.</b> The click fires and vanilla refuses it.
-     * That is correct and, since {@code faa3189}, free: the futility ledger counts LANDINGS, not
-     * clicks, so a refused click reads as no progress and the dig fallback still gets the bank on
-     * schedule. Before that ledger existed this gate had to be conservative to keep refusals from
-     * laundering themselves into progress; it no longer does.
+     * <p><b>What it costs when the hand holds a full cube.</b> The click fires and vanilla refuses it. That is correct
+     * and, since {@code faa3189}, free: the futility ledger counts LANDINGS, not clicks, so a refused click reads as no
+     * progress and the dig fallback still gets the bank on schedule. Before that ledger existed this gate had to be
+     * conservative to keep refusals from laundering themselves into progress; it no longer does.
      */
     static boolean crestClearOf(LivingEntity p, BlockPos cell) {
         return p.getY() >= cell.getY() + CREST_CLEAR;
@@ -636,28 +760,42 @@ public final class WaterClimb implements Controller {
     /**
      * One tick of the climb-out's place attempt, and of the ledger that decides when to stop trying.
      *
-     * <p><b>The ledger counts RESULTS, and it has to lag a tick to do it.</b> Only the world can say
-     * whether a placement landed, and it cannot say so until the tick after the click. This used to
-     * be written as "clicked → zero the counter", which is a different event: {@link BlockInteraction#place}
-     * returns {@code void}, so the click never had a verdict to report, and a bot sitting in the
-     * band where vanilla refuses every placement pressed the button forever while gaining nothing.
-     * The counter is what hands this bank over to the dig ({@code placeFutile} in
-     * {@link #pillarTakeoverTick}), so resetting it on an event that is compatible with total failure
-     * disabled that fallback outright — it could not fire, ever.
+     * <p><b>The ledger counts RESULTS, and it has to lag a tick to do it.</b> Only the world can say whether a
+     * placement landed, and it cannot say so until the tick after the click. This used to be written as "clicked → zero
+     * the counter", which is a different event: {@link BlockInteraction#place} returns {@code void}, so the click never
+     * had a verdict to report, and a bot sitting in the band where vanilla refuses every placement pressed the button
+     * forever while gaining nothing. The counter is what hands this bank over to the dig ({@code placeFutile} in
+     * {@link #pillarTakeoverTick}), so resetting it on an event that is compatible with total failure disabled that
+     * fallback outright — it could not fire, ever.
      *
-     * <p>Someone else filling the cell also counts, and should: the bot is no worse off for not
-     * having done it itself, and the next rung is what matters.
+     * <p>Someone else filling the cell also counts, and should: the bot is no worse off for not having done it itself,
+     * and the next rung is what matters.
      */
-    private static void climboutPlaceTick(Navigator nav, Body a, WorldView world, LivingEntity p,
-                                          BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
+    private static void climboutPlaceTick(
+            Navigator nav,
+            Body a,
+            WorldView world,
+            LivingEntity p,
+            BlockPos fillCell,
+            BlockPos foot,
+            boolean dryGrounded) {
         boolean fcSolid = world.isSolid(fillCell);
         boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
         boolean fcCleared = crestClearOf(p, fillCell);
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
-                    nav.waterClimb.colX, nav.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
-                    String.format("%.2f", p.getY()), fillCell.getY() + CREST_CLEAR,
-                    dryGrounded, foot.getY(), nav.waterClimb.targetY);
+            LOG.info(
+                    "[navigator] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
+                    nav.waterClimb.colX,
+                    nav.waterClimb.colZ,
+                    fillCell.getY(),
+                    fcSolid,
+                    fcSupport,
+                    fcCleared,
+                    String.format("%.2f", p.getY()),
+                    fillCell.getY() + CREST_CLEAR,
+                    dryGrounded,
+                    foot.getY(),
+                    nav.waterClimb.targetY);
         // TWO ways to be making progress, and the second one is not a courtesy. The takeover's
         // product is "fill the cell under my own feet, then jump off it", one cell per cycle — the
         // fill and the rise are two readings of ONE event, taken a tick apart, and either may be the
@@ -683,7 +821,7 @@ public final class WaterClimb implements Controller {
         } else {
             nav.waterClimb.pillarNoPlaceTicks++;
         }
-        if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
+        if (!fcSolid && fcSupport && fcCleared) { // feet cleared the cell
             nav.tel.waterPillarPlaceCalls++;
             nav.blocks.place(world::isSolid, fillCell);
             // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
@@ -696,37 +834,32 @@ public final class WaterClimb implements Controller {
     /**
      * Latch the pillar takeover's column, heading and safety ceiling — <b>once, at engage</b>.
      *
-     * <p>The takeover pillars the bot's own column STRAIGHT UP, pinned to one bank, until it tops
-     * out of the water onto dry ground. Following the live (repathing) node instead made the bot
-     * wander between columns — chasing dive-to-floor and other-column pillar nodes A* kept
-     * replanning — and lose the wall-supported foothold (live round76c: engaged toward y145 pool
-     * floor + x2438→2441 drift, never climbed out).
+     * <p>The takeover pillars the bot's own column STRAIGHT UP, pinned to one bank, until it tops out of the water onto
+     * dry ground. Following the live (repathing) node instead made the bot wander between columns — chasing
+     * dive-to-floor and other-column pillar nodes A* kept replanning — and lose the wall-supported foothold (live
+     * round76c: engaged toward y145 pool floor + x2438→2441 drift, never climbed out).
      *
-     * <p><b>⚠️ Everything here is a LATCH, and it is a separate method so that it has exactly one
-     * call site and that call site is behind the engage transition.</b> The caller's condition is
-     * satisfied on every tick of a pillar that is already running — {@code waterClimb.stall} is
-     * cleared only when the climb context is LEFT, and a bot busy pillaring is still in the
-     * context, so {@code stall} only grows and the branch re-enters every tick. Running these four
-     * assignments on each of those ticks is what the missing gate used to do, and it silently
-     * undid BOTH of the things they exist for:
+     * <p><b>⚠️ Everything here is a LATCH, and it is a separate method so that it has exactly one call site and that
+     * call site is behind the engage transition.</b> The caller's condition is satisfied on every tick of a pillar that
+     * is already running — {@code waterClimb.stall} is cleared only when the climb context is LEFT, and a bot busy
+     * pillaring is still in the context, so {@code stall} only grows and the branch re-enters every tick. Running these
+     * four assignments on each of those ticks is what the missing gate used to do, and it silently undid BOTH of the
+     * things they exist for:
      *
      * <ul>
-     *   <li>the column/heading re-locked onto wherever the bot had drifted to — which IS the
-     *       round76c drift the lock was written to stop; the latch followed the bot instead of
-     *       pinning it;</li>
-     *   <li>the safety ceiling re-anchored to the current foot, so the caller's
-     *       {@code tooHigh = foot.getY() > targetY} read {@code foot.getY() > foot.getY() + 5}
-     *       (one {@code foot} per tick, from {@code cx.frame.foot}) and was UNCONDITIONALLY FALSE.
-     *       The bail could not fire, and it failed hardest exactly when it was needed most: the
-     *       longer the bot stayed wedged, the larger {@code stall} grew and the more reliably the
-     *       ceiling was pushed back out of reach.</li>
+     *   <li>the column/heading re-locked onto wherever the bot had drifted to — which IS the round76c drift the lock
+     *       was written to stop; the latch followed the bot instead of pinning it;
+     *   <li>the safety ceiling re-anchored to the current foot, so the caller's {@code tooHigh = foot.getY() > targetY}
+     *       read {@code foot.getY() > foot.getY() + 5} (one {@code foot} per tick, from {@code cx.frame.foot}) and was
+     *       UNCONDITIONALLY FALSE. The bail could not fire, and it failed hardest exactly when it was needed most: the
+     *       longer the bot stayed wedged, the larger {@code stall} grew and the more reliably the ceiling was pushed
+     *       back out of reach.
      * </ul>
      *
-     * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is
-     * meant to bound can never bind it.</b> Keeping the assignment of
-     * {@link #targetY} to a single call site inside a method named for the
-     * transition is the structural half of the fix — a future "just refresh it each tick" has to go
-     * through this name first.
+     * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is meant to bound can
+     * never bind it.</b> Keeping the assignment of {@link #targetY} to a single call site inside a method named for the
+     * transition is the structural half of the fix — a future "just refresh it each tick" has to go through this name
+     * first.
      */
     private static void engagePillar(Navigator nav, LivingEntity p, BlockPos foot, BlockPos cwp) {
         nav.tel.waterPillarEngages++;
@@ -741,266 +874,300 @@ public final class WaterClimb implements Controller {
         nav.waterClimb.sideRung = false;
         double ex = (cwp.getX() + 0.5) - p.getX();
         double ez = (cwp.getZ() + 0.5) - p.getZ();
-        nav.waterClimb.yaw = (ex * ex + ez * ez > 1e-4)
-                ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
+        nav.waterClimb.yaw = (ex * ex + ez * ez > 1e-4) ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
         // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
         // foot, then bail to the fallback actuators.
         nav.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
     }
 
     /**
-     * One tick of an ENGAGED pillar takeover: decide whether it is over (topped out dry, over the
-     * ceiling, no block, drifted, stale, futile) and otherwise drive the rise — heading pinned to
-     * the latched column, fill cell chosen, keys pressed, the click made. Returns the step to
-     * report when the tick is consumed, {@code null} when the takeover has let go and the caller's
-     * ordinary actuators / bank-dig take the tick.
+     * One tick of an ENGAGED pillar takeover: decide whether it is over (topped out dry, over the ceiling, no block,
+     * drifted, stale, futile) and otherwise drive the rise — heading pinned to the latched column, fill cell chosen,
+     * keys pressed, the click made. Returns the step to report when the tick is consumed, {@code null} when the
+     * takeover has let go and the caller's ordinary actuators / bank-dig take the tick.
      */
-    private static TickStep pillarTakeoverTick(Navigator nav, Body a, WorldView world, LivingEntity p,
-                                                  BlockPos foot, BlockPos cwp, boolean wantClimbNow, boolean wantClimb) {
-                boolean haveBlock = ControlConfig.allowSwimEscapePlace && nav.equipment.holdPlaceable();
-                // Done when we've topped out onto DRY solid ground (grounded, clear of
-                // water). The old `foot.y >= targetY` test fired the instant targetY was
-                // a path node BELOW us (A* dives to the pool floor), declaring success at
-                // the water surface before any real climb — round76c. A terrain test is
-                // robust to whatever A* planned and to the exact bank height.
-                boolean dryGrounded = p.onGround() && !p.isInWater()
-                        && !world.isWater(foot) && !world.isWater(foot.below())
-                        // ...AND actually topped out — not a MID-WALL rung. On a tall sheer
-                        // climb the takeover places a rung, grounds on it dry, and this fired
-                        // "topped out" at every +1 → flush-walk → repath → re-engage; without
-                        // this the climb-out sometimes never completes (buoyantWallArena run
-                        // reached only y-mid-wall, onPlateau=false). While the climb node is
-                        // still ≥2 above the foot the wall continues up; only a node at ~foot
-                        // level is the real bank top.
-                        && !(wantClimbNow && cwp.getY() - foot.getY() >= 2)
-                        // ...AND there is somewhere to WALK to. The climb node the takeover latched
-                        // can sit BELOW the bank top (a swimAshore break target in the pool wall),
-                        // so the rise test above read "topped out" on a 1×1 rung one course under
-                        // the rim, A* then asked for a diagonal step-up off that rung, and the bot
-                        // walked off it back into the pool (wd.clientOneHighBankPlaceOut: a second
-                        // climb-out, 500 ticks). A rung is the top only when a dry cell beside it
-                        // can be stepped onto flush or down; otherwise the column keeps going up.
-                        && (!ControlConfig.navigatorPillarTopsOutAtFlushExit || flushExitBeside(world, foot, nav.waterClimb.placedRungs));
-                boolean tooHigh = foot.getY() > nav.waterClimb.targetY;
-                // Reported whether or not it fires: this bail was unconditionally false until the
-                // engage latch was fixed, and the water-climb family records no evidence at all, so
-                // a guard that could not fire changed no colour and nothing in the suite could see
-                // it. Rise is kept so "never got near" differs from "never asked". See Navigator.
-                if (tooHigh) nav.tel.waterPillarCeilingBails++;
-                nav.tel.waterPillarTopRise = Math.max(nav.tel.waterPillarTopRise,
-                        foot.getY() - (nav.waterClimb.targetY - PILLAR_CEILING_RISE));
-                // Self-correction: the latch pins the bot to ONE locked column +
-                // heading, which goes stale two ways in a live crossing — (a) the bot
-                // DRIFTS off the column (swimming along a continuous bank), so the place
-                // targets an unreachable far cell; (b) A* repaths the climb away (now
-                // routes down/along → wantClimb gone), pinning the bot to a wall it
-                // should swim past. And (c) a buoyant bob simply can't lift its feet
-                // above a surface fill cell, so the place never fires. Any of these →
-                // release the latch; for (a)/(c)/over-ceiling, remember it
-                // (climbPillarGaveUp) so the bank-DIG takes this bank instead of the
-                // pillar re-engaging into the same hopeless bob. (live 2026-06-15:
-                // latched col z1954, bot drifted to z1940 while the path went diagDown —
-                // 90 s deadlock bobbing at an unreachable column.)
-                boolean drifted = Math.abs(foot.getX() - nav.waterClimb.colX) > 2
-                        || Math.abs(foot.getZ() - nav.waterClimb.colZ) > 2;
-                // In side-rung mode the intent is allowed to flicker: the climb node A* named sits
-                // at the bot's level as soon as the first rung is mounted, and "no longer
-                // climbing" then dropped the takeover one course under the bank, handing a bot on
-                // a 1×1 rung in a current to the ordinary navigator. The mode ends on its own terms —
-                // a flush exit, the ceiling, or futility (wd.clientFlowingTrenchPlaceOut, run 22).
-                boolean staleClimb = !wantClimb && !(ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung);
-                boolean placeFutile = nav.waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS;
-                if (dryGrounded || tooHigh || !haveBlock || drifted || staleClimb || placeFutile) {
-                    nav.waterClimb.pillaring = false;
-                    nav.waterClimb.pillarNoPlaceTicks = 0;
-                    if (dryGrounded) {
-                        // Out of the water on solid ground → re-plan; a flush walk now.
-                        nav.route.drop("water climb-out topped out on dry ground");
-                        nav.stuckTicks = 0;
-                        nav.totalTicks = 0;
-                        nav.waterClimb.stall = 0;
-                        // The takeover owned the heading for the whole climb; the aim's low-pass
-                        // state went on smoothing toward nodes the bot was never facing. Left as
-                        // it was, the first dry walk starts up to 180° off and the dry-land EMA
-                        // (0.08) closes on a node bearing that rotates as fast as it turns — the
-                        // bot orbits the node a block out, for hundreds of ticks
-                        // (wd.clientFlowingChannelPlaceOut, run 22: yaw wound from 69 to -817).
-                        if (ControlConfig.navigatorClimbOutResyncsAim) nav.aim.aimSmooth.reset();
-                        if (GameConfig.navigatorDebug)
-                            LOG.info("[navigator] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
-                        return TickStep.WALKING;
-                    }
-                    // Only "give up" the pillar (block re-engage, hand off to the bank-DIG)
-                    // when that DIG can actually fire — i.e. breaking is allowed. With break
-                    // OFF (no pickaxe: the live +2 mud-bank case) there is NO fallback, so
-                    // latching climbPillarGaveUp would strand the bot bobbing forever. Leaving
-                    // it false lets the pillar RE-ENGAGE next tick, re-locking the column to the
-                    // bot's current foot — which the locked-heading forward press has nudged
-                    // toward the bank — so the column RATCHETS to the supported bank-adjacent
-                    // cell and the foothold-place finally lands (the pre-faa3189 behavior the
-                    // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
-                    boolean digFallbackHere = nav.mayBreak() && WorldConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
-                    if ((drifted || placeFutile || tooHigh) && digFallbackHere) {
-                        nav.waterClimb.pillarGaveUp = true;
-                        // navigatorClimbGaveUpSticky: anchor the latch to THIS bank so repath-driven
-                        // context resets can't clear it while the bot is still here (15s TTL).
-                        if (ControlConfig.navigatorClimbGaveUpSticky) {
-                            nav.waterClimb.gaveUpPos = foot;
-                            nav.waterClimb.gaveUpTtl = 300;
-                        }
-                    }
-                    if (GameConfig.navigatorDebug)
-                        LOG.info("[navigator] water climb-out: bail ({}) → fallback",
-                                !haveBlock ? "no block" : tooHigh ? "over ceiling"
-                                : drifted ? "drifted off column" : placeFutile ? "place futile"
-                                : "no longer climbing");
-                    return null;   // the normal actuators / bank-dig take the tick
-                }
-                return pillarDriveTick(nav, a, world, p, foot, dryGrounded);
-    }
-
-    /**
-     * The rising half of an engaged pillar takeover, one tick: heading pinned to the latched
-     * column, the fill cell chosen (surface cell afloat, the cell on the column's solid top when
-     * dry), the side-foothold branch for one-deep water, the keys, and the click.
-     */
-    private static TickStep pillarDriveTick(Navigator nav, Body a, WorldView world, LivingEntity p,
-                                               BlockPos foot, boolean dryGrounded) {
-                // Pin to the LOCKED bank heading + column; look down to aim the place.
-                p.setYRot(nav.waterClimb.yaw); p.yHeadRot = nav.waterClimb.yaw; p.yBodyRot = nav.waterClimb.yaw;
-                p.setXRot(40f);
-                p.setSprinting(false);
-                // Standing dry after a side rung, the column is wherever the bot actually
-                // stands: it mounts the rung by its edge, centre over the next column, and a
-                // fill aimed at the rung's column meets the bot's box while one under its own
-                // centre does not. The pillar then grows under the centre — into the water cell
-                // beside the rung first, if that is what is there — and the bot ends on a
-                // full column of its own.
-                if (ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung
-                        && p.onGround() && !p.isInWater()) {
-                    nav.waterClimb.colX = foot.getX();
-                    nav.waterClimb.colZ = foot.getZ();
-                }
-                // Fill the top water cell of the LOCKED column (floating) or the feet
-                // cell (grounded on the fresh rung) — not the live foot column, which
-                // drifts off the wall-supported pillar.
-                BlockPos colFoot = new BlockPos(nav.waterClimb.colX, foot.getY(), nav.waterClimb.colZ);
-                // THE TOP WATER CELL OF THE COLUMN, wherever the bob has carried the foot. This
-                // used to fill `foot` whenever the column's foot-level cell was not water — which
-                // is every tick the boost lifts the bot INTO THE AIR above the surface, i.e.
-                // exactly the ticks the place could land. The target then followed the bob: at
-                // y 221.2 it asked for cell 221 and "cleared" at 221.9, back at 220.6 it asked for
-                // 220, and the one-tick window where 220 was both the target and cleared was
-                // skipped by the rise itself. wd.clientOneHighBankPlaceOut: 130 ticks of that
-                // cycle, no block. Reaching DOWN to the water under the foot pins the target to
-                // the surface cell; a bot grounded on its fresh rung (solid below, not water)
-                // still fills its own foot cell as before.
-                BlockPos fillCell = colFoot;
-                while (!world.isWater(fillCell) && world.isWater(fillCell.below())
-                        && fillCell.getY() > foot.getY() - 2) fillCell = fillCell.below();
-                if (!world.isWater(fillCell)) fillCell = foot;
-                while (world.isWater(fillCell.above())) fillCell = fillCell.above();
-                // DRY COLUMN: the cell to fill is the one standing on the column's solid top, not
-                // the airborne foot. Taking `foot` here let the target ride the jump — at y 221.0
-                // it asked for 221 and "cleared" at 221.9 — so a bot jumping off its own rung
-                // never had a fillable cell under it (wd.clientFlowingTrenchPlaceOut, third run).
-                boolean dryColumn = ControlConfig.navigatorShallowWaterSideFoothold && !world.isWater(fillCell)
-                        && !p.isInWater();
-                if (dryColumn) {
-                    while (!world.isSolid(fillCell.below()) && !world.isWater(fillCell.below())
-                            && fillCell.getY() > foot.getY() - 2) fillCell = fillCell.below();
-                }
-                // ONE-DEEP WATER WITH A FLOOR, bot afloat: the fill cell is the foot cell and
-                // the feet cannot clear it. In a layer higher than 0.4 the jump key swims
-                // (LivingEntity.aiStep: in water and not grounded → jumpInLiquid), the bot
-                // hovers between y+0.24 and y+0.96 and vanilla refuses a block that meets its
-                // box — wd.clientFlowingTrenchPlaceOut: 50 ticks of "cleared" at .95, no rung.
-                // The rung that CAN land is the one beside the bot: a neighbour cell at foot
-                // level is clear of the box, its floor is the support, and once it is solid
-                // the forward press rides the +0.3 collision boost onto it. Standing there,
-                // dry, the ordinary ground-jump pillar takes over. The column re-latches onto
-                // the foothold so the next fill cell is the foot on it, not the water beside.
-                boolean shallowAfloat = ControlConfig.navigatorShallowWaterSideFoothold && !p.onGround()
-                        && p.isInWater() && fillCell.equals(foot) && world.isSolid(foot.below());
-                // A rung already placed beside the bot (the column re-latched onto it) is the
-                // one to mount: keep the heading on it while the current carries the bot, and
-                // place nothing new. Without this the drift changed `foot` every tick and each
-                // tick chose a fresh neighbour — eight dirt in a ring, and the ring then read
-                // as a flush exit one course up (wd.clientFlowingTrenchPlaceOut, first run).
-                BlockPos rung = new BlockPos(nav.waterClimb.colX, foot.getY(), nav.waterClimb.colZ);
-                // The click's block shows up a tick or two later, so the rung just asked for
-                // counts while it is still pending; the futility ledger bounds the wait.
-                boolean rungPending = rung.equals(nav.waterClimb.placeAttemptCell) && !world.isSolid(rung);
-                // A click the server has not honoured within the wait was refused (the bot's
-                // box met the cell at the server's copy of it); forget it so a fresh cell is
-                // chosen instead of treading water on a rung that will never come.
-                if (rungPending && nav.waterClimb.pillarNoPlaceTicks > PENDING_RUNG_WAIT_TICKS) {
-                    nav.waterClimb.placeAttemptCell = null;
-                    rungPending = false;
-                }
-                boolean rungBeside = shallowAfloat && !rung.equals(foot)
-                        && (world.isSolid(rung) || rungPending)
-                        && Math.abs(rung.getX() - foot.getX()) <= 1 && Math.abs(rung.getZ() - foot.getZ()) <= 1;
-                // The bot has swum INTO the cell it asked for before the block arrived (the
-                // current, or the press toward it): vanilla refuses that placement. Tread water
-                // a few ticks for the server's answer — the click was judged at the server's
-                // copy of the bot, which lags, and often lands anyway — before asking elsewhere.
-                boolean insidePending = shallowAfloat && rung.equals(foot) && rungPending
-                        && nav.waterClimb.pillarNoPlaceTicks <= PENDING_RUNG_WAIT_TICKS;
-                // Keys. The classic takeover holds forward and jump every tick: the floating bot
-                // rams the bank, the +0.3 boost lifts it, the jump-place fills the surface cell.
-                // Once a SIDE RUNG is in play the keys turn anticipatory, because a key read this
-                // tick is the state set LAST tick: a bot landing on its 1×1 rung with jump still
-                // held from the swim jumps again on the landing tick, with the swim's momentum
-                // still in it, and clears the rung entirely (wd.clientFlowingTrenchPlaceOut, run
-                // 21: mounted at x .42, airborne at .53, over the next column at 1.10). So in
-                // side-rung mode: forward only while wet (the press is what mounts the rung; dry
-                // it walks off), and never while the rung is pending (pressing swims the bot into
-                // the cell and voids the click); jump while wet, or dry once grounded with the
-                // momentum gone — released in the air so the landing tick reads it released.
-                boolean sideMode = ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung;
-                boolean wet = p.isInWater();
-                boolean settled = p.getDeltaMovement().horizontalDistanceSqr() < SETTLED_SPEED_SQ;
-                Keys.forward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
-                nav.keys.jump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
-                if (rungBeside) {
-                    nav.waterClimb.yaw = (float) Math.toDegrees(Math.atan2(
-                            -((rung.getX() + 0.5) - p.getX()), (rung.getZ() + 0.5) - p.getZ()));
-                } else if (shallowAfloat && !insidePending) {
-                    BlockPos side = sideFoothold(world, foot, nav.waterClimb.yaw, p.getBoundingBox());
-                    if (side != null) {
-                        if (GameConfig.navigatorDebug)
-                            LOG.info("[navigator] climbout-place side foothold {},{},{} (one-deep water, bot afloat at y={})",
-                                    side.getX(), side.getY(), side.getZ(), String.format("%.2f", p.getY()));
-                        nav.tel.waterPillarPlaceCalls++;
-                        nav.blocks.place(world::isSolid, side);
-                        nav.waterClimb.placeAttemptCell = side;
-                        nav.waterClimb.placedRungs.add(side);
-                        nav.waterClimb.sideRung = true;
-                        nav.waterClimb.colX = side.getX();
-                        nav.waterClimb.colZ = side.getZ();
-                        nav.waterClimb.yaw = (float) Math.toDegrees(Math.atan2(
-                                -((side.getX() + 0.5) - p.getX()), (side.getZ() + 0.5) - p.getZ()));
-                        return TickStep.WALKING;
-                    }
-                }
-                climboutPlaceTick(nav, a, world, p, fillCell, foot, dryGrounded);
+    private static TickStep pillarTakeoverTick(
+            Navigator nav,
+            Body a,
+            WorldView world,
+            LivingEntity p,
+            BlockPos foot,
+            BlockPos cwp,
+            boolean wantClimbNow,
+            boolean wantClimb) {
+        boolean haveBlock = ControlConfig.allowSwimEscapePlace && nav.equipment.holdPlaceable();
+        // Done when we've topped out onto DRY solid ground (grounded, clear of
+        // water). The old `foot.y >= targetY` test fired the instant targetY was
+        // a path node BELOW us (A* dives to the pool floor), declaring success at
+        // the water surface before any real climb — round76c. A terrain test is
+        // robust to whatever A* planned and to the exact bank height.
+        boolean dryGrounded = p.onGround()
+                && !p.isInWater()
+                && !world.isWater(foot)
+                && !world.isWater(foot.below())
+                // ...AND actually topped out — not a MID-WALL rung. On a tall sheer
+                // climb the takeover places a rung, grounds on it dry, and this fired
+                // "topped out" at every +1 → flush-walk → repath → re-engage; without
+                // this the climb-out sometimes never completes (buoyantWallArena run
+                // reached only y-mid-wall, onPlateau=false). While the climb node is
+                // still ≥2 above the foot the wall continues up; only a node at ~foot
+                // level is the real bank top.
+                && !(wantClimbNow && cwp.getY() - foot.getY() >= 2)
+                // ...AND there is somewhere to WALK to. The climb node the takeover latched
+                // can sit BELOW the bank top (a swimAshore break target in the pool wall),
+                // so the rise test above read "topped out" on a 1×1 rung one course under
+                // the rim, A* then asked for a diagonal step-up off that rung, and the bot
+                // walked off it back into the pool (wd.clientOneHighBankPlaceOut: a second
+                // climb-out, 500 ticks). A rung is the top only when a dry cell beside it
+                // can be stepped onto flush or down; otherwise the column keeps going up.
+                && (!ControlConfig.navigatorPillarTopsOutAtFlushExit
+                        || flushExitBeside(world, foot, nav.waterClimb.placedRungs));
+        boolean tooHigh = foot.getY() > nav.waterClimb.targetY;
+        // Reported whether or not it fires: this bail was unconditionally false until the
+        // engage latch was fixed, and the water-climb family records no evidence at all, so
+        // a guard that could not fire changed no colour and nothing in the suite could see
+        // it. Rise is kept so "never got near" differs from "never asked". See Navigator.
+        if (tooHigh) nav.tel.waterPillarCeilingBails++;
+        nav.tel.waterPillarTopRise =
+                Math.max(nav.tel.waterPillarTopRise, foot.getY() - (nav.waterClimb.targetY - PILLAR_CEILING_RISE));
+        // Self-correction: the latch pins the bot to ONE locked column +
+        // heading, which goes stale two ways in a live crossing — (a) the bot
+        // DRIFTS off the column (swimming along a continuous bank), so the place
+        // targets an unreachable far cell; (b) A* repaths the climb away (now
+        // routes down/along → wantClimb gone), pinning the bot to a wall it
+        // should swim past. And (c) a buoyant bob simply can't lift its feet
+        // above a surface fill cell, so the place never fires. Any of these →
+        // release the latch; for (a)/(c)/over-ceiling, remember it
+        // (climbPillarGaveUp) so the bank-DIG takes this bank instead of the
+        // pillar re-engaging into the same hopeless bob. (live 2026-06-15:
+        // latched col z1954, bot drifted to z1940 while the path went diagDown —
+        // 90 s deadlock bobbing at an unreachable column.)
+        boolean drifted =
+                Math.abs(foot.getX() - nav.waterClimb.colX) > 2 || Math.abs(foot.getZ() - nav.waterClimb.colZ) > 2;
+        // In side-rung mode the intent is allowed to flicker: the climb node A* named sits
+        // at the bot's level as soon as the first rung is mounted, and "no longer
+        // climbing" then dropped the takeover one course under the bank, handing a bot on
+        // a 1×1 rung in a current to the ordinary navigator. The mode ends on its own terms —
+        // a flush exit, the ceiling, or futility (wd.clientFlowingTrenchPlaceOut, run 22).
+        boolean staleClimb =
+                !wantClimb && !(ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung);
+        boolean placeFutile = nav.waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS;
+        if (dryGrounded || tooHigh || !haveBlock || drifted || staleClimb || placeFutile) {
+            nav.waterClimb.pillaring = false;
+            nav.waterClimb.pillarNoPlaceTicks = 0;
+            if (dryGrounded) {
+                // Out of the water on solid ground → re-plan; a flush walk now.
+                nav.route.drop("water climb-out topped out on dry ground");
+                nav.stuckTicks = 0;
+                nav.totalTicks = 0;
+                nav.waterClimb.stall = 0;
+                // The takeover owned the heading for the whole climb; the aim's low-pass
+                // state went on smoothing toward nodes the bot was never facing. Left as
+                // it was, the first dry walk starts up to 180° off and the dry-land EMA
+                // (0.08) closes on a node bearing that rotates as fast as it turns — the
+                // bot orbits the node a block out, for hundreds of ticks
+                // (wd.clientFlowingChannelPlaceOut, run 22: yaw wound from 69 to -817).
+                if (ControlConfig.navigatorClimbOutResyncsAim) nav.aim.aimSmooth.reset();
+                if (GameConfig.navigatorDebug)
+                    LOG.info("[navigator] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
                 return TickStep.WALKING;
+            }
+            // Only "give up" the pillar (block re-engage, hand off to the bank-DIG)
+            // when that DIG can actually fire — i.e. breaking is allowed. With break
+            // OFF (no pickaxe: the live +2 mud-bank case) there is NO fallback, so
+            // latching climbPillarGaveUp would strand the bot bobbing forever. Leaving
+            // it false lets the pillar RE-ENGAGE next tick, re-locking the column to the
+            // bot's current foot — which the locked-heading forward press has nudged
+            // toward the bank — so the column RATCHETS to the supported bank-adjacent
+            // cell and the foothold-place finally lands (the pre-faa3189 behavior the
+            // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
+            boolean digFallbackHere = nav.mayBreak()
+                    && WorldConfig
+                            .allowSwimEscapeBreak; // mayBreak(): honor per-goto forbidDig, not just the global switch
+            if ((drifted || placeFutile || tooHigh) && digFallbackHere) {
+                nav.waterClimb.pillarGaveUp = true;
+                // navigatorClimbGaveUpSticky: anchor the latch to THIS bank so repath-driven
+                // context resets can't clear it while the bot is still here (15s TTL).
+                if (ControlConfig.navigatorClimbGaveUpSticky) {
+                    nav.waterClimb.gaveUpPos = foot;
+                    nav.waterClimb.gaveUpTtl = 300;
+                }
+            }
+            if (GameConfig.navigatorDebug)
+                LOG.info(
+                        "[navigator] water climb-out: bail ({}) → fallback",
+                        !haveBlock
+                                ? "no block"
+                                : tooHigh
+                                        ? "over ceiling"
+                                        : drifted
+                                                ? "drifted off column"
+                                                : placeFutile ? "place futile" : "no longer climbing");
+            return null; // the normal actuators / bank-dig take the tick
+        }
+        return pillarDriveTick(nav, a, world, p, foot, dryGrounded);
     }
 
     /**
-     * The neighbour cell a side foothold goes into: at foot level, not yet solid, floored by a solid
-     * block (so the rung is a real 1-deep case and the floor is the click support), with head room
-     * above it to stand in. The heading's own cardinal is tried first so the locked forward press
-     * walks the bot onto the rung; the other three follow. {@code null} when every side is a
-     * wall or already filled — the caller then falls back to the ordinary own-column attempt.
+     * The rising half of an engaged pillar takeover, one tick: heading pinned to the latched column, the fill cell
+     * chosen (surface cell afloat, the cell on the column's solid top when dry), the side-foothold branch for one-deep
+     * water, the keys, and the click.
      */
-    private static BlockPos sideFoothold(WorldView world, BlockPos foot, float yaw, net.minecraft.world.phys.AABB body) {
+    private static TickStep pillarDriveTick(
+            Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot, boolean dryGrounded) {
+        // Pin to the LOCKED bank heading + column; look down to aim the place.
+        p.setYRot(nav.waterClimb.yaw);
+        p.yHeadRot = nav.waterClimb.yaw;
+        p.yBodyRot = nav.waterClimb.yaw;
+        p.setXRot(40f);
+        p.setSprinting(false);
+        // Standing dry after a side rung, the column is wherever the bot actually
+        // stands: it mounts the rung by its edge, centre over the next column, and a
+        // fill aimed at the rung's column meets the bot's box while one under its own
+        // centre does not. The pillar then grows under the centre — into the water cell
+        // beside the rung first, if that is what is there — and the bot ends on a
+        // full column of its own.
+        if (ControlConfig.navigatorShallowWaterSideFoothold
+                && nav.waterClimb.sideRung
+                && p.onGround()
+                && !p.isInWater()) {
+            nav.waterClimb.colX = foot.getX();
+            nav.waterClimb.colZ = foot.getZ();
+        }
+        // Fill the top water cell of the LOCKED column (floating) or the feet
+        // cell (grounded on the fresh rung) — not the live foot column, which
+        // drifts off the wall-supported pillar.
+        BlockPos colFoot = new BlockPos(nav.waterClimb.colX, foot.getY(), nav.waterClimb.colZ);
+        // THE TOP WATER CELL OF THE COLUMN, wherever the bob has carried the foot. This
+        // used to fill `foot` whenever the column's foot-level cell was not water — which
+        // is every tick the boost lifts the bot INTO THE AIR above the surface, i.e.
+        // exactly the ticks the place could land. The target then followed the bob: at
+        // y 221.2 it asked for cell 221 and "cleared" at 221.9, back at 220.6 it asked for
+        // 220, and the one-tick window where 220 was both the target and cleared was
+        // skipped by the rise itself. wd.clientOneHighBankPlaceOut: 130 ticks of that
+        // cycle, no block. Reaching DOWN to the water under the foot pins the target to
+        // the surface cell; a bot grounded on its fresh rung (solid below, not water)
+        // still fills its own foot cell as before.
+        BlockPos fillCell = colFoot;
+        while (!world.isWater(fillCell) && world.isWater(fillCell.below()) && fillCell.getY() > foot.getY() - 2)
+            fillCell = fillCell.below();
+        if (!world.isWater(fillCell)) fillCell = foot;
+        while (world.isWater(fillCell.above())) fillCell = fillCell.above();
+        // DRY COLUMN: the cell to fill is the one standing on the column's solid top, not
+        // the airborne foot. Taking `foot` here let the target ride the jump — at y 221.0
+        // it asked for 221 and "cleared" at 221.9 — so a bot jumping off its own rung
+        // never had a fillable cell under it (wd.clientFlowingTrenchPlaceOut, third run).
+        boolean dryColumn =
+                ControlConfig.navigatorShallowWaterSideFoothold && !world.isWater(fillCell) && !p.isInWater();
+        if (dryColumn) {
+            while (!world.isSolid(fillCell.below())
+                    && !world.isWater(fillCell.below())
+                    && fillCell.getY() > foot.getY() - 2) fillCell = fillCell.below();
+        }
+        // ONE-DEEP WATER WITH A FLOOR, bot afloat: the fill cell is the foot cell and
+        // the feet cannot clear it. In a layer higher than 0.4 the jump key swims
+        // (LivingEntity.aiStep: in water and not grounded → jumpInLiquid), the bot
+        // hovers between y+0.24 and y+0.96 and vanilla refuses a block that meets its
+        // box — wd.clientFlowingTrenchPlaceOut: 50 ticks of "cleared" at .95, no rung.
+        // The rung that CAN land is the one beside the bot: a neighbour cell at foot
+        // level is clear of the box, its floor is the support, and once it is solid
+        // the forward press rides the +0.3 collision boost onto it. Standing there,
+        // dry, the ordinary ground-jump pillar takes over. The column re-latches onto
+        // the foothold so the next fill cell is the foot on it, not the water beside.
+        boolean shallowAfloat = ControlConfig.navigatorShallowWaterSideFoothold
+                && !p.onGround()
+                && p.isInWater()
+                && fillCell.equals(foot)
+                && world.isSolid(foot.below());
+        // A rung already placed beside the bot (the column re-latched onto it) is the
+        // one to mount: keep the heading on it while the current carries the bot, and
+        // place nothing new. Without this the drift changed `foot` every tick and each
+        // tick chose a fresh neighbour — eight dirt in a ring, and the ring then read
+        // as a flush exit one course up (wd.clientFlowingTrenchPlaceOut, first run).
+        BlockPos rung = new BlockPos(nav.waterClimb.colX, foot.getY(), nav.waterClimb.colZ);
+        // The click's block shows up a tick or two later, so the rung just asked for
+        // counts while it is still pending; the futility ledger bounds the wait.
+        boolean rungPending = rung.equals(nav.waterClimb.placeAttemptCell) && !world.isSolid(rung);
+        // A click the server has not honoured within the wait was refused (the bot's
+        // box met the cell at the server's copy of it); forget it so a fresh cell is
+        // chosen instead of treading water on a rung that will never come.
+        if (rungPending && nav.waterClimb.pillarNoPlaceTicks > PENDING_RUNG_WAIT_TICKS) {
+            nav.waterClimb.placeAttemptCell = null;
+            rungPending = false;
+        }
+        boolean rungBeside = shallowAfloat
+                && !rung.equals(foot)
+                && (world.isSolid(rung) || rungPending)
+                && Math.abs(rung.getX() - foot.getX()) <= 1
+                && Math.abs(rung.getZ() - foot.getZ()) <= 1;
+        // The bot has swum INTO the cell it asked for before the block arrived (the
+        // current, or the press toward it): vanilla refuses that placement. Tread water
+        // a few ticks for the server's answer — the click was judged at the server's
+        // copy of the bot, which lags, and often lands anyway — before asking elsewhere.
+        boolean insidePending = shallowAfloat
+                && rung.equals(foot)
+                && rungPending
+                && nav.waterClimb.pillarNoPlaceTicks <= PENDING_RUNG_WAIT_TICKS;
+        // Keys. The classic takeover holds forward and jump every tick: the floating bot
+        // rams the bank, the +0.3 boost lifts it, the jump-place fills the surface cell.
+        // Once a SIDE RUNG is in play the keys turn anticipatory, because a key read this
+        // tick is the state set LAST tick: a bot landing on its 1×1 rung with jump still
+        // held from the swim jumps again on the landing tick, with the swim's momentum
+        // still in it, and clears the rung entirely (wd.clientFlowingTrenchPlaceOut, run
+        // 21: mounted at x .42, airborne at .53, over the next column at 1.10). So in
+        // side-rung mode: forward only while wet (the press is what mounts the rung; dry
+        // it walks off), and never while the rung is pending (pressing swims the bot into
+        // the cell and voids the click); jump while wet, or dry once grounded with the
+        // momentum gone — released in the air so the landing tick reads it released.
+        boolean sideMode = ControlConfig.navigatorShallowWaterSideFoothold && nav.waterClimb.sideRung;
+        boolean wet = p.isInWater();
+        boolean settled = p.getDeltaMovement().horizontalDistanceSqr() < SETTLED_SPEED_SQ;
+        Keys.forward(a, sideMode ? (wet && !rungPending && !insidePending) : true);
+        nav.keys.jump(a, sideMode ? (wet || (p.onGround() && settled)) : true);
+        if (rungBeside) {
+            nav.waterClimb.yaw = (float)
+                    Math.toDegrees(Math.atan2(-((rung.getX() + 0.5) - p.getX()), (rung.getZ() + 0.5) - p.getZ()));
+        } else if (shallowAfloat && !insidePending) {
+            BlockPos side = sideFoothold(world, foot, nav.waterClimb.yaw, p.getBoundingBox());
+            if (side != null) {
+                if (GameConfig.navigatorDebug)
+                    LOG.info(
+                            "[navigator] climbout-place side foothold {},{},{} (one-deep water, bot afloat at y={})",
+                            side.getX(),
+                            side.getY(),
+                            side.getZ(),
+                            String.format("%.2f", p.getY()));
+                nav.tel.waterPillarPlaceCalls++;
+                nav.blocks.place(world::isSolid, side);
+                nav.waterClimb.placeAttemptCell = side;
+                nav.waterClimb.placedRungs.add(side);
+                nav.waterClimb.sideRung = true;
+                nav.waterClimb.colX = side.getX();
+                nav.waterClimb.colZ = side.getZ();
+                nav.waterClimb.yaw = (float)
+                        Math.toDegrees(Math.atan2(-((side.getX() + 0.5) - p.getX()), (side.getZ() + 0.5) - p.getZ()));
+                return TickStep.WALKING;
+            }
+        }
+        climboutPlaceTick(nav, a, world, p, fillCell, foot, dryGrounded);
+        return TickStep.WALKING;
+    }
+
+    /**
+     * The neighbour cell a side foothold goes into: at foot level, not yet solid, floored by a solid block (so the rung
+     * is a real 1-deep case and the floor is the click support), with head room above it to stand in. The heading's own
+     * cardinal is tried first so the locked forward press walks the bot onto the rung; the other three follow.
+     * {@code null} when every side is a wall or already filled — the caller then falls back to the ordinary own-column
+     * attempt.
+     */
+    private static BlockPos sideFoothold(
+            WorldView world, BlockPos foot, float yaw, net.minecraft.world.phys.AABB body) {
         double rad = Math.toRadians(yaw);
         double hx = -Math.sin(rad), hz = Math.cos(rad);
         BlockPos first = Math.abs(hx) >= Math.abs(hz)
-                ? foot.offset(hx >= 0 ? 1 : -1, 0, 0) : foot.offset(0, 0, hz >= 0 ? 1 : -1);
-        BlockPos[] order = { first, foot.east(), foot.west(), foot.north(), foot.south() };
+                ? foot.offset(hx >= 0 ? 1 : -1, 0, 0)
+                : foot.offset(0, 0, hz >= 0 ? 1 : -1);
+        BlockPos[] order = {first, foot.east(), foot.west(), foot.north(), foot.south()};
         // Vanilla refuses a block whose box meets the bot's, and the bot is 0.6 wide: standing
         // 0.09 into a neighbour cell already voids the click (the first trench click at z .09 never
         // landed). The margin buys the tick or two of drift before the server answers.
@@ -1015,10 +1182,12 @@ public final class WaterClimb implements Controller {
         return null;
     }
 
-    /** A dry cell beside {@code foot} that the bot can step onto without climbing: standable at
-     *  the same level or one below, and neither it nor its floor is water. */
+    /**
+     * A dry cell beside {@code foot} that the bot can step onto without climbing: standable at the same level or one
+     * below, and neither it nor its floor is water.
+     */
     private static boolean flushExitBeside(WorldView world, BlockPos foot, java.util.Set<BlockPos> placedRungs) {
-        for (BlockPos n : new BlockPos[] { foot.east(), foot.west(), foot.north(), foot.south() }) {
+        for (BlockPos n : new BlockPos[] {foot.east(), foot.west(), foot.north(), foot.south()}) {
             if (world.isWater(n) || world.isWater(n.below())) continue;
             // A rung this climb-out placed itself is not the shore: two side footholds a tick apart
             // read as "flush exit" one course up and the takeover let go three courses under the bank.
@@ -1026,20 +1195,25 @@ public final class WaterClimb implements Controller {
             if (!ownRung && world.canStandAt(n) && leadsOn(world, foot, n)) return true;
             BlockPos d = n.below();
             boolean ownLowerRung = ControlConfig.navigatorShallowWaterSideFoothold && placedRungs.contains(d.below());
-            if (!ownLowerRung && !world.isWater(d.below()) && world.canStandAt(d) && leadsOn(world, foot, d)) return true;
+            if (!ownLowerRung && !world.isWater(d.below()) && world.canStandAt(d) && leadsOn(world, foot, d))
+                return true;
         }
         return false;
     }
 
-    /** An exit cell is shore only if it connects onward: one of its own neighbours other than
-     *  {@code foot} is dry and standable at its level or one off. A 1×1 island — a stray rung, a
-     *  post — is not an exit, however dry (wd.clientFlowingTrenchPlaceOut topped out onto one). */
+    /**
+     * An exit cell is shore only if it connects onward: one of its own neighbours other than {@code foot} is dry and
+     * standable at its level or one off. A 1×1 island — a stray rung, a post — is not an exit, however dry
+     * (wd.clientFlowingTrenchPlaceOut topped out onto one).
+     */
     private static boolean leadsOn(WorldView world, BlockPos foot, BlockPos exit) {
         if (!ControlConfig.navigatorShallowWaterSideFoothold) return true;
-        for (BlockPos m : new BlockPos[] { exit.east(), exit.west(), exit.north(), exit.south() }) {
+        for (BlockPos m : new BlockPos[] {exit.east(), exit.west(), exit.north(), exit.south()}) {
             if (m.getX() == foot.getX() && m.getZ() == foot.getZ()) continue;
             if (world.isWater(m) || world.isWater(m.below())) continue;
-            if (world.canStandAt(m) || world.canStandAt(m.above()) || (world.canStandAt(m.below()) && !world.isWater(m.below(2)))) return true;
+            if (world.canStandAt(m)
+                    || world.canStandAt(m.above())
+                    || (world.canStandAt(m.below()) && !world.isWater(m.below(2)))) return true;
         }
         return false;
     }

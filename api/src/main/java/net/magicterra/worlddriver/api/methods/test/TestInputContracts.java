@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.api.methods.test;
 
-
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Hand;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Interaction;
@@ -19,18 +18,26 @@ public final class TestInputContracts {
     private TestInputContracts() {}
 
     /**
-     * The eight inputs {@code BotInteract.releaseKeys()} clears, each true while down. {@code attack} is the
-     * bot's dig latch rather than the attack keybind, kept in its slot so the shape is stable.
+     * The eight inputs {@code BotInteract.releaseKeys()} clears, each true while down. {@code attack} is the bot's dig
+     * latch rather than the attack keybind, kept in its slot so the shape is stable.
      */
     @Named("HeldKeys")
-    public record HeldKeys(boolean up, boolean down, boolean left, boolean right, boolean jump, boolean sprint,
-                           boolean attack, boolean shift) {}
+    public record HeldKeys(
+            boolean up,
+            boolean down,
+            boolean left,
+            boolean right,
+            boolean jump,
+            boolean sprint,
+            boolean attack,
+            boolean shift) {}
 
     public static final RecordType<HeldKeys> HELD_KEYS = ApiTypes.record(HeldKeys.class);
 
     /** One right-click on a block, with no aiming, moving or sneaking around it. */
     @Named("UseOnBlock")
-    public record UseOnBlock(BlockPosition pos, @Default("main") Hand hand) {}
+    public record UseOnBlock(
+            BlockPosition pos, @Default("main") Hand hand) {}
 
     /** What the game made of it, which hand clicked, and the face clicked: the one nearest the player's eye. */
     @Named("UsedOnBlock")

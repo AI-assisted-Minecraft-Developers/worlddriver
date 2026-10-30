@@ -1,38 +1,52 @@
 package net.magicterra.worlddriver.bot.planning;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 
-import java.util.List;
-import net.magicterra.worlddriver.bot.rules.Move;
-
 /**
- * Inert observation seam for pathfinding debug tooling. The core ({@link PathFinder},
- * {@code Navigator}) calls {@link PathTraceHolder#SINK} unconditionally; in a release build
- * with the {@code bot.debug} package removed the sink stays {@link #NOOP} and every method
- * is an empty virtual call the JIT elides. The real implementation lives in
+ * Inert observation seam for pathfinding debug tooling. The core ({@link PathFinder}, {@code Navigator}) calls
+ * {@link PathTraceHolder#SINK} unconditionally; in a release build with the {@code bot.debug} package removed the sink
+ * stays {@link #NOOP} and every method is an empty virtual call the JIT elides. The real implementation lives in
  * {@code net.magicterra.worlddriver.debug.PathDebugRecorder} and is registered at client init.
  *
- * Stripping for release: delete the {@code bot.debug} package and the single
- * {@code PathDebugBootstrap.init()} call. This interface + {@link PathTraceHolder} remain,
- * inert. Nothing else in core changes.
+ * <p>Stripping for release: delete the {@code bot.debug} package and the single {@code PathDebugBootstrap.init()} call.
+ * This interface + {@link PathTraceHolder} remain, inert. Nothing else in core changes.
  */
 public interface PathTrace {
 
     /** Terminal outcome of a goto session, as classified by the Navigator. */
-    enum Outcome { SUCCESS, NO_PATH, STUCK, TIMEOUT, CANCELLED, ERROR }
+    enum Outcome {
+        SUCCESS,
+        NO_PATH,
+        STUCK,
+        TIMEOUT,
+        CANCELLED,
+        ERROR
+    }
 
     /**
-     * One per-tick execution sample. Plain data only (no Minecraft refs) so the recorder
-     * can be snapshotted and rendered off the client thread. {@code targetX/targetZ} are the
-     * centre of the path node the Navigator was steering toward this tick (NaN when no path);
-     * {@code yawActual} is the bot's yaw at tick entry. Speed and heading-error are derived in
-     * the renderer from consecutive samples + targets.
+     * One per-tick execution sample. Plain data only (no Minecraft refs) so the recorder can be snapshotted and
+     * rendered off the client thread. {@code targetX/targetZ} are the centre of the path node the Navigator was
+     * steering toward this tick (NaN when no path); {@code yawActual} is the bot's yaw at tick entry. Speed and
+     * heading-error are derived in the renderer from consecutive samples + targets.
      */
-    record NavigatorSample(long tick, double x, double y, double z, float yawActual,
-                        double targetX, double targetZ, int stepIndex, String moveType,
-                        boolean onGround, boolean inWater,
-                        String pose, boolean aabbOverlap, int entityId) {}
+    record NavigatorSample(
+            long tick,
+            double x,
+            double y,
+            double z,
+            float yawActual,
+            double targetX,
+            double targetZ,
+            int stepIndex,
+            String moveType,
+            boolean onGround,
+            boolean inWater,
+            String pose,
+            boolean aabbOverlap,
+            int entityId) {}
 
     /** Fired in {@code PathFinder.Search}'s constructor — one per (re)path search. */
     void onSearchBegin(BlockPos start, Goal goal);
@@ -41,8 +55,8 @@ public interface PathTrace {
     void onNodeExpanded(BlockPos pos, double g);
 
     /** Fired when the Navigator adopts a search Result (success or best-effort fallback). */
-    void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
-                        int expanded, long ms, double finalCost);
+    void onSearchResult(
+            List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost);
 
     /** Fired once per Navigator tick while a goal is active. */
     void onNavigatorTick(NavigatorSample sample);
@@ -53,10 +67,19 @@ public interface PathTrace {
     /** No-op sink — the default; release builds keep this and nothing else. */
     PathTrace NOOP = new PathTrace() {
         public void onSearchBegin(BlockPos start, Goal goal) {}
+
         public void onNodeExpanded(BlockPos pos, double g) {}
-        public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
-                                   int expanded, long ms, double finalCost) {}
+
+        public void onSearchResult(
+                List<BlockPos> path,
+                List<Move.Edge> edges,
+                boolean goalReached,
+                int expanded,
+                long ms,
+                double finalCost) {}
+
         public void onNavigatorTick(NavigatorSample sample) {}
+
         public void onTerminal(Outcome outcome, String reason) {}
     };
 }

@@ -13,12 +13,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Break one named cell: walk within two blocks of it unless it is already in reach, then hold the dig on it
- * with the best tool until it gives. {@code mc.bot.mine} with a {@code pos}; it reports into the mine slot.
+ * Break one named cell: walk within two blocks of it unless it is already in reach, then hold the dig on it with the
+ * best tool until it gives. {@code mc.bot.mine} with a {@code pos}; it reports into the mine slot.
  *
- * <p>It gives up when the walk ends with the cell out of reach (no open face, or too far from the eye), or when
- * the dig has been held {@link #DIG_BUDGET_TICKS} ticks without the block changing: a block the hand cannot
- * break in that time is not going to break.
+ * <p>It gives up when the walk ends with the cell out of reach (no open face, or too far from the eye), or when the dig
+ * has been held {@link #DIG_BUDGET_TICKS} ticks without the block changing: a block the hand cannot break in that time
+ * is not going to break.
  */
 public final class MineCellProcess implements BotProcess, Navigating {
     /** Ten seconds of holding the dig: obsidian with a diamond pickaxe takes about nine. */
@@ -26,27 +26,49 @@ public final class MineCellProcess implements BotProcess, Navigating {
 
     private final BlockPos target;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("mineCell"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private Block initial;
     private boolean walking;
     private int digTicks;
     private boolean broken;
     private String failure;
 
-    public MineCellProcess(BlockPos target) { this.target = target.immutable(); }
+    public MineCellProcess(BlockPos target) {
+        this.target = target.immutable();
+    }
 
     /** Whether the cell gave. */
-    public boolean broken() { return broken; }
+    public boolean broken() {
+        return broken;
+    }
 
-    @Override public String kind() { return "mine"; }
-    @Override public String failure() { return failure; }
-    @Override public void onResume() { if (walking) navigator.replan(); }
+    @Override
+    public String kind() {
+        return "mine";
+    }
 
-    @Override public void attach(BotState st) {
+    @Override
+    public String failure() {
+        return failure;
+    }
+
+    @Override
+    public void onResume() {
+        if (walking) navigator.replan();
+    }
+
+    @Override
+    public void attach(BotState st) {
         st.mine.beginRun("cell " + target.toShortString(), target);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         Equipment equipment = a.equipment().orElse(null);
         BlockInteraction hands = a.blockInteraction().orElse(null);
         if (a.entity() == null || equipment == null || hands == null) return fail(st, Readiness.Reason.NO_HANDS);
@@ -72,7 +94,10 @@ public final class MineCellProcess implements BotProcess, Navigating {
             }
         }
         if (++digTicks > DIG_BUDGET_TICKS) {
-            return fail(st, "held the dig on " + target.toShortString() + " for " + DIG_BUDGET_TICKS + " ticks and it did not break");
+            return fail(
+                    st,
+                    "held the dig on " + target.toShortString() + " for " + DIG_BUDGET_TICKS
+                            + " ticks and it did not break");
         }
         equipment.selectTool(target);
         a.aimAtBlock(target);

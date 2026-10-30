@@ -1,15 +1,13 @@
 package net.magicterra.worlddriver.api.registry;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -28,7 +26,10 @@ public final class ApiErrors {
         String msg = c.getMessage() == null ? c.getClass().getSimpleName() : c.getMessage();
         // A service rejecting a value the type could not judge (an unknown block id) before it acted.
         if (c instanceof IllegalArgumentException) {
-            return new ApiError(ApiError.Code.INVALID_PARAMS, msg, List.of(new ApiIssue("", ApiIssue.Code.INVALID_VALUE, msg)),
+            return new ApiError(
+                    ApiError.Code.INVALID_PARAMS,
+                    msg,
+                    List.of(new ApiIssue("", ApiIssue.Code.INVALID_VALUE, msg)),
                     ApiError.Execution.NOT_STARTED);
         }
         // "No server attached", "no client registered": the entry cannot serve this call here and now.
@@ -85,7 +86,8 @@ public final class ApiErrors {
         ApiError.Execution ex = ApiError.Execution.UNKNOWN;
         String es = string(m.get("execution"));
         if (es != null) {
-            for (ApiError.Execution k : ApiError.Execution.values()) if (k.wireName().equals(es)) ex = k;
+            for (ApiError.Execution k : ApiError.Execution.values())
+                if (k.wireName().equals(es)) ex = k;
         }
         return new ApiError(c, message, issues, ex);
     }

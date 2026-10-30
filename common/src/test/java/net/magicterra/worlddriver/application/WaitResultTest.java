@@ -1,30 +1,29 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.TestJson;
-import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.TestJson;
+import net.magicterra.worlddriver.api.ProbeMethods;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
- * Background waits: {@code mc.wait.result} tells a running wait from one that does not exist, and
- * how a wait ended reaches both that read and the {@code wait.done} event.
+ * Background waits: {@code mc.wait.result} tells a running wait from one that does not exist, and how a wait ended
+ * reaches both that read and the {@code wait.done} event.
  *
- * <p>Any id missing from the finished-results map read as {@code pending:true}, so a typo, a
- * result already consumed, or one evicted by newer results left an agent polling forever.
+ * <p>Any id missing from the finished-results map read as {@code pending:true}, so a typo, a result already consumed,
+ * or one evicted by newer results left an agent polling forever.
  */
 @Timeout(60)
 class WaitResultTest {
@@ -39,15 +38,29 @@ class WaitResultTest {
 
     /** A background wait that is satisfied on its first poll; needs no world. */
     private static String startQuickWait(DriverApplication api) {
-        Map<?, ?> ack = call(api, "mc.wait.condition", Map.of("invoke", "probe.echo", "field", "value", "background", true));
+        Map<?, ?> ack =
+                call(api, "mc.wait.condition", Map.of("invoke", "probe.echo", "field", "value", "background", true));
         assertEquals("started", ack.get("outcome"), ack.toString());
         return (String) ack.get("waitId");
     }
 
     /** A background wait that is never satisfied: probe.echo has no field "nope". */
     private static String startSlowWait(DriverApplication api, int timeoutMs) {
-        return (String) call(api, "mc.wait.condition", Map.of("invoke", "probe.echo", "field", "nope",
-                "timeoutMs", timeoutMs, "pollMs", 100, "background", true)).get("waitId");
+        return (String) call(
+                        api,
+                        "mc.wait.condition",
+                        Map.of(
+                                "invoke",
+                                "probe.echo",
+                                "field",
+                                "nope",
+                                "timeoutMs",
+                                timeoutMs,
+                                "pollMs",
+                                100,
+                                "background",
+                                true))
+                .get("waitId");
     }
 
     private static Map<?, ?> result(DriverApplication api, Object waitId, boolean consume) {
@@ -83,7 +96,9 @@ class WaitResultTest {
     void theResultIsTheWaitsDoneReplyAndTheSameReachesTheEvent() throws Exception {
         DriverApplication api = app();
         CompletableFuture<EventContracts.Event> done = new CompletableFuture<>();
-        api.addEventListener(e -> { if ("wait.done".equals(e.type())) done.complete(e); });
+        api.addEventListener(e -> {
+            if ("wait.done".equals(e.type())) done.complete(e);
+        });
         String id = startQuickWait(api);
         awaitFinished(api, id);
         Map<?, ?> r = result(api, id, true);
@@ -92,7 +107,8 @@ class WaitResultTest {
         assertEquals(Boolean.TRUE, reply.get("satisfied"), r.toString());
         assertFalse(r.containsKey("error"), r.toString());
 
-        Map<?, ?> data = (Map<?, ?>) TestJson.plain(done.get(10, TimeUnit.SECONDS).data().orElseThrow().json());
+        Map<?, ?> data = (Map<?, ?>) TestJson.plain(
+                done.get(10, TimeUnit.SECONDS).data().orElseThrow().json());
         assertEquals(id, data.get("waitId"));
         assertEquals("mc.wait.condition", data.get("method"));
         assertEquals(reply, data.get("result"));
@@ -104,8 +120,8 @@ class WaitResultTest {
         // mc.wait.event needs a server. Without one its first poll would fail in the background; it is
         // refused before the wait starts instead, so no waitId is handed out for a wait that cannot run.
         DriverApplication api = app();
-        ApiException e = assertThrows(ApiException.class, () -> call(api, "mc.wait.event",
-                Map.of("cursor", "0", "background", true)));
+        ApiException e = assertThrows(
+                ApiException.class, () -> call(api, "mc.wait.event", Map.of("cursor", "0", "background", true)));
         assertEquals(ApiError.Code.CAPABILITY_UNAVAILABLE, e.error().code());
     }
 
@@ -136,7 +152,8 @@ class WaitResultTest {
     @Test
     void anUnknownActionIsActionNotFound() {
         DriverApplication api = app();
-        ApiException e = assertThrows(ApiException.class,
+        ApiException e = assertThrows(
+                ApiException.class,
                 () -> TestJson.route(api.registry(), "mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
         assertEquals(ApiError.Code.ACTION_NOT_FOUND, e.error().code());
     }

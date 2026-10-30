@@ -3,11 +3,10 @@ package net.magicterra.worlddriver.api.schema;
 import java.util.List;
 import java.util.Objects;
 
-
 /**
- * The one error shape every entry point carries: RPC as {@code error.data}, MCP as the tool error,
- * JS as the fields of the thrown {@code DriverApiError}. {@link #execution} says whether anything
- * may have happened, which is the only safe basis for a retry.
+ * The one error shape every entry point carries: RPC as {@code error.data}, MCP as the tool error, JS as the fields of
+ * the thrown {@code DriverApiError}. {@link #execution} says whether anything may have happened, which is the only safe
+ * basis for a retry.
  */
 public record ApiError(Code code, String message, List<ApiIssue> issues, Execution execution) {
 
@@ -36,6 +35,7 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
         private final String wire;
         /** The JSON-RPC {@code error.code} this kind is reported under. */
         public final int rpcCode;
+
         final Execution defaultExecution;
 
         Code(String wire, int rpcCode, Execution defaultExecution) {
@@ -44,7 +44,10 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
             this.defaultExecution = defaultExecution;
         }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     /** Whether the requested operation may have taken effect. */
@@ -58,8 +61,13 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
 
         private final String wire;
 
-        Execution(String wire) { this.wire = wire; }
+        Execution(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 }

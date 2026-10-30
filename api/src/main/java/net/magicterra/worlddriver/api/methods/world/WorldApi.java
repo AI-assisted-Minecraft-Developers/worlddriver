@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.api.methods.world;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
@@ -10,7 +9,9 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface WorldApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static WorldStubApi of(ApiRegistry registry) { return WorldApiBinding.calls(registry); }
+    static WorldStubApi of(ApiRegistry registry) {
+        return WorldApiBinding.calls(registry);
+    }
 
     @Spec(value = WorldContracts.class, spec = "BLOCK")
     CompletionStage<WorldContracts.BlockReading> block(WorldContracts.BlockParams p, CallContext ctx);

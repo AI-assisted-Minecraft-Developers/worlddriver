@@ -93,12 +93,22 @@ class JupiterBodyTest {
         bot.moveTo(plot.at(1, 1, 1));
         game.await().within(40).as("the bot lands on the floor").until(() -> bot.<Boolean>onServer(p -> p.onGround()));
         BlockPos target = plot.at(10, 1, 1);
-        GotoContracts.Params walk = new GotoContracts.Params(bot.ref(),
-                Optional.of(new GotoContracts.Position(new BlockPosition(target.getX(), target.getY(), target.getZ()),
-                        0, GotoContracts.GoalMode.IN)),
-                false, Optional.empty(), Optional.empty(), false, Optional.empty(), 0);
-        assertInstanceOf(Responses.Accepted.class, game.api(BotTaskBlockingApi::of).goTo(walk));
-        game.await().within(400).as("the bot reaches " + target).until(() -> bot.blockPos().equals(target));
+        GotoContracts.Params walk = new GotoContracts.Params(
+                bot.ref(),
+                Optional.of(new GotoContracts.Position(
+                        new BlockPosition(target.getX(), target.getY(), target.getZ()), 0, GotoContracts.GoalMode.IN)),
+                false,
+                Optional.empty(),
+                Optional.empty(),
+                false,
+                Optional.empty(),
+                0);
+        assertInstanceOf(
+                Responses.Accepted.class, game.api(BotTaskBlockingApi::of).goTo(walk));
+        game.await()
+                .within(400)
+                .as("the bot reaches " + target)
+                .until(() -> bot.blockPos().equals(target));
     }
 
     @Test
@@ -110,8 +120,8 @@ class JupiterBodyTest {
         try {
             assertEquals(before + 1, player.count(Items.DIAMOND));
         } finally {
-            player.runOnServer(p -> p.getInventory().clearOrCountMatchingItems(
-                    stack -> stack.is(Items.DIAMOND), 1, p.inventoryMenu.getCraftSlots()));
+            player.runOnServer(p -> p.getInventory()
+                    .clearOrCountMatchingItems(stack -> stack.is(Items.DIAMOND), 1, p.inventoryMenu.getCraftSlots()));
         }
     }
 }

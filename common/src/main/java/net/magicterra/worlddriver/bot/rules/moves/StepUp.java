@@ -6,7 +6,10 @@ import net.minecraft.core.BlockPos;
 
 /** Walk + jump up one block. Foot+head must clear at both src head and dst head. */
 public final class StepUp extends Move {
-    public StepUp(int dx, int dz) { super(dx, 1, dz, 15); }
+    public StepUp(int dx, int dz) {
+        super(dx, 1, dz, 15);
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // A floating player cannot push off underwater, so no ascent starts from a source below the
@@ -27,5 +30,8 @@ public final class StepUp extends Move {
     private static boolean surfaceBankExit(WorldView w, BlockPos from, BlockPos to) {
         return !w.isWater(from.above()) && !w.isWater(to) && !w.isWater(to.above());
     }
-    public String name() { return "stepUp"; }
+
+    public String name() {
+        return "stepUp";
+    }
 }

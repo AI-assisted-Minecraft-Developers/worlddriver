@@ -6,17 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * The bail contract: a chain that gives up sits out the bid for the cooldown it asked for, so the
- * next chain down the ladder gets control of the bot instead of the same chain re-bidding its band
- * next tick. The scheduler is ticked with no {@code Body}, as the headless matrix scenes do; the fake
- * chains read none.
+ * The bail contract: a chain that gives up sits out the bid for the cooldown it asked for, so the next chain down the
+ * ladder gets control of the bot instead of the same chain re-bidding its band next tick. The scheduler is ticked with
+ * no {@code Body}, as the headless matrix scenes do; the fake chains read none.
  */
 class ProcessSchedulerTest {
 
@@ -36,14 +34,19 @@ class ProcessSchedulerTest {
             this.bid = bid;
         }
 
-        @Override public String name() { return name; }
+        @Override
+        public String name() {
+            return name;
+        }
 
-        @Override public float priority(Body body, WorldView w, BotState st) {
+        @Override
+        public float priority(Body body, WorldView w, BotState st) {
             priorityCalls++;
             return bid;
         }
 
-        @Override public void tick(Body body, WorldView w, BotState st) {
+        @Override
+        public void tick(Body body, WorldView w, BotState st) {
             ticks++;
             if (bailFor >= 0) {
                 scheduler.bail(this, "site unsafe", bailFor);
@@ -51,9 +54,15 @@ class ProcessSchedulerTest {
             }
         }
 
-        @Override public void onInterrupt(Body body, Chain by) { interruptedBy.add(by == null ? "idle" : by.name()); }
+        @Override
+        public void onInterrupt(Body body, Chain by) {
+            interruptedBy.add(by == null ? "idle" : by.name());
+        }
 
-        @Override public void registeredWith(ProcessScheduler s) { scheduler = s; }
+        @Override
+        public void registeredWith(ProcessScheduler s) {
+            scheduler = s;
+        }
     }
 
     private final BotState st = new BotState();
@@ -109,8 +118,8 @@ class ProcessSchedulerTest {
         sched.tick(null, null, st);
         int before = dusk.priorityCalls;
         for (int t = 0; t < 10; t++) sched.tick(null, null, st);
-        assertEquals(before, dusk.priorityCalls,
-                "a chain's own debounce must not run on while the scheduler holds it out");
+        assertEquals(
+                before, dusk.priorityCalls, "a chain's own debounce must not run on while the scheduler holds it out");
         assertNull(sched.currentName(), "nothing else bids: the channel goes idle");
         assertEquals(List.of("idle"), dusk.interruptedBy);
     }

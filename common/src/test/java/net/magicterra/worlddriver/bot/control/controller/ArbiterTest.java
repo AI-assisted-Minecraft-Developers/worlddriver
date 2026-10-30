@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import net.magicterra.worlddriver.bot.control.ResetScope;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,12 +7,12 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /** The arbiter's rules, on controllers that only record what they were asked to do. */
 class ArbiterTest {
@@ -34,23 +33,56 @@ class ArbiterTest {
             this.channels = EnumSet.of(channels[0], channels);
         }
 
-        @Override public String name() { return name; }
-        @Override public Set<Channel> channels() { return channels; }
-        @Override public int priority() { return priority; }
-        @Override public int maxTicks() { return maxTicks; }
-        @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public Set<Channel> channels() {
+            return channels;
+        }
+
+        @Override
+        public int priority() {
+            return priority;
+        }
+
+        @Override
+        public int maxTicks() {
+            return maxTicks;
+        }
+
+        @Override
+        public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
             return wanted > 0 ? null : "not wanted";
         }
-        @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) { return wanted > 0; }
-        @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
+
+        @Override
+        public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+            return wanted > 0;
+        }
+
+        @Override
+        public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
             if (letGo) return false;
             ticked++;
             wanted--;
             return true;
         }
-        @Override public void stop(String why) { stops.add(why); wanted = 0; }
+
+        @Override
+        public void stop(String why) {
+            stops.add(why);
+            wanted = 0;
+        }
+
         final List<ResetScope> resets = new ArrayList<>();
-        @Override public void reset(ResetScope scope) { resets.add(scope); }
+
+        @Override
+        public void reset(ResetScope scope) {
+            resets.add(scope);
+        }
     }
 
     private static Set<Channel> tick(Arbiter arb) {

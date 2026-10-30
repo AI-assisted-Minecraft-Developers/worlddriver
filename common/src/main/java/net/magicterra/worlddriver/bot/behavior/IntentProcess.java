@@ -1,42 +1,39 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.rules.ProfileRisk;
-import net.magicterra.worlddriver.bot.rules.RiskAt;
-import net.magicterra.worlddriver.game.body.Body;
+import java.util.ArrayList;
+import java.util.List;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.ProfileRisk;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.rules.constraints.LeashHardRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.rules.modifiers.LeashAnchor;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import java.util.ArrayList;
-import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * The generic navigation process for the LLM navigation intent layer: drives the
- * {@link Navigator} toward an {@link Intent}'s target. Supersedes the old
- * {@code GotoProcess} — the {@code mc.bot.goto} verb, replay installs, and the
- * server-side {@code Body} proof all build an {@link Intent} and start this process. Phase A1
- * handles a static target (behavior-identical to the old goto); later phases add
- * dynamic/derived targets, cost modifiers, capability profiles, and constraints.
+ * The generic navigation process for the LLM navigation intent layer: drives the {@link Navigator} toward an
+ * {@link Intent}'s target. Supersedes the old {@code GotoProcess} — the {@code mc.bot.goto} verb, replay installs, and
+ * the server-side {@code Body} proof all build an {@link Intent} and start this process. Phase A1 handles a static
+ * target (behavior-identical to the old goto); later phases add dynamic/derived targets, cost modifiers, capability
+ * profiles, and constraints.
  *
- * <p>{@code kind()} stays {@code "goto"} so the {@link BotState#mc_goto} slot,
- * status reporting, and {@code UserTaskChain} mapping are unchanged.
+ * <p>{@code kind()} stays {@code "goto"} so the {@link BotState#mc_goto} slot, status reporting, and
+ * {@code UserTaskChain} mapping are unchanged.
  */
 public final class IntentProcess implements BotProcess, Navigating {
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
@@ -44,32 +41,44 @@ public final class IntentProcess implements BotProcess, Navigating {
     /**
      * {@code endReason} for a run that ended because the bot left the world its goal was set in.
      *
-     * <p><b>Distinct from both of the two verdicts it used to be indistinguishable from</b>, which is
-     * the whole reason it is a third value rather than a flavour of {@code path-consumed}: "arrived",
-     * "could not get there" and "the goal is not in this world any more" want three different things
-     * from the caller, and only the last one means the goal itself has stopped meaning anything.
+     * <p><b>Distinct from both of the two verdicts it used to be indistinguishable from</b>, which is the whole reason
+     * it is a third value rather than a flavour of {@code path-consumed}: "arrived", "could not get there" and "the
+     * goal is not in this world any more" want three different things from the caller, and only the last one means the
+     * goal itself has stopped meaning anything.
      */
     public static final String DIMENSION_CHANGED = "dimension-changed";
 
     private final Intent intent;
     private final Navigator navigator;
-    /** The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the
-     *  process reads the counts of the player it handed the process to, on either helm. */
-    @Override public Navigator navigator() { return navigator; }
-    /** Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come
-     *  first; arriving at one moves to the next, and only the last one ends the process. */
+    /**
+     * The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the process
+     * reads the counts of the player it handed the process to, on either helm.
+     */
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+    /**
+     * Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come first; arriving at
+     * one moves to the next, and only the last one ends the process.
+     */
     private int leg;
-    /** The dimension the goal's coordinates belong to, latched on the first tick that has a player.
-     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no {@code Body}. */
+    /**
+     * The dimension the goal's coordinates belong to, latched on the first tick that has a player. Not taken in
+     * {@link #attach} because that is handed a {@link BotState} and no {@code Body}.
+     */
     private ResourceKey<Level> plannedIn;
-    /** The route events of this intent (null when the route declared nothing to report on),
-     *  judged once per finished deep search: {@link #searchesJudged} is the navigator's count the
-     *  last judgement saw. Dies with the intent, as the exposure memory it keeps should. */
+    /**
+     * The route events of this intent (null when the route declared nothing to report on), judged once per finished
+     * deep search: {@link #searchesJudged} is the navigator's count the last judgement saw. Dies with the intent, as
+     * the exposure memory it keeps should.
+     */
     private final RouteEvents events;
+
     private final RiskAt risk;
     private int searchesJudged;
-    private BlockPos lastAnchor;           // last solved anchor block (null = not yet solved)
-    private int ticksSinceAnchorSolve;     // rate limiter
+    private BlockPos lastAnchor; // last solved anchor block (null = not yet solved)
+    private int ticksSinceAnchorSolve; // rate limiter
     private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
     private static final double ANCHOR_DIRTY_DIST_SQ = 2 * 2;
 
@@ -97,31 +106,42 @@ public final class IntentProcess implements BotProcess, Navigating {
         searchesJudged = n;
         PathFinder.Result res = navigator.inspect().tallies().lastResult;
         PathFinder.Search search = navigator.inspect().tallies().lastSearch;
-        events.onSearch(res, intent.targets().get(leg), foot, leg, risk,
-                search == null ? null : () -> search.taxTotals(res));
+        events.onSearch(
+                res, intent.targets().get(leg), foot, leg, risk, search == null ? null : () -> search.taxTotals(res));
     }
 
     /** The Intent this process drives — the preview/adoption and the route events read it. */
-    public Intent intent() { return intent; }
+    public Intent intent() {
+        return intent;
+    }
 
     /** Zero-based index of the goal the navigator is on; {@code targets().size() - 1} is the goal proper. */
-    public int leg() { return leg; }
+    public int leg() {
+        return leg;
+    }
 
-    public String kind() { return "goto"; }
+    public String kind() {
+        return "goto";
+    }
 
     public void attach(BotState st) {
         Goal goal = intent.target();
-        BlockPos target = goal instanceof Goal.Block b ? b.target()
-                : goal instanceof Goal.Near n ? n.target()
-                : goal instanceof Goal.TwoBlocks t ? t.target()
-                : goal instanceof Goal.GetToBlock g ? g.target() : null;
+        BlockPos target = goal instanceof Goal.Block b
+                ? b.target()
+                : goal instanceof Goal.Near n
+                        ? n.target()
+                        : goal instanceof Goal.TwoBlocks t
+                                ? t.target()
+                                : goal instanceof Goal.GetToBlock g ? g.target() : null;
         st.mc_goto.beginRun(goal.toString(), target);
     }
 
-    /** Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge)
-     *  or a server FakePlayer (PlayerBot) identically — pure movement, so
-     *  it just hands the Navigator the same {@code Body}. */
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    /**
+     * Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge) or a server FakePlayer
+     * (PlayerBot) identically — pure movement, so it just hands the Navigator the same {@code Body}.
+     */
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
         if (here != null) {
@@ -141,8 +161,11 @@ public final class IntentProcess implements BotProcess, Navigating {
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();
                     if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
-                        LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
-                                el.entity(), ab.toShortString(), lastAnchor == null ? "first" : lastAnchor.toShortString());
+                        LOG.info(
+                                "[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
+                                el.entity(),
+                                ab.toShortString(),
+                                lastAnchor == null ? "first" : lastAnchor.toShortString());
                         lastAnchor = ab;
                         navigator.replan(profileWith(el, ab));
                     }
@@ -159,9 +182,13 @@ public final class IntentProcess implements BotProcess, Navigating {
         // the planning of THAT place. Latched on the first tick that actually holds a path, so it
         // records the plan the run started from rather than the one it died in.
         if (st.mc_goto.firstPlan == null && navigator.pathLen() > 0) {
-            st.mc_goto.firstPlan = "bot at " + (body == null ? "?" : body.blockPosition().toShortString())
+            st.mc_goto.firstPlan = "bot at "
+                    + (body == null ? "?" : body.blockPosition().toShortString())
                     + " firstMove=" + navigator.inspect().pathMove()
-                    + " firstNode=" + (navigator.inspect().pathNode() == null ? "?" : navigator.inspect().pathNode().toShortString())
+                    + " firstNode="
+                    + (navigator.inspect().pathNode() == null
+                            ? "?"
+                            : navigator.inspect().pathNode().toShortString())
                     + "; smoothed: " + navigator.inspect().planTally()
                     + "; before smoothing: " + navigator.inspect().rawPlanTally()
                     + "; terrain along the path: " + navigator.inspect().planTerrain(w)
@@ -176,7 +203,8 @@ public final class IntentProcess implements BotProcess, Navigating {
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the navigator knows.
-        if (navigator.inspect().parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
+        if (navigator.inspect().parkourTakeoff() != "none")
+            st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
         st.mc_goto.driveTag = navigator.inspect().driveTag();
         st.mc_goto.jumpTag = navigator.inspect().jumpTag();
         if (s == Locomotor.Status.MOVING) return false;
@@ -189,55 +217,60 @@ public final class IntentProcess implements BotProcess, Navigating {
         int last = intent.targets().size() - 1;
         if (shortfall == null && leg < last) {
             leg++;
-            LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
-                    intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
+            LOG.info(
+                    "[IntentProcess] via {} reached, segment {}/{} → {}",
+                    intent.targets().get(leg - 1),
+                    leg + 1,
+                    intent.targets().size(),
+                    intent.targets().get(leg));
             navigator.start(intent.targets().get(leg));
             st.mc_goto.goal = intent.targets().get(leg).toString();
             return false;
         }
-        if (s == Locomotor.Status.FAILED) st.mc_goto.lastError = navigator.result().reason();
+        if (s == Locomotor.Status.FAILED)
+            st.mc_goto.lastError = navigator.result().reason();
         st.mc_goto.goalReached = navigator.result().goalReached();
         st.mc_goto.endReason = navigator.result().endReason();
         st.mc_goto.finalDist = navigator.result().finalDist();
         st.mc_goto.reset();
-        failure = shortfall == null || leg == last ? shortfall
+        failure = shortfall == null || leg == last
+                ? shortfall
                 : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
         return true;
     }
 
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     /**
-     * The bot changed worlds under a goal that was set in the old one: stop, and say which of the
-     * three things happened.
+     * The bot changed worlds under a goal that was set in the old one: stop, and say which of the three things
+     * happened.
      *
      * <h2>Why a walk must not survive a portal</h2>
      *
-     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the navigator knows that, so a
-     * process that keeps ticking after a transfer plans a route across the NEW world's terrain toward
-     * the OLD world's numbers — and then drives the bot along it. Measured on rung 19,
-     * 2026-08-17: the End crossing happened inside a 1200-tick {@code settle} aimed at the
-     * stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the bot correctly onto the
-     * 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the
-     * platform was there — and the navigator, still pushing toward an overworld coordinate a thousand
-     * blocks away, walked it straight off the edge. Two runs, {@code arrived.at = 87,-4376,-1} and
-     * {@code 84,-4290,4}: different landing spots, which is what a bot that WALKED off looks like
-     * and not what a mis-delivered teleport looks like.
+     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the navigator knows that, so a process that keeps
+     * ticking after a transfer plans a route across the NEW world's terrain toward the OLD world's numbers — and then
+     * drives the bot along it. Measured on rung 19, 2026-08-17: the End crossing happened inside a 1200-tick
+     * {@code settle} aimed at the stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the bot correctly
+     * onto the 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the platform was
+     * there — and the navigator, still pushing toward an overworld coordinate a thousand blocks away, walked it
+     * straight off the edge. Two runs, {@code arrived.at = 87,-4376,-1} and {@code 84,-4290,4}: different landing
+     * spots, which is what a bot that WALKED off looks like and not what a mis-delivered teleport looks like.
      *
      * <h2>Why it is stopped rather than re-aimed or waited out</h2>
      *
-     * Re-aiming would mean this class deciding where the bot should go in a world it was never
-     * told about — the caller set that goal, and only the caller knows what it meant. Waiting
-     * "a few more ticks" waits for an event that cannot happen: the goal will never become reachable
-     * because it does not exist here. So the honest move is to end the run, and to end it with a
-     * verdict the caller can act on.
+     * Re-aiming would mean this class deciding where the bot should go in a world it was never told about — the caller
+     * set that goal, and only the caller knows what it meant. Waiting "a few more ticks" waits for an event that cannot
+     * happen: the goal will never become reachable because it does not exist here. So the honest move is to end the
+     * run, and to end it with a verdict the caller can act on.
      *
-     * <p><b>{@code finalDist} stays −1 deliberately.</b> {@code goal.estimate(foot)} would happily
-     * return a number here, and that number would be the distance from the bot in this world to another
-     * world's coordinates — an evidence row asserting a quantity that does not exist. There is no
-     * distance to report, so none is reported.
+     * <p><b>{@code finalDist} stays −1 deliberately.</b> {@code goal.estimate(foot)} would happily return a number
+     * here, and that number would be the distance from the bot in this world to another world's coordinates — an
+     * evidence row asserting a quantity that does not exist. There is no distance to report, so none is reported.
      */
     private boolean crossedOut(BotState st, ResourceKey<Level> here) {
         // Fire the pathfinder's terminal so an in-flight path archive is flushed for the partial run,
@@ -252,22 +285,37 @@ public final class IntentProcess implements BotProcess, Navigating {
         st.mc_goto.finalDist = -1;
         failure = st.mc_goto.lastError;
         st.mc_goto.reset();
-        LOG.info("[IntentProcess] {} → {}: goal {} abandoned, {}",
-                plannedIn.location(), here.location(), intent.target(), DIMENSION_CHANGED);
+        LOG.info(
+                "[IntentProcess] {} → {}: goal {} abandoned, {}",
+                plannedIn.location(),
+                here.location(),
+                intent.target(),
+                DIMENSION_CHANGED);
         return true;
     }
 
-    /** Resumed after preemption — discard the stale path and repath from where the
-     *  bot ended up (it may have been knocked back while suspended). */
-    @Override public void onResume() { navigator.replan(); }
+    /**
+     * Resumed after preemption — discard the stale path and repath from where the bot ended up (it may have been
+     * knocked back while suspended).
+     */
+    @Override
+    public void onResume() {
+        navigator.replan();
+    }
 
-    /** Cancelled before arriving (mc.bot.cancel / superseded): fire the Navigator's
-     *  pathfinder terminal so an in-progress path archive is flushed for the
-     *  partial run. */
-    @Override public void onCancelled(String reason) { navigator.cancel(reason); }
+    /**
+     * Cancelled before arriving (mc.bot.cancel / superseded): fire the Navigator's pathfinder terminal so an
+     * in-progress path archive is flushed for the partial run.
+     */
+    @Override
+    public void onCancelled(String reason) {
+        navigator.cancel(reason);
+    }
 
-    /** Rebuild the search profile with a leash modifier/constraint at the anchor's
-     *  CURRENT cell centre — the only mutable seam of the dynamic anchor. */
+    /**
+     * Rebuild the search profile with a leash modifier/constraint at the anchor's CURRENT cell centre — the only
+     * mutable seam of the dynamic anchor.
+     */
     private SearchProfile profileWith(EntityLeash el, BlockPos anchor) {
         double ax = anchor.getX() + 0.5, ay = anchor.getY(), az = anchor.getZ() + 0.5;
         List<CostModifier> bias = intent.bias();

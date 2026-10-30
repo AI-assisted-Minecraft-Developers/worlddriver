@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A goal's text is what {@code mc.bot.goto} and the process slots answer as {@code goal}; it must print positions as
- * plain numbers, never through {@code BlockPos#toString}, which names the class and so reads
- * {@code class_2338{x=6, …}} in a Fabric production game.
+ * plain numbers, never through {@code BlockPos#toString}, which names the class and so reads {@code class_2338{x=6, …}}
+ * in a Fabric production game.
  */
 class GoalTextTest {
 

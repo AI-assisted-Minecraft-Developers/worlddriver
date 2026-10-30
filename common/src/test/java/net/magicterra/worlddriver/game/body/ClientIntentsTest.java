@@ -1,17 +1,17 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.minecraft.core.BlockPos;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.minecraft.core.BlockPos;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 /**
- * The contract between the bot's drives and {@code MinecraftMixin}: how many vanilla attack
- * passes one drive keeps at bay, and that a released hold ends it at once. Pure state, no game.
+ * The contract between the bot's drives and {@code MinecraftMixin}: how many vanilla attack passes one drive keeps at
+ * bay, and that a released hold ends it at once. Pure state, no game.
  */
 class ClientIntentsTest {
 
@@ -28,9 +28,10 @@ class ClientIntentsTest {
         ClientIntents.assertDig(CELL);
         for (int i = 0; i < ClientIntents.STAND_ASIDE_PASSES; i++)
             assertTrue(ClientIntents.standAside(), "pass " + i + " after a drive must stand aside");
-        assertFalse(ClientIntents.standAside(),
+        assertFalse(
+                ClientIntents.standAside(),
                 "a bot that stopped driving must hand the tick back after the budgeted passes — "
-                + "otherwise a human's held click is ignored for as long as the latch leaks");
+                        + "otherwise a human's held click is ignored for as long as the latch leaks");
         assertEquals(CELL, ClientIntents.digPos());
     }
 
@@ -45,9 +46,9 @@ class ClientIntentsTest {
     @Test
     void oneSkippedDriveDoesNotCostTheBreak() {
         ClientIntents.assertDig(CELL);
-        assertTrue(ClientIntents.standAside());   // the pass after the drive
-        assertTrue(ClientIntents.standAside());   // the pass after a tick the driver skipped
-        ClientIntents.assertDig(CELL);            // the driver is back
+        assertTrue(ClientIntents.standAside()); // the pass after the drive
+        assertTrue(ClientIntents.standAside()); // the pass after a tick the driver skipped
+        ClientIntents.assertDig(CELL); // the driver is back
         assertTrue(ClientIntents.standAside());
     }
 
@@ -56,9 +57,10 @@ class ClientIntentsTest {
         ClientIntents.holdDig(true);
         ClientIntents.assertDig(CELL);
         ClientIntents.holdDig(false);
-        assertFalse(ClientIntents.standAside(),
+        assertFalse(
+                ClientIntents.standAside(),
                 "breakHold(false) must let vanilla's very next pass abort the break, as a "
-                + "released attack key did");
+                        + "released attack key did");
         assertFalse(ClientIntents.digHeld());
         assertNull(ClientIntents.digPos());
     }
@@ -67,7 +69,8 @@ class ClientIntentsTest {
     void theDigLatchIsBookkeepingOnly() {
         ClientIntents.holdDig(true);
         assertTrue(ClientIntents.digHeld());
-        assertFalse(ClientIntents.standAside(),
+        assertFalse(
+                ClientIntents.standAside(),
                 "the latch alone gates nothing — a leaked latch must not block the human's click");
     }
 

@@ -1,15 +1,10 @@
 package net.magicterra.worlddriver.application.client;
 
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
-
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistory;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistoryParams;
@@ -21,6 +16,7 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.OverlaysCle
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.OverlaysParams;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Screenshot;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ClickParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.CloseParams;
@@ -37,23 +33,20 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SliderParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotClickParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.TypeParams;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 
 /**
- * Client-side surface for the agent driver. A platform-specific implementation
- * holds direct references to {@code net.minecraft.client.*} and is registered
- * through {@link ClientHooks} during client init. Dedicated servers never load
- * it, and every {@code mc.client.*} method answers capability_unavailable there.
+ * Client-side surface for the agent driver. A platform-specific implementation holds direct references to
+ * {@code net.minecraft.client.*} and is registered through {@link ClientHooks} during client init. Dedicated servers
+ * never load it, and every {@code mc.client.*} method answers capability_unavailable there.
  *
- * <p>Each method may be called from any thread: the ones that read or write the client
- * run their body on the client thread themselves. {@link #key}, {@link #keybind} and
- * {@link #screenshot} finish after a client tick or a fresh frame, so they answer a stage
- * and hold no thread meanwhile; like any hop that does not return at once, they refuse a
- * game-thread caller. A write given a
- * {@code contextId} checks it on the client thread immediately before acting.
+ * <p>Each method may be called from any thread: the ones that read or write the client run their body on the client
+ * thread themselves. {@link #key}, {@link #keybind} and {@link #screenshot} finish after a client tick or a fresh
+ * frame, so they answer a stage and hold no thread meanwhile; like any hop that does not return at once, they refuse a
+ * game-thread caller. A write given a {@code contextId} checks it on the client thread immediately before acting.
  *
- * <p>The few methods still answering a Map serve methods outside the client group
- * ({@code mc.observe.player}, {@code mc.query} and {@code mc.wait.worldReady} on a client
- * with no server attached).
+ * <p>The few methods still answering a Map serve methods outside the client group ({@code mc.observe.player},
+ * {@code mc.query} and {@code mc.wait.worldReady} on a client with no server attached).
  */
 public interface ClientDriverApi {
     /** The hop onto this client's thread. */
@@ -99,7 +92,10 @@ public interface ClientDriverApi {
     /** A send's reply, and for a line that went out, the reader of what arrives after it (null when refused). */
     record ChatSendStart(ClientReply reply, ChatReplies replies) {}
 
-    /** The lines that arrive after one send. Each read is short and safe from any thread, and nothing is held between reads. */
+    /**
+     * The lines that arrive after one send. Each read is short and safe from any thread, and nothing is held between
+     * reads.
+     */
     interface ChatReplies {
         /** The lines once a reply has arrived and settled; empty until then. */
         Optional<LaterChat> poll();
@@ -119,30 +115,35 @@ public interface ClientDriverApi {
     ClientPlayer player();
 
     /**
-     * Every non-air ClientLevel cell within Chebyshev {@code radius} (at most 16) of the centre, the
-     * player's feet when any axis is null. {@code filterIds} keeps only those ids or {@code #tags}.
-     * Throws capability_unavailable with no world open.
+     * Every non-air ClientLevel cell within Chebyshev {@code radius} (at most 16) of the centre, the player's feet when
+     * any axis is null. {@code filterIds} keeps only those ids or {@code #tags}. Throws capability_unavailable with no
+     * world open.
      */
     BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
 
-    /** What {@code mc.observe.player} adds for the client's own player: crosshair and frame rate; empty with no player. */
+    /**
+     * What {@code mc.observe.player} adds for the client's own player: crosshair and frame rate; empty with no player.
+     */
     Optional<ObserveContracts.ClientView> clientView();
 
     /**
-     * Client-side entity scan — the server-side {@code mc.query q='entities'} rows, every field
-     * filled except {@code effects}, which a client is not told for other entities, read from
-     * {@code ClientLevel}. Center defaults to the local player when not provided; radius is capped
-     * at 32 (client interest range). Optional {@code hostileFilter} matches only Enemy instances
-     * (true) or only non-Enemy instances (false); omit for all. Throws capability_unavailable with
-     * no world open.
+     * Client-side entity scan — the server-side {@code mc.query q='entities'} rows, every field filled except
+     * {@code effects}, which a client is not told for other entities, read from {@code ClientLevel}. Center defaults to
+     * the local player when not provided; radius is capped at 32 (client interest range). Optional
+     * {@code hostileFilter} matches only Enemy instances (true) or only non-Enemy instances (false); omit for all.
+     * Throws capability_unavailable with no world open.
      */
     List<QueryContracts.EntityRow> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter);
 
-    /** Scored hostile + incoming-projectile assessment around the local player
-     *  (Phase B/C ThreatScanner): {@code mc.observe.threats}' reply. */
+    /**
+     * Scored hostile + incoming-projectile assessment around the local player (Phase B/C ThreatScanner):
+     * {@code mc.observe.threats}' reply.
+     */
     net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats observeThreats(int radius);
 
-    /** Phase G boss sensing — nearest EnderDragon/WitherBoss within {@code radius}
-     *  plus the End-crystal list: {@code mc.observe.boss}' reply. */
+    /**
+     * Phase G boss sensing — nearest EnderDragon/WitherBoss within {@code radius} plus the End-crystal list:
+     * {@code mc.observe.boss}' reply.
+     */
     net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading observeBoss(int radius);
 }

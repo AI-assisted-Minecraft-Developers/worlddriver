@@ -23,13 +23,16 @@ class JupiterSceneWorldTest {
     void theWorldWasCreatedAsDeclared(Game game) {
         long seed = game.onServer(s -> s.getWorldData().worldGenOptions().seed());
         assertEquals(5471L, seed);
-        boolean structures = game.onServer(s -> s.getWorldData().worldGenOptions().generateStructures());
+        boolean structures =
+                game.onServer(s -> s.getWorldData().worldGenOptions().generateStructures());
         assertFalse(structures, "structures were turned off");
         Difficulty difficulty = game.onServer(s -> s.getWorldData().getDifficulty());
         assertEquals(Difficulty.HARD, difficulty);
         // The flat preset's default layers: bedrock, two of dirt, grass on top.
-        boolean bedrock = game.onServer(s -> s.overworld().getBlockState(new BlockPos(0, -64, 0)).is(Blocks.BEDROCK));
-        boolean grass = game.onServer(s -> s.overworld().getBlockState(new BlockPos(0, -61, 0)).is(Blocks.GRASS_BLOCK));
+        boolean bedrock = game.onServer(
+                s -> s.overworld().getBlockState(new BlockPos(0, -64, 0)).is(Blocks.BEDROCK));
+        boolean grass = game.onServer(
+                s -> s.overworld().getBlockState(new BlockPos(0, -61, 0)).is(Blocks.GRASS_BLOCK));
         assertTrue(bedrock && grass, "the overworld is flat");
         boolean pack = game.onServer(s -> s.getPackRepository().getSelectedIds().contains("trade_rebalance"));
         assertTrue(pack, "the experimental trade rebalance pack is on");

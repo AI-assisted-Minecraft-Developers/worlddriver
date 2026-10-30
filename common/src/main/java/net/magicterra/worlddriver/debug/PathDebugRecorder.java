@@ -1,27 +1,26 @@
 package net.magicterra.worlddriver.debug;
 
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.PathTrace;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * The live {@link PathTrace} implementation. Accumulates one goto session, reset whenever a
- * new goal appears. Gated by {@link ControlConfig#pathDebug}: when off, every callback returns
- * immediately. Snapshot is copy-on-read so the renderer never tears.
+ * The live {@link PathTrace} implementation. Accumulates one goto session, reset whenever a new goal appears. Gated by
+ * {@link ControlConfig#pathDebug}: when off, every callback returns immediately. Snapshot is copy-on-read so the
+ * renderer never tears.
  *
- * Session boundary = a change of goal (compared by {@code toString()}); long gotos repath
- * from intermediate cells to the same goal and stay one session. Candidates reflect the
- * latest search only (cleared each {@code onSearchBegin}); planned routes accumulate.
+ * <p>Session boundary = a change of goal (compared by {@code toString()}); long gotos repath from intermediate cells to
+ * the same goal and stay one session. Candidates reflect the latest search only (cleared each {@code onSearchBegin});
+ * planned routes accumulate.
  */
 public final class PathDebugRecorder implements PathTrace {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
@@ -33,7 +32,7 @@ public final class PathDebugRecorder implements PathTrace {
     private String goalDesc = "";
     private String goalKey = "";
     private int repathCount;
-    private long expandedSinceBegin;   // total expansions this search (for reservoir scaling)
+    private long expandedSinceBegin; // total expansions this search (for reservoir scaling)
 
     private final List<PathSession.Candidate> candidates = new ArrayList<>();
     private final List<PathSession.PlannedRoute> plannedRoutes = new ArrayList<>();
@@ -46,7 +45,7 @@ public final class PathDebugRecorder implements PathTrace {
         if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             String key = String.valueOf(goal);
-            if (!key.equals(goalKey)) {                 // new goto → reset session
+            if (!key.equals(goalKey)) { // new goto → reset session
                 goalKey = key;
                 goalDesc = key;
                 start = searchStart;
@@ -57,7 +56,7 @@ public final class PathDebugRecorder implements PathTrace {
                 outcome = null;
                 reason = null;
             }
-            candidates.clear();                         // latest search's candidates only
+            candidates.clear(); // latest search's candidates only
             expandedSinceBegin = 0;
         }
     }
@@ -80,14 +79,20 @@ public final class PathDebugRecorder implements PathTrace {
     }
 
     @Override
-    public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
-                               int expanded, long ms, double finalCost) {
+    public void onSearchResult(
+            List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
         if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             // edges carries a null sentinel for the start node (no entering edge);
             // List.copyOf rejects nulls (NPE), so use a null-tolerant ArrayList copy.
             plannedRoutes.add(new PathSession.PlannedRoute(
-                    new ArrayList<>(path), new ArrayList<>(edges), goalReached, repathCount++, expanded, ms, finalCost));
+                    new ArrayList<>(path),
+                    new ArrayList<>(edges),
+                    goalReached,
+                    repathCount++,
+                    expanded,
+                    ms,
+                    finalCost));
         }
     }
 
@@ -116,9 +121,14 @@ public final class PathDebugRecorder implements PathTrace {
             // Render+write off the client thread so a terminal tick never hitches.
             Util.nonCriticalIoPool().execute(() -> {
                 try {
-                    var meta = PathChartWriter.write(PathChartRenderer.render(snap, PathChartRenderer.Opts.defaults()), null);
-                    LOG.info("[pathdebug] auto-dumped chart {} ({}x{}, outcome={})",
-                            meta.get("path"), meta.get("width"), meta.get("height"), o);
+                    var meta = PathChartWriter.write(
+                            PathChartRenderer.render(snap, PathChartRenderer.Opts.defaults()), null);
+                    LOG.info(
+                            "[pathdebug] auto-dumped chart {} ({}x{}, outcome={})",
+                            meta.get("path"),
+                            meta.get("width"),
+                            meta.get("height"),
+                            o);
                 } catch (Exception e) {
                     LOG.warn("[pathdebug] auto-dump failed: {}", e.toString());
                 }
@@ -128,15 +138,20 @@ public final class PathDebugRecorder implements PathTrace {
 
     /** Copy-on-read snapshot for the renderer. Safe to call from any thread. */
     public PathSession snapshot() {
-        synchronized (lock) { return snapshotLocked(); }
+        synchronized (lock) {
+            return snapshotLocked();
+        }
     }
 
     private PathSession snapshotLocked() {
         return new PathSession(
-                start, goalMarker,
+                start,
+                goalMarker,
                 new ArrayList<>(candidates),
                 new ArrayList<>(plannedRoutes),
                 new ArrayList<>(trajectory),
-                outcome, reason, goalDesc);
+                outcome,
+                reason,
+                goalDesc);
     }
 }

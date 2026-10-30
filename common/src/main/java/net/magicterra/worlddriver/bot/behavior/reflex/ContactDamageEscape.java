@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
+import static net.magicterra.worlddriver.config.Mod.LOG;
+
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BotUtil;
@@ -12,43 +14,37 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.config.Mod.LOG;
-
 /**
- * Contact-damage escape reflex (death #14, live 2026-07-20). A {@code goto y=16}
- * across desert hugged a cactus cluster; the bot's drift under the executor overlapped the
- * neighbouring cactus and contact damage re-landed every ~10 ticks — HP 11→0 in
- * ~20 s. The LLM controller reacted "correctly" (cancel at HP 5, run_away at 2)
- * and still lost: its 1–6 s turn latency can never beat a 2 Hz damage tick. And
- * no existing reflex covers this: hurt-entry retreat/combat ride ENTITY damage
- * attribution (gap#55/#65), AntiSuffocate rides {@code inWall}, DrownEscape rides
- * air — a damaging BLOCK touching the hull had nothing.
+ * Contact-damage escape reflex (death #14, live 2026-07-20). A {@code goto y=16} across desert hugged a cactus cluster;
+ * the bot's drift under the executor overlapped the neighbouring cactus and contact damage re-landed every ~10 ticks —
+ * HP 11→0 in ~20 s. The LLM controller reacted "correctly" (cancel at HP 5, run_away at 2) and still lost: its 1–6 s
+ * turn latency can never beat a 2 Hz damage tick. And no existing reflex covers this: hurt-entry retreat/combat ride
+ * ENTITY damage attribution (gap#55/#65), AntiSuffocate rides {@code inWall}, DrownEscape rides air — a damaging BLOCK
+ * touching the hull had nothing.
  *
- * <p>Mechanics: sibling of {@link AntiSuffocate} — an unconditional client-tick
- * reflex run after the scheduler, NOT a movement chain. While
- * {@link ContactEscapeGate#shouldTrigger} is hot (fresh damage from a
- * step-away-able block type), face directly away from the nearest hazard block
- * touching the hull and hold forward (jump on collision, vanilla step-up), then
- * linger a few ticks to get fully clear and hand control straight back. Overrides
- * an active navigator's keys only during the episode — same "override while dying,
- * then hand back" contract as AntiSuffocate.
+ * <p>Mechanics: sibling of {@link AntiSuffocate} — an unconditional client-tick reflex run after the scheduler, NOT a
+ * movement chain. While {@link ContactEscapeGate#shouldTrigger} is hot (fresh damage from a step-away-able block type),
+ * face directly away from the nearest hazard block touching the hull and hold forward (jump on collision, vanilla
+ * step-up), then linger a few ticks to get fully clear and hand control straight back. Overrides an active navigator's
+ * keys only during the episode — same "override while dying, then hand back" contract as AntiSuffocate.
  *
- * <p>Idle-passivity: this moves the bot horizontally with no command, which the
- * idle-passive contract normally forbids. Same carve-out P1 drew for hurt-entry
- * retreat and gap#70 drew for the drowning float: REACTING TO TAKING DAMAGE is a
- * survival reflex, not autonomous wandering. (An idle bot standing against a
- * cactus after a cancel() was exactly the second half of death #14.)
+ * <p>Idle-passivity: this moves the bot horizontally with no command, which the idle-passive contract normally forbids.
+ * Same carve-out P1 drew for hurt-entry retreat and gap#70 drew for the drowning float: REACTING TO TAKING DAMAGE is a
+ * survival reflex, not autonomous wandering. (An idle bot standing against a cactus after a cancel() was exactly the
+ * second half of death #14.)
  */
 public final class ContactDamageEscape {
 
-    /** Ticks to keep walking after the damage gate clears — bridges the ≤10-tick
-     *  hurtTime gap between contact hits and puts a full block between hull and
-     *  hazard before handing back. */
+    /**
+     * Ticks to keep walking after the damage gate clears — bridges the ≤10-tick hurtTime gap between contact hits and
+     * puts a full block between hull and hazard before handing back.
+     */
     private static final int LINGER_TICKS = 15;
-    /** Hard episode cap. Contact damage that survives this long means we are
-     *  wedged (pit walled by cacti); give the channel back rather than grind —
-     *  the gate re-triggers on the next hit, so a live episode restarts at worst
-     *  10 ticks later, and the planner/critic see the hurt telemetry meanwhile. */
+    /**
+     * Hard episode cap. Contact damage that survives this long means we are wedged (pit walled by cacti); give the
+     * channel back rather than grind — the gate re-triggers on the next hit, so a live episode restarts at worst 10
+     * ticks later, and the planner/critic see the hurt telemetry meanwhile.
+     */
     private static final int MAX_EPISODE_TICKS = 100;
 
     private boolean active;
@@ -63,8 +59,7 @@ public final class ContactDamageEscape {
         Level level = p.level();
         DamageSource src = p.getLastDamageSource();
         String msgId = src != null ? src.getMsgId() : null;
-        boolean hot = ContactEscapeGate.shouldTrigger(
-                msgId, p.hurtTime, BehaviorConfig.contactDamageEscape);
+        boolean hot = ContactEscapeGate.shouldTrigger(msgId, p.hurtTime, BehaviorConfig.contactDamageEscape);
 
         if (!active) {
             if (!hot) return false;
@@ -74,12 +69,21 @@ public final class ContactDamageEscape {
             // blockPosition(), not (int) casts — see the sibling note in LavaProximityEscape. This
             // reflex reasons about the touching hazard's OFFSET from the foot cell, so a row that
             // truncates the foot cell toward zero mis-states the very relation it is reporting.
-            LOG.info("[contactEscape] {} damage (hp={}) at {} → stepping out of contact",
-                    msgId, String.format("%.1f", p.getHealth()), p.blockPosition().toShortString());
+            LOG.info(
+                    "[contactEscape] {} damage (hp={}) at {} → stepping out of contact",
+                    msgId,
+                    String.format("%.1f", p.getHealth()),
+                    p.blockPosition().toShortString());
         }
         if (hot) linger = LINGER_TICKS;
-        else if (--linger <= 0) { reset(body, "clear"); return false; }
-        if (++episodeTicks > MAX_EPISODE_TICKS) { reset(body, "episode-cap"); return false; }
+        else if (--linger <= 0) {
+            reset(body, "clear");
+            return false;
+        }
+        if (++episodeTicks > MAX_EPISODE_TICKS) {
+            reset(body, "episode-cap");
+            return false;
+        }
 
         BlockPos hazard = nearestHazard(level, p);
         if (hazard != null) lastHazard = hazard;
@@ -89,15 +93,21 @@ public final class ContactDamageEscape {
             dx = me.x - (lastHazard.getX() + 0.5);
             dz = me.z - (lastHazard.getZ() + 0.5);
         } else {
-            dx = 0; dz = 0;   // desynced client: no hazard visible — cardinal fallback
+            dx = 0;
+            dz = 0; // desynced client: no hazard visible — cardinal fallback
         }
         if (Math.hypot(dx, dz) < 0.35) {
             // Standing IN the hazard (berry bush / fire) or it is directly BELOW
             // (magma floor): away-vector is degenerate — pick a clear cardinal.
-            Direction d = BotUtil.stepAwayCardinal(p.blockPosition(),
-                    c -> isContactHazard(level, c), c -> passable(level, c));
-            if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
-            else { dx = 1; dz = 0; }  // fully ringed: any push beats standing still
+            Direction d = BotUtil.stepAwayCardinal(
+                    p.blockPosition(), c -> isContactHazard(level, c), c -> passable(level, c));
+            if (d != null) {
+                dx = d.getStepX();
+                dz = d.getStepZ();
+            } else {
+                dx = 1;
+                dz = 0;
+            } // fully ringed: any push beats standing still
         }
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
@@ -116,10 +126,11 @@ public final class ContactDamageEscape {
         return true;
     }
 
-    /** Nearest step-away-able hazard block the hull could be touching: the foot
-     *  cell and the cell below it (magma / fire carpet), plus the 8 horizontal
-     *  neighbours at foot and head height (a 0.6-wide hull can graze a diagonal
-     *  cactus at a hugged corner). */
+    /**
+     * Nearest step-away-able hazard block the hull could be touching: the foot cell and the cell below it (magma / fire
+     * carpet), plus the 8 horizontal neighbours at foot and head height (a 0.6-wide hull can graze a diagonal cactus at
+     * a hugged corner).
+     */
     private static BlockPos nearestHazard(Level lvl, LivingEntity p) {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
@@ -127,7 +138,10 @@ public final class ContactDamageEscape {
         for (BlockPos cand : candidates(foot)) {
             if (!isContactHazard(lvl, cand)) continue;
             double d = cand.distToCenterSqr(p.getX(), p.getY(), p.getZ());
-            if (d < bestD) { bestD = d; best = cand; }
+            if (d < bestD) {
+                bestD = d;
+                best = cand;
+            }
         }
         return best;
     }
@@ -151,19 +165,22 @@ public final class ContactDamageEscape {
         return BotUtil.HAZARD_BLOCKS.contains(s.getBlock()) || s.is(BlockTags.FIRE);
     }
 
-    /** This reflex's notion of a cell the player fits through, handed to
-     *  {@link BotUtil#stepAwayCardinal} as its {@code open} test. Stricter than the lava
-     *  sibling's {@code !blocksMotion()}: a carpet or a pressure plate is refused here and
-     *  stepped over there. Kept as it was — the picker they now share takes the test as a
-     *  parameter precisely so neither caller had to move to merge. */
+    /**
+     * This reflex's notion of a cell the player fits through, handed to {@link BotUtil#stepAwayCardinal} as its
+     * {@code open} test. Stricter than the lava sibling's {@code !blocksMotion()}: a carpet or a pressure plate is
+     * refused here and stepped over there. Kept as it was — the picker they now share takes the test as a parameter
+     * precisely so neither caller had to move to merge.
+     */
     private static boolean passable(Level lvl, BlockPos pos) {
         return lvl.getBlockState(pos).getCollisionShape(lvl, pos).isEmpty();
     }
 
     private void reset(Body body, String outcome) {
         if (active) {
-            LOG.info("[contactEscape] episode end ({}) after {}t — last hazard {}",
-                    outcome, episodeTicks,
+            LOG.info(
+                    "[contactEscape] episode end ({}) after {}t — last hazard {}",
+                    outcome,
+                    episodeTicks,
                     lastHazard == null ? "unseen" : lastHazard.toShortString());
             // Belt-and-braces: the avatar's commands are per-tick, so an episode that simply
             // stops re-asserting already hands the channel back on the next tick. Under the

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.api.methods.script;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
@@ -10,7 +9,9 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface ScriptApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ScriptStubApi of(ApiRegistry registry) { return ScriptApiBinding.calls(registry); }
+    static ScriptStubApi of(ApiRegistry registry) {
+        return ScriptApiBinding.calls(registry);
+    }
 
     @Spec(value = ScriptContracts.class, spec = "EVAL")
     CompletionStage<ScriptContracts.Outcome> eval(ScriptContracts.EvalParams p, CallContext ctx);

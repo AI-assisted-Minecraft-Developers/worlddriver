@@ -1,57 +1,67 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.config.ArbitrationConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Phase B top-priority reflex — a creeper is close enough to be lethal, so sprint
- * straight away from it. A creeper's fuse is ~1.5 s; pathfinding away is too slow
- * to plan, so this is a blunt immediate response (turn back to the creeper, hold
- * forward + sprint) rather than a planned route. Outbids everything except the
- * water-bucket clutch. Gated on {@link ArbitrationConfig#autoDodge}.
+ * Phase B top-priority reflex — a creeper is close enough to be lethal, so sprint straight away from it. A creeper's
+ * fuse is ~1.5 s; pathfinding away is too slow to plan, so this is a blunt immediate response (turn back to the
+ * creeper, hold forward + sprint) rather than a planned route. Outbids everything except the water-bucket clutch. Gated
+ * on {@link ArbitrationConfig#autoDodge}.
  */
 public final class PanicChain implements Chain {
 
-    @Override public String name() { return "panic"; }
+    @Override
+    public String name() {
+        return "panic";
+    }
 
-    @Override public float priority(Body body, WorldView w, BotState st) {
+    @Override
+    public float priority(Body body, WorldView w, BotState st) {
         if (!ArbitrationConfig.autoDodge || body == null || body.entity() == null) return 0f;
         return nearestCreeper(st) != null ? Priorities.PANIC : 0f;
     }
 
-    /** Candidate flee headings, in degrees offset from "straight away", tried
-     *  nearest-to-straight-away first. Lets the bot peel along a shore/ledge
-     *  instead of sprinting off it. */
-    private static final double[] FLEE_OFFSETS =
-            {0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180};
+    /**
+     * Candidate flee headings, in degrees offset from "straight away", tried nearest-to-straight-away first. Lets the
+     * bot peel along a shore/ledge instead of sprinting off it.
+     */
+    private static final double[] FLEE_OFFSETS = {
+        0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180
+    };
 
-    @Override public void tick(Body body, WorldView w, BotState st) {
+    @Override
+    public void tick(Body body, WorldView w, BotState st) {
         Entity creeper = nearestCreeper(st);
         LivingEntity p = body.entity();
         if (creeper == null || p == null) return;
-        Vec3 away = p.position().subtract(creeper.position());   // creeper → me
-        if (away.lengthSqr() <= 1.0e-6) { body.releaseControls(); return; }
+        Vec3 away = p.position().subtract(creeper.position()); // creeper → me
+        if (away.lengthSqr() <= 1.0e-6) {
+            body.releaseControls();
+            return;
+        }
         double ax = away.x, az = away.z;
         double len = Math.sqrt(ax * ax + az * az);
-        ax /= len; az /= len;
+        ax /= len;
+        az /= len;
 
         // Sprinting straight away from a creeper is lethal if "away" runs off a
         // cliff or into lava/deep water (death #7 sibling: the bot backed off a
         // ledge). Pick the heading closest to straight-away whose next 1-2 cells
         // are walkable and non-lethal, using the same HazardField the planner uses.
         BlockPos foot = p.blockPosition();
-        HazardField hf = HazardField.compute(w, foot, 3,
-                SurvivalMath.survivableFall(p.getHealth()), WorldConfig.deepWaterMax);
+        HazardField hf =
+                HazardField.compute(w, foot, 3, SurvivalMath.survivableFall(p.getHealth()), WorldConfig.deepWaterMax);
         double bestX = 0, bestZ = 0;
         boolean found = false;
         for (double off : FLEE_OFFSETS) {
@@ -59,7 +69,10 @@ public final class PanicChain implements Chain {
             double dx = ax * Math.cos(r) - az * Math.sin(r);
             double dz = ax * Math.sin(r) + az * Math.cos(r);
             if (safeStep(hf, dx, dz, 1) && safeStep(hf, dx, dz, 2)) {
-                bestX = dx; bestZ = dz; found = true; break;
+                bestX = dx;
+                bestZ = dz;
+                found = true;
+                break;
             }
         }
         if (!found) {
@@ -77,8 +90,10 @@ public final class PanicChain implements Chain {
         body.commandSprint(true);
     }
 
-    /** The cell {@code dist} blocks along (dx,dz) from the bot is walkable and
-     *  non-lethal (not a killing drop / lava / deep water). */
+    /**
+     * The cell {@code dist} blocks along (dx,dz) from the bot is walkable and non-lethal (not a killing drop / lava /
+     * deep water).
+     */
     private static boolean safeStep(HazardField hf, double dx, double dz, int dist) {
         int ox = (int) Math.round(dx * dist);
         int oz = (int) Math.round(dz * dist);
@@ -86,11 +101,15 @@ public final class PanicChain implements Chain {
         return cell.standable() && !cell.lethal();
     }
 
-    @Override public void onInterrupt(Body body, Chain by) { if (body != null) body.releaseControls(); }
-    @Override public void onResume() {}
+    @Override
+    public void onInterrupt(Body body, Chain by) {
+        if (body != null) body.releaseControls();
+    }
 
-    /** The closest creeper within the keep-distance (or one already swelling a bit
-     *  further out), else null. */
+    @Override
+    public void onResume() {}
+
+    /** The closest creeper within the keep-distance (or one already swelling a bit further out), else null. */
     private Entity nearestCreeper(BotState st) {
         ThreatScanner.Scan scan = st.threats.current();
         Entity best = null;
@@ -99,7 +118,10 @@ public final class PanicChain implements Chain {
             if (!t.type().endsWith("creeper")) continue;
             boolean close = t.distance() <= ArbitrationConfig.creeperKeepDistance;
             boolean swelling = t.creeperSwell() > 0f && t.distance() <= ArbitrationConfig.creeperKeepDistance + 3.0;
-            if ((close || swelling) && t.distance() < bestDist) { best = t.entity(); bestDist = t.distance(); }
+            if ((close || swelling) && t.distance() < bestDist) {
+                best = t.entity();
+                bestDist = t.distance();
+            }
         }
         return best;
     }

@@ -1,16 +1,14 @@
 package net.magicterra.worlddriver.testcontent;
 
-
 import java.util.Comparator;
 import java.util.concurrent.locks.LockSupport;
-
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.game.WorldDriver;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.system.SystemApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -26,9 +24,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 /**
- * The arena at the driver's test origin ({@code mc.system.testOrigin}) that the validation suite's
- * scripts are written against. Testmod only: seeding clears blocks and discards every non-player
- * entity around the origin, which the shipped jar has no reason to offer.
+ * The arena at the driver's test origin ({@code mc.system.testOrigin}) that the validation suite's scripts are written
+ * against. Testmod only: seeding clears blocks and discards every non-player entity around the origin, which the
+ * shipped jar has no reason to offer.
  */
 public final class TestArena {
     private TestArena() {}
@@ -38,32 +36,33 @@ public final class TestArena {
     /**
      * Keeps the test arena's chunks loaded, entities and all, for as long as the server runs.
      *
-     * <p>Nothing else does. StageWright keeps a test's plot loaded, and this arena is not one — the
-     * test origin is an absolute position outside every plot. Left unpinned it stays loaded only
-     * while a player happens to be standing near 0,200,0, and the scripts walk the player off it.
+     * <p>Nothing else does. StageWright keeps a test's plot loaded, and this arena is not one — the test origin is an
+     * absolute position outside every plot. Left unpinned it stays loaded only while a player happens to be standing
+     * near 0,200,0, and the scripts walk the player off it.
      *
-     * <p>What that costs is a whole class of failure that reads as a product bug. Block writes
-     * load the chunk they touch on demand, so terrain always works; {@code Level#getEntities}
-     * only sees LOADED entity sections, so entities silently do not exist. The validation suite
-     * then reports "exactly the 2 tagged stands, got 0" and "the two seeded props are there, got
-     * 0 non-player rows of 0" — which read as the entity query being broken. Measured on both
-     * NeoForge client topologies, at both ends of the suite: {@code 05_query} failed before the
-     * player's teleport onto the pad had promoted the chunk, and {@code 58_query_type} failed
-     * after {@code 40_scheduler} had walked them off it. Same missing ticket, opposite ends,
-     * different checks each run — which is what made it look like flakiness.
+     * <p>What that costs is a whole class of failure that reads as a product bug. Block writes load the chunk they
+     * touch on demand, so terrain always works; {@code Level#getEntities} only sees LOADED entity sections, so entities
+     * silently do not exist. The validation suite then reports "exactly the 2 tagged stands, got 0" and "the two seeded
+     * props are there, got 0 non-player rows of 0" — which read as the entity query being broken. Measured on both
+     * NeoForge client topologies, at both ends of the suite: {@code 05_query} failed before the player's teleport onto
+     * the pad had promoted the chunk, and {@code 58_query_type} failed after {@code 40_scheduler} had walked them off
+     * it. Same missing ticket, opposite ends, different checks each run — which is what made it look like flakiness.
      *
      * <p>Not persisted, so it never outlives the process and cannot end up in a saved world.
      */
     private static final TicketType<ChunkPos> TEST_ARENA_TICKET =
             TicketType.create("worlddriver_test_arena", Comparator.comparingLong(ChunkPos::toLong));
 
-    /** Chunks within this many of the origin's chunk must be ENTITY_TICKING. The seed clears a
-     *  ±20 box and the suite queries a ±16 radius around the origin, so ±2 chunks covers both. */
+    /**
+     * Chunks within this many of the origin's chunk must be ENTITY_TICKING. The seed clears a ±20 box and the suite
+     * queries a ±16 radius around the origin, so ±2 chunks covers both.
+     */
     private static final int TEST_ARENA_CHUNK_RADIUS = 2;
 
-    /** True once every chunk within {@link #TEST_ARENA_CHUNK_RADIUS} of {@code center} has its
-     *  entity sections at the ticking visibility — the state in which {@code getEntities} sees
-     *  what {@code addFreshEntity} added. */
+    /**
+     * True once every chunk within {@link #TEST_ARENA_CHUNK_RADIUS} of {@code center} has its entity sections at the
+     * ticking visibility — the state in which {@code getEntities} sees what {@code addFreshEntity} added.
+     */
     private static boolean arenaEntityTicking(ServerLevel level, ChunkPos center, int y) {
         for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
             for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
@@ -72,13 +71,12 @@ public final class TestArena {
     }
 
     /**
-     * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201,
-     * one cow at (3,201,0), one sheep at (-3,201,2). Clears surrounding air first
-     * so seeding before every validation script is idempotent.
+     * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201, one cow at (3,201,0), one sheep at
+     * (-3,201,2). Clears surrounding air first so seeding before every validation script is idempotent.
      *
-     * <p>Pins the arena's chunks on the way in ({@link #TEST_ARENA_TICKET}) and asserts on the way
-     * out that the props it just placed are actually visible. "Deterministic" is the whole point of
-     * this verb, and an arena whose entities exist only while somebody stands next to it is not.
+     * <p>Pins the arena's chunks on the way in ({@link #TEST_ARENA_TICKET}) and asserts on the way out that the props
+     * it just placed are actually visible. "Deterministic" is the whole point of this verb, and an arena whose entities
+     * exist only while somebody stands next to it is not.
      */
     public static void seed(ApiRegistry api, MinecraftServer server) {
         ServerLevel level = server.overworld();
@@ -90,8 +88,7 @@ public final class TestArena {
             // 33-d and each ring one higher — so d = radius + 2. Re-adding an identical ticket is
             // a no-op in DistanceManager, which is what makes this safe to call on every seed.
             ChunkPos center = new ChunkPos(origin);
-            level.getChunkSource().addRegionTicket(
-                    TEST_ARENA_TICKET, center, TEST_ARENA_CHUNK_RADIUS + 2, center);
+            level.getChunkSource().addRegionTicket(TEST_ARENA_TICKET, center, TEST_ARENA_CHUNK_RADIUS + 2, center);
             // Then drive the load to completion before touching anything. addRegionTicket only
             // registers intent; the chunks reach FULL (and their entity sections become visible)
             // through the chunk source's own update pass, and a blocking getChunk on the server
@@ -140,8 +137,7 @@ public final class TestArena {
             // run self-healing regardless of which script reaches highest.
             for (int dx = -4; dx <= 4; dx++)
                 for (int dy = -1; dy <= 12; dy++)
-                    for (int dz = -4; dz <= 4; dz++)
-                        level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
+                    for (int dz = -4; dz <= 4; dz++) level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
             // Floor the whole cleared footprint, not a 5×5 island in it. The suite's moving checks
             // need somewhere to move: a kiting bot backs away from what it is shooting at, and off
             // a five-wide pad it is over the edge in two steps — which reports as "kited away from
@@ -150,8 +146,7 @@ public final class TestArena {
             // walking out of the cleared box are the same boundary rather than two.
             BlockState stone = Blocks.STONE.defaultBlockState();
             for (int dx = -4; dx <= 4; dx++)
-                for (int dz = -4; dz <= 4; dz++)
-                    level.setBlockAndUpdate(origin.offset(dx, 0, dz), stone);
+                for (int dz = -4; dz <= 4; dz++) level.setBlockAndUpdate(origin.offset(dx, 0, dz), stone);
             level.setBlockAndUpdate(origin.offset(0, 1, 0), Blocks.OAK_LOG.defaultBlockState());
 
             // Despawn every non-player entity in the test box. Cow/Sheep from a

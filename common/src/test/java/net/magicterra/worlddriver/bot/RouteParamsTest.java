@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot;
 
-import com.google.gson.JsonObject;
-import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -10,10 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -32,31 +31,35 @@ import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.rules.constraints.YCeil;
 import net.magicterra.worlddriver.bot.rules.constraints.YFloor;
 import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
-import net.magicterra.worlddriver.bot.rules.modifiers.LedgeTax;
 import net.magicterra.worlddriver.bot.rules.modifiers.ColumnAnchor;
 import net.magicterra.worlddriver.bot.rules.modifiers.LeashAnchor;
+import net.magicterra.worlddriver.bot.rules.modifiers.LedgeTax;
 import net.magicterra.worlddriver.bot.rules.modifiers.PreferBreak;
 import net.magicterra.worlddriver.bot.rules.modifiers.PreferYBand;
 import net.magicterra.worlddriver.bot.rules.modifiers.ShorelineHug;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import net.magicterra.worlddriver.config.BotConfig;
 
 /**
- * {@link RouteParams#parse} is the one place a {@code route} object becomes a search profile, for
- * goto and follow alike, so every field is pinned here: which component each one builds, the
- * defaults, the presets, and the path a malformed field is reported at.
+ * {@link RouteParams#parse} is the one place a {@code route} object becomes a search profile, for goto and follow
+ * alike, so every field is pinned here: which component each one builds, the defaults, the presets, and the path a
+ * malformed field is reported at.
  */
 class RouteParamsTest {
     private boolean avoidMobsBefore;
 
     @BeforeEach
-    void keep() { avoidMobsBefore = BotConfig.avoidMobs; }
+    void keep() {
+        avoidMobsBefore = BotConfig.avoidMobs;
+    }
 
     @AfterEach
-    void restore() { BotConfig.avoidMobs = avoidMobsBefore; }
+    void restore() {
+        BotConfig.avoidMobs = avoidMobsBefore;
+    }
 
     private static RouteParams.Parsed parse(Object... kv) {
         Map<String, Object> m = new HashMap<>();
@@ -88,7 +91,9 @@ class RouteParamsTest {
         BotConfig.avoidMobs = false;
         RouteParams.Parsed p = parse();
         assertTrue(p.profile().bias().isEmpty(), "no bias: " + p.profile().bias());
-        assertTrue(p.profile().constraints().isEmpty(), "no constraints: " + p.profile().constraints());
+        assertTrue(
+                p.profile().constraints().isEmpty(),
+                "no constraints: " + p.profile().constraints());
         assertTrue(p.profile().capability().allows(Capability.PARKOUR));
         assertFalse(p.profile().capability().allowsOptIn(Capability.DIVE));
         assertTrue(p.via().isEmpty());
@@ -132,7 +137,8 @@ class RouteParamsTest {
 
     @Test
     void modeWithSwimDoesNotForbidWater() {
-        assertTrue(parse("mode", List.of("walk", "swim")).profile().constraints().isEmpty());
+        assertTrue(
+                parse("mode", List.of("walk", "swim")).profile().constraints().isEmpty());
         assertTrue(parse("mode", List.of("swim")).profile().constraints().isEmpty());
     }
 
@@ -140,7 +146,9 @@ class RouteParamsTest {
     void modeDiveOptsIntoDivingAndImpliesSwim() {
         RouteParams.Parsed p = parse("mode", List.of("dive"));
         assertTrue(p.profile().capability().allowsOptIn(Capability.DIVE));
-        assertTrue(p.profile().constraints().isEmpty(), "dive implies swim: " + p.profile().constraints());
+        assertTrue(
+                p.profile().constraints().isEmpty(),
+                "dive implies swim: " + p.profile().constraints());
     }
 
     @Test
@@ -184,11 +192,16 @@ class RouteParamsTest {
 
     @Test
     void yRangeSoftIsABand() {
-        PreferYBand b = only(parse("yRange", Map.of("min", 60, "max", 70)).profile().bias(), PreferYBand.class);
+        PreferYBand b =
+                only(parse("yRange", Map.of("min", 60, "max", 70)).profile().bias(), PreferYBand.class);
         assertEquals(60, b.yMin());
         assertEquals(70, b.yMax());
         assertEquals(10, b.weight(), 1e-9);
-        assertEquals(4, only(parse("yRange", Map.of("min", 60, "weight", 4)).profile().bias(), PreferYBand.class).weight(), 1e-9);
+        assertEquals(
+                4,
+                only(parse("yRange", Map.of("min", 60, "weight", 4)).profile().bias(), PreferYBand.class)
+                        .weight(),
+                1e-9);
     }
 
     @Test
@@ -204,8 +217,20 @@ class RouteParamsTest {
 
     @Test
     void hugShoreDefaultsAndRejectsOtherWhat() {
-        assertEquals(30, only(parse("hug", Map.of()).profile().bias(), ShorelineHug.class).weight(), 1e-9);
-        assertEquals(50, only(parse("hug", Map.of("what", "shore", "weight", 50)).profile().bias(), ShorelineHug.class).weight(), 1e-9);
+        assertEquals(
+                30,
+                only(parse("hug", Map.of()).profile().bias(), ShorelineHug.class)
+                        .weight(),
+                1e-9);
+        assertEquals(
+                50,
+                only(
+                                parse("hug", Map.of("what", "shore", "weight", 50))
+                                        .profile()
+                                        .bias(),
+                                ShorelineHug.class)
+                        .weight(),
+                1e-9);
         assertEquals(List.of("/route/hug/what"), issues(Map.of("hug", Map.of("what", "wall"))));
     }
 
@@ -214,10 +239,15 @@ class RouteParamsTest {
     @Test
     void leashPointSoftAndHard() {
         Map<String, Object> point = Map.of("kind", "point", "pos", at(10, 64, 20));
-        LeashAnchor soft = only(parse("leash", Map.of("anchor", point, "radius", 8)).profile().bias(), LeashAnchor.class);
+        LeashAnchor soft = only(
+                parse("leash", Map.of("anchor", point, "radius", 8)).profile().bias(), LeashAnchor.class);
         assertEquals(8, soft.softRadius(), 1e-9);
         assertEquals(20, soft.weight(), 1e-9);
-        LeashHardRadius hard = only(parse("leash", Map.of("anchor", point, "radius", 8, "hard", true)).profile().constraints(), LeashHardRadius.class);
+        LeashHardRadius hard = only(
+                parse("leash", Map.of("anchor", point, "radius", 8, "hard", true))
+                        .profile()
+                        .constraints(),
+                LeashHardRadius.class);
         assertEquals(8, hard.radius(), 1e-9);
         assertEquals(10, hard.ax(), 1e-9);
     }
@@ -225,30 +255,40 @@ class RouteParamsTest {
     @Test
     void leashColumnIsMeasuredHorizontally() {
         Map<String, Object> column = Map.of("kind", "column", "x", 10, "z", 20);
-        ColumnRadius col = only(parse("leash", Map.of("anchor", column, "radius", 1, "hard", true)).profile().constraints(), ColumnRadius.class);
+        ColumnRadius col = only(
+                parse("leash", Map.of("anchor", column, "radius", 1, "hard", true))
+                        .profile()
+                        .constraints(),
+                ColumnRadius.class);
         assertEquals(10.5, col.cx(), 1e-9);
         assertEquals(20.5, col.cz(), 1e-9);
-        assertNotNull(only(parse("leash", Map.of("anchor", column, "radius", 2)).profile().bias(), ColumnAnchor.class));
+        assertNotNull(only(
+                parse("leash", Map.of("anchor", column, "radius", 2)).profile().bias(), ColumnAnchor.class));
     }
 
     @Test
     void leashEntityLeavesTheProfileAlone() {
-        RouteParams.Parsed byName = parse("leash", Map.of("anchor", Map.of("kind", "entity", "entity", "PlayerB"), "radius", 6));
+        RouteParams.Parsed byName =
+                parse("leash", Map.of("anchor", Map.of("kind", "entity", "entity", "PlayerB"), "radius", 6));
         assertEquals("PlayerB", byName.entityLeash().entity());
         assertEquals(6, byName.entityLeash().radius(), 1e-9);
         assertFalse(byName.entityLeash().hard());
-        assertTrue(byName.profile().bias().isEmpty() && byName.profile().constraints().isEmpty());
-        RouteParams.Parsed byId = parse("leash", Map.of("anchor", Map.of("kind", "entity", "entity", "3298"), "radius", 6, "hard", true));
+        assertTrue(byName.profile().bias().isEmpty()
+                && byName.profile().constraints().isEmpty());
+        RouteParams.Parsed byId =
+                parse("leash", Map.of("anchor", Map.of("kind", "entity", "entity", "3298"), "radius", 6, "hard", true));
         assertEquals("3298", byId.entityLeash().entity());
         assertTrue(byId.entityLeash().hard());
     }
 
     @Test
     void leashNeedsAnAnchorAndAPositiveRadius() {
-        assertEquals(List.of("/route/leash/radius"),
+        assertEquals(
+                List.of("/route/leash/radius"),
                 issues(Map.of("leash", Map.of("anchor", Map.of("kind", "column", "x", 0, "z", 0)))));
         assertEquals(List.of("/route/leash/anchor"), issues(Map.of("leash", Map.of("radius", 3))));
-        assertEquals(List.of("/route/leash/radius"),
+        assertEquals(
+                List.of("/route/leash/radius"),
                 issues(Map.of("leash", Map.of("anchor", Map.of("kind", "column", "x", 0, "z", 0), "radius", 0))));
     }
 
@@ -256,9 +296,21 @@ class RouteParamsTest {
 
     @Test
     void regionsForbidByDefaultAndAvoidWithPenalty() {
-        RouteParams.Parsed p = parse("regions", List.of(
-                Map.of("shape", "box", "min", at(0, 60, 0), "max", at(10, 70, 10)),
-                Map.of("shape", "sphere", "center", at(50, 64, 50), "radius", 5, "mode", "avoid", "penalty", 99)));
+        RouteParams.Parsed p = parse(
+                "regions",
+                List.of(
+                        Map.of("shape", "box", "min", at(0, 60, 0), "max", at(10, 70, 10)),
+                        Map.of(
+                                "shape",
+                                "sphere",
+                                "center",
+                                at(50, 64, 50),
+                                "radius",
+                                5,
+                                "mode",
+                                "avoid",
+                                "penalty",
+                                99)));
         ForbidRegion f = only(p.profile().constraints(), ForbidRegion.class);
         assertTrue(f.region().contains(5.5, 65, 5.5));
         AvoidRegion a = only(p.profile().bias(), AvoidRegion.class);
@@ -269,42 +321,69 @@ class RouteParamsTest {
 
     @Test
     void aCellsRegionChargesExactlyItsCells() {
-        RouteParams.Parsed p = parse("regions", List.of(Map.of("shape", "cells", "cells", List.of(at(1, 64, 2), at(3, 64, 2)),
-                "mode", "avoid", "penalty", 300)));
+        RouteParams.Parsed p = parse(
+                "regions",
+                List.of(Map.of(
+                        "shape",
+                        "cells",
+                        "cells",
+                        List.of(at(1, 64, 2), at(3, 64, 2)),
+                        "mode",
+                        "avoid",
+                        "penalty",
+                        300)));
         AvoidRegion a = only(p.profile().bias(), AvoidRegion.class);
         assertEquals(300.0, a.penalty());
         assertTrue(a.region().contains(1.5, 64, 2.5));
         assertTrue(a.region().contains(3.5, 64, 2.5));
         assertTrue(!a.region().contains(2.5, 64, 2.5));
-        assertEquals(List.of("/route/regions/0/cells"), issues(Map.of("regions", List.of(Map.of("shape", "cells", "cells", List.of())))));
+        assertEquals(
+                List.of("/route/regions/0/cells"),
+                issues(Map.of("regions", List.of(Map.of("shape", "cells", "cells", List.of())))));
     }
 
     @Test
     void aLedgeBecomesItsTax() {
         RouteParams.Parsed p = parse("ledge", Map.of("minDrop", 4, "penalty", 300));
         assertEquals(new LedgeTax(4, 300), only(p.profile().bias(), LedgeTax.class));
-        assertEquals(new LedgeTax(4, 300), only(parse("ledge", Map.of()).profile().bias(), LedgeTax.class));
+        assertEquals(
+                new LedgeTax(4, 300), only(parse("ledge", Map.of()).profile().bias(), LedgeTax.class));
     }
 
     @Test
     void regionsNameTheirShapeAndRejectBadOnes() {
-        assertInstanceOf(net.magicterra.worlddriver.bot.rules.Region.Sphere.class,
-                only(parse("regions", List.of(Map.of("shape", "sphere", "center", at(0, 0, 0), "radius", 3))).profile().constraints(),
-                        ForbidRegion.class).region());
+        assertInstanceOf(
+                net.magicterra.worlddriver.bot.rules.Region.Sphere.class,
+                only(
+                                parse("regions", List.of(Map.of("shape", "sphere", "center", at(0, 0, 0), "radius", 3)))
+                                        .profile()
+                                        .constraints(),
+                                ForbidRegion.class)
+                        .region());
         assertEquals(List.of("/route/regions"), issues(Map.of("regions", Map.of())));
         assertEquals(List.of("/route/regions/0/shape"), issues(Map.of("regions", List.of(Map.of("shape", "cone")))));
-        assertEquals(List.of("/route/regions/0/shape"), issues(Map.of("regions", List.of(Map.of("center", at(0, 0, 0))))));
-        assertEquals(List.of("/route/regions/0/radius"),
+        assertEquals(
+                List.of("/route/regions/0/shape"), issues(Map.of("regions", List.of(Map.of("center", at(0, 0, 0))))));
+        assertEquals(
+                List.of("/route/regions/0/radius"),
                 issues(Map.of("regions", List.of(Map.of("shape", "sphere", "center", at(0, 0, 0), "radius", 0)))));
     }
 
     @Test
     void corridorHardAndSoft() {
-        Corridor hard = only(parse("corridor", Map.of("points", List.of(at(0, 64, 0), at(10, 64, 0)))).profile().constraints(), Corridor.class);
+        Corridor hard = only(
+                parse("corridor", Map.of("points", List.of(at(0, 64, 0), at(10, 64, 0))))
+                        .profile()
+                        .constraints(),
+                Corridor.class);
         assertEquals(3, hard.radius(), 1e-9);
         assertTrue(hard.hard());
         assertEquals(2, hard.points().size());
-        Corridor soft = only(parse("corridor", Map.of("points", List.of(at(0, 64, 0)), "radius", 5, "mode", "avoid")).profile().bias(), Corridor.class);
+        Corridor soft = only(
+                parse("corridor", Map.of("points", List.of(at(0, 64, 0)), "radius", 5, "mode", "avoid"))
+                        .profile()
+                        .bias(),
+                Corridor.class);
         assertFalse(soft.hard());
         assertEquals(20, soft.penalty(), 1e-9);
         assertEquals(List.of("/route/corridor/points"), issues(Map.of("corridor", Map.of("radius", 3))));
@@ -348,25 +427,46 @@ class RouteParamsTest {
 
     @Test
     void explicitMobsOverridesThePreset() {
-        RouteParams.Parsed p = parse("risk", "safe", "mobs", Map.of("radius", 9, "types", List.of("zombie", "minecraft:spider"),
-                "cluster", Map.of("count", 2, "radius", 4, "mode", "avoid", "penalty", 77)));
+        RouteParams.Parsed p = parse(
+                "risk",
+                "safe",
+                "mobs",
+                Map.of(
+                        "radius",
+                        9,
+                        "types",
+                        List.of("zombie", "minecraft:spider"),
+                        "cluster",
+                        Map.of("count", 2, "radius", 4, "mode", "avoid", "penalty", 77)));
         MobCluster mc = only(p.profile().bias(), MobCluster.class);
         assertEquals(9, mc.radius(), 1e-9);
         assertEquals(java.util.Set.of("minecraft:zombie", "minecraft:spider"), mc.types());
         assertEquals(new MobCluster.Cluster(2, 4, false, 77), mc.cluster());
         assertFalse(p.profile().constraints().contains(mc), "a soft cluster is bias only");
-        assertEquals(List.of("/route/mobs/cluster/count"), issues(Map.of("mobs", Map.of("cluster", Map.of("count", 0)))));
+        assertEquals(
+                List.of("/route/mobs/cluster/count"), issues(Map.of("mobs", Map.of("cluster", Map.of("count", 0)))));
     }
 
     @Test
     void sightOfEveryShape() {
-        assertEquals(SightExposure.Of.HOSTILE, only(parse("sight", Map.of("of", "hostile")).profile().bias(), SightExposure.class).of());
-        assertEquals(SightExposure.Of.PLAYERS, only(parse("sight", Map.of("of", "players")).profile().bias(), SightExposure.class).of());
-        SightExposure listed = only(parse("sight", Map.of("observers", List.of("Steve", "3298", "skeleton"))).profile().bias(), SightExposure.class);
+        assertEquals(
+                SightExposure.Of.HOSTILE,
+                only(parse("sight", Map.of("of", "hostile")).profile().bias(), SightExposure.class)
+                        .of());
+        assertEquals(
+                SightExposure.Of.PLAYERS,
+                only(parse("sight", Map.of("of", "players")).profile().bias(), SightExposure.class)
+                        .of());
+        SightExposure listed = only(
+                parse("sight", Map.of("observers", List.of("Steve", "3298", "skeleton")))
+                        .profile()
+                        .bias(),
+                SightExposure.class);
         assertEquals(SightExposure.Of.LISTED, listed.of());
         assertEquals(List.of("Steve", "3298", "skeleton"), listed.listed());
         assertEquals(List.of("/route/sight/of"), issues(Map.of("sight", Map.of("of", "Steve"))));
-        assertEquals(List.of("/route/sight/observers"),
+        assertEquals(
+                List.of("/route/sight/observers"),
                 issues(Map.of("sight", Map.of("of", "ranged", "observers", List.of("Steve")))));
     }
 
@@ -386,14 +486,23 @@ class RouteParamsTest {
 
     @Test
     void requireToolPassesThroughAndMustBeNamespaced() {
-        assertEquals("minecraft:diamond_pickaxe", parse("requireTool", "minecraft:diamond_pickaxe").requireTool());
+        assertEquals(
+                "minecraft:diamond_pickaxe",
+                parse("requireTool", "minecraft:diamond_pickaxe").requireTool());
         assertEquals(List.of("/route/requireTool"), issues(Map.of("requireTool", "  ")));
     }
 
     @Test
     void constraintNamesListEveryHardComponentOnce() {
-        RouteParams.Parsed p = parse("mode", List.of("walk"), "break", "never", "place", "never",
-                "yRange", Map.of("min", 1, "max", 2, "hard", true));
+        RouteParams.Parsed p = parse(
+                "mode",
+                List.of("walk"),
+                "break",
+                "never",
+                "place",
+                "never",
+                "yRange",
+                Map.of("min", 1, "max", 2, "hard", true));
         assertEquals(List.of("NoWater", "NoBreak", "NoPlace", "YFloor", "YCeil"), List.copyOf(p.constraintNames()));
         List<Constraint> cons = p.profile().constraints();
         List<CostModifier> bias = p.profile().bias();

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
@@ -16,16 +15,16 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Failed;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Running;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Succeeded;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * Every way a held process can end writes the ending of the action it carries, in both executors:
- * success only from the process's own verdict, a throw as a failure, a new explicit task as
- * superseded by its id, and a scheduler suspension as no ending at all.
+ * Every way a held process can end writes the ending of the action it carries, in both executors: success only from the
+ * process's own verdict, a throw as a failure, a new explicit task as superseded by its id, and a scheduler suspension
+ * as no ending at all.
  */
 class ActionEndingTest {
 
@@ -42,10 +41,21 @@ class ActionEndingTest {
             this.boom = boom;
         }
 
-        @Override public String kind() { return "builder"; }
-        @Override public String failure() { return failure; }
-        @Override public void attach(BotState st) { }
-        @Override public boolean tick(Body a, WorldView w, BotState st) {
+        @Override
+        public String kind() {
+            return "builder";
+        }
+
+        @Override
+        public String failure() {
+            return failure;
+        }
+
+        @Override
+        public void attach(BotState st) {}
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
             if (++ticks < after) return false;
             if (boom) throw new IllegalStateException("kaboom");
             return true;
@@ -54,11 +64,13 @@ class ActionEndingTest {
 
     private final ActionRegistry registry = new ActionRegistry();
     private final BotState st = new BotState();
-    private final UserTaskChain chain = new UserTaskChain(st, b -> { });
+    private final UserTaskChain chain = new UserTaskChain(st, b -> {});
     private final HeldProcess held = new HeldProcess(new BotState());
 
     private ActionHandle admit(String body) {
-        return ((ActionRegistry.Admitted) registry.admit(body, ActionHandle.Scope.CLIENT, Optional.empty(), () -> "summary")).handle();
+        return ((ActionRegistry.Admitted)
+                        registry.admit(body, ActionHandle.Scope.CLIENT, Optional.empty(), () -> "summary"))
+                .handle();
     }
 
     @Test
@@ -119,7 +131,9 @@ class ActionEndingTest {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(5, null, false), of(h));
         chain.cancel("mc.test.reset", a -> a.cancelled(Ticket.Stop.TEST_RESET));
-        assertEquals(CancelReason.TEST_RESET, assertInstanceOf(Cancelled.class, h.snapshot()).reason());
+        assertEquals(
+                CancelReason.TEST_RESET,
+                assertInstanceOf(Cancelled.class, h.snapshot()).reason());
     }
 
     @Test

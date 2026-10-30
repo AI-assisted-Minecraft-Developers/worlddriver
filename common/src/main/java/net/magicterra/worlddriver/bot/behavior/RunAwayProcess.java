@@ -1,31 +1,38 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class RunAwayProcess implements BotProcess, Navigating {
     private final BlockPos from;
     private final int minDist;
-    /** Status slot to report into. Lets the AUTO-retreat reflex (RetreatChain) use
-     *  its own slot ({@code state.retreat}) instead of the user mc.bot.runAway verb's
-     *  slot ({@code state.runAway}) — the two used to share one, so a reflex flee
-     *  stomped a user flee's status and left it stuck active forever. Null = the
-     *  user-verb default ({@code state.runAway}). */
+    /**
+     * Status slot to report into. Lets the AUTO-retreat reflex (RetreatChain) use its own slot ({@code state.retreat})
+     * instead of the user mc.bot.runAway verb's slot ({@code state.runAway}) — the two used to share one, so a reflex
+     * flee stomped a user flee's status and left it stuck active forever. Null = the user-verb default
+     * ({@code state.runAway}).
+     */
     private final BotState.ProcessSlot reportSlot;
-    private final Navigator navigator;
-    @Override public Navigator navigator() { return navigator; }
 
-    public RunAwayProcess(BlockPos from, int minDist) { this(from, minDist, null); }
+    private final Navigator navigator;
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
+    public RunAwayProcess(BlockPos from, int minDist) {
+        this(from, minDist, null);
+    }
 
     public RunAwayProcess(BlockPos from, int minDist, BotState.ProcessSlot slot) {
         this.from = from;
@@ -43,12 +50,16 @@ public final class RunAwayProcess implements BotProcess, Navigating {
         return reportSlot != null ? reportSlot : st.runAway;
     }
 
-    public String kind() { return "runAway"; }
+    public String kind() {
+        return "runAway";
+    }
+
     public void attach(BotState st) {
         slot(st).beginRun("runAway from=" + CellText.of(from) + " minDist=" + minDist, from);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         // Flee-context: mark this frame as an active flee BEFORE the Navigator runs
         // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
         // and boosts water/ledge danger (no diving into water / off a cliff while
@@ -68,5 +79,8 @@ public final class RunAwayProcess implements BotProcess, Navigating {
 
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 }

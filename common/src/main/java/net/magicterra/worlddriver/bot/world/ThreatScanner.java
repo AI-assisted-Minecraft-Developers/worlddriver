@@ -2,71 +2,80 @@ package net.magicterra.worlddriver.bot.world;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.RangedAttackMob;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-
 /**
- * Phase B/C shared sensing: one per-tick scan of nearby hostiles + incoming
- * projectiles, scored so the reflex chains (panic/dodge) and the combat loop
- * (Phase C) read the same picture instead of each re-scanning.
+ * Phase B/C shared sensing: one per-tick scan of nearby hostiles + incoming projectiles, scored so the reflex chains
+ * (panic/dodge) and the combat loop (Phase C) read the same picture instead of each re-scanning.
  *
- * <p><b>Dist-neutral.</b> The sensing core ({@link #compute(Level, Player, int)})
- * scans via {@code Level.getEntities} + {@code Level.clip} — an EntityGetter API that
- * works on a {@code ClientLevel} AND a {@code ServerLevel} — so it loads and runs on a
- * dedicated server (a server-driven {@code CombatProcess} over a FakePlayer reads the
- * same scored picture). The per-tick cache, and the projectile velocities it derives,
- * are each bot's own {@link ThreatWatch}.
+ * <p><b>Dist-neutral.</b> The sensing core ({@link #compute(Level, Player, int)}) scans via {@code Level.getEntities} +
+ * {@code Level.clip} — an EntityGetter API that works on a {@code ClientLevel} AND a {@code ServerLevel} — so it loads
+ * and runs on a dedicated server (a server-driven {@code CombatProcess} over a FakePlayer reads the same scored
+ * picture). The per-tick cache, and the projectile velocities it derives, are each bot's own {@link ThreatWatch}.
  */
 public final class ThreatScanner {
     private ThreatScanner() {}
 
-    /** A scored hostile. {@code entity} is kept so chains can act on it directly.
-     *  {@code attackedMe} = this entity is the player's most recent damager (vanilla
-     *  {@code getLastDamageSource()} 40-tick window) — the one signal that makes a
-     *  non-{@code Enemy} mob (angered wolf/bee/…) a threat. */
-    public record Threat(Entity entity, int id, String type, double distance,
-                         boolean canSeeMe, boolean facingMe, boolean charging,
-                         double score, float creeperSwell, boolean attackedMe) {}
+    /**
+     * A scored hostile. {@code entity} is kept so chains can act on it directly. {@code attackedMe} = this entity is
+     * the player's most recent damager (vanilla {@code getLastDamageSource()} 40-tick window) — the one signal that
+     * makes a non-{@code Enemy} mob (angered wolf/bee/…) a threat.
+     */
+    public record Threat(
+            Entity entity,
+            int id,
+            String type,
+            double distance,
+            boolean canSeeMe,
+            boolean facingMe,
+            boolean charging,
+            double score,
+            float creeperSwell,
+            boolean attackedMe) {}
 
     /** An in-flight projectile heading roughly at the player. */
-    public record Incoming(Entity entity, int id, String type, Vec3 pos, Vec3 vel,
-                           boolean willHit, int ticksToImpact) {}
+    public record Incoming(
+            Entity entity, int id, String type, Vec3 pos, Vec3 vel, boolean willHit, int ticksToImpact) {}
 
     public record Scan(List<Threat> threats, List<Incoming> projectiles) {
-        public boolean isEmpty() { return threats.isEmpty() && projectiles.isEmpty(); }
-        public Threat top() { return threats.isEmpty() ? null : threats.get(0); }
+        public boolean isEmpty() {
+            return threats.isEmpty() && projectiles.isEmpty();
+        }
+
+        public Threat top() {
+            return threats.isEmpty() ? null : threats.get(0);
+        }
 
         /**
-         * A ranged attacker whose shot actually CONNECTED — {@link Threat#attackedMe} is the
-         * vanilla last-damager over a ~2s window.
+         * A ranged attacker whose shot actually CONNECTED — {@link Threat#attackedMe} is the vanilla last-damager over
+         * a ~2s window.
          *
-         * <p>It lives on the scan rather than in a reflex chain because it asks nothing of the
-         * bot's policy: no radius, no HP, no line-of-sight. That is the line between this and its
-         * neighbours in {@code RetreatChain} — {@code rangedThreatAiming} compares against
-         * {@code RANGED_RADIUS}, {@code visibleRangedThreatWithin} takes a radius, and a
-         * threshold is a policy the chain owns.
+         * <p>It lives on the scan rather than in a reflex chain because it asks nothing of the bot's policy: no radius,
+         * no HP, no line-of-sight. That is the line between this and its neighbours in {@code RetreatChain} —
+         * {@code rangedThreatAiming} compares against {@code RANGED_RADIUS}, {@code visibleRangedThreatWithin} takes a
+         * radius, and a threshold is a policy the chain owns.
          *
-         * <p>{@code RetreatChain} flees on it because it is the only trigger that survives when
-         * both the distance yardstick and the LoS-based aim signal fail — sniped through a stair
-         * shaft where the eye-ray is blocked but the arrow arcs in (death #6).
+         * <p>{@code RetreatChain} flees on it because it is the only trigger that survives when both the distance
+         * yardstick and the LoS-based aim signal fail — sniped through a stair shaft where the eye-ray is blocked but
+         * the arrow arcs in (death #6).
          */
         public boolean underRangedFire() {
             for (Threat t : threats) {
@@ -85,23 +94,25 @@ public final class ThreatScanner {
         return compute(lvl, player, DEFAULT_RADIUS);
     }
 
-    /** {@link #compute(Level, LivingEntity, int, Map)} with every projectile's velocity read off the entity,
-     *  which is right on a server and ~0 on a client. */
+    /**
+     * {@link #compute(Level, LivingEntity, int, Map)} with every projectile's velocity read off the entity, which is
+     * right on a server and ~0 on a client.
+     */
     public static Scan compute(Level lvl, LivingEntity player, int radius) {
         return compute(lvl, player, radius, Map.of());
     }
 
-    /** Level+Player core: works on BOTH client and server. Scans hostiles +
-     *  projectiles via {@code Level.getEntities} (EntityGetter, polymorphic over
-     *  ClientLevel/ServerLevel) — no client {@code Minecraft} dependency, so the
-     *  server combat loop (over a FakePlayer) reads the same scored picture.
-     *  {@code projVel} is the velocity a {@link ThreatWatch} derived for each projectile it
-     *  has seen before, by entity id; one missing from it falls back to its own
-     *  {@code getDeltaMovement()}.
+    /**
+     * Level+Player core: works on BOTH client and server. Scans hostiles + projectiles via {@code Level.getEntities}
+     * (EntityGetter, polymorphic over ClientLevel/ServerLevel) — no client {@code Minecraft} dependency, so the server
+     * combat loop (over a FakePlayer) reads the same scored picture. {@code projVel} is the velocity a
+     * {@link ThreatWatch} derived for each projectile it has seen before, by entity id; one missing from it falls back
+     * to its own {@code getDeltaMovement()}.
      *
-     *  <p>Over a player every {@link Enemy} is a threat, since every one of them hunts players. Over a
-     *  mob only a mob that has it as its target is: hostiles do not hunt each other, so a driven zombie
-     *  that fled every zombie in sight would be fleeing nothing. Either way the last attacker counts. */
+     * <p>Over a player every {@link Enemy} is a threat, since every one of them hunts players. Over a mob only a mob
+     * that has it as its target is: hostiles do not hunt each other, so a driven zombie that fled every zombie in sight
+     * would be fleeing nothing. Either way the last attacker counts.
+     */
     public static Scan compute(Level lvl, LivingEntity player, int radius, Map<Integer, Vec3> projVel) {
         if (lvl == null || player == null) return EMPTY;
         boolean isPlayer = player instanceof Player;
@@ -117,8 +128,7 @@ public final class ThreatScanner {
         // never implement Enemy and were invisible to every reflex chain (gap #55).
         int attackerId = -1;
         DamageSource lastSrc = player.getLastDamageSource();
-        if (lastSrc != null && lastSrc.getEntity() instanceof LivingEntity le
-                && le != player && le.isAlive()) {
+        if (lastSrc != null && lastSrc.getEntity() instanceof LivingEntity le && le != player && le.isAlive()) {
             attackerId = le.getId();
         }
 
@@ -162,12 +172,15 @@ public final class ThreatScanner {
         // projectiles); fall back to deltaMovement on first sight.
         Vec3 tracked = projVel.get(pr.getId());
         Vec3 vel = (tracked != null) ? tracked : pr.getDeltaMovement();
-        if (vel.lengthSqr() < 1.0e-4) return null;          // resting / stuck / just appeared
+        if (vel.lengthSqr() < 1.0e-4) return null; // resting / stuck / just appeared
         int hitT = -1;
         Vec3 step = pos;
         for (int t = 1; t <= PROJECTILE_LOOKAHEAD; t++) {
             step = step.add(vel);
-            if (target.contains(step)) { hitT = t; break; }
+            if (target.contains(step)) {
+                hitT = t;
+                break;
+            }
         }
         // Only report projectiles actually closing on us (will hit, or moving
         // toward the player's column) — ignore arrows flying away.
@@ -179,11 +192,10 @@ public final class ThreatScanner {
     private static boolean lineOfSight(Level lvl, Entity from, Vec3 toEye) {
         try {
             BlockHitResult hit = lvl.clip(new ClipContext(
-                    from.getEyePosition(), toEye,
-                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, from));
+                    from.getEyePosition(), toEye, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, from));
             return hit.getType() == HitResult.Type.MISS;
         } catch (RuntimeException e) {
-            return true;   // err on the side of "visible" so reflexes still react
+            return true; // err on the side of "visible" so reflexes still react
         }
     }
 
@@ -191,15 +203,14 @@ public final class ThreatScanner {
         Vec3 look = e.getLookAngle();
         Vec3 toMe = playerPos.subtract(e.position());
         if (toMe.lengthSqr() < 1.0e-6) return true;
-        return look.dot(toMe.normalize()) > 0.6;     // within ~53°
+        return look.dot(toMe.normalize()) > 0.6; // within ~53°
     }
 
-    private static double score(Entity e, double dist, int radius, boolean canSee,
-                                boolean charging, float swell) {
+    private static double score(Entity e, double dist, int radius, boolean canSee, boolean charging, float swell) {
         double prox = Math.max(0.0, 1.0 - dist / radius);
         double typeW = (e instanceof Creeper) ? 1.0 : (e instanceof RangedAttackMob ? 0.7 : 0.5);
         double s = typeW * prox;
-        if (canSee)   s += 0.15;
+        if (canSee) s += 0.15;
         if (charging) s += 0.20;
         if (swell > 0) s += swell * 0.5;
         return Math.max(0.0, Math.min(1.0, s));

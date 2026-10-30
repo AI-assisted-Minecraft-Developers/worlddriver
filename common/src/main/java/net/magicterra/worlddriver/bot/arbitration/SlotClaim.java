@@ -1,20 +1,19 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
 
 /**
- * The status slots a process switched on in its {@link BotProcess#attach}, read off the slots
- * themselves rather than looked up from {@link BotProcess#kind()}.
+ * The status slots a process switched on in its {@link BotProcess#attach}, read off the slots themselves rather than
+ * looked up from {@link BotProcess#kind()}.
  *
- * <p>A kind does not name a slot: {@code sleep} and {@code replay} report into the goto slot, five
- * {@code builder} kinds share one, and {@code RunAwayProcess} writes a different slot depending on who
- * started it. A lookup by kind therefore misses exactly the processes that borrow a slot, and a missed
- * slot stays {@code active} with nothing behind it. Only an off-to-on flip during attach counts: a slot
- * already on belongs to another owner (one owner per slot), and is that owner's to switch off.
+ * <p>A kind does not name a slot: {@code sleep} and {@code replay} report into the goto slot, five {@code builder}
+ * kinds share one, and {@code RunAwayProcess} writes a different slot depending on who started it. A lookup by kind
+ * therefore misses exactly the processes that borrow a slot, and a missed slot stays {@code active} with nothing behind
+ * it. Only an off-to-on flip during attach counts: a slot already on belongs to another owner (one owner per slot), and
+ * is that owner's to switch off.
  */
 final class SlotClaim {
     static final SlotClaim NONE = new SlotClaim(List.of());
@@ -39,8 +38,8 @@ final class SlotClaim {
     }
 
     /**
-     * The process ended: switch its slots off. {@code error} is stamped when non-null, and a null
-     * leaves whatever the process wrote itself, because a natural ending is the process's to describe.
+     * The process ended: switch its slots off. {@code error} is stamped when non-null, and a null leaves whatever the
+     * process wrote itself, because a natural ending is the process's to describe.
      */
     void release(String error) {
         for (BotState.ProcessSlot s : slots) {

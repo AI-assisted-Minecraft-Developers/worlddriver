@@ -1,37 +1,34 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.Locale;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.control.TickStep;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import java.util.Locale;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-
-
 /**
- * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3280–3504): the current edge, its
- * context and the MLG step-off, for the regular walk once no controller has taken the tick; and the
- * per-tick navigator trace. Climbing a vine moved to {@link VineClimb}.
- * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
- * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
- * restructure here without live/testkit evidence (this file is state-machine surgery).
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3280–3504): the current edge, its context and
+ * the MLG step-off, for the regular walk once no controller has taken the tick; and the per-tick navigator trace.
+ * Climbing a vine moved to {@link VineClimb}. One phase of the per-tick pipeline — see {@link Navigator#tickInner} for
+ * the driver and {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the original tick body
+ * except for the {@code w.}/{@code Navigator.} member prefixes; do not restructure here without live/testkit evidence
+ * (this file is state-machine surgery).
  */
 public final class EdgeGuardsPhase {
-    public int dbgPrevStep = -1;     // navigatorDebug: detect step changes for per-step timing
-    public int dbgTicksOnStep = 0;   // navigatorDebug: ticks spent on the current step
+    public int dbgPrevStep = -1; // navigatorDebug: detect step changes for per-step timing
+    public int dbgTicksOnStep = 0; // navigatorDebug: ticks spent on the current step
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
@@ -57,8 +54,8 @@ public final class EdgeGuardsPhase {
         // bridge place does, so the pitch-hold below must cover these too — a steep
         // dirt-ladder ascent showed the same down-snap ↔ horizon-pull sawtooth the
         // bridge fix (#30) solved, just via pillarUp edges instead of bridgePlace.
-        boolean placingEdge = (edge != null && !edge.toPlace.isEmpty())
-                || (nextEdge != null && !nextEdge.toPlace.isEmpty());
+        boolean placingEdge =
+                (edge != null && !edge.toPlace.isEmpty()) || (nextEdge != null && !nextEdge.toPlace.isEmpty());
         // Stepping off into an MLG fall: walk off at WALK speed (no sprint) so
         // the bot drops near-vertically and lands in the water we place under
         // it — a sprint launch carries horizontal momentum that drifts the bot
@@ -87,7 +84,8 @@ public final class EdgeGuardsPhase {
             // before it descends, and the water gets placed on whatever happens
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
-                    ? wp : nav.route.path().get(nav.route.step() + 1);
+                    ? wp
+                    : nav.route.path().get(nav.route.step() + 1);
             if (land != null) world.signals().planClutch(land.getX(), land.getZ());
         }
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
@@ -102,13 +100,16 @@ public final class EdgeGuardsPhase {
     }
 
     /**
-     * The per-tick navigator trace, the single source of truth for "why is the bot stuck": for the current step
-     * the exact advance-decision inputs (horizontal dist² against the REACH_DIST_SQ gate, |Δy| against the 1.2
-     * gate that together decide `within`), how many ticks on this step, the move and its break/place needs,
-     * and the live bot state. Read it top to bottom to see which condition fails tick after tick.
+     * The per-tick navigator trace, the single source of truth for "why is the bot stuck": for the current step the
+     * exact advance-decision inputs (horizontal dist² against the REACH_DIST_SQ gate, |Δy| against the 1.2 gate that
+     * together decide `within`), how many ticks on this step, the move and its break/place needs, and the live bot
+     * state. Read it top to bottom to see which condition fails tick after tick.
      */
     private void trace(Navigator nav, LivingEntity p, WorldView world, Move.Edge edge) {
-        if (nav.route.step() != dbgPrevStep) { dbgPrevStep = nav.route.step(); dbgTicksOnStep = 0; }
+        if (nav.route.step() != dbgPrevStep) {
+            dbgPrevStep = nav.route.step();
+            dbgTicksOnStep = 0;
+        }
         dbgTicksOnStep++;
         BlockPos nd = nav.route.path().get(nav.route.step());
         double ddx = (nd.getX() + 0.5) - p.getX();
@@ -123,20 +124,35 @@ public final class EdgeGuardsPhase {
         // forced guessing on every "won't close" stall.
         double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
         double yawErr = angleDiff(p.getYRot(), (float) bearing);
-        LOG.info("[navigator] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
-                dbgTicksOnStep, nav.route.step(), nav.route.path().size(), edge != null ? edge.move : "-",
-                nd.getX(), nd.getY(), nd.getZ(),
-                String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
+        LOG.info(
+                "[navigator] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+                dbgTicksOnStep,
+                nav.route.step(),
+                nav.route.path().size(),
+                edge != null ? edge.move : "-",
+                nd.getX(),
+                nd.getY(),
+                nd.getZ(),
+                String.format(Locale.ROOT, "%.2f", p.getX()),
+                String.format(Locale.ROOT, "%.2f", p.getY()),
+                String.format(Locale.ROOT, "%.2f", p.getZ()),
                 String.format(Locale.ROOT, "%.0f", p.getXRot()),
                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
                 String.format(Locale.ROOT, "%.0f", bearing),
                 String.format(Locale.ROOT, "%.0f", yawErr),
                 p.horizontalCollision,
                 String.format(Locale.ROOT, "%.0f", nav.aim.aimSmooth.lastAimYaw),
-                String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
-                String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
-                p.onGround(), p.isInWater(), p.isUnderWater(),
-                nav.stuckTicks, nav.totalTicks, edge != null && hasPendingEdge(world, edge),
-                br0, br0 != null ? (world.isSolid(br0) ? " (solid)" : " (clear)") : "");
+                String.format(Locale.ROOT, "%.3f", cur2),
+                REACH_DIST_SQ,
+                String.format(Locale.ROOT, "%.2f", Math.abs(dY)),
+                within,
+                p.onGround(),
+                p.isInWater(),
+                p.isUnderWater(),
+                nav.stuckTicks,
+                nav.totalTicks,
+                edge != null && hasPendingEdge(world, edge),
+                br0,
+                br0 != null ? (world.isSolid(br0) ? " (solid)" : " (clear)") : "");
     }
 }

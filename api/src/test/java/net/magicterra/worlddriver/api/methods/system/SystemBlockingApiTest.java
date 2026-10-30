@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
@@ -19,15 +18,18 @@ import org.junit.jupiter.api.Test;
 class SystemBlockingApiTest {
 
     private static final class Fake implements SystemApi {
-        @Override public CompletionStage<SystemContracts.Version> version(NoParams p, CallContext ctx) {
+        @Override
+        public CompletionStage<SystemContracts.Version> version(NoParams p, CallContext ctx) {
             return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.INTERNAL_ERROR, "no version here"));
         }
 
-        @Override public CompletionStage<BlockPosition> testOrigin(NoParams p, CallContext ctx) {
+        @Override
+        public CompletionStage<BlockPosition> testOrigin(NoParams p, CallContext ctx) {
             return CompletableFuture.completedFuture(new BlockPosition(1, 2, 3));
         }
 
-        @Override public CompletionStage<SystemContracts.Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx) {
+        @Override
+        public CompletionStage<SystemContracts.Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx) {
             return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.INTERNAL_ERROR, "no waiting"));
         }
     }

@@ -1,21 +1,22 @@
 package net.magicterra.worlddriver.api.methods.screen;
 
 import java.util.concurrent.CompletionStage;
-
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.registry.Spec;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
- * This client's screen and the input sent to it: {@code mc.client.screen.*}, {@code mc.client.input.*},
- * and {@code mc.observe.container}. Refused as capability_unavailable in a JVM with no client.
+ * This client's screen and the input sent to it: {@code mc.client.screen.*}, {@code mc.client.input.*}, and
+ * {@code mc.observe.container}. Refused as capability_unavailable in a JVM with no client.
  */
 public interface ScreenApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ScreenStubApi of(ApiRegistry registry) { return ScreenApiBinding.calls(registry); }
+    static ScreenStubApi of(ApiRegistry registry) {
+        return ScreenApiBinding.calls(registry);
+    }
 
     @Spec(value = ScreenContracts.class, spec = "INFO")
     CompletionStage<ScreenContracts.ScreenInfo> screenInfo(NoParams p, CallContext ctx);
@@ -47,7 +48,10 @@ public interface ScreenApi {
     @Spec(value = ScreenContracts.class, spec = "SLIDER")
     CompletionStage<ClientReply> slider(ScreenContracts.SliderParams p, CallContext ctx);
 
-    /** A click waits for the next client tick to release, so it is refused on a game thread; a press or release alone is not. */
+    /**
+     * A click waits for the next client tick to release, so it is refused on a game thread; a press or release alone is
+     * not.
+     */
     @Spec(value = ScreenContracts.class, spec = "KEY")
     CompletionStage<ClientReply> key(ScreenContracts.KeyParams p, CallContext ctx);
 

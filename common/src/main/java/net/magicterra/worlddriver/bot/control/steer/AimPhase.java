@@ -1,93 +1,111 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
-import net.magicterra.worlddriver.bot.control.TickStep;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.route.PathProjection;
+import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.LookController;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import net.magicterra.worlddriver.game.body.LookController;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-import net.magicterra.worlddriver.bot.control.route.PathProjection;
-import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
-
-
 /**
- * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3505–4181): re-centre, carrot aim, target-yaw EMA + trend camera, anti-spin freeze, dive + pitch.
- * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
- * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
- * restructure here without live/testkit evidence (this file is state-machine surgery).
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3505–4181): re-centre, carrot aim, target-yaw
+ * EMA + trend camera, anti-spin freeze, dive + pitch. One phase of the per-tick pipeline — see
+ * {@link Navigator#tickInner} for the driver and {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED
+ * from the original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not restructure here
+ * without live/testkit evidence (this file is state-machine surgery).
  */
 public final class AimPhase {
-    /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
-     *  along the path (interpolated between nodes), capped by line-of-sight —
-     *  the pure-pursuit "carrot". Because it's interpolated (not snapped to a
-     *  discrete node), the bearing to it changes smoothly as the player moves,
-     *  so the heading doesn't wobble over the cardinal/diagonal staircase.
-     *  Stops at a wall/turn or an action cell so it never aims through one.
-     *  Returns {x, z} world coords. */
+    /**
+     * A continuously-sliding aim point {@code CARROT_DIST} blocks ahead along the path (interpolated between nodes),
+     * capped by line-of-sight — the pure-pursuit "carrot". Because it's interpolated (not snapped to a discrete node),
+     * the bearing to it changes smoothly as the player moves, so the heading doesn't wobble over the cardinal/diagonal
+     * staircase. Stops at a wall/turn or an action cell so it never aims through one. Returns {x, z} world coords.
+     */
     public double[] carrotPoint(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
         double cx = px, cz = pz;
-        double tx = nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()).getX() + 0.5 : px, tz = nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()).getZ() + 0.5 : pz;
+        double
+                tx =
+                        nav.route.step() < nav.route.path().size()
+                                ? nav.route.path().get(nav.route.step()).getX() + 0.5
+                                : px,
+                tz =
+                        nav.route.step() < nav.route.path().size()
+                                ? nav.route.path().get(nav.route.step()).getZ() + 0.5
+                                : pz;
         for (int i = nav.route.step(); i < nav.route.path().size() && i - nav.route.step() <= CARROT_MAX_NODES; i++) {
             BlockPos node = nav.route.path().get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
-            if (hasPendingEdge(world, nav.route.edgeAt(i))) return new double[]{nx, nz}; // face the action cell
+            if (hasPendingEdge(world, nav.route.edgeAt(i))) return new double[] {nx, nz}; // face the action cell
             boolean losOk = ControlConfig.navigatorCarrotBodyLos
                     ? PathSmoothing.losWalkableBody(world, foot, node)
                     : losWalkable(world, foot, node);
-            if (!losOk) break;                                                 // don't aim past a wall
+            if (!losOk) break; // don't aim past a wall
             double seg = Math.hypot(nx - cx, nz - cz);
-            if (seg < 1e-6) { tx = nx; tz = nz; continue; }
+            if (seg < 1e-6) {
+                tx = nx;
+                tz = nz;
+                continue;
+            }
             if (remaining <= seg) {
                 double t = remaining / seg, ax = cx + (nx - cx) * t, az = cz + (nz - cz) * t;
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
                 // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
                 if (i > nav.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
-                    return new double[]{cx, cz};
-                return new double[]{ax, az};
+                    return new double[] {cx, cz};
+                return new double[] {ax, az};
             }
             // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
             // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
             // into the pit beside it (1541,62,-154), then pillared out (5 s).
-            if (ControlConfig.navigatorCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
+            if (ControlConfig.navigatorCarrotStopAtRise && node.getY() > foot.getY()) return new double[] {nx, nz};
             remaining -= seg;
-            cx = nx; cz = nz; tx = nx; tz = nz;
+            cx = nx;
+            cz = nz;
+            tx = nx;
+            tz = nz;
         }
-        return new double[]{tx, tz};
+        return new double[] {tx, tz};
     }
 
-    /** Submerged-descent dive latches (task#96 step B), owned by AimPhase; both
-     *  cleared on every journey reset via {@link DiveLatches#reset()}. */
+    /**
+     * Submerged-descent dive latches (task#96 step B), owned by AimPhase; both cleared on every journey reset via
+     * {@link DiveLatches#reset()}.
+     */
     public final DiveLatches dive = new DiveLatches();
 
-    /** Riser-ram fold counters (task#96 step B7): the three stepUpFreeze feeders, counted by AimPhase.
-     *  All self-zero on their own disengage conditions — no journey reset ever
-     *  touched them. */
+    /**
+     * Riser-ram fold counters (task#96 step B7): the three stepUpFreeze feeders, counted by AimPhase. All self-zero on
+     * their own disengage conditions — no journey reset ever touched them.
+     */
     public final RamFold ramFold = new RamFold();
 
-    public int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
+    public int surfaceWaterLatch =
+            0; // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out
+    // the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
 
     /** Aim/heading smoothing state — see {@link AimSmoothing}. */
     public final AimSmoothing aimSmooth = new AimSmoothing();
@@ -98,33 +116,37 @@ public final class AimPhase {
         aimSmooth.reset();
     }
 
-    /** The ram-release gate: pinned against a face under a stall clock, or grounded and scraping it
-     *  for {@code RAM_SCRAPE_TICKS}. Sliding along a face at ~0.05 b/t never trips the stall clocks
-     *  while the bot presses a heading >60° off its node (live 2026-09-28, 1515.36,75,-237.70: a
-     *  stepDown node 80° to the side, stuck=0 throughout, 11+ ticks of scrape). */
+    /**
+     * The ram-release gate: pinned against a face under a stall clock, or grounded and scraping it for
+     * {@code RAM_SCRAPE_TICKS}. Sliding along a face at ~0.05 b/t never trips the stall clocks while the bot presses a
+     * heading >60° off its node (live 2026-09-28, 1515.36,75,-237.70: a stepDown node 80° to the side, stuck=0
+     * throughout, 11+ ticks of scrape).
+     */
     private boolean ramPinned(Navigator nav, LivingEntity p) {
         return p.horizontalCollision
-                && (nav.stuckTicks > 40 || (p.onGround() && nav.stallDetect.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
-                    || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60));
+                && (nav.stuckTicks > 40
+                        || (p.onGround() && nav.stallDetect.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
+                        || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60));
     }
 
     /**
-     * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the
-     * body, so on the turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw
-     * aim and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
+     * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the body, so on the
+     * turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw aim and flew off the notch it
+     * stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
      */
     private static float stepHeadingErr(LivingEntity p, float aimYaw, float targetYaw) {
         float err = Math.abs(angleDiff(p.getYRot(), aimYaw));
-        return ControlConfig.navigatorStepUpRawHeading ? Math.max(err, Math.abs(angleDiff(p.getYRot(), targetYaw))) : err;
+        return ControlConfig.navigatorStepUpRawHeading
+                ? Math.max(err, Math.abs(angleDiff(p.getYRot(), targetYaw)))
+                : err;
     }
 
     /**
-     * The EMA rate for the target heading: the slow trend-camera alpha, or — under
-     * {@code navigatorOrbitBreaksAimLag} — the cruise alpha once the bot has spent {@code ORBIT_TICKS}
-     * moving with a mid-range heading error. Under tangent drive the bot follows this EMA, and an
-     * error that neither closes nor flips while the bot moves is the bot circling its node one cell
-     * out: the slow alpha can never catch a bearing that rotates at its own convergence rate. Dry
-     * only — water has its own drive heading.
+     * The EMA rate for the target heading: the slow trend-camera alpha, or — under {@code navigatorOrbitBreaksAimLag} —
+     * the cruise alpha once the bot has spent {@code ORBIT_TICKS} moving with a mid-range heading error. Under tangent
+     * drive the bot follows this EMA, and an error that neither closes nor flips while the bot moves is the bot
+     * circling its node one cell out: the slow alpha can never catch a bearing that rotates at its own convergence
+     * rate. Dry only — water has its own drive heading.
      */
     private float smoothingAlpha(Navigator nav, LivingEntity p, boolean trendCam, float targetYaw) {
         float alpha = trendCam ? (float) ControlConfig.navigatorDescentYawAlpha : YAW_SMOOTH_ALPHA;
@@ -155,8 +177,11 @@ public final class AimPhase {
         }
         if (a.orbitTicks <= ORBIT_TICKS || Math.abs(a.orbitWinding) < ORBIT_WINDING_DEG) return alpha;
         if (GameConfig.navigatorDebug && !a.orbitBreaking)
-            LOG.info("[navigator] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
-                    String.format("%.0f", err), a.orbitTicks, String.format("%.0f", a.orbitWinding));
+            LOG.info(
+                    "[navigator] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
+                    String.format("%.0f", err),
+                    a.orbitTicks,
+                    String.format("%.0f", a.orbitWinding));
         a.orbitBreaking = true;
         return YAW_SMOOTH_ALPHA;
     }
@@ -165,26 +190,29 @@ public final class AimPhase {
     private static final double LOOK_THROUGH = 1.5;
 
     /**
-     * Aim vector at a point {@link #LOOK_THROUGH} past the step node {@code wp} along the direction
-     * the plan approaches it from, or null when that direction is vertical or already behind the
-     * bot. A lone step (no staircase for the trend to average) was aimed at the node centre itself,
-     * and the bearing to a point a block away swings 20-30° a tick as the bot closes on it: the first
-     * hundred blocks of R1 turned 3400-5900° of heading against a human's 2060°, most of it under
-     * this aim. A point past the node keeps the same line while it stays far enough not to swing.
+     * Aim vector at a point {@link #LOOK_THROUGH} past the step node {@code wp} along the direction the plan approaches
+     * it from, or null when that direction is vertical or already behind the bot. A lone step (no staircase for the
+     * trend to average) was aimed at the node centre itself, and the bearing to a point a block away swings 20-30° a
+     * tick as the bot closes on it: the first hundred blocks of R1 turned 3400-5900° of heading against a human's
+     * 2060°, most of it under this aim. A point past the node keeps the same line while it stays far enough not to
+     * swing.
      */
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
         BlockPos prev = nav.route.path().get(nav.route.step() - 1);
         double ux = wp.getX() - prev.getX(), uz = wp.getZ() - prev.getZ(), ul = Math.hypot(ux, uz);
         if (ul < 1e-6) return null;
-        ux /= ul; uz /= ul;
+        ux /= ul;
+        uz /= ul;
         double tx = adx + ux * LOOK_THROUGH, tz = adz + uz * LOOK_THROUGH;
-        return tx * ux + tz * uz > 0 ? new double[]{tx, tz} : null;
+        return tx * ux + tz * uz > 0 ? new double[] {tx, tz} : null;
     }
 
-    /** Last node the trend centroid averages: under {@code navigatorCarrotStopAtRise}, the first node above the feet
-     *  or behind a pending break/place. A flat walk into a stair flight averaged the flight's far nodes and drove
-     *  40° off the first riser (live 1543,64,-151, the twin of {@code Navigator.carrotPoint}'s stop); a wade averaged
-     *  the leg past an undug bank exit and waded 8 blocks along it (1431,62,-355). */
+    /**
+     * Last node the trend centroid averages: under {@code navigatorCarrotStopAtRise}, the first node above the feet or
+     * behind a pending break/place. A flat walk into a stair flight averaged the flight's far nodes and drove 40° off
+     * the first riser (live 1543,64,-151, the twin of {@code Navigator.carrotPoint}'s stop); a wade averaged the leg
+     * past an undug bank exit and waded 8 blocks along it (1431,62,-355).
+     */
     private int centroidEnd(Navigator nav, WorldView world, BlockPos foot, int lastNode) {
         if (!ControlConfig.navigatorCarrotStopAtRise) return lastNode;
         for (int k = nav.route.step(); k < lastNode; k++)
@@ -192,11 +220,13 @@ public final class AimPhase {
         return lastNode;
     }
 
-    /** {@code yaw}, or the bearing to {@link #reachableAim}'s point when a trunk, wall or head-height block stands
-     *  on it. A +1 riser with head room never counts: it is jumped where it stands, and walking round lone steps
-     *  cost the R1 hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns
-     *  to drops the trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it
-     *  and drives on: into the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand. */
+    /**
+     * {@code yaw}, or the bearing to {@link #reachableAim}'s point when a trunk, wall or head-height block stands on
+     * it. A +1 riser with head room never counts: it is jumped where it stands, and walking round lone steps cost the
+     * R1 hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns to drops the
+     * trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it and drives on: into
+     * the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand.
+     */
     private float aroundWall(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         if (openHeading(nav, world, p, foot, yaw)) return yaw;
         double[] q = reachableAim(nav, world, foot, p.getX(), p.getZ());
@@ -204,17 +234,22 @@ public final class AimPhase {
         return nextNodeHeading(nav, world, p, foot, yaw);
     }
 
-    /** Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
-     *  (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall). */
+    /**
+     * Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
+     * (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall).
+     */
     private boolean openHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(nav, foot)) && !unplannedDrop(nav, world, p, foot, yaw);
+        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(nav, foot))
+                && !unplannedDrop(nav, world, p, foot, yaw);
     }
 
-    /** The risers {@link #openHeading} may pass (null: every one). Under {@code navigatorAvoidLoneRisers}, off a climb
-     *  only those at or beside the node that starts one. Nothing jumps a +1 block that is not the path's own step,
-     *  so a level heading that meets one rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal,
-     *  1544,72,-163 with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still
-     *  passes: walking round the cliff staircase's side steps cost it 2 s a run. */
+    /**
+     * The risers {@link #openHeading} may pass (null: every one). Under {@code navigatorAvoidLoneRisers}, off a climb
+     * only those at or beside the node that starts one. Nothing jumps a +1 block that is not the path's own step, so a
+     * level heading that meets one rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal, 1544,72,-163
+     * with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still passes: walking
+     * round the cliff staircase's side steps cost it 2 s a run.
+     */
     private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
         if (!ControlConfig.navigatorAvoidLoneRisers) return null;
         List<BlockPos> rises = new ArrayList<>(1);
@@ -237,19 +272,23 @@ public final class AimPhase {
     /** The player's half-width: a heading swept at it can only be walked flush. */
     private static final double BODY_HALF_WIDTH = 0.3;
 
-    /** The bearing to the first of the current node (unless the body is on or past it: a node behind turned the
-     *  camera a full circle down the R1 steps at 1439,67,-352) and the two after it that
-     *  {@link #openHeading} lets through, else {@code yaw}. {@link #reachableAim}'s line test wants floor under
-     *  the body's centre, so a line over a one-deep dip or from a centre already past a ledge finds nothing: at
-     *  the R1 cliff foot (1387,76,-510, the next node up and east) the heading ran north over the edge into a
-     *  two-deep pit and dug out for 3-9 s. The current node first: the projection never runs behind it, so
-     *  short of a corner the tangent already follows the next leg, and at 1388,112,-583 that leg's parallel
-     *  ran into a dark oak trunk three times a run. */
+    /**
+     * The bearing to the first of the current node (unless the body is on or past it: a node behind turned the camera a
+     * full circle down the R1 steps at 1439,67,-352) and the two after it that {@link #openHeading} lets through, else
+     * {@code yaw}. {@link #reachableAim}'s line test wants floor under the body's centre, so a line over a one-deep dip
+     * or from a centre already past a ledge finds nothing: at the R1 cliff foot (1387,76,-510, the next node up and
+     * east) the heading ran north over the edge into a two-deep pit and dug out for 3-9 s. The current node first: the
+     * projection never runs behind it, so short of a corner the tangent already follows the next leg, and at
+     * 1388,112,-583 that leg's parallel ran into a dark oak trunk three times a run.
+     */
     private float nextNodeHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        for (int k = nav.route.step(); k <= Math.min(nav.route.step() + 2, nav.route.path().size() - 1); k++) {
+        for (int k = nav.route.step();
+                k <= Math.min(nav.route.step() + 2, nav.route.path().size() - 1);
+                k++) {
             BlockPos n = nav.route.path().get(k);
             double dx = n.getX() + 0.5 - p.getX(), dz = n.getZ() + 0.5 - p.getZ();
-            if (k == nav.route.step() && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) continue;
+            if (k == nav.route.step()
+                    && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) continue;
             float b = (float) Math.toDegrees(Math.atan2(-dx, dz));
             if (openHeading(nav, world, p, foot, b)) return b;
         }
@@ -262,11 +301,13 @@ public final class AimPhase {
     /** How far along the heading {@link #unplannedDrop} looks for a missing floor. */
     private static final double DROP_LOOK = 1.5;
 
-    /** Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few
-     *  nodes stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at
-     *  R1's start into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for a second.
-     *  Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge a
-     *  node sits on as a drop in every direction. */
+    /**
+     * Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few nodes
+     * stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at R1's start
+     * into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for a second. Corners, not the
+     * centre: the body stands while any corner has floor, and a centre test read the ledge a node sits on as a drop in
+     * every direction.
+     */
     private boolean unplannedDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
         for (double d = 0.5; d <= DROP_LOOK; d += 0.25) {
@@ -277,11 +318,15 @@ public final class AimPhase {
             boolean held = false;
             for (int sx = -1; sx <= 1 && !held; sx += 2)
                 for (int sz = -1; sz <= 1 && !held; sz += 2)
-                    held = world.isSolid(new BlockPos(Mth.floor(fx + sx * hw), foot.getY() - 1, Mth.floor(fz + sz * hw)));
+                    held = world.isSolid(
+                            new BlockPos(Mth.floor(fx + sx * hw), foot.getY() - 1, Mth.floor(fz + sz * hw)));
             if (held) continue;
             boolean planned = false;
-            for (int k = Math.max(0, nav.route.step() - 1); k < Math.min(nav.route.path().size(), nav.route.step() + 4) && !planned; k++)
-                planned = nav.route.path().get(k).getX() == x && nav.route.path().get(k).getZ() == z;
+            for (int k = Math.max(0, nav.route.step() - 1);
+                    k < Math.min(nav.route.path().size(), nav.route.step() + 4) && !planned;
+                    k++)
+                planned = nav.route.path().get(k).getX() == x
+                        && nav.route.path().get(k).getZ() == z;
             if (!planned) return true;
         }
         return false;
@@ -291,27 +336,34 @@ public final class AimPhase {
     private static final double REACH_BACK_STEP = 0.25;
 
     /**
-     * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point
-     * back along the path, down to the node behind the bot, that it reaches and that still lies ahead of it;
-     * null when none does. The tangent runs parallel to the pulled line, so a bot half a block off that line
-     * (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: R1
-     * 1483,66,-312, 17 contacts in six runs. Aiming back at the line first walks around it.
+     * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point back
+     * along the path, down to the node behind the bot, that it reaches and that still lies ahead of it; null when none
+     * does. The tangent runs parallel to the pulled line, so a bot half a block off that line (a diagonal climb cuts
+     * its corner) walked the parallel into a trunk the line itself clears: R1 1483,66,-312, 17 contacts in six runs.
+     * Aiming back at the line first walks around it.
      */
     private double[] reachableAim(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         PathProjection pr = nav.progress.arc.proj;
         int i = Math.min(pr.aheadNode, nav.route.path().size() - 1);
-        if (PathSmoothing.losWalkableBody(world, px, pz, foot, pr.aheadX, pr.aheadZ, nav.route.path().get(i).getY()))
-            return new double[]{pr.aheadX, pr.aheadZ};
+        if (PathSmoothing.losWalkableBody(
+                world,
+                px,
+                pz,
+                foot,
+                pr.aheadX,
+                pr.aheadZ,
+                nav.route.path().get(i).getY())) return new double[] {pr.aheadX, pr.aheadZ};
         double ex = pr.aheadX, ez = pr.aheadZ;
         for (int k = i; k >= Math.max(1, nav.route.step()); k--) {
             BlockPos a = nav.route.path().get(k - 1), b = nav.route.path().get(k);
             double sx = a.getX() + 0.5, sz = a.getZ() + 0.5, dx = ex - sx, dz = ez - sz, len = Math.hypot(dx, dz);
             for (double d = k == i ? len - REACH_BACK_STEP : len; d > 0; d -= REACH_BACK_STEP) {
                 double qx = sx + dx * d / len, qz = sz + dz * d / len;
-                if ((qx - px) * dx + (qz - pz) * dz <= 0) return null;                   // behind the bot
-                if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) return new double[]{qx, qz};
+                if ((qx - px) * dx + (qz - pz) * dz <= 0) return null; // behind the bot
+                if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) return new double[] {qx, qz};
             }
-            ex = sx; ez = sz;
+            ex = sx;
+            ez = sz;
         }
         return null;
     }
@@ -319,100 +371,134 @@ public final class AimPhase {
     /** How far along the trend heading {@link #headingClear} sweeps the body. */
     private static final double HEADING_CLEAR_DIST = 2.0;
 
-    /** The dry trend heading, or the bearing to the node when only the latter has room for the body (under
-     *  {@code navigatorTrendNeedsRoom}). The centroid averages nodes past a corner and its line can cut it: live
-     *  1545,72,-159 drove 162° with the node at 141° and slid along a raised bank for 10 ticks. The node, not the
-     *  tangent: at a cliff foot the tangent sat on the next leg and drove the bot away from its stepDown for 4 s.
-     *  Only where nothing in the window rises: before a riser the line always meets it, and swapping the trend for
-     *  the node there cost 2-8 s per run on the R1 cliff. */
+    /**
+     * The dry trend heading, or the bearing to the node when only the latter has room for the body (under
+     * {@code navigatorTrendNeedsRoom}). The centroid averages nodes past a corner and its line can cut it: live
+     * 1545,72,-159 drove 162° with the node at 141° and slid along a raised bank for 10 ticks. The node, not the
+     * tangent: at a cliff foot the tangent sat on the next leg and drove the bot away from its stepDown for 4 s. Only
+     * where nothing in the window rises: before a riser the line always meets it, and swapping the trend for the node
+     * there cost 2-8 s per run on the R1 cliff.
+     */
     private static float trendWithRoom(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp, float centroidYaw) {
         if (!ControlConfig.navigatorTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) return centroidYaw;
         float nodeYaw = (float) Math.toDegrees(Math.atan2(-(wp.getX() + 0.5 - p.getX()), wp.getZ() + 0.5 - p.getZ()));
         return headingClear(world, p, foot, nodeYaw) ? nodeYaw : centroidYaw;
     }
 
-    /** Whether the body box widened to {@code navigatorHeadingClearHalfWidth}, carried {@link #HEADING_CLEAR_DIST} along
-     *  {@code yaw} at the foot's level, meets no solid cell. At the body's own 0.3 a heading with the body's side
-     *  flush against a trunk passes. */
+    /**
+     * Whether the body box widened to {@code navigatorHeadingClearHalfWidth}, carried {@link #HEADING_CLEAR_DIST} along
+     * {@code yaw} at the foot's level, meets no solid cell. At the body's own 0.3 a heading with the body's side flush
+     * against a trunk passes.
+     */
     private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, ControlConfig.navigatorHeadingClearHalfWidth), null);
+        return headingClear(
+                world,
+                p,
+                foot,
+                yaw,
+                false,
+                Math.max(BODY_HALF_WIDTH, ControlConfig.navigatorHeadingClearHalfWidth),
+                null);
     }
 
-    /** {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
-     *  behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or
-     *  one that goes on up (a trunk, a wall). Given {@code rises}, only a riser beside one of those nodes passes. */
-    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass, double hw,
-                                        List<BlockPos> rises) {
+    /**
+     * {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
+     * behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or one
+     * that goes on up (a trunk, a wall). Given {@code rises}, only a riser beside one of those nodes passes.
+     */
+    private static boolean headingClear(
+            WorldView world,
+            LivingEntity p,
+            BlockPos foot,
+            float yaw,
+            boolean risersPass,
+            double hw,
+            List<BlockPos> rises) {
         double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw));
         for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
             for (int sx = -1; sx <= 1; sx += 2)
                 for (int sz = -1; sz <= 1; sz += 2) {
-                    BlockPos c = new BlockPos((int) Math.floor(fx + sx * hw), foot.getY(), (int) Math.floor(fz + sz * hw));
+                    BlockPos c =
+                            new BlockPos((int) Math.floor(fx + sx * hw), foot.getY(), (int) Math.floor(fz + sz * hw));
                     if (world.isPassable(c) && world.isPassable(c.above())) continue;
-                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises))) return false;
+                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises)))
+                        return false;
                 }
         }
         return true;
     }
 
     /**
-     * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
-     * plane, so a tangent that carries the bot past it is fine; the last one is spent only by
-     * CLOSING to within ~0.67 of its centre, and a tangent is by construction the direction that
-     * does not close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured
-     * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
-     * ticks of unstuck bursts and repaths around a goal the bot had already reached.
+     * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its plane, so a tangent
+     * that carries the bot past it is fine; the last one is spent only by CLOSING to within ~0.67 of its centre, and a
+     * tangent is by construction the direction that does not close — it is the previous segment's heading.
+     * wd.clientGotoStartsMidAir measured it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass
+     * 0.8, then 400 ticks of unstuck bursts and repaths around a goal the bot had already reached.
      */
     private boolean onLastNode(Navigator nav) {
-        return ControlConfig.navigatorFinalNodeDirectAim && nav.route.path() != null && nav.route.step() == nav.route.path().size() - 1;
+        return ControlConfig.navigatorFinalNodeDirectAim
+                && nav.route.path() != null
+                && nav.route.step() == nav.route.path().size() - 1;
     }
 
     /**
-     * navigatorTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the
-     * path (a smoothed route whose first hop is a diagonal off the start, a shove, a corner cut)
-     * walks PARALLEL to it and never rejoins — measured in {@code wd.routeStaysOutOfSkeletonSight}:
-     * perp 1.4 held for 20 cells, the bot in the open while the route it was given ran in the
-     * wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on the path
-     * the two bearings coincide, so the tuned tangent cruise is unchanged there.
+     * navigatorTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the path (a smoothed
+     * route whose first hop is a diagonal off the start, a shove, a corner cut) walks PARALLEL to it and never rejoins
+     * — measured in {@code wd.routeStaysOutOfSkeletonSight}: perp 1.4 held for 20 cells, the bot in the open while the
+     * route it was given ran in the wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on
+     * the path the two bearings coincide, so the tuned tangent cruise is unchanged there.
      */
     private float tangentOrPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
-        return offPathPursuit(nav, p, launch, foot) ? nav.progress.arc.proj.pursuitYaw : nav.progress.arc.proj.tangentYaw;
+        return offPathPursuit(nav, p, launch, foot)
+                ? nav.progress.arc.proj.pursuitYaw
+                : nav.progress.arc.proj.tangentYaw;
     }
 
     /**
-     * The case {@link #tangentOrPursuit} rejoins in, also what drops the trend camera: on a dry flat
-     * walk {@code trendCam} is always on, and under tangent mode its centroid overwrite IS the drive
-     * (driveTargetYaw = aimYaw = EMA(targetYaw)), so the pursuit bearing never reached the bot —
-     * the centroid of nodes step+2.. is no more a rejoin heading than the tangent is (measured:
-     * driveYaw −93 = the far centroid, perp 1.4 held for 20 cells). Off the path, drop the trend
-     * camera the way {@code recoverySnagAim} does, so the pursuit flows through the same EMA at the
-     * fast cruise alpha.
+     * The case {@link #tangentOrPursuit} rejoins in, also what drops the trend camera: on a dry flat walk
+     * {@code trendCam} is always on, and under tangent mode its centroid overwrite IS the drive (driveTargetYaw =
+     * aimYaw = EMA(targetYaw)), so the pursuit bearing never reached the bot — the centroid of nodes step+2.. is no
+     * more a rejoin heading than the tangent is (measured: driveYaw −93 = the far centroid, perp 1.4 held for 20
+     * cells). Off the path, drop the trend camera the way {@code recoverySnagAim} does, so the pursuit flows through
+     * the same EMA at the fast cruise alpha.
      *
-     * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the
-     * foot's Y, not the last node. A step down or a plan's last node has its own tuned handling
-     * (navigatorDescentNodeHold, the descent decouple), and the first cut of this — perp alone —
-     * walked the bot west and off the doorway in {@code wd.serverStepsDownAPlanItSpentInOneTick}
-     * and lost an ore in {@code wd.serverMineHarvestBuried}; both green with the flag off, both
-     * green again with this scope. A buoyant bot rides off its nodes legitimately.
+     * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the foot's Y, not the
+     * last node. A step down or a plan's last node has its own tuned handling (navigatorDescentNodeHold, the descent
+     * decouple), and the first cut of this — perp alone — walked the bot west and off the doorway in
+     * {@code wd.serverStepsDownAPlanItSpentInOneTick} and lost an ore in {@code wd.serverMineHarvestBuried}; both green
+     * with the flag off, both green again with this scope. A buoyant bot rides off its nodes legitimately.
      */
     private boolean offPathPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
-        if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater()) return false;
+        if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater())
+            return false;
         if (nav.route.path() == null || nav.route.step() + 1 >= nav.route.path().size()) return false;
-        if (nav.route.path().get(nav.route.step()).getY() != foot.getY() || nav.route.path().get(nav.route.step() + 1).getY() != foot.getY()) return false;
+        if (nav.route.path().get(nav.route.step()).getY() != foot.getY()
+                || nav.route.path().get(nav.route.step() + 1).getY() != foot.getY()) return false;
         return nav.progress.arc.proj.perp > PURSUIT_PERP;
     }
 
-    /** The foot the aim judges by. At a +1 jump's apex the foot already reads the node's level, so every
-     *  level-walk aim (carrot, tangent, trend centroid) took over mid-air and steered past the step: live
-     *  1389,92,-526.7 drove at the next leg's 180° with the node at 74° and rammed a wall 30 ticks. Until
-     *  it lands, an ascent's aim is judged from its take-off level (under {@code navigatorCarrotStopAtRise}). The aim
-     *  only: {@code run} goes back to the real foot once the aim is chosen, or the step-up pivot found the node still
-     *  above at the jump's apex and cut forward drive mid-air. */
+    /**
+     * The foot the aim judges by. At a +1 jump's apex the foot already reads the node's level, so every level-walk aim
+     * (carrot, tangent, trend centroid) took over mid-air and steered past the step: live 1389,92,-526.7 drove at the
+     * next leg's 180° with the node at 74° and rammed a wall 30 ticks. Until it lands, an ascent's aim is judged from
+     * its take-off level (under {@code navigatorCarrotStopAtRise}). The aim only: {@code run} goes back to the real
+     * foot once the aim is chosen, or the step-up pivot found the node still above at the jump's apex and cut forward
+     * drive mid-air.
+     */
     private BlockPos ascentAimFoot(Navigator nav, LivingEntity p, BlockPos foot, BlockPos wp) {
-        if (!ControlConfig.navigatorCarrotStopAtRise || p.onGround() || p.isInWater() || p.onClimbable()
-                || nav.route.path() == null || nav.route.step() <= 0 || nav.route.step() >= nav.route.path().size() || wp == null) return foot;
-        return wp.getY() == foot.getY() && nav.route.path().get(nav.route.step() - 1).getY() < wp.getY() ? foot.below() : foot;
+        if (!ControlConfig.navigatorCarrotStopAtRise
+                || p.onGround()
+                || p.isInWater()
+                || p.onClimbable()
+                || nav.route.path() == null
+                || nav.route.step() <= 0
+                || nav.route.step() >= nav.route.path().size()
+                || wp == null) return foot;
+        return wp.getY() == foot.getY()
+                        && nav.route.path().get(nav.route.step() - 1).getY() < wp.getY()
+                ? foot.below()
+                : foot;
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -443,8 +529,7 @@ public final class AimPhase {
         // gently-graded swim stays on the carrot; only a genuine dive / bank-climb ≥~1.5
         // aims at the block). On land the integer test is exact and unchanged.
         double wpAimDy = (wp.getY() + 0.5) - p.getY();
-        boolean aimAtWaypoint = (p.isInWater() ? Math.abs(wpAimDy) > 1.5 : wp.getY() != foot.getY())
-                || parkourEdge;
+        boolean aimAtWaypoint = (p.isInWater() ? Math.abs(wpAimDy) > 1.5 : wp.getY() != foot.getY()) || parkourEdge;
         // Re-centre recovery on a stuck flat walk: a 1-wide channel needs the
         // player centred on the lane axis or the off-centre hitbox snags a corner
         // and wedges (the look-ahead carrot aims diagonally, so it never centres
@@ -537,7 +622,9 @@ public final class AimPhase {
             // 6.4°/tick). A steep descent routes through fall/parkour-descend nodes the trend
             // excludes, and where it engages it flickers between trend- and exact-aim, ADDING thrash.
             // The descent spin needs a different mechanism, not this aim swap. Up-steps only.
-            if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
+            if (!p.isInWater()
+                    && !parkourEdge
+                    && (wp.getY() - foot.getY()) == 1
                     && nav.route.step() + 1 < nav.route.path().size()) {
                 // Path-trend averaging (the root-cause fix). Sum the UNIT direction of
                 // each upcoming segment while they stay consistent (<60° turn), so a diagonal
@@ -549,16 +636,23 @@ public final class AimPhase {
                 // the stair instead of flipping ±180°. Forward-only (dot>0) never reverses.
                 double tx = 0, tz = 0;
                 BlockPos prev = foot;
-                int last = Math.min(nav.route.step() + STAIR_TREND_LOOKAHEAD, nav.route.path().size() - 1);
+                int last = Math.min(
+                        nav.route.step() + STAIR_TREND_LOOKAHEAD,
+                        nav.route.path().size() - 1);
                 for (int k = nav.route.step(); k <= last; k++) {
                     BlockPos nd = nav.route.path().get(k);
                     double sx = nd.getX() - prev.getX(), sz = nd.getZ() - prev.getZ();
                     double sl = Math.sqrt(sx * sx + sz * sz);
-                    if (sl < 1e-6) { prev = nd; continue; }
-                    sx /= sl; sz /= sl;
+                    if (sl < 1e-6) {
+                        prev = nd;
+                        continue;
+                    }
+                    sx /= sl;
+                    sz /= sl;
                     if ((tx != 0 || tz != 0) && (sx * tx + sz * tz) / Math.sqrt(tx * tx + tz * tz) < 0.5)
-                        break;                                  // segment turns >60° from the trend → stop
-                    tx += sx; tz += sz;
+                        break; // segment turns >60° from the trend → stop
+                    tx += sx;
+                    tz += sz;
                     prev = nd;
                 }
                 // Only a GENUINE diagonal run (≥2 consistent horizontal nodes accumulated) may
@@ -566,25 +660,35 @@ public final class AimPhase {
                 // mount) sums to ~0 horizontal, so its noisy trend is rejected and the precise
                 // immediate-node aim is kept (else the summit pillar + bank-dig plateau mount
                 // mis-aim). Forward-only (dot>0) never reverses.
-                if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; aimSrc = "trend"; }
-                else if (nav.route.step() > 0) { double[] lt = lookThrough(nav, wp, adx, adz); if (lt != null) { adx = lt[0]; adz = lt[1]; aimSrc = "lookThrough"; } }
+                if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) {
+                    adx = tx;
+                    adz = tz;
+                    aimSrc = "trend";
+                } else if (nav.route.step() > 0) {
+                    double[] lt = lookThrough(nav, wp, adx, adz);
+                    if (lt != null) {
+                        adx = lt[0];
+                        adz = lt[1];
+                        aimSrc = "lookThrough";
+                    }
+                }
             }
         } else if (reCentre) {
             aimSrc = "recentre";
-            adx = recX; adz = recZ;
-        // Pin-clock threshold 5, not APPROACH_NODE_AIM_TICKS: guardPinStreak zeroes on every
-        // unpinned tick between pin cycles, so a 13-consecutive bar loses the race against
-        // same-cell plug arming (cell-sticky, survives cycles) — r32 spent 2 dirt before
-        // nodeAim ever engaged. 6 pinned ticks is already a held pin (hysteresis alone is 8).
-        // losWalkable seatbelt on the pin clause (r33: bypass trio + detourCheap all wedged at
-        // the platform's east reconvergence corner, knife-edged at (16.3,2.7) to FAILED):
-        // nodeAim is a straight-line aim, blind to void — engaged at a corner pin it aims
-        // diagonally across the missing corner cells and re-pins forever. Only engage when
-        // the straight line to the node is walkable (same check reCentre has always had);
-        // otherwise fall through to the carrot, which follows the path cell-by-cell. The
-        // plain stuckTicks clause keeps its historical unguarded form.
-        } else if (nav.stuckTicks > APPROACH_NODE_AIM_TICKS
-                || (guardPinClock > 5 && losWalkable(world, foot, wp))) {
+            adx = recX;
+            adz = recZ;
+            // Pin-clock threshold 5, not APPROACH_NODE_AIM_TICKS: guardPinStreak zeroes on every
+            // unpinned tick between pin cycles, so a 13-consecutive bar loses the race against
+            // same-cell plug arming (cell-sticky, survives cycles) — r32 spent 2 dirt before
+            // nodeAim ever engaged. 6 pinned ticks is already a held pin (hysteresis alone is 8).
+            // losWalkable seatbelt on the pin clause (r33: bypass trio + detourCheap all wedged at
+            // the platform's east reconvergence corner, knife-edged at (16.3,2.7) to FAILED):
+            // nodeAim is a straight-line aim, blind to void — engaged at a corner pin it aims
+            // diagonally across the missing corner cells and re-pins forever. Only engage when
+            // the straight line to the node is walkable (same check reCentre has always had);
+            // otherwise fall through to the carrot, which follows the path cell-by-cell. The
+            // plain stuckTicks clause keeps its historical unguarded form.
+        } else if (nav.stuckTicks > APPROACH_NODE_AIM_TICKS || (guardPinClock > 5 && losWalkable(world, foot, wp))) {
             aimSrc = "nodeAim";
             // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the bot
             // follows the look-ahead carrot; at a turn/corner node the carrot points ~60° off the close
@@ -626,10 +730,19 @@ public final class AimPhase {
             aimSmooth.lastCarrotBearing = carrotBearing;
             if (aimSmooth.yawThrashTicks > 0) aimSmooth.yawThrashTicks--;
             boolean climbAhead = false;
-            for (int q = nav.route.step(); q < Math.min(nav.route.path().size(), nav.route.step() + WATER_FAR_AIM_LOOKAHEAD + 1); q++)
-                if (nav.route.path().get(q).getY() > foot.getY()) { climbAhead = true; break; }
+            for (int q = nav.route.step();
+                    q < Math.min(nav.route.path().size(), nav.route.step() + WATER_FAR_AIM_LOOKAHEAD + 1);
+                    q++)
+                if (nav.route.path().get(q).getY() > foot.getY()) {
+                    climbAhead = true;
+                    break;
+                }
             if (p.isInWater() && aimSmooth.yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
-                BlockPos far = nav.route.path().get(Math.min(nav.route.step() + WATER_FAR_AIM_LOOKAHEAD, nav.route.path().size() - 1));
+                BlockPos far = nav.route
+                        .path()
+                        .get(Math.min(
+                                nav.route.step() + WATER_FAR_AIM_LOOKAHEAD,
+                                nav.route.path().size() - 1));
                 adx = (far.getX() + 0.5) - p.getX();
                 adz = (far.getZ() + 0.5) - p.getZ();
                 aimSrc = "farNode";
@@ -659,7 +772,10 @@ public final class AimPhase {
         // walks deterministically back ONTO the path before resuming — breaking the amplifier common to every
         // heterogeneous wedge. Excludes water (the in-water anti-spin machinery owns that) and the very first
         // node (no prior anchor).
-        if (ControlConfig.navigatorDryReanchor && !p.isInWater() && nav.route.step() > 0 && nav.route.step() < nav.route.path().size()
+        if (ControlConfig.navigatorDryReanchor
+                && !p.isInWater()
+                && nav.route.step() > 0
+                && nav.route.step() < nav.route.path().size()
                 && nav.stuckTicks > DRY_REANCHOR_STUCK) {
             BlockPos cn = nav.route.path().get(nav.route.step());
             double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
@@ -680,7 +796,7 @@ public final class AimPhase {
         boolean waterThrash = p.isInWater() && nav.progress.stepProg.noStepProgressTicks > WATER_YAW_HOLD_STALL;
         double aimDeadzone = (climbAim || waterThrash) ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
         float targetYaw = (aim2 < aimDeadzone)
-                ? p.getYRot()   // essentially on the aim column — hold heading, don't thrash atan2
+                ? p.getYRot() // essentially on the aim column — hold heading, don't thrash atan2
                 : (float) Math.toDegrees(Math.atan2(-adx, adz));
         // A launch into a leap (parkour or MLG fall) must SNAP the heading even when
         // smoothLook is on — you can't course-correct mid-air, so a lagged launch sends
@@ -689,7 +805,8 @@ public final class AimPhase {
         boolean launch = parkourEdge || steppingOffFall || steppingOffWaterFall;
         // Phase-2 (navigatorTangentAim): replace the immediate-node bearing with the bob-immune path TANGENT
         // ahead of the projection. The node bearing reverses ~180° on a node overshoot — the backward-jump /
-        // repeated side-to-side hopping / facing-the-wall dead-corner stall; the tangent never flips, so the camera (via
+        // repeated side-to-side hopping / facing-the-wall dead-corner stall; the tangent never flips, so the camera
+        // (via
         // smoothTargetYaw/aimYaw below) and the captured descentNodeYaw both follow the path smoothly. Skipped
         // for launches (a leap snaps at its landing node) and inside the aim dead-zone (hold heading). The
         // projector ran this tick (call site gates on the same flag).
@@ -712,11 +829,17 @@ public final class AimPhase {
         // divert the drive mid-ridge and r22's suite hung on a bot that walked off the
         // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
         // historical tangent override.
-        boolean pinnedRecovery = (p.horizontalCollision || nav.safety.guardSneakLatch)
-                && (reCentre || "nodeAim".equals(aimSrc)), walkedRound = false;
-        if (ControlConfig.navigatorTangentAim && !launch && !pinnedRecovery && !onLastNode(nav)
+        boolean
+                pinnedRecovery =
+                        (p.horizontalCollision || nav.safety.guardSneakLatch) && (reCentre || "nodeAim".equals(aimSrc)),
+                walkedRound = false;
+        if (ControlConfig.navigatorTangentAim
+                && !launch
+                && !pinnedRecovery
+                && !onLastNode(nav)
                 && aim2 >= aimDeadzone
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size()
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()
                 && nav.route.path().get(nav.route.step()).getY() <= foot.getY()) {
             float tangent = tangentOrPursuit(nav, p, launch, foot);
             walkedRound = (targetYaw = aroundWall(nav, world, p, foot, tangent)) != tangent;
@@ -724,13 +847,17 @@ public final class AimPhase {
         // navigatorRamNodeAimRelease (§80): dry wall-pin with the drive heading >60° off the
         // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
         // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
-        // switchback tangent (B: tangent -180° vs node bearing 14°) steers the bot INTO a wall while the node sits elsewhere.
+        // switchback tangent (B: tangent -180° vs node bearing 14°) steers the bot INTO a wall while the node sits
+        // elsewhere.
         // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
         boolean ramReleaseAim = false;
-        if (ControlConfig.navigatorRamNodeAimRelease && !p.isInWater() && ramPinned(nav, p)
-                && nav.route.path() != null && nav.route.step() < nav.route.path().size()) {
+        if (ControlConfig.navigatorRamNodeAimRelease
+                && !p.isInWater()
+                && ramPinned(nav, p)
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()) {
             BlockPos rn = nav.route.path().get(nav.route.step());
             double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
             if (rndx * rndx + rndz * rndz > 1e-6) {
@@ -739,10 +866,14 @@ public final class AimPhase {
                     targetYaw = rnb;
                     ramReleaseAim = true;
                     if (GameConfig.navigatorDebug)
-                        LOG.info("[navigator] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
+                        LOG.info(
+                                "[navigator] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", rnb),
                                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                                rn.getX(), rn.getY(), rn.getZ(), nav.stuckTicks);
+                                rn.getX(),
+                                rn.getY(),
+                                rn.getZ(),
+                                nav.stuckTicks);
                 } else if (reCentre) {
                     // CORNER-SNAG branch: the node bearing is within 60° of the pressed yaw —
                     // i.e. the node sits BEHIND the same wall face and aiming at it keeps
@@ -755,9 +886,11 @@ public final class AimPhase {
                     targetYaw = (float) Math.toDegrees(Math.atan2(-recX, recZ));
                     ramReleaseAim = true;
                     if (GameConfig.navigatorDebug)
-                        LOG.info("[navigator] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
+                        LOG.info(
+                                "[navigator] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", targetYaw),
-                                String.format(Locale.ROOT, "%.0f", p.getYRot()), nav.stuckTicks);
+                                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                                nav.stuckTicks);
                 }
             }
         }
@@ -776,9 +909,11 @@ public final class AimPhase {
         // a dig+climb-mount or pillar-up needs the exact target heading, and trend-aiming it regressed tallbankdigclimb
         // (the bot couldn't mount the bank).
         // Launches ride descentDecoupleLaunches (ascending leaps slew safely via commandMove).
-        boolean dryDescent = ControlConfig.descentCameraDecouple && !p.isInWater() && !steppingOffWaterFall
-                && ( (!launch && wp.getY() <= foot.getY())                 // flat or descending walk
-                   || (launch && ControlConfig.descentDecoupleLaunches) );     // any dry launch
+        boolean dryDescent = ControlConfig.descentCameraDecouple
+                && !p.isInWater()
+                && !steppingOffWaterFall
+                && ((!launch && wp.getY() <= foot.getY()) // flat or descending walk
+                        || (launch && ControlConfig.descentDecoupleLaunches)); // any dry launch
         // Water head-shake fix: extend the trend camera to FLAT water swimming. A buoyant bot
         // crossing open water swims slowly (~1.4 b/s); near a waypoint the immediate-node bearing flips
         // ±170°/tick and the camera — coupled to it in water — swings, the visible head-shake (live
@@ -801,7 +936,9 @@ public final class AimPhase {
         if (p.isInWater()) surfaceWaterLatch = WATER_SURFACE_LATCH_TICKS;
         else if (surfaceWaterLatch > 0) surfaceWaterLatch--;
         boolean inWaterLatched = p.isInWater() || surfaceWaterLatch > 0;
-        boolean flatWaterTrend = ControlConfig.descentCameraDecouple && inWaterLatched && !launch
+        boolean flatWaterTrend = ControlConfig.descentCameraDecouple
+                && inWaterLatched
+                && !launch
                 && wp.getY() <= foot.getY() + 1
                 && !(edge != null && edge.move != null && edge.move.startsWith("swimDown"));
         // WALL-PINNED RECOVERY OWNS THE AIM END-TO-END (bridge bypass trio, stage 3 of the same
@@ -828,11 +965,15 @@ public final class AimPhase {
         //    (Swapping the DRIVE source instead was r30/r31-DISPROVEN — see Drive.)
         boolean recoverySnagAim = !p.isInWater()
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
-                    || (nav.safety.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
-        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !walkedRound && !offPathPursuit(nav, p, launch, foot);
+                        || (nav.safety.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
+        boolean trendCam = (dryDescent || flatWaterTrend)
+                && !recoverySnagAim
+                && !walkedRound
+                && !offPathPursuit(nav, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant bot
         // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,
-        // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking the node. WATER
+        // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking
+        // the node. WATER
         // ONLY: extending this EMA to dry descent was A/B-DISPROVEN in descentYawArena (raw backSteps=42
         // winding=211° → ema backSteps=54 winding=370° — the dry bot has traction and needs the precise
         // node bearing; lagging it makes it overshoot/correct MORE). Dry back-hop's real fix is a
@@ -852,18 +993,21 @@ public final class AimPhase {
             // heading and the swim stalls (live -1676/-1678: carrot dead, driveYaw frozen, totStuck
             // 200+). Clamp the ray's foot DOWN to the current node's surface level so it samples water,
             // not the bob's air gap.
-            BlockPos losFoot = foot.getY() > wp.getY()
-                    ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
+            BlockPos losFoot = foot.getY() > wp.getY() ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
             double[] cp = carrotPoint(nav, world, losFoot, p.getX(), p.getZ());
             double cdx = cp[0] - p.getX(), cdz = cp[1] - p.getZ();
             if (GameConfig.navigatorDebug && cdx * cdx + cdz * cdz <= 1.0)
-                LOG.info("[navigator] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
-                        foot.getY(), wp.getY(), String.format("%.2f", p.getY()),
-                        losWalkable(world, foot, wp), losWalkable(world, losFoot, wp));
+                LOG.info(
+                        "[navigator] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
+                        foot.getY(),
+                        wp.getY(),
+                        String.format("%.2f", p.getY()),
+                        losWalkable(world, foot, wp),
+                        losWalkable(world, losFoot, wp));
             // Drive source: the carrot ahead, or — when it has collapsed onto the bot (a wall / path
             // end) — the immediate node bearing as a fallback.
-            float driveSrcYaw = (cdx * cdx + cdz * cdz > 1.0)
-                    ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
+            float driveSrcYaw =
+                    (cdx * cdx + cdz * cdz > 1.0) ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
             if (Float.isNaN(aimSmooth.smoothWaterDriveYaw)) {
                 aimSmooth.smoothWaterDriveYaw = driveSrcYaw;
                 aimSmooth.waterDriveRejectStreak = 0;
@@ -871,7 +1015,8 @@ public final class AimPhase {
                 float turn = angleDiff(aimSmooth.smoothWaterDriveYaw, driveSrcYaw);
                 if (Math.abs(turn) <= WATER_DRIVE_MAX_TURN) {
                     // Gradual (real) turn — track it; the EMA damps the carrot's re-plan / wall jumps.
-                    aimSmooth.smoothWaterDriveYaw = angleDiff(0f, aimSmooth.smoothWaterDriveYaw + WATER_DRIVE_ALPHA * turn);
+                    aimSmooth.smoothWaterDriveYaw =
+                            angleDiff(0f, aimSmooth.smoothWaterDriveYaw + WATER_DRIVE_ALPHA * turn);
                     aimSmooth.waterDriveRejectStreak = 0;
                 } else if (++aimSmooth.waterDriveRejectStreak > WATER_DRIVE_MAX_REJECT) {
                     // Persistent reversal — not a transient flip. Snap so the swim can't strand itself
@@ -893,16 +1038,30 @@ public final class AimPhase {
             // switchback's alternating segments into the steady down-slope trend. (A chord/far-node
             // samples only an endpoint, which itself lands on alternating segments and swings; the
             // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
-            double sumX = 0, sumZ = 0; int cnt = 0;
-            int lastNode = centroidEnd(nav, world, foot, Math.min(nav.route.step() + DESCENT_CAM_LOOKAHEAD, nav.route.path().size() - 1));
-            int firstNode = (lastNode - nav.route.step() >= 4) ? nav.route.step() + 2 : nav.route.step();   // skip the at-foot nodes
-            for (int k = firstNode; k <= lastNode; k++) { sumX += nav.route.path().get(k).getX() + 0.5; sumZ += nav.route.path().get(k).getZ() + 0.5; cnt++; }
+            double sumX = 0, sumZ = 0;
+            int cnt = 0;
+            int lastNode = centroidEnd(
+                    nav,
+                    world,
+                    foot,
+                    Math.min(
+                            nav.route.step() + DESCENT_CAM_LOOKAHEAD,
+                            nav.route.path().size() - 1));
+            int firstNode = (lastNode - nav.route.step() >= 4)
+                    ? nav.route.step() + 2
+                    : nav.route.step(); // skip the at-foot nodes
+            for (int k = firstNode; k <= lastNode; k++) {
+                sumX += nav.route.path().get(k).getX() + 0.5;
+                sumZ += nav.route.path().get(k).getZ() + 0.5;
+                cnt++;
+            }
             if (cnt > 0) {
                 double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
                 float centroidYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
                 if (mdx * mdx + mdz * mdz > 1.0)
                     targetYaw = dryDescent && nav.route.path().get(lastNode).getY() <= foot.getY()
-                            ? trendWithRoom(world, p, foot, wp, centroidYaw) : centroidYaw;
+                            ? trendWithRoom(world, p, foot, wp, centroidYaw)
+                            : centroidYaw;
             }
         }
         // Low-pass the TARGET heading (EMA on the shortest angle, kept in [-180,180]) so a
@@ -926,9 +1085,11 @@ public final class AimPhase {
             // released by the physical-stall valve at the spinFreeze site
             // instead, which keys on the deadlock's true signature: zero player
             // displacement while frozen.)
-            aimSmooth.smoothTargetYaw = angleDiff(0f, aimSmooth.smoothTargetYaw + alpha * angleDiff(aimSmooth.smoothTargetYaw, targetYaw));
+            aimSmooth.smoothTargetYaw =
+                    angleDiff(0f, aimSmooth.smoothTargetYaw + alpha * angleDiff(aimSmooth.smoothTargetYaw, targetYaw));
         }
-        float aimYaw = snapLaunch ? targetYaw : aimSmooth.smoothTargetYaw; foot = cx.frame.foot;   // see ascentAimFoot
+        float aimYaw = snapLaunch ? targetYaw : aimSmooth.smoothTargetYaw;
+        foot = cx.frame.foot; // see ascentAimFoot
         // ── In-place backward hop fix ───────────────────────────────────────────────
         // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
         // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
@@ -964,8 +1125,7 @@ public final class AimPhase {
         // swing yet releases once the target has been steady ~0.5 s, letting the bot turn.
         if (!Float.isNaN(aimSmooth.lastAimYaw) && Math.abs(angleDiff(aimYaw, aimSmooth.lastAimYaw)) < AIM_STABLE_DEG)
             aimSmooth.aimStableTicks = Math.min(aimSmooth.aimStableTicks + 1, AIM_STABLE_TICKS + 1);
-        else
-            aimSmooth.aimStableTicks = 0;
+        else aimSmooth.aimStableTicks = 0;
         aimSmooth.lastAimYaw = aimYaw;
         // RAW-target stability (antipode-proof twin of the gate above): the EMA
         // output can be perpetually "unstable" while the RAW bearing has been
@@ -976,8 +1136,7 @@ public final class AimPhase {
         if (!Float.isNaN(aimSmooth.rawLastTargetYaw)
                 && Math.abs(angleDiff(targetYaw, aimSmooth.rawLastTargetYaw)) < AIM_STABLE_DEG)
             aimSmooth.rawStableTicks = Math.min(aimSmooth.rawStableTicks + 1, AIM_STABLE_TICKS + 1);
-        else
-            aimSmooth.rawStableTicks = 0;
+        else aimSmooth.rawStableTicks = 0;
         aimSmooth.rawLastTargetYaw = targetYaw;
         // NOTE: rawStableTicks deliberately does NOT release the freeze — an
         // A/B (t0) run with `|| rawStable` REGRESSED wd.vineOverWaterClimb
@@ -995,7 +1154,8 @@ public final class AimPhase {
         // spin is rarer (only on an actual nav stall) and better fixed at the stall itself than by
         // freezing the camera here, so keep the overWater scope.
         boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
-        boolean spinFreeze = !launch && overWater && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
+        boolean spinFreeze =
+                !launch && overWater && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         // FROZEN-PRESS DEADLOCK VALVE (Mountains notch live, stuckT 720): the freeze
         // exists to steady the bot PRESSING toward a climb-out — pressing implies the
         // bot moves (or bobs while the climb machinery works, as in the vine pocket).
@@ -1014,9 +1174,13 @@ public final class AimPhase {
                 aimSmooth.frozenStallTicks = 1;
             } else if (++aimSmooth.frozenStallTicks > FREEZE_PRESS_STALL_TICKS) {
                 if (GameConfig.navigatorDebug)
-                    LOG.info("[navigator] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
-                            aimSmooth.frozenStallTicks, String.format("%.1f", p.getX()), String.format("%.1f", p.getZ()),
-                            String.format("%.0f", aimSmooth.smoothTargetYaw), String.format("%.0f", targetYaw));
+                    LOG.info(
+                            "[navigator] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
+                            aimSmooth.frozenStallTicks,
+                            String.format("%.1f", p.getX()),
+                            String.format("%.1f", p.getZ()),
+                            String.format("%.0f", aimSmooth.smoothTargetYaw),
+                            String.format("%.0f", targetYaw));
                 aimSmooth.smoothTargetYaw = targetYaw;
                 aimYaw = targetYaw;
                 aimSmooth.frozenStallTicks = 0;
@@ -1028,8 +1192,8 @@ public final class AimPhase {
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
             float ny;
             if (snapLaunch) {
-                ny = aimYaw;   // launches must snap — no mid-air course correction (decoupled
-                LookController.requestSnap();   // descending leaps slew instead — see snapLaunch)
+                ny = aimYaw; // launches must snap — no mid-air course correction (decoupled
+                LookController.requestSnap(); // descending leaps slew instead — see snapLaunch)
             } else {
                 // Cap the per-tick turn (see MAX_YAW_SLEW_DEG) so even a transient
                 // bad aim vector can only nudge the heading, never reverse it in one tick.
@@ -1044,7 +1208,9 @@ public final class AimPhase {
                 // turn-in-place, not a moving-view jerk: turn at 24°/tick and the
                 // stall drops to ~0.2 s. Cruise turns keep the gentle cruise slew.
                 float pivotErr = angleDiff(p.getYRot(), aimYaw);
-                if (wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
+                if (wp.getY() > foot.getY()
+                        && !parkourEdge
+                        && !p.isInWater()
                         && Math.abs(pivotErr) > STEPUP_AIM_TOLERANCE_DEG) {
                     dyaw = Math.abs(pivotErr) > 24f ? Math.copySign(24f, pivotErr) : pivotErr;
                 }
@@ -1107,9 +1273,9 @@ public final class AimPhase {
         // Hold pitch where the place-snap left it across the whole bridge so the camera
         // sits in a steady downward gaze (one entry dip, no per-block sawtooth). Pitch
         // does not affect movement, so freezing it here is motion-neutral.
-        if (!bridging && !placingEdge)
-            p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
-        // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly mis-aimed,
+        if (!bridging && !placingEdge) p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
+        // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly
+        // mis-aimed,
         // pivot in place instead of ramming the riser. The jump gate (ascendJumpReady
         // below) already checks POSITION alignment, but neither it nor the forward key
         // checked HEADING — so a drift-off-column / sharp-turn arrival bob-jammed the
@@ -1154,8 +1320,10 @@ public final class AimPhase {
         // NOTE: this gate is bob-RESETTABLE by design (a big-bob apex crossing the node Y zeroes it) — that is
         // a SAFETY feature: on a genuinely-unwinnable +2 mount the bob keeps it under the bar so stepUpFreeze
         // does NOT pin the bot (a bob-IMMUNE v2 variant over-pinned ~157t on unwinnable mounts in live A/B — reverted).
-        boolean ascentNotTopped = wp.getY() > foot.getY() && p.getY() < wp.getY() - 0.3
-                && !parkourEdge && !p.isInWater()
+        boolean ascentNotTopped = wp.getY() > foot.getY()
+                && p.getY() < wp.getY() - 0.3
+                && !parkourEdge
+                && !p.isInWater()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         if (ControlConfig.navigatorAscentRamBobBreak && ascentNotTopped) ramFold.ascentRamBobTicks++;
         else ramFold.ascentRamBobTicks = 0;
@@ -1169,20 +1337,29 @@ public final class AimPhase {
         // ascentRam-v2 over-pin regression); an unwinnable water bank simply repaths. Fed into stepUpFreeze
         // past a 2× bar below.
         boolean atWaterBank = world.isWater(foot) || world.isWater(foot.below());
-        boolean floatingBankNotTopped = atWaterBank && !p.onGround()
-                && wp.getY() > foot.getY() && (wp.getY() - foot.getY()) <= 3
+        boolean floatingBankNotTopped = atWaterBank
+                && !p.onGround()
+                && wp.getY() > foot.getY()
+                && (wp.getY() - foot.getY()) <= 3
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         if (ControlConfig.navigatorFloatingBankBobFreeze && floatingBankNotTopped) ramFold.floatingBankBobTicks++;
         else ramFold.floatingBankBobTicks = 0;
-        boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
-                && (!p.isInWater() || shallowBankStep
-                    || (ControlConfig.navigatorFloatingBankBobFreeze && ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
-                && (nav.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS || ramFold.stepRamStuckTicks > STEPUP_FREEZE_TICKS
-                    || ramFold.ascentRamBobTicks > STEPUP_FREEZE_TICKS
-                    || ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
+        boolean stepUpFreeze = wp.getY() > foot.getY()
+                && !parkourEdge
+                && (!p.isInWater()
+                        || shallowBankStep
+                        || (ControlConfig.navigatorFloatingBankBobFreeze
+                                && ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
+                && (nav.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS
+                        || ramFold.stepRamStuckTicks > STEPUP_FREEZE_TICKS
+                        || ramFold.ascentRamBobTicks > STEPUP_FREEZE_TICKS
+                        || ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
-                && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG && !stepUpFreeze;
+        boolean pivotForStepUp = wp.getY() > foot.getY()
+                && !parkourEdge
+                && !p.isInWater()
+                && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG
+                && !stepUpFreeze;
         // Parkour DESCEND landing brake: a leap onto a LOWER 1-wide block
         // touches down with more horizontal momentum than a flat leap (extra
         // airtime accelerating forward), so a sprint launch slides the bot off
@@ -1196,8 +1373,9 @@ public final class AimPhase {
         boolean descendLeap = edge != null && edge.move != null && edge.move.startsWith("parkourDescend");
         double landDx = (wp.getX() + 0.5) - p.getX();
         double landDz = (wp.getZ() + 0.5) - p.getZ();
-        boolean descendBrake = descendLeap && !p.onGround()
-                && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
+        boolean descendBrake = descendLeap
+                && !p.onGround()
+                && (landDx * landDx + landDz * landDz) < 1.4; // within ~1.2 block of landing center
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.aim.aimAtWaypoint = aimAtWaypoint;
         cx.aim.reCentre = reCentre;

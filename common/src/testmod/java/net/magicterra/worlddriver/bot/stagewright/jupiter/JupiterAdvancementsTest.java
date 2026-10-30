@@ -22,35 +22,43 @@ class JupiterAdvancementsTest {
     void grantThenProgressThenRevoke(Game game, Bot bot) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
 
-        var before = assertInstanceOf(AdvancementsContracts.Progressed.class,
+        var before = assertInstanceOf(
+                AdvancementsContracts.Progressed.class,
                 queries.advancements(new AdvancementsContracts.Progress(bot.ref(), MINE_STONE)));
         assertFalse(before.done(), "a fresh bot has not mined stone");
         assertFalse(before.remaining().isEmpty(), "criteria outstanding");
 
-        var granted = assertInstanceOf(AdvancementsContracts.Granted.class,
+        var granted = assertInstanceOf(
+                AdvancementsContracts.Granted.class,
                 queries.advancements(new AdvancementsContracts.Grant(bot.ref(), MINE_STONE)));
         assertTrue(granted.done(), "granted");
         assertFalse(granted.awarded().isEmpty(), "criteria were awarded");
 
-        var after = assertInstanceOf(AdvancementsContracts.Progressed.class,
+        var after = assertInstanceOf(
+                AdvancementsContracts.Progressed.class,
                 queries.advancements(new AdvancementsContracts.Progress(bot.ref(), MINE_STONE)));
         assertTrue(after.done(), "done after the grant");
         assertTrue(after.remaining().isEmpty(), "nothing remaining: " + after.remaining());
 
-        var revoked = assertInstanceOf(AdvancementsContracts.Revoked.class,
+        var revoked = assertInstanceOf(
+                AdvancementsContracts.Revoked.class,
                 queries.advancements(new AdvancementsContracts.Revoke(bot.ref(), MINE_STONE)));
         assertFalse(revoked.done(), "revoked");
         assertFalse(revoked.revoked().isEmpty(), "criteria were taken back");
-        assertFalse(assertInstanceOf(AdvancementsContracts.Progressed.class,
-                queries.advancements(new AdvancementsContracts.Progress(bot.ref(), MINE_STONE))).done());
+        assertFalse(assertInstanceOf(
+                        AdvancementsContracts.Progressed.class,
+                        queries.advancements(new AdvancementsContracts.Progress(bot.ref(), MINE_STONE)))
+                .done());
     }
 
     @Test
     void anUnknownPlayerOrAdvancementIsRefused(Game game, Bot bot) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
-        assertThrows(RuntimeException.class,
+        assertThrows(
+                RuntimeException.class,
                 () -> queries.advancements(new AdvancementsContracts.Progress("player:nobody_here", MINE_STONE)));
-        assertThrows(RuntimeException.class,
+        assertThrows(
+                RuntimeException.class,
                 () -> queries.advancements(new AdvancementsContracts.Progress(bot.ref(), "minecraft:story/nope")));
     }
 }

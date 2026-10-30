@@ -6,12 +6,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A string matching {@code value} entirely, and so never empty. {@code expected} is how an error names what
- * was wanted: "a namespaced id such as minecraft:stone".
+ * A string matching {@code value} entirely, and so never empty. {@code expected} is how an error names what was wanted:
+ * "a namespaced id such as minecraft:stone".
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE_USE)
 public @interface Pattern {
     String value();
+
     String expected();
 }

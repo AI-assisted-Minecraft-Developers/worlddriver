@@ -1,19 +1,19 @@
 package net.magicterra.worlddriver.game.observe;
 
-import java.util.Comparator;
-
-import net.minecraft.core.BlockPos;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Comparator;
+import net.minecraft.core.BlockPos;
+import org.junit.jupiter.api.Test;
 
 /** The order the "stop at the first acceptable cell" callers depend on. */
 class NearestFirstScanTest {
 
     /** The enumeration order buildSorted starts from, which a stable sort keeps among ties. */
-    private static final Comparator<BlockPos> ENUMERATION =
-            Comparator.<BlockPos>comparingInt(p -> p.getX()).thenComparingInt(p -> p.getY()).thenComparingInt(p -> p.getZ());
+    private static final Comparator<BlockPos> ENUMERATION = Comparator.<BlockPos>comparingInt(p -> p.getX())
+            .thenComparingInt(p -> p.getY())
+            .thenComparingInt(p -> p.getZ());
 
     @Test
     void coversTheBoxOnce() {
@@ -32,7 +32,8 @@ class NearestFirstScanTest {
             double cur = origin.offset(offsets[i]).distSqr(origin);
             assertTrue(prev <= cur, "out of order at " + i + ": " + offsets[i - 1] + " then " + offsets[i]);
             if (prev == cur) {
-                assertTrue(ENUMERATION.compare(offsets[i - 1], offsets[i]) < 0,
+                assertTrue(
+                        ENUMERATION.compare(offsets[i - 1], offsets[i]) < 0,
                         "tie not in enumeration order at " + i + ": " + offsets[i - 1] + " then " + offsets[i]);
             }
         }

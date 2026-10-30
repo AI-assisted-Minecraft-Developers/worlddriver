@@ -1,16 +1,14 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
-
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
@@ -25,13 +23,21 @@ class SceneOverlaysTest {
     private static final BlockPos CENTER = new BlockPos(10, Y, 10);
 
     private static ThreatSnapshot.Threat skel(int id, double x, double z) {
-        return new ThreatSnapshot.Threat(id, "minecraft:skeleton", "Skeleton", new Vec3(x, Y + 1.6, z), new Vec3(x, Y, z),
-                true, true, false, 16);
+        return new ThreatSnapshot.Threat(
+                id,
+                "minecraft:skeleton",
+                "Skeleton",
+                new Vec3(x, Y + 1.6, z),
+                new Vec3(x, Y, z),
+                true,
+                true,
+                false,
+                16);
     }
 
     private static ThreatSnapshot.Threat zombie(int id, double x, double z) {
-        return new ThreatSnapshot.Threat(id, "minecraft:zombie", "Zombie", new Vec3(x, Y + 1.6, z), new Vec3(x, Y, z),
-                true, false, false, 16);
+        return new ThreatSnapshot.Threat(
+                id, "minecraft:zombie", "Zombie", new Vec3(x, Y + 1.6, z), new Vec3(x, Y, z), true, false, false, 16);
     }
 
     /** Everything standable at Y except the north-west corner, which is a wall. */
@@ -42,7 +48,8 @@ class SceneOverlaysTest {
         // A wall at x < 10.5 blocks the skeleton standing east of the grid from the west column.
         SearchScope.LineOfSight los = (from, to) -> to.x >= 10.5;
         SightExposure s = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 120, 1.62, 1000);
-        s.beginSearch(SearchScope.of(CENTER, null, new ThreatSnapshot(List.of(skel(7, 20, 10), zombie(8, 20, 12))), los));
+        s.beginSearch(
+                SearchScope.of(CENTER, null, new ThreatSnapshot(List.of(skel(7, 20, 10), zombie(8, 20, 12))), los));
         SightOverlay o = SceneOverlays.sightOverlay(s, CENTER, 1, FLAT, false);
         assertEquals(1, o.observers().size(), "the zombie is not ranged");
         assertEquals(7, o.observers().get(0).id());
@@ -54,7 +61,8 @@ class SceneOverlaysTest {
     @Test
     void sightRowsMarkTheCellsPastTheRayBudget() {
         SightExposure s = new SightExposure(SightExposure.Of.HOSTILE, List.of(), 0, false, 120, 1.62, 3);
-        s.beginSearch(SearchScope.of(CENTER, null, new ThreatSnapshot(List.of(skel(7, 12, 10))), SearchScope.ALWAYS_CLEAR));
+        s.beginSearch(
+                SearchScope.of(CENTER, null, new ThreatSnapshot(List.of(skel(7, 12, 10))), SearchScope.ALWAYS_CLEAR));
         SightOverlay o = SceneOverlays.sightOverlay(s, CENTER, 1, FLAT, true);
         assertEquals(List.of(". 1 1", "1 ? ?", "? ? ?"), o.rows());
         assertEquals(Optional.of(true), o.budgetExhausted());
@@ -65,8 +73,11 @@ class SceneOverlaysTest {
     @Test
     void densityRowsCountMobsWithinTheClusterRadius() {
         MobCluster m = new MobCluster(4, 8, 100, new MobCluster.Cluster(2, 1.5, true, 0), java.util.Set.of());
-        m.beginSearch(SearchScope.of(CENTER, null, new ThreatSnapshot(List.of(
-                zombie(1, 11.5, 10.5), zombie(2, 11.5, 11.5), skel(3, 30, 30))), SearchScope.ALWAYS_CLEAR));
+        m.beginSearch(SearchScope.of(
+                CENTER,
+                null,
+                new ThreatSnapshot(List.of(zombie(1, 11.5, 10.5), zombie(2, 11.5, 11.5), skel(3, 30, 30))),
+                SearchScope.ALWAYS_CLEAR));
         DensityOverlay o = SceneOverlays.densityOverlay(m, CENTER, 1, FLAT, false);
         assertEquals(3, o.mobs());
         assertEquals(1.5, o.radius());
@@ -85,9 +96,11 @@ class SceneOverlaysTest {
         assertTrue(s.rayBudget() >= 25 * 25 * 8);
         MobCluster m = SceneOverlays.mobsOf(none.profile());
         assertEquals(RouteParams.SAFE_CLUSTER, m.cluster());
-        RouteParams.Parsed given = RouteParams.parse(TestJson.obj(Map.of("sight", Map.of("of", "players"),
-                "mobs", Map.of("cluster", Map.of("count", 5, "radius", 3)))));
-        assertEquals(SightExposure.Of.PLAYERS, SceneOverlays.sightOf(given.profile(), 1).of());
+        RouteParams.Parsed given = RouteParams.parse(TestJson.obj(
+                Map.of("sight", Map.of("of", "players"), "mobs", Map.of("cluster", Map.of("count", 5, "radius", 3)))));
+        assertEquals(
+                SightExposure.Of.PLAYERS,
+                SceneOverlays.sightOf(given.profile(), 1).of());
         assertEquals(5, SceneOverlays.mobsOf(given.profile()).cluster().count());
     }
 }

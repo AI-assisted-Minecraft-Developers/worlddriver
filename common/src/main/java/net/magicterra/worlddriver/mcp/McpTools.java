@@ -1,18 +1,17 @@
 package net.magicterra.worlddriver.mcp;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import net.magicterra.worlddriver.api.schema.MethodSpec;
+import java.util.ArrayList;
+import java.util.List;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 
 /**
- * The MCP view of the method registry: {@code tools/list} entries and the image adaptation of a
- * result. Each entry comes from the method's {@link MethodSpec}: input and output schema, annotations.
+ * The MCP view of the method registry: {@code tools/list} entries and the image adaptation of a result. Each entry
+ * comes from the method's {@link MethodSpec}: input and output schema, annotations.
  */
 public final class McpTools {
     private McpTools() {}
@@ -38,8 +37,8 @@ public final class McpTools {
     }
 
     /**
-     * The output schema MCP clients validate {@code structuredContent} against. For an image method
-     * it is the metadata view: the bytes travel as a native image block, not inside the JSON.
+     * The output schema MCP clients validate {@code structuredContent} against. For an image method it is the metadata
+     * view: the bytes travel as a native image block, not inside the JSON.
      */
     static JsonObject structuredSchema(MethodSpec<?, ?> spec) {
         JsonObject s = spec.output().schema();

@@ -1,68 +1,62 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
-import net.magicterra.worlddriver.bot.control.act.Keys;
-import net.magicterra.worlddriver.bot.control.TickStep;
-import net.magicterra.worlddriver.bot.control.ResetScope;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.AscendMovement;
+import net.magicterra.worlddriver.bot.control.MovementContext;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.act.Keys;
+import net.magicterra.worlddriver.bot.control.act.Safety;
+import net.magicterra.worlddriver.bot.control.controller.Digging;
+import net.magicterra.worlddriver.bot.planning.PathTrace;
+import net.magicterra.worlddriver.bot.rules.Capability;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.rules.Capability;
-import net.magicterra.worlddriver.bot.rules.Move;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.planning.PathTrace;
-import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.game.body.BodyGeometry;
+import net.magicterra.worlddriver.game.observe.CellText;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import java.util.List;
-import java.util.Locale;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import net.magicterra.worlddriver.bot.control.MovementContext;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-import net.magicterra.worlddriver.bot.control.act.Safety;
-import net.magicterra.worlddriver.bot.control.controller.Digging;
-import net.magicterra.worlddriver.game.observe.CellText;
-
-
 /**
- * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 4182–5290): final key assembly: step-up / freezes / brakes / swim gates -> forward, sprint, jump, sneak, strafe.
- * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
- * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
- * restructure here without live/testkit evidence (this file is state-machine surgery).
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 4182–5290): final key assembly: step-up /
+ * freezes / brakes / swim gates -> forward, sprint, jump, sneak, strafe. One phase of the per-tick pipeline — see
+ * {@link Navigator#tickInner} for the driver and {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED
+ * from the original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not restructure here
+ * without live/testkit evidence (this file is state-machine surgery).
  *
  * <h2>Why the lethal-edge sprint exemption is {@code parkourEdge}, not {@code parkourAscend}</h2>
  *
- * Two gates in {@link #run} carry a {@code parkourEdge} term whose reason is one measurement, so it
- * is written here once rather than twice inline (and here rather than inline at all, because
- * {@code run} is on the source-budget grandfather list and may only shrink):
+ * Two gates in {@link #run} carry a {@code parkourEdge} term whose reason is one measurement, so it is written here
+ * once rather than twice inline (and here rather than inline at all, because {@code run} is on the source-budget
+ * grandfather list and may only shrink):
  *
  * <ul>
- *   <li>the sprint expression's {@code (!lethalNear || parkourEdge)} term, and</li>
- *   <li>the dynamic brake block's {@code && !parkourEdge} exclusion.</li>
+ *   <li>the sprint expression's {@code (!lethalNear || parkourEdge)} term, and
+ *   <li>the dynamic brake block's {@code && !parkourEdge} exclusion.
  * </ul>
  *
- * <p>{@code lethalNear} asks {@code lethalDropAdjacent(world, p, foot)} — does ANY of the FOOT
- * cell's eight horizontal neighbours drop further than {@code survivableFall}. On the rim of a pad
- * over void that is true on the lip cell and false one cell back, so the sprint channel closes or
- * opens purely on <b>which cell the bot happens to launch from</b>. Two scenes with identical
- * geometry and different run-up lengths measured exactly that split:
+ * <p>{@code lethalNear} asks {@code lethalDropAdjacent(world, p, foot)} — does ANY of the FOOT cell's eight horizontal
+ * neighbours drop further than {@code survivableFall}. On the rim of a pad over void that is true on the lip cell and
+ * false one cell back, so the sprint channel closes or opens purely on <b>which cell the bot happens to launch
+ * from</b>. Two scenes with identical geometry and different run-up lengths measured exactly that split:
  *
  * <pre>
  * wd.parkourVoidShortRunway  takeoff.x=223905.02  (lip=223904 ⇒ launched from BEHIND the lip)
@@ -71,96 +65,99 @@ import net.magicterra.worlddriver.game.observe.CellText;
  *     t+0 sprinting=true h=0.1563 → t+1 sprinting=false h=0.1400    (x0.896: plain air decay, no impulse)
  * </pre>
  *
- * The only difference between the arms is {@code sprinting} on the takeoff tick, and the long arm
- * fell into the gap. A fuller run-up makes the bot MORE likely to stand on the lip, so under the
- * old gate a run-up was actively harmful — the exemption has to key on the leap, not on the cell.
+ * The only difference between the arms is {@code sprinting} on the takeoff tick, and the long arm fell into the gap. A
+ * fuller run-up makes the bot MORE likely to stand on the lip, so under the old gate a run-up was actively harmful —
+ * the exemption has to key on the leap, not on the cell.
  *
- * <p>It keys on {@code parkourEdge} and not on {@code parkourAscend} ({@code = parkourEdge &&
- * wp.y > foot.y}) because a FLAT leap is identically {@code false} there: the old term said "a jump
- * onto a shallow ledge needs the impulse, a jump over an abyss does not", and it is only over an
- * abyss that {@code lethalNear} is true at all. Narrowed to {@code parkourEdge} rather than
- * loosened to a blanket {@code !lethalNear} drop, because the non-parkour half of {@code lethalNear}
- * is what {@code wd.bridgeLethalGapStop} guards — a walk-off lip must still lose its sprint.
+ * <p>It keys on {@code parkourEdge} and not on {@code parkourAscend} ({@code = parkourEdge && wp.y > foot.y}) because a
+ * FLAT leap is identically {@code false} there: the old term said "a jump onto a shallow ledge needs the impulse, a
+ * jump over an abyss does not", and it is only over an abyss that {@code lethalNear} is true at all. Narrowed to
+ * {@code parkourEdge} rather than loosened to a blanket {@code !lethalNear} drop, because the non-parkour half of
+ * {@code lethalNear} is what {@code wd.bridgeLethalGapStop} guards — a walk-off lip must still lose its sprint.
  *
- * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the
- * lip makes {@code bridgeBrake} hold sneak through the takeoff, and a crouching bot's input is
- * scaled by {@code SNEAKING_SPEED} (0.3) from that same tick — {@code LocalPlayer.aiStep} on the
- * client, {@code JoinedBody.aiStep} on the server — so the leap gets 30% of its control input. Sprint alone does not clear the gap while sneak is throttling
- * it. Sibling {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and
- * on {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
+ * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the lip makes
+ * {@code bridgeBrake} hold sneak through the takeoff, and a crouching bot's input is scaled by {@code SNEAKING_SPEED}
+ * (0.3) from that same tick — {@code LocalPlayer.aiStep} on the client, {@code JoinedBody.aiStep} on the server — so
+ * the leap gets 30% of its control input. Sprint alone does not clear the gap while sneak is throttling it. Sibling
+ * {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and on
+ * {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
 public final class DrivePhase {
-    /** How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link
-     *  NavigatorGeometry#HOP_RANGE} on purpose: the point of the reading is to show whether the gate's
-     *  radius is SHORTER than the throw it guards against, and a scan that stops at the gate's own
-     *  radius can only ever answer "clean", which is the answer already in doubt. */
+    /**
+     * How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link NavigatorGeometry#HOP_RANGE} on
+     * purpose: the point of the reading is to show whether the gate's radius is SHORTER than the throw it guards
+     * against, and a scan that stops at the gate's own radius can only ever answer "clean", which is the answer already
+     * in doubt.
+     */
     private static final int WIGGLE_SCAN_MAX = 4;
 
     /**
      * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
      *
-     * <p>Moved out of {@code DrivePhase}'s jump expression because the decision needed a
-     * number the expression threw away. It began as {@code lethalDropWithinHopRange}, a boolean
-     * over Chebyshev ≤{@link NavigatorGeometry#HOP_RANGE} of the LAUNCH cell; printing the RING
-     * instead of the boolean is what showed the radius (2) to be shorter than the arc (measured
-     * 3.47), and printing the CELL is what made a bearing computable. <b>Those numbers are still
-     * inputs — do not read the conclusion off the comment.</b>
+     * <p>Moved out of {@code DrivePhase}'s jump expression because the decision needed a number the expression threw
+     * away. It began as {@code lethalDropWithinHopRange}, a boolean over Chebyshev ≤{@link NavigatorGeometry#HOP_RANGE}
+     * of the LAUNCH cell; printing the RING instead of the boolean is what showed the radius (2) to be shorter than the
+     * arc (measured 3.47), and printing the CELL is what made a bearing computable. <b>Those numbers are still inputs —
+     * do not read the conclusion off the comment.</b>
      *
-     * <p><b>The gate is no longer that ring.</b> It is {@link NavigatorGeometry#hopSuppressed}: the
-     * columns the arc would come down in along the drive bearing. The stuck window is unchanged
-     * ({@code precond && stuckTicks > 10 && stuckTicks < 18}), so the scan still runs only inside
-     * it, exactly as the old short-circuit arranged; only the predicate after it moved.
+     * <p><b>The gate is no longer that ring.</b> It is {@link NavigatorGeometry#hopSuppressed}: the columns the arc
+     * would come down in along the drive bearing. The stuck window is unchanged ({@code precond && stuckTicks > 10 &&
+     * stuckTicks < 18}), so the scan still runs only inside it, exactly as the old short-circuit arranged; only the
+     * predicate after it moved.
      *
-     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a bot sits in it for
-     * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
-     * {@link #WIGGLE_EVENTS} so a bot that stalls repeatedly still cannot flood a rehearsal log.
+     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a bot sits in it for runs of them, so a
+     * per-tick line would be a hose. Entry to the window is the event. Capped at {@link #WIGGLE_EVENTS} so a bot that
+     * stalls repeatedly still cannot flood a rehearsal log.
      *
-     * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was
-     * {@code getGameTime() - wiggleLastTick > 1}, which cannot see anything in a scene whose whole
-     * method runs inside one server tick — {@code wd.buriedOre}'s 800 {@code tickAll()} iterations,
-     * the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now} never moves,
-     * so after the first line the delta is 0 forever and one line is printed however many times the
-     * bot entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the
-     * precondition, so {@code call - wiggleLastCall > 1} means exactly "the immediately preceding
-     * call was not itself inside the window" — the same event in a per-tick world (this is called
-     * at most once per navigator tick) and a working one in a one-tick world. {@code seq=} is the
-     * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen; a
-     * trailing {@code seq=5+/4 cap reached} line (and only that line) means a further entry was
-     * swallowed, so {@code seq=4/4} alone still means "exactly four entries".
+     * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was {@code getGameTime() - wiggleLastTick >
+     * 1}, which cannot see anything in a scene whose whole method runs inside one server tick — {@code wd.buriedOre}'s
+     * 800 {@code tickAll()} iterations, the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now}
+     * never moves, so after the first line the delta is 0 forever and one line is printed however many times the bot
+     * entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the precondition, so {@code call -
+     * wiggleLastCall > 1} means exactly "the immediately preceding call was not itself inside the window" — the same
+     * event in a per-tick world (this is called at most once per navigator tick) and a working one in a one-tick world.
+     * {@code seq=} is the ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen; a
+     * trailing {@code seq=5+/4 cap reached} line (and only that line) means a further entry was swallowed, so
+     * {@code seq=4/4} alone still means "exactly four entries".
      *
-     * <p><b>And the bearing, measurement only.</b> The ring answered "is the reach shorter than the
-     * throw" — yes, by one — but the answer does NOT license widening it: one directed rehearsal
-     * caught both sides, ring 3 firing (a ladder bot took that into a lava lake) and ring 2 holding
-     * through a three-minute stall. Direction is what separates them, so {@link
-     * NavigatorGeometry#hopBearingRow} prints where the bot points against where the lethal cell is.
-     * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
-     * ⚠️ That row prints the CAMERA; the bot is pushed along {@code driveTargetYaw}, decoupled
-     * from it by design, so it is NOT the gate. The gate is {@link NavigatorGeometry#hopSuppressed} —
-     * the arc's own landing columns along the DRIVE bearing, which subsumes the ring test rather
-     * than joining it — and {@link NavigatorGeometry#hopLandingRow} prints the cells it read.
+     * <p><b>And the bearing, measurement only.</b> The ring answered "is the reach shorter than the throw" — yes, by
+     * one — but the answer does NOT license widening it: one directed rehearsal caught both sides, ring 3 firing (a
+     * ladder bot took that into a lava lake) and ring 2 holding through a three-minute stall. Direction is what
+     * separates them, so {@link NavigatorGeometry#hopBearingRow} prints where the bot points against where the lethal
+     * cell is. Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring. ⚠️ That row
+     * prints the CAMERA; the bot is pushed along {@code driveTargetYaw}, decoupled from it by design, so it is NOT the
+     * gate. The gate is {@link NavigatorGeometry#hopSuppressed} — the arc's own landing columns along the DRIVE
+     * bearing, which subsumes the ring test rather than joining it — and {@link NavigatorGeometry#hopLandingRow} prints
+     * the cells it read.
      *
-     * <p>Why this earns a line at all: rung 20's takeoff samples showed the bot already airborne
-     * with {@code sinceLastJump=7}, and eliminating the jump terms that need a riser or water leaves
-     * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
-     * REASONING, not a reading — the rehearsal log has no per-tick navigator lines to check it against.
-     * This is the reading.
+     * <p>Why this earns a line at all: rung 20's takeoff samples showed the bot already airborne with
+     * {@code sinceLastJump=7}, and eliminating the jump terms that need a riser or water leaves {@code wiggle} as the
+     * only one that can fire on a flat dry level walk. That elimination is REASONING, not a reading — the rehearsal log
+     * has no per-tick navigator lines to check it against. This is the reading.
      */
-    public boolean wiggleHop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot,
-                      boolean precond, float driveYaw) {
-        long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
+    public boolean wiggleHop(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, boolean precond, float driveYaw) {
+        long call = ++wiggleCalls; // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && nav.stuckTicks > 10 && nav.stuckTicks < 18)) return false;
         BlockPos lethal = NavigatorGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
         int ring = NavigatorGeometry.ringOf(foot, lethal);
-        boolean gated = ControlConfig.navigatorRecoveryHopFloorGate && NavigatorGeometry.hopSuppressed(world, p, foot, driveYaw);
-        if (!gated && call - wiggleLastCall > 1) nav.tallies.recoveryHops++;   // one per window entry, not per tick
+        boolean gated = ControlConfig.navigatorRecoveryHopFloorGate
+                && NavigatorGeometry.hopSuppressed(world, p, foot, driveYaw);
+        if (!gated && call - wiggleLastCall > 1) nav.tallies.recoveryHops++; // one per window entry, not per tick
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[navigator] recovery hop: seq={}/{} t={} stuck={} foot={} exact=({}) ringGateRadius={} nearestLethalRing={} gate={} jump={} {} | {}",
-                    wiggleEvents, WIGGLE_EVENTS,
-                    p.level().getGameTime(), nav.stuckTicks, foot.toShortString(),
+            LOG.info(
+                    "[navigator] recovery hop: seq={}/{} t={} stuck={} foot={} exact=({}) ringGateRadius={} nearestLethalRing={} gate={} jump={} {} | {}",
+                    wiggleEvents,
+                    WIGGLE_EVENTS,
+                    p.level().getGameTime(),
+                    nav.stuckTicks,
+                    foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
-                    NavigatorGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
-                    ControlConfig.navigatorRecoveryHopFloorGate, !gated,
+                    NavigatorGeometry.HOP_RANGE,
+                    ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
+                    ControlConfig.navigatorRecoveryHopFloorGate,
+                    !gated,
                     NavigatorGeometry.hopBearingRow(p, foot, lethal),
                     NavigatorGeometry.hopLandingRow(world, p, foot, driveYaw));
         } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
@@ -168,8 +165,10 @@ public final class DrivePhase {
             // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
             // times. One line, at the first entry the cap actually swallowed.
             wiggleCapped = true;
-            LOG.info("[navigator] recovery hop: seq={}+/{} cap reached, later events are not logged (printed once)",
-                    WIGGLE_EVENTS + 1, WIGGLE_EVENTS);
+            LOG.info(
+                    "[navigator] recovery hop: seq={}+/{} cap reached, later events are not logged (printed once)",
+                    WIGGLE_EVENTS + 1,
+                    WIGGLE_EVENTS);
         }
         wiggleLastCall = call;
         return !gated;
@@ -178,17 +177,15 @@ public final class DrivePhase {
     /**
      * Recovery-hop events logged per navigator before the latch goes quiet.
      *
-     * <p>Sixteen, not four. The budget is per NAVIGATOR INSTANCE — {@code wiggleEvents} is an instance
-     * field with no reset, and every process carries its own {@code new Navigator(…)} — so it is spent
-     * per settle, not per run. That is not as generous as it sounds, because a single stall episode
-     * burns it: on 2026-08-26 rung 12's bot stalled on a lava lake's rim, spent all four inside
-     * thirteen seconds, and printed seq=5+/4 for the hops that mattered — the ones between the last
-     * logged position and the bot's death in the lake. A cap that runs out inside the one stall
-     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded
-     * — the line is one per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line
-     * still says when even that was not enough. Measured: one rehearsal stall printed six
-     * consecutive suppressed hops (ring 2, gate=true, jump=false), of which a cap of four would
-     * have shown four.
+     * <p>Sixteen, not four. The budget is per NAVIGATOR INSTANCE — {@code wiggleEvents} is an instance field with no
+     * reset, and every process carries its own {@code new Navigator(…)} — so it is spent per settle, not per run. That
+     * is not as generous as it sounds, because a single stall episode burns it: on 2026-08-26 rung 12's bot stalled on
+     * a lava lake's rim, spent all four inside thirteen seconds, and printed seq=5+/4 for the hops that mattered — the
+     * ones between the last logged position and the bot's death in the lake. A cap that runs out inside the one stall
+     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded — the line is one
+     * per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line still says when even that was not enough.
+     * Measured: one rehearsal stall printed six consecutive suppressed hops (ring 2, gate=true, jump=false), of which a
+     * cap of four would have shown four.
      */
     private static final int WIGGLE_EVENTS = 16;
 
@@ -197,16 +194,19 @@ public final class DrivePhase {
     /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
     private boolean wiggleCapped;
 
-    /** Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of
-     *  the last call that was inside the stall window. See that method's javadoc. */
+    /**
+     * Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of the last call that
+     * was inside the stall window. See that method's javadoc.
+     */
     private long wiggleCalls;
 
     private long wiggleLastCall = Long.MIN_VALUE / 4;
 
-    /** task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already
-     *  test — a plain stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp.
-     *  stepUp2 (+2, horse) and parkourAscend* are excluded (spec §10). Cheap string check so the OFF
-     *  delegation short-circuit costs nothing. */
+    /**
+     * task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already test — a plain
+     * stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp. stepUp2 (+2, horse) and parkourAscend*
+     * are excluded (spec §10). Cheap string check so the OFF delegation short-circuit costs nothing.
+     */
     public static boolean isMigratedAscent(String move) {
         return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
@@ -214,15 +214,19 @@ public final class DrivePhase {
     /** The first parkour takeoff this walk ever made — see {@link #noteParkourTakeoff}. */
     public String parkourTakeoff;
 
-    public boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a navigator dig's (see DIG_KEY_RELEASE_TICKS)
-    public int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
+    public boolean digDrivenThisTick,
+            digKeyOwned; // a dig drove the avatar this tick / the dig latch is a navigator dig's (see
+    // DIG_KEY_RELEASE_TICKS)
+    public int digIdleTicks; // consecutive tick-ends with the latch owned and no dig driven
 
-    public final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when navigatorAscendMovement is ON)
+    public final AscendMovement ascendMovement =
+            new AscendMovement(); // task#82 per-move machine (drives only when navigatorAscendMovement is ON)
 
-    /** Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by
-     *  DrivePhase. {@link DriveLatches#reset()} clears only the two sprint-brake
-     *  latches (exactly what both journey resets cleared); the debounce counters
-     *  self-manage per tick. */
+    /**
+     * Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by DrivePhase.
+     * {@link DriveLatches#reset()} clears only the two sprint-brake latches (exactly what both journey resets cleared);
+     * the debounce counters self-manage per tick.
+     */
     public final DriveLatches driveLatch = new DriveLatches();
 
     /** Release the two sprint brakes; the debouncers and the dig-key latch manage themselves. */
@@ -230,57 +234,73 @@ public final class DrivePhase {
         driveLatch.reset();
     }
 
-    /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
-     *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
-     *  first is kept: a bot that has already fallen keeps producing these.
+    /**
+     * Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the jump, so
+     * {@code isSprinting()} here is the state the leap actually launches with. Only the first is kept: a bot that has
+     * already fallen keeps producing these.
      *
-     *  <p><b>The five samples are not guaranteed to be five CONSECUTIVE ticks.</b> This call sits in
-     *  the drive tail, which a dozen branches (dig, pillar, escape, step-up) return before reaching,
-     *  so "t+0..t+4" means "the first five ticks the drive got this far". A run of five with
-     *  {@code onGround=false} therefore does NOT by itself distinguish a bot that was standing and
-     *  refused the jump from a bot that was already falling when the parkour edge became current —
-     *  the exact y and the sole area are what separate them, which is why both are printed. */
+     * <p><b>The five samples are not guaranteed to be five CONSECUTIVE ticks.</b> This call sits in the drive tail,
+     * which a dozen branches (dig, pillar, escape, step-up) return before reaching, so "t+0..t+4" means "the first five
+     * ticks the drive got this far". A run of five with {@code onGround=false} therefore does NOT by itself distinguish
+     * a bot that was standing and refused the jump from a bot that was already falling when the parkour edge became
+     * current — the exact y and the sole area are what separate them, which is why both are printed.
+     */
     public void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
         long now = p.level().getGameTime();
         long lastJump = a.dbgLastJumpTick();
-        parkourTakeoffBuf.append(parkourSamples == 0 ? "" : " | ")
+        parkourTakeoffBuf
+                .append(parkourSamples == 0 ? "" : " | ")
                 // The SAMPLE index and the GAME TICK, because they are not the same thing: this
                 // latch sits in the drive tail, which a dozen branches return before reaching, so
                 // "t+2" is the third sample, not the third tick. Without the absolute tick the
                 // phrase "N ticks before takeoff" has no meaning to argue over.
-                .append("t+").append(parkourSamples).append("@").append(now)
+                .append("t+")
+                .append(parkourSamples)
+                .append("@")
+                .append(now)
                 // Ticks since the bot last actually EMITTED an impulse (not since one was asked
                 // for). This is what separates a bot that jumped ITSELF off the platform — the
                 // parkour edge became current mid-arc — from one that simply walked off the lip:
                 // the first has a small number here, the second has "none".
-                .append(" sinceLastJump=").append(lastJump < 0 ? "none" : String.valueOf(now - lastJump))
-                .append(" jump=").append(jump)
-                .append(" sprinting=").append(p.isSprinting())
+                .append(" sinceLastJump=")
+                .append(lastJump < 0 ? "none" : String.valueOf(now - lastJump))
+                .append(" jump=")
+                .append(jump)
+                .append(" sprinting=")
+                .append(p.isSprinting())
                 .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
                 // ASK THE ATTRIBUTE, do not extrapolate the curve. Sprint is ×1.3 through
                 // Attributes.MOVEMENT_SPEED (verified in 1.21.1: SPEED_MODIFIER_SPRINTING = 0.3,
                 // ADD_MULTIPLIED_TOTAL), so 0.13 here means the channel works and 0.1 means the
                 // modifier never took. The expected steady-state cap is printed beside it so nobody
                 // has to redo the arithmetic.
-                .append(String.format(java.util.Locale.ROOT, " speedAttr=%.4f(expected steady-state cap %.4f)",
+                .append(String.format(
+                        java.util.Locale.ROOT,
+                        " speedAttr=%.4f(expected steady-state cap %.4f)",
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
-                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
+                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
+                                * 2.1585))
                 // THE QUANTITY THE JUMP BRANCHES ON (vanilla's gate, on both bots), kept as an
                 // input rather than as truth: onGround IS vanilla's verticalCollisionBelow
                 // (Entity.move assigns one from the other in a single statement), so it describes the
                 // previous MOVE and is wrong in both directions about where the bot is.
-                .append(" onGround=").append(p.onGround())
+                .append(" onGround=")
+                .append(p.onGround())
                 // THE SOLE READING the navigator's own footing guards use. Printed beside onGround
                 // so a run says which of the two was lying, and printed with the EXACT y because
                 // that is the only thing that tells a standing bot from a falling one when the
                 // block coordinate below is the same for both (a bot falling from y=49.9 spends
                 // three ticks inside block y=49, exactly like a bot resting on y=49.0).
-                .append(String.format(java.util.Locale.ROOT, " soleOnSolid=%.4f y=%.4f",
-                        NavigatorGeometry.soleOnSolid(world, p), p.getY()))
-                .append(" foot=").append(foot.toShortString());
+                .append(String.format(
+                        java.util.Locale.ROOT,
+                        " soleOnSolid=%.4f y=%.4f",
+                        NavigatorGeometry.soleOnSolid(world, p),
+                        p.getY()))
+                .append(" foot=")
+                .append(foot.toShortString());
         parkourSamples++;
         parkourTakeoff = parkourTakeoffBuf.toString();
     }
@@ -291,20 +311,18 @@ public final class DrivePhase {
     /**
      * The below-node jump suppression <b>without a wall to ram</b>.
      *
-     * <p>{@link #run}'s existing term is {@code !(p.horizontalCollision && p.onGround() &&
-     * wp.getY() < foot.getY())}: it kills the futile overhang bob-jump, but it needs
-     * {@code horizontalCollision}. On an open rim there is nothing to ram, so a bot that has
-     * drifted one block above its route still jumps at a node it is <b>already standing next to</b>,
-     * and the launch's forward momentum carries it past the cell it was trying to step onto.
+     * <p>{@link #run}'s existing term is {@code !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())}:
+     * it kills the futile overhang bob-jump, but it needs {@code horizontalCollision}. On an open rim there is nothing
+     * to ram, so a bot that has drifted one block above its route still jumps at a node it is <b>already standing next
+     * to</b>, and the launch's forward momentum carries it past the cell it was trying to step onto.
      *
-     * <p>Measured on rung 14's corridor segment 5 — five leaps, and the split is clean: the two launched
-     * under one block out both ended in lava (one missed by 4.12 and fell fourteen, one fell
-     * fifteen), the three launched over two blocks out all survived. The table, and why this is
-     * inert on a genuine gap and on every ascend, is on
+     * <p>Measured on rung 14's corridor segment 5 — five leaps, and the split is clean: the two launched under one
+     * block out both ended in lava (one missed by 4.12 and fell fourteen, one fell fifteen), the three launched over
+     * two blocks out all survived. The table, and why this is inert on a genuine gap and on every ascend, is on
      * {@link ControlConfig#navigatorNoLaunchAtAdjacentBelowNode}.
      *
-     * <p>Lives here rather than inline because {@code run} is on the source-budget grandfather list
-     * and may only shrink — the same reason this class's other shared reasoning is up top.
+     * <p>Lives here rather than inline because {@code run} is on the source-budget grandfather list and may only shrink
+     * — the same reason this class's other shared reasoning is up top.
      */
     private static boolean atAnAdjacentNodeBelow(LivingEntity p, BlockPos wp, BlockPos foot) {
         if (!ControlConfig.navigatorNoLaunchAtAdjacentBelowNode) return false;
@@ -314,49 +332,73 @@ public final class DrivePhase {
     }
 
     /**
-     * The LAST node is spent by closing to within ~0.67 of its centre, and a sprinting bot turning
-     * onto it from a diagonal passes wider than that (see AimPhase's last-node note). Walk the
-     * final two blocks; there is nothing after them to carry momentum into. A best-effort segment's
-     * last node has its continuation after it, so it keeps the sprint.
+     * The LAST node is spent by closing to within ~0.67 of its centre, and a sprinting bot turning onto it from a
+     * diagonal passes wider than that (see AimPhase's last-node note). Walk the final two blocks; there is nothing
+     * after them to carry momentum into. A best-effort segment's last node has its continuation after it, so it keeps
+     * the sprint.
      */
     private boolean finalApproach(Navigator nav, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
-        return ControlConfig.navigatorFinalNodeDirectAim && !p.isInWater() && !parkourEdge && !nav.route.seg.pathBestEffort
-                && nav.route.step() == nav.route.path().size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
+        return ControlConfig.navigatorFinalNodeDirectAim
+                && !p.isInWater()
+                && !parkourEdge
+                && !nav.route.seg.pathBestEffort
+                && nav.route.step() == nav.route.path().size() - 1
+                && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
     }
 
-    /** The surface sprint-swim cruise's verdict for this tick: {@code on} suppresses the surface
-     *  jump and forces sprint, {@code dip} sneaks the bot under (for the pose, then through the
-     *  server-confirm hold), {@code swimming} is the pose; swimming without dip holds the jump that
-     *  keeps the prone eyes at the waterline. */
+    /**
+     * The surface sprint-swim cruise's verdict for this tick: {@code on} suppresses the surface jump and forces sprint,
+     * {@code dip} sneaks the bot under (for the pose, then through the server-confirm hold), {@code swimming} is the
+     * pose; swimming without dip holds the jump that keeps the prone eyes at the waterline.
+     */
     record Cruise(boolean on, boolean dip, boolean swimming, boolean jump) {
         static final Cruise OFF = new Cruise(false, false, false, false);
     }
 
-    /** SURFACE SPRINT-SWIM CRUISE ({@link ControlConfig#navigatorSurfaceSprintSwim}). Vanilla accepts a sprint in
-     *  water only while the eyes are under ({@code LocalPlayer.aiStep}) and keeps it once the SWIMMING pose
-     *  is on; the pose itself starts only from sprint + eyes under ({@code Entity.updateSwimming}). The
-     *  surface bob's held jump keeps the head out, so the sprint the drive asks for every tick was cancelled
-     *  before travel and the bot treaded at ~2 blocks/s. Over deep water with no bank within reach: release
-     *  the jump and sneak-sink until the eyes go under, hold sprint, keep sinking for CRUISE_CONFIRM_TICKS
-     *  once the pose is on (the server's flag sync lags; see NavigatorConstants), then hold the jump: vanilla's
-     *  jumpInLiquid lifts the prone bot until the water over the feet is shallower than 0.4, i.e. the eyes
-     *  at the waterline. A breath latch bobs the bot up when the air still runs low and rejoins once it
-     *  has refilled; a dip that never gets the pose backs off for a while. */
-    private Cruise surfaceCruise(Navigator nav, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
-                                        boolean diving, boolean diveUnderCap) {
+    /**
+     * SURFACE SPRINT-SWIM CRUISE ({@link ControlConfig#navigatorSurfaceSprintSwim}). Vanilla accepts a sprint in water
+     * only while the eyes are under ({@code LocalPlayer.aiStep}) and keeps it once the SWIMMING pose is on; the pose
+     * itself starts only from sprint + eyes under ({@code Entity.updateSwimming}). The surface bob's held jump keeps
+     * the head out, so the sprint the drive asks for every tick was cancelled before travel and the bot treaded at ~2
+     * blocks/s. Over deep water with no bank within reach: release the jump and sneak-sink until the eyes go under,
+     * hold sprint, keep sinking for CRUISE_CONFIRM_TICKS once the pose is on (the server's flag sync lags; see
+     * NavigatorConstants), then hold the jump: vanilla's jumpInLiquid lifts the prone bot until the water over the feet
+     * is shallower than 0.4, i.e. the eyes at the waterline. A breath latch bobs the bot up when the air still runs low
+     * and rejoins once it has refilled; a dip that never gets the pose backs off for a while.
+     */
+    private Cruise surfaceCruise(
+            Navigator nav,
+            WorldView world,
+            LivingEntity p,
+            Body a,
+            BlockPos foot,
+            BlockPos wp,
+            boolean diving,
+            boolean diveUnderCap) {
         Cruise c = cruiseVerdict(nav, world, p, a, foot, wp, diving, diveUnderCap);
-        world.signals().cruising = c.on();   // AutoSwim's drowning backstop yields to it (cleared at the start of each bot tick)
+        world.signals().cruising =
+                c.on(); // AutoSwim's drowning backstop yields to it (cleared at the start of each bot tick)
         return c;
     }
 
-    private Cruise cruiseVerdict(Navigator nav, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
-                                        boolean diving, boolean diveUnderCap) {
+    private Cruise cruiseVerdict(
+            Navigator nav,
+            WorldView world,
+            LivingEntity p,
+            Body a,
+            BlockPos foot,
+            BlockPos wp,
+            boolean diving,
+            boolean diveUnderCap) {
         DriveLatches l = driveLatch;
         double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
         // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
         // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
-        if (wdx * wdx + wdz * wdz < 1.0 && l.cruiseOn && nav.route.path() != null && nav.route.step() + 1 < nav.route.path().size()) {
+        if (wdx * wdx + wdz * wdz < 1.0
+                && l.cruiseOn
+                && nav.route.path() != null
+                && nav.route.step() + 1 < nav.route.path().size()) {
             wp = nav.route.path().get(nav.route.step() + 1);
             wdx = wp.getX() + 0.5 - p.getX();
             wdz = wp.getZ() + 0.5 - p.getZ();
@@ -365,49 +407,98 @@ public final class DrivePhase {
         // sinks the foot to two cells under the surface node before the eyes go under (standing
         // eye height 1.62 against a 0.89 surface), so an engaged cruise tolerates that.
         int dy = wp.getY() - foot.getY();
-        boolean surfaceNode = p.isInWater() && !diving && !diveUnderCap && !p.onGround()
-                && world.isWater(wp) && !world.isWater(wp.above()) && dy >= -1 && dy <= (l.cruiseOn ? 3 : 1)
+        boolean surfaceNode = p.isInWater()
+                && !diving
+                && !diveUnderCap
+                && !p.onGround()
+                && world.isWater(wp)
+                && !world.isWater(wp.above())
+                && dy >= -1
+                && dy <= (l.cruiseOn ? 3 : 1)
                 && wdx * wdx + wdz * wdz >= 1.0
-                && world.isWater(foot.below()) && !world.isSolid(foot.offset(0, 2, 0));
+                && world.isWater(foot.below())
+                && !world.isSolid(foot.offset(0, 2, 0));
         // Engage only from the surface (eyes out): a bot still rising from a sunken start keeps
         // its swim-up; once engaged the dip takes the eyes under on purpose.
-        if (!ControlConfig.navigatorSurfaceSprintSwim || !surfaceNode || nav.route.path() == null
+        if (!ControlConfig.navigatorSurfaceSprintSwim
+                || !surfaceNode
+                || nav.route.path() == null
                 || (!l.cruiseOn && p.isUnderWater())) {
             if (GameConfig.navigatorDebug && l.cruiseOn)
-                LOG.info("[navigator] surface cruise: off — node {} dy={} lat2={} inW={} onG={} diving={} deepBelow={} capped={} pos=({},{},{})",
-                        wp.toShortString(), dy, String.format("%.1f", wdx * wdx + wdz * wdz), p.isInWater(), p.onGround(),
-                        diving, world.isWater(foot.below()), world.isSolid(foot.offset(0, 2, 0)),
-                        String.format("%.2f", p.getX()), String.format("%.2f", p.getY()), String.format("%.2f", p.getZ()));
+                LOG.info(
+                        "[navigator] surface cruise: off — node {} dy={} lat2={} inW={} onG={} diving={} deepBelow={} capped={} pos=({},{},{})",
+                        wp.toShortString(),
+                        dy,
+                        String.format("%.1f", wdx * wdx + wdz * wdz),
+                        p.isInWater(),
+                        p.onGround(),
+                        diving,
+                        world.isWater(foot.below()),
+                        world.isSolid(foot.offset(0, 2, 0)),
+                        String.format("%.2f", p.getX()),
+                        String.format("%.2f", p.getY()),
+                        String.format("%.2f", p.getZ()));
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks = 0;
             l.cruiseOn = false;
             return Cruise.OFF;
         }
-        if (l.cruiseCooldown > 0) { l.cruiseCooldown--; l.cruiseOn = false; return Cruise.OFF; }
+        if (l.cruiseCooldown > 0) {
+            l.cruiseCooldown--;
+            l.cruiseOn = false;
+            return Cruise.OFF;
+        }
         if (p.getAirSupply() < CRUISE_AIR_LOW && !l.cruiseBreath) {
             l.cruiseBreath = true;
-            if (GameConfig.navigatorDebug) LOG.info("[navigator] surface cruise: air {} — bobbing up to breathe", p.getAirSupply());
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] surface cruise: air {} — bobbing up to breathe", p.getAirSupply());
         } else if (p.getAirSupply() >= CRUISE_AIR_OK) {
             l.cruiseBreath = false;
         }
-        if (l.cruiseBreath) { l.cruiseOn = false; return Cruise.OFF; }
+        if (l.cruiseBreath) {
+            l.cruiseOn = false;
+            return Cruise.OFF;
+        }
         // A bank ahead: the climb-out needs the upright pose and the surface bob, so hand over early.
-        for (int i = nav.route.step(), n = Math.min(nav.route.path().size(), nav.route.step() + CRUISE_LOOKAHEAD); i < n; i++) {
+        for (int i = nav.route.step(), n = Math.min(nav.route.path().size(), nav.route.step() + CRUISE_LOOKAHEAD);
+                i < n;
+                i++) {
             BlockPos node = nav.route.path().get(i);
             if (world.isWater(node)) continue;
             double dx = node.getX() + 0.5 - p.getX(), dz = node.getZ() + 0.5 - p.getZ();
-            if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) { l.cruiseOn = false; return Cruise.OFF; }
+            if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) {
+                l.cruiseOn = false;
+                return Cruise.OFF;
+            }
             break;
         }
         l.cruiseOn = true;
         boolean swimming = p.isSwimming();
         if (GameConfig.navigatorDebug && (swimming != (l.cruiseSwimTicks > 0) || p.tickCount % 20 == 0))
-            LOG.info("[navigator] surface cruise: {} step={}/{} seg={} y={} vy={} pitch={} yaw={} sprint={} eyesUnder={} air={} dip={} swimT={} pose={} inW={} onG={} fwd={} sneak={} jump={} food={} using={} drive[{}]",
-                    swimming ? "swimming" : "dipping", nav.route.step(), nav.route.path().size(), nav.progress.arc.proj.segIdx, String.format("%.2f", p.getY()),
-                    String.format("%.3f", p.getDeltaMovement().y), String.format("%.0f", p.getXRot()), String.format("%.0f", p.getYRot()),
-                    p.isSprinting(), p.isUnderWater(), p.getAirSupply(), l.cruiseDipTicks, l.cruiseSwimTicks, p.getPose(), p.isInWater(),
-                    p.onGround(), a.dbgForwardImpulse(), a.dbgSneak(), a.dbgJumping(),
-                    a.asPlayer() == null ? -1 : a.asPlayer().getFoodData().getFoodLevel(), p.isUsingItem(), nav.driveTag);
+            LOG.info(
+                    "[navigator] surface cruise: {} step={}/{} seg={} y={} vy={} pitch={} yaw={} sprint={} eyesUnder={} air={} dip={} swimT={} pose={} inW={} onG={} fwd={} sneak={} jump={} food={} using={} drive[{}]",
+                    swimming ? "swimming" : "dipping",
+                    nav.route.step(),
+                    nav.route.path().size(),
+                    nav.progress.arc.proj.segIdx,
+                    String.format("%.2f", p.getY()),
+                    String.format("%.3f", p.getDeltaMovement().y),
+                    String.format("%.0f", p.getXRot()),
+                    String.format("%.0f", p.getYRot()),
+                    p.isSprinting(),
+                    p.isUnderWater(),
+                    p.getAirSupply(),
+                    l.cruiseDipTicks,
+                    l.cruiseSwimTicks,
+                    p.getPose(),
+                    p.isInWater(),
+                    p.onGround(),
+                    a.dbgForwardImpulse(),
+                    a.dbgSneak(),
+                    a.dbgJumping(),
+                    a.asPlayer() == null ? -1 : a.asPlayer().getFoodData().getFoodLevel(),
+                    p.isUsingItem(),
+                    nav.driveTag);
         if (swimming) {
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks++;
@@ -416,7 +507,8 @@ public final class DrivePhase {
             l.cruiseDipTicks = 0;
             l.cruiseCooldown = CRUISE_COOLDOWN_TICKS;
             l.cruiseOn = false;
-            if (GameConfig.navigatorDebug) LOG.info("[navigator] surface cruise: no swim pose after the dip — backing off");
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] surface cruise: no swim pose after the dip — backing off");
             return Cruise.OFF;
         }
         if (!swimming) l.cruiseSwimTicks = 0;
@@ -426,22 +518,25 @@ public final class DrivePhase {
         // vy. Deep under, pulse whenever the rise is slow; within the last 0.3 block, only from a standstill,
         // so the coast ends with the prone eyes (0.4) just above the source block's 8/9 surface.
         double eyeGap = wp.getY() + 0.889 - (p.getY() + 0.4), vy = p.getDeltaMovement().y;
-        boolean lift = swimming && l.cruiseSwimTicks > CRUISE_CONFIRM_TICKS && p.isUnderWater()
+        boolean lift = swimming
+                && l.cruiseSwimTicks > CRUISE_CONFIRM_TICKS
+                && p.isUnderWater()
                 && (eyeGap > 0.3 ? vy < 0.05 : vy <= 0.005);
         return new Cruise(true, !swimming || l.cruiseSwimTicks <= CRUISE_SINK_TICKS, swimming, lift);
     }
 
     /**
-     * Offset from the body to the nearest point of the planned segment into {@code wp}, or null when
-     * there is no reason to steer back onto it. Drifted off a string-pulled segment, foot→wp reads
-     * diagonal and no lane is held, but the segment is the line that was checked clear: pinned on a
-     * face (live 1536.73,72,-189.70: grazing the column beside lane x=1537 by 0.03 of a block, 2.5 s
-     * of stall and anti-stuck jumps), or with {@link ControlConfig#navigatorDescentLaneKeep} walking a
-     * one-block step-down, where the column beside a one-wide stair is the drop (live 1512.7,76,-240.5:
-     * the heading lagged west of the x=1513 stair and the body walked off a 5-block ridge, most runs).
+     * Offset from the body to the nearest point of the planned segment into {@code wp}, or null when there is no reason
+     * to steer back onto it. Drifted off a string-pulled segment, foot→wp reads diagonal and no lane is held, but the
+     * segment is the line that was checked clear: pinned on a face (live 1536.73,72,-189.70: grazing the column beside
+     * lane x=1537 by 0.03 of a block, 2.5 s of stall and anti-stuck jumps), or with
+     * {@link ControlConfig#navigatorDescentLaneKeep} walking a one-block step-down, where the column beside a one-wide
+     * stair is the drop (live 1512.7,76,-240.5: the heading lagged west of the x=1513 stair and the body walked off a
+     * 5-block ridge, most runs).
      */
     private double[] segmentLaneOffset(Navigator nav, LivingEntity p, BlockPos wp, boolean stepDown) {
-        if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0) return null;
+        if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0)
+            return null;
         BlockPos sp = nav.route.path().get(nav.route.step() - 1);
         if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) return null;
         double ax = sp.getX() + 0.5, az = sp.getZ() + 0.5, sx = wp.getX() + 0.5 - ax, sz = wp.getZ() + 0.5 - az;
@@ -450,22 +545,21 @@ public final class DrivePhase {
     }
 
     /**
-     * The lane-keep strafe impulse (left positive). Elsewhere it stays bang-bang; on a dry cardinal
-     * climb it is proportional with velocity damping. A step cut into a wall is a one-wide notch
-     * that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the error
-     * fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour
-     * column (live 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s).
+     * The lane-keep strafe impulse (left positive). Elsewhere it stays bang-bang; on a dry cardinal climb it is
+     * proportional with velocity damping. A step cut into a wall is a one-wide notch that the 0.6 box only fits within
+     * ±0.2 of the column centre, and full strafe until the error fell under the dead band overshot by ~0.4 each way, so
+     * every jump clipped a neighbour column (live 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s).
      *
-     * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the
-     * velocity along it, not the offset to the node centre: with the heading a few degrees off the lane, the
-     * distance still to run along it leaked into the player's right and could strafe against the bang side.
+     * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the velocity along
+     * it, not the offset to the node centre: with the heading a few degrees off the lane, the distance still to run
+     * along it leaked into the player's right and could strafe against the bang side.
      */
-    private static double laneStrafe(LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR,
-                                     boolean dryCardinalClimb) {
+    private static double laneStrafe(
+            LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR, boolean dryCardinalClimb) {
         double bang = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
         if (!dryCardinalClimb || bang == 0.0) return bang;
         double yr = Math.toRadians(p.getYRot());
-        double rx = -Math.cos(yr), rz = -Math.sin(yr);          // the player's right, as in the lane-keep above
+        double rx = -Math.cos(yr), rz = -Math.sin(yr); // the player's right, as in the lane-keep above
         double errR = latX * rx + latZ * rz;
         Vec3 v = p.getDeltaMovement();
         double velR = (latX != 0 ? v.x : 0) * rx + (latZ != 0 ? v.z : 0) * rz;
@@ -474,14 +568,13 @@ public final class DrivePhase {
 
     private static final double LANE_KP = 3.0, LANE_KD = 8.0;
 
-    private static final double BACKOFF_RUNWAY = 1.8;   // how far 12 ticks of walking back carries the bot, with margin
-    private static final double RISER_SCAN = 1.6;       // farther than any lead a sprint launch needs (~1.05)
+    private static final double BACKOFF_RUNWAY = 1.8; // how far 12 ticks of walking back carries the bot, with margin
+    private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
 
     /**
-     * True when the runway the step-up backoff would retreat over has floor at the bot's level.
-     * On a one-wide cliff staircase the cell behind is the drop the bot just climbed out of, so a
-     * blind 12-tick retreat walked it off the stair (live 2026-09-28, twice at 1390,99,-534: fell
-     * 3 blocks, then pillar-recovered, ~12 s each time).
+     * True when the runway the step-up backoff would retreat over has floor at the bot's level. On a one-wide cliff
+     * staircase the cell behind is the drop the bot just climbed out of, so a blind 12-tick retreat walked it off the
+     * stair (live 2026-09-28, twice at 1390,99,-534: fell 3 blocks, then pillar-recovered, ~12 s each time).
      */
     private static boolean backoffRunwayFloored(WorldView world, LivingEntity p, BlockPos wp) {
         double bx = p.getX() - (wp.getX() + 0.5), bz = p.getZ() - (wp.getZ() + 0.5);
@@ -496,20 +589,26 @@ public final class DrivePhase {
 
     /**
      * The block navigatorWallDigFallback punches: the wp-facing one at head then feet height. §85: that probe goes
-     * EMPTY-HANDED when the pinning wall's normal is not the wp direction (ultra#2: wall south, wp east; C98-J2
-     * canopy pin: wp a stepDown below, hCol from a side trunk) — hCol says "a wall touches the box" but not WHERE.
-     * Fall back to the drive heading, then sweep the four neighbours at head/feet height.
+     * EMPTY-HANDED when the pinning wall's normal is not the wp direction (ultra#2: wall south, wp east; C98-J2 canopy
+     * pin: wp a stepDown below, hCol from a side trunk) — hCol says "a wall touches the box" but not WHERE. Fall back
+     * to the drive heading, then sweep the four neighbours at head/feet height.
      *
-     * <p>Never the block the next node stands on, nor a feet-height block while that node is above the feet:
-     * that is the riser, and digging it turned a stepUp into a pillar the bot then fell off (live 1444,80,-553
-     * on the R1 east cliff, four minutes of dig-pillar-fall).
+     * <p>Never the block the next node stands on, nor a feet-height block while that node is above the feet: that is
+     * the riser, and digging it turned a stepUp into a pillar the bot then fell off (live 1444,80,-553 on the R1 east
+     * cliff, four minutes of dig-pillar-fall).
      */
     private static BlockPos wallDigTarget(WorldView world, LivingEntity p, BlockPos wp, double ux, double uz) {
         BlockPos support = wp.below();
         boolean riser = wp.getY() > Mth.floor(p.getY() + 1e-3);
         java.util.function.Predicate<BlockPos> ok = c -> world.isSolid(c) && !c.equals(support);
-        double[][] dirs = {{ux, uz}, {-Math.sin(Math.toRadians(p.getYRot())), Math.cos(Math.toRadians(p.getYRot()))},
-                {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        double[][] dirs = {
+            {ux, uz},
+            {-Math.sin(Math.toRadians(p.getYRot())), Math.cos(Math.toRadians(p.getYRot()))},
+            {1, 0},
+            {-1, 0},
+            {0, 1},
+            {0, -1}
+        };
         for (double[] d : dirs) {
             BlockPos head = BlockPos.containing(p.getX() + d[0], p.getY() + 1.4, p.getZ() + d[1]);
             BlockPos feet = BlockPos.containing(p.getX() + d[0], p.getY() + 0.4, p.getZ() + d[1]);
@@ -584,8 +683,8 @@ public final class DrivePhase {
         // column on BOTH axes (the strafe still runs while pivot cuts forward), so its
         // cross-axis component pulls the bot back onto the diagonal line, the bearing
         // steadies, pivotForStepUp releases, and forward + stepUpJump mounts the corner.
-        boolean diagUp = upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()
-                && !parkourEdge && !p.isInWater();
+        boolean diagUp =
+                upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && !parkourEdge && !p.isInWater();
         // A jump is needed only to rise BEYOND the auto-step height.
         boolean needJumpForStep = upDy >= 1 && upDy > maxStepUp;
         // task#82 per-move ASCENT machine (plan B1 2026-07-16). Flag FIRST so OFF short-circuits with
@@ -597,24 +696,31 @@ public final class DrivePhase {
         // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
         if (ControlConfig.navigatorAscendMovement && edge != null && isMigratedAscent(edge.move) && !p.isInWater()) {
             MovementContext ctx = new MovementContext(
-                    p, world, a, edge, foot, nav.route.path().get(nav.route.step()),
-                    world.maxJumpUpBlocks(), world.maxStepUpBlocks(),
+                    p,
+                    world,
+                    a,
+                    edge,
+                    foot,
+                    nav.route.path().get(nav.route.step()),
+                    world.maxJumpUpBlocks(),
+                    world.maxStepUpBlocks(),
                     nav.route.step() >= 1 ? nav.route.path().get(nav.route.step() - 1) : null,
-                    nav.route.step() >= 2 ? nav.route.path().get(nav.route.step() - 2) : null, breakingEdge);
+                    nav.route.step() >= 2 ? nav.route.path().get(nav.route.step() - 2) : null,
+                    breakingEdge);
             switch (ascendMovement.updateState(ctx)) {
-                case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick by StallDetectPhase)
+                case UNREACHABLE,
+                        FAILED -> { // fold into the existing re-route (consumed next tick by StallDetectPhase)
                     TickStep give = noteDeadZone(nav, p, foot, edge);
                     if (give != null) return give;
                 }
-                case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
+                case PREP, RUNNING, SUCCESS -> {} // fall through — legacy drive actuates this tick
             }
         }
         // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
         // cardinal step within reach (+1, or +2 for a horse/jump-boost) — align +
         // approach before the jump. A horse auto-walk-up needs no jump; water/parkour
         // differ; an over-jump (handled above) is excluded.
-        boolean dryStepUp = needJumpForStep && cardinalUp && upDy <= maxJumpUp
-                && !p.isInWater() && !parkourEdge;
+        boolean dryStepUp = needJumpForStep && cardinalUp && upDy <= maxJumpUp && !p.isInWater() && !parkourEdge;
         boolean ascendJumpReady = true;
         boolean sprintAscend = false;
         if (dryStepUp) {
@@ -659,13 +765,24 @@ public final class DrivePhase {
             // cure: back off the face, ground, and re-approach with momentum.
             boolean grindPress = p.onGround() && Math.sqrt(vel.x * vel.x + vel.z * vel.z) < 0.1;
             boolean grindGraze = p.horizontalCollision && nav.stuckTicks > 30;
-            if (ControlConfig.navigatorStepUpBackoffRetry && nav.recovery.backOffReady(nav.stallDetect.escal.tick)
-                    && nav.stuckTicks > 15 && flatDist < 1.1 && (grindPress || grindGraze) && backoffRunwayFloored(world, p, wp)) {
-                nav.recovery.backOff((float) (Math.toDegrees(Math.atan2(
-                        -((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ())) + 180.0), nav.stallDetect.escal.tick);
+            if (ControlConfig.navigatorStepUpBackoffRetry
+                    && nav.recovery.backOffReady(nav.stallDetect.escal.tick)
+                    && nav.stuckTicks > 15
+                    && flatDist < 1.1
+                    && (grindPress || grindGraze)
+                    && backoffRunwayFloored(world, p, wp)) {
+                nav.recovery.backOff(
+                        (float) (Math.toDegrees(
+                                        Math.atan2(-((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ()))
+                                + 180.0),
+                        nav.stallDetect.escal.tick);
                 if (GameConfig.navigatorDebug)
-                    LOG.info("[navigator] STEPUP-BACKOFF armed ({}): wp={},{},{} flatDist={} → back off 12t for runway",
-                            grindPress ? "press" : "graze", wp.getX(), wp.getY(), wp.getZ(),
+                    LOG.info(
+                            "[navigator] STEPUP-BACKOFF armed ({}): wp={},{},{} flatDist={} → back off 12t for runway",
+                            grindPress ? "press" : "graze",
+                            wp.getX(),
+                            wp.getY(),
+                            wp.getZ(),
                             String.format(Locale.ROOT, "%.2f", flatDist));
             }
         }
@@ -689,17 +806,29 @@ public final class DrivePhase {
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
         boolean stepDownLane = ControlConfig.navigatorDescentLaneKeep && wp.getY() == foot.getY() - 1 && !p.isInWater();
         double laneLatX = 0, laneLatZ = 0;
-        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || stepDownLane)) {
+        if (!descendBrake
+                && !parkourEdge
+                && !steppingOffFall
+                && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || stepDownLane)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
             double[] seg = ddx != 0 && ddz != 0 && (wp.getY() == foot.getY() || stepDownLane) && !waterClimb && !diagUp
-                    ? segmentLaneOffset(nav, p, wp, stepDownLane) : null;
+                    ? segmentLaneOffset(nav, p, wp, stepDownLane)
+                    : null;
             double latX = 0, latZ = 0;
-            if (seg != null) { latX = seg[0]; latZ = seg[1]; }
-            else if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
-            else if (diagUp) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the diagonal toward the step corner
-            else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
-            else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
+            if (seg != null) {
+                latX = seg[0];
+                latZ = seg[1];
+            } else if (waterClimb) {
+                latX = (wp.getX() + 0.5) - p.getX();
+                latZ = (wp.getZ() + 0.5) - p.getZ();
+            } // centre on the target column
+            else if (diagUp) {
+                latX = (wp.getX() + 0.5) - p.getX();
+                latZ = (wp.getZ() + 0.5) - p.getZ();
+            } // centre on the diagonal toward the step corner
+            else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX(); // N/S lane → hold X
+            else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ(); // E/W lane → hold Z
             // Anti-drift in a current: a flowing-water cell pushes the bot
             // downstream, so steer upstream (subtract the flow vector from the
             // lateral target). The strafe is far stronger than the push, so this
@@ -709,13 +838,15 @@ public final class DrivePhase {
             // along-lane part is ignored (handled by the upstream COST, not steering).
             if (WorldConfig.waterFlowPenalty > 0 && p.isInWater()) {
                 Vec3 flow = world.waterFlow(foot);
-                latX -= flow.x; latZ -= flow.z;
+                latX -= flow.x;
+                latZ -= flow.z;
             }
-            laneLatX = latX; laneLatZ = latZ;
+            laneLatX = latX;
+            laneLatZ = latZ;
             if (Math.abs(latX) > 0.06 || Math.abs(latZ) > 0.06) {
                 double yr = Math.toRadians(p.getYRot());
-                double fx = -Math.sin(yr), fz = Math.cos(yr);   // forward unit (x,z)
-                double rx = -fz, ry = fx;                       // player's right = forward rot +90°
+                double fx = -Math.sin(yr), fz = Math.cos(yr); // forward unit (x,z)
+                double rx = -fz, ry = fx; // player's right = forward rot +90°
                 double dotR = latX * rx + latZ * ry;
                 if (dotR > 0.04) strafeR = true;
                 else if (dotR < -0.04) strafeL = true;
@@ -758,7 +889,9 @@ public final class DrivePhase {
         // every flicker tick was one tick of full impulse at a bearing that swings ±90° when the
         // node is nearly underfoot. The latch alone decides; driveF=0 makes the bearing moot.
         boolean descentAirborneDriftClamp = ControlConfig.navigatorDescentStepSkipBrake
-                && !p.onGround() && driveLatch.steepDescentLatch > 0 && !parkourEdge;
+                && !p.onGround()
+                && driveLatch.steepDescentLatch > 0
+                && !parkourEdge;
         double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
         double driveL = laneStrafe(p, laneLatX, laneLatZ, strafeL, strafeR, cardinalUp && !p.isInWater());
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
@@ -791,9 +924,9 @@ public final class DrivePhase {
         // equilibrium. Corner-cut recovery is fixed on the AIM side instead: recoverySnagAim (Aim) drops
         // the trendCam centroid while a wall-pin OR guard-pin recovery owns the tree, so the corridor
         // bearing flows through the same EMA into this unchanged drive.
-        float driveTargetYaw = ControlConfig.navigatorTangentAim ? aimYaw
-                : flatWaterTrend ? nav.aim.aimSmooth.smoothWaterDriveYaw
-                : trendCam ? descentNodeYaw : aimYaw;
+        float driveTargetYaw = ControlConfig.navigatorTangentAim
+                ? aimYaw
+                : flatWaterTrend ? nav.aim.aimSmooth.smoothWaterDriveYaw : trendCam ? descentNodeYaw : aimYaw;
         // Dry diagDown SLOPE back-hop damping (the visible side-to-side hopping on snowy slopes). On a continuous
         // diagonal descent the decoupled drive rides the IMMEDIATE node (descentNodeYaw); each time
         // the foot overshoots that node it sits BEHIND the bot and the bearing reverses ~180°, so
@@ -806,7 +939,11 @@ public final class DrivePhase {
         // but SNAP back to the real node after WATER_DRIVE_MAX_REJECT ticks so node-following always
         // re-syncs (a true switchback segment sits ~±50° off trend < the 120° gate, so only a real
         // overshoot trips this). dryDescent-only; water/discrete keep their own handling.
-        if (!ControlConfig.navigatorTangentAim && dryDescent && !flatWaterTrend && edge != null && edge.move != null
+        if (!ControlConfig.navigatorTangentAim
+                && dryDescent
+                && !flatWaterTrend
+                && edge != null
+                && edge.move != null
                 // parkourDescend is a diagonal descender too: a parkourDescend staircase suffers the
                 // SAME overshoot back-hop (live 2026-06-24 combined journey at -813,71: a
                 // parkourDescend2d1 chain, yaw/driveYaw flipped +33→-103 on each overshoot → ~65 t
@@ -818,18 +955,22 @@ public final class DrivePhase {
                 // ran FORWARD then BACKWARD = the "moving-backward jump", a slight retreat), while camYaw held
                 // steady at -148 — i.e. the camera trend was fine, only the drive chased the flipping
                 // below-node bearing. Holding the trend lets it commit forward off the edge and drop.
-                && (edge.move.startsWith("diagDown") || edge.move.startsWith("parkourDescend")
-                    || edge.move.startsWith("fall") || edge.move.startsWith("stepDown"))
+                && (edge.move.startsWith("diagDown")
+                        || edge.move.startsWith("parkourDescend")
+                        || edge.move.startsWith("fall")
+                        || edge.move.startsWith("stepDown"))
                 && Math.abs(angleDiff(aimYaw, descentNodeYaw)) > WATER_DRIVE_MAX_TURN) {
             if (++driveLatch.descentDriveRejectStreak <= WATER_DRIVE_MAX_REJECT) {
                 driveTargetYaw = aimYaw;
             } else {
-                driveLatch.descentDriveRejectStreak = 0;   // escape: drive the real node this tick to re-sync
+                driveLatch.descentDriveRejectStreak = 0; // escape: drive the real node this tick to re-sync
             }
         } else {
             driveLatch.descentDriveRejectStreak = 0;
         }
-        boolean rawClimbPress = p.isInWater() && !p.onGround() && !parkourEdge
+        boolean rawClimbPress = p.isInWater()
+                && !p.onGround()
+                && !parkourEdge
                 && wp.getY() > foot.getY()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 2.5;
         // Debounce the surface bob (see CLIMB_PRESS_DEBOUNCE): only a PERSISTENT wp-above-foot is a
@@ -850,13 +991,16 @@ public final class DrivePhase {
         // fires for real. radius>0 only (exact-cell / radius-0 water arrivals unchanged).
         if (nav.route.step() + 1 >= nav.route.path().size() && !nav.goal.reached(foot)) {
             int gcx = Integer.MIN_VALUE, gcz = 0;
-            if (nav.goal instanceof Goal.XZ xz && xz.radius() > 0) { gcx = xz.x(); gcz = xz.z(); }
-            else if (nav.goal instanceof Goal.Near nr && nr.radius() > 0) {
-                gcx = nr.target().getX(); gcz = nr.target().getZ();
+            if (nav.goal instanceof Goal.XZ xz && xz.radius() > 0) {
+                gcx = xz.x();
+                gcz = xz.z();
+            } else if (nav.goal instanceof Goal.Near nr && nr.radius() > 0) {
+                gcx = nr.target().getX();
+                gcz = nr.target().getZ();
             }
             if (gcx != Integer.MIN_VALUE) {
                 double gdx = (gcx + 0.5) - p.getX(), gdz = (gcz + 0.5) - p.getZ();
-                if (gdx * gdx + gdz * gdz > 0.5) {            // not already essentially on centre
+                if (gdx * gdx + gdz * gdz > 0.5) { // not already essentially on centre
                     driveTargetYaw = (float) Math.toDegrees(Math.atan2(-gdx, gdz));
                     driveF = 1.0;
                     driveL = 0.0;
@@ -895,7 +1039,7 @@ public final class DrivePhase {
                 }
             double rMag = Math.sqrt(rpx * rpx + rpz * rpz);
             if (rMag > 1e-6) {
-                double scale = Math.min(0.5, rMag) / rMag;   // cap the nudge at half impulse
+                double scale = Math.min(0.5, rMag) / rMag; // cap the nudge at half impulse
                 // world → camera frame: forward = (−sinθ, cosθ), left = (cosθ, sinθ)
                 double cam = Math.toRadians(p.getYRot());
                 double camSin = Math.sin(cam), camCos = Math.cos(cam);
@@ -903,22 +1047,30 @@ public final class DrivePhase {
                 cmdFwd += (rpz * camCos - rpx * camSin) * scale;
             }
         }
-        nav.driveTag = String.format(Locale.ROOT, "y%.0f F%.2f L%.2f s%.2f f%.2f",
-                driveTargetYaw, driveF, driveL, cmdStrafe, cmdFwd);
+        nav.driveTag = String.format(
+                Locale.ROOT, "y%.0f F%.2f L%.2f s%.2f f%.2f", driveTargetYaw, driveF, driveL, cmdStrafe, cmdFwd);
         a.commandMove((float) cmdStrafe, (float) cmdFwd);
         // TEMP FREEZE-DIAG (approach-freeze / pit-cascade phase-3 investigation): capture the exact
         // drive state when a dryDescent stalls (stuckTicks high) — which steering branch + driveF +
         // forward component + brakes — so the cur2-frozen hSpd~0 stall mechanism is identified, not guessed.
         if (GameConfig.navigatorDebug && dryDescent && nav.stuckTicks > 18) {
             double fwdComp = driveL * driveSin + driveF * driveCos;
-            LOG.info("[navigator] FREEZE-DIAG stuckT={} driveF={} fwdComp={} ddeg={} dTgtYaw={} camYaw={} aimAtWp={} reCentre={} pivotSU={} descBrake={} stepUpFreeze={} sneak={} sprint={} wpY-footY={} stepCol2={}",
-                    nav.stuckTicks, String.format(Locale.ROOT, "%.2f", driveF),
+            LOG.info(
+                    "[navigator] FREEZE-DIAG stuckT={} driveF={} fwdComp={} ddeg={} dTgtYaw={} camYaw={} aimAtWp={} reCentre={} pivotSU={} descBrake={} stepUpFreeze={} sneak={} sprint={} wpY-footY={} stepCol2={}",
+                    nav.stuckTicks,
+                    String.format(Locale.ROOT, "%.2f", driveF),
                     String.format(Locale.ROOT, "%.2f", fwdComp),
                     String.format(Locale.ROOT, "%.0f", Math.toDegrees(driveDelta)),
                     String.format(Locale.ROOT, "%.0f", driveTargetYaw),
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                    aimAtWaypoint, reCentre, pivotForStepUp, descendBrake, stepUpFreeze,
-                    a.dbgSneak(), p.isSprinting(), (wp.getY() - foot.getY()),
+                    aimAtWaypoint,
+                    reCentre,
+                    pivotForStepUp,
+                    descendBrake,
+                    stepUpFreeze,
+                    a.dbgSneak(),
+                    p.isSprinting(),
+                    (wp.getY() - foot.getY()),
                     String.format(Locale.ROOT, "%.2f", (stepColDx * stepColDx + stepColDz * stepColDz)));
         }
         // Bridging a chasm one placed block at a time: sneak (so a sprint
@@ -942,8 +1094,7 @@ public final class DrivePhase {
         // intended descent is safe. Same-level lip-walking keeps the full pin (death #8),
         // and sprint stays OFF whenever a lethal edge is near (see sprint below) so the
         // released descent has no drift/overshoot momentum off the lip.
-        boolean lethalNear = ControlConfig.lethalEdgeBrake && p.onGround()
-                && lethalDropAdjacent(world, p, foot);
+        boolean lethalNear = ControlConfig.lethalEdgeBrake && p.onGround() && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
         // Low-HP care (survival DEATH #3, 2026-07-11): releasing the pin for a
         // planned descent bets that the bot lands exactly on the planned cell.
@@ -952,8 +1103,7 @@ public final class DrivePhase {
         // kills. Below the threshold keep the sneak pin even across a planned
         // step-down: a pinned descent stalls and repaths (recoverable); a fall
         // at 1-6 HP is not. Sprint is also suppressed below (same gate).
-        boolean lowHpCareful = ControlConfig.lowHealthCareful > 0
-                && p.getHealth() <= ControlConfig.lowHealthCareful;
+        boolean lowHpCareful = ControlConfig.lowHealthCareful > 0 && p.getHealth() <= ControlConfig.lowHealthCareful;
         boolean edgeBrake = lethalNear && (!plannedDescent || lowHpCareful);
         // Steep-descent SPRINT brake (NOT a sneak-pin): a survivable-but-deep drop in an
         // edge-neighbour while descending is invisible to lethalNear (its threshold is
@@ -987,16 +1137,19 @@ public final class DrivePhase {
         int steepDescentPathDrop = 0;
         if (nav.route.path() != null && !nav.route.path().isEmpty()) {
             int loY = foot.getY();
-            for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + STEEP_DESCENT_LOOKAHEAD_NODES); k++) {
+            for (int k = nav.route.step();
+                    k < Math.min(nav.route.path().size(), nav.route.step() + STEEP_DESCENT_LOOKAHEAD_NODES);
+                    k++) {
                 loY = Math.min(loY, nav.route.path().get(k).getY());
             }
             steepDescentPathDrop = foot.getY() - loY;
         }
-        boolean steepDescentPathAhead = ControlConfig.navigatorSteepDescentLatch && p.onGround()
+        boolean steepDescentPathAhead = ControlConfig.navigatorSteepDescentLatch
+                && p.onGround()
                 && steepDescentPathDrop > RulesConfig.pathfinderMaxDryFall;
         boolean steepDescentRaw = p.onGround()
-                && ((plannedDescent && dropAdjacentExceeds(world, foot, 4))   // local >4 cliff neighbour
-                    || steepDescentPathAhead);                                // NEW: cumulative slope ahead
+                && ((plannedDescent && dropAdjacentExceeds(world, foot, 4)) // local >4 cliff neighbour
+                        || steepDescentPathAhead); // NEW: cumulative slope ahead
         if (steepDescentRaw) driveLatch.steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
         // Release ONLY when GROUNDED at/above the node. The old instantaneous wp-vs-foot check
         // flickered true MID-ARC (gap #51 trace t=43: foot 233.7 falls past wp 234 for one tick)
@@ -1005,13 +1158,18 @@ public final class DrivePhase {
         // the 1-wide stair (landed x=301 on a corner, slid off, fell to -60). A latch armed for
         // an airborne descent arc must survive the whole arc; landing is the only sane release.
         else if (driveLatch.steepDescentLatch > 0
-                && (!ControlConfig.navigatorSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY()))) driveLatch.steepDescentLatch = 0;
+                && (!ControlConfig.navigatorSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY())))
+            driveLatch.steepDescentLatch = 0;
         else if (driveLatch.steepDescentLatch > 0) driveLatch.steepDescentLatch--;
         boolean steepDescentNear = steepDescentRaw || driveLatch.steepDescentLatch > 0;
         if (steepDescentPathAhead && GameConfig.navigatorDebug)
-            LOG.info("[navigator] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
-                    foot.getY(), steepDescentPathDrop, RulesConfig.pathfinderMaxDryFall,
-                    STEEP_DESCENT_LOOKAHEAD_NODES, STEEP_DESCENT_DRIFT_LATCH,
+            LOG.info(
+                    "[navigator] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
+                    foot.getY(),
+                    steepDescentPathDrop,
+                    RulesConfig.pathfinderMaxDryFall,
+                    STEEP_DESCENT_LOOKAHEAD_NODES,
+                    STEEP_DESCENT_DRIFT_LATCH,
                     ControlConfig.navigatorDescentStepSkipBrake ? "+airborneDriveFClamp" : "");
         // DESCENT STEP-SKIP grounded sneak-brake — RETIRED (task#36, 2026-07-12). Its gate
         // (onGround && foot.Y-wp.Y > maxDryFall) was proven a literal NO-OP by live trace: the
@@ -1043,11 +1201,19 @@ public final class DrivePhase {
         // positive. 2 covers the lateral overshoot a sprint adds; 7 the 6-deep drift with margin.
         // Only water the velocity is carrying the body toward counts: the ring walked past every
         // pond unsprinted (live 2026-09-28 R1: 195 vetoed ticks a run, ~3 s of the route).
-        boolean deepWaterEdgeRaw = ControlConfig.navigatorDeepWaterDriftBrake && p.onGround()
-                && wp.getY() <= foot.getY()                       // descending or flush walk along the edge (not an ascent)
-                && !world.isFloatingWater(wp)                     // not a deliberate deep-water entry (the path means to swim in)
-                && NavigatorGeometry.deepWaterAlongVelocity(world, p.getX(), p.getZ(), foot.getY(),
-                        p.getDeltaMovement().x, p.getDeltaMovement().z, wp.getY() < foot.getY() ? 2.5 : 1.5, 7);
+        boolean deepWaterEdgeRaw = ControlConfig.navigatorDeepWaterDriftBrake
+                && p.onGround()
+                && wp.getY() <= foot.getY() // descending or flush walk along the edge (not an ascent)
+                && !world.isFloatingWater(wp) // not a deliberate deep-water entry (the path means to swim in)
+                && NavigatorGeometry.deepWaterAlongVelocity(
+                        world,
+                        p.getX(),
+                        p.getZ(),
+                        foot.getY(),
+                        p.getDeltaMovement().x,
+                        p.getDeltaMovement().z,
+                        wp.getY() < foot.getY() ? 2.5 : 1.5,
+                        7);
         // LATCH the brake across the airborne sub-arcs of a step-down descent: a staircase is a
         // chain of small drops, so the bot is airborne (onGround false) for ~half the ticks, and
         // without the latch sprint re-arms on every airborne tick and the accumulated forward
@@ -1060,11 +1226,13 @@ public final class DrivePhase {
         // so a real crossing isn't slowed. Off entirely when the flag is off (byte-identical).
         if (deepWaterEdgeRaw) driveLatch.deepWaterDriftLatch = DEEP_WATER_DRIFT_LATCH;
         else if (driveLatch.deepWaterDriftLatch > 0
-                && (!ControlConfig.navigatorDeepWaterDriftBrake || world.isFloatingWater(wp))) driveLatch.deepWaterDriftLatch = 0;
+                && (!ControlConfig.navigatorDeepWaterDriftBrake || world.isFloatingWater(wp)))
+            driveLatch.deepWaterDriftLatch = 0;
         else if (driveLatch.deepWaterDriftLatch > 0) driveLatch.deepWaterDriftLatch--;
         boolean deepWaterDriftNear = deepWaterEdgeRaw || driveLatch.deepWaterDriftLatch > 0;
         // DYNAMIC fall-correction while bridging: correct the heading to prevent falls rather than
-        // crouching the whole time at the cost of speed. A 1-wide place-bridge has void on BOTH sides, so the lethal-edge pin
+        // crouching the whole time at the cost of speed. A 1-wide place-bridge has void on BOTH sides, so the
+        // lethal-edge pin
         // (edgeBrake) AND the old blanket bridge-sneak BOTH held shift for the ENTIRE
         // span — crouch-walking the whole bridge at a ~0.9 b/s crawl. Instead, walk the
         // already-placed blocks at full speed and brake (sneak — its ledge-guard pins the
@@ -1099,8 +1267,10 @@ public final class DrivePhase {
             if (!wpHazard && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()) {
                 BlockPos ca = new BlockPos(wp.getX(), wp.getY(), foot.getZ());
                 BlockPos cb = new BlockPos(foot.getX(), wp.getY(), wp.getZ());
-                wpHazard = world.isHazard(ca) || world.isHazard(ca.above())
-                        || world.isHazard(cb) || world.isHazard(cb.above());
+                wpHazard = world.isHazard(ca)
+                        || world.isHazard(ca.above())
+                        || world.isHazard(cb)
+                        || world.isHazard(cb.above());
             }
             // FALL-EDGE flow-front margin (iron ep-025 death #29): a ≥2-drop
             // commit is irreversible — once airborne, the brake below fires
@@ -1111,8 +1281,10 @@ public final class DrivePhase {
             // one cell away arrives within ~1.5s, faster than the fall+walk.
             if (!wpHazard && p.onGround() && wp.getY() <= foot.getY() - 2) {
                 BlockPos land = wp;
-                for (Direction d : new Direction[]{Direction.NORTH, Direction.EAST,
-                                                   Direction.SOUTH, Direction.WEST}) {
+                for (Direction d : new Direction[] {
+                    Direction.NORTH, Direction.EAST,
+                    Direction.SOUTH, Direction.WEST
+                }) {
                     BlockPos n1 = land.relative(d);
                     if (world.isHazard(n1) || world.isHazard(n1.below())) {
                         wpHazard = true;
@@ -1122,8 +1294,10 @@ public final class DrivePhase {
             }
             if (wpHazard) {
                 // UNCONDITIONAL — see announceLavaBrake below for why this one is not throttled.
-                LOG.info("[navigator] path-hazard brake: waypoint {} column now hazardous "
-                        + "(flowed in after plan) → replan", wp.toShortString());
+                LOG.info(
+                        "[navigator] path-hazard brake: waypoint {} column now hazardous "
+                                + "(flowed in after plan) → replan",
+                        wp.toShortString());
                 a.releaseInputs();
                 nav.replan();
                 return TickStep.WALKING;
@@ -1137,14 +1311,14 @@ public final class DrivePhase {
         // or head level, sneak-brake this tick (ledge-guard semantics keep the
         // bot out of the cell; sneak still creeps ~0.9 b/s so a mandatory
         // lava-side passage stays passable, just slow — exactly right there).
-        BlockPos hazardCell = null;   // the CELL, kept so the log can name it — see announceLavaBrake
+        BlockPos hazardCell = null; // the CELL, kept so the log can name it — see announceLavaBrake
         {
             double hax = (wp.getX() + 0.5) - p.getX();
             double haz = (wp.getZ() + 0.5) - p.getZ();
             double hal = Math.sqrt(hax * hax + haz * haz);
             if (hal > 1e-3) {
-                BlockPos aheadCell = BlockPos.containing(
-                        p.getX() + hax / hal * 0.8, p.getY(), p.getZ() + haz / hal * 0.8);
+                BlockPos aheadCell =
+                        BlockPos.containing(p.getX() + hax / hal * 0.8, p.getY(), p.getZ() + haz / hal * 0.8);
                 if (world.isHazard(aheadCell) || world.isHazard(aheadCell.above())) hazardCell = aheadCell;
             }
         }
@@ -1162,7 +1336,7 @@ public final class DrivePhase {
         if (ControlConfig.navigatorBridgeDescentPlaceAnchor && bridging && plannedDescent) {
             Move.Edge nextE = nav.route.edgeAt(nav.route.step() + 1);
             outer:
-            for (Move.Edge e : new Move.Edge[]{edge, nextE}) {
+            for (Move.Edge e : new Move.Edge[] {edge, nextE}) {
                 if (e == null) continue;
                 for (BlockPos b : e.toPlace)
                     if (b.getY() < foot.getY() && !world.isSolid(b)) {
@@ -1171,7 +1345,12 @@ public final class DrivePhase {
                     }
             }
         }
-        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (SNEAKING_SPEED 0.3 from the crouching tick on, on both bots) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
+        if ((bridging || edgeBrake)
+                && (!plannedDescent || descentPlacePending)
+                && !parkourEdge) { // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering
+            // (SNEAKING_SPEED 0.3 from the crouching tick on, on both bots) — same lip, same
+            // measurement as the sprint term; see this class's javadoc. Sibling exclusions: the
+            // lane-keep strafe and descentAirborneDriftClamp above
             double bdx = (wp.getX() + 0.5) - p.getX();
             double bdz = (wp.getZ() + 0.5) - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);
@@ -1188,7 +1367,9 @@ public final class DrivePhase {
         // The dynamic brake REPLACES the constant lethal-edge pin everywhere (bridge
         // AND cliff-lip): the pin's job — don't drift off a lethal edge — is done by
         // the per-tick gapAhead/offCentre gate at full walking speed.
-        boolean lavaBrake = hazardAhead && !p.isInWater();   // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not stop
+        boolean lavaBrake = hazardAhead
+                && !p.isInWater(); // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not
+        // stop
         announceLavaBrake(nav, lavaBrake, foot, hazardCell, wp, p);
         // sneak in water = vanilla active SINK (buoyancy never sinks a surface swimmer on its
         // own) — so the dry-land safety brakes (bridge / cliff-descend) must NOT sneak in water,
@@ -1222,8 +1403,10 @@ public final class DrivePhase {
         // plain forward drive traverses (and the swim-up jump stays suppressed so the
         // level HOLDS); feet BELOW → gate is off by the third clause.
         boolean underwaterDepthHold = nav.profile.capability().allowsOptIn(Capability.DIVE)
-                && p.isInWater() && world.isSubmergedFoot(foot)
-                && world.isWater(wp) && world.isWater(wp.above())
+                && p.isInWater()
+                && world.isSubmergedFoot(foot)
+                && world.isWater(wp)
+                && world.isWater(wp.above())
                 && wp.getY() <= foot.getY();
         boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
         Cruise cruise = surfaceCruise(nav, world, p, a, foot, wp, diving, diveUnderCap);
@@ -1266,15 +1449,16 @@ public final class DrivePhase {
         // repath advanced only ~8 blocks → zig-zag + stall feel). A real swimDown
         // edge keeps its own handling (diving), and climb-outs (wp above foot)
         // stay non-sprint as before.
-        boolean flatWaterWalk = p.isInWater() && !diving
-                && (wp.getY() == foot.getY()
-                    || (foot.getY() - wp.getY() == 1 && world.isWater(wp)));
+        boolean flatWaterWalk = p.isInWater()
+                && !diving
+                && (wp.getY() == foot.getY() || (foot.getY() - wp.getY() == 1 && world.isWater(wp)));
         // Floor-gated (navigatorRecoveryHopFloorGate): the "while bridging" carve-out above
         // encodes edge TYPE, but the fatal case is footing GEOMETRY — walking an EXISTING
         // 1-wide strip is not `bridging`, and the wiggle there launched a sprint-jump arc
         // along a mid-slew heading clean over the deck (bridge battery, every shed).
         // Hop-range (Chebyshev ≤2) against an arc MEASURED at 3.47, launched from a floored cell one
-        // stride INSIDE the rim — foot-adjacent scans stay blind. driveTargetYaw, not the camera: NavigatorGeometry.hopLandingRow.
+        // stride INSIDE the rim — foot-adjacent scans stay blind. driveTargetYaw, not the camera:
+        // NavigatorGeometry.hopLandingRow.
         boolean wiggle = wiggleHop(nav, world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp, driveTargetYaw);
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
@@ -1316,8 +1500,13 @@ public final class DrivePhase {
         // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
         // and, for the +1 cardinal case, only once Baritone-aligned.
         double riserLead = riserLead(nav, cx, world, p, foot);
-        boolean leadJump = riserLead <= 0;                      // NaN (no clean riser ahead) is false
-        boolean stepUpJump = leadJump || needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp && !cruise.on();
+        boolean leadJump = riserLead <= 0; // NaN (no clean riser ahead) is false
+        boolean stepUpJump = leadJump
+                || needJumpForStep
+                        && upDy <= maxJumpUp
+                        && (!dryStepUp || ascendJumpReady)
+                        && !pivotForStepUp
+                        && !cruise.on();
         // Don't hold the swim-up jump when a SOLID cell caps the head (foot+2) while
         // in water: the path threads a submerged / stone-overhung tunnel (water
         // surface capped by solid above), so bobbing up just RAMS that ceiling and
@@ -1340,8 +1529,11 @@ public final class DrivePhase {
         // crossing. Excludes dives (diving, or wp below the foot) and dry bank climb-outs
         // (!isWater(wp) → the grounded ballistic climb-out jump still applies); cappedHead below
         // still threads a stone-lipped submerged tunnel low.
-        boolean deepWaterRise = p.isInWater() && !diving && world.isWater(foot.below())
-                && wp.getY() >= foot.getY() && world.isWater(wp);
+        boolean deepWaterRise = p.isInWater()
+                && !diving
+                && world.isWater(foot.below())
+                && wp.getY() >= foot.getY()
+                && world.isWater(wp);
         boolean jump = !descendBrake
                 // Below-node ram (the +1 desync-ram wedge, see descentRamStuck): the bot drifted 1 above the
                 // route and rams an overhang at a node BELOW it. Every jump term here is futile going DOWN (no
@@ -1354,37 +1546,77 @@ public final class DrivePhase {
                 // kills ONLY the futile overhang bob-jump.
                 && !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())
                 && !atAnAdjacentNodeBelow(p, wp, foot)
-                && (stepUpJump || (parkourEdge && !parkourLanded(nav, p, wp, foot) && !dipWalkIn(nav, world, wp, foot, parkourEdge))
-                    // Freeze-breaker: force a GROUNDED jump straight up the step once a
-                    // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
-                    // normal stepUpJump gate (ascendJumpReady) can stay false there (the
-                    // bot is a touch off the cross-axis), so without this it bobs forever.
-                    || (stepUpFreeze && p.onGround())
-                    // !diving: swimColumn is true for any submerged bot, so during an
-                    // ACTIVE dive the held jump cancelled the sneak-sink exactly —
-                    // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
-                    // traverse after a dive (walk/diag edges through deep water — see the
-                    // depth-hold gate beside brakeSneak): the swim-up bob is exactly the
-                    // ratchet that hauled the bot back to the surface mid-traverse. A
-                    // planned ascent (wp above foot) reads false there, so a real rise
-                    // and every surface behavior keep their jump. —
-                    // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
-                    // down) while the burst storm wound yaw 4.5 turns (mangrove live).
-                    || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving && !underwaterDepthHold && !cruise.on()) || cruise.jump() || wiggle);   // a confirmed cruise holds jump: vanilla's jumpInLiquid keeps the prone eyes at the waterline
+                && (stepUpJump
+                        || (parkourEdge
+                                && !parkourLanded(nav, p, wp, foot)
+                                && !dipWalkIn(nav, world, wp, foot, parkourEdge))
+                        // Freeze-breaker: force a GROUNDED jump straight up the step once a
+                        // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
+                        // normal stepUpJump gate (ascendJumpReady) can stay false there (the
+                        // bot is a touch off the cross-axis), so without this it bobs forever.
+                        || (stepUpFreeze && p.onGround())
+                        // !diving: swimColumn is true for any submerged bot, so during an
+                        // ACTIVE dive the held jump cancelled the sneak-sink exactly —
+                        // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
+                        // traverse after a dive (walk/diag edges through deep water — see the
+                        // depth-hold gate beside brakeSneak): the swim-up bob is exactly the
+                        // ratchet that hauled the bot back to the surface mid-traverse. A
+                        // planned ascent (wp above foot) reads false there, so a real rise
+                        // and every surface behavior keep their jump. —
+                        // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
+                        // down) while the burst storm wound yaw 4.5 turns (mangrove live).
+                        || ((swimUp || swimColumn || deepWaterRise)
+                                && !cappedHead
+                                && !diving
+                                && !underwaterDepthHold
+                                && !cruise.on())
+                        || cruise.jump()
+                        || wiggle); // a confirmed cruise holds jump: vanilla's jumpInLiquid keeps the prone eyes at the
+        // waterline
         // TEMP-DIAG (sunken-start deadlock): dump every jump term while submerged & stuck
-        if (GameConfig.navigatorDebug && p.isInWater() && p.isUnderWater() && nav.stuckTicks > 20 && nav.stuckTicks % 20 == 1) {
-            LOG.info("[navigator] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
-                    jump, swimUp, swimColumn, deepWaterRise, cappedHead, diving, descendBrake,
-                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, driveLatch.underwaterTicks,
-                    wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
+        if (GameConfig.navigatorDebug
+                && p.isInWater()
+                && p.isUnderWater()
+                && nav.stuckTicks > 20
+                && nav.stuckTicks % 20 == 1) {
+            LOG.info(
+                    "[navigator] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
+                    jump,
+                    swimUp,
+                    swimColumn,
+                    deepWaterRise,
+                    cappedHead,
+                    diving,
+                    descendBrake,
+                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()),
+                    stepUpJump,
+                    wiggle,
+                    driveLatch.underwaterTicks,
+                    wp.getX(),
+                    wp.getY(),
+                    wp.getZ(),
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ());
         }
         if (jump && vetoJumpOnAGraze(nav, world, p, parkourEdge)) jump = false;
         if (jump) {
-            nav.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // "other" = this chain is stale, see Navigator#avatarJump
-                    : stepUpFreeze && p.onGround() ? "stepUpFreeze"
-                    : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "other";
+            nav.jumpTag = stepUpJump
+                    ? "stepUp"
+                    : parkourEdge
+                            ? "parkour" // "other" = this chain is stale, see Navigator#avatarJump
+                            : stepUpFreeze && p.onGround()
+                                    ? "stepUpFreeze"
+                                    : wiggle
+                                            ? "wiggle"
+                                            : swimUp
+                                                    ? "swimUp"
+                                                    : swimColumn
+                                                            ? "swimColumn"
+                                                            : deepWaterRise ? "deepWaterRise" : "other";
         }
-        if (parkourEdge) noteParkourTakeoff(world, a, p, jump, foot);  nav.keys.jump(a, jump);  // latch: NavigatorInspector.parkourTakeoff()
+        if (parkourEdge) noteParkourTakeoff(world, a, p, jump, foot);
+        nav.keys.jump(a, jump); // latch: NavigatorInspector.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in
@@ -1419,17 +1651,34 @@ public final class DrivePhase {
         // swim throughout = the shared root behind the water-edge churn fix I didn't cover).
         // rawClimbPress (latDist²<2.5) still drops sprint for the final rise, so the "stuck
         // bobbing, can't climb out" trace stays fixed; this only speeds the approach swim.
-        boolean climbApproach = p.isInWater() && !p.onGround() && wp.getY() > foot.getY()
+        boolean climbApproach = p.isInWater()
+                && !p.onGround()
+                && wp.getY() > foot.getY()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) >= 2.5;
-        boolean diagAscent = !parkourEdge && !p.isInWater()   // why: sprintVeto's javadoc, DIAG_ASCENT
-                && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && wp.getY() > foot.getY();
+        boolean diagAscent = !parkourEdge
+                && !p.isInWater() // why: sprintVeto's javadoc, DIAG_ASCENT
+                && wp.getX() != foot.getX()
+                && wp.getZ() != foot.getZ()
+                && wp.getY() > foot.getY();
         boolean diagSprint = diagAscent && ControlConfig.navigatorDiagAscentSprint;
-        int sprintVeto = sprintVeto(bridging, steppingOffFall, steppingOffWaterFall, diagAscent && !leadJump && !diagSprint, finalApproach(nav, p, wp, parkourEdge),
-                lowHpCareful, hazardAhead, descendBrake, lethalNear && !parkourEdge, steepDescentNear, deepWaterDriftNear,
-                descentStepSkip, needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
+        int sprintVeto = sprintVeto(
+                bridging,
+                steppingOffFall,
+                steppingOffWaterFall,
+                diagAscent && !leadJump && !diagSprint,
+                finalApproach(nav, p, wp, parkourEdge),
+                lowHpCareful,
+                hazardAhead,
+                descendBrake,
+                lethalNear && !parkourEdge,
+                steepDescentNear,
+                deepWaterDriftNear,
+                descentStepSkip,
+                needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
                 p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach,
                 dipLeap(nav, world, wp, parkourEdge) && foot.getY() < wp.getY());
-        boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful) || sprintVeto == 0;   // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
+        boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)
+                || sprintVeto == 0; // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
         p.setSprinting(sprint);
         // Lily pads sit ON the water plane with a real collision box; the planner
         // deliberately treats the thin shape as passable (a fast prone swim slides
@@ -1445,10 +1694,10 @@ public final class DrivePhase {
             double bdx = (wp.getX() + 0.5) - p.getX(), bdz = (wp.getZ() + 0.5) - p.getZ();
             double bl = Math.sqrt(bdx * bdx + bdz * bdz);
             BlockPos surf = BlockPos.containing(p.getX(), p.getY() + 1.0, p.getZ());
-            BlockPos aheadPad = bl > 1e-3
-                    ? BlockPos.containing(p.getX() + bdx / bl, p.getY() + 1.0, p.getZ() + bdz / bl)
-                    : surf;
-            BlockPos pad = world.isBreakableObstruction(aheadPad) ? aheadPad
+            BlockPos aheadPad =
+                    bl > 1e-3 ? BlockPos.containing(p.getX() + bdx / bl, p.getY() + 1.0, p.getZ() + bdz / bl) : surf;
+            BlockPos pad = world.isBreakableObstruction(aheadPad)
+                    ? aheadPad
                     : world.isBreakableObstruction(surf) ? surf : null;
             if (pad != null) {
                 Digging.avatarDig(nav, a, pad, false);
@@ -1472,10 +1721,12 @@ public final class DrivePhase {
         // (bare-hand stone, 7.5s+/block: looked like "the bot chose to tunnel").
         // An executor recovery must never exceed the world-mutation authority the
         // planner was given.
-        if (ControlConfig.navigatorWallDigFallback && nav.mayBreak() && !p.isInWater()   // mayBreak(): honor per-goto forbidDig (day6 tunnel), not just the global switch
+        if (ControlConfig.navigatorWallDigFallback
+                && nav.mayBreak()
+                && !p.isInWater() // mayBreak(): honor per-goto forbidDig (day6 tunnel), not just the global switch
                 && p.horizontalCollision
                 && (nav.stuckTicks > 40
-                    || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60))
+                        || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60))
                 && !nav.blocks.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
@@ -1484,8 +1735,12 @@ public final class DrivePhase {
                 if (tgt != null) {
                     Digging.avatarDig(nav, a, tgt, true);
                     if (GameConfig.navigatorDebug)
-                        LOG.info("[navigator] wall-dig FALLBACK {},{},{} stuckT={}",
-                                tgt.getX(), tgt.getY(), tgt.getZ(), nav.stuckTicks);
+                        LOG.info(
+                                "[navigator] wall-dig FALLBACK {},{},{} stuckT={}",
+                                tgt.getX(),
+                                tgt.getY(),
+                                tgt.getZ(),
+                                nav.stuckTicks);
                 }
             }
         }
@@ -1494,8 +1749,10 @@ public final class DrivePhase {
         // the committed dig cell so the interleaved travel tick can't zero vanilla mining
         // progress (the C36-J1 cave-dig replay slowdown). Movement keys stay whatever the
         // travel logic chose: a human holding W+LMB against the wall being dug.
-        if (ControlConfig.navigatorDigAimPriority && nav.prelude.stickyDig.pos != null && world.isSolid(nav.prelude.stickyDig.pos)) {
-            Digging.avatarDig(nav, a, nav.prelude.stickyDig.pos, true);   // prelude's repeat of this cell is dropped
+        if (ControlConfig.navigatorDigAimPriority
+                && nav.prelude.stickyDig.pos != null
+                && world.isSolid(nav.prelude.stickyDig.pos)) {
+            Digging.avatarDig(nav, a, nav.prelude.stickyDig.pos, true); // prelude's repeat of this cell is dropped
         }
         if (GameConfig.navigatorDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
@@ -1506,39 +1763,50 @@ public final class DrivePhase {
             // dwell (pos frozen while wp/yaw change = stuck, not moving).
             Vec3 dm = p.getDeltaMovement();
             double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-            LOG.info("[navigator] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={}{} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={} lead={}",
+            LOG.info(
+                    "[navigator] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={}{} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={} lead={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                    wp.getX(), wp.getY(), wp.getZ(),
-                    a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(), sprint ? "" : sprintVetoNames(sprintVeto),
+                    wp.getX(),
+                    wp.getY(),
+                    wp.getZ(),
+                    a.dbgForwardImpulse(),
+                    a.dbgJumping(),
+                    p.isSprinting(),
+                    sprint ? "" : sprintVetoNames(sprintVeto),
                     a.dbgSneak(),
-                    p.horizontalCollision, p.minorHorizontalCollision,
+                    p.horizontalCollision,
+                    p.minorHorizontalCollision,
                     String.format(Locale.ROOT, "%.3f", hSpd),
                     String.format(Locale.ROOT, "%.2f", p.getX()),
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
-                    p.onGround(), nav.blocks.breakHeld(),
-                    dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
-                    aimSrc, nav.stuckTicks, Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
+                    p.onGround(),
+                    nav.blocks.breakHeld(),
+                    dryDescent,
+                    String.format(Locale.ROOT, "%.0f", driveTargetYaw),
+                    aimSrc,
+                    nav.stuckTicks,
+                    Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
         }
         return TickStep.WALKING;
     }
 
     /**
-     * {@link ControlConfig#navigatorRiserLeadJump}: jump the +1 riser ahead NOW if one more grounded tick
-     * would leave the box too little run to rise above it. A jump reaches y+0.42 and y+0.75 on its
-     * first two airborne ticks and clears a block top only on the third, so the face must lie beyond
-     * those two ticks' travel (sprint launch boost included); deciding once per tick, the last safe
-     * moment is when the next ground move would eat that margin. The riser is the current node when
-     * it is the +1, or the next one while the pointer still sits on the flat cell before it — that
-     * cell is only "within" half a block from the face, far too late for a sprinting launch.
+     * {@link ControlConfig#navigatorRiserLeadJump}: jump the +1 riser ahead NOW if one more grounded tick would leave
+     * the box too little run to rise above it. A jump reaches y+0.42 and y+0.75 on its first two airborne ticks and
+     * clears a block top only on the third, so the face must lie beyond those two ticks' travel (sprint launch boost
+     * included); deciding once per tick, the last safe moment is when the next ground move would eat that margin. The
+     * riser is the current node when it is the +1, or the next one while the pointer still sits on the flat cell before
+     * it — that cell is only "within" half a block from the face, far too late for a sprinting launch.
      *
-     * <p>Returns how much run is left before that moment (≤ 0: jump now), or NaN with no clean +1
-     * riser ahead. Lifting the stepJump sprint veto over the whole approach (any finite value) was
-     * tried: three starts averaged 160.5 s against 154.6 s, take-off speed unchanged.
+     * <p>Returns how much run is left before that moment (≤ 0: jump now), or NaN with no clean +1 riser ahead. Lifting
+     * the stepJump sprint veto over the whole approach (any finite value) was tried: three starts averaged 160.5 s
+     * against 154.6 s, take-off speed unchanged.
      */
     private double riserLead(Navigator nav, TickCtx tick, WorldView world, LivingEntity p, BlockPos foot) {
         tick.leadWhy = "air";
-        if (!ControlConfig.navigatorRiserLeadJump || !p.onGround() || p.isInWater() || nav.route.path() == null) return Double.NaN;
+        if (!ControlConfig.navigatorRiserLeadJump || !p.onGround() || p.isInWater() || nav.route.path() == null)
+            return Double.NaN;
         int idx = -1;
         tick.leadWhy = "noRise";
         for (int i = nav.route.step(); i < Math.min(nav.route.path().size(), nav.route.step() + 2) && idx < 0; i++) {
@@ -1548,7 +1816,10 @@ public final class DrivePhase {
         }
         if (idx < 0) return Double.NaN;
         Move.Edge e = nav.route.edgeAt(idx);
-        if (e == null || e.move == null || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp")) || hasPendingEdge(world, e)) {
+        if (e == null
+                || e.move == null
+                || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp"))
+                || hasPendingEdge(world, e)) {
             tick.leadWhy = "edge:" + (e == null ? "null" : e.move);
             return Double.NaN;
         }
@@ -1557,25 +1828,34 @@ public final class DrivePhase {
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
         double dx = (node.getX() + 0.5) - p.getX(), dz = (node.getZ() + 0.5) - p.getZ();
-        if (vh > 0.03) { dx = v.x; dz = v.z; }
+        if (vh > 0.03) {
+            dx = v.x;
+            dz = v.z;
+        }
         double len = Math.hypot(dx, dz);
         if (len < 1e-3) return Double.NaN;
         double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node);
-        double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air;   // sprint-jump boost + air accel
+        double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
         // navigatorRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
         // tick (R1 1386,64,-464: 0.75 of run, 0.75 travelled).
-        return contact - (m1 + m2 + ControlConfig.navigatorRiserLeadMargin + vh + 0.13);   // + the ground move a wait would spend
+        return contact
+                - (m1
+                        + m2
+                        + ControlConfig.navigatorRiserLeadMargin
+                        + vh
+                        + 0.13); // + the ground move a wait would spend
     }
 
-    /** Distance the player box can travel along (ux,uz) at foot level {@code fy} before touching a
-     *  solid cell, or NaN when nothing is met within reach or what it meets is not a +1 riser with
-     *  head room over it (a wall must not be jumped at), or, given a {@code node}, it is not the step under it.
-     *  A block beside it is not the one to mount: live 1544,72,-159, met along a velocity still
-     *  carrying the previous diagonal, was jumped onto and fallen off four times beside node
-     *  1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
-     *  (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s). */
-    private static double riserContact(TickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz,
-                                       BlockPos node) {
+    /**
+     * Distance the player box can travel along (ux,uz) at foot level {@code fy} before touching a solid cell, or NaN
+     * when nothing is met within reach or what it meets is not a +1 riser with head room over it (a wall must not be
+     * jumped at), or, given a {@code node}, it is not the step under it. A block beside it is not the one to mount:
+     * live 1544,72,-159, met along a velocity still carrying the previous diagonal, was jumped onto and fallen off four
+     * times beside node 1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
+     * (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s).
+     */
+    private static double riserContact(
+            TickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node) {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
             double cx = p.getX() + ux * s, cz = p.getZ() + uz * s;
             boolean hit = false;
@@ -1583,9 +1863,17 @@ public final class DrivePhase {
                 for (int z = Mth.floor(cz - 0.3); z <= Mth.floor(cz + 0.2999); z++) {
                     BlockPos c = new BlockPos(x, fy, z);
                     if (!world.isSolid(c)) continue;
-                    if (world.isSolid(c.above()) || world.isSolid(c.above(2))) { tick.leadWhy = "wall@" + x + "," + z; return Double.NaN; }
-                    if (node != null && (ControlConfig.navigatorRiserLeadExact ? x != node.getX() || z != node.getZ()
-                                : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) { tick.leadWhy = "beside@" + x + "," + z; return Double.NaN; }
+                    if (world.isSolid(c.above()) || world.isSolid(c.above(2))) {
+                        tick.leadWhy = "wall@" + x + "," + z;
+                        return Double.NaN;
+                    }
+                    if (node != null
+                            && (ControlConfig.navigatorRiserLeadExact
+                                    ? x != node.getX() || z != node.getZ()
+                                    : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) {
+                        tick.leadWhy = "beside@" + x + "," + z;
+                        return Double.NaN;
+                    }
                     hit = true;
                 }
             if (hit) return s;
@@ -1593,60 +1881,100 @@ public final class DrivePhase {
         return Double.NaN;
     }
 
-    private static final String[] SPRINT_VETO_NAMES = {"bridge", "offFall", "offWaterFall", "diagAscent",
-            "finalApproach", "lowHp", "hazard", "descendBrake", "lethalNear", "steepDescent", "deepWaterDrift",
-            "descentSkip", "stepJump", "water", "dipLeap"};
+    private static final String[] SPRINT_VETO_NAMES = {
+        "bridge",
+        "offFall",
+        "offWaterFall",
+        "diagAscent",
+        "finalApproach",
+        "lowHp",
+        "hazard",
+        "descendBrake",
+        "lethalNear",
+        "steepDescent",
+        "deepWaterDrift",
+        "descentSkip",
+        "stepJump",
+        "water",
+        "dipLeap"
+    };
 
     /**
-     * Every reason the walk drops sprint, one bit each in {@link #SPRINT_VETO_NAMES} order, so the
-     * walk-keys line can say WHICH gate took sprint away. A bare {@code sprint=false} could not: a
-     * flat stretch walked 17% of its grounded ticks unsprinted with no collision, and nothing told
-     * the dozen gates apart.
+     * Every reason the walk drops sprint, one bit each in {@link #SPRINT_VETO_NAMES} order, so the walk-keys line can
+     * say WHICH gate took sprint away. A bare {@code sprint=false} could not: a flat stretch walked 17% of its grounded
+     * ticks unsprinted with no collision, and nothing told the dozen gates apart.
      *
      * <ul>
-     * <li>{@code diagAscent} — LATERAL DRIFT on steep diagonal climbs (live 2026-06-25 -787 ridge):
-     *     the flat run-up between diagonal steps carried sprint momentum through the next jump arc and
-     *     pushed the bot 1-2 blocks off the √2 staircase, into pillar-spam slides (56 cobble / 292
-     *     pillarUp on one climb) or a sideways ram of the ridge block. Parkour leaps and water
-     *     climb-approaches still sprint; they need the momentum.
-     * <li>{@code lowHp} — sprint is the drift amplifier behind every unplanned fall; at
-     *     ≤lowHealthCareful HP walk everything (DEATH #3).
-     * <li>{@code hazard} — never carry sprint momentum INTO a lava/hazard cell, in water too.
-     * <li>{@code lethalNear} — never sprint near a lethal edge, incl. a planned descent past it; a
-     *     parkour edge is exempt, since a flat leap over an abyss needs the run-up (measured
-     *     0.1563→0.1400 with no impulse, fell in, vs 0.1232→0.2475 one cell back), while
-     *     wd.bridgeLethalGapStop's walk-off lip still loses its sprint.
-     * <li>{@code descentSkip} — the pointer ran ahead down a staircase (wp more than maxDryFall below
-     *     the grounded foot): no residual momentum off the stair edge while brakeSneak guards it.
-     * <li>{@code deepWaterDrift} — as lethalNear, for a deep-water pocket bordering a descent.
-     * <li>{@code stepJump} — a jumped CARDINAL ascend walks (Baritone does the same; a parkour ascend
-     *     and a sprintAscend are exempt). A/B-DISPROVEN 2026-06-06: sprinting an aligned ascend
-     *     regressed hCol 13%→36% and mean hSpd .112→.082, because the jump fires close to the riser
-     *     (flatDist≤1.2) and the sprint boost rams its face; a sprint-jump clears a step only when
-     *     launched early.
-     * <li>{@code water} — in water, sprint only a flat crossing, a capped tunnel (the prone pose fits
-     *     under the lip) or a climb-out approach; the prone pose cannot rise a bank.
-     * <li>{@code dipLeap} — see {@link #dipLeap}.
+     *   <li>{@code diagAscent} — LATERAL DRIFT on steep diagonal climbs (live 2026-06-25 -787 ridge): the flat run-up
+     *       between diagonal steps carried sprint momentum through the next jump arc and pushed the bot 1-2 blocks off
+     *       the √2 staircase, into pillar-spam slides (56 cobble / 292 pillarUp on one climb) or a sideways ram of the
+     *       ridge block. Parkour leaps and water climb-approaches still sprint; they need the momentum.
+     *   <li>{@code lowHp} — sprint is the drift amplifier behind every unplanned fall; at ≤lowHealthCareful HP walk
+     *       everything (DEATH #3).
+     *   <li>{@code hazard} — never carry sprint momentum INTO a lava/hazard cell, in water too.
+     *   <li>{@code lethalNear} — never sprint near a lethal edge, incl. a planned descent past it; a parkour edge is
+     *       exempt, since a flat leap over an abyss needs the run-up (measured 0.1563→0.1400 with no impulse, fell in,
+     *       vs 0.1232→0.2475 one cell back), while wd.bridgeLethalGapStop's walk-off lip still loses its sprint.
+     *   <li>{@code descentSkip} — the pointer ran ahead down a staircase (wp more than maxDryFall below the grounded
+     *       foot): no residual momentum off the stair edge while brakeSneak guards it.
+     *   <li>{@code deepWaterDrift} — as lethalNear, for a deep-water pocket bordering a descent.
+     *   <li>{@code stepJump} — a jumped CARDINAL ascend walks (Baritone does the same; a parkour ascend and a
+     *       sprintAscend are exempt). A/B-DISPROVEN 2026-06-06: sprinting an aligned ascend regressed hCol 13%→36% and
+     *       mean hSpd .112→.082, because the jump fires close to the riser (flatDist≤1.2) and the sprint boost rams its
+     *       face; a sprint-jump clears a step only when launched early.
+     *   <li>{@code water} — in water, sprint only a flat crossing, a capped tunnel (the prone pose fits under the lip)
+     *       or a climb-out approach; the prone pose cannot rise a bank.
+     *   <li>{@code dipLeap} — see {@link #dipLeap}.
      * </ul>
      */
-    private static int sprintVeto(boolean bridge, boolean offFall, boolean offWaterFall, boolean diagAscent,
-            boolean finalApproach, boolean lowHp, boolean hazard, boolean descendBrake, boolean lethalNear,
-            boolean steepDescent, boolean deepWaterDrift, boolean descentSkip, boolean stepJump, boolean water,
+    private static int sprintVeto(
+            boolean bridge,
+            boolean offFall,
+            boolean offWaterFall,
+            boolean diagAscent,
+            boolean finalApproach,
+            boolean lowHp,
+            boolean hazard,
+            boolean descendBrake,
+            boolean lethalNear,
+            boolean steepDescent,
+            boolean deepWaterDrift,
+            boolean descentSkip,
+            boolean stepJump,
+            boolean water,
             boolean dipLeap) {
-        boolean[] v = {bridge, offFall, offWaterFall, diagAscent, finalApproach, lowHp, hazard, descendBrake,
-                lethalNear, steepDescent, deepWaterDrift, descentSkip, stepJump, water, dipLeap};
+        boolean[] v = {
+            bridge,
+            offFall,
+            offWaterFall,
+            diagAscent,
+            finalApproach,
+            lowHp,
+            hazard,
+            descendBrake,
+            lethalNear,
+            steepDescent,
+            deepWaterDrift,
+            descentSkip,
+            stepJump,
+            water,
+            dipLeap
+        };
         int mask = 0;
         for (int i = 0; i < v.length; i++) if (v[i]) mask |= 1 << i;
         return mask;
     }
 
-    /** A level two-cell leap over a one-deep dip, where the dip itself is a floor. A leap has no safe
-     *  length there: sprinted, live 1569,64,-107 → 1567,64,-109 flew past into the pit behind; unsprinted
-     *  it fell short into the dip on some starts, ~2 s either way. So {@link #dipWalkIn} walks down into
-     *  it and the edge's jump fires from the dip floor, unsprinted so the climb-out lands its cell.
-     *  A leap over a hole, which needs the run-up, keeps its sprint. */
+    /**
+     * A level two-cell leap over a one-deep dip, where the dip itself is a floor. A leap has no safe length there:
+     * sprinted, live 1569,64,-107 → 1567,64,-109 flew past into the pit behind; unsprinted it fell short into the dip
+     * on some starts, ~2 s either way. So {@link #dipWalkIn} walks down into it and the edge's jump fires from the dip
+     * floor, unsprinted so the climb-out lands its cell. A leap over a hole, which needs the run-up, keeps its sprint.
+     */
     private boolean dipLeap(Navigator nav, WorldView world, BlockPos wp, boolean parkourEdge) {
-        if (!parkourEdge || nav.route.step() <= 0 || nav.route.step() >= nav.route.path().size()) return false;
+        if (!parkourEdge
+                || nav.route.step() <= 0
+                || nav.route.step() >= nav.route.path().size()) return false;
         BlockPos from = nav.route.path().get(nav.route.step() - 1);
         int dx = wp.getX() - from.getX(), dz = wp.getZ() - from.getZ();
         if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) return false;
@@ -1658,11 +1986,16 @@ public final class DrivePhase {
         return foot.getY() >= wp.getY() && dipLeap(nav, world, wp, parkourEdge);
     }
 
-    /** The leap is over: grounded on the landing's level, off the takeoff cell, short of the node by
-     *  a walk. Held jump used to fire a second hop from there — live 1569,64,-107 → 1567,64,-109 landed
-     *  0.85 short, hopped again and on some starts over into the pit behind, ~1 s. */
+    /**
+     * The leap is over: grounded on the landing's level, off the takeoff cell, short of the node by a walk. Held jump
+     * used to fire a second hop from there — live 1569,64,-107 → 1567,64,-109 landed 0.85 short, hopped again and on
+     * some starts over into the pit behind, ~1 s.
+     */
     private boolean parkourLanded(Navigator nav, LivingEntity p, BlockPos wp, BlockPos foot) {
-        if (!p.onGround() || foot.getY() != wp.getY() || nav.route.step() <= 0 || foot.equals(nav.route.path().get(nav.route.step() - 1))) return false;
+        if (!p.onGround()
+                || foot.getY() != wp.getY()
+                || nav.route.step() <= 0
+                || foot.equals(nav.route.path().get(nav.route.step() - 1))) return false;
         double dx = wp.getX() + 0.5 - p.getX(), dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
     }
@@ -1677,15 +2010,15 @@ public final class DrivePhase {
     /**
      * LAST WORD on any jump: a bot on a graze beside the void does not leave the ground.
      *
-     * <p>Every gate above rules on the PLAN; this one rules on the BOT, which is why closing all
-     * seven planner leap moves and all three diagonals still left rung 20 falling — the jump that
-     * did it was the executor's own step-up: {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30
-     * speedH=0.528 sole=0.000}. Called after the whole decision chain so no branch can route around it, and it
-     * tags the refusal rather than vetoing silently: a jump that does not happen and a jump that was
-     * never considered look identical in a log, and this run has already paid for that confusion.
+     * <p>Every gate above rules on the PLAN; this one rules on the BOT, which is why closing all seven planner leap
+     * moves and all three diagonals still left rung 20 falling — the jump that did it was the executor's own step-up:
+     * {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30 speedH=0.528 sole=0.000}. Called after the whole decision
+     * chain so no branch can route around it, and it tags the refusal rather than vetoing silently: a jump that does
+     * not happen and a jump that was never considered look identical in a log, and this run has already paid for that
+     * confusion.
      *
-     * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines
-     * and may shrink, not grow.
+     * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines and may shrink,
+     * not grow.
      */
     private boolean vetoJumpOnAGraze(Navigator nav, WorldView world, LivingEntity p, boolean parkour) {
         if (Safety.grazingBesideTheVoid(world, p)) {
@@ -1698,10 +2031,11 @@ public final class DrivePhase {
         // "jumpTag=parkour pos=-32.71,18.00,37.28 speedH=0.024 sole=0.339 node=-34,21,37" — two
         // across and three up, fired at a twentieth of walking speed, over the void. Refusing costs
         // a few ticks of walking, which is how the momentum gets there; taking it costs the run.
-        if (parkour && p != null
+        if (parkour
+                && p != null
                 && p.getDeltaMovement().horizontalDistance() < PARKOUR_MIN_TAKEOFF_SPEED
-                && Safety.voidBeside(world,
-                        net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
+                && Safety.voidBeside(
+                        world, net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
             nav.jumpTag = "vetoed: takeoff speed too low";
             return true;
         }
@@ -1709,8 +2043,12 @@ public final class DrivePhase {
         // rises 0.2 and lands back (live 1546,69,-156: birch leaves over the cell behind the riser
         // cell, the take-off 0.3 short of clearing them). One more grounded tick carries the box out
         // from under it; a bot that is not moving keeps the jump, so a pinned one is never held down.
-        if (!parkour && p != null && p.onGround() && !p.isInWater()
-                && p.getDeltaMovement().horizontalDistance() >= 0.1 && headCapped(world, p)) {
+        if (!parkour
+                && p != null
+                && p.onGround()
+                && !p.isInWater()
+                && p.getDeltaMovement().horizontalDistance() >= 0.1
+                && headCapped(world, p)) {
             nav.jumpTag = "vetoed: ceiling over the take-off";
             return true;
         }
@@ -1726,28 +2064,28 @@ public final class DrivePhase {
         return false;
     }
 
-    /** Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28;
-     *  this is below a walk on purpose — the rule is meant to catch a standstill, not to referee
-     *  how fast is fast enough, and a bar set at sprint speed would refuse leaps that work. */
+    /**
+     * Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28; this is below a walk
+     * on purpose — the rule is meant to catch a standstill, not to referee how fast is fast enough, and a bar set at
+     * sprint speed would refuse leaps that work.
+     */
     private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
 
     /**
      * Count an ascent dead-zone, and give up the walk once re-routing provably cannot help.
      *
-     * <p>{@code UNREACHABLE} folds into a re-route, which is right when the next plan can differ.
-     * Measured on journey rung 20 (2026-08-18) it could not: a bot perched on a 0.16 sole beside the
-     * void re-routed for 2400 ticks — the walk's entire budget — and every single re-route returned
-     * the identical {@code diagUp} to the identical node, while the footing guard, the stride
-     * floor-guard and the recovery hop each correctly declined to move it. Four right answers and no
-     * legal move, in total silence, ending as a plain timeout with {@code end=null}.
+     * <p>{@code UNREACHABLE} folds into a re-route, which is right when the next plan can differ. Measured on journey
+     * rung 20 (2026-08-18) it could not: a bot perched on a 0.16 sole beside the void re-routed for 2400 ticks — the
+     * walk's entire budget — and every single re-route returned the identical {@code diagUp} to the identical node,
+     * while the footing guard, the stride floor-guard and the recovery hop each correctly declined to move it. Four
+     * right answers and no legal move, in total silence, ending as a plain timeout with {@code end=null}.
      *
-     * <p>{@link ControlConfig#navigatorFutileSearchCap} structurally cannot cover it: that counter is gated
-     * on the search NOT reaching the goal, and here the search reaches it every time — the plan is
-     * fine and the bot cannot perform it. That is what the message says, because "no route
-     * progress" would be a lie about which half failed.
+     * <p>{@link ControlConfig#navigatorFutileSearchCap} structurally cannot cover it: that counter is gated on the
+     * search NOT reaching the goal, and here the search reaches it every time — the plan is fine and the bot cannot
+     * perform it. That is what the message says, because "no route progress" would be a lie about which half failed.
      *
-     * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a
-     * bot that genuinely shifts keeps its full allowance and a transient dead-zone still re-routes.
+     * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a bot that genuinely
+     * shifts keeps its full allowance and a transient dead-zone still re-routes.
      *
      * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
      */
@@ -1761,69 +2099,78 @@ public final class DrivePhase {
             nav.search.gov.deadZoneNode = node;
             nav.search.gov.deadZoneRepeats = 1;
         }
-        LOG.info("[navigator] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) repeats={} → re-route",
-                edge.move, node, foot, p.getX(), p.getY(), p.getZ(), nav.search.gov.deadZoneRepeats);
+        LOG.info(
+                "[navigator] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) repeats={} → re-route",
+                edge.move,
+                node,
+                foot,
+                p.getX(),
+                p.getY(),
+                p.getZ(),
+                nav.search.gov.deadZoneRepeats);
         if (ControlConfig.navigatorAscendDeadZoneCap <= 0
                 || nav.search.gov.deadZoneRepeats < ControlConfig.navigatorAscendDeadZoneCap) return null;
         nav.error = "ascent dead-zone " + nav.search.gov.deadZoneRepeats
                 + " times from the same cell — the search keeps returning " + edge.move
                 + " to " + CellText.of(node) + " and the executor keeps refusing it (foot=" + CellText.of(foot)
                 + "); the plan is fine and the bot cannot perform it";
-        return nav.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH,
-                nav.error, "failed:" + nav.error, p.blockPosition());
+        return nav.terminalReport(
+                TickStep.FAILED, PathTrace.Outcome.NO_PATH, nav.error, "failed:" + nav.error, p.blockPosition());
     }
 
     /**
      * One line per ENGAGEMENT of the hazard-ahead brake, not one per tick.
      *
-     * <p>Both lava brakes in {@code run()} used to log behind {@link GameConfig#navigatorDebug},
-     * which the journey never sets — so when the 2026-08-23 rehearsal burned to death, a full
-     * log could not say whether either brake had engaged. That is the whole cost of an
-     * instrument behind a flag nobody turns on. Both are unconditional now, and they differ
-     * only in cadence, which follows from how often each can fire:
+     * <p>Both lava brakes in {@code run()} used to log behind {@link GameConfig#navigatorDebug}, which the journey
+     * never sets — so when the 2026-08-23 rehearsal burned to death, a full log could not say whether either brake had
+     * engaged. That is the whole cost of an instrument behind a flag nobody turns on. Both are unconditional now, and
+     * they differ only in cadence, which follows from how often each can fire:
      *
      * <ul>
-     *   <li>The path-hazard brake can only fire on a WORLD CHANGE (A* never plans through a
-     *       hazard cell), so it is a once-per-run event on a static scene → print every time.</li>
-     *   <li>This one prices a lava-hugging passage the planner legitimately committed to, and
-     *       can hold for every tick of it → print the first tick, then stay quiet until the
-     *       bot has been clear again. A post-mortem still learns that the bot crept past
-     *       lava and where, without 600 identical lines for one mandatory 30-block corridor.</li>
+     *   <li>The path-hazard brake can only fire on a WORLD CHANGE (A* never plans through a hazard cell), so it is a
+     *       once-per-run event on a static scene → print every time.
+     *   <li>This one prices a lava-hugging passage the planner legitimately committed to, and can hold for every tick
+     *       of it → print the first tick, then stay quiet until the bot has been clear again. A post-mortem still
+     *       learns that the bot crept past lava and where, without 600 identical lines for one mandatory 30-block
+     *       corridor.
      * </ul>
      *
-     * <p><b>Two cells, both named.</b> This line used to print {@code foot} alone, under the words
-     * "creeping past lava at …" — wording that reads as the HAZARD's position and is the BOT's.
-     * On 2026-08-26 that cost a rung-12 post-mortem its first pass: the bot died at
-     * {@code -11,63,19} and the brake row said "lava at -11,63,19", so it was read as "the brake
-     * saw lava ahead of the bot" when what it actually said was "the bot is already standing
-     * in it". The two readings point at opposite defects. Naming both cells ends it.
+     * <p><b>Two cells, both named.</b> This line used to print {@code foot} alone, under the words "creeping past lava
+     * at …" — wording that reads as the HAZARD's position and is the BOT's. On 2026-08-26 that cost a rung-12
+     * post-mortem its first pass: the bot died at {@code -11,63,19} and the brake row said "lava at -11,63,19", so it
+     * was read as "the brake saw lava ahead of the bot" when what it actually said was "the bot is already standing in
+     * it". The two readings point at opposite defects. Naming both cells ends it.
      *
-     * <p>And two numbers, because "braked" is not "stopped": sneak still creeps ~0.9 b/s, and
-     * sprint is gated on {@code !hazardAhead} — so a run that wants to ask "was it carrying sprint
-     * momentum?" needs the answer printed here. A full ladder log of 2026-08-26 contained the word
-     * "sprint" zero times, which made that question unanswerable rather than answered no.
+     * <p>And two numbers, because "braked" is not "stopped": sneak still creeps ~0.9 b/s, and sprint is gated on
+     * {@code !hazardAhead} — so a run that wants to ask "was it carrying sprint momentum?" needs the answer printed
+     * here. A full ladder log of 2026-08-26 contained the word "sprint" zero times, which made that question
+     * unanswerable rather than answered no.
      */
-    private void announceLavaBrake(Navigator nav, boolean lavaBrake, BlockPos foot,
-                                          BlockPos hazard, BlockPos wp, LivingEntity p) {
+    private void announceLavaBrake(
+            Navigator nav, boolean lavaBrake, BlockPos foot, BlockPos hazard, BlockPos wp, LivingEntity p) {
         if (lavaBrake && !driveLatch.lavaBrakeLogged)
             // BOT and HAZARD as two named cells, plus the two numbers that decide whether the
             // sneak can hold: speed (sneak still creeps ~0.9 b/s, so "braked" is not "stopped")
             // and sprint (gated on !hazardAhead above — printing it is what turns "was it
             // sprinting?" from a hypothesis into a reading; the 2026-08-26 post-mortem had to
             // withdraw that question because the word never appeared in a full ladder log).
-            LOG.info("[navigator] hazard-ahead brake: bot at {} sneaking past hazard {} "
+            LOG.info(
+                    "[navigator] hazard-ahead brake: bot at {} sneaking past hazard {} "
                             + "(wp {}, speed h={} sprint={} onGround={})",
                     foot.toShortString(),
                     hazard == null ? "?" : hazard.toShortString(),
                     wp.toShortString(),
-                    String.format(java.util.Locale.ROOT, "%.3f",
-                            p.getDeltaMovement().horizontalDistance()),
-                    p.isSprinting(), p.onGround());
+                    String.format(
+                            java.util.Locale.ROOT, "%.3f", p.getDeltaMovement().horizontalDistance()),
+                    p.isSprinting(),
+                    p.onGround());
         driveLatch.lavaBrakeLogged = lavaBrake;
     }
 
-    /** Tick tail: release a dig latch the navigator's own dig set once no dig has driven it for
-     *  {@link NavigatorConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours. */
+    /**
+     * Tick tail: release a dig latch the navigator's own dig set once no dig has driven it for
+     * {@link NavigatorConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours.
+     */
     public void settleDigKey(Navigator nav, Body a) {
         if (digDrivenThisTick) digIdleTicks = 0;
         else if (digKeyOwned && ++digIdleTicks >= DIG_KEY_RELEASE_TICKS) {

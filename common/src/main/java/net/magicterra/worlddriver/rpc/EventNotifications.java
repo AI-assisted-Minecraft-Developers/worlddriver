@@ -5,18 +5,19 @@ import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 
 /**
- * Frames a driver event as a standard MCP server→client notification so every
- * transport (WebSocket {@code /rpc}, MCP Streamable-HTTP {@code GET /mcp} SSE)
- * pushes the byte-identical message. We use {@code notifications/message} — the
- * MCP logging notification — because it is the one server-initiated notification
- * any MCP-aware client already knows how to consume.
+ * Frames a driver event as a standard MCP server→client notification so every transport (WebSocket {@code /rpc}, MCP
+ * Streamable-HTTP {@code GET /mcp} SSE) pushes the byte-identical message. We use {@code notifications/message} — the
+ * MCP logging notification — because it is the one server-initiated notification any MCP-aware client already knows how
+ * to consume.
  *
- * Shape:
+ * <p>Shape:
+ *
  * <pre>{@code
  * {"jsonrpc":"2.0","method":"notifications/message",
  *  "params":{"level":"warning","logger":"minecraft.events",
  *            "data":{seq,timestamp,type,pos?,data?}}}
  * }</pre>
+ *
  * {@code data} is the shared {@code EventContracts.Event}: {@code seq} a decimal string.
  */
 public final class EventNotifications {
@@ -35,10 +36,11 @@ public final class EventNotifications {
         return msg.toString();
     }
 
-    /** Map an event type to an RFC 5424 / MCP logging severity level. Since the channel
-     *  now forwards EVERY non-muted event (McpServer.onEvent / RpcServer.onEvent), this
-     *  level is a DISPLAY/severity LABEL on the frame — a client can colour or prioritise
-     *  by it — not a push gate. */
+    /**
+     * Map an event type to an RFC 5424 / MCP logging severity level. Since the channel now forwards EVERY non-muted
+     * event (McpServer.onEvent / RpcServer.onEvent), this level is a DISPLAY/severity LABEL on the frame — a client can
+     * colour or prioritise by it — not a push gate.
+     */
     public static String levelFor(String type) {
         EventCatalog.Entry<?> entry = EventCatalog.byType(type);
         return (entry == null ? EventCatalog.Level.INFO : entry.level()).wireName();

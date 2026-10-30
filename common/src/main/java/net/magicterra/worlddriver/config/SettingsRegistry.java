@@ -8,58 +8,70 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Binds each {@code mc.bot.setting} key to where its value lives. The keys themselves, with their types,
- * prose and defaults, are declared by the contract's settings records; this side answers, for a key by its
- * wire name, which field holds it or which other way it is read.
+ * Binds each {@code mc.bot.setting} key to where its value lives. The keys themselves, with their types, prose and
+ * defaults, are declared by the contract's settings records; this side answers, for a key by its wire name, which field
+ * holds it or which other way it is read.
  *
- * <p>A key names the field of the same name unless {@link #HAND} says otherwise: a wire name that is not
- * its field's, or a value that is not one field. {@code SettingsBindingTest} holds every key to a binding
- * and every setting field to exactly one key, so a field added here and not declared there, or the
- * reverse, fails the build instead of answering as unknown.
+ * <p>A key names the field of the same name unless {@link #HAND} says otherwise: a wire name that is not its field's,
+ * or a value that is not one field. {@code SettingsBindingTest} holds every key to a binding and every setting field to
+ * exactly one key, so a field added here and not declared there, or the reverse, fails the build instead of answering
+ * as unknown.
  *
- * <p>Whether a key does anything is a further question: {@code SettingsConsumerTest} fails if a setting
- * field is unread outside the settings plumbing.
+ * <p>Whether a key does anything is a further question: {@code SettingsConsumerTest} fails if a setting field is unread
+ * outside the settings plumbing.
  */
 public final class SettingsRegistry {
     private SettingsRegistry() {}
 
     /** How {@code SettingsCommand} reads and writes a key's live value. */
-    public enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, UNDRIVABLE_LIST, AVOID_POINTS }
+    public enum Read {
+        CONFIG_FIELD,
+        BOT_PAUSED,
+        HAZARD_LIST,
+        WHITELIST_LIST,
+        MUTED_LIST,
+        UNDRIVABLE_LIST,
+        AVOID_POINTS
+    }
 
     /** A key bound some other way than to the field of its own name; {@code field} is null for no field. */
     record Hand(String key, Read read, String field) {}
 
-    private static Hand field(String key, String field) { return new Hand(key, Read.CONFIG_FIELD, field); }
-    private static Hand hand(String key, Read read, String field) { return new Hand(key, read, field); }
+    private static Hand field(String key, String field) {
+        return new Hand(key, Read.CONFIG_FIELD, field);
+    }
+
+    private static Hand hand(String key, Read read, String field) {
+        return new Hand(key, read, field);
+    }
 
     static final List<Hand> HAND = List.of(
-        field("navigator.repathEveryTicks", "navigatorRepathEveryTicks"),
-        field("navigator.totalTickBudget", "navigatorTotalTickBudget"),
-        field("navigator.yawHysteresisDeg", "navigatorYawHysteresisDeg"),
-        field("mine.searchVerticalRadius", "mineSearchVerticalRadius"),
-        hand("paused", Read.BOT_PAUSED, null),
-        field("pathfinder.dangerPenalty", "dangerPenaltyPerCell"),
-        field("pathfinder.lavaDangerPenalty", "lavaDangerPenalty"),
-        field("pathfinder.contactDangerPenalty", "contactDangerPenalty"),
-        field("pathfinder.ledgeDangerPenalty", "ledgeDangerPenalty"),
-        field("pathfinder.waterDangerPenalty", "waterDangerPenalty"),
-        field("pathfinder.ledgeDangerMinDrop", "ledgeDangerMinDrop"),
-        field("pathfinder.mobAvoidRadius", "mobAvoidRadius"),
-        field("pathfinder.mobAvoidPenalty", "mobAvoidPenalty"),
-        field("pathfinder.maxNodes", "pathfinderMaxNodes"),
-        field("pathfinder.maxMs", "pathfinderMaxMs"),
-        field("pathfinder.sliceMs", "pathfinderSliceMs"),
-        field("pathfinder.idleSliceMs", "pathfinderIdleSliceMs"),
-        field("pathfinder.previewSliceMs", "pathfinderPreviewSliceMs"),
-        field("pathfinder.heuristicWeight", "pathfinderHeuristicWeight"),
-        field("pathfinder.axisHeight", "axisHeight"),
-        hand("blocksToAvoid", Read.HAZARD_LIST, "extraHazardBlocks"),
-        hand("buildBlockWhitelist", Read.WHITELIST_LIST, "buildBlockWhitelist"),
-        hand("mutedEvents", Read.MUTED_LIST, "mutedEvents"),
-        hand("undrivableMobs", Read.UNDRIVABLE_LIST, "undrivableMobs"),
-        field("pathfinder.avoidZonePenalty", "avoidZonePenalty"),
-        hand("avoidPoints", Read.AVOID_POINTS, "avoidZones")
-    );
+            field("navigator.repathEveryTicks", "navigatorRepathEveryTicks"),
+            field("navigator.totalTickBudget", "navigatorTotalTickBudget"),
+            field("navigator.yawHysteresisDeg", "navigatorYawHysteresisDeg"),
+            field("mine.searchVerticalRadius", "mineSearchVerticalRadius"),
+            hand("paused", Read.BOT_PAUSED, null),
+            field("pathfinder.dangerPenalty", "dangerPenaltyPerCell"),
+            field("pathfinder.lavaDangerPenalty", "lavaDangerPenalty"),
+            field("pathfinder.contactDangerPenalty", "contactDangerPenalty"),
+            field("pathfinder.ledgeDangerPenalty", "ledgeDangerPenalty"),
+            field("pathfinder.waterDangerPenalty", "waterDangerPenalty"),
+            field("pathfinder.ledgeDangerMinDrop", "ledgeDangerMinDrop"),
+            field("pathfinder.mobAvoidRadius", "mobAvoidRadius"),
+            field("pathfinder.mobAvoidPenalty", "mobAvoidPenalty"),
+            field("pathfinder.maxNodes", "pathfinderMaxNodes"),
+            field("pathfinder.maxMs", "pathfinderMaxMs"),
+            field("pathfinder.sliceMs", "pathfinderSliceMs"),
+            field("pathfinder.idleSliceMs", "pathfinderIdleSliceMs"),
+            field("pathfinder.previewSliceMs", "pathfinderPreviewSliceMs"),
+            field("pathfinder.heuristicWeight", "pathfinderHeuristicWeight"),
+            field("pathfinder.axisHeight", "axisHeight"),
+            hand("blocksToAvoid", Read.HAZARD_LIST, "extraHazardBlocks"),
+            hand("buildBlockWhitelist", Read.WHITELIST_LIST, "buildBlockWhitelist"),
+            hand("mutedEvents", Read.MUTED_LIST, "mutedEvents"),
+            hand("undrivableMobs", Read.UNDRIVABLE_LIST, "undrivableMobs"),
+            field("pathfinder.avoidZonePenalty", "avoidZonePenalty"),
+            hand("avoidPoints", Read.AVOID_POINTS, "avoidZones"));
 
     private static final Map<String, Hand> HAND_BY_KEY = new HashMap<>();
 
@@ -73,15 +85,15 @@ public final class SettingsRegistry {
                     BotConfig.field(h.field());
                 } catch (NoSuchFieldException e) {
                     throw new IllegalStateException(
-                        "SettingsRegistry: no config field '" + h.field() + "' for key '" + h.key() + "'", e);
+                            "SettingsRegistry: no config field '" + h.field() + "' for key '" + h.key() + "'", e);
                 }
             }
         }
     }
 
     /**
-     * Public static volatile PRIMITIVE config fields in {@link BotConfig#publicFields()} order: every
-     * setting but the strings and the lists.
+     * Public static volatile PRIMITIVE config fields in {@link BotConfig#publicFields()} order: every setting but the
+     * strings and the lists.
      */
     static List<Field> reflectivePrimitiveFields() {
         List<Field> out = new ArrayList<>();

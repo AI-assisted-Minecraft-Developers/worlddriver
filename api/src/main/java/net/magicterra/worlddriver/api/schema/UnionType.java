@@ -1,18 +1,17 @@
 package net.magicterra.worlddriver.api.schema;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-
 /**
- * A discriminated union: the {@code tagName} member picks the variant, and only that variant's
- * fields are allowed beside it. The discriminator is checked before anything else, so a wrong or
- * missing one is one issue at its own path instead of a cascade of unknown fields.
+ * A discriminated union: the {@code tagName} member picks the variant, and only that variant's fields are allowed
+ * beside it. The discriminator is checked before anything else, so a wrong or missing one is one issue at its own path
+ * instead of a cascade of unknown fields.
  */
 public final class UnionType<T> extends ApiType<T> {
     private final String name;
@@ -30,7 +29,8 @@ public final class UnionType<T> extends ApiType<T> {
             tags.add(v.tag);
             for (ApiField<?, ?> f : v.type.fields()) {
                 if (f.name().equals(tagName)) {
-                    throw new IllegalArgumentException("variant " + v.tag + " of " + name + " declares the discriminator " + tagName);
+                    throw new IllegalArgumentException(
+                            "variant " + v.tag + " of " + name + " declares the discriminator " + tagName);
                 }
             }
         }
@@ -38,8 +38,8 @@ public final class UnionType<T> extends ApiType<T> {
             for (int j = i + 1; j < this.variants.size(); j++) {
                 Class<?> a = this.variants.get(i).javaType, b = this.variants.get(j).javaType;
                 if (a.isAssignableFrom(b) || b.isAssignableFrom(a)) {
-                    throw new IllegalArgumentException("union " + name + ": variants " + a.getSimpleName()
-                            + " and " + b.getSimpleName() + " cannot be told apart by class");
+                    throw new IllegalArgumentException("union " + name + ": variants " + a.getSimpleName() + " and "
+                            + b.getSimpleName() + " cannot be told apart by class");
                 }
             }
         }
@@ -54,9 +54,17 @@ public final class UnionType<T> extends ApiType<T> {
         }
     }
 
-    public String name() { return name; }
-    public String tagName() { return tagName; }
-    public List<Variant<T, ?>> variants() { return variants; }
+    public String name() {
+        return name;
+    }
+
+    public String tagName() {
+        return tagName;
+    }
+
+    public List<Variant<T, ?>> variants() {
+        return variants;
+    }
 
     private String tags() {
         StringJoiner j = new StringJoiner(", ");
@@ -64,7 +72,8 @@ public final class UnionType<T> extends ApiType<T> {
         return j.toString();
     }
 
-    @Override public String expected() {
+    @Override
+    public String expected() {
         return (name == null ? "an object" : "a " + name + " object") + " with " + tagName + " one of " + tags();
     }
 
@@ -79,7 +88,8 @@ public final class UnionType<T> extends ApiType<T> {
         for (Variant<T, ?> v : variants) {
             if (v.tag.equals(s)) return v.type.readMembers(map, at, tagName);
         }
-        return tagAt.fail(ApiIssue.Code.INVALID_VALUE, "unknown " + tagName + " \"" + s + "\"; expected one of " + tags());
+        return tagAt.fail(
+                ApiIssue.Code.INVALID_VALUE, "unknown " + tagName + " \"" + s + "\"; expected one of " + tags());
     }
 
     @Override
@@ -110,7 +120,8 @@ public final class UnionType<T> extends ApiType<T> {
     private String inline(TsContext ts, String separator) {
         StringJoiner j = new StringJoiner(separator);
         // A multi-line variant is indented one step under its "|", so the closing brace lines up with it.
-        for (Variant<T, ?> v : variants) j.add(v.type.tsInline(ts, tagName, v.tag).replace("\n", "\n    "));
+        for (Variant<T, ?> v : variants)
+            j.add(v.type.tsInline(ts, tagName, v.tag).replace("\n", "\n    "));
         return j.toString();
     }
 }

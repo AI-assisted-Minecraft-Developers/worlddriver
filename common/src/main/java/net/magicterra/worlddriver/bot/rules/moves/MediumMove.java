@@ -8,19 +8,18 @@ import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
 /**
- * One stroke to a neighbouring cell for a body that moves freely through water or air and never
- * leaves it: a fish, a dolphin, a guardian, a squid; a parrot, a bee, a ghast, a phantom. Every cell
- * the body's box covers on the way must be of the medium, so a diagonal never cuts a corner and the
- * route never touches the other medium or anything with a collision shape.
+ * One stroke to a neighbouring cell for a body that moves freely through water or air and never leaves it: a fish, a
+ * dolphin, a guardian, a squid; a parrot, a bee, a ghast, a phantom. Every cell the body's box covers on the way must
+ * be of the medium, so a diagonal never cuts a corner and the route never touches the other medium or anything with a
+ * collision shape.
  *
- * <p>A node is the cell the body's feet are in, with the body centred across it and its feet
- * {@link #feetLift lifted} a little off the cell's floor; the box then covers {@link #cellsBeside} cells
- * to each side and {@link #cellsAbove} above. A body that fits one cell checks only the cells it moves
- * into. The cells the body is in when it starts are not checked: a start grazing a wall, or a flyer
- * that fell into water, still moves out.
+ * <p>A node is the cell the body's feet are in, with the body centred across it and its feet {@link #feetLift lifted} a
+ * little off the cell's floor; the box then covers {@link #cellsBeside} cells to each side and {@link #cellsAbove}
+ * above. A body that fits one cell checks only the cells it moves into. The cells the body is in when it starts are not
+ * checked: a start grazing a wall, or a flyer that fell into water, still moves out.
  *
- * <p>Not part of {@link Move#ALL}: the walking body's swim moves are built around a player who floats
- * at the surface and climbs out, and this family is for a body that does neither.
+ * <p>Not part of {@link Move#ALL}: the walking body's swim moves are built around a player who floats at the surface
+ * and climbs out, and this family is for a body that does neither.
  */
 public final class MediumMove extends Move {
 
@@ -55,6 +54,7 @@ public final class MediumMove extends Move {
 
     /** The lowest a body's feet are kept above its node's floor. */
     private static final double MIN_FEET_LIFT = 0.1;
+
     private static final double EPS = 1e-6;
 
     private final Medium medium;
@@ -70,9 +70,8 @@ public final class MediumMove extends Move {
     }
 
     /**
-     * How far above its node's floor a body {@code height} tall keeps its feet: centred in the cell when
-     * it is shorter than one, else a little off the floor, so its feet stay in the node's cell while it
-     * bobs.
+     * How far above its node's floor a body {@code height} tall keeps its feet: centred in the cell when it is shorter
+     * than one, else a little off the floor, so its feet stay in the node's cell while it bobs.
      */
     public static double feetLift(double height) {
         return Math.max(MIN_FEET_LIFT, (1 - height) / 2);
@@ -88,7 +87,8 @@ public final class MediumMove extends Move {
         return (int) Math.floor(feetLift(height) + height - EPS);
     }
 
-    @Override public boolean valid(WorldView w, BlockPos from) {
+    @Override
+    public boolean valid(WorldView w, BlockPos from) {
         int side = cellsBeside(w.bodyWidth()), up = cellsAbove(w.bodyHeight());
         // The box at its new node and every corner on the way, less where it already is.
         for (int x = -side + Math.min(0, dx); x <= side + Math.max(0, dx); x++)
@@ -100,16 +100,21 @@ public final class MediumMove extends Move {
         return true;
     }
 
-    @Override public String name() { return medium.move; }
+    @Override
+    public String name() {
+        return medium.move;
+    }
 
-    @Override public Locomotion.Mode mode() { return medium.mode; }
+    @Override
+    public Locomotion.Mode mode() {
+        return medium.mode;
+    }
 
     private static List<Move> build(Medium medium) {
         List<Move> out = new ArrayList<>(26);
         for (int dx = -1; dx <= 1; dx++)
             for (int dy = -1; dy <= 1; dy++)
-                for (int dz = -1; dz <= 1; dz++)
-                    if ((dx | dy | dz) != 0) out.add(new MediumMove(medium, dx, dy, dz));
+                for (int dz = -1; dz <= 1; dz++) if ((dx | dy | dz) != 0) out.add(new MediumMove(medium, dx, dy, dz));
         return List.copyOf(out);
     }
 }

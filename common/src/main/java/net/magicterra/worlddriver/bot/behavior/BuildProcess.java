@@ -1,80 +1,105 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.HashSet;
+import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.observe.CellText;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-
-import java.util.HashSet;
-import java.util.Set;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import net.magicterra.worlddriver.game.observe.CellText;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
 
 public final class BuildProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos origin;
     private final Schematic schematic;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("build"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private int idx;
     private int placed;
     private int skipped;
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
+
     private final Set<Integer> failedIdx = new HashSet<>();
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;
     private BlockPos currentStand;
     private Direction currentFace;
     private int placeTicks;
-    private enum Phase { NEXT, GOING, PLACING }
+
+    private enum Phase {
+        NEXT,
+        GOING,
+        PLACING
+    }
 
     public BuildProcess(BlockPos origin, Schematic s) {
         this.origin = origin;
         this.schematic = s;
     }
 
-    public String kind() { return "builder"; }
+    public String kind() {
+        return "builder";
+    }
 
-    public int placed() { return placed; }
+    public int placed() {
+        return placed;
+    }
 
     /** Blocks given up on: no support, reach or item. */
-    public int skipped() { return skipped; }
+    public int skipped() {
+        return skipped;
+    }
 
     public void attach(BotState st) {
         st.builder.beginRun("build " + schematic.entries.size() + " blocks @ " + CellText.of(origin), null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.
-        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) {
+            failure = st.builder.lastError = "player vanished";
+            st.builder.reset();
+            return true;
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) { failure = st.builder.lastError = Readiness.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (equipment == null || blocks == null) {
+            failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
+            st.builder.reset();
+            return true;
+        }
         Level lvl = p.level();
 
         switch (phase) {
@@ -86,14 +111,15 @@ public final class BuildProcess implements BotProcess, Navigating {
                 if (idx >= schematic.entries.size()) {
                     st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
-                    if (skipped > 0) failure = "incomplete: " + skipped + " of " + schematic.entries.size()
-                            + " blocks skipped";
+                    if (skipped > 0)
+                        failure = "incomplete: " + skipped + " of " + schematic.entries.size() + " blocks skipped";
                     return true;
                 }
                 Schematic.Entry e = schematic.entries.get(idx);
                 currentBlock = origin.offset(e.dx, e.dy, e.dz);
                 BlockState existing = lvl.getBlockState(currentBlock);
-                String existingId = BuiltInRegistries.BLOCK.getKey(existing.getBlock()).toString();
+                String existingId =
+                        BuiltInRegistries.BLOCK.getKey(existing.getBlock()).toString();
                 if (existingId.equals(e.blockId)) {
                     // Already placed; skip.
                     idx++;
@@ -221,16 +247,14 @@ public final class BuildProcess implements BotProcess, Navigating {
     /**
      * Pick a supporting face: prefer top of block-below, fall back to a side neighbor that's solid.
      *
-     * <p><b>Two things this selector does not do, both of which a sibling already knows about.</b>
-     * They are written here because the knowledge sat in the other files and a reader of this one
-     * had no way to reach it.
+     * <p><b>Two things this selector does not do, both of which a sibling already knows about.</b> They are written
+     * here because the knowledge sat in the other files and a reader of this one had no way to reach it.
      *
-     * <p>1. <b>No reach test on the stand it returns.</b> {@code BboxFillProcess} gates its
-     * equivalent on {@code withinReach}/{@code FILL_STAND_REACH}, and its javadoc gives the reason
-     * — a stand the actuator can only just reach is how a fill "reports a cell placed from a stand
-     * it then cannot place from" — and names this class and {@code BackfillProcess} as having no
-     * such gate at all. It also notes both of these sneak, costing another 0.35 of eye height that
-     * the reach budget would have to carry.
+     * <p>1. <b>No reach test on the stand it returns.</b> {@code BboxFillProcess} gates its equivalent on
+     * {@code withinReach}/{@code FILL_STAND_REACH}, and its javadoc gives the reason — a stand the actuator can only
+     * just reach is how a fill "reports a cell placed from a stand it then cannot place from" — and names this class
+     * and {@code BackfillProcess} as having no such gate at all. It also notes both of these sneak, costing another
+     * 0.35 of eye height that the reach budget would have to carry.
      *
      * <p>2. <b>The support rule is {@link PlaceSupport#holds}</b>, shared with {@code BackfillProcess},
      * {@code BboxFillProcess} and {@code PlaceNearby}. It accepts the leaves and dirt path that the
@@ -239,7 +263,9 @@ public final class BuildProcess implements BotProcess, Navigating {
     private Placement findPlacement(Level lvl, BlockPos block) {
         // Each candidate: a SOLID neighbor we can click. The face is THAT neighbor's
         // face that points toward `block`. Player stands adjacent to the neighbor.
-        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        Direction[] order = {
+            Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
+        };
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
             if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
@@ -261,8 +287,8 @@ public final class BuildProcess implements BotProcess, Navigating {
         // stood here, unreachable, under a comment about the vanilla placeBlock refusal they
         // were meant to prevent — a refusal this loop cannot produce. Give this scan a {0,0}
         // column or diagonals and both guards have to come back with it.
-        for (int dy : new int[]{0, -1, 1}) {
-            for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+        for (int dy : new int[] {0, -1, 1}) {
+            for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
                 if (canStand(lvl, cand)) return cand;
             }

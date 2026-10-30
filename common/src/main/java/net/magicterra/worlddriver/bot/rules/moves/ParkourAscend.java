@@ -3,34 +3,34 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.minecraft.core.BlockPos;
 
 /**
- * Parkour ASCEND -- Baritone {@code MovementParkour} with a +1 landing: a
- * sprint-jump across a 2-3 block cardinal gap that lands one block HIGHER
- * than the launch. (A 1-block ascend is just a {@link StepUp}; ascends
- * taller than 3 are not reachable by vanilla sprint-jump physics.) The
- * rising player sweeps a taller corridor than a flat parkour, so each gap
- * column must be clear 3 tall (foot, head, head+1) -- a ceiling at y+2
- * clips the jump apex. There must also be no stand-able floor at launch
- * level in the gap, or a cheaper Walk/StepUp chain would win. Distance-2 is
- * a reliable vanilla leap; distance-3 (clearing 3 while rising 1) is at the
- * physics edge, so it is gated behind
- * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} like the other
- * marginal long leaps. Cost = flat-parkour + 5 (jump-up overhead, as in
- * {@link StepUp}). The {@code parkourAscend} name starts with "parkour" so
- * the Navigator's existing parkour actuator (jump+sprint, yaw-snapped, aimed
- * at the destination) drives it unchanged.
+ * Parkour ASCEND -- Baritone {@code MovementParkour} with a +1 landing: a sprint-jump across a 2-3 block cardinal gap
+ * that lands one block HIGHER than the launch. (A 1-block ascend is just a {@link StepUp}; ascends taller than 3 are
+ * not reachable by vanilla sprint-jump physics.) The rising player sweeps a taller corridor than a flat parkour, so
+ * each gap column must be clear 3 tall (foot, head, head+1) -- a ceiling at y+2 clips the jump apex. There must also be
+ * no stand-able floor at launch level in the gap, or a cheaper Walk/StepUp chain would win. Distance-2 is a reliable
+ * vanilla leap; distance-3 (clearing 3 while rising 1) is at the physics edge, so it is gated behind
+ * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} like the other marginal long leaps. Cost =
+ * flat-parkour + 5 (jump-up overhead, as in {@link StepUp}). The {@code parkourAscend} name starts with "parkour" so
+ * the Navigator's existing parkour actuator (jump+sprint, yaw-snapped, aimed at the destination) drives it unchanged.
  */
 public final class ParkourAscend extends Move {
     private final int dist;
+
     public ParkourAscend(int dx, int dz, int dist) {
         super(dx * dist, 1, dz * dist, (dist == 2 ? 22 : 32) + 5);
         this.dist = dist;
     }
-    @Override public boolean availableInSearch(WorldView w) { return dist < 3 || RulesConfig.allowParkour4; }
+
+    @Override
+    public boolean availableInSearch(WorldView w) {
+        return dist < 3 || RulesConfig.allowParkour4;
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         if (dist >= 3 && !RulesConfig.allowParkour4) return false;
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off) —
@@ -38,13 +38,13 @@ public final class ParkourAscend extends Move {
         // PillarUp; complements pathfinderForbidParkourIntoDeepWater (landing side). See BotConfig doc.
         if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
-        BlockPos to = apply(from);                 // (sx*dist, +1, sz*dist)
+        BlockPos to = apply(from); // (sx*dist, +1, sz*dist)
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
-                && Move.overTheVoid(w, from, to)) return false;
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+            return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
@@ -77,6 +77,13 @@ public final class ParkourAscend extends Move {
         }
         return w.isPassable(to.offset(0, 1, 0));
     }
-    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
-    public String name() { return "parkourAscend" + dist; }
+
+    @Override
+    public Capability requiredCapability() {
+        return Capability.PARKOUR;
+    }
+
+    public String name() {
+        return "parkourAscend" + dist;
+    }
 }

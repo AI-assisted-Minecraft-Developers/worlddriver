@@ -9,8 +9,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Mob;
 
 /**
- * The client half of {@link NpcContent}: how each NPC is drawn. Each loader's testmod hands
- * {@link #renderer} to its own renderer registration. Only ever loaded on a client.
+ * The client half of {@link NpcContent}: how each NPC is drawn. Each loader's testmod hands {@link #renderer} to its
+ * own renderer registration. Only ever loaded on a client.
  */
 public final class NpcContentClient {
     private NpcContentClient() {}
@@ -24,8 +24,8 @@ public final class NpcContentClient {
     }
 
     /**
-     * A piglin's model and texture. Vanilla's renderer looks the texture up by entity type and throws
-     * for a type it does not know, so the one lookup is overridden and nothing else.
+     * A piglin's model and texture. Vanilla's renderer looks the texture up by entity type and throws for a type it
+     * does not know, so the one lookup is overridden and nothing else.
      */
     static final class Renderer extends PiglinRenderer {
         private static final ResourceLocation TEXTURE =
@@ -35,6 +35,9 @@ public final class NpcContentClient {
             super(ctx, ModelLayers.PIGLIN, ModelLayers.PIGLIN_INNER_ARMOR, ModelLayers.PIGLIN_OUTER_ARMOR, false);
         }
 
-        @Override public ResourceLocation getTextureLocation(Mob mob) { return TEXTURE; }
+        @Override
+        public ResourceLocation getTextureLocation(Mob mob) {
+            return TEXTURE;
+        }
     }
 }

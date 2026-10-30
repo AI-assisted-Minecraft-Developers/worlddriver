@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessBlockingApi;
@@ -27,9 +26,9 @@ import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Baseline
  * {@link ClientRig}) pins first — {@code ConfigPinDisciplineTest} checks it.
  *
  * <p><b>One pinned test at a time.</b> The settings are one set per JVM, and tests in a game run in parallel, so the
- * first pin of a test waits until no other test holds one, and lets go when the test ends. Every pinned test of a
- * scene therefore runs alone with respect to the others, as every scene did under the old gates. A test may pin as
- * often as it likes; only its first pin waits. Pin from the test's own thread, not inside {@code game.runOnServer}.
+ * first pin of a test waits until no other test holds one, and lets go when the test ends. Every pinned test of a scene
+ * therefore runs alone with respect to the others, as every scene did under the old gates. A test may pin as often as
+ * it likes; only its first pin waits. Pin from the test's own thread, not inside {@code game.runOnServer}.
  *
  * <p>{@link #set} and {@link #get} may be called from the test thread or inline inside {@code game.runOnServer}: each
  * runs on the server thread, between two ticks.
@@ -52,6 +51,7 @@ public final class Settings {
     private final int pin;
     /** Every write through this handle, in order, so a mirror taken later starts from the same settings. */
     private final Map<String, Object> written = new LinkedHashMap<>();
+
     private final List<Mirror> mirrors = new ArrayList<>();
     private volatile boolean restored;
 
@@ -85,8 +85,8 @@ public final class Settings {
     }
 
     /**
-     * Save every setting as it is now, changing nothing; {@link #restore} puts them back before the test ends. The
-     * way to hand back a value no write accepts, such as the lifted budgets {@link #untimed} leaves in place.
+     * Save every setting as it is now, changing nothing; {@link #restore} puts them back before the test ends. The way
+     * to hand back a value no write accepts, such as the lifted budgets {@link #untimed} leaves in place.
      */
     public static Settings save(Game game) {
         return pin(game, Baseline.CURRENT, false);
@@ -95,8 +95,9 @@ public final class Settings {
     /** Save every setting and put {@code baseline} in place, the planner's budgets lifted when {@code untimed}. */
     public static Settings pin(Game game, Baseline baseline, boolean untimed) {
         hold(game);
-        int id = game.onServer(server -> ((TestHarnessContracts.Pinned) harness(game)
-                .settings(new TestHarnessContracts.Pin(baseline, untimed))).pin());
+        int id = game.onServer(server -> ((TestHarnessContracts.Pinned)
+                        harness(game).settings(new TestHarnessContracts.Pin(baseline, untimed)))
+                .pin());
         Settings settings = new Settings(game, baseline, untimed, id);
         game.afterTest(server -> settings.restore());
         return settings;
@@ -132,9 +133,9 @@ public final class Settings {
     private record Mirror(TestHarnessBlockingApi api, int pin) {}
 
     /**
-     * Pin the same baseline in the real client's JVM, repeat every write made so far there, and repeat every later
-     * one: the client's navigator reads the client's settings. On an integrated server the client shares this JVM,
-     * and the second pin is a harmless nested one.
+     * Pin the same baseline in the real client's JVM, repeat every write made so far there, and repeat every later one:
+     * the client's navigator reads the client's settings. On an integrated server the client shares this JVM, and the
+     * second pin is a harmless nested one.
      */
     public Settings mirrorTo(Client client) {
         TestHarnessBlockingApi api = client.api(TestHarnessBlockingApi::of);
@@ -165,23 +166,36 @@ public final class Settings {
         return read(game, key);
     }
 
-    public boolean flag(String key) { return (Boolean) get(key); }
+    public boolean flag(String key) {
+        return (Boolean) get(key);
+    }
 
-    public int integer(String key) { return ((Number) get(key)).intValue(); }
+    public int integer(String key) {
+        return ((Number) get(key)).intValue();
+    }
 
-    public long int64(String key) { return ((Number) get(key)).longValue(); }
+    public long int64(String key) {
+        return ((Number) get(key)).longValue();
+    }
 
-    public double number(String key) { return ((Number) get(key)).doubleValue(); }
+    public double number(String key) {
+        return ((Number) get(key)).doubleValue();
+    }
 
-    public String text(String key) { return (String) get(key); }
+    public String text(String key) {
+        return (String) get(key);
+    }
 
     @SuppressWarnings("unchecked")
-    public List<String> list(String key) { return (List<String>) get(key); }
+    public List<String> list(String key) {
+        return (List<String>) get(key);
+    }
 
     /** What the setting {@code key} holds; reading needs no pin. */
     public static Object read(Game game, String key) {
-        return game.onServer(server -> ((TestHarnessContracts.Values) harness(game)
-                .settings(new TestHarnessContracts.Read(List.of(key)))).get(key));
+        return game.onServer(server -> ((TestHarnessContracts.Values)
+                        harness(game).settings(new TestHarnessContracts.Read(List.of(key))))
+                .get(key));
     }
 
     private static TestHarnessBlockingApi harness(Game game) {

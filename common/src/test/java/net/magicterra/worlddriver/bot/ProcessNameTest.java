@@ -12,22 +12,21 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessName;
 import net.magicterra.worlddriver.api.schema.WireName;
 import org.junit.jupiter.api.Test;
 
 /**
  * {@code mc.bot.cancel}'s process names are spelled twice: by each process's {@code kind()} and each chain's
- * {@code name()} below the facade, which may not name the api, and by {@link ProcessName}. A process added
- * without a name, or a name left after its process went, fails here instead of being refused on the wire.
+ * {@code name()} below the facade, which may not name the api, and by {@link ProcessName}. A process added without a
+ * name, or a name left after its process went, fails here instead of being refused on the wire.
  */
 class ProcessNameTest {
 
     private static final Path BOT = Path.of("src/main/java/net/magicterra/worlddriver/bot");
     private static final Pattern KIND = Pattern.compile("String kind\\(\\)\\s*\\{\\s*return \"([^\"]+)\"");
-    private static final Pattern CHAIN_NAME = Pattern.compile(
-            "String name\\(\\)\\s*\\{\\s*return (?:\"([^\"]+)\"|NAME)[^}]*}");
+    private static final Pattern CHAIN_NAME =
+            Pattern.compile("String name\\(\\)\\s*\\{\\s*return (?:\"([^\"]+)\"|NAME)[^}]*}");
     private static final Pattern NAME_CONSTANT = Pattern.compile("static final String NAME = \"([^\"]+)\"");
 
     @Test
@@ -37,7 +36,10 @@ class ProcessNameTest {
         try (Stream<Path> files = Files.walk(BOT.resolve("behavior"))) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).toList()) {
                 Matcher m = KIND.matcher(Files.readString(f));
-                while (m.find()) { spelled.add(m.group(1)); kinds++; }
+                while (m.find()) {
+                    spelled.add(m.group(1));
+                    kinds++;
+                }
             }
         }
         int chains = 0;
@@ -57,7 +59,8 @@ class ProcessNameTest {
             }
         }
         assertTrue(kinds >= 15 && chains >= 7, "the scan found only " + kinds + " kinds and " + chains + " chains");
-        Set<String> api = new TreeSet<>(Arrays.stream(ProcessName.values()).map(WireName::wireName).toList());
+        Set<String> api = new TreeSet<>(
+                Arrays.stream(ProcessName.values()).map(WireName::wireName).toList());
         assertEquals(spelled, api);
     }
 }

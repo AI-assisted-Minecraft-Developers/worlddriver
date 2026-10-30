@@ -1,27 +1,25 @@
 package net.magicterra.worlddriver.game.ui;
 
+import net.magicterra.worlddriver.config.GameConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.magicterra.worlddriver.config.GameConfig;
 
 /**
- * The on-screen "the bot is driving" badge. Rendered from each loader's HUD hook
- * (Fabric {@code HudRenderCallback}, NeoForge {@code RenderGuiEvent.Post}) — both hand
- * us a {@link GuiGraphics}, so the drawing itself lives here once.
+ * The on-screen "the bot is driving" badge. Rendered from each loader's HUD hook (Fabric {@code HudRenderCallback},
+ * NeoForge {@code RenderGuiEvent.Post}) — both hand us a {@link GuiGraphics}, so the drawing itself lives here once.
  *
- * <p>Two lines, top-right: WHAT is driving, and WHO owns the mouse. Top-right because
- * the F3 debug overlay owns the top-left and boss bars the top-centre. It answers the
- * question a released cursor otherwise leaves open — "is the game broken, or is the bot
- * working?" — and advertises the way back in (double-tap ESC).
+ * <p>Two lines, top-right: WHAT is driving, and WHO owns the mouse. Top-right because the F3 debug overlay owns the
+ * top-left and boss bars the top-centre. It answers the question a released cursor otherwise leaves open — "is the game
+ * broken, or is the bot working?" — and advertises the way back in (double-tap ESC).
  */
 public final class MouseYieldHud {
     private MouseYieldHud() {}
 
-    private static final int COLOR_DRIVING = 0xFFFFB300;   // amber: the bot is driving the player
-    private static final int COLOR_YIELDED = 0xFFB0B0B0;   // grey: informational
-    private static final int COLOR_RECLAIM = 0xFF7FD98A;   // green: you hold the mouse
+    private static final int COLOR_DRIVING = 0xFFFFB300; // amber: the bot is driving the player
+    private static final int COLOR_YIELDED = 0xFFB0B0B0; // grey: informational
+    private static final int COLOR_RECLAIM = 0xFF7FD98A; // green: you hold the mouse
     private static final int COLOR_BACKDROP = 0x90000000;
 
     private static final int MARGIN = 4;

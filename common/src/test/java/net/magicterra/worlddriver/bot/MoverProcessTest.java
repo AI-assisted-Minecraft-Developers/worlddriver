@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import net.magicterra.worlddriver.api.game.Mover;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -25,17 +24,29 @@ class MoverProcessTest {
         int left;
         boolean stopped;
 
-        Scripted(int ticks, Progress end) { this.ticks = ticks; this.end = end; this.left = ticks; }
+        Scripted(int ticks, Progress end) {
+            this.ticks = ticks;
+            this.end = end;
+            this.left = ticks;
+        }
 
-        @Override public Progress drive(BlockPos target, double within) {
+        @Override
+        public Progress drive(BlockPos target, double within) {
             asked.add(target.toShortString() + "~" + within);
             if (left-- > 0) return Progress.MOVING;
             left = ticks;
             return end;
         }
 
-        @Override public void stop() { stopped = true; }
-        @Override public String failure() { return "blocked"; }
+        @Override
+        public void stop() {
+            stopped = true;
+        }
+
+        @Override
+        public String failure() {
+            return "blocked";
+        }
     }
 
     private static int run(MoverProcess p, BotState st) {
@@ -48,7 +59,8 @@ class MoverProcessTest {
     void visitsEveryCellInOrderThenSucceeds() {
         Scripted mover = new Scripted(1, Mover.Progress.ARRIVED);
         BotState st = new BotState();
-        MoverProcess p = new MoverProcess(mover, List.of(new Goal.Near(new BlockPos(1, 2, 3), 1), new Goal.Block(new BlockPos(4, 5, 6))));
+        MoverProcess p = new MoverProcess(
+                mover, List.of(new Goal.Near(new BlockPos(1, 2, 3), 1), new Goal.Block(new BlockPos(4, 5, 6))));
         assertEquals(4, run(p, st));
         assertEquals(List.of("1, 2, 3~1.0", "1, 2, 3~1.0", "4, 5, 6~0.5", "4, 5, 6~0.5"), mover.asked);
         assertNull(p.failure());

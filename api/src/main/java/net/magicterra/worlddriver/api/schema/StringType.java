@@ -1,11 +1,10 @@
 package net.magicterra.worlddriver.api.schema;
 
-import java.util.Objects;
-import java.util.regex.Pattern;
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 /** A string type; immutable, so the narrowing methods return new instances. */
 final class StringType extends ApiType<String> {
@@ -21,12 +20,17 @@ final class StringType extends ApiType<String> {
         this.meaning = meaning;
     }
 
-    public StringType maxLength(int max) { return copy(minLength, max); }
-    public StringType minLength(int min) { return copy(min, maxLength); }
+    public StringType maxLength(int max) {
+        return copy(minLength, max);
+    }
+
+    public StringType minLength(int min) {
+        return copy(min, maxLength);
+    }
 
     /**
-     * Declare it to TypeScript as {@code type <name> = <tsType>}, a template literal type for a
-     * pattern TypeScript can approximate. TypeScript cannot check the whole pattern; the server does.
+     * Declare it to TypeScript as {@code type <name> = <tsType>}, a template literal type for a pattern TypeScript can
+     * approximate. TypeScript cannot check the whole pattern; the server does.
      */
     public StringType tsAlias(String name, String type) {
         StringType s = copy(minLength, maxLength);
@@ -42,21 +46,28 @@ final class StringType extends ApiType<String> {
         return s;
     }
 
-    @Override protected String read(JsonElement value, DecodeContext at) {
+    @Override
+    protected String read(JsonElement value, DecodeContext at) {
         String s = Json.string(value);
         if (s == null) return at.mismatch(expected(), value);
         if (s.length() < minLength || s.length() > maxLength) {
-            return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s.length() + " characters");
+            return at.fail(
+                    ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s.length() + " characters");
         }
         if (pattern != null && !pattern.matcher(s).matches()) {
-            return at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got " + DecodeContext.describe(s));
+            return at.fail(
+                    ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got " + DecodeContext.describe(s));
         }
         return s;
     }
 
-    @Override protected JsonElement write(String value) { return new JsonPrimitive(Objects.requireNonNull(value, "string")); }
+    @Override
+    protected JsonElement write(String value) {
+        return new JsonPrimitive(Objects.requireNonNull(value, "string"));
+    }
 
-    @Override protected JsonObject schemaBody() {
+    @Override
+    protected JsonObject schemaBody() {
         JsonObject s = new JsonObject();
         s.addProperty("type", "string");
         if (minLength > 0) s.addProperty("minLength", minLength);
@@ -65,14 +76,17 @@ final class StringType extends ApiType<String> {
         return s;
     }
 
-    @Override public String ts(TsContext ts) {
+    @Override
+    public String ts(TsContext ts) {
         if (tsName == null) return "string";
         return ts.declare(tsName, this, () -> "type " + tsName + " = " + tsType + ";");
     }
 
-    @Override public String expected() {
+    @Override
+    public String expected() {
         if (meaning != null) return meaning;
-        if (minLength > 0 && maxLength != Integer.MAX_VALUE) return "a string of " + minLength + "–" + maxLength + " characters";
+        if (minLength > 0 && maxLength != Integer.MAX_VALUE)
+            return "a string of " + minLength + "–" + maxLength + " characters";
         if (minLength > 0) return "a non-empty string";
         if (maxLength != Integer.MAX_VALUE) return "a string of at most " + maxLength + " characters";
         return "a string";

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.api.registry;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -18,9 +20,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -28,25 +27,30 @@ import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.thread.GameThreads;
 
 /**
- * Every callable method, as one immutable {@link Snapshot} replaced whole by each published batch:
- * a reader sees a batch entirely or not at all, and the name, types, handler and owner of a method
- * always come from the same entry. It is the single validated dispatch point every transport shares,
- * and knows no transport implementation or concrete business handler.
+ * Every callable method, as one immutable {@link Snapshot} replaced whole by each published batch: a reader sees a
+ * batch entirely or not at all, and the name, types, handler and owner of a method always come from the same entry. It
+ * is the single validated dispatch point every transport shares, and knows no transport implementation or concrete
+ * business handler.
  *
- * <p>Namespace policy: {@code mc.*} belongs to the {@code worlddriver} owner, except {@code mc.test.*},
- * which belongs to {@code stagewright}; anyone else registers {@code <modid>.<verb>} outside {@code mc.}.
- * A name taken by another batch is a conflict for the whole new batch: nobody wins by registering last.
- * A hidden spec is left out of the MCP tool list but stays callable by name on every transport.
+ * <p>Namespace policy: {@code mc.*} belongs to the {@code worlddriver} owner, except {@code mc.test.*}, which belongs
+ * to {@code stagewright}; anyone else registers {@code <modid>.<verb>} outside {@code mc.}. A name taken by another
+ * batch is a conflict for the whole new batch: nobody wins by registering last. A hidden spec is left out of the MCP
+ * tool list but stays callable by name on every transport.
  */
 public final class ApiRegistry {
     public static final String CORE_OWNER = "worlddriver";
     public static final String TEST_OWNER = "stagewright";
 
     /** One published state: methods by name in registration order, the batches behind them, and a version. */
-    public record Snapshot(long version, Map<String, ApiMethod<?, ?>> methods, Map<String, ApiBatch> batches,
-                           Map<String, String> ownerOf) {
+    public record Snapshot(
+            long version,
+            Map<String, ApiMethod<?, ?>> methods,
+            Map<String, ApiBatch> batches,
+            Map<String, String> ownerOf) {
         /** The method names, in registration order; an immutable copy, not a view of later states. */
-        public List<String> names() { return List.copyOf(methods.keySet()); }
+        public List<String> names() {
+            return List.copyOf(methods.keySet());
+        }
     }
 
     /** What is published, shared by a registry and every {@link #withThreadWait} view of it. */
@@ -69,13 +73,12 @@ public final class ApiRegistry {
     }
 
     /**
-     * The same methods, for a caller inside this JVM that will wait up to {@code ms} for a game thread to
-     * start each call's task, where a call otherwise gives up after that thread's own limit (8 s for the
-     * server thread) and answers {@code not_executed}. Every call through the view, a {@link #route}, a
-     * {@link #dispatch} or a generated caller ({@code XxxBlockingApi.of(view)}), gets a context carrying
-     * {@link CallContext#withThreadWait} unless its context already names a wait; the call's deadline
-     * still bounds it. Publishing and listening go to the registry itself. The transports never use a view,
-     * so a client on the wire keeps the thread's own limit.
+     * The same methods, for a caller inside this JVM that will wait up to {@code ms} for a game thread to start each
+     * call's task, where a call otherwise gives up after that thread's own limit (8 s for the server thread) and
+     * answers {@code not_executed}. Every call through the view, a {@link #route}, a {@link #dispatch} or a generated
+     * caller ({@code XxxBlockingApi.of(view)}), gets a context carrying {@link CallContext#withThreadWait} unless its
+     * context already names a wait; the call's deadline still bounds it. Publishing and listening go to the registry
+     * itself. The transports never use a view, so a client on the wire keeps the thread's own limit.
      *
      * @param ms at least 1; {@link CallContext#SERVER_CAP_MS} at most is honoured
      */
@@ -90,23 +93,32 @@ public final class ApiRegistry {
     }
 
     /**
-     * Encoding a result that a game thread completed must not run on that game thread: an image or a
-     * long list is encoded here instead. Bounded; the work per task is one encode.
+     * Encoding a result that a game thread completed must not run on that game thread: an image or a long list is
+     * encoded here instead. Bounded; the work per task is one encode.
      */
-    private static final ExecutorService ENCODE = new ThreadPoolExecutor(1, 4, 30, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(), Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
+    private static final ExecutorService ENCODE = new ThreadPoolExecutor(
+            1,
+            4,
+            30,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
 
-    public Snapshot snapshot() { return state.snapshot; }
+    public Snapshot snapshot() {
+        return state.snapshot;
+    }
 
     /** Told after every publish, on the publishing thread, with the new snapshot. */
-    public void addListener(Consumer<Snapshot> listener) { state.listeners.add(Objects.requireNonNull(listener)); }
+    public void addListener(Consumer<Snapshot> listener) {
+        state.listeners.add(Objects.requireNonNull(listener));
+    }
 
     /**
-     * Check the whole batch, then publish it in one step. Returns false when this very batch object is
-     * already published (a retry), true when it was published now.
+     * Check the whole batch, then publish it in one step. Returns false when this very batch object is already
+     * published (a retry), true when it was published now.
      *
-     * @throws IllegalArgumentException on a namespace violation, a duplicate inside the batch, a name
-     *                                  another batch holds, or a different batch under the same owner and id
+     * @throws IllegalArgumentException on a namespace violation, a duplicate inside the batch, a name another batch
+     *     holds, or a different batch under the same owner and id
      */
     public boolean registerBatch(ApiBatch batch) {
         Objects.requireNonNull(batch, "batch");
@@ -133,7 +145,8 @@ public final class ApiRegistry {
                 if (methods.containsKey(name)) problems.add(name + " is already registered by " + ownerOf.get(name));
             }
             if (!problems.isEmpty()) {
-                throw new IllegalArgumentException("batch " + key + " rejected, nothing published: " + String.join("; ", problems));
+                throw new IllegalArgumentException(
+                        "batch " + key + " rejected, nothing published: " + String.join("; ", problems));
             }
             for (ApiMethod<?, ?> m : batch.methods()) {
                 methods.put(m.name(), m);
@@ -141,12 +154,19 @@ public final class ApiRegistry {
             }
             Map<String, ApiBatch> batches = new LinkedHashMap<>(cur.batches());
             batches.put(key, batch);
-            published = new Snapshot(cur.version() + 1, Collections.unmodifiableMap(methods),
-                    Collections.unmodifiableMap(batches), Collections.unmodifiableMap(ownerOf));
+            published = new Snapshot(
+                    cur.version() + 1,
+                    Collections.unmodifiableMap(methods),
+                    Collections.unmodifiableMap(batches),
+                    Collections.unmodifiableMap(ownerOf));
             state.snapshot = published;
         }
         for (Consumer<Snapshot> l : state.listeners) {
-            try { l.accept(published); } catch (RuntimeException ignored) { /* a listener cannot unpublish */ }
+            try {
+                l.accept(published);
+            } catch (RuntimeException ignored) {
+                /* a listener cannot unpublish */
+            }
         }
         return true;
     }
@@ -177,15 +197,16 @@ public final class ApiRegistry {
     }
 
     /**
-     * Decode {@code paramsTree} with the method's input type, run its handler, and encode the result
-     * with its output type. {@code paramsTree} null means the caller sent no parameters, which reads as
-     * an empty object; anything else that is not an object is an error, never an empty object.
-     * Every failure arrives as an exceptionally completed stage carrying an {@link ApiException}.
+     * Decode {@code paramsTree} with the method's input type, run its handler, and encode the result with its output
+     * type. {@code paramsTree} null means the caller sent no parameters, which reads as an empty object; anything else
+     * that is not an object is an error, never an empty object. Every failure arrives as an exceptionally completed
+     * stage carrying an {@link ApiException}.
      */
     public CompletionStage<JsonElement> dispatch(String method, JsonElement paramsTree, CallContext context) {
         ApiMethod<?, ?> m = method(method);
         if (m == null) {
-            return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.METHOD_NOT_FOUND,
+            return CompletableFuture.failedFuture(ApiException.of(
+                    ApiError.Code.METHOD_NOT_FOUND,
                     method == null ? "the request named no method" : "unknown method: " + method));
         }
         return run(m, paramsTree == null ? new JsonObject() : paramsTree, adjust(context));
@@ -213,19 +234,24 @@ public final class ApiRegistry {
         try {
             return spec.output().encode(result);
         } catch (RuntimeException broken) {
-            throw new ApiException(new ApiError(ApiError.Code.INTERNAL_ERROR,
-                    spec.name() + " produced a result outside its contract: " + broken.getMessage(), List.of(),
-                    ApiError.Execution.UNKNOWN), broken);
+            throw new ApiException(
+                    new ApiError(
+                            ApiError.Code.INTERNAL_ERROR,
+                            spec.name() + " produced a result outside its contract: " + broken.getMessage(),
+                            List.of(),
+                            ApiError.Execution.UNKNOWN),
+                    broken);
         }
     }
 
     /**
-     * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
-     * the parameters as JSON rather than as the method's types. Throws the call's {@link ApiException}.
-     * On a game thread a call that would wait is refused before it starts.
+     * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds the parameters as
+     * JSON rather than as the method's types. Throws the call's {@link ApiException}. On a game thread a call that
+     * would wait is refused before it starts.
      */
     public JsonElement route(String method, JsonObject params) {
-        CallContext ctx = GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
+        CallContext ctx =
+                GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
         return await(dispatch(method, params, ctx), CallContext.SERVER_CAP_MS);
     }
 
@@ -237,13 +263,18 @@ public final class ApiRegistry {
             throw asApi(e.getCause() == null ? e : e.getCause());
         } catch (TimeoutException e) {
             stage.toCompletableFuture().cancel(false);
-            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
-                    "no result within " + budgetMs + "ms; the call may still take effect", List.of(),
+            throw new ApiException(new ApiError(
+                    ApiError.Code.OUTCOME_UNKNOWN,
+                    "no result within " + budgetMs + "ms; the call may still take effect",
+                    List.of(),
                     ApiError.Execution.UNKNOWN));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
-                    "interrupted while waiting; the call may still take effect", List.of(), ApiError.Execution.UNKNOWN));
+            throw new ApiException(new ApiError(
+                    ApiError.Code.OUTCOME_UNKNOWN,
+                    "interrupted while waiting; the call may still take effect",
+                    List.of(),
+                    ApiError.Execution.UNKNOWN));
         }
     }
 
@@ -255,17 +286,17 @@ public final class ApiRegistry {
     }
 
     /**
-     * A Java caller's typed call, which every generated {@link Spec} binding makes: the parameters get
-     * the same checks a request does, and the result is not encoded. The caller's context is passed
-     * through as {@link #dispatch} passes it: the call answers a stage rather than holding its thread,
-     * so a game thread may make it, and a hop to the other game thread is queued, not refused.
+     * A Java caller's typed call, which every generated {@link Spec} binding makes: the parameters get the same checks
+     * a request does, and the result is not encoded. The caller's context is passed through as {@link #dispatch} passes
+     * it: the call answers a stage rather than holding its thread, so a game thread may make it, and a hop to the other
+     * game thread is queued, not refused.
      */
     @SuppressWarnings("unchecked")
     public <P, R> CompletionStage<R> invoke(MethodSpec<P, R> spec, P params, CallContext context) {
         ApiMethod<?, ?> m = method(spec.name());
         if (m == null || m.spec() != spec) {
-            return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.METHOD_NOT_FOUND,
-                    spec.name() + " is not registered with this spec"));
+            return CompletableFuture.failedFuture(
+                    ApiException.of(ApiError.Code.METHOD_NOT_FOUND, spec.name() + " is not registered with this spec"));
         }
         try {
             P checked = spec.input().validate(params);

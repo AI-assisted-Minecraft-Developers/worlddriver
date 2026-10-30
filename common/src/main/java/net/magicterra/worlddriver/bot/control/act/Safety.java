@@ -1,7 +1,12 @@
 package net.magicterra.worlddriver.bot.control.act;
 
-import java.util.List;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
+import java.util.List;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
@@ -11,31 +16,26 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
-
 /**
- * The last word on a walking tick's input, after every phase has had its say and before any of it reaches
- * the body: the stride floor-guard, the footing guard, the pin's hold tail and the forced repath when a pin
- * outlasts its welcome. Each of them only edits the tick's {@link InputFrame} (sneak, jump), apart from the
- * two acts that cannot wait for the frame — braking the bot's momentum over the void and placing a block
- * under it.
+ * The last word on a walking tick's input, after every phase has had its say and before any of it reaches the body: the
+ * stride floor-guard, the footing guard, the pin's hold tail and the forced repath when a pin outlasts its welcome.
+ * Each of them only edits the tick's {@link InputFrame} (sneak, jump), apart from the two acts that cannot wait for the
+ * frame — braking the bot's momentum over the void and placing a block under it.
  *
- * <p>Single-exit: the tick phases have dozens of early returns (pillar, dig, escape, stepUp...), so a safety
- * invariant appended to any one of them covers only SOME ticks — the gap #53 death strode over a well mouth
- * from a branch that never reached the drive's own guard. This runs after EVERY decision path.
+ * <p>Single-exit: the tick phases have dozens of early returns (pillar, dig, escape, stepUp...), so a safety invariant
+ * appended to any one of them covers only SOME ticks — the gap #53 death strode over a well mouth from a branch that
+ * never reached the drive's own guard. This runs after EVERY decision path.
  *
- * <p>Only on a tick that keeps walking. A tick that ends the walk hands the body back to its caller, which
- * stops ticking the navigator; a pin raised there would be held by nobody and released by nobody.
+ * <p>Only on a tick that keeps walking. A tick that ends the walk hands the body back to its caller, which stops
+ * ticking the navigator; a pin raised there would be held by nobody and released by nobody.
  */
 public final class Safety {
 
     private final Navigator nav;
 
-    public Safety(Navigator nav) { this.nav = nav; }
+    public Safety(Navigator nav) {
+        this.nav = nav;
+    }
 
     /** Guard a tick that keeps walking. */
     public void run(Body a, WorldView world) {
@@ -51,14 +51,15 @@ public final class Safety {
         if (fired) guardHoldTicks = GUARD_PIN_HOLD;
         else if (guardHoldTicks > 0) {
             LivingEntity hp = a.entity();
-            BlockPos fc = hp == null ? null
-                    : BlockPos.containing(hp.getX(), hp.getY() + 0.05, hp.getZ());
+            BlockPos fc = hp == null ? null : BlockPos.containing(hp.getX(), hp.getY() + 0.05, hp.getZ());
             // Planned-descent release (same exemption the fire predicate has): when the
             // current waypoint is BELOW the foot the navigator is deliberately descending,
             // and steep descents stand on knife edges BY DESIGN — holding the pin there
             // froze the whole descent at the crest (r10 regression: descentYaw never left
             // the top; caught four rounds late behind bridge-filtered greps).
-            boolean plannedDescent = fc != null && nav.route.path() != null && nav.route.step() < nav.route.path().size()
+            boolean plannedDescent = fc != null
+                    && nav.route.path() != null
+                    && nav.route.step() < nav.route.path().size()
                     && nav.route.path().get(nav.route.step()).getY() < fc.getY();
             if (guardParkourTick || plannedDescent || hp == null) guardHoldTicks = 0;
             else {
@@ -69,8 +70,8 @@ public final class Safety {
                 // walked the bot back toward the deck at +0.04/tick but the tail
                 // expired two blocks short). Gated on an ACTIVE hold so routine diagonal
                 // corner-crossing transients never stutter-sneak.
-                boolean overhang = hp.onGround() && !hp.isInWater()
-                        && world.isPassable(fc.below()) && !world.isWater(fc.below());
+                boolean overhang =
+                        hp.onGround() && !hp.isInWater() && world.isPassable(fc.below()) && !world.isWater(fc.below());
                 if (!overhang) guardHoldTicks--;
                 Keys.sneak(a, true);
                 a.commandJump(false);
@@ -106,7 +107,11 @@ public final class Safety {
             // repath drops the PLAN only — the hold itself must survive it (r9: clearing
             // the hold here released the sneak mid-overhang and dropped the bot).
             forcedRepathIfPinnedTooLong(a);
-        } else { guardPinStreak = 0; guardStreakCells = 0; guardStreakCell = null; }
+        } else {
+            guardPinStreak = 0;
+            guardStreakCells = 0;
+            guardStreakCell = null;
+        }
     }
 
     /** A tick that ended the walk: let go of a pin rather than leave it held for nobody. */
@@ -125,34 +130,32 @@ public final class Safety {
      *
      * <h2>Why here and not in the drive</h2>
      *
-     * The lethal-edge gate in {@code DrivePhase} is the natural home and it cannot do this job,
-     * for two measured reasons. It probes FORWARD — the cell 0.6 blocks toward the waypoint — so a
-     * bot that has drifted off its floor sideways, or that is being steered at a node behind it,
-     * reads perfectly clean: on the tick before an eleven-block drop into a nether lava lake,
-     * {@code gapAhead} was false (the cell toward the waypoint was netherrack), {@code offCentre}
-     * was 0.17, and the bot's own sole was on <b>0.0000 of 0.36</b>. And it lives in the drive
-     * TAIL, which dozens of branches — dig, pillar, escape, step-up — return before reaching: the
-     * next rehearsal fell on exactly such a tick, {@code drive=null}, while the crossing was digging
-     * its way along. That is the same lesson {@link #strideFloorGuard} was hoisted here for.
+     * The lethal-edge gate in {@code DrivePhase} is the natural home and it cannot do this job, for two measured
+     * reasons. It probes FORWARD — the cell 0.6 blocks toward the waypoint — so a bot that has drifted off its floor
+     * sideways, or that is being steered at a node behind it, reads perfectly clean: on the tick before an eleven-block
+     * drop into a nether lava lake, {@code gapAhead} was false (the cell toward the waypoint was netherrack),
+     * {@code offCentre} was 0.17, and the bot's own sole was on <b>0.0000 of 0.36</b>. And it lives in the drive TAIL,
+     * which dozens of branches — dig, pillar, escape, step-up — return before reaching: the next rehearsal fell on
+     * exactly such a tick, {@code drive=null}, while the crossing was digging its way along. That is the same lesson
+     * {@link #strideFloorGuard} was hoisted here for.
      *
      * <h2>What it asks, in the order that makes it cheap</h2>
      *
-     * The sole first ({@link NavigatorGeometry#soleOnSolid}, four block reads, and on ordinary ground
-     * it answers 0.36 immediately), and only for a bot already down to half a sole does it pay for
-     * {@link NavigatorGeometry#lethalDropAdjacent}'s eight columns. So a walk over solid ground costs
-     * four reads a tick and nothing else.
+     * The sole first ({@link NavigatorGeometry#soleOnSolid}, four block reads, and on ordinary ground it answers 0.36
+     * immediately), and only for a bot already down to half a sole does it pay for
+     * {@link NavigatorGeometry#lethalDropAdjacent}'s eight columns. So a walk over solid ground costs four reads a tick
+     * and nothing else.
      *
      * <h2>What the pin is, and what it is not</h2>
      *
-     * Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take
-     * a shift-held bot off its floor. It is a REFUSAL to step further out, not a rescue — a bot
-     * already over the void falls whatever this does, which is why the sole threshold is half a sole
-     * and not zero. Jump is cancelled with it, because sneak has never clamped a jump and the nether
-     * crossing's first fatal launch was exactly that: sneak held, {@code diagUp} planned, +0.42 of
-     * upward velocity, into the lake.
+     * Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take a shift-held bot
+     * off its floor. It is a REFUSAL to step further out, not a rescue — a bot already over the void falls whatever
+     * this does, which is why the sole threshold is half a sole and not zero. Jump is cancelled with it, because sneak
+     * has never clamped a jump and the nether crossing's first fatal launch was exactly that: sneak held,
+     * {@code diagUp} planned, +0.42 of upward velocity, into the lake.
      *
-     * <p>Lethal-only, so ordinary ledge-hopping keeps its speed, and the same {@code lethalEdgeBrake}
-     * switch the drive's gate answers to.
+     * <p>Lethal-only, so ordinary ledge-hopping keeps its speed, and the same {@code lethalEdgeBrake} switch the
+     * drive's gate answers to.
      */
     boolean footingGuard(Body a, WorldView world) {
         if (!ControlConfig.lethalEdgeBrake) return false;
@@ -190,7 +193,9 @@ public final class Safety {
         // wd.bridgeDescend "descending bridge wedged (sneak ledge-guard?)", wd.descentYaw thrashing
         // to 2463°. Every fall this guard is for was a bot walking or jumping at a node level with
         // it or above it, so nothing it protects is given up here.
-        if (nav.route.path() != null && nav.route.step() >= 0 && nav.route.step() < nav.route.path().size()
+        if (nav.route.path() != null
+                && nav.route.step() >= 0
+                && nav.route.step() < nav.route.path().size()
                 && nav.route.path().get(nav.route.step()).getY() < foot.getY()) return false;
         if (!lethalDropAdjacent(world, p, foot)) return false;
         Keys.sneak(a, true);
@@ -199,9 +204,13 @@ public final class Safety {
         // Edge-triggered: a ridge walk pins for runs of ticks and a line per tick would bury the
         // rest of the log. The entry is the event — "the bot reached a cell it is barely on".
         if (!footingPinned) {
-            LOG.info("[navigator] footing guard: sole {} < {} at {},{},{} beside a lethal drop → sneak-pin",
-                    String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)), FOOTING_MIN,
-                    foot.getX(), foot.getY(), foot.getZ());
+            LOG.info(
+                    "[navigator] footing guard: sole {} < {} at {},{},{} beside a lethal drop → sneak-pin",
+                    String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
+                    FOOTING_MIN,
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ());
         }
         footingPinned = true;
         widenFooting(a, world, p, foot);
@@ -209,15 +218,14 @@ public final class Safety {
     }
 
     /**
-     * True when this bot is on a graze with the void beside it — the state from which no jump can
-     * be allowed to leave the ground.
+     * True when this bot is on a graze with the void beside it — the state from which no jump can be allowed to leave
+     * the ground.
      *
-     * <p>The planner's leap and diagonal gates cannot see this. They rule on EDGES, and the jump
-     * that killed rung 20 here is the navigator's own {@code stepUpFreeze}: measured
-     * {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30 speedH=0.528 sole=0.000 node=-43,103,4} — a
-     * step-up fired at speed off a tower top with a sole that rounds to nothing. Six families of
-     * departure have now been closed one at a time; this is the one that belongs to the executor
-     * rather than to the plan, and it is why closing all seven planner moves did not end the falls.
+     * <p>The planner's leap and diagonal gates cannot see this. They rule on EDGES, and the jump that killed rung 20
+     * here is the navigator's own {@code stepUpFreeze}: measured {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30
+     * speedH=0.528 sole=0.000 node=-43,103,4} — a step-up fired at speed off a tower top with a sole that rounds to
+     * nothing. Six families of departure have now been closed one at a time; this is the one that belongs to the
+     * executor rather than to the plan, and it is why closing all seven planner moves did not end the falls.
      */
     public static boolean grazingBesideTheVoid(WorldView world, LivingEntity p) {
         if (p == null || p.isInWater()) return false;
@@ -226,23 +234,23 @@ public final class Safety {
         return voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()));
     }
 
-    /** The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop.
-     *  Not "be careful" as a number — it is the smallest reading that still leaves the bot a whole
-     *  half-cell of margin on every axis, and the void gives no second attempt. */
+    /**
+     * The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop. Not "be careful" as
+     * a number — it is the smallest reading that still leaves the bot a whole half-cell of margin on every axis, and
+     * the void gives no second attempt.
+     */
     private static final double VOID_FOOTING_MIN = 0.30;
 
     /**
      * True when any column NEXT TO {@code at} runs out of the world.
      *
-     * <p>Beside, not under — and the first cut got that backwards. A bot with a sole to measure is
-     * standing on something by definition, so the column under it is never bottomless; asking there
-     * returns false every time and the raised bar could never arm. On a 1-wide tower it is the
-     * pillar itself that answers, which is exactly the geometry the bar exists for: measured
-     * {@code pos=-32.70,82.00,26.86 speedH=0.671 sole=0.263} — under the 0.30 bar, moving fast, and
-     * the guard silent because it had asked whether the tower it was standing on was made of air.
+     * <p>Beside, not under — and the first cut got that backwards. A bot with a sole to measure is standing on
+     * something by definition, so the column under it is never bottomless; asking there returns false every time and
+     * the raised bar could never arm. On a 1-wide tower it is the pillar itself that answers, which is exactly the
+     * geometry the bar exists for: measured {@code pos=-32.70,82.00,26.86 speedH=0.671 sole=0.263} — under the 0.30
+     * bar, moving fast, and the guard silent because it had asked whether the tower it was standing on was made of air.
      *
-     * <p>Same floor as the stride guard's own bottomless test, so the two agree about what counts
-     * as the void.
+     * <p>Same floor as the stride guard's own bottomless test, so the two agree about what counts as the void.
      */
     public static boolean voidBeside(WorldView world, BlockPos at) {
         for (int dx = -1; dx <= 1; dx++)
@@ -263,18 +271,16 @@ public final class Safety {
     /**
      * Fill the empty column under the overhanging half of the sole.
      *
-     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the bot is
-     * already half off. That gap is what makes rung 20's lip a dead end: measured across two runs at
-     * the identical cell {@code (-32,85,27)}, the bot stood on 16% of its sole beside the void with
-     * 500+ cobblestone in the bag while the footing guard pinned it, the stride guard refused the
-     * next step, the recovery hop refused to jump (a lethal drop one cell away) and the ascent
-     * executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move.
-     * One block under the bot turns the perch into a floor and every one of those guards releases.
+     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the bot is already half off. That gap
+     * is what makes rung 20's lip a dead end: measured across two runs at the identical cell {@code (-32,85,27)}, the
+     * bot stood on 16% of its sole beside the void with 500+ cobblestone in the bag while the footing guard pinned it,
+     * the stride guard refused the next step, the recovery hop refused to jump (a lethal drop one cell away) and the
+     * ascent executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move. One block
+     * under the bot turns the perch into a floor and every one of those guards releases.
      *
-     * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is:
-     * over an ordinary drop a thin sole is a graze the bot walks off, and spending blocks on every
-     * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
-     * continuing and falling forever.
+     * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is: over an ordinary drop
+     * a thin sole is a graze the bot walks off, and spending blocks on every ridge walk is how a bridging contract gets
+     * eaten. Over the void it is the difference between continuing and falling forever.
      */
     private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
         if (!WorldConfig.allowPlace || nav.blocks.breakHeld() || !nav.equipment.holdPlaceable()) return;
@@ -282,19 +288,25 @@ public final class Safety {
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
                 BlockPos support = new BlockPos(cx, foot.getY() - 1, cz);
-                if (!world.isPassable(support)) continue;             // already solid under here
+                if (!world.isPassable(support)) continue; // already solid under here
                 boolean bottomless = true;
                 for (int y = support.getY() - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
-                    if (!world.isPassable(new BlockPos(cx, y, cz))) { bottomless = false; break; }
+                    if (!world.isPassable(new BlockPos(cx, y, cz))) {
+                        bottomless = false;
+                        break;
+                    }
                 }
                 if (!bottomless) continue;
                 nav.blocks.place(world::isSolid, support);
                 nav.exAlarms.notePlace(support);
-                LOG.info("[navigator] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
-                        support.getX(), support.getY(), support.getZ(),
+                LOG.info(
+                        "[navigator] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
+                        support.getX(),
+                        support.getY(),
+                        support.getZ(),
                         String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
                         FOOTING_MIN);
-                return;                                               // one block per tick
+                return; // one block per tick
             }
         }
     }
@@ -305,44 +317,48 @@ public final class Safety {
     /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
     public int guardPinStreak;
 
-    /** How many consecutive pinned ticks throw the plan away. Named rather than inlined twice: the
-     *  two call sites are the fire path and the hold path and they must not be able to drift. */
+    /**
+     * How many consecutive pinned ticks throw the plan away. Named rather than inlined twice: the two call sites are
+     * the fire path and the hold path and they must not be able to drift.
+     */
     private static final int GUARD_PIN_REPATH = 30;
 
-    /** The last stride cell this pin streak fired on, and how many times that cell has CHANGED
-     *  during it. Not a distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why
-     *  it is diagnostics and not the repath predicate — see {@link #forcedRepathIfPinnedTooLong}. */
+    /**
+     * The last stride cell this pin streak fired on, and how many times that cell has CHANGED during it. Not a
+     * distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why it is diagnostics and not the repath
+     * predicate — see {@link #forcedRepathIfPinnedTooLong}.
+     */
     private BlockPos guardStreakCell;
 
     private int guardStreakCells;
 
-    /** The plan this pin streak opened on, and the step index it was at. The repath predicate
-     *  reads them; reference identity is the right comparison because every re-plan hands back a
-     *  fresh list (smoothing included), so a changed reference IS a changed plan. */
+    /**
+     * The plan this pin streak opened on, and the step index it was at. The repath predicate reads them; reference
+     * identity is the right comparison because every re-plan hands back a fresh list (smoothing included), so a changed
+     * reference IS a changed plan.
+     */
     private List<BlockPos> guardStreakPath;
 
     private int guardStreakStartStep;
 
     /**
-     * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks —
-     * <b>unless the bot is consuming that plan</b> — and SAY SO either way.
+     * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks — <b>unless the bot is consuming
+     * that plan</b> — and SAY SO either way.
      *
      * <h2>Why this was worth a method</h2>
      *
-     * The two call sites were identical two-line expressions and the event they perform — a plan
-     * silently discarded — <b>was the only thing the navigator does that left no trace at all</b>. The
-     * 2026-08-20 ladder ended rung 14 in a shuttle: four hops of 900 ticks each, 61-76 walk edges
-     * apiece, net −8 to −28 blocks, over a lava sea the bot had bridged itself. The stride guard
-     * fired 491 times in that crossing on 184 distinct cells, and with {@link #GUARD_PIN_HOLD} = 8
-     * a fire every eight ticks keeps this streak alive — so "the plan keeps being thrown away" and
-     * "the plan is bad" were both consistent with every row the run produced, and nothing in the
-     * log or the evidence map could separate them.
+     * The two call sites were identical two-line expressions and the event they perform — a plan silently discarded —
+     * <b>was the only thing the navigator does that left no trace at all</b>. The 2026-08-20 ladder ended rung 14 in a
+     * shuttle: four hops of 900 ticks each, 61-76 walk edges apiece, net −8 to −28 blocks, over a lava sea the bot had
+     * bridged itself. The stride guard fired 491 times in that crossing on 184 distinct cells, and with
+     * {@link #GUARD_PIN_HOLD} = 8 a fire every eight ticks keeps this streak alive — so "the plan keeps being thrown
+     * away" and "the plan is bad" were both consistent with every row the run produced, and nothing in the log or the
+     * evidence map could separate them.
      *
      * <h2>The measurement that separated them</h2>
      *
-     * The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two
-     * waypoints 45 blocks apart the bot was pinned to the threshold three times, and every
-     * discarded plan was <b>complete</b>:
+     * The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two waypoints 45 blocks apart
+     * the bot was pinned to the threshold three times, and every discarded plan was <b>complete</b>:
      *
      * <pre>
      * #43: pinned 30 ticks, 4 distinct cells; the discarded plan had 134 nodes left, last node 132,43,165; bot at 103,41,135
@@ -350,30 +366,28 @@ public final class Safety {
      * #45: pinned 30 ticks, 4 distinct cells; the discarded plan had 123 nodes left, last node 130,43,167; bot at  97,41,115
      * </pre>
      *
-     * {@code 132,43,165} was the walk's goal. The pathfinder kept solving the whole crossing — 132
-     * nodes for 45 blocks of straight-line distance is the long way around the lava sea, which is
-     * the correct route — and the bot never got to walk it, because a rim walk pins every few
-     * ticks and the 8-tick hold tail bridges the gaps. 45 forced repaths in one run. The escape
-     * hatch built for a livelock was firing on a bot that was not stuck.
+     * {@code 132,43,165} was the walk's goal. The pathfinder kept solving the whole crossing — 132 nodes for 45 blocks
+     * of straight-line distance is the long way around the lava sea, which is the correct route — and the bot never got
+     * to walk it, because a rim walk pins every few ticks and the 8-tick hold tail bridges the gaps. 45 forced repaths
+     * in one run. The escape hatch built for a livelock was firing on a bot that was not stuck.
      *
      * <h2>What it branches on, and what it does not</h2>
      *
-     * <b>Whether {@link Route#step()} advanced while the streak ran.</b> Sustained pinning is evidence
-     * against a <i>route</i>; a route the bot is visibly consuming is not the thing to indict. The
-     * livelock this hatch exists for (567 pins at ONE cell) has a frozen step, so it still escapes.
+     * <b>Whether {@link Route#step()} advanced while the streak ran.</b> Sustained pinning is evidence against a
+     * <i>route</i>; a route the bot is visibly consuming is not the thing to indict. The livelock this hatch exists for
+     * (567 pins at ONE cell) has a frozen step, so it still escapes.
      *
-     * <p><b>Not the cell count.</b> That was the obvious candidate and it is the wrong predicate: a
-     * bot oscillating between two cells is livelocked and would read "kept changing cells" just as
-     * a rim walk does. The count stays for the reader; only {@code step} decides.
+     * <p><b>Not the cell count.</b> That was the obvious candidate and it is the wrong predicate: a bot oscillating
+     * between two cells is livelocked and would read "kept changing cells" just as a rim walk does. The count stays for
+     * the reader; only {@code step} decides.
      *
-     * <p>A plan swapped out from under the streak (some other branch re-planned) rebases the streak
-     * instead of being discarded: the pinned ticks were evidence against the plan they accrued
-     * against, and a plan that has not been walked yet has not earned them.
+     * <p>A plan swapped out from under the streak (some other branch re-planned) rebases the streak instead of being
+     * discarded: the pinned ticks were evidence against the plan they accrued against, and a plan that has not been
+     * walked yet has not earned them.
      *
-     * <p>Keeping a plan is not unbounded — {@link ControlConfig#navigatorTotalTickBudget} and the caller's
-     * own tick cap still convert a slow-but-progressing route into an actionable FAILED. That is
-     * deliberately the only backstop: a second threshold here ("enough progress") would be a free
-     * parameter with no measurement behind it.
+     * <p>Keeping a plan is not unbounded — {@link ControlConfig#navigatorTotalTickBudget} and the caller's own tick cap
+     * still convert a slow-but-progressing route into an actionable FAILED. That is deliberately the only backstop: a
+     * second threshold here ("enough progress") would be a free parameter with no measurement behind it.
      */
     // Package-private, not private: SafetyGuardRepathTest drives the streak through it a tick at a time.
     void forcedRepathIfPinnedTooLong(Body a) {
@@ -392,16 +406,21 @@ public final class Safety {
         // the first entry is the streak's own opening cell, so 1 means the bot never left it.
         // SafetyGuardRepathTest parses "pinned in N cells" out of this clause.
         String cells = ", pinned in " + guardStreakCells + " cells (including the first)"
-                + (guardStreakCells <= 1 ? " (never left that cell)"
+                + (guardStreakCells <= 1
+                        ? " (never left that cell)"
                         : " (changed cells; for reference, not a criterion)");
 
         if (nav.route.path() != guardStreakPath) {
             nav.tel.guardStreakRebases++;
             if (nav.tel.guardStreakRebases <= GUARD_STREAK_EVENTS) {
-                LOG.info("[navigator] guard pin streak rebased: pinned {} ticks{} — another branch replaced "
-                        + "the plan during the streak, so these {} ticks count against the old plan; the new "
-                        + "plan has not been walked yet and is not discarded{}",
-                        guardPinStreak, cells, guardPinStreak, where);
+                LOG.info(
+                        "[navigator] guard pin streak rebased: pinned {} ticks{} — another branch replaced "
+                                + "the plan during the streak, so these {} ticks count against the old plan; the new "
+                                + "plan has not been walked yet and is not discarded{}",
+                        guardPinStreak,
+                        cells,
+                        guardPinStreak,
+                        where);
             }
             guardPinStreak = 0;
             guardStreakCells = 0;
@@ -418,7 +437,10 @@ public final class Safety {
                     + cells
                     + "; the plan has " + Math.max(0, nav.route.path().size() - Math.max(nav.route.step(), 0))
                     + " nodes left, last node "
-                    + (nav.route.path().isEmpty() ? "none" : nav.route.path().get(nav.route.path().size() - 1).toShortString()) + where;
+                    + (nav.route.path().isEmpty()
+                            ? "none"
+                            : nav.route.path().get(nav.route.path().size() - 1).toShortString())
+                    + where;
             nav.tel.lastGuardKeep = keep;
             if (kept <= GUARD_STREAK_EVENTS) {
                 LOG.info("[navigator] guard pin kept the plan: {}", keep);
@@ -441,8 +463,12 @@ public final class Safety {
             // but let the clock start over.
             nav.tel.guardPinnedWithNoPlan++;
             if (nav.tel.guardPinnedWithNoPlan <= GUARD_STREAK_EVENTS) {
-                LOG.info("[navigator] guard pin with no plan: pinned {} ticks with no plan held the whole time{}"
-                        + " — nothing to discard, so it is not counted as a discard{}", guardPinStreak, cells, where);
+                LOG.info(
+                        "[navigator] guard pin with no plan: pinned {} ticks with no plan held the whole time{}"
+                                + " — nothing to discard, so it is not counted as a discard{}",
+                        guardPinStreak,
+                        cells,
+                        where);
             }
             guardPinStreak = 0;
             guardStreakCells = 0;
@@ -456,7 +482,9 @@ public final class Safety {
                 + cells
                 + "; the discarded plan had " + Math.max(0, nav.route.path().size() - Math.max(nav.route.step(), 0))
                 + " nodes left, last node "
-                + (nav.route.path().isEmpty() ? "none" : nav.route.path().get(nav.route.path().size() - 1).toShortString())
+                + (nav.route.path().isEmpty()
+                        ? "none"
+                        : nav.route.path().get(nav.route.path().size() - 1).toShortString())
                 + where;
         nav.tel.lastGuardRepath = repath;
         LOG.info("[navigator] guard pin forced a repath: {}", repath);
@@ -469,9 +497,11 @@ public final class Safety {
     /** Per-body cap on how many kept/rebased streaks print in full; both keep counting past it. */
     private static final int GUARD_STREAK_EVENTS = 8;
 
-    /** Tally one stride-guard skip bucket and report "the guard did not act" in a single expression,
-     *  so every early return in {@link #strideFloorGuard} stays a one-liner and none can be added
-     *  without naming which bucket it belongs to. */
+    /**
+     * Tally one stride-guard skip bucket and report "the guard did not act" in a single expression, so every early
+     * return in {@link #strideFloorGuard} stays a one-liner and none can be added without naming which bucket it
+     * belongs to.
+     */
     private boolean skipStride(int reason) {
         nav.tel.strideGuardSkips.incrementAndGet(reason);
         return false;
@@ -480,75 +510,80 @@ public final class Safety {
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     private int guardHoldTicks;
 
-    /** Hold-tail length: long enough to outlast the drive re-acceleration between fires
-     *  (~3-5 ticks observed), short enough that a false pin costs under half a second. */
+    /**
+     * Hold-tail length: long enough to outlast the drive re-acceleration between fires (~3-5 ticks observed), short
+     * enough that a false pin costs under half a second.
+     */
     static final int GUARD_PIN_HOLD = 8;
 
-    /** True while the stride floor-guard's sneak-pin is held; cleared (and the sneak
-     *  released) on the first tick the hazard is gone. */
+    /**
+     * True while the stride floor-guard's sneak-pin is held; cleared (and the sneak released) on the first tick the
+     * hazard is gone.
+     */
     public boolean guardSneakLatch;
 
-    /** Plug arming: the stride cell the guard last fired on + accumulated fires on it.
-     *  Resets only when the fired-on CELL changes (not on quiet ticks — a pinned bot's
-     *  velocity decays under 0.03 so fires on one cell arrive in bursts between pin
-     *  cycles, and a consecutive-streak would never accumulate). */
+    /**
+     * Plug arming: the stride cell the guard last fired on + accumulated fires on it. Resets only when the fired-on
+     * CELL changes (not on quiet ticks — a pinned bot's velocity decays under 0.03 so fires on one cell arrive in
+     * bursts between pin cycles, and a consecutive-streak would never accumulate).
+     */
     public BlockPos guardPlugCell;
 
     public int guardPlugFires;
 
-    /** Fires on one stride cell before the plug placement arms. A genuine unplanned
-     *  crossing (gap#53 well-mouth ON the corridor) re-fires the same cell across 2-3
-     *  pin cycles and passes this quickly; a transient diagonal edge-graze on a normal
-     *  walk sweeps a NEW cell every few ticks and never arms (StepTwo bypass r28: six
-     *  dirt spent on plugs during a clean detour walk, every event at a different
-     *  position, st≈0 — the pin alone was the load-bearing safety, the grounded-sneak
-     *  edge clamp holds without any block). The pin itself stays instant. 12, not 7:
-     *  the guard-pin corridor recovery (Aim, guardPinClock) engages at ~6 pinned ticks
-     *  and must decisively win the race against plug arming on a place-free plan
-     *  (r32: 7 fires accumulated before the recovery steered off the cell — 2 dirt).
-     *  Construction plans (see canPlug) bypass this entirely. */
+    /**
+     * Fires on one stride cell before the plug placement arms. A genuine unplanned crossing (gap#53 well-mouth ON the
+     * corridor) re-fires the same cell across 2-3 pin cycles and passes this quickly; a transient diagonal edge-graze
+     * on a normal walk sweeps a NEW cell every few ticks and never arms (StepTwo bypass r28: six dirt spent on plugs
+     * during a clean detour walk, every event at a different position, st≈0 — the pin alone was the load-bearing
+     * safety, the grounded-sneak edge clamp holds without any block). The pin itself stays instant. 12, not 7: the
+     * guard-pin corridor recovery (Aim, guardPinClock) engages at ~6 pinned ticks and must decisively win the race
+     * against plug arming on a place-free plan (r32: 7 fires accumulated before the recovery steered off the cell — 2
+     * dirt). Construction plans (see canPlug) bypass this entirely.
+     */
     private static final int GUARD_PLUG_ARM_FIRES = 12;
 
-    /** How far down "no floor at all" is checked before a drop counts as bottomless. Below every
-     *  dimension's floor (the End starts at 0, the Overworld at -64), so a column clear to here is
-     *  clear to the void. Scanned only on a tick the stride guard already fired — about 1% of them
-     *  on the End island — so the cost is a rounding error next to being right about the void. */
+    /**
+     * How far down "no floor at all" is checked before a drop counts as bottomless. Below every dimension's floor (the
+     * End starts at 0, the Overworld at -64), so a column clear to here is clear to the void. Scanned only on a tick
+     * the stride guard already fired — about 1% of them on the End island — so the cost is a rounding error next to
+     * being right about the void.
+     */
     static final int BOTTOMLESS_SCAN_FLOOR = -70;
 
-    /** True while this tick's edge is a parkour launch — the guard must not sneak-pin or
-     *  jump-cancel a deliberate leap over void (its landing is the plan). Set inside
-     *  {@link Navigator#tickInner}; reset each tick. */
+    /**
+     * True while this tick's edge is a parkour launch — the guard must not sneak-pin or jump-cancel a deliberate leap
+     * over void (its landing is the plan). Set inside {@link Navigator#tickInner}; reset each tick.
+     */
     public boolean guardParkourTick;
 
-    /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
-     *  the same invariant): while GROUNDED and dry, project the bot's actual horizontal
-     *  VELOCITY ~4 ticks ahead; if that cell is passable with NO floor within
-     *  {@link RulesConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have
-     *  routed (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED — pin the
-     *  bot with vanilla sneak (maybeBackOffFromEdge stops it at the edge), cancel any pending
-     *  jump, and when a placeable is at hand + allowPlace, plug the mouth so the crossing
-     *  becomes real (backfill-as-you-go). Velocity, not the commanded yaw, is used: the fatal
-     *  strides (live well-mouth crossing; arena pillar-top drift) moved the bot along headings
-     *  the drive variables did not predict. Planned descents (current waypoint below foot in
-     *  the stride column) and parkour launches are exempt; water has its own physics.
+    /**
+     * Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is the same invariant): while
+     * GROUNDED and dry, project the bot's actual horizontal VELOCITY ~4 ticks ahead; if that cell is passable with NO
+     * floor within {@link RulesConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have routed
+     * (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED — pin the bot with vanilla sneak
+     * (maybeBackOffFromEdge stops it at the edge), cancel any pending jump, and when a placeable is at hand +
+     * allowPlace, plug the mouth so the crossing becomes real (backfill-as-you-go). Velocity, not the commanded yaw, is
+     * used: the fatal strides (live well-mouth crossing; arena pillar-top drift) moved the bot along headings the drive
+     * variables did not predict. Planned descents (current waypoint below foot in the stride column) and parkour
+     * launches are exempt; water has its own physics.
+     *
      * <p><b>Recorded, not acted on: this guard is also an unplanned bridge-builder.</b>
      *
-     * <p>Rung 14's crossing of 2026-08-20 was read back out of its own region files, and the box it
-     * shuttled in is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band. The
-     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway running from
-     * (74,86) to (96,110)</b>, and dirt does not generate in nether wastes. The bot built it. Not
-     * by plan either: the plans walked ONE {@code bridgePlace} edge per hop, while this guard fired
-     * <b>491 times and plugged 142 blocks</b> across 184 distinct cells, of which only 5 ever
-     * reached {@link #GUARD_PLUG_ARM_FIRES}. Thirty blocks of lava sea were bridged one safety
-     * backfill at a time, and the crossing then shuttled up and down the bridge it had made.
+     * <p>Rung 14's crossing of 2026-08-20 was read back out of its own region files, and the box it shuttled in is a
+     * lava sea — 18 458 lava cells against 2 543 netherrack in the walk band. The only ground in it beyond one
+     * netherrack shelf is a <b>127-block dirt causeway running from (74,86) to (96,110)</b>, and dirt does not generate
+     * in nether wastes. The bot built it. Not by plan either: the plans walked ONE {@code bridgePlace} edge per hop,
+     * while this guard fired <b>491 times and plugged 142 blocks</b> across 184 distinct cells, of which only 5 ever
+     * reached {@link #GUARD_PLUG_ARM_FIRES}. Thirty blocks of lava sea were bridged one safety backfill at a time, and
+     * the crossing then shuttled up and down the bridge it had made.
      *
-     * <p>That is a surprise worth having written down where the code is, and it is <b>deliberately
-     * not acted on</b>. The backfill may be load-bearing: without it the bot may have no route
-     * across a lava sea at all, and "stop paving" could turn a slow crossing into an impossible one.
-     * Deciding that needs the readings a ladder run carries — {@code guardForcedRepaths} per walk,
-     * the distinct-cell count in the discard line, and {@code JourneyFlight}'s reading of how far
-     * the plan points backwards. Do not tune the
-     * plug on the strength of this paragraph; it is a measurement, not a verdict.
+     * <p>That is a surprise worth having written down where the code is, and it is <b>deliberately not acted on</b>.
+     * The backfill may be load-bearing: without it the bot may have no route across a lava sea at all, and "stop
+     * paving" could turn a slow crossing into an impossible one. Deciding that needs the readings a ladder run carries
+     * — {@code guardForcedRepaths} per walk, the distinct-cell count in the discard line, and {@code JourneyFlight}'s
+     * reading of how far the plan points backwards. Do not tune the plug on the strength of this paragraph; it is a
+     * measurement, not a verdict.
      */
     boolean strideFloorGuard(Body a, WorldView world) {
         if (!ControlConfig.navigatorStrideFloorGuard || guardParkourTick) return skipStride(0);
@@ -570,10 +605,10 @@ public final class Safety {
         if (NavigatorGeometry.soleOnSolid(world, p) <= 0.0) return skipStride(3);
         Vec3 dm = p.getDeltaMovement();
         double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-        if (h < 0.03) return skipStride(4);                     // not translating
-        double lead = Math.max(0.9, h * 4);                     // ~4 ticks of travel, min one cell
-        BlockPos strideCell = BlockPos.containing(
-                p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
+        if (h < 0.03) return skipStride(4); // not translating
+        double lead = Math.max(0.9, h * 4); // ~4 ticks of travel, min one cell
+        BlockPos strideCell =
+                BlockPos.containing(p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
         BlockPos footCell = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
         if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return skipStride(5);
         // Planned descent into that exact column (current or next few nodes — chained falls
@@ -611,7 +646,7 @@ public final class Safety {
             // exactly the stride this guard exists to refuse.
             if (world.isHazard(below)) break;
             if (!world.isPassable(below) || world.isWater(below))
-                return skipStride(7);                           // a floor or a water landing → safe
+                return skipStride(7); // a floor or a water landing → safe
         }
         nav.tel.strideGuardFires++;
         Keys.sneak(a, true);
@@ -621,7 +656,10 @@ public final class Safety {
         // running for the same cell — if the first placement had landed, the second scan would
         // have found floor and never fired. The place() result was being discarded.
         if (strideCell.equals(guardPlugCell)) guardPlugFires++;
-        else { guardPlugCell = strideCell.immutable(); guardPlugFires = 1; }
+        else {
+            guardPlugCell = strideCell.immutable();
+            guardPlugFires = 1;
+        }
         // CONSTRUCTION plans plug instantly: when the current plan itself contains a
         // place-family edge, the journey is a build (buoyantWall: swimUp→pillarUp×2→
         // bridgePlace→pillarUp) and the guard's backfill is part of the same toolbox —
@@ -633,9 +671,11 @@ public final class Safety {
         boolean constructionPlan = false;
         if (nav.route.edges() != null)
             for (var e : nav.route.edges())
-                if (e != null && e.move != null
-                        && ("pillarUp".equals(e.move) || "bridgePlace".equals(e.move)
-                            || e.move.startsWith("parkourPlace"))) {
+                if (e != null
+                        && e.move != null
+                        && ("pillarUp".equals(e.move)
+                                || "bridgePlace".equals(e.move)
+                                || e.move.startsWith("parkourPlace"))) {
                     constructionPlan = true;
                     break;
                 }
@@ -664,7 +704,8 @@ public final class Safety {
         // this: over an ordinary drop a graze costs health the bot walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
         if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
-        boolean canPlug = WorldConfig.allowPlace && !nav.blocks.breakHeld()
+        boolean canPlug = WorldConfig.allowPlace
+                && !nav.blocks.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && nav.equipment.holdPlaceable();
         if (held) nav.blocks.place(world::isSolid, strideCell.below());
@@ -675,13 +716,16 @@ public final class Safety {
         boolean plugged = held && !world.isPassable(strideCell.below());
         // Unconditional: firing means the bot was one stride from an unplanned lethal drop —
         // rare by design, and the one signal that matters when reconstructing a fall post-mortem.
-        LOG.info("[navigator] stride floor-guard: bottomless stride {},{},{} (vel {}, {}) → sneak-pin{}",
-                    strideCell.getX(), strideCell.getY(), strideCell.getZ(),
-                    String.format(java.util.Locale.ROOT, "%.2f", dm.x),
-                    String.format(java.util.Locale.ROOT, "%.2f", dm.z),
-                    plugged ? " + plug " + strideCell.below()
-                            : !canPlug ? "" : !held ? " (no placeable held)"
-                            : " (plug FAILED " + strideCell.below() + ")");
+        LOG.info(
+                "[navigator] stride floor-guard: bottomless stride {},{},{} (vel {}, {}) → sneak-pin{}",
+                strideCell.getX(),
+                strideCell.getY(),
+                strideCell.getZ(),
+                String.format(java.util.Locale.ROOT, "%.2f", dm.x),
+                String.format(java.util.Locale.ROOT, "%.2f", dm.z),
+                plugged
+                        ? " + plug " + strideCell.below()
+                        : !canPlug ? "" : !held ? " (no placeable held)" : " (plug FAILED " + strideCell.below() + ")");
         return true;
     }
 }

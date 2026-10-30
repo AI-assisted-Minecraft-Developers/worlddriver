@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.config;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -13,46 +13,41 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
  * Every {@code mc.bot.setting} key must have something that reads it.
  *
- * <p>{@link SettingsRegistry} already closes three sides of this square: a new
- * {@link BotConfig} field surfaces in the snapshot and the schema together (one
- * reflective enumerator feeds both), and {@code assertDocsResolve} fails class load
- * on a doc row pointing at a key that no longer exists. The open side is the
- * consumer. Nothing checked that the flag is actually consulted.
+ * <p>{@link SettingsRegistry} already closes three sides of this square: a new {@link BotConfig} field surfaces in the
+ * snapshot and the schema together (one reflective enumerator feeds both), and {@code assertDocsResolve} fails class
+ * load on a doc row pointing at a key that no longer exists. The open side is the consumer. Nothing checked that the
+ * flag is actually consulted.
  *
- * <p>That gap fails the way the whole settings surface is designed not to: silently
- * and affirmatively. Add {@code navigatorFooBar} to BotConfig meaning to gate a new
- * behavior, never land the read site (or delete the behavior later and leave the
- * knob), and {@code mc.bot.setting{navigatorFooBar:true}} returns success, the snapshot
- * echoes {@code true} back, and the bot does exactly what it did before. The caller
- * — often an LLM — has every signal that it changed something.
+ * <p>That gap fails the way the whole settings surface is designed not to: silently and affirmatively. Add
+ * {@code navigatorFooBar} to BotConfig meaning to gate a new behavior, never land the read site (or delete the behavior
+ * later and leave the knob), and {@code mc.bot.setting{navigatorFooBar:true}} returns success, the snapshot echoes
+ * {@code true} back, and the bot does exactly what it did before. The caller — often an LLM — has every signal that it
+ * changed something.
  *
- * <p>The key set comes from {@link SettingsRegistry#reflectivePrimitiveFields()} by
- * reflection rather than by parsing declarations: it is the same method the live
- * surface is built from, so this cannot check a set that does not exist. Only the
- * consumer side is a source scan, and it is deliberately generous — an identifier
- * mention anywhere outside the settings plumbing counts, because the cost of a false
- * failure here (a real setting flagged dead) is much higher than the cost of missing
- * a setting whose only reader is itself dead code.
+ * <p>The key set comes from {@link SettingsRegistry#reflectivePrimitiveFields()} by reflection rather than by parsing
+ * declarations: it is the same method the live surface is built from, so this cannot check a set that does not exist.
+ * Only the consumer side is a source scan, and it is deliberately generous — an identifier mention anywhere outside the
+ * settings plumbing counts, because the cost of a false failure here (a real setting flagged dead) is much higher than
+ * the cost of missing a setting whose only reader is itself dead code.
  *
- * <p>The config classes' own bodies count as a consumer once their declaration lines are
- * removed, so a setting read by an accessor ({@code pathfinderDepthPenalty} via
- * {@code pfDepthPenalty()}) passes. The tradeoff is knowingly accepted: an unused
- * accessor would mask a dead setting. No setting relies on that path today — all of
- * them are also read directly — so nothing is currently hiding behind it.
+ * <p>The config classes' own bodies count as a consumer once their declaration lines are removed, so a setting read by
+ * an accessor ({@code pathfinderDepthPenalty} via {@code pfDepthPenalty()}) passes. The tradeoff is knowingly accepted:
+ * an unused accessor would mask a dead setting. No setting relies on that path today — all of them are also read
+ * directly — so nothing is currently hiding behind it.
  */
 class SettingsConsumerTest {
 
-    /** Files that only move settings around: registering, documenting, applying, reporting. The config
-     *  classes that declare them are plumbing as well; see {@link #CONFIG}. */
-    private static final Set<String> PLUMBING = Set.of(
-            "SettingsRegistry.java",
-            "SettingsCommand.java", "SettingsContracts.java", "SettingsService.java");
+    /**
+     * Files that only move settings around: registering, documenting, applying, reporting. The config classes that
+     * declare them are plumbing as well; see {@link #CONFIG}.
+     */
+    private static final Set<String> PLUMBING =
+            Set.of("SettingsRegistry.java", "SettingsCommand.java", "SettingsContracts.java", "SettingsService.java");
 
     /** Where the settings are declared, one {@code *Config} class per layer. */
     private static final Path CONFIG = Path.of("src/main/java/net/magicterra/worlddriver/config");
@@ -63,9 +58,9 @@ class SettingsConsumerTest {
 
     /** Settings I have watched being consumed; if the scan stops seeing these it is broken. */
     private static final List<String> POSITIVE_CONTROLS = List.of(
-            "navigatorArcLengthAdvance",    // ProgressPhase, arc-length step advance
-            "navigatorAscendMovement",      // DrivePhase, task#82 ascent machine
-            "pathfinderDepthPenalty",    // PathFinder, via PlanningConfig#pfDepthPenalty
+            "navigatorArcLengthAdvance", // ProgressPhase, arc-length step advance
+            "navigatorAscendMovement", // DrivePhase, task#82 ascent machine
+            "pathfinderDepthPenalty", // PathFinder, via PlanningConfig#pfDepthPenalty
             "navigatorDebug");
 
     @Test
@@ -75,11 +70,12 @@ class SettingsConsumerTest {
         for (String key : settingKeys()) {
             if (!mentions(consumers, key)) orphans.add(key);
         }
-        assertTrue(orphans.isEmpty(),
+        assertTrue(
+                orphans.isEmpty(),
                 "these mc.bot.setting keys are accepted, echoed by the snapshot and "
-                + "possibly documented, but no code reads them — setting one reports "
-                + "success and changes nothing. Delete the key or land its read site: "
-                + orphans);
+                        + "possibly documented, but no code reads them — setting one reports "
+                        + "success and changes nothing. Delete the key or land its read site: "
+                        + orphans);
     }
 
     @Test
@@ -102,9 +98,10 @@ class SettingsConsumerTest {
     @Test
     void theSettingSurfaceIsThereAtAll() {
         Set<String> keys = settingKeys();
-        assertTrue(keys.size() >= 150,
-                "expected the full BotConfig knob surface (218 at last count), got "
-                + keys.size() + " — reflectivePrimitiveFields changed shape");
+        assertTrue(
+                keys.size() >= 150,
+                "expected the full BotConfig knob surface (218 at last count), got " + keys.size()
+                        + " — reflectivePrimitiveFields changed shape");
         assertTrue(keys.contains("navigatorDebug"), "sanity: navigatorDebug should be a key");
     }
 
@@ -118,19 +115,23 @@ class SettingsConsumerTest {
     }
 
     private static boolean mentions(String haystack, String key) {
-        return Pattern.compile("\\b" + Pattern.quote(key) + "\\b").matcher(haystack).find();
+        return Pattern.compile("\\b" + Pattern.quote(key) + "\\b")
+                .matcher(haystack)
+                .find();
     }
 
     /**
-     * Every source file that could read a setting, comments stripped so a key named
-     * only in prose does not count as consumed.
+     * Every source file that could read a setting, comments stripped so a key named only in prose does not count as
+     * consumed.
      */
     private static String consumerText() {
         StringBuilder sb = new StringBuilder(1 << 20);
         for (String root : SOURCE_ROOTS) {
             Path dir = Path.of(root);
-            assertTrue(Files.isDirectory(dir),
-                    "source root moved: " + dir.toAbsolutePath() + " (cwd " + Path.of(".").toAbsolutePath() + ")");
+            assertTrue(
+                    Files.isDirectory(dir),
+                    "source root moved: " + dir.toAbsolutePath() + " (cwd "
+                            + Path.of(".").toAbsolutePath() + ")");
             try (Stream<Path> files = Files.walk(dir)) {
                 for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
                     if (PLUMBING.contains(p.getFileName().toString()) || isConfig(p)) continue;
@@ -161,7 +162,10 @@ class SettingsConsumerTest {
     }
 
     private static boolean isConfig(Path p) {
-        return p.toAbsolutePath().normalize().getParent().equals(CONFIG.toAbsolutePath().normalize())
+        return p.toAbsolutePath()
+                        .normalize()
+                        .getParent()
+                        .equals(CONFIG.toAbsolutePath().normalize())
                 && p.getFileName().toString().endsWith("Config.java");
     }
 

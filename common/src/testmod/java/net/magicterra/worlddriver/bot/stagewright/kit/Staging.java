@@ -28,10 +28,17 @@ public final class Staging {
         return n;
     }
 
-    /** A ±24-block cube around {@code center}: the box to poll for a freshly added entity entering the level's index. */
+    /**
+     * A ±24-block cube around {@code center}: the box to poll for a freshly added entity entering the level's index.
+     */
     public static AABB entityBox(BlockPos center) {
-        return new AABB(center.getX() - 24, center.getY() - 24, center.getZ() - 24,
-                center.getX() + 24, center.getY() + 24, center.getZ() + 24);
+        return new AABB(
+                center.getX() - 24,
+                center.getY() - 24,
+                center.getZ() - 24,
+                center.getX() + 24,
+                center.getY() + 24,
+                center.getZ() + 24);
     }
 
     /** Every cell between {@code a} and {@code b}, both inclusive, set to {@code state}. */

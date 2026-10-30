@@ -1,13 +1,16 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -16,20 +19,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Locale;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
-
 public final class FollowProcess implements BotProcess, Navigating {
     /** Consecutive Navigator.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
+
     private final String entityType;
     private final String name;
     private final int radius;
     private final int maxIdleTicks;
     /** Ticks without progress before the follow ends as unreachable; 0 = never. */
     public static final int DEFAULT_GIVE_UP_TICKS = 600;
+
     private final int giveUpTicks;
     private final Chase chase;
     private final Navigator navigator;
@@ -42,28 +42,36 @@ public final class FollowProcess implements BotProcess, Navigating {
         this(entityType, name, radius, maxIdleTicks, DEFAULT_GIVE_UP_TICKS, SearchProfile.NONE);
     }
 
-    /** A3a: pass a per-follow {@link SearchProfile} (e.g. a leashed capability
-     *  envelope) through to the underlying {@link Navigator}. */
-    public FollowProcess(String entityType, String name, int radius, int maxIdleTicks, int giveUpTicks,
-                         SearchProfile profile) {
+    /**
+     * A3a: pass a per-follow {@link SearchProfile} (e.g. a leashed capability envelope) through to the underlying
+     * {@link Navigator}.
+     */
+    public FollowProcess(
+            String entityType, String name, int radius, int maxIdleTicks, int giveUpTicks, SearchProfile profile) {
         this.entityType = entityType;
         this.name = name;
         this.radius = radius;
         this.maxIdleTicks = maxIdleTicks;
         this.giveUpTicks = giveUpTicks;
         this.chase = new Chase(giveUpTicks);
-        this.navigator = new Navigator(NavigatorSettings.named("follow")
-                .withProfile(profile == null ? SearchProfile.NONE : profile));
+        this.navigator = new Navigator(
+                NavigatorSettings.named("follow").withProfile(profile == null ? SearchProfile.NONE : profile));
     }
 
-    public String kind() { return "follow"; }
+    public String kind() {
+        return "follow";
+    }
+
     public void attach(BotState st) {
-        st.follow.beginRun("follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius
-            + (maxIdleTicks > 0 ? " idle≤" + maxIdleTicks + "t" : "")
-            + (giveUpTicks > 0 ? " giveUp≤" + giveUpTicks + "t" : ""), null);
+        st.follow.beginRun(
+                "follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius
+                        + (maxIdleTicks > 0 ? " idle≤" + maxIdleTicks + "t" : "")
+                        + (giveUpTicks > 0 ? " giveUp≤" + giveUpTicks + "t" : ""),
+                null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
@@ -85,22 +93,28 @@ public final class FollowProcess implements BotProcess, Navigating {
         }
         idleTicks = 0;
         BlockPos tBlock = new BlockPos(
-            (int) Math.floor(target.getX()),
-            (int) Math.floor(target.getY()),
-            (int) Math.floor(target.getZ()));
+                (int) Math.floor(target.getX()), (int) Math.floor(target.getY()), (int) Math.floor(target.getZ()));
         regoal(target.getId(), tBlock);
         st.follow.target = tBlock;
         Locomotor.Status s = navigator.tick(a, w);
         st.follow.pathLen = navigator.pathLen();
         st.follow.pathStep = navigator.pathStep();
         if (chase.tick(s.ended(), Math.sqrt(target.distanceToSqr(p)))) {
-            return giveUp(st, String.format(Locale.ROOT,
-                    "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks));
+            return giveUp(
+                    st,
+                    String.format(
+                            Locale.ROOT,
+                            "unreachable: no closer than %.1f blocks in %d ticks",
+                            chase.closest(),
+                            giveUpTicks));
         }
         if (s == Locomotor.Status.FAILED) {
             consecutiveFails++;
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
-                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + navigator.result().reason());
+                return giveUp(
+                        st,
+                        "unreachable (" + consecutiveFails + " failed replans): "
+                                + navigator.result().reason());
             }
             // Force a fresh A* on the next tick rather than re-walking the dead path.
             lastTargetBlock = null;
@@ -130,13 +144,15 @@ public final class FollowProcess implements BotProcess, Navigating {
 
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
 
     /**
-     * Aim the navigator at the target's cell. The same entity in a new cell is the same pursuit, so it
-     * gets {@link Navigator#retarget}: {@code start} zeroes the futile-search counter, and a target
-     * that keeps moving would then never let an unreachable follow trip the cap. Only a different
-     * entity starts over.
+     * Aim the navigator at the target's cell. The same entity in a new cell is the same pursuit, so it gets
+     * {@link Navigator#retarget}: {@code start} zeroes the futile-search counter, and a target that keeps moving would
+     * then never let an unreachable follow trip the cap. Only a different entity starts over.
      */
     void regoal(int targetId, BlockPos tBlock) {
         boolean newTarget = lastTargetId != targetId;
@@ -152,12 +168,15 @@ public final class FollowProcess implements BotProcess, Navigating {
         lastTargetId = targetId;
     }
 
-    @Override public Navigator navigator() { return navigator; }
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
 
     /**
-     * Whether the chase is still getting anywhere. The navigator's futile-search guard cannot say: a
-     * quarry in a pen the bot cannot enter sends it circling the pen, and a bot that moves is never
-     * futile. Progress is reaching the standoff or a block gained on the closest approach so far.
+     * Whether the chase is still getting anywhere. The navigator's futile-search guard cannot say: a quarry in a pen
+     * the bot cannot enter sends it circling the pen, and a bot that moves is never futile. Progress is reaching the
+     * standoff or a block gained on the closest approach so far.
      */
     static final class Chase {
         private final int giveUpTicks;
@@ -178,7 +197,9 @@ public final class FollowProcess implements BotProcess, Navigating {
             return giveUpTicks > 0 && ++sinceGain >= giveUpTicks;
         }
 
-        double closest() { return closest; }
+        double closest() {
+            return closest;
+        }
 
         void restart() {
             closest = Double.POSITIVE_INFINITY;
@@ -186,8 +207,10 @@ public final class FollowProcess implements BotProcess, Navigating {
         }
     }
 
-    /** Point head+body yaw and pitch at the entity's mid-height, via
-     *  {@link #smoothAngle} so it honors the smoothLook toggle. */
+    /**
+     * Point head+body yaw and pitch at the entity's mid-height, via {@link #smoothAngle} so it honors the smoothLook
+     * toggle.
+     */
     private static void aimAtEntity(LivingEntity p, Entity e) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
@@ -197,7 +220,10 @@ public final class FollowProcess implements BotProcess, Navigating {
         float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         float ny = smoothAngle(p.getYRot(), ty);
         float np = smoothAngle(p.getXRot(), tp);
-        p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
+        p.setYRot(ny);
+        p.yHeadRot = ny;
+        p.yBodyRot = ny;
+        p.setXRot(np);
     }
 
     private Entity findTarget(Level lvl, LivingEntity self) {
@@ -217,7 +243,10 @@ public final class FollowProcess implements BotProcess, Navigating {
                 if (!entityType.equals(t)) continue;
             }
             double d = e.distanceToSqr(self);
-            if (d < bestDist) { bestDist = d; best = e; }
+            if (d < bestDist) {
+                bestDist = d;
+                best = e;
+            }
         }
         return best;
     }

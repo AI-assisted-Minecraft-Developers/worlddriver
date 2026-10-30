@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.api.schema;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -9,13 +11,10 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-
 /**
- * A closed JSON object bound to a Java record: unknown keys, a missing required key and a present
- * {@code null} are all issues, each at its own path, and the constructor runs only when every field
- * decoded. Read off a Java record by {@code ApiTypes.record}, one field per component, in order.
+ * A closed JSON object bound to a Java record: unknown keys, a missing required key and a present {@code null} are all
+ * issues, each at its own path, and the constructor runs only when every field decoded. Read off a Java record by
+ * {@code ApiTypes.record}, one field per component, in order.
  */
 public final class RecordType<O> extends ApiType<O> {
     private final Class<O> type;
@@ -30,19 +29,29 @@ public final class RecordType<O> extends ApiType<O> {
         this.constructor = constructor;
         Set<String> seen = new HashSet<>();
         for (ApiField<O, ?> f : this.fields) {
-            if (!seen.add(f.name)) throw new IllegalArgumentException("record " + name + " declares field " + f.name + " twice");
+            if (!seen.add(f.name))
+                throw new IllegalArgumentException("record " + name + " declares field " + f.name + " twice");
         }
     }
 
     /** The TypeScript/documentation name; null for an anonymous record written inline. */
-    public String name() { return name; }
+    public String name() {
+        return name;
+    }
 
     /** The Java class this type builds. */
-    Class<O> javaType() { return type; }
+    Class<O> javaType() {
+        return type;
+    }
 
-    public List<ApiField<O, ?>> fields() { return fields; }
+    public List<ApiField<O, ?>> fields() {
+        return fields;
+    }
 
-    @Override public String expected() { return name == null ? "an object" : "a " + name + " object"; }
+    @Override
+    public String expected() {
+        return name == null ? "an object" : "a " + name + " object";
+    }
 
     @Override
     protected O read(JsonElement value, DecodeContext at) {
@@ -99,9 +108,8 @@ public final class RecordType<O> extends ApiType<O> {
     private BiConsumer<O, DecodeContext> check;
 
     /**
-     * The same record type with a rule spanning its fields, run once every field decoded: a
-     * {@link SelfChecked} record's {@code check}. It reports at the field it blames
-     * ({@code at.field("widthBias").fail(...)}).
+     * The same record type with a rule spanning its fields, run once every field decoded: a {@link SelfChecked}
+     * record's {@code check}. It reports at the field it blames ({@code at.field("widthBias").fail(...)}).
      */
     RecordType<O> checked(BiConsumer<O, DecodeContext> rule) {
         RecordType<O> copy = new RecordType<>(type, name, fields, constructor);
@@ -113,7 +121,8 @@ public final class RecordType<O> extends ApiType<O> {
         List<String> names = new ArrayList<>();
         if (skipKey != null) names.add(skipKey);
         for (ApiField<O, ?> f : fields) names.add(f.name);
-        return "unknown field" + (names.isEmpty() ? "; this object takes no fields" : "; allowed: " + String.join(", ", names));
+        return "unknown field"
+                + (names.isEmpty() ? "; this object takes no fields" : "; allowed: " + String.join(", ", names));
     }
 
     private ApiField<O, ?> field(String key) {
@@ -185,12 +194,18 @@ public final class RecordType<O> extends ApiType<O> {
     String tsInline(TsContext ts, String tagName, String tag) {
         if (fields.isEmpty() && tagName == null) return "{}";
         StringBuilder b = new StringBuilder("{");
-        if (tagName != null) b.append(' ').append(TsContext.key(tagName)).append(": ").append(TsContext.literal(tag)).append(';');
+        if (tagName != null)
+            b.append(' ')
+                    .append(TsContext.key(tagName))
+                    .append(": ")
+                    .append(TsContext.literal(tag))
+                    .append(';');
         boolean multiline = fields.stream().anyMatch(f -> f.description != null);
         for (ApiField<O, ?> f : fields) {
             if (multiline) {
                 b.append("\n    ");
-                if (f.description != null) b.append("/** ").append(f.description.replace("*/", "* /")).append(" */\n    ");
+                if (f.description != null)
+                    b.append("/** ").append(f.description.replace("*/", "* /")).append(" */\n    ");
             } else {
                 b.append(' ');
             }

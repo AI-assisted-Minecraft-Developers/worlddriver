@@ -1,8 +1,6 @@
 package net.magicterra.worlddriver.api.methods;
 
 import java.util.List;
-
-import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
@@ -19,15 +17,16 @@ import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts;
-import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 
 /**
- * Every core method's description, in the order they are documented. The artifact generator loads this
- * class on a classpath with no Minecraft, which is what proves the contracts do not reach into the game.
- * The application binds a handler to each of these and registers them as one batch.
+ * Every core method's description, in the order they are documented. The artifact generator loads this class on a
+ * classpath with no Minecraft, which is what proves the contracts do not reach into the game. The application binds a
+ * handler to each of these and registers them as one batch.
  */
 public final class CoreMethods {
     private CoreMethods() {}

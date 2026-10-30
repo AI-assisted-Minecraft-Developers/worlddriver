@@ -37,7 +37,9 @@ class JupiterClientTest {
         ScreenBlockingApi screen = client.api(ScreenBlockingApi::of);
         try {
             screen.setHotbarSlot(new ScreenContracts.HotbarParams(3, Optional.empty()));
-            game.await().within(40).as("the server sees slot 3 selected")
+            game.await()
+                    .within(40)
+                    .as("the server sees slot 3 selected")
                     .until(() -> player.<Integer>onServer(p -> p.getInventory().selected) == 3);
         } finally {
             screen.setHotbarSlot(new ScreenContracts.HotbarParams(0, Optional.empty()));

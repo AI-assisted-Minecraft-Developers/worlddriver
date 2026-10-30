@@ -10,24 +10,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Each mistake a binding can carry is a compile error at the method that carries it. The driver's
- * types are stood in for by minimal stubs with the same names, so this needs nothing but javac.
+ * Each mistake a binding can carry is a compile error at the method that carries it. The driver's types are stood in
+ * for by minimal stubs with the same names, so this needs nothing but javac.
  */
 class ApiProcessorTest {
 
-    @TempDir Path out;
+    @TempDir
+    Path out;
 
     /** The driver types the processor and the generated code refer to, reduced to their signatures. */
     private static final Map<String, String> STUBS = Map.of(
@@ -104,21 +103,30 @@ class ApiProcessorTest {
         DiagnosticCollector<JavaFileObject> diags = new DiagnosticCollector<>();
         Path classes = Files.createDirectories(out.resolve("classes"));
         Path generated = Files.createDirectories(out.resolve("generated"));
-        JavaCompiler.CompilationTask task = javac.getTask(null, null, diags,
-                List.of("-d", classes.toString(), "-s", generated.toString(), "-proc:full"), null, sources);
+        JavaCompiler.CompilationTask task = javac.getTask(
+                null,
+                null,
+                diags,
+                List.of("-d", classes.toString(), "-s", generated.toString(), "-proc:full"),
+                null,
+                sources);
         task.setProcessors(List.of(new ApiProcessor()));
         boolean ok = task.call();
         List<String> errors = diags.getDiagnostics().stream()
                 .filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
-                .map(d -> d.getMessage(null)).collect(Collectors.toList());
+                .map(d -> d.getMessage(null))
+                .collect(Collectors.toList());
         assertEquals(ok, errors.isEmpty(), "javac's verdict and its errors disagree: " + errors);
         return errors;
     }
 
     private static JavaFileObject source(String name, String text) {
-        return new SimpleJavaFileObject(URI.create("string:///" + name.replace('.', '/') + ".java"),
-                JavaFileObject.Kind.SOURCE) {
-            @Override public CharSequence getCharContent(boolean ignore) { return text; }
+        return new SimpleJavaFileObject(
+                URI.create("string:///" + name.replace('.', '/') + ".java"), JavaFileObject.Kind.SOURCE) {
+            @Override
+            public CharSequence getCharContent(boolean ignore) {
+                return text;
+            }
         };
     }
 
@@ -149,26 +157,30 @@ class ApiProcessorTest {
         assertTrue(blocking.contains("public interface DemoBlockingApi"), blocking);
         assertTrue(blocking.contains("static DemoBlockingApi of(ApiRegistry registry)"), blocking);
         assertTrue(blocking.contains("Specs.Out run(Specs.In in);") || blocking.contains("Out run(In in);"), blocking);
-        assertTrue(blocking.contains("Specs.Out other(Specs.In in);") || blocking.contains("Out other(In in);"), blocking);
+        assertTrue(
+                blocking.contains("Specs.Out other(Specs.In in);") || blocking.contains("Out other(In in);"), blocking);
         assertTrue(blocking.contains("ApiRegistry.await(stub.run(in), CallContext.SERVER_CAP_MS)"), blocking);
     }
 
     @Test
     void anInterfaceNotNamedApiGetsBlockingAppended() {
-        assertEquals("DemoBlockingApi", BindingWriter.blockingName(com.palantir.javapoet.ClassName.get("demo", "DemoApi")));
+        assertEquals(
+                "DemoBlockingApi", BindingWriter.blockingName(com.palantir.javapoet.ClassName.get("demo", "DemoApi")));
         assertEquals("DemoBlocking", BindingWriter.blockingName(com.palantir.javapoet.ClassName.get("demo", "Demo")));
     }
 
     @Test
-    void theCallerTypeAddsAContextFreeOverloadOfEachMethod()throws Exception {
+    void theCallerTypeAddsAContextFreeOverloadOfEachMethod() throws Exception {
         assertEquals(List.of(), compile(calls("""
                 @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 static CompletionStage<Out> callers(DemoStubApi api, In in) { return api.run(in); }
                 """)));
         String stub = Files.readString(out.resolve("generated/demo/DemoStubApi.java"));
         assertTrue(stub.contains("interface DemoStubApi extends DemoApi"), stub);
-        assertTrue(stub.contains("default CompletionStage<Specs.Out> run(Specs.In in)")
-                || stub.contains("default CompletionStage<Out> run(In in)"), stub);
+        assertTrue(
+                stub.contains("default CompletionStage<Specs.Out> run(Specs.In in)")
+                        || stub.contains("default CompletionStage<Out> run(In in)"),
+                stub);
     }
 
     @Test
@@ -181,7 +193,9 @@ class ApiProcessorTest {
 
     @Test
     void parametersTheSpecDoesNotDecodeAreRefused() throws Exception {
-        assertRefused(calls("@Spec(Specs.class) CompletionStage<Out> run(Out wrong, CallContext ctx);"), "takes demo.Specs.Out");
+        assertRefused(
+                calls("@Spec(Specs.class) CompletionStage<Out> run(Out wrong, CallContext ctx);"),
+                "takes demo.Specs.Out");
     }
 
     @Test
@@ -196,13 +210,15 @@ class ApiProcessorTest {
 
     @Test
     void aSpecThatDoesNotExistIsRefused() throws Exception {
-        assertRefused(calls("@Spec(value = Specs.class, spec = \"NOPE\") CompletionStage<Out> run(In in, CallContext ctx);"),
+        assertRefused(
+                calls("@Spec(value = Specs.class, spec = \"NOPE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "has no field NOPE");
     }
 
     @Test
     void aSpecThatCouldBeReplacedIsRefused() throws Exception {
-        assertRefused(calls("@Spec(value = Specs.class, spec = \"LOOSE\") CompletionStage<Out> run(In in, CallContext ctx);"),
+        assertRefused(
+                calls("@Spec(value = Specs.class, spec = \"LOOSE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "must be public static final");
     }
 

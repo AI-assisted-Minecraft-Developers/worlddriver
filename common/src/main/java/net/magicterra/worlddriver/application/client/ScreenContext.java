@@ -2,21 +2,20 @@ package net.magicterra.worlddriver.application.client;
 
 import java.security.SecureRandom;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
 /**
- * The {@code contextId} screen reads hand out and screen writes may be held to: one generation per
- * screen opening. A class name or a slot number cannot say the same screen is still open, because the
- * chest closed and reopened is the same class with the same slots holding other things.
+ * The {@code contextId} screen reads hand out and screen writes may be held to: one generation per screen opening. A
+ * class name or a slot number cannot say the same screen is still open, because the chest closed and reopened is the
+ * same class with the same slots holding other things.
  *
- * <p>Every {@code setScreen} starts a generation ({@code MinecraftMixin}), even one that reopens the very
- * same screen object, as a pause menu does returning from its options. The identity check in
- * {@link #current} also starts one for a screen that arrived some other way. The ids carry a random
- * per-JVM prefix, so one from before a restart never matches. Client thread only.
+ * <p>Every {@code setScreen} starts a generation ({@code MinecraftMixin}), even one that reopens the very same screen
+ * object, as a pause menu does returning from its options. The identity check in {@link #current} also starts one for a
+ * screen that arrived some other way. The ids carry a random per-JVM prefix, so one from before a restart never
+ * matches. Client thread only.
  */
 public final class ScreenContext {
     private ScreenContext() {}
@@ -44,8 +43,10 @@ public final class ScreenContext {
         if (expected.isEmpty()) return;
         String now = current();
         if (!now.equals(expected.get())) {
-            throw ApiException.of(ApiError.Code.CONTEXT_CHANGED, "the screen changed since contextId "
-                    + expected.get() + " was read (now " + now + "); read it again before acting");
+            throw ApiException.of(
+                    ApiError.Code.CONTEXT_CHANGED,
+                    "the screen changed since contextId " + expected.get() + " was read (now " + now
+                            + "); read it again before acting");
         }
     }
 }

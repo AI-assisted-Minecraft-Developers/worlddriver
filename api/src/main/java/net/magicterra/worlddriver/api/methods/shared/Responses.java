@@ -7,7 +7,6 @@ import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
@@ -27,10 +26,9 @@ import net.magicterra.worlddriver.api.schema.annotation.TsAlias;
 import net.magicterra.worlddriver.api.schema.annotation.Variant;
 
 /**
- * What every method that starts a body task answers: {@code refused} when nothing started, or
- * {@code accepted} with the action's state. The state of one action only moves from running to exactly
- * one terminal state and stays there; the wait an {@code awaitMs} asked for is reported beside it, never
- * as a state of its own.
+ * What every method that starts a body task answers: {@code refused} when nothing started, or {@code accepted} with the
+ * action's state. The state of one action only moves from running to exactly one terminal state and stays there; the
+ * wait an {@code awaitMs} asked for is reported beside it, never as a state of its own.
  */
 public final class Responses {
     private Responses() {}
@@ -47,13 +45,20 @@ public final class Responses {
         ACTION_LIMIT("action_limit");
 
         private final String wire;
-        RefusalReason(String wire) { this.wire = wire; }
-        @Override public String wireName() { return wire; }
+
+        RefusalReason(String wire) {
+            this.wire = wire;
+        }
+
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     /**
-     * With {@code bot_unavailable}: what stops the bot from acting, for a program to switch on. The bot's
-     * layers spell these words themselves ({@code Readiness.Reason}), since they may not name the api.
+     * With {@code bot_unavailable}: what stops the bot from acting, for a program to switch on. The bot's layers spell
+     * these words themselves ({@code Readiness.Reason}), since they may not name the api.
      */
     @Named("Unready")
     public enum Unready implements WireName {
@@ -72,8 +77,15 @@ public final class Responses {
         UNKNOWN_BOT("unknown_bot");
 
         private final String wire;
-        Unready(String wire) { this.wire = wire; }
-        @Override public String wireName() { return wire; }
+
+        Unready(String wire) {
+            this.wire = wire;
+        }
+
+        @Override
+        public String wireName() {
+            return wire;
+        }
 
         /** The word {@code wire} spells, or empty for one this list does not have. */
         public static Optional<Unready> of(String wire) {
@@ -87,8 +99,15 @@ public final class Responses {
         PROCESS_FAILED("process_failed");
 
         private final String wire;
-        FailureReason(String wire) { this.wire = wire; }
-        @Override public String wireName() { return wire; }
+
+        FailureReason(String wire) {
+            this.wire = wire;
+        }
+
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("CancelReason")
@@ -102,57 +121,85 @@ public final class Responses {
         CONNECTION_CLOSED("connection_closed");
 
         private final String wire;
-        CancelReason(String wire) { this.wire = wire; }
-        @Override public String wireName() { return wire; }
+
+        CancelReason(String wire) {
+            this.wire = wire;
+        }
+
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     /** One action at one moment. {@code bot} is the ref it was started on, never re-resolved. */
     public sealed interface ActionSnapshot<R> permits Running, Succeeded, Failed, Cancelled, Superseded {
         String actionId();
+
         String bot();
-        default boolean terminal() { return !(this instanceof Running<R>); }
+
+        default boolean terminal() {
+            return !(this instanceof Running<R>);
+        }
     }
 
     @Variant("running")
-    public record Running<R>(@ActionId String actionId, @BotRef String bot) implements ActionSnapshot<R> {}
+    public record Running<R>(
+            @ActionId String actionId, @BotRef String bot) implements ActionSnapshot<R> {}
+
     @Variant("succeeded")
-    public record Succeeded<R>(@ActionId String actionId, @BotRef String bot, R result) implements ActionSnapshot<R> {}
+    public record Succeeded<R>(
+            @ActionId String actionId, @BotRef String bot, R result) implements ActionSnapshot<R> {}
+
     @Variant("failed")
-    public record Failed<R>(@ActionId String actionId, @BotRef String bot, FailureReason reason, String message)
-            implements ActionSnapshot<R> {}
-    @Variant("cancelled")
-    public record Cancelled<R>(@ActionId String actionId, @BotRef String bot, CancelReason reason) implements ActionSnapshot<R> {}
-    @Variant("superseded")
-    public record Superseded<R>(@ActionId String actionId, @BotRef String bot, @ActionId String replacementActionId)
+    public record Failed<R>(
+            @ActionId String actionId, @BotRef String bot, FailureReason reason, String message)
             implements ActionSnapshot<R> {}
 
+    @Variant("cancelled")
+    public record Cancelled<R>(
+            @ActionId String actionId, @BotRef String bot, CancelReason reason) implements ActionSnapshot<R> {}
+
+    @Variant("superseded")
+    public record Superseded<R>(
+            @ActionId String actionId,
+            @BotRef String bot,
+            @ActionId String replacementActionId) implements ActionSnapshot<R> {}
+
     /**
-     * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}),
-     * with variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}. Each such variant
-     * is listed here too, so a Java caller's switch over the answer is checked for every case it can get.
+     * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}), with
+     * variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}. Each such variant is listed
+     * here too, so a Java caller's switch over the answer is checked for every case it can get.
      */
     public sealed interface ActionResponse<R> permits Accepted, Refused, Scored, Turned {}
 
     /**
-     * What a method that acts on a body within the call answers (holding an item, one click): {@code done}
-     * with what came of it, or {@link Refused} with the same reasons a task is refused for.
+     * What a method that acts on a body within the call answers (holding an item, one click): {@code done} with what
+     * came of it, or {@link Refused} with the same reasons a task is refused for.
      */
-    public sealed interface ImmediateResponse permits Refused, Held, Used, Attacked, Equipped, Stopped, Status, Rostered {}
+    public sealed interface ImmediateResponse
+            permits Refused, Held, Used, Attacked, Equipped, Stopped, Status, Rostered {}
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     @Variant("accepted")
     public record Accepted<R>(
             ActionSnapshot<R> action,
-            @Doc("True only when awaitMs ran out with the action still running.") boolean waitTimedOut)
+
+            @Doc("True only when awaitMs ran out with the action still running.")
+            boolean waitTimedOut)
             implements ActionResponse<R> {}
 
     @Variant("refused")
     public record Refused<R>(
             RefusalReason reason,
             String message,
-            @Doc("With bot_unavailable: what stops the bot from acting now, when the driver can tell.") Optional<Unready> unready)
+
+            @Doc("With bot_unavailable: what stops the bot from acting now, when the driver can tell.")
+            Optional<Unready> unready)
             implements ActionResponse<R>, ImmediateResponse {
-        public Refused(RefusalReason reason, String message) { this(reason, message, Optional.empty()); }
+        public Refused(RefusalReason reason, String message) {
+            this(reason, message, Optional.empty());
+        }
     }
 
     // The families' own answers to the two unions. A sealed interface's variants must share its package, so
@@ -173,30 +220,37 @@ public final class Responses {
     public record Turned(double yaw, double pitch) implements ActionResponse<InteractContracts.Looked> {}
 
     @Variant("done")
-    public record Held(@Doc("The item now in the main hand.") @ResourceId String held) implements ImmediateResponse {}
+    public record Held(
+            @Doc("The item now in the main hand.") @ResourceId
+            String held) implements ImmediateResponse {}
 
     @Variant("done")
     public record Used(
             InteractContracts.Hand hand,
             InteractContracts.Interaction result,
             @Doc("The click did something.") boolean consumed,
-            InteractContracts.UsedOn on) implements ImmediateResponse {}
+            InteractContracts.UsedOn on)
+            implements ImmediateResponse {}
 
     @Variant("done")
     public record Attacked(
-            @EntityId int entityId,
-            @ResourceId String type,
-            boolean alive,
-            double distance) implements ImmediateResponse {}
+            @EntityId int entityId, @ResourceId String type, boolean alive, double distance)
+            implements ImmediateResponse {}
 
     @Variant("done")
     public record Equipped(
             InteractContracts.Profile profile,
-            @Doc("What it put on or took in hand.") @Length(max = 16) List<@ResourceId String> equipped,
+
+            @Doc("What it put on or took in hand.") @Length(max = 16)
+            List<@ResourceId String> equipped,
+
             InteractContracts.Loadout loadout,
-            @Doc("Worn or held items below the equipDurabilityThreshold setting.")
-            @Length(max = 16) List<@ResourceId String> lowDurability,
-            @Doc("Armour slots still empty.") @Length(max = 4) List<InteractContracts.ArmorSlot> missing)
+
+            @Doc("Worn or held items below the equipDurabilityThreshold setting.") @Length(max = 16)
+            List<@ResourceId String> lowDurability,
+
+            @Doc("Armour slots still empty.") @Length(max = 4)
+            List<InteractContracts.ArmorSlot> missing)
             implements ImmediateResponse {}
 
     /**
@@ -206,13 +260,15 @@ public final class Responses {
     @Variant("done")
     public record Stopped(
             @Length(max = 64) List<@Length(min = 1, max = 64) String> cancelled,
-            Optional<ActionSnapshot<Object>> action) implements ImmediateResponse {}
+            Optional<ActionSnapshot<Object>> action)
+            implements ImmediateResponse {}
 
     /** {@code mc.bot.status}: {@code status} is the asked bot; absent when no bot was named and there is no client. */
     @Variant("done")
     public record Status(
-            @Doc("The registered bots, server-side players and mobs; self is not among them.")
-            @Length(max = 256) List<ControlContracts.BotSummary> bots,
+            @Doc("The registered bots, server-side players and mobs; self is not among them.") @Length(max = 256)
+            List<ControlContracts.BotSummary> bots,
+
             Optional<ControlContracts.BotStatus> status)
             implements ImmediateResponse {}
 
@@ -226,10 +282,15 @@ public final class Responses {
     /** {@code self}, {@code player:<name>}, {@code mob:<name>}, {@code npc:<name>} or {@code entity:<uuid>}. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
-    @Pattern(value = "self|(player|mob|npc):[^\\s:]+|entity:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
-            expected = "self, player:<name>, mob:<name>, npc:<name> or entity:<uuid>; a name has no whitespace or colon")
+    @Pattern(
+            value =
+                    "self|(player|mob|npc):[^\\s:]+|entity:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            expected =
+                    "self, player:<name>, mob:<name>, npc:<name> or entity:<uuid>; a name has no whitespace or colon")
     @Length(max = 128)
-    @TsAlias(name = "BotRef", type = "'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`")
+    @TsAlias(
+            name = "BotRef",
+            type = "'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`")
     @Doc("self (this client's own player), player:<name>, mob:<name>, npc:<name>, or entity:<uuid>, which"
             + " takes over that mob on its first order.")
     public @interface BotRef {}
@@ -259,18 +320,25 @@ public final class Responses {
     public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.of(FailureReason.class);
     public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.of(CancelReason.class);
 
-    /** The snapshot union for actions whose result is {@code result}, declared to TypeScript as {@code <name>Action}. */
+    /**
+     * The snapshot union for actions whose result is {@code result}, declared to TypeScript as {@code <name>Action}.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <R> UnionType<ActionSnapshot<R>> snapshot(String name, ApiType<R> result) {
-        return ApiTypes.union(name + "Action", "state", (RecordType) ApiTypes.record(Running.class),
-                (RecordType) ApiTypes.record(Succeeded.class, Map.of("result", result)), (RecordType) ApiTypes.record(Failed.class),
-                (RecordType) ApiTypes.record(Cancelled.class), (RecordType) ApiTypes.record(Superseded.class));
+        return ApiTypes.union(
+                name + "Action",
+                "state",
+                (RecordType) ApiTypes.record(Running.class),
+                (RecordType) ApiTypes.record(Succeeded.class, Map.of("result", result)),
+                (RecordType) ApiTypes.record(Failed.class),
+                (RecordType) ApiTypes.record(Cancelled.class),
+                (RecordType) ApiTypes.record(Superseded.class));
     }
 
     /**
-     * The response union of a method whose action result is {@code result}: {@code <name>Response}, tagged
-     * on {@code outcome}, with the {@code extra} outcomes after accepted and refused, each tagged by its
-     * record's {@code @Variant}.
+     * The response union of a method whose action result is {@code result}: {@code <name>Response}, tagged on
+     * {@code outcome}, with the {@code extra} outcomes after accepted and refused, each tagged by its record's
+     * {@code @Variant}.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result, Class<?>... extra) {

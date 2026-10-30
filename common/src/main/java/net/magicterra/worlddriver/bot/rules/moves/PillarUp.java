@@ -1,49 +1,52 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.core.BlockPos;
-
-import java.util.List;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.minecraft.core.BlockPos;
 
 /**
- * Pillar up one block — Baritone's {@code MovementPillar}: place a block at
- * the current feet position while jumping over it, then land on top a block
- * higher. The block under the feet must be solid (the support we click) and
- * the head cell two above must be clear, or breakable (then mined first so
- * there's room to rise). Lets A* <em>gain</em> height to reach a goal above,
- * the vertical counterpart to {@link BridgePlace}. Executed by the Navigator's
- * jump-place actuator, which owns the airborne timing.
+ * Pillar up one block — Baritone's {@code MovementPillar}: place a block at the current feet position while jumping
+ * over it, then land on top a block higher. The block under the feet must be solid (the support we click) and the head
+ * cell two above must be clear, or breakable (then mined first so there's room to rise). Lets A* <em>gain</em> height
+ * to reach a goal above, the vertical counterpart to {@link BridgePlace}. Executed by the Navigator's jump-place
+ * actuator, which owns the airborne timing.
  *
- * <p><b>The gate on the first line of {@link #eval} is not the gate that actuator uses.</b>
- * {@code w.canPlace()} asks the PLANNER's inventory question, and the two views answer it
- * differently from each other and from the executor:
+ * <p><b>The gate on the first line of {@link #eval} is not the gate that actuator uses.</b> {@code w.canPlace()} asks
+ * the PLANNER's inventory question, and the two views answer it differently from each other and from the executor:
+ *
  * <ul>
  *   <li>{@code ClientWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
- *       {@code BuildBlocks.isUsableBuildBlock}, which EXCLUDES falling blocks;</li>
- *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same
- *       exclusion, and drops {@code WorldConfig.allowPlace} altogether — see the note on it;</li>
- *   <li>the client executor — {@code ClientPlayerBody#holdPillarBlock} →
- *       {@code BotInteract.ensureHoldingPillarBlock} — applies {@code isUsablePillarBlock}, which
- *       ACCEPTS supported falling blocks, and ends in {@code swapFromMainInv}, so in survival it
- *       reaches 9..35 as well. (The server avatar takes {@code Equipment}'s default, i.e. plain
- *       {@code holdPlaceable()}, so this axis is a client-side gap.)</li>
+ *       {@code BuildBlocks.isUsableBuildBlock}, which EXCLUDES falling blocks;
+ *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same exclusion, and drops
+ *       {@code WorldConfig.allowPlace} altogether — see the note on it;
+ *   <li>the client executor — {@code ClientPlayerBody#holdPillarBlock} → {@code BotInteract.ensureHoldingPillarBlock} —
+ *       applies {@code isUsablePillarBlock}, which ACCEPTS supported falling blocks, and ends in
+ *       {@code swapFromMainInv}, so in survival it reaches 9..35 as well. (The server avatar takes {@code Equipment}'s
+ *       default, i.e. plain {@code holdPlaceable()}, so this axis is a client-side gap.)
  * </ul>
- * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot
- * carrying only sand and gravel, or with its cobble stranded in slot 9, makes {@code canPlace()}
- * false and A* emits no pillar edge at all — while {@code DrivePhase} and
- * {@code StallDetectPhase} pillar out of exactly that situation, which is why both gate on
- * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe
- * direction here (a route never found, rather than one that cannot be walked), so this is a note
- * and not a fix: closing it means handing the planner the executor's predicate, which changes what
- * A* plans and wants its own measurement.
+ *
+ * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot carrying only sand and
+ * gravel, or with its cobble stranded in slot 9, makes {@code canPlace()} false and A* emits no pillar edge at all —
+ * while {@code DrivePhase} and {@code StallDetectPhase} pillar out of exactly that situation, which is why both gate on
+ * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe direction here (a route
+ * never found, rather than one that cannot be walked), so this is a note and not a fix: closing it means handing the
+ * planner the executor's predicate, which changes what A* plans and wants its own measurement.
  */
 public final class PillarUp extends Move {
-    public PillarUp() { super(0, 1, 0, 10); }
-    @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
-    @Override public Edge eval(WorldView w, BlockPos from) {
+    public PillarUp() {
+        super(0, 1, 0, 10);
+    }
+
+    @Override
+    public boolean valid(WorldView w, BlockPos from) {
+        return eval(w, from) != null;
+    }
+
+    @Override
+    public Edge eval(WorldView w, BlockPos from) {
         if (!w.canPlace()) return null;
         // Buoyant-water guard: canStandAt treats ANY water cell as a floor, so A* otherwise
         // routes a pillar base into floating water. A bot floating at the SURFACE bobs at
@@ -74,12 +77,12 @@ public final class PillarUp extends Move {
         // place cell `from` must be open to build into (always true — it's
         // the bot's own feet).
         if (!w.isPassable(from) || w.isHazard(from)) return null;
-        BlockPos to = apply(from);                                     // new feet = from + 1
-        if (!w.isPassable(to) || w.isHazard(to)) return null;          // current head cell — must be open
-        BlockPos ceiling = from.offset(0, 2, 0);                       // head room after rising (= to + 1)
+        BlockPos to = apply(from); // new feet = from + 1
+        if (!w.isPassable(to) || w.isHazard(to)) return null; // current head cell — must be open
+        BlockPos ceiling = from.offset(0, 2, 0); // head room after rising (= to + 1)
 
         java.util.List<BlockPos> toBreak = new java.util.ArrayList<>();
-        double cost = rungCost(w);   // material-scarcity pricing — see the config javadoc
+        double cost = rungCost(w); // material-scarcity pricing — see the config javadoc
 
         // Own-column ceiling: the cell the rising head climbs into. Must be open
         // or breakable (then mined first so there's room to rise).
@@ -110,7 +113,7 @@ public final class PillarUp extends Move {
                 ceiling.offset(0, 0, 1), ceiling.offset(0, 0, -1),
             };
             for (BlockPos n : sides) {
-                if (!w.isSolid(n)) continue;                  // open / plant-with-no-collision → no clip
+                if (!w.isSolid(n)) continue; // open / plant-with-no-collision → no clip
                 // A WALL beside the bot on that side means the bot cannot be off-centre toward
                 // it: the box is stopped at the wall, so the rising head never sweeps that cell's
                 // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
@@ -119,7 +122,7 @@ public final class PillarUp extends Move {
                 BlockPos wallFoot = from.offset(n.getX() - ceiling.getX(), 0, n.getZ() - ceiling.getZ());
                 if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) continue;
                 double c = w.breakCost(n, from);
-                if (Double.isInfinite(c)) continue;           // solid wall we cannot break → a centred player clears it
+                if (Double.isInfinite(c)) continue; // solid wall we cannot break → a centred player clears it
                 toBreak.add(n);
                 cost += c;
             }
@@ -128,11 +131,14 @@ public final class PillarUp extends Move {
         return new Edge(to, cost, toBreak, List.of(from), name());
     }
 
-    /** Base rung price for the bag {@code w} plans with. The bag is read only when the price slides, which it
-     *  does not by default: each pillarUp eval is one A* expansion, and the count walks the inventory. */
+    /**
+     * Base rung price for the bag {@code w} plans with. The bag is read only when the price slides, which it does not
+     * by default: each pillarUp eval is one A* expansion, and the count walks the inventory.
+     */
     static double rungCost(WorldView w) {
         return RulesConfig.pathfinderPillarCost == RulesConfig.pathfinderPillarCostStocked
-                ? RulesConfig.pathfinderPillarCost : rungCost(w.placeableBlockCount());
+                ? RulesConfig.pathfinderPillarCost
+                : rungCost(w.placeableBlockCount());
     }
 
     /** Base rung price for a bag holding {@code stock} placeable blocks. */
@@ -142,6 +148,12 @@ public final class PillarUp extends Move {
         return scarce + (stocked - scarce) * f;
     }
 
-    public String name() { return "pillarUp"; }
-    @Override public boolean placesBlock() { return true; }
+    public String name() {
+        return "pillarUp";
+    }
+
+    @Override
+    public boolean placesBlock() {
+        return true;
+    }
 }

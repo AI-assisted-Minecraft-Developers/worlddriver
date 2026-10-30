@@ -1,22 +1,21 @@
 package net.magicterra.worlddriver.bot.control.route;
 
-import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
 
 /**
  * Runs the client navigator's in-flight path search in the time the frame limiter would otherwise sleep.
  *
- * <p>A search advanced a slice per client tick (6 ms walking, 30 ms with no path) took the render thread
- * for that long on the frame the tick ran in: at a 120 fps cap R1's 60 000-node and 22 000-node searches
- * held the client at 60-65 fps for as long as they ran. The limiter sleeps out whatever is left of each
- * frame's 1/cap, so a search spending exactly that leftover costs no frames, and at 120 fps the leftover
- * adds up to as much search time per second as the 30 ms tick slice gave.
+ * <p>A search advanced a slice per client tick (6 ms walking, 30 ms with no path) took the render thread for that long
+ * on the frame the tick ran in: at a 120 fps cap R1's 60 000-node and 22 000-node searches held the client at 60-65 fps
+ * for as long as they ran. The limiter sleeps out whatever is left of each frame's 1/cap, so a search spending exactly
+ * that leftover costs no frames, and at 120 fps the leftover adds up to as much search time per second as the 30 ms
+ * tick slice gave.
  *
- * <p>Render thread only: the navigator registers from its tick, the limiter hook spends, and the tick takes off
- * its own slice what the frames spent since the tick before, keeping at least 1 ms so it still collects the
- * result. A frame that only just meets the cap has little slack to give, and the tick tops the search up to
- * what it got before. With no limiter (an uncapped client, a dedicated server) nothing pumps and the tick
- * slices are unchanged.
+ * <p>Render thread only: the navigator registers from its tick, the limiter hook spends, and the tick takes off its own
+ * slice what the frames spent since the tick before, keeping at least 1 ms so it still collects the result. A frame
+ * that only just meets the cap has little slack to give, and the tick tops the search up to what it got before. With no
+ * limiter (an uncapped client, a dedicated server) nothing pumps and the tick slices are unchanged.
  */
 public final class FrameSearchPump {
     private FrameSearchPump() {}
@@ -45,7 +44,10 @@ public final class FrameSearchPump {
         Navigator nav = navigator;
         if (nav == null || now - offeredAt > STALE_NANOS) return;
         PathFinder.Search s = nav.route.seg.activeSearch;
-        if (s == null || s.done()) { navigator = null; return; }
+        if (s == null || s.done()) {
+            navigator = null;
+            return;
+        }
         s.advance(slackMs);
         spentNanos += System.nanoTime() - now;
     }

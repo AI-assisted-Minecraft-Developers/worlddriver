@@ -21,12 +21,19 @@ public final class ScriptTest {
         }
     }
 
-    public static List<Result> snapshot() { return List.copyOf(results); }
-    public static void clear() { results.clear(); }
+    public static List<Result> snapshot() {
+        return List.copyOf(results);
+    }
+
+    public static void clear() {
+        results.clear();
+    }
 
     public static int summary() {
         int pass = 0, fail = 0;
-        for (Result r : results) if (r.passed) pass++; else fail++;
+        for (Result r : results)
+            if (r.passed) pass++;
+            else fail++;
         return fail;
     }
 
@@ -37,9 +44,18 @@ public final class ScriptTest {
         public final Throwable error;
 
         private Result(String name, boolean passed, long ms, Throwable err) {
-            this.name = name; this.passed = passed; this.ms = ms; this.error = err;
+            this.name = name;
+            this.passed = passed;
+            this.ms = ms;
+            this.error = err;
         }
-        public static Result ok(String n, long ms) { return new Result(n, true, ms, null); }
-        public static Result fail(String n, Throwable e, long ms) { return new Result(n, false, ms, e); }
+
+        public static Result ok(String n, long ms) {
+            return new Result(n, true, ms, null);
+        }
+
+        public static Result fail(String n, Throwable e, long ms) {
+            return new Result(n, false, ms, e);
+        }
     }
 }

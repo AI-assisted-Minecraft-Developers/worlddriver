@@ -8,13 +8,11 @@ import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 
 /**
- * Client-side bot facade exposed through {@code mc.bot.*} MCP routes. Lives in
- * common so dedicated-server JVMs don't resolve it; a Fabric/NeoForge client
- * entrypoint instantiates the platform impl and binds it via {@link BotHooks}.
+ * Client-side bot facade exposed through {@code mc.bot.*} MCP routes. Lives in common so dedicated-server JVMs don't
+ * resolve it; a Fabric/NeoForge client entrypoint instantiates the platform impl and binds it via {@link BotHooks}.
  *
- * Semantics: every method returns immediately with {@code {started:true, ...}}.
- * Long-running progress is observed via {@link #status()} + the JSON-RPC
- * {@code mc.wait.condition} path. Cancellation is cooperative — calling another
+ * <p>Semantics: every method returns immediately with {@code {started:true, ...}}. Long-running progress is observed
+ * via {@link #status()} + the JSON-RPC {@code mc.wait.condition} path. Cancellation is cooperative — calling another
  * action implicitly cancels the previous one of the same kind.
  */
 public interface BotApi {
@@ -22,15 +20,17 @@ public interface BotApi {
     GotoOrders.Order planGoto(net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params params);
 
     /** {@code mc.bot.goto} with {@code plan: 'score'}. Client thread. */
-    net.magicterra.worlddriver.api.methods.shared.Responses.Scored scoreGoto(net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.Scored scoreGoto(
+            net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params params);
 
     /**
-     * {@code mc.bot.combat} on this client's player: the combat chain takes the fight at priority
-     * COMBAT (60), above the user task, and ends {@code action} with it; a retreat or dodge only pauses
-     * it. Binds the action's stopper. <b>Client thread only.</b>
+     * {@code mc.bot.combat} on this client's player: the combat chain takes the fight at priority COMBAT (60), above
+     * the user task, and ends {@code action} with it; a retreat or dodge only pauses it. Binds the action's stopper.
+     * <b>Client thread only.</b>
      */
-    void engage(net.magicterra.worlddriver.api.methods.bot.CombatContracts.Params params,
-                net.magicterra.worlddriver.api.action.ActionHandle action);
+    void engage(
+            net.magicterra.worlddriver.api.methods.bot.CombatContracts.Params params,
+            net.magicterra.worlddriver.api.action.ActionHandle action);
     /** {@code mc.bot.equip}: the best armour, and unless armour only the best weapon. Client thread. */
     net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse equip(
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.EquipParams params);
@@ -40,10 +40,9 @@ public interface BotApi {
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.HoldParams params);
 
     /**
-     * {@code mc.bot.useItem} on this client's player: the click a right mouse button sends, in the air, on
-     * a block face or on an entity. A use on an entity reports the vehicle and screen as they were before
-     * the click, since the server's answer arrives on a later tick; {@link #afterUse} reads them again.
-     * Client thread.
+     * {@code mc.bot.useItem} on this client's player: the click a right mouse button sends, in the air, on a block face
+     * or on an entity. A use on an entity reports the vehicle and screen as they were before the click, since the
+     * server's answer arrives on a later tick; {@link #afterUse} reads them again. Client thread.
      */
     net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse useItem(
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.UseParams params);
@@ -54,14 +53,14 @@ public interface BotApi {
 
     /**
      * {@code mc.bot.attackEntity} on this client's player: one left click on an entity, through
-     * {@code MultiPlayerGameMode.attack}, so the server applies the weapon, the cooldown, crits and
-     * sweeps. Client thread.
+     * {@code MultiPlayerGameMode.attack}, so the server applies the weapon, the cooldown, crits and sweeps. Client
+     * thread.
      */
     net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse attackEntity(
             net.magicterra.worlddriver.api.methods.interact.InteractContracts.AttackParams params);
     /**
-     * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain.
-     * Answers what it stopped; all answers {@code [all]}, a best-effort broadcast.
+     * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain. Answers
+     * what it stopped; all answers {@code [all]}, a best-effort broadcast.
      */
     java.util.List<String> cancel(String which);
 
@@ -83,57 +82,51 @@ public interface BotApi {
     /** Drop the cells the auto-backfill was going to refill. */
     void forgetBackfill();
     /**
-     * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the
-     * client thread and brings the entry back to a neutral state between pooled
-     * reuse runs: releases held movement keys, closes any open screen
-     * ({@code setScreen(null)}), clears the chat readback log, and cancels a
-     * residual smooth-look process if the {@code look} slot is active. Returns one token per
-     * effect it undid: the cancelled task's kind, {@code combat}, {@code keys:<names>} (with
-     * {@code →still:<names>} for any the release left down), {@code screen:<class>}, and always
-     * {@code chat:<lines cleared>}. Client-only —
-     * the verb throws loudly on a dedicated server (no bot impl registered).
+     * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the client thread and brings the entry back
+     * to a neutral state between pooled reuse runs: releases held movement keys, closes any open screen
+     * ({@code setScreen(null)}), clears the chat readback log, and cancels a residual smooth-look process if the
+     * {@code look} slot is active. Returns one token per effect it undid: the cancelled task's kind, {@code combat},
+     * {@code keys:<names>} (with {@code →still:<names>} for any the release left down), {@code screen:<class>}, and
+     * always {@code chat:<lines cleared>}. Client-only — the verb throws loudly on a dedicated server (no bot impl
+     * registered).
      */
     List<String> resetClientEntry();
     /**
-     * {@code mc.test.input.heldKeys} — instrument-grade held-key readback (task#90).
-     * Reads {@link net.minecraft.client.KeyMapping#isDown()} on the client thread for
-     * exactly the eight movement/action keymappings {@code BotInteract.releaseKeys()}
-     * clears — {@code keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift}. Pure
-     * observation (touches no player/world state); the readback the {@code reset.behavior}
-     * keys sub-assertion lacked (the unconditional {@code reset[]} "keys" token proves
-     * {@code releaseKeys()} RAN, not that any key was actually down and got cleared).
-     * Throws {@link IllegalStateException} when the client has no options yet. Client-only —
-     * the verb throws loudly on a dedicated server.
+     * {@code mc.test.input.heldKeys} — instrument-grade held-key readback (task#90). Reads
+     * {@link net.minecraft.client.KeyMapping#isDown()} on the client thread for exactly the eight movement/action
+     * keymappings {@code BotInteract.releaseKeys()} clears — {@code keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift}.
+     * Pure observation (touches no player/world state); the readback the {@code reset.behavior} keys sub-assertion
+     * lacked (the unconditional {@code reset[]} "keys" token proves {@code releaseKeys()} RAN, not that any key was
+     * actually down and got cleared). Throws {@link IllegalStateException} when the client has no options yet.
+     * Client-only — the verb throws loudly on a dedicated server.
      */
     TestInputContracts.HeldKeys heldKeys();
     /**
-     * {@code mc.test.input.useOnBlock} — instrument-grade world right-click (task#90).
-     * Synthesizes a {@link net.minecraft.world.phys.BlockHitResult} at the given block
-     * coords (face nearest the player's eye, hit at that face's centre — same shape as
-     * {@code mc.bot.useItemOn}) and calls {@code gameMode.useItemOn(player, hand, hit)}
-     * on the client thread. Deliberately NOT the behaviour face: no movement, no aiming
-     * (no yaw/pitch mutation), no sneak toggle — just the single right-click, so a test
-     * can open a block-entity container screen (e.g. a furnace) with no path/aim pipeline.
-     * Throws {@link IllegalStateException} with no local player. Client-only — throws loudly on a
-     * dedicated server.
+     * {@code mc.test.input.useOnBlock} — instrument-grade world right-click (task#90). Synthesizes a
+     * {@link net.minecraft.world.phys.BlockHitResult} at the given block coords (face nearest the player's eye, hit at
+     * that face's centre — same shape as {@code mc.bot.useItemOn}) and calls {@code gameMode.useItemOn(player, hand,
+     * hit)} on the client thread. Deliberately NOT the behaviour face: no movement, no aiming (no yaw/pitch mutation),
+     * no sneak toggle — just the single right-click, so a test can open a block-entity container screen (e.g. a
+     * furnace) with no path/aim pipeline. Throws {@link IllegalStateException} with no local player. Client-only —
+     * throws loudly on a dedicated server.
      */
     TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params);
     /**
-     * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint
-     * target. A save without {@code pos} takes the player's block. Client thread.
+     * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint target. A
+     * save without {@code pos} takes the player's block. Client thread.
      */
     net.magicterra.worlddriver.api.methods.control.ControlContracts.WaypointReply waypoint(
             net.magicterra.worlddriver.api.methods.control.ControlContracts.WaypointOp op);
 
     /**
-     * {@code mc.client.scene}: the latest snapshot of the per-tick derived-facts blackboard
-     * ({@link WorldModel}) the client tick updates, readable off-thread without blocking the tick.
+     * {@code mc.client.scene}: the latest snapshot of the per-tick derived-facts blackboard ({@link WorldModel}) the
+     * client tick updates, readable off-thread without blocking the tick.
      */
     ClientScene scene();
 
     /**
-     * {@code mc.observe.threats} around this client's player, with each projectile's velocity the
-     * one the bot's own threat watch derived this tick. Client thread only.
+     * {@code mc.observe.threats} around this client's player, with each projectile's velocity the one the bot's own
+     * threat watch derived this tick. Client thread only.
      */
     net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius);
 
@@ -153,20 +146,19 @@ public interface BotApi {
     /**
      * Run {@code process} as the foreground user task on the real player.
      *
-     * <p><b>Never blocks.</b> Marshals onto the client thread and returns
-     * {@code {started:true, kind, seq}} immediately — a caller on the server thread of an
-     * integrated server must not wait for the client thread, and every other method on
-     * this interface does exactly that. Supersedes whatever the user task was holding,
-     * the same way a {@code mc.bot.goto} would.
+     * <p><b>Never blocks.</b> Marshals onto the client thread and returns {@code {started:true, kind, seq}} immediately
+     * — a caller on the server thread of an integrated server must not wait for the client thread, and every other
+     * method on this interface does exactly that. Supersedes whatever the user task was holding, the same way a
+     * {@code mc.bot.goto} would.
      *
      * <p>Observe completion with {@link #userTaskLeg()}, never by sleeping.
      */
     Map<String, Object> runProcess(BotProcess process);
 
     /**
-     * Run {@code process} as the foreground user task for the accepted {@code action}, superseding the
-     * held one; the user task chain ends the action with the process. <b>Client thread only</b>: the
-     * caller has already hopped there to resolve the body and build the process.
+     * Run {@code process} as the foreground user task for the accepted {@code action}, superseding the held one; the
+     * user task chain ends the action with the process. <b>Client thread only</b>: the caller has already hopped there
+     * to resolve the body and build the process.
      */
     void startAction(BotProcess process, net.magicterra.worlddriver.api.action.ActionHandle action);
 
@@ -182,76 +174,70 @@ public interface BotApi {
     /** This client's player, or null with none. <b>Client thread only.</b> */
     net.minecraft.world.entity.LivingEntity selfEntity();
 
-    /** The process the last caller-started task ran, kept after it ended; null before any. <b>Client thread only.</b> */
+    /**
+     * The process the last caller-started task ran, kept after it ended; null before any. <b>Client thread only.</b>
+     */
     BotProcess lastAskedProcess();
 
     /**
-     * One self-consistent reading of the user task {@link #runProcess} started:
-     * {@code {seq:long, busy:bool, kind:String|null, error:String|null}}.
+     * One self-consistent reading of the user task {@link #runProcess} started: {@code {seq:long, busy:bool,
+     * kind:String|null, error:String|null}}.
      *
-     * <p><b>One call, not two, and that is the point.</b> "Is it still running" and "how did
-     * it end" are separate volatiles updated by the client thread while the caller reads
-     * from the server thread, and two atomic reads do not compose into an atomic pair: a
-     * poll landing between them sees {@code busy=false} beside the PREVIOUS task's ending, so
-     * "this process run has just completed" and "the previous run completed long ago and this one
-     * is not installed yet" render identically. This repo has already paid for that exact shape —
-     * a {@code null} that meant "not computed yet" read as "computed as zero". So the whole reading is published as one immutable snapshot and handed
-     * over in one field read.
+     * <p><b>One call, not two, and that is the point.</b> "Is it still running" and "how did it end" are separate
+     * volatiles updated by the client thread while the caller reads from the server thread, and two atomic reads do not
+     * compose into an atomic pair: a poll landing between them sees {@code busy=false} beside the PREVIOUS task's
+     * ending, so "this process run has just completed" and "the previous run completed long ago and this one is not
+     * installed yet" render identically. This repo has already paid for that exact shape — a {@code null} that meant
+     * "not computed yet" read as "computed as zero". So the whole reading is published as one immutable snapshot and
+     * handed over in one field read.
      *
-     * <p>{@code busy} is true from the instant {@code runProcess} returns and goes false only
-     * on the client thread, and only once the process object it installed has actually left
-     * the chain — so the window between "enqueued" and "installed" can never be read as
-     * "already finished".
+     * <p>{@code busy} is true from the instant {@code runProcess} returns and goes false only on the client thread, and
+     * only once the process object it installed has actually left the chain — so the window between "enqueued" and
+     * "installed" can never be read as "already finished".
      *
      * <p>{@code error} is non-null when the process did not do what it was asked: it gave up
-     * ({@link BotProcess#failure()}), it threw, or a
-     * higher-priority chain (panic / dodge / combat) cancelled it. A caller that ignores this
-     * cannot tell a task a creeper interrupted from a task that finished, because {@code busy}
+     * ({@link BotProcess#failure()}), it threw, or a higher-priority chain (panic / dodge / combat) cancelled it. A
+     * caller that ignores this cannot tell a task a creeper interrupted from a task that finished, because {@code busy}
      * goes false for both.
      *
-     * <p>{@code seq} increments once per {@code runProcess}, so a caller can tell a stale
-     * snapshot from a current one.
+     * <p>{@code seq} increments once per {@code runProcess}, so a caller can tell a stale snapshot from a current one.
      */
     Map<String, Object> userTaskLeg();
 
     /**
-     * The {@link net.magicterra.worlddriver.game.body.Body} over this client's own
-     * {@code LocalPlayer} — the single-shot actuator face of the same seam {@link #runProcess}
-     * gives the per-tick one.
+     * The {@link net.magicterra.worlddriver.game.body.Body} over this client's own {@code LocalPlayer} — the
+     * single-shot actuator face of the same seam {@link #runProcess} gives the per-tick one.
      *
-     * <p><b>Why in-JVM code cannot just build one.</b> {@code ClientPlayerBody} imports
-     * {@code net.minecraft.client}, so merely NAMING it from code that also runs headless makes the
-     * JVM resolve it there — the {@code NoClassDefFoundError} shape StageWright's {@code DriverFeed}
-     * documents, where a client half died on the tick after arming and the server then ran a suite
-     * with no player. Returning it through this interface keeps the reference on the client side of
-     * the boundary, exactly like every other method here.
+     * <p><b>Why in-JVM code cannot just build one.</b> {@code ClientPlayerBody} imports {@code net.minecraft.client},
+     * so merely NAMING it from code that also runs headless makes the JVM resolve it there — the
+     * {@code NoClassDefFoundError} shape StageWright's {@code DriverFeed} documents, where a client half died on the
+     * tick after arming and the server then ran a suite with no player. Returning it through this interface keeps the
+     * reference on the client side of the boundary, exactly like every other method here.
      *
-     * <p><b>Why it matters that this exists at all.</b> Measured by
-     * {@code wd.actuatorSplitOnAnAdoptedBody} on the integrated topology, driving the adopted player
-     * through a server-side {@code ServerPlayerBody} instead: the server's selected slot went to 4
-     * and the client's stayed at 0; the server's aim went to (−55.32, 29.55) and the client's stayed
-     * at (283.23, 0.00) — identical ten ticks later, so nothing propagated in either direction. The
-     * two sides simply hold unrelated values, and every such write lands on a player nobody is
-     * steering. {@code ClientPlayerBody} does the same operations the way vanilla requires:
-     * {@code setSelectedSlot} sends {@code ServerboundSetCarriedItemPacket}, and the aim moves the
-     * player the server is receiving movement packets from.
+     * <p><b>Why it matters that this exists at all.</b> Measured by {@code wd.actuatorSplitOnAnAdoptedBody} on the
+     * integrated topology, driving the adopted player through a server-side {@code ServerPlayerBody} instead: the
+     * server's selected slot went to 4 and the client's stayed at 0; the server's aim went to (−55.32, 29.55) and the
+     * client's stayed at (283.23, 0.00) — identical ten ticks later, so nothing propagated in either direction. The two
+     * sides simply hold unrelated values, and every such write lands on a player nobody is steering.
+     * {@code ClientPlayerBody} does the same operations the way vanilla requires: {@code setSelectedSlot} sends
+     * {@code ServerboundSetCarriedItemPacket}, and the aim moves the player the server is receiving movement packets
+     * from.
      *
      * <p>Null when no {@code LocalPlayer} exists yet.
      *
-     * <p>Call it on the client thread. Its methods write {@code mc.player}'s inventory and rotation
-     * and send packets; the one caller, {@code BotReadings.selfBody}, runs there. Do not issue
-     * single-shot actions on it from the server thread: few of those vanilla fields assert their
-     * thread, so a cross-thread write is a silent data race, not an exception.
+     * <p>Call it on the client thread. Its methods write {@code mc.player}'s inventory and rotation and send packets;
+     * the one caller, {@code BotReadings.selfBody}, runs there. Do not issue single-shot actions on it from the server
+     * thread: few of those vanilla fields assert their thread, so a cross-thread write is a silent data race, not an
+     * exception.
      */
     net.magicterra.worlddriver.game.body.Body clientAvatar();
 
     /**
-     * The standard refusal when the bot cannot take an order right now — no player, a world still
-     * loading, a dead player, a paused game, a bed, a chunk not yet on the client — or null when it
-     * can. {@link Readiness} decides and shapes it ({@code {ok:false, error, reason}}); this is the
-     * client-thread read of it that the driver puts in front of every verb that acts on the
-     * bot, so the same refusal comes back on every transport instead of {@code started: true} for
-     * a bot that cannot move. Reads only; starts nothing.
+     * The standard refusal when the bot cannot take an order right now — no player, a world still loading, a dead
+     * player, a paused game, a bed, a chunk not yet on the client — or null when it can. {@link Readiness} decides and
+     * shapes it ({@code {ok:false, error, reason}}); this is the client-thread read of it that the driver puts in front
+     * of every verb that acts on the bot, so the same refusal comes back on every transport instead of {@code started:
+     * true} for a bot that cannot move. Reads only; starts nothing.
      */
     Map<String, Object> bodyRefusal();
 }

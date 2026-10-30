@@ -1,10 +1,16 @@
 package net.magicterra.worlddriver.bot.control.controller;
 
-import net.magicterra.worlddriver.bot.control.act.Keys;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import static net.magicterra.worlddriver.config.Mod.LOG;
+import static net.magicterra.worlddriver.game.body.BotUtil.smoothAngle;
+
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
-
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
+import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -13,39 +19,48 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
-import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
-import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotUtil.smoothAngle;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.TickCtx;
-
 /**
- * Climbing a vine the bot is hanging on (user insight 2026-06-06). Vines are CLIMBABLE, so when the navigator
- * fights a stale waypoint while the bot clings to one it wedges for seconds (the jungle cling-freeze:
- * suspended off-ground, hCol, hSpd≈0, while the waypoint sat 3 blocks BELOW). A vine is a fixed climb
- * sub-path: once the bot is suspended ON a vine (!onGround), face the path-ahead bearing and, if the path
- * ahead is up or level, CLIMB (forward + jump); the offPath / stuck repath then re-routes from the new
- * elevation. If the path ahead is BELOW (over-climbed), release the climb keys so the bot slides back down
- * to be re-planned. Never on the ground, so it doesn't hijack ordinary walking through a vine-draped cell.
+ * Climbing a vine the bot is hanging on (user insight 2026-06-06). Vines are CLIMBABLE, so when the navigator fights a
+ * stale waypoint while the bot clings to one it wedges for seconds (the jungle cling-freeze: suspended off-ground,
+ * hCol, hSpd≈0, while the waypoint sat 3 blocks BELOW). A vine is a fixed climb sub-path: once the bot is suspended ON
+ * a vine (!onGround), face the path-ahead bearing and, if the path ahead is up or level, CLIMB (forward + jump); the
+ * offPath / stuck repath then re-routes from the new elevation. If the path ahead is BELOW (over-climbed), release the
+ * climb keys so the bot slides back down to be re-planned. Never on the ground, so it doesn't hijack ordinary walking
+ * through a vine-draped cell.
  *
  * <p>Hands are not claimed: climbing holds nothing.
  */
 public final class VineClimb implements Controller {
-    private float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — self-resyncing (no journey reset)
-
+    private float freeHangDriveYaw =
+            Float.NaN; // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter
+    // ±180° flips that would circle the bot off a narrow column — self-resyncing (no journey reset)
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
     private boolean onVine, parkourEdge;
 
-    @Override public String name() { return "vineClimb"; }
-    @Override public Set<Channel> channels() { return CHANNELS; }
-    @Override public int priority() { return 6; }
-    /** As long as the bot hangs on the vine. */
-    @Override public int maxTicks() { return Integer.MAX_VALUE; }
+    @Override
+    public String name() {
+        return "vineClimb";
+    }
 
-    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public Set<Channel> channels() {
+        return CHANNELS;
+    }
+
+    @Override
+    public int priority() {
+        return 6;
+    }
+    /** As long as the bot hangs on the vine. */
+    @Override
+    public int maxTicks() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public void sense(Navigator nav, TickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
@@ -63,40 +78,55 @@ public final class VineClimb implements Controller {
         double vineDx = (wp.getX() + 0.5) - p.getX();
         double vineDz = (wp.getZ() + 0.5) - p.getZ();
         boolean landedOnVine = ControlConfig.navigatorVineLandGrab
-                && world.isClimbable(foot) && !p.onGround()
+                && world.isClimbable(foot)
+                && !p.onGround()
                 && (vineDx * vineDx + vineDz * vineDz) < OVERSHOOT_RESYNC_SQ;
-        onVine = (!parkourEdge || landedOnVine)
-                && !p.isInWater() && !p.onGround() && world.isClimbable(foot);
+        onVine = (!parkourEdge || landedOnVine) && !p.isInWater() && !p.onGround() && world.isClimbable(foot);
         // VINEDIAG (behind navigatorDebug): capture the parkour→vine landing decision at the apex. Fires
         // while airborne OR in-water (the bug window), whether or not the climb engages — so an A/B can
         // see if the foot EVER becomes the climbable vine while parkourEdge is still true (the
         // landedOnVine case) or if the arc skips the vine straight to the water pocket.
         if (GameConfig.navigatorDebug && (!p.onGround() || p.isInWater())) {
             BlockPos footBelow = foot.below();
-            LOG.info("[VINEDIAG] py={} foot={},{},{} climb(foot)={} climb(below)={} parkourEdge={} inWater={} onGround={} landedOnVine={} onVine={} cur2={} wp={},{},{}",
+            LOG.info(
+                    "[VINEDIAG] py={} foot={},{},{} climb(foot)={} climb(below)={} parkourEdge={} inWater={} onGround={} landedOnVine={} onVine={} cur2={} wp={},{},{}",
                     String.format(Locale.ROOT, "%.2f", p.getY()),
-                    foot.getX(), foot.getY(), foot.getZ(),
-                    world.isClimbable(foot), world.isClimbable(footBelow), parkourEdge,
-                    p.isInWater(), p.onGround(), landedOnVine, onVine,
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ(),
+                    world.isClimbable(foot),
+                    world.isClimbable(footBelow),
+                    parkourEdge,
+                    p.isInWater(),
+                    p.onGround(),
+                    landedOnVine,
+                    onVine,
                     String.format(Locale.ROOT, "%.2f", vineDx * vineDx + vineDz * vineDz),
-                    wp.getX(), wp.getY(), wp.getZ());
+                    wp.getX(),
+                    wp.getY(),
+                    wp.getZ());
         }
     }
 
-    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         return onVine ? null : "not hanging on a vine";
     }
 
-    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+    @Override
+    public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
         return onVine;
     }
 
-    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
+    @Override
+    public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         BlockPos wp = nav.route.path().get(nav.route.step());
         if (parkourEdge) nav.safety.guardParkourTick = true;
-        BlockPos ahead = nav.route.path().get(Math.min(nav.route.step() + 2, nav.route.path().size() - 1));
+        BlockPos ahead = nav.route
+                .path()
+                .get(Math.min(nav.route.step() + 2, nav.route.path().size() - 1));
         // Vanilla vine ASCENT (LivingEntity.travel) only fires while
         // (horizontalCollision || jumping) && onClimbable, and SUSTAINS only while the
         // player keeps colliding with a wall — proven by vineClingFidelityProbe (the avatar
@@ -120,7 +150,7 @@ public final class VineClimb implements Controller {
         // so the bot climbs the clean stepUp chain (path up → climbUp naturally true) and never
         // oscillates. Plain over-climb semantics restored; a narrower pocket-only guard can be
         // added later if a real slide-into-pocket is observed WITH the handoff in place.
-        boolean climbUp = ahead.getY() >= foot.getY();   // path ahead up/level → climb; below → over-climbed, descend
+        boolean climbUp = ahead.getY() >= foot.getY(); // path ahead up/level → climb; below → over-climbed, descend
         // DESCEND-OFF-THE-CURTAIN gate (navigatorVineDescentDrop, default ON). When the path skims a
         // bank/inlet at one Y under a HANGING vine curtain, `ahead` (step+2) sits at the bob floor and
         // `climbUp` OSCILLATES with the y-bob → the bot is pinned ON the vine, jumping up / sliding down
@@ -146,9 +176,9 @@ public final class VineClimb implements Controller {
         // backed cells (wallYaw!=null) hand back to the wall-press path to top out + step off.
         boolean freeHang = ControlConfig.navigatorVineFreeHangClimb && wallYaw == null && climbUp;
         float vYaw;
-        boolean pressForward = false;           // for the wall-backed / legacy path below
-        boolean freeHangDrive = false;          // true → horizontal driven by commandMove (decoupled)
-        float fhBearing = 0f;                   // radians; world bearing to the climb target
+        boolean pressForward = false; // for the wall-backed / legacy path below
+        boolean freeHangDrive = false; // true → horizontal driven by commandMove (decoupled)
+        float fhBearing = 0f; // radians; world bearing to the climb target
         if (freeHang) {
             // Steer toward the immediate next node `wp` (this is the LIVE-validated target: the bot
             // climbs the curtain up-and-across toward each successive node). `wp` can flip ±180° when
@@ -161,7 +191,7 @@ public final class VineClimb implements Controller {
                 // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.
                 vYaw = p.getYRot();
                 freeHangDrive = false;
-                freeHangDriveYaw = Float.NaN;            // resync the slew when a real bearing returns
+                freeHangDriveYaw = Float.NaN; // resync the slew when a real bearing returns
             } else {
                 // SLEW-LIMIT the drive heading: turn a persistent heading at most ~30°/tick toward the
                 // bearing to wp. When `step` advances and wp flips, the heading averages the flip into
@@ -170,15 +200,15 @@ public final class VineClimb implements Controller {
                 // the exit) so the slewed value just hugs it — the proven up-and-across path is intact.
                 float target = (float) Math.toDegrees(Math.atan2(-tx, tz));
                 if (Float.isNaN(freeHangDriveYaw)) {
-                    freeHangDriveYaw = target;            // snap on the first tick of the climb
+                    freeHangDriveYaw = target; // snap on the first tick of the climb
                 } else {
-                    float dyaw = angleDiff(freeHangDriveYaw, target);   // shortest turn toward target
+                    float dyaw = angleDiff(freeHangDriveYaw, target); // shortest turn toward target
                     if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
                     freeHangDriveYaw += dyaw;
                 }
                 freeHangDrive = true;
-                fhBearing = (float) Math.toRadians(freeHangDriveYaw);   // drive along the slewed heading
-                vYaw = freeHangDriveYaw;                  // camera follows the same slewed heading
+                fhBearing = (float) Math.toRadians(freeHangDriveYaw); // drive along the slewed heading
+                vYaw = freeHangDriveYaw; // camera follows the same slewed heading
             }
         } else if (wallYaw != null) {
             vYaw = wallYaw;
@@ -195,7 +225,9 @@ public final class VineClimb implements Controller {
             float dyaw = angleDiff(p.getYRot(), want);
             if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
             float ny = p.getYRot() + dyaw;
-            p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny;
+            p.setYRot(ny);
+            p.yHeadRot = ny;
+            p.yBodyRot = ny;
         }
         p.setXRot(smoothAngle(p.getXRot(), 0f));
         // Horizontal drive: free-hang uses the camera-DECOUPLED impulse toward the climb target
@@ -209,26 +241,35 @@ public final class VineClimb implements Controller {
             // the wide -711 curtain (in-pocket→0, tops out, advances). A "fully decoupled" Δ-form was
             // tried and REGRESSED live (it wedged the bot in the pocket — the wide-curtain climb needs
             // THIS trajectory, not a geometrically-pure one), so do NOT change it without a live A/B.
-            a.commandMove((float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE),
-                          (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
+            a.commandMove(
+                    (float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE), (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
         } else {
-            Keys.forward(a, pressForward);      // forward INTO the wall (wall-backed climb)
+            Keys.forward(a, pressForward); // forward INTO the wall (wall-backed climb)
         }
         // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
         // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
         if (freeHang || climbUp) nav.jumpTag = "vineClimb";
-        nav.keys.jump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
-        Keys.sneak(a, false);              // sneak would HALT the vine climb
+        nav.keys.jump(a, freeHang || climbUp); // continuous jump on a wall-less climb
+        Keys.sneak(a, false); // sneak would HALT the vine climb
         p.setShiftKeyDown(false);
         p.setSprinting(false);
         if (GameConfig.navigatorDebug)
-            LOG.info("[navigator] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
-                    foot.getX(), foot.getY(), foot.getZ(),
-                    ahead.getX(), ahead.getY(), ahead.getZ(), climbUp, freeHang, freeHangDrive,
+            LOG.info(
+                    "[navigator] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
+                    foot.getX(),
+                    foot.getY(),
+                    foot.getZ(),
+                    ahead.getX(),
+                    ahead.getY(),
+                    ahead.getZ(),
+                    climbUp,
+                    freeHang,
+                    freeHangDrive,
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     String.format(Locale.ROOT, "%.2f", p.getY()));
         return true;
     }
 
-    @Override public void stop(String why) {}
+    @Override
+    public void stop(String why) {}
 }

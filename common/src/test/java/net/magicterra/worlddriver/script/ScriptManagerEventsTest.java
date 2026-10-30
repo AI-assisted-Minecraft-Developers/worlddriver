@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
-
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.test.ScriptTest;
 import org.junit.jupiter.api.DynamicTest;
@@ -19,9 +18,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Isolated;
 
 /**
- * 09_events.js through {@link ScriptManager}, the loader of the operator's scripts: the {@code ScriptEvents} attach
- * and tick lifecycle exists only in the scope it builds, not in a hosted script test's. One dynamic test per check
- * the script makes, and the list of them pinned, so a check that stops running is noticed.
+ * 09_events.js through {@link ScriptManager}, the loader of the operator's scripts: the {@code ScriptEvents} attach and
+ * tick lifecycle exists only in the scope it builds, not in a hosted script test's. One dynamic test per check the
+ * script makes, and the list of them pinned, so a check that stops running is noticed.
  */
 @Isolated("ScriptTest and ScriptEvents keep one list for the JVM")
 class ScriptManagerEventsTest {
@@ -54,7 +53,7 @@ class ScriptManagerEventsTest {
         }
         assertEquals(1, loaded, "the script loads");
         assertEquals(CHECKS, results.stream().map(r -> r.name).toList(), "the checks the script makes, in order");
-        return results.stream().map(r -> DynamicTest.dynamicTest(r.name,
-                () -> assertTrue(r.passed, () -> String.valueOf(r.error))));
+        return results.stream()
+                .map(r -> DynamicTest.dynamicTest(r.name, () -> assertTrue(r.passed, () -> String.valueOf(r.error))));
     }
 }

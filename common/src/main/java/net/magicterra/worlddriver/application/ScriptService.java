@@ -4,20 +4,21 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
-
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.script.ScriptApi;
 import net.magicterra.worlddriver.api.methods.script.ScriptApiBinding;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 
 /** {@code mc.script.eval}, {@code mc.skill} and {@code mc.bot.playbook}, answered by the bound {@link ScriptHost}. */
 final class ScriptService implements ScriptApi {
     private final Supplier<ScriptHost> host;
 
-    ScriptService(Supplier<ScriptHost> host) { this.host = host; }
+    ScriptService(Supplier<ScriptHost> host) {
+        this.host = host;
+    }
 
     List<ApiMethod<?, ?>> methods() {
         return ScriptApiBinding.methods(this);
@@ -40,7 +41,8 @@ final class ScriptService implements ScriptApi {
 
     private ScriptHost host() {
         ScriptHost h = host.get();
-        if (h == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no script engine is bound in this game");
+        if (h == null)
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no script engine is bound in this game");
         return h;
     }
 }

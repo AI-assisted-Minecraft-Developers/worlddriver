@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.application;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -12,7 +11,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-
 import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
@@ -24,17 +22,22 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 
 /**
- * Repeated reads for the waits and the event watchers. A wait between two polls holds no thread: the
- * timer hands each poll to a small pool, and the poll gives its thread back as soon as its read
- * answers. Only methods described as {@link MethodSpec#pollable() pollable} may be polled, which keeps
- * a write from being repeated and a wait or script from being nested inside one.
+ * Repeated reads for the waits and the event watchers. A wait between two polls holds no thread: the timer hands each
+ * poll to a small pool, and the poll gives its thread back as soon as its read answers. Only methods described as
+ * {@link MethodSpec#pollable() pollable} may be polled, which keeps a write from being repeated and a wait or script
+ * from being nested inside one.
  */
 final class Polling {
     private Polling() {}
 
     /** Every poll is a short read; a slow one queues the next rather than starting another thread. */
-    private static final ExecutorService POLLS = new ThreadPoolExecutor(4, 4, 30, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(), Thread.ofPlatform().name("worlddriver-poll").daemon().factory());
+    private static final ExecutorService POLLS = new ThreadPoolExecutor(
+            4,
+            4,
+            30,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofPlatform().name("worlddriver-poll").daemon().factory());
 
     static {
         ((ThreadPoolExecutor) POLLS).allowCoreThreadTimeOut(true);
@@ -50,17 +53,21 @@ final class Polling {
     }
 
     /**
-     * {@code invoke} with {@code params}, checked before anything starts: the method must be pollable
-     * (reported at {@code /invoke}) and the params must satisfy its own contract (at {@code /params/…}).
+     * {@code invoke} with {@code params}, checked before anything starts: the method must be pollable (reported at
+     * {@code /invoke}) and the params must satisfy its own contract (at {@code /params/…}).
      */
     static Target target(ApiRegistry api, String invoke, Optional<JsonValue> params) {
         MethodSpec<?, ?> spec = api.spec(invoke);
         if (spec == null || !spec.pollable()) {
-            String why = spec != null ? invoke + " is not pollable: it writes, waits or runs a script"
-                    : api.methods().contains(invoke) ? invoke + " is not pollable: it has no typed contract yet"
-                    : "unknown method " + invoke;
-            throw ApiException.invalidParam("/invoke", ApiIssue.Code.INVALID_VALUE, why
-                    + "; only a bounded read such as mc.bot.status or mc.observe.cursor may be polled");
+            String why = spec != null
+                    ? invoke + " is not pollable: it writes, waits or runs a script"
+                    : api.methods().contains(invoke)
+                            ? invoke + " is not pollable: it has no typed contract yet"
+                            : "unknown method " + invoke;
+            throw ApiException.invalidParam(
+                    "/invoke",
+                    ApiIssue.Code.INVALID_VALUE,
+                    why + "; only a bounded read such as mc.bot.status or mc.observe.cursor may be polled");
         }
         JsonElement tree = params.map(JsonValue::json).orElse(new JsonObject());
         DecodeContext at = DecodeContext.root().field("params");
@@ -80,18 +87,26 @@ final class Polling {
     }
 
     /**
-     * Probe now and then every {@code pollMs} until it answers, or until {@code budgetMs} has passed,
-     * when {@code timedOut} answers instead; a cancelled request ends it the same way. A probe that
-     * fails ends the wait with its error.
+     * Probe now and then every {@code pollMs} until it answers, or until {@code budgetMs} has passed, when
+     * {@code timedOut} answers instead; a cancelled request ends it the same way. A probe that fails ends the wait with
+     * its error.
      */
-    static <R> CompletableFuture<R> until(long budgetMs, long pollMs, CancellationToken cancelled,
-                                          Supplier<CompletionStage<Optional<R>>> probe, Supplier<R> timedOut) {
+    static <R> CompletableFuture<R> until(
+            long budgetMs,
+            long pollMs,
+            CancellationToken cancelled,
+            Supplier<CompletionStage<Optional<R>>> probe,
+            Supplier<R> timedOut) {
         Loop<R> loop = new Loop<>(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs), pollMs, probe, timedOut);
         AutoCloseable gone = cancelled.onCancel(loop::giveUp);
         loop.out.whenComplete((r, t) -> {
             ScheduledFuture<?> timer = loop.timer;
             if (timer != null) timer.cancel(false);
-            try { gone.close(); } catch (Exception ignored) { /* nothing to release */ }
+            try {
+                gone.close();
+            } catch (Exception ignored) {
+                /* nothing to release */
+            }
         });
         execute(loop::attempt);
         return loop.out;

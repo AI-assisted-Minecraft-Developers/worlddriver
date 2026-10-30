@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -29,8 +28,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * The Core family, client-face half: the input verbs that go through the real client's own handlers, and the client
- * face's readings of its player. Every call goes by name through the client's registry ({@link Calls#byName}), the
- * door every transport shares. The headless half is {@link CoreTest}.
+ * face's readings of its player. Every call goes by name through the client's registry ({@link Calls#byName}), the door
+ * every transport shares. The headless half is {@link CoreTest}.
  *
  * <p>The player's game mode picks the screen the inventory binding opens (creative opens the creative inventory) and
  * what the wheel does (a spectator's changes flying speed), so each test sets survival and puts the old mode back.
@@ -41,13 +40,13 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 class CoreClientTest {
 
     /**
-     * {@code mc.client.input.keybind} opens what a named binding opens, and leaves it released. The verb exists for
-     * the bindings no synthesized key can reach (a pack binds GUIs to modified keys, whose modifier half is read from
-     * the physical keyboard). What is held here is everything else it promises, on a binding whose effect is
-     * unmistakable: the screen it opens is open; the key went out as a real event ({@code rawEvent=sent}, what mods
-     * that subscribe to key input need); and the mapping is down during the click and released after it, because a
-     * binding left down outlives the test. {@code key.inventory}, rather than one the testmod registers: the verb's
-     * subject is bindings it does not own.
+     * {@code mc.client.input.keybind} opens what a named binding opens, and leaves it released. The verb exists for the
+     * bindings no synthesized key can reach (a pack binds GUIs to modified keys, whose modifier half is read from the
+     * physical keyboard). What is held here is everything else it promises, on a binding whose effect is unmistakable:
+     * the screen it opens is open; the key went out as a real event ({@code rawEvent=sent}, what mods that subscribe to
+     * key input need); and the mapping is down during the click and released after it, because a binding left down
+     * outlives the test. {@code key.inventory}, rather than one the testmod registers: the verb's subject is bindings
+     * it does not own.
      */
     @Test
     void clientKeybindOpensABinding(Game game, Client client, Player player) {
@@ -56,7 +55,9 @@ class CoreClientTest {
             Map<String, Object> m = call(client, "mc.client.input.keybind", Map.of("name", "key.inventory"));
             game.check(() -> assertEquals("done", m.get("outcome"), "the verb took the binding's name: " + m));
             game.check(() -> assertEquals("key.inventory", m.get("name"), "the mapping it resolved the name to"));
-            game.check(() -> assertEquals("sent", String.valueOf(m.get("rawEvent")),
+            game.check(() -> assertEquals(
+                    "sent",
+                    String.valueOf(m.get("rawEvent")),
                     "what became of the raw key event — `sent` is what an event-driven mod needs"));
             game.check(() -> assertEquals(true, m.get("released"), "the click released the mapping"));
             game.check(() -> assertEquals(true, m.get("down"), "the mapping was down while the click was in flight"));
@@ -67,13 +68,22 @@ class CoreClientTest {
             // What the keystroke left open, which is what routes the caller's NEXT one.
             game.check(() -> assertEquals("InventoryScreen", m.get("screenAfter"), "the screen this keystroke left"));
 
-            Map<String, Object> info = until(game, client, "mc.client.screen.info", Map.of(),
-                    i -> Boolean.TRUE.equals(i.get("hasScreen")), 100, "a screen opens");
-            game.check(() -> assertEquals("InventoryScreen", info.get("type"), "the screen the inventory binding opens"));
+            Map<String, Object> info = until(
+                    game,
+                    client,
+                    "mc.client.screen.info",
+                    Map.of(),
+                    i -> Boolean.TRUE.equals(i.get("hasScreen")),
+                    100,
+                    "a screen opens");
+            game.check(
+                    () -> assertEquals("InventoryScreen", info.get("type"), "the screen the inventory binding opens"));
             // Read back from the listing, not from the reply that claimed it: a release only the replier believes in
             // is the failure this checks for.
             Map<String, Object> listing = call(client, "mc.client.input.keybind", Map.of());
-            game.check(() -> assertEquals(false, keybindDown(listing, "key.inventory"),
+            game.check(() -> assertEquals(
+                    false,
+                    keybindDown(listing, "key.inventory"),
                     "key.inventory still down after the click, read back from the listing"));
         } finally {
             call(client, "mc.client.screen.close", Map.of());
@@ -83,22 +93,23 @@ class CoreClientTest {
     /**
      * {@code mc.client.input.click} by a ref from a tree, and {@code returnTree}. The survival inventory's recipe-book
      * button, because clicking it moves it: the screen shifts right to make room for the book. So the ref is shown to
-     * follow the widget rather than the place it was read at — the second click aims where the button is now — and
-     * the tree that comes back with the first click is the one after it. Then the screen is reopened, which builds a
-     * new button, and the old ref must be refused rather than land on it.
+     * follow the widget rather than the place it was read at — the second click aims where the button is now — and the
+     * tree that comes back with the first click is the one after it. Then the screen is reopened, which builds a new
+     * button, and the old ref must be refused rather than land on it.
      */
     @Test
     void clientClickByRef(Game game, Client client, Player player) {
         survival(game, client, player);
         try {
-            Map<String, Object> opened = call(client, "mc.client.input.keybind",
-                    Map.of("name", "key.inventory", "returnTree", true));
+            Map<String, Object> opened =
+                    call(client, "mc.client.input.keybind", Map.of("name", "key.inventory", "returnTree", true));
             game.check(() -> assertEquals(true, opened.get("treeChanged"), "opening the inventory changed the tree"));
             Map<?, ?> tree = opened.get("tree") instanceof Map<?, ?> t ? t : Map.of();
-            game.check(() -> assertEquals("InventoryScreen", tree.get("type"),
-                    "the tree that came back is the screen the keystroke opened"));
+            game.check(() -> assertEquals(
+                    "InventoryScreen", tree.get("type"), "the tree that came back is the screen the keystroke opened"));
             Map<?, ?> button = nodeOfType(tree, "ImageButton");
-            if (button == null) fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            if (button == null)
+                fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
             Object ref = button.get("ref");
             Object xBefore = boxX(button);
 
@@ -108,8 +119,8 @@ class CoreClientTest {
             game.check(() -> assertEquals(true, toggled.get("treeChanged"), "opening the book changed the tree"));
             Map<?, ?> moved = nodeWithRef(toggled.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
             game.check(moved != null, "the same ref " + ref + " is in the tree after the click");
-            game.check(() -> assertNotEquals(xBefore, moved == null ? xBefore : boxX(moved),
-                    "the button's x after the book opened"));
+            game.check(() -> assertNotEquals(
+                    xBefore, moved == null ? xBefore : boxX(moved), "the button's x after the book opened"));
             // Aimed where the button is now, not where the first tree put it: a click at the old point would miss it.
             Map<String, Object> back = call(client, "mc.client.input.click", Map.of("ref", ref));
             game.check(() -> assertEquals(true, back.get("handled"), "the moved button took the second click too"));
@@ -118,7 +129,8 @@ class CoreClientTest {
             call(client, "mc.client.screen.close", Map.of());
             call(client, "mc.client.input.keybind", Map.of("name", "key.inventory"));
             Map<String, Object> stale = call(client, "mc.client.input.click", Map.of("ref", ref));
-            game.check(() -> assertEquals("refused", stale.get("outcome"), "a ref from a screen since rebuilt: " + stale));
+            game.check(
+                    () -> assertEquals("refused", stale.get("outcome"), "a ref from a screen since rebuilt: " + stale));
             game.check(() -> assertEquals("no_target", stale.get("reason"), "why a stale ref is refused"));
         } finally {
             call(client, "mc.client.screen.close", Map.of());
@@ -136,9 +148,16 @@ class CoreClientTest {
             call(client, "mc.client.input.setHotbarSlot", Map.of("slot", 3));
             until(game, client, "mc.client.player", Map.of(), p -> selectedSlot(p) == 3, 100, "slot 3 is selected");
             call(client, "mc.client.input.mouseMove", Map.of("scroll", -1.0));
-            Map<String, Object> after = until(game, client, "mc.client.player", Map.of(), q -> selectedSlot(q) != 3, 40,
+            Map<String, Object> after = until(
+                    game,
+                    client,
+                    "mc.client.player",
+                    Map.of(),
+                    q -> selectedSlot(q) != 3,
+                    40,
                     "the selected slot moves off 3");
-            assertEquals(4, selectedSlot(after), "the selected hotbar slot after one notch toward the user from slot 3");
+            assertEquals(
+                    4, selectedSlot(after), "the selected hotbar slot after one notch toward the user from slot 3");
         } finally {
             call(client, "mc.client.input.setHotbarSlot", Map.of("slot", 0));
         }
@@ -146,10 +165,10 @@ class CoreClientTest {
 
     /**
      * {@code route: "raw"} on key, click and typeText, which go through vanilla's own keyboard and mouse handlers
-     * instead of straight to the screen. Each step is one a direct call cannot show it took: E with no screen opens
-     * the inventory, a click on the recipe-book toggle moves it, T opens chat, typed characters land in its box, and
-     * ESCAPE closes it. JEI's overlay, the reason for the route, is not in this pack; what it needs is that these
-     * events go through those handlers at all.
+     * instead of straight to the screen. Each step is one a direct call cannot show it took: E with no screen opens the
+     * inventory, a click on the recipe-book toggle moves it, T opens chat, typed characters land in its box, and ESCAPE
+     * closes it. JEI's overlay, the reason for the route, is not in this pack; what it needs is that these events go
+     * through those handlers at all.
      */
     @Test
     void clientRawInputThroughVanillaHandlers(Game game, Client client, Player player) {
@@ -158,22 +177,38 @@ class CoreClientTest {
         try {
             Map<String, Object> e = call(client, "mc.client.input.key", Map.of("key", "E", "route", "raw"));
             game.check(() -> assertEquals("raw", e.get("via"), "where key E with route raw went"));
-            Map<String, Object> tree = until(game, client, "mc.client.screen.tree", Map.of(),
-                    t -> "InventoryScreen".equals(t.get("type")), 40, "E opens the inventory");
+            Map<String, Object> tree = until(
+                    game,
+                    client,
+                    "mc.client.screen.tree",
+                    Map.of(),
+                    t -> "InventoryScreen".equals(t.get("type")),
+                    40,
+                    "E opens the inventory");
             Map<?, ?> button = nodeOfType(tree, "ImageButton");
-            if (button == null) fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            if (button == null)
+                fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
             Object ref = button.get("ref");
-            Map<String, Object> clicked = call(client, "mc.client.input.click",
-                    Map.of("ref", ref, "route", "raw", "returnTree", true));
-            game.check(!clicked.containsKey("handled"), "no `handled` with route raw, which nothing answers: " + clicked);
+            Map<String, Object> clicked =
+                    call(client, "mc.client.input.click", Map.of("ref", ref, "route", "raw", "returnTree", true));
+            game.check(
+                    !clicked.containsKey("handled"), "no `handled` with route raw, which nothing answers: " + clicked);
             Map<?, ?> moved = nodeWithRef(clicked.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
-            game.check(() -> assertNotEquals(boxX(button), moved == null ? boxX(button) : boxX(moved),
+            game.check(() -> assertNotEquals(
+                    boxX(button),
+                    moved == null ? boxX(button) : boxX(moved),
                     "the toggle's x after a raw click opened the book"));
 
             call(client, "mc.client.screen.close", Map.of());
             until(game, client, "mc.client.screen.info", Map.of(), noScreen, 40, "the inventory closes");
             call(client, "mc.client.input.key", Map.of("key", "T", "route", "raw"));
-            until(game, client, "mc.client.screen.info", Map.of(), s -> "ChatScreen".equals(s.get("type")), 40,
+            until(
+                    game,
+                    client,
+                    "mc.client.screen.info",
+                    Map.of(),
+                    s -> "ChatScreen".equals(s.get("type")),
+                    40,
                     "T opens chat");
             call(client, "mc.client.input.typeText", Map.of("text", "hi", "route", "raw"));
             Map<String, Object> read = call(client, "mc.client.input.replaceText", Map.of("text", ""));
@@ -186,17 +221,23 @@ class CoreClientTest {
     }
 
     /**
-     * {@code mc.client.input.typeText} and {@code replaceText} by a ref from a tree, and replaceText's {@code
-     * returnTree}: chat's box takes the typed characters by ref, then is cleared by ref, and the tree that comes back
-     * says so — the box's value is part of the tree, so clearing it changes it.
+     * {@code mc.client.input.typeText} and {@code replaceText} by a ref from a tree, and replaceText's
+     * {@code returnTree}: chat's box takes the typed characters by ref, then is cleared by ref, and the tree that comes
+     * back says so — the box's value is part of the tree, so clearing it changes it.
      */
     @Test
     void clientTextByRef(Game game, Client client, Player player) {
         survival(game, client, player);
         try {
             call(client, "mc.client.input.key", Map.of("key", "T"));
-            Map<String, Object> tree = until(game, client, "mc.client.screen.tree", Map.of(),
-                    t -> "ChatScreen".equals(t.get("type")), 40, "T opens chat");
+            Map<String, Object> tree = until(
+                    game,
+                    client,
+                    "mc.client.screen.tree",
+                    Map.of(),
+                    t -> "ChatScreen".equals(t.get("type")),
+                    40,
+                    "T opens chat");
             // By its value, not its type: chat's box is an anonymous EditBox, whose simple name is empty.
             Map<?, ?> box = nodeWithValue(tree);
             if (box == null) fail("no text box in chat's tree: " + tree.get("nodes"));
@@ -206,13 +247,15 @@ class CoreClientTest {
             game.check(() -> assertEquals("done", typed.get("outcome"), "typeText by ref: " + typed));
             game.check(!typed.containsKey("treeChanged"), "no treeChanged without returnTree: " + typed);
 
-            Map<String, Object> cleared = call(client, "mc.client.input.replaceText",
-                    Map.of("text", "", "ref", ref, "returnTree", true));
+            Map<String, Object> cleared =
+                    call(client, "mc.client.input.replaceText", Map.of("text", "", "ref", ref, "returnTree", true));
             game.check(() -> assertEquals("done", cleared.get("outcome"), "replaceText by ref: " + cleared));
             game.check(() -> assertEquals("hi", cleared.get("previous"), "the box typeText by ref typed into"));
             game.check(() -> assertEquals(true, cleared.get("treeChanged"), "clearing the box changed the tree"));
             Map<?, ?> after = nodeWithRef(cleared.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
-            game.check(() -> assertEquals("", after == null ? "no node with ref " + ref : after.get("value"),
+            game.check(() -> assertEquals(
+                    "",
+                    after == null ? "no node with ref " + ref : after.get("value"),
                     "the box's value in the tree that came back"));
         } finally {
             call(client, "mc.client.screen.close", Map.of());
@@ -229,22 +272,26 @@ class CoreClientTest {
     void clientSliderByRef(Game game, Client client, Player player) {
         survival(game, client, player);
         try {
-            Map<String, Object> paused = call(client, "mc.client.input.key", Map.of("key", "ESCAPE", "returnTree", true));
+            Map<String, Object> paused =
+                    call(client, "mc.client.input.key", Map.of("key", "ESCAPE", "returnTree", true));
             Map<?, ?> pause = paused.get("tree") instanceof Map<?, ?> t ? t : Map.of();
             game.check(() -> assertEquals("PauseScreen", pause.get("type"), "ESCAPE with no screen opens: " + paused));
             Map<?, ?> optionsButton = nodeWithKey(pause, "menu.options");
             if (optionsButton == null) fail("no menu.options button in the pause menu's tree: " + pause.get("nodes"));
-            Map<String, Object> opened = call(client, "mc.client.input.click",
-                    Map.of("ref", optionsButton.get("ref"), "returnTree", true));
+            Map<String, Object> opened =
+                    call(client, "mc.client.input.click", Map.of("ref", optionsButton.get("ref"), "returnTree", true));
             Map<?, ?> options = opened.get("tree") instanceof Map<?, ?> t ? t : Map.of();
             game.check(() -> assertEquals("OptionsScreen", options.get("type"), "the options button opens: " + opened));
 
             Map<String, Object> read = call(client, "mc.client.input.slider", Map.of());
-            Map<?, ?> first = read.get("sliders") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> m
-                    ? m : null;
+            Map<?, ?> first =
+                    read.get("sliders") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> m
+                            ? m
+                            : null;
             if (first == null) fail("no slider on the options screen: " + read);
             Map<?, ?> node = nodeWithMessage(options, first.get("label"));
-            if (node == null) fail("no node labelled " + first.get("label") + " in the options tree: " + options.get("nodes"));
+            if (node == null)
+                fail("no node labelled " + first.get("label") + " in the options tree: " + options.get("nodes"));
             Object ref = node.get("ref");
             double was = ((Number) first.get("value")).doubleValue();
             double to = was < 0.5 ? 1.0 : 0.0;
@@ -252,7 +299,10 @@ class CoreClientTest {
             Map<String, Object> set = call(client, "mc.client.input.slider", Map.of("ref", ref, "fraction", to));
             game.check(() -> assertEquals("set", set.get("outcome"), "slider by ref: " + set));
             game.check(() -> assertEquals(first.get("label"), set.get("previousLabel"), "the slider the ref named"));
-            game.check(() -> assertEquals(to, set.get("value") instanceof Number n ? n.doubleValue() : -1.0, 1e-9,
+            game.check(() -> assertEquals(
+                    to,
+                    set.get("value") instanceof Number n ? n.doubleValue() : -1.0,
+                    1e-9,
                     "the slider's value after setting it by ref"));
             Map<String, Object> back = call(client, "mc.client.input.slider", Map.of("ref", ref, "fraction", was));
             game.check(() -> assertEquals("set", back.get("outcome"), "the slider put back by ref: " + back));
@@ -266,11 +316,11 @@ class CoreClientTest {
     }
 
     /**
-     * A {@code player.hurt} event says what hurt the player, not just how much — the #55 permanent assertion.
-     * Without attribution a fall into a self-dug pit and a mob bite are the same HP delta, so the combat chain and
-     * the agent above it engage phantoms. {@code player.hurt} is emitted client-side, mirroring the server's
-     * DamageSource off {@code ClientboundDamageEventPacket}, so it is read from the client's ring: the attribution has
-     * to survive the network boundary to reach the agent.
+     * A {@code player.hurt} event says what hurt the player, not just how much — the #55 permanent assertion. Without
+     * attribution a fall into a self-dug pit and a mob bite are the same HP delta, so the combat chain and the agent
+     * above it engage phantoms. {@code player.hurt} is emitted client-side, mirroring the server's DamageSource off
+     * {@code ClientboundDamageEventPacket}, so it is read from the client's ring: the attribution has to survive the
+     * network boundary to reach the agent.
      */
     @Test
     void hurtCarriesItsSource(Game game, Client client, Player player) {
@@ -289,15 +339,20 @@ class CoreClientTest {
         // out_of_world lands whichever game mode the player is in.
         game.runOnServer(s -> command(s, "damage " + name + " 2 minecraft:out_of_world"));
         List<Map<?, ?>> hurt = new ArrayList<>();
-        game.await().within(200).as("a player.hurt event reaches the client's ring").until(() -> {
-            hurt.clear();
-            hurt.addAll(hurtPayloads(events, cursor));
-            return !hurt.isEmpty();
-        });
+        game.await()
+                .within(200)
+                .as("a player.hurt event reaches the client's ring")
+                .until(() -> {
+                    hurt.clear();
+                    hurt.addAll(hurtPayloads(events, cursor));
+                    return !hurt.isEmpty();
+                });
         Map<?, ?> payload = hurt.get(0);
-        game.check(payload.get("source") instanceof String src && !src.isEmpty(),
+        game.check(
+                payload.get("source") instanceof String src && !src.isEmpty(),
                 "player.hurt attributes a source instead of reporting an HP delta alone: " + payload);
-        game.check(payload.get("lost") instanceof Number n && n.doubleValue() > 0,
+        game.check(
+                payload.get("lost") instanceof Number n && n.doubleValue() > 0,
                 "player.hurt reports the health actually lost: " + payload);
     }
 
@@ -316,8 +371,8 @@ class CoreClientTest {
     }
 
     /**
-     * A chat line the client's player sends reaches the server driver as one {@code chat.message} carrying the text
-     * and the sender. It is read from the server's ring, not the client's: the event is the server's report of chat it
+     * A chat line the client's player sends reaches the server driver as one {@code chat.message} carrying the text and
+     * the sender. It is read from the server's ring, not the client's: the event is the server's report of chat it
      * received.
      */
     @Test
@@ -329,21 +384,27 @@ class CoreClientTest {
         Map<String, Object> sent = call(client, "mc.client.chat.send", Map.of("text", marker));
         game.check(() -> assertEquals("done", sent.get("outcome"), "the client sent the line: " + sent));
         List<Map<?, ?>> seen = new ArrayList<>();
-        game.await().within(200).as("a chat.message with the marker reaches the server's ring").until(() -> {
-            seen.clear();
-            EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
-            for (EventContracts.Event e : page.events())
-                if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m
-                        && marker.equals(m.get("text"))) seen.add(m);
-            return !seen.isEmpty();
-        });
+        game.await()
+                .within(200)
+                .as("a chat.message with the marker reaches the server's ring")
+                .until(() -> {
+                    seen.clear();
+                    EventContracts.Page page =
+                            events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
+                    for (EventContracts.Event e : page.events())
+                        if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m
+                                && marker.equals(m.get("text"))) seen.add(m);
+                    return !seen.isEmpty();
+                });
         game.ticks(5);
         EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
         long count = page.events().stream()
                 .map(e -> SceneJson.plain(e.data().map(JsonValue::json).orElse(null)))
-                .filter(d -> d instanceof Map<?, ?> m && marker.equals(m.get("text"))).count();
+                .filter(d -> d instanceof Map<?, ?> m && marker.equals(m.get("text")))
+                .count();
         game.check(() -> assertEquals(1L, count, "chat.message reports for the marker line"));
-        game.check(() -> assertEquals(player.name(), seen.get(0).get("player"), "the chat.message sender: " + seen.get(0)));
+        game.check(() ->
+                assertEquals(player.name(), seen.get(0).get("player"), "the chat.message sender: " + seen.get(0)));
     }
 
     // ---------------------------------------------------------------- helpers
@@ -358,7 +419,13 @@ class CoreClientTest {
         game.afterTest(s -> player.runOnServer(p -> p.setGameMode(was)));
         player.runOnServer(p -> p.setGameMode(GameType.SURVIVAL));
         call(client, "mc.client.screen.close", Map.of());
-        until(game, client, "mc.client.player", Map.of(), p -> "survival".equals(p.get("gameMode")), 100,
+        until(
+                game,
+                client,
+                "mc.client.player",
+                Map.of(),
+                p -> "survival".equals(p.get("gameMode")),
+                100,
                 "the client sees survival");
     }
 
@@ -375,8 +442,14 @@ class CoreClientTest {
     }
 
     /** {@code method} asked once a tick until {@code done} holds, at most {@code ticks} ticks; its last answer. */
-    private static Map<String, Object> until(Game game, Client client, String method, Map<String, ?> params,
-                                             Predicate<Map<String, Object>> done, int ticks, String what) {
+    private static Map<String, Object> until(
+            Game game,
+            Client client,
+            String method,
+            Map<String, ?> params,
+            Predicate<Map<String, Object>> done,
+            int ticks,
+            String what) {
         Map<String, Object> last = Map.of();
         for (int t = 0; t <= ticks; t++) {
             last = call(client, method, params);
@@ -387,7 +460,8 @@ class CoreClientTest {
     }
 
     private static void command(net.minecraft.server.MinecraftServer server, String command) {
-        server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), command);
+        server.getCommands()
+                .performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), command);
     }
 
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
@@ -402,7 +476,8 @@ class CoreClientTest {
     /** {@code inventory.selectedSlot} of a {@code mc.client.player} reply, -1 when it has none. */
     private static int selectedSlot(Map<?, ?> clientPlayer) {
         return clientPlayer.get("inventory") instanceof Map<?, ?> inv && inv.get("selectedSlot") instanceof Number n
-                ? n.intValue() : -1;
+                ? n.intValue()
+                : -1;
     }
 
     private static Map<?, ?> nodeOfType(Map<?, ?> tree, String type) {
@@ -414,8 +489,9 @@ class CoreClientTest {
     private static Map<?, ?> nodeWithRef(Map<?, ?> tree, Object ref) {
         if (tree.get("nodes") instanceof List<?> l)
             for (Object o : l)
-                if (o instanceof Map<?, ?> n && ref != null && String.valueOf(ref).equals(String.valueOf(n.get("ref"))))
-                    return n;
+                if (o instanceof Map<?, ?> n
+                        && ref != null
+                        && String.valueOf(ref).equals(String.valueOf(n.get("ref")))) return n;
         return null;
     }
 
@@ -434,7 +510,8 @@ class CoreClientTest {
 
     private static Map<?, ?> nodeWithMessage(Map<?, ?> tree, Object message) {
         if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l) if (o instanceof Map<?, ?> n && message != null && message.equals(n.get("message"))) return n;
+            for (Object o : l)
+                if (o instanceof Map<?, ?> n && message != null && message.equals(n.get("message"))) return n;
         return null;
     }
 
@@ -445,8 +522,7 @@ class CoreClientTest {
     /** What {@code mc.client.input.keybind}'s listing says about one mapping's {@code down}. */
     private static Object keybindDown(Map<?, ?> listing, String name) {
         if (listing.get("keybinds") instanceof List<?> l) {
-            for (Object row : l)
-                if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
+            for (Object row : l) if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
         }
         return "no " + name + " row in the keybind listing";
     }

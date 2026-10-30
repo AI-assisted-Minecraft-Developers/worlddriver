@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.application;
 
 import com.google.gson.JsonElement;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,16 +11,11 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import net.magicterra.worlddriver.api.registry.ApiHandlers;
-import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.EventWire;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.event.EventApi;
 import net.magicterra.worlddriver.api.methods.event.EventApiBinding;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
@@ -37,17 +31,20 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts.Unwatched;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watch;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watchers;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watching;
-import net.magicterra.worlddriver.api.game.DriverEvent;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.minecraft.core.BlockPos;
 
 /**
- * The event stream's methods: {@code mc.observe.cursor}, {@code mc.observe.eventsSince} and
- * {@code mc.events}. The live push rides the transports (WebSocket frames in {@code RpcServer}, SSE in
- * {@code McpServer}); every event, a watcher's included, goes through {@link DriverApplication#emit},
- * so each reaches both transports and the replay buffer alike.
+ * The event stream's methods: {@code mc.observe.cursor}, {@code mc.observe.eventsSince} and {@code mc.events}. The live
+ * push rides the transports (WebSocket frames in {@code RpcServer}, SSE in {@code McpServer}); every event, a watcher's
+ * included, goes through {@link DriverApplication#emit}, so each reaches both transports and the replay buffer alike.
  *
- * <p>A watcher polls a pollable method through {@link Polling}: between polls it holds no thread, a
- * poll that is still running delays the next instead of overlapping it, and each poll has its own budget.
+ * <p>A watcher polls a pollable method through {@link Polling}: between polls it holds no thread, a poll that is still
+ * running delays the next instead of overlapping it, and each poll has its own budget.
  */
 public final class EventService implements EventApi {
     /** One watcher poll; a read that takes longer counts as not satisfied. */
@@ -81,7 +78,10 @@ public final class EventService implements EventApi {
     }
 
     private EventContracts.Page since(EventContracts.SinceParams p) {
-        Set<String> types = p.types().filter(l -> !l.isEmpty()).<Set<String>>map(LinkedHashSet::new).orElse(null);
+        Set<String> types = p.types()
+                .filter(l -> !l.isEmpty())
+                .<Set<String>>map(LinkedHashSet::new)
+                .orElse(null);
         List<DriverEvent> page = api.observe.eventsSince(p.cursor(), types, p.limit());
         List<Event> events = new ArrayList<>(page.size());
         for (DriverEvent e : page) events.add(EventWire.dto(e));
@@ -111,8 +111,10 @@ public final class EventService implements EventApi {
         Watcher live = new Watcher(seq.incrementAndGet(), w, target);
         synchronized (watchers) {
             if (watchers.size() >= EventContracts.MAX_WATCHERS) {
-                throw ApiException.of(ApiError.Code.SERVER_BUSY, EventContracts.MAX_WATCHERS
-                        + " watchers are already running; unwatch one first (op:'list' shows them)");
+                throw ApiException.of(
+                        ApiError.Code.SERVER_BUSY,
+                        EventContracts.MAX_WATCHERS
+                                + " watchers are already running; unwatch one first (op:'list' shows them)");
             }
             watchers.put(live.id, live);
         }
@@ -129,8 +131,8 @@ public final class EventService implements EventApi {
     private Watchers list() {
         List<EventContracts.Watcher> rows = new ArrayList<>();
         for (Watcher w : watchers.values()) {
-            rows.add(new EventContracts.Watcher(w.id, w.spec.invoke(), w.spec.field(), w.spec.emitAs(),
-                    w.spec.everyMs(), w.spec.once(), w.fired));
+            rows.add(new EventContracts.Watcher(
+                    w.id, w.spec.invoke(), w.spec.field(), w.spec.emitAs(), w.spec.everyMs(), w.spec.once(), w.fired));
         }
         rows.sort((a, b) -> Integer.compare(a.id(), b.id()));
         return new Watchers(rows, rows.size());
@@ -170,24 +172,34 @@ public final class EventService implements EventApi {
 
         void poll() {
             if (stopped) return;
-            target.read(api.registry(), Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs())).whenComplete((result, failure) -> {
-                try {
-                    // A failed read (no world right now) is not satisfied, and the watcher lives on.
-                    Optional<JsonValue> value = failure == null ? Polling.field(result, spec.field()) : Optional.empty();
-                    boolean ok = failure == null && test(value.map(JsonValue::json).orElse(null));
-                    boolean rising = ok && !lastOk;
-                    lastOk = ok;
-                    if (rising && !stopped) fire(value);
-                } finally {
-                    schedule();
-                }
-            });
+            target.read(api.registry(), Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs()))
+                    .whenComplete((result, failure) -> {
+                        try {
+                            // A failed read (no world right now) is not satisfied, and the watcher lives on.
+                            Optional<JsonValue> value =
+                                    failure == null ? Polling.field(result, spec.field()) : Optional.empty();
+                            boolean ok = failure == null
+                                    && test(value.map(JsonValue::json).orElse(null));
+                            boolean rising = ok && !lastOk;
+                            lastOk = ok;
+                            if (rising && !stopped) fire(value);
+                        } finally {
+                            schedule();
+                        }
+                    });
         }
 
         private boolean test(JsonElement v) {
-            if (spec.value().isPresent()) return WaitService.looseEquals(v, spec.value().get().json());
-            if (spec.above().isPresent()) { Double d = number(v); return d != null && d > spec.above().get(); }
-            if (spec.below().isPresent()) { Double d = number(v); return d != null && d < spec.below().get(); }
+            if (spec.value().isPresent())
+                return WaitService.looseEquals(v, spec.value().get().json());
+            if (spec.above().isPresent()) {
+                Double d = number(v);
+                return d != null && d > spec.above().get();
+            }
+            if (spec.below().isPresent()) {
+                Double d = number(v);
+                return d != null && d < spec.below().get();
+            }
             return ApiSupport.isTruthy(v);
         }
 
@@ -198,10 +210,15 @@ public final class EventService implements EventApi {
                 watchers.remove(id);
             }
             // condition.met's payload under whatever name the watcher was given.
-            api.emit(spec.emitAs(), null, EventCatalog.CONDITION_MET.encode(
-                    new EventCatalog.ConditionMet(id, spec.invoke(), spec.field(), value)));
+            api.emit(
+                    spec.emitAs(),
+                    null,
+                    EventCatalog.CONDITION_MET.encode(
+                            new EventCatalog.ConditionMet(id, spec.invoke(), spec.field(), value)));
         }
     }
 
-    private static Double number(JsonElement o) { return WaitService.asNumber(o); }
+    private static Double number(JsonElement o) {
+        return WaitService.asNumber(o);
+    }
 }

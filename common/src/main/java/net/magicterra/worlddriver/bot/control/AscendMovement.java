@@ -2,34 +2,39 @@ package net.magicterra.worlddriver.bot.control;
 
 import net.minecraft.core.BlockPos;
 
-/** Thin decision-weave machine for the ascent family (stepUp, stairUpBreak, diagUp).
+/**
+ * Thin decision-weave machine for the ascent family (stepUp, stairUpBreak, diagUp).
  *
- *  Thin-machine architecture (docs/design/ascend-deadzone-watchdog.md): the legacy drive in Navigator.tickInner
- *  stays the SINGLE actuation source — the delegation branch falls through on PREP/RUNNING/SUCCESS
- *  and this machine emits no inputs of its own. It owns only the per-edge episode lifecycle and the
- *  dig-aware no-progress watchdog (→ UNREACHABLE, the task#82 dead-zone fix: the cur2∈(0.45,4.0),
- *  no-hCol pose that every legacy recovery gate misses — spec §2.2 — finally gets a trigger into
- *  the fellOffPath re-route backbone). Step advancement stays with the legacy advance loop
- *  (Navigator ~2265); SUCCESS is telemetry-only.
+ * <p>Thin-machine architecture (docs/design/ascend-deadzone-watchdog.md): the legacy drive in Navigator.tickInner stays
+ * the SINGLE actuation source — the delegation branch falls through on PREP/RUNNING/SUCCESS and this machine emits no
+ * inputs of its own. It owns only the per-edge episode lifecycle and the dig-aware no-progress watchdog (→ UNREACHABLE,
+ * the task#82 dead-zone fix: the cur2∈(0.45,4.0), no-hCol pose that every legacy recovery gate misses — spec §2.2 —
+ * finally gets a trigger into the fellOffPath re-route backbone). Step advancement stays with the legacy advance loop
+ * (Navigator ~2265); SUCCESS is telemetry-only.
  *
- *  Progress marks are MONOTONIC high-waters (best Y ever, best gap-close ever), so a
- *  jump-land-slideback bob cannot keep resetting the clock. An active planned dig (ctx.digging) is progress by definition
- *  (bare-hand stone is 150 t+/block, #66). */
+ * <p>Progress marks are MONOTONIC high-waters (best Y ever, best gap-close ever), so a jump-land-slideback bob cannot
+ * keep resetting the clock. An active planned dig (ctx.digging) is progress by definition (bare-hand stone is 150
+ * t+/block, #66).
+ */
 public final class AscendMovement implements Movement {
-    /** Public alias of the watchdog budget (NavigatorConstants is package-private; the gametest seam needs the number). */
+    /**
+     * Public alias of the watchdog budget (NavigatorConstants is package-private; the gametest seam needs the number).
+     */
     public static final int DEADZONE_GIVEUP = NavigatorConstants.ASCEND_DEADZONE_GIVEUP;
-    private static final double PROGRESS_EPS_Y = 0.01;     // dy high-water must beat this to count (float-jitter guard)
-    private static final double PROGRESS_EPS_GAP = 0.01;   // cur2 low-water must improve by this to count
+
+    private static final double PROGRESS_EPS_Y = 0.01; // dy high-water must beat this to count (float-jitter guard)
+    private static final double PROGRESS_EPS_GAP = 0.01; // cur2 low-water must improve by this to count
 
     // Episode = consecutive delegated ticks on the same stand-cell node + move name. A node or move
     // change (legacy advanced the step, or a repath swapped the edge) starts a fresh episode.
     private BlockPos episodeNode;
     private String episodeMove;
-    private double episodeBestY;        // dy-progress high-water mark for this episode
-    private double episodeBestCur2;     // horizontal gap-close low-water (squared dist to node center)
-    private int ticksSinceProgress;     // dead-zone clock: ticks with no high-water gain and no active dig
+    private double episodeBestY; // dy-progress high-water mark for this episode
+    private double episodeBestCur2; // horizontal gap-close low-water (squared dist to node center)
+    private int ticksSinceProgress; // dead-zone clock: ticks with no high-water gain and no active dig
 
-    @Override public MovementStatus updateState(MovementContext ctx) {
+    @Override
+    public MovementStatus updateState(MovementContext ctx) {
         if (episodeNode == null || !episodeNode.equals(ctx.node) || !episodeMove.equals(ctx.edge.move)) {
             episodeNode = ctx.node.immutable();
             episodeMove = ctx.edge.move;
@@ -39,13 +44,21 @@ public final class AscendMovement implements Movement {
             return MovementStatus.PREP;
         }
         boolean progressed = false;
-        if (ctx.p.getY() > episodeBestY + PROGRESS_EPS_Y) { episodeBestY = ctx.p.getY(); progressed = true; }
+        if (ctx.p.getY() > episodeBestY + PROGRESS_EPS_Y) {
+            episodeBestY = ctx.p.getY();
+            progressed = true;
+        }
         double cur2 = cur2(ctx);
-        if (cur2 < episodeBestCur2 - PROGRESS_EPS_GAP) { episodeBestCur2 = cur2; progressed = true; }
+        if (cur2 < episodeBestCur2 - PROGRESS_EPS_GAP) {
+            episodeBestCur2 = cur2;
+            progressed = true;
+        }
         if (progressed || ctx.digging) {
             ticksSinceProgress = 0;
         } else if (++ticksSinceProgress > NavigatorConstants.ASCEND_DEADZONE_GIVEUP) {
-            episodeNode = null;   // a replanned edge on the same node restarts a fresh clock (re-route may legitimately retry it)
+            episodeNode =
+                    null; // a replanned edge on the same node restarts a fresh clock (re-route may legitimately retry
+            // it)
             return MovementStatus.UNREACHABLE;
         }
         return MovementStatus.RUNNING;

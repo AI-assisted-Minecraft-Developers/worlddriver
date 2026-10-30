@@ -5,18 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.function.Consumer;
-
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
 
 /**
- * A user-task process's status slot is the one its {@code attach} switched on, and it is switched
- * off at every ending, whatever the process's kind says. {@code sleep} and {@code replay} report
- * into the goto slot under kinds no slot is named after, which is the shape a lookup by kind
- * misses: cancelling them left {@code goto.active} true with nothing behind it.
+ * A user-task process's status slot is the one its {@code attach} switched on, and it is switched off at every ending,
+ * whatever the process's kind says. {@code sleep} and {@code replay} report into the goto slot under kinds no slot is
+ * named after, which is the shape a lookup by kind misses: cancelling them left {@code goto.active} true with nothing
+ * behind it.
  */
 class UserTaskChainSlotTest {
 
@@ -33,10 +32,23 @@ class UserTaskChainSlotTest {
             this.attach = attach;
         }
 
-        @Override public String kind() { return kind; }
-        @Override public String failure() { return null; }
-        @Override public void attach(BotState st) { attach.accept(st); }
-        @Override public boolean tick(Body a, WorldView w, BotState st) {
+        @Override
+        public String kind() {
+            return kind;
+        }
+
+        @Override
+        public String failure() {
+            return null;
+        }
+
+        @Override
+        public void attach(BotState st) {
+            attach.accept(st);
+        }
+
+        @Override
+        public boolean tick(Body a, WorldView w, BotState st) {
             ticks++;
             if (throwOnTick) throw new IllegalStateException("boom");
             return finishOnTick;
@@ -104,7 +116,7 @@ class UserTaskChainSlotTest {
 
     @Test
     void aSlotAnotherOwnerAlreadyHeldIsNotTheProcesssToRelease() {
-        st.retreat.active = true;   // the retreat reflex's slot, live before the user task starts
+        st.retreat.active = true; // the retreat reflex's slot, live before the user task starts
         chain.setProcess(new SlotBorrower("runAway", s -> {
             s.runAway.active = true;
             s.retreat.active = true;

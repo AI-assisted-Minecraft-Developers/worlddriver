@@ -2,12 +2,9 @@ package net.magicterra.worlddriver.rpc;
 
 import static net.magicterra.worlddriver.application.TestTransports.mcp;
 import static net.magicterra.worlddriver.application.TestTransports.rpc;
-
-import net.magicterra.worlddriver.application.DriverApplication;
-
-import net.magicterra.worlddriver.mcp.McpServer;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -18,18 +15,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.application.DriverApplication;
+import net.magicterra.worlddriver.mcp.McpServer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * Both network transports apply one Origin policy.
  *
- * <p>A browser page can open a WebSocket to loopback (WebSockets are outside CORS) and can
- * send an {@code Origin: null} POST from a sandboxed iframe. Either reaches
- * {@code mc.script.eval}, which owns the process, so the handshake and the POST are the
- * only places the page can be refused.
+ * <p>A browser page can open a WebSocket to loopback (WebSockets are outside CORS) and can send an {@code Origin: null}
+ * POST from a sandboxed iframe. Either reaches {@code mc.script.eval}, which owns the process, so the handshake and the
+ * POST are the only places the page can be refused.
  */
 @Timeout(30)
 class TransportOriginTest {
@@ -80,7 +76,9 @@ class TransportOriginTest {
             s.setSoTimeout(10_000);
             StringBuilder req = new StringBuilder()
                     .append("GET /rpc HTTP/1.1\r\n")
-                    .append("Host: 127.0.0.1:").append(port).append("\r\n")
+                    .append("Host: 127.0.0.1:")
+                    .append(port)
+                    .append("\r\n")
                     .append("Upgrade: websocket\r\n")
                     .append("Connection: Upgrade\r\n")
                     .append("Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n")
@@ -90,8 +88,8 @@ class TransportOriginTest {
             OutputStream os = s.getOutputStream();
             os.write(req.toString().getBytes(StandardCharsets.US_ASCII));
             os.flush();
-            String status = new BufferedReader(new InputStreamReader(
-                    s.getInputStream(), StandardCharsets.US_ASCII)).readLine();
+            String status =
+                    new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.US_ASCII)).readLine();
             if (status == null) throw new IllegalStateException("connection closed without a status line");
             return Integer.parseInt(status.split(" ")[1]);
         }

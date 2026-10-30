@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.api.schema;
 import java.util.Objects;
 
 /**
- * One field-level problem with a request: where it is (a JSON Pointer, {@code ""} for the root),
- * which of the five kinds it is, and a sentence for a person.
+ * One field-level problem with a request: where it is (a JSON Pointer, {@code ""} for the root), which of the five
+ * kinds it is, and a sentence for a person.
  */
 public record ApiIssue(String path, Code code, String message) {
 
@@ -24,8 +24,13 @@ public record ApiIssue(String path, Code code, String message) {
 
         private final String wire;
 
-        Code(String wire) { this.wire = wire; }
+        Code(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 }

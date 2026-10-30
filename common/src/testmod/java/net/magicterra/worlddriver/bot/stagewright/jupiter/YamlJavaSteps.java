@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot.stagewright.jupiter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Step;
 import net.minecraft.core.BlockPos;
@@ -53,9 +52,14 @@ public final class YamlJavaSteps {
     @Step("wd.blockAt")
     public static Found blockAt(Game game, Map<String, Object> params) {
         Map<?, ?> pos = (Map<?, ?>) params.get("pos");
-        BlockPos at = new BlockPos(((Number) pos.get("x")).intValue(), ((Number) pos.get("y")).intValue(),
+        BlockPos at = new BlockPos(
+                ((Number) pos.get("x")).intValue(),
+                ((Number) pos.get("y")).intValue(),
                 ((Number) pos.get("z")).intValue());
         return game.onServer(server -> new Found(
-                BuiltInRegistries.BLOCK.getKey(server.overworld().getBlockState(at).getBlock()).toString(), at.getY()));
+                BuiltInRegistries.BLOCK
+                        .getKey(server.overworld().getBlockState(at).getBlock())
+                        .toString(),
+                at.getY()));
     }
 }

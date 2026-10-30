@@ -7,7 +7,6 @@ import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.EntityId;
@@ -50,36 +49,54 @@ public final class ObserveContracts {
 
     /** {@code player} is absent when nobody matches. */
     @Named("PlayerReading")
-    public record PlayerReading(@Doc("Absent when nobody matches.") Optional<PlayerState> player) {}
+    public record PlayerReading(
+            @Doc("Absent when nobody matches.") Optional<PlayerState> player) {}
 
     @Named("PlayerState")
     public record PlayerState(
             String name,
             String uuid,
             @ResourceId String dimension,
-            @OneOf(name = "GameMode", value = {"survival", "creative", "adventure", "spectator"}) String gameMode,
+
+            @OneOf(
+                    name = "GameMode",
+                    value = {"survival", "creative", "adventure", "spectator"})
+            String gameMode,
+
             @Doc("The feet.") Point pos,
             @Doc("The cell the feet are in.") BlockPosition blockPos,
-            @Doc("Degrees. A turn shows here one tick later.") Look look,
+
+            @Doc("Degrees. A turn shows here one tick later.")
+            Look look,
+
             BodyState body,
             Vitals vitals,
             @Length(max = 256) List<Effect> effects,
-            @Doc("The world's clock, to plan around the night.") TimeOfDay time,
+
+            @Doc("The world's clock, to plan around the night.")
+            TimeOfDay time,
+
             @Doc("The held weapon's melee recharge.") Attack attack,
             Equipment equipment,
-            @Doc("Every non-empty slot of the whole bag, hotbar, armor and offhand included.")
-            @Length(max = 256) List<InventorySlot> inventory,
+
+            @Doc("Every non-empty slot of the whole bag, hotbar, armor and offhand included.") @Length(max = 256)
+            List<InventorySlot> inventory,
+
             @Doc("Item id → count over main inventory and offhand: the have that mc.recipe.resolve and "
                     + "mc.plan.acquire take, and the bag mc.bot.craft consumes from.")
-            @Length(max = 4096) Map<String, @Range(min = 0) Integer> items,
-            @Doc("Client fallback only.") Optional<ClientView> view) {}
+            @Length(max = 4096)
+            Map<String, @Range(min = 0) Integer> items,
 
+            @Doc("Client fallback only.") Optional<ClientView> view) {}
 
     @Named("PlayerBodyState")
     public record BodyState(
             boolean onGround,
             Point eyePos,
-            @Doc("STANDING, CROUCHING, SWIMMING, FALL_FLYING, SLEEPING, …") String pose,
+
+            @Doc("STANDING, CROUCHING, SWIMMING, FALL_FLYING, SLEEPING, …")
+            String pose,
+
             @Doc("Suffocating in a block.") boolean inWall,
             boolean inWater,
             boolean underWater,
@@ -91,24 +108,36 @@ public final class ObserveContracts {
     public record Vitals(
             double health,
             double maxHealth,
-            @Doc("Ticks of breath left; drowning starts below 0.") int air,
+
+            @Doc("Ticks of breath left; drowning starts below 0.")
+            int air,
+
             int maxAir,
             @Range(min = 0, max = 20) int food,
             double saturation,
             int xpLevel) {}
 
     @Named("MobEffect")
-    public record Effect(String id, int amplifier, @Doc("-1: infinite.") int durationTicks) {}
+    public record Effect(
+            String id, int amplifier, @Doc("-1: infinite.") int durationTicks) {}
 
     @Named("DayPhase")
     public enum DayPhase implements WireName {
-        DAY("day"), SUNSET("sunset"), NIGHT("night"), SUNRISE("sunrise");
+        DAY("day"),
+        SUNSET("sunset"),
+        NIGHT("night"),
+        SUNRISE("sunrise");
 
         private final String wire;
 
-        DayPhase(String wire) { this.wire = wire; }
+        DayPhase(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("TimeOfDay")
@@ -116,15 +145,23 @@ public final class ObserveContracts {
             @Doc("The world's raw day time.") long dayTime,
             long dayOfWorld,
             @Range(min = 0, max = 23999) long timeOfDay,
-            @Doc("Hostiles spawn from sunset's end (13000) and burn from sunrise (23000).") DayPhase phase) {}
+
+            @Doc("Hostiles spawn from sunset's end (13000) and burn from sunrise (23000).")
+            DayPhase phase) {}
 
     @Named("AttackReadiness")
     public record Attack(
-            @Doc("The share of the held weapon's damage a swing would land now.")
-            @Range(min = 0, max = 1) double strengthScale,
-            @Doc("strengthScale is 1: a full hit, and a crit when falling.") boolean ready,
-            @Doc("Ticks until ready; wait these before mc.bot.attackEntity.") @Range(min = 0) int cooldownTicks,
-            @Doc("The held weapon's whole recharge, to compare weapons by.") @Range(min = 0) int fullCooldownTicks) {}
+            @Doc("The share of the held weapon's damage a swing would land now.") @Range(min = 0, max = 1)
+            double strengthScale,
+
+            @Doc("strengthScale is 1: a full hit, and a crit when falling.")
+            boolean ready,
+
+            @Doc("Ticks until ready; wait these before mc.bot.attackEntity.") @Range(min = 0)
+            int cooldownTicks,
+
+            @Doc("The held weapon's whole recharge, to compare weapons by.") @Range(min = 0)
+            int fullCooldownTicks) {}
 
     /** Wear is present on damageable items only: its presence itself says the item wears out. */
     @Named("PlayerItem")
@@ -133,6 +170,7 @@ public final class ObserveContracts {
             @Range(min = 0) int count,
             Optional<@Range(min = 0) Integer> maxDamage,
             Optional<@Range(min = 0) Integer> damage,
+
             @Doc("Points left, maxDamage − damage; a floor on remaining uses, as Unbreaking stretches a point.")
             Optional<Integer> durability) {}
 
@@ -148,32 +186,42 @@ public final class ObserveContracts {
 
     @Named("PlayerInventorySlot")
     public record InventorySlot(
-            @Doc("Vanilla index: 0–8 hotbar, 9–35 main, 36–39 armor, 40 offhand.") @Range(min = 0) int slot,
+            @Doc("Vanilla index: 0–8 hotbar, 9–35 main, 36–39 armor, 40 offhand.") @Range(min = 0)
+            int slot,
+
             @ResourceId String id,
             @Range(min = 0) int count,
             Optional<@Range(min = 0) Integer> maxDamage,
             Optional<@Range(min = 0) Integer> damage,
             Optional<Integer> durability) {}
 
-    @Tag("type") @Named("Crosshair")
+    @Tag("type")
+    @Named("Crosshair")
     public sealed interface Crosshair permits Miss, BlockHit, EntityHit {}
+
     @Variant("miss")
     public record Miss() implements Crosshair {}
+
     @Variant("block")
     public record BlockHit(
             BlockPosition blockPos,
             String face,
             @ResourceId String block,
-            @Range(min = 0, max = Double.MAX_VALUE) double distance) implements Crosshair {}
+            @Range(min = 0, max = Double.MAX_VALUE) double distance)
+            implements Crosshair {}
+
     @Variant("entity")
     public record EntityHit(
             @EntityId int entityId,
             @ResourceId String entityType,
             Point pos,
-            @Range(min = 0, max = Double.MAX_VALUE) double distance) implements Crosshair {}
+            @Range(min = 0, max = Double.MAX_VALUE) double distance)
+            implements Crosshair {}
 
     @Named("ClientView")
-    public record ClientView(@Doc("What the camera aims at.") Crosshair hit, @Range(min = 0) int fps) {}
+    public record ClientView(
+            @Doc("What the camera aims at.") Crosshair hit,
+            @Range(min = 0) int fps) {}
 
     public static final ApiType<Effect> EFFECT = ApiTypes.record(Effect.class);
 
@@ -188,7 +236,9 @@ public final class ObserveContracts {
     public static final ApiType<PlayerReading> PLAYER_REPLY = ApiTypes.record(PlayerReading.class);
 
     // Pollable: one player's fields, copied on the game thread in one task; it never waits for a tick.
-    public static final MethodSpec<PlayerParams, PlayerReading> PLAYER = MethodSpec.of("mc.observe.player", PLAYER_PARAMS,
+    public static final MethodSpec<PlayerParams, PlayerReading> PLAYER = MethodSpec.of(
+                    "mc.observe.player",
+                    PLAYER_PARAMS,
                     PLAYER_REPLY,
                     "One player's state: position, look, body, vitals and effects, the world's time, melee readiness, "
                             + "equipment, the whole inventory and an item-count map. On a client with no server attached it "
@@ -201,7 +251,9 @@ public final class ObserveContracts {
     /** {@code bot}: whose threats; omitted or {@code self}, the client's player. */
     @Named("ThreatsParams")
     public record ThreatsParams(
-            @Doc("Blocks around the player.") @Default("24") @Range(min = 1, max = 64) int radius,
+            @Doc("Blocks around the player.") @Default("24") @Range(min = 1, max = 64)
+            int radius,
+
             @Doc("A server bot, player or mob: the threats its own scan sees. Omitted: self.")
             Optional<@BotRef String> bot) {}
 
@@ -214,9 +266,15 @@ public final class ObserveContracts {
             @Doc("A line-of-sight raycast to the player.") boolean canSeeMe,
             boolean facingMe,
             @Doc("Drawing a bow.") boolean charging,
-            @Doc("Rises 0→1 as a creeper detonates.") @Range(min = 0, max = 1) double creeperSwell,
-            @Doc("The player's last damager, within about 2 s.") boolean attackedMe,
-            @Doc("Danger score; deal with the highest first.") @Range(min = 0, max = 1) double threat) {}
+
+            @Doc("Rises 0→1 as a creeper detonates.") @Range(min = 0, max = 1)
+            double creeperSwell,
+
+            @Doc("The player's last damager, within about 2 s.")
+            boolean attackedMe,
+
+            @Doc("Danger score; deal with the highest first.") @Range(min = 0, max = 1)
+            double threat) {}
 
     @Named("IncomingProjectile")
     public record Projectile(
@@ -230,7 +288,9 @@ public final class ObserveContracts {
     /** For self, both lists are empty where there is no client: the scan reads what only a client renders. */
     @Named("Threats")
     public record Threats(
-            @Doc("Most dangerous first.") @Length(max = 1024) List<Threat> threats,
+            @Doc("Most dangerous first.") @Length(max = 1024)
+            List<Threat> threats,
+
             @Length(max = 1024) List<Projectile> incomingProjectiles) {}
 
     public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class);
@@ -238,7 +298,9 @@ public final class ObserveContracts {
     public static final ApiType<Threats> THREATS_REPLY = ApiTypes.record(Threats.class);
 
     // Pollable: one bounded scan of the client's own entity set, on the client thread.
-    public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of("mc.observe.threats", THREATS_PARAMS,
+    public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of(
+                    "mc.observe.threats",
+                    THREATS_PARAMS,
                     THREATS_REPLY,
                     "Scored hostiles and incoming projectiles around this client's player, or a named server bot, "
                             + "player or mob, as that bot's own reflexes see them. For self, empty lists without a client.")
@@ -248,43 +310,66 @@ public final class ObserveContracts {
 
     @Named("BossParams")
     public record BossParams(
-            @Doc("Blocks around the player; 64 covers the End pillars.") @Default("64")
-            @Range(min = 1, max = 256) int radius) {}
+            @Doc("Blocks around the player; 64 covers the End pillars.") @Default("64") @Range(min = 1, max = 256)
+            int radius) {}
 
     @Named("EndCrystal")
     public record Crystal(
             @EntityId int id,
             Point pos,
             @Range(min = 0, max = Double.MAX_VALUE) double distance,
-            @Doc("Iron bars around it: climb in, it cannot be shot from below.") boolean caged) {}
+
+            @Doc("Iron bars around it: climb in, it cannot be shot from below.")
+            boolean caged) {}
 
     @Named("DragonPhase")
     public enum DragonPhase implements WireName {
-        PERCH("perch"), CIRCLING("circling"), STRAFING("strafing"), APPROACH("approach"), LANDING("landing"),
-        TAKEOFF("takeoff"), CHARGING("charging"), DYING("dying"), HOVERING("hovering"), UNKNOWN("unknown");
+        PERCH("perch"),
+        CIRCLING("circling"),
+        STRAFING("strafing"),
+        APPROACH("approach"),
+        LANDING("landing"),
+        TAKEOFF("takeoff"),
+        CHARGING("charging"),
+        DYING("dying"),
+        HOVERING("hovering"),
+        UNKNOWN("unknown");
 
         private final String wire;
 
-        DragonPhase(String wire) { this.wire = wire; }
+        DragonPhase(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("WitherPhase")
     public enum WitherPhase implements WireName {
-        SPAWNING("spawning"), FIRST("first"), SECOND("second");
+        SPAWNING("spawning"),
+        FIRST("first"),
+        SECOND("second");
 
         private final String wire;
 
-        WitherPhase(String wire) { this.wire = wire; }
+        WitherPhase(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("DragonHead")
     public record DragonHead(@EntityId int id, Point pos) {}
 
-    @Tag("type") @Named("Boss")
+    @Tag("type")
+    @Named("Boss")
     public sealed interface Boss permits Dragon, Wither {}
 
     @Variant("ender_dragon")
@@ -298,7 +383,10 @@ public final class ObserveContracts {
             DragonPhase phase,
             @Doc("Sitting on the portal: the melee window.") boolean perched,
             @Doc("The part that takes full damage.") DragonHead head,
-            @Doc("The dragon heals while any remain.") @Range(min = 0) int crystalsAlive) implements Boss {}
+
+            @Doc("The dragon heals while any remain.") @Range(min = 0)
+            int crystalsAlive)
+            implements Boss {}
 
     @Variant("wither")
     public record Wither(
@@ -308,14 +396,20 @@ public final class ObserveContracts {
             @Range(min = 0, max = 1) double healthPct,
             Point pos,
             @Range(min = 0, max = Double.MAX_VALUE) double distance,
-            @Doc("spawning: invulnerable and about to explode; second: powered, immune to arrows.") WitherPhase phase,
+
+            @Doc("spawning: invulnerable and about to explode; second: powered, immune to arrows.")
+            WitherPhase phase,
+
             @Range(min = 0) int invulTicks,
-            @Doc("At or below half health.") boolean powered) implements Boss {}
+            @Doc("At or below half health.") boolean powered)
+            implements Boss {}
 
     /** {@code boss}: the nearest dragon or wither in range, absent when none is. */
     @Named("BossReading")
     public record BossReading(
-            @Doc("Every End crystal in range, boss or not.") @Length(max = 1024) List<Crystal> crystals,
+            @Doc("Every End crystal in range, boss or not.") @Length(max = 1024)
+            List<Crystal> crystals,
+
             Optional<Boss> boss) {}
 
     public static final ApiType<BossParams> BOSS_PARAMS = ApiTypes.record(BossParams.class);
@@ -323,7 +417,10 @@ public final class ObserveContracts {
     public static final ApiType<BossReading> BOSS_REPLY = ApiTypes.record(BossReading.class);
 
     // Pollable: one bounded scan of the client's own entity set, on the client thread.
-    public static final MethodSpec<BossParams, BossReading> BOSS_SPEC = MethodSpec.of("mc.observe.boss", BOSS_PARAMS, BOSS_REPLY,
+    public static final MethodSpec<BossParams, BossReading> BOSS_SPEC = MethodSpec.of(
+                    "mc.observe.boss",
+                    BOSS_PARAMS,
+                    BOSS_REPLY,
                     "The nearest ender dragon or wither in range, with its phase and health, and the End crystals. "
                             + "Client only: no boss and no crystals without a client.")
             .asPollable();
@@ -332,62 +429,93 @@ public final class ObserveContracts {
 
     @Named("SceneRender")
     public enum Render implements WireName {
-        SUMMARY("summary"), MAP("map");
+        SUMMARY("summary"),
+        MAP("map");
 
         private final String wire;
 
-        Render(String wire) { this.wire = wire; }
+        Render(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("SceneOverlay")
     public enum Overlay implements WireName {
-        HEIGHT("height"), SIGHT("sight"), MOB_DENSITY("mobDensity");
+        HEIGHT("height"),
+        SIGHT("sight"),
+        MOB_DENSITY("mobDensity");
 
         private final String wire;
 
-        Overlay(String wire) { this.wire = wire; }
+        Overlay(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("SceneParams")
     public record SceneParams(
-            @Doc("Omitted: the first player, or mc.system.testOrigin with nobody on.") Optional<BlockPosition> center,
-            @Doc("Chebyshev radius; over the sceneQueryMaxRadius setting it is cut to that.") @Default("12")
-            @Range(min = 1) int radius,
-            @Doc("map: also the ASCII hazard grid and its legend.") @Default("summary") Render render,
+            @Doc("Omitted: the first player, or mc.system.testOrigin with nobody on.")
+            Optional<BlockPosition> center,
+
+            @Doc("Chebyshev radius; over the sceneQueryMaxRadius setting it is cut to that.")
+            @Default("12")
+            @Range(min = 1)
+            int radius,
+
+            @Doc("map: also the ASCII hazard grid and its legend.") @Default("summary")
+            Render render,
+
             @Doc("height: surface-height range. sight: per standable cell, how many observers see it. mobDensity: per "
                     + "cell, hostiles within the cluster radius. Rows align with the map's.")
             @Default("[]")
-            @Length(max = 3) List<Overlay> overlays,
+            @Length(max = 3)
+            List<Overlay> overlays,
+
             @Doc("Which observers and mobs the overlays count: mc.bot.goto's route, of which sight and mobs are read. "
                     + "Omitted: ranged hostiles, cluster radius 6.")
             Optional<Route> route) {}
 
     @Named("FleeStep")
-    public record FleeStep(@Range(min = -1, max = 1) int dx, @Range(min = -1, max = 1) int dz) {}
+    public record FleeStep(
+            @Range(min = -1, max = 1) int dx,
+            @Range(min = -1, max = 1) int dz) {}
 
     @Named("HazardSummary")
     public record HazardSummary(
-            @Doc("Cells that would kill a 20-HP body.") @Range(min = 0) int lethalCount,
+            @Doc("Cells that would kill a 20-HP body.") @Range(min = 0)
+            int lethalCount,
+
             @Doc("No safe step out.") boolean cornered,
-            @Doc("The safest step away from a threat to the south.") Optional<FleeStep> safeFleeStep) {}
+
+            @Doc("The safest step away from a threat to the south.")
+            Optional<FleeStep> safeFleeStep) {}
 
     @Named("HazardMap")
     public record HazardMap(
-            @Doc("North first; glyphs space-separated, @ the center.") @Length(max = 1024) List<String> rows,
+            @Doc("North first; glyphs space-separated, @ the center.") @Length(max = 1024)
+            List<String> rows,
+
             @Doc("Glyph → meaning.") @Length(max = 64) Map<String, String> legend) {}
 
     @Named("HeightStats")
     public record HeightStats(
-            int centerY,
-            @Doc("Absent: no standable cell.") Optional<Integer> minY,
-            Optional<Integer> maxY) {}
+            int centerY, @Doc("Absent: no standable cell.") Optional<Integer> minY, Optional<Integer> maxY) {}
 
     @Named("SightObserver")
-    public record Observer(@EntityId int id, String type, @Doc("A custom or player name.") Optional<String> name) {}
+    public record Observer(
+            @EntityId int id,
+            String type,
+            @Doc("A custom or player name.") Optional<String> name) {}
 
     /** An overlay's rows, read like the hazard map's. */
     @Retention(RetentionPolicy.RUNTIME)
@@ -406,9 +534,15 @@ public final class ObserveContracts {
 
     @Named("DensityOverlay")
     public record DensityOverlay(
-            @Doc("Counted mobs near enough to matter.") @Range(min = 0) int mobs,
-            @Doc("The cluster radius.") @Range(min = 0, max = Double.MAX_VALUE) double radius,
-            @Doc("How many within radius make a cluster.") @Range(min = 0) int count,
+            @Doc("Counted mobs near enough to matter.") @Range(min = 0)
+            int mobs,
+
+            @Doc("The cluster radius.") @Range(min = 0, max = Double.MAX_VALUE)
+            double radius,
+
+            @Doc("How many within radius make a cluster.") @Range(min = 0)
+            int count,
+
             @OverlayRows List<String> rows,
             @Range(min = 0) int maxDensity,
             @Range(min = 0) int clusteredCells,
@@ -431,7 +565,10 @@ public final class ObserveContracts {
     public static final ApiType<Scene> SCENE_REPLY = ApiTypes.record(Scene.class);
 
     // Bulk: a hazard field up to sceneQueryMaxRadius plus a ray per cell for sight, in one server task.
-    public static final MethodSpec<SceneParams, Scene> SCENE = MethodSpec.of("mc.observe.scene", SCENE_PARAMS, SCENE_REPLY,
+    public static final MethodSpec<SceneParams, Scene> SCENE = MethodSpec.of(
+                    "mc.observe.scene",
+                    SCENE_PARAMS,
+                    SCENE_REPLY,
                     "The server's hazard grid around a center: lethal cells, whether the center is cornered, the safest "
                             + "step away; optionally an ASCII hazard map and the height, sight and mobDensity overlays the "
                             + "goto route planner judges by. Works with no client.")
@@ -441,20 +578,32 @@ public final class ObserveContracts {
 
     @Named("MapPlane")
     public enum Plane implements WireName {
-        XZ("xz"), XY("xy"), ZY("zy");
+        XZ("xz"),
+        XY("xy"),
+        ZY("zy");
 
         private final String wire;
 
-        Plane(String wire) { this.wire = wire; }
+        Plane(String wire) {
+            this.wire = wire;
+        }
 
-        @Override public String wireName() { return wire; }
+        @Override
+        public String wireName() {
+            return wire;
+        }
     }
 
     @Named("MapParams")
     public record MapParams(
             @Doc("Omitted: the first player's cell.") Optional<BlockPosition> center,
-            @Doc("Horizontal half-extent.") @Default("12") @Range(min = 1, max = 24) int radius,
-            @Doc("Vertical half-extent of a cross-section.") @Default("7") @Range(min = 1, max = 24) int height,
+
+            @Doc("Horizontal half-extent.") @Default("12") @Range(min = 1, max = 24)
+            int radius,
+
+            @Doc("Vertical half-extent of a cross-section.") @Default("7") @Range(min = 1, max = 24)
+            int height,
+
             @Doc("xz: top-down surface heightmap. xy, zy: a vertical slice through the center.") @Default("xz")
             Plane plane) {}
 
@@ -465,16 +614,24 @@ public final class ObserveContracts {
             @Range(min = 1, max = 24) int radius,
             @Doc("Characters per line.") @Range(min = 0) int width,
             @Doc("Lines.") @Range(min = 0) int height,
-            @Doc("Hostiles drawn by initial.") @Range(min = 0) int threats,
+
+            @Doc("Hostiles drawn by initial.") @Range(min = 0)
+            int threats,
+
             String legend,
-            @Doc("The grid, lines joined by newlines; north or +y on top.") String map) {}
+
+            @Doc("The grid, lines joined by newlines; north or +y on top.")
+            String map) {}
 
     public static final ApiType<MapParams> MAP_PARAMS = ApiTypes.record(MapParams.class);
 
     public static final ApiType<AsciiMap> MAP_REPLY = ApiTypes.record(AsciiMap.class);
 
     // Bulk: up to 49 × 49 columns walked top-down in one server task.
-    public static final MethodSpec<MapParams, AsciiMap> MAP = MethodSpec.of("mc.observe.map", MAP_PARAMS, MAP_REPLY,
+    public static final MethodSpec<MapParams, AsciiMap> MAP = MethodSpec.of(
+                    "mc.observe.map",
+                    MAP_PARAMS,
+                    MAP_REPLY,
                     "A compact ASCII map for fast tactical reads: a top-down surface heightmap (# wall, v drop, . walk, "
                             + "~ water, ! lava) or a vertical slice, with hostiles drawn by initial and @ at the center. "
                             + "Works with no client; with no player a center is required.")

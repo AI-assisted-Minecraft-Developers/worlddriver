@@ -1,29 +1,34 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.TestJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
+import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code mc.query q=blocks} scans a whole {@code (2r+1)^3} cube in one server-thread task and
- * builds a row per non-air cell, so it gets the same cell budget as {@code mc.action.fill} and
- * {@code mc.world.snapshot}. The check is the contract's, so it runs before the server is needed,
- * which is what lets a detached {@link DriverApplication} tell a refused radius from an accepted one.
+ * {@code mc.query q=blocks} scans a whole {@code (2r+1)^3} cube in one server-thread task and builds a row per non-air
+ * cell, so it gets the same cell budget as {@code mc.action.fill} and {@code mc.world.snapshot}. The check is the
+ * contract's, so it runs before the server is needed, which is what lets a detached {@link DriverApplication} tell a
+ * refused radius from an accepted one.
  */
 class BlockQueryCapTest {
 
     private static ApiError query(int radius) {
         try {
-            new DriverApplication().registry().dispatch("mc.query", TestJson.json(Map.of("q", "blocks", "filter", Map.of("in_radius", radius))),
-                    CallContext.standalone()).toCompletableFuture().get();
+            new DriverApplication()
+                    .registry()
+                    .dispatch(
+                            "mc.query",
+                            TestJson.json(Map.of("q", "blocks", "filter", Map.of("in_radius", radius))),
+                            CallContext.standalone())
+                    .toCompletableFuture()
+                    .get();
         } catch (ExecutionException e) {
             return ((ApiException) e.getCause()).error();
         } catch (InterruptedException e) {

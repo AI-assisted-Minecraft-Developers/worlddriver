@@ -10,28 +10,28 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.registry.ApiBatch;
-import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.thread.GameThreads;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Patch;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Read;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.thread.GameThreads;
 import org.junit.jupiter.api.Test;
 
 /**
- * A generated caller is a request without the JSON: the same checks, the same handler, the same
- * refusals. Proven on {@link SettingsApi} with no game running.
+ * A generated caller is a request without the JSON: the same checks, the same handler, the same refusals. Proven on
+ * {@link SettingsApi} with no game running.
  */
 class SettingsApiTest {
 
     private static ApiError failure(java.util.concurrent.CompletionStage<?> stage) {
-        return assertThrows(ApiException.class, () -> ApiRegistry.await(stage, 5_000)).error();
+        return assertThrows(ApiException.class, () -> ApiRegistry.await(stage, 5_000))
+                .error();
     }
 
     @Test
@@ -68,13 +68,18 @@ class SettingsApiTest {
         }))));
         GameThreads.installClient(() -> true);
         try {
-            ApiRegistry.await(registry.invoke(ProbeMethods.ECHO, new ProbeMethods.Echo(3), CallContext.standalone()), 5_000);
+            ApiRegistry.await(
+                    registry.invoke(ProbeMethods.ECHO, new ProbeMethods.Echo(3), CallContext.standalone()), 5_000);
         } finally {
             GameThreads.installClient(null);
         }
         assertTrue(allowed.get(), "a game thread's call was handed a narrower context than its caller's");
-        ApiRegistry.await(registry.invoke(ProbeMethods.ECHO, new ProbeMethods.Echo(3),
-                CallContext.standalone().onGameThread()), 5_000);
+        ApiRegistry.await(
+                registry.invoke(
+                        ProbeMethods.ECHO,
+                        new ProbeMethods.Echo(3),
+                        CallContext.standalone().onGameThread()),
+                5_000);
         assertFalse(allowed.get(), "the caller's own context was not passed through");
     }
 }

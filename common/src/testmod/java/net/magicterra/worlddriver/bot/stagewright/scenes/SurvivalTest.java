@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.List;
 import java.util.Optional;
-
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -28,10 +27,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestReporter;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
-import org.junit.jupiter.api.TestReporter;
 
 /**
  * The Survival family: escape / bunker shelter / low-HP flee / underwater-base traverse / anti-suffocate / air-supply
@@ -49,14 +48,17 @@ import org.junit.jupiter.api.TestReporter;
  * capped at 600 ticks), so the historical hang it was known for belonged to the old persistent world, not to it.
  */
 @Scene("wd.scenes")
-@Isolated   // see ProcessTest: these tests hold the server thread for long spans
+@Isolated // see ProcessTest: these tests hold the server thread for long spans
 @Execution(ExecutionMode.SAME_THREAD)
 class SurvivalTest {
 
     /** Real EscapeProcess climbs out of a 1-wide stone pit. */
     @Test
     void serverEscape(Game game, @Plot.Centered Plot plot) {
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", false);
         final int floorY = 0;
         // Solid stone block floorY..floorY+3 (top surface = floorY+3, stand = floorY+4); the 1-wide pit at the
         // centre: air floorY+1..floorY+3, the bot stands on floorY.
@@ -64,7 +66,7 @@ class SurvivalTest {
         plot.fill(0, floorY + 1, 0, 0, floorY + 3, 0, Blocks.AIR);
 
         SceneBot bot = SceneBot.spawn(game, plot, 0, floorY + 1, 0);
-        bot.give(Items.DIRT, 64);   // VERT_RISE fallback
+        bot.give(Items.DIRT, 64); // VERT_RISE fallback
         int floor = plot.at(0, floorY, 0).getY();
         game.runOnServer(s -> {
             bot.escape(floor + 4);
@@ -79,14 +81,17 @@ class SurvivalTest {
     /** Real BunkerProcess seals a dig-three, fill-one shelter shaft. */
     @Test
     void serverBunker(Game game, @Plot.Centered Plot plot) {
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", false);
         final int floorY = 0;
         // Solid dirt block floorY-3..floorY+1 to dig into; carve the bot's 1×2 standing slot.
         plot.fill(-3, floorY - 3, -3, 3, floorY + 1, 3, Blocks.DIRT);
         plot.fill(0, floorY + 1, 0, 0, floorY + 2, 0, Blocks.AIR);
 
         SceneBot bot = SceneBot.spawn(game, plot, 0, floorY + 1, 0);
-        bot.give(Items.DIRT, 64);   // server breaks drop nothing → pre-stock plug blocks
+        bot.give(Items.DIRT, 64); // server breaks drop nothing → pre-stock plug blocks
         game.runOnServer(s -> {
             bot.bunker(2);
             // The bunker holds at SEALED (never ends on its own), so the bot stays busy — run a fixed window then
@@ -99,8 +104,10 @@ class SurvivalTest {
                 shaftCells++;
                 if (!level.getBlockState(plot.at(0, floorY + dy, 0)).isAir()) sealed++;
             }
-            assertTrue(sealed >= shaftCells, "server BunkerProcess left the shaft open: sealed=" + sealed + "/"
-                    + shaftCells + " bot at " + bot.player().position());
+            assertTrue(
+                    sealed >= shaftCells,
+                    "server BunkerProcess left the shaft open: sealed=" + sealed + "/" + shaftCells + " bot at "
+                            + bot.player().position());
         });
     }
 
@@ -121,7 +128,7 @@ class SurvivalTest {
             plot.fill(dx, floorY + top + 1, 2, dx, floorY + top + 3, 2, Blocks.STONE);
         }
         BlockPos from = plot.at(-2, floorY + 13, 0);
-        final int minDist = 10;   // satisfied at dx ≥ 8, right after the planned descent
+        final int minDist = 10; // satisfied at dx ≥ 8, right after the planned descent
         int floor = plot.at(0, floorY, 0).getY();
 
         SceneBot bot = SceneBot.spawn(game, plot, 0, floorY + 13, 0);
@@ -137,11 +144,14 @@ class SurvivalTest {
 
             double ddx = fp.getX() - (from.getX() + 0.5), ddz = fp.getZ() - (from.getZ() + 0.5);
             double dist = Math.sqrt(ddx * ddx + ddz * ddz);
-            assertTrue(fp.getHealth() >= 2.0f, "low-HP flee took damage (fell off the planned descent / lip): hp="
-                    + fp.getHealth() + " y=" + fp.getY());
+            assertTrue(
+                    fp.getHealth() >= 2.0f,
+                    "low-HP flee took damage (fell off the planned descent / lip): hp=" + fp.getHealth() + " y="
+                            + fp.getY());
             assertTrue(fp.getY() >= floor + 9.0, "low-HP flee left the elevated runway (fell): y=" + fp.getY());
-            assertTrue(dist >= minDist - 0.5, "low-HP flee did not reach min distance: dist=" + dist + " (need "
-                    + minDist + ")");
+            assertTrue(
+                    dist >= minDist - 0.5,
+                    "low-HP flee did not reach min distance: dist=" + dist + " (need " + minDist + ")");
             assertFalse(bot.busy(), "low-HP flee did not finish");
         });
     }
@@ -149,7 +159,10 @@ class SurvivalTest {
     /** Real BunkerProcess must enclose the niche, not punch a cliff face (death#2 enclosure regression). */
     @Test
     void serverBunkerSlope(Game game, @Plot.Centered Plot plot) {
-        Settings.pinUntimed(game).set("allowBreak", true).set("allowPlace", true).set("navigatorDebug", false);
+        Settings.pinUntimed(game)
+                .set("allowBreak", true)
+                .set("allowPlace", true)
+                .set("navigatorDebug", false);
         final int floorY = 0;
         plot.fill(-4, floorY - 4, -4, 4, floorY + 1, 4, Blocks.DIRT);
         // Standing slot at the centre.
@@ -168,14 +181,19 @@ class SurvivalTest {
             BlockPos head = foot.above();
             int openLateral = 0;
             StringBuilder open = new StringBuilder();
-            for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
-                for (BlockPos cell : new BlockPos[]{foot.relative(d), head.relative(d)}) {
-                    if (level.getBlockState(cell).isAir()) { openLateral++; open.append(cell.toShortString()).append(' '); }
+            for (Direction d : new Direction[] {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
+                for (BlockPos cell : new BlockPos[] {foot.relative(d), head.relative(d)}) {
+                    if (level.getBlockState(cell).isAir()) {
+                        openLateral++;
+                        open.append(cell.toShortString()).append(' ');
+                    }
                 }
             }
             boolean roofOpen = level.getBlockState(head.above()).isAir();
-            assertTrue(openLateral == 0 && !roofOpen, "bunker pocket not enclosed at " + foot.toShortString()
-                    + ": openLateral=" + openLateral + " roofOpen=" + roofOpen + " cells=" + open);
+            assertTrue(
+                    openLateral == 0 && !roofOpen,
+                    "bunker pocket not enclosed at " + foot.toShortString() + ": openLateral=" + openLateral
+                            + " roofOpen=" + roofOpen + " cells=" + open);
         });
     }
 
@@ -211,7 +229,7 @@ class SurvivalTest {
         plot.fill(2, floorY + 1, -1, 2, floorY + 2, 1, Blocks.WATER);
         // The stand cell is where the bot ends up; the GOAL targets the AIR cell two above it.
         BlockPos standCell = plot.at(4, floorY + 1, 0);
-        BlockPos goalCell = plot.at(4, floorY + 3, 0);   // AIR-pocket cell above the water
+        BlockPos goalCell = plot.at(4, floorY + 3, 0); // AIR-pocket cell above the water
         GotoContracts.Target goal = Targets.near(goalCell, 2);
         double eastWall = plot.at(2, 0, 0).getX() + 0.5;
 
@@ -219,8 +237,15 @@ class SurvivalTest {
         game.runOnServer(s -> SimProbes.grantWaterEffects(bot.player()));
 
         // Planner precheck: reachable, and still via a surface dive.
-        DebugContracts.SinglePlan plan = bot.plan(new DebugContracts.PlanParams(Optional.of(bot.ref()), goal,
-                Optional.empty(), Optional.of(DIVE_ROUTE), false, 40, Optional.empty(), Optional.empty()));
+        DebugContracts.SinglePlan plan = bot.plan(new DebugContracts.PlanParams(
+                Optional.of(bot.ref()),
+                goal,
+                Optional.empty(),
+                Optional.of(DIVE_ROUTE),
+                false,
+                40,
+                Optional.empty(),
+                Optional.empty()));
         boolean hasSurfaceDive = plan.edges().stream()
                 .anyMatch(e -> e.move().map("swimDownSurface"::equals).orElse(false));
         long finalCost = plan.search().finalCost();
@@ -228,9 +253,11 @@ class SurvivalTest {
         assertTrue(hasSurfaceDive, "planner: plan reached the chamber WITHOUT a swimDownSurface edge");
         // Dive water-tax relief gate: 640 (≈ 16 cells × 40) cleanly separates the relieved route (~350) from the
         // un-relieved one (past ~800).
-        assertTrue(finalCost < 640, "planner: dive plan finalCost=" + finalCost + " ≥ 640 — the DIVE opt-in water-tax "
-                + "relief is not engaging (the un-relieved taxes starve the open-world live search into an overland "
-                + "dead-end)");
+        assertTrue(
+                finalCost < 640,
+                "planner: dive plan finalCost=" + finalCost + " ≥ 640 — the DIVE opt-in water-tax "
+                        + "relief is not engaging (the un-relieved taxes starve the open-world live search into an overland "
+                        + "dead-end)");
 
         game.runOnServer(s -> {
             bot.goTo(goal, DIVE_ROUTE);
@@ -241,20 +268,35 @@ class SurvivalTest {
             double ddy = fp.getY() - standCell.getY();
             double ddz = fp.getZ() - (standCell.getZ() + 0.5);
             double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-            boolean insideChamber = fp.getX() > eastWall;   // past the tank's east wall plane
+            boolean insideChamber = fp.getX() > eastWall; // past the tank's east wall plane
             String pos = "(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")";
             assertFalse(bot.busy(), "executor: dive+traverse process did not finish within 600t: pos=" + pos);
-            assertTrue(insideChamber && dist <= 2.0, "executor: bot did not end INSIDE the chamber near the goal: pos="
-                    + pos + " dist=" + dist + " insideChamber=" + insideChamber);
+            assertTrue(
+                    insideChamber && dist <= 2.0,
+                    "executor: bot did not end INSIDE the chamber near the goal: pos=" + pos + " dist=" + dist
+                            + " insideChamber=" + insideChamber);
         });
     }
 
-    /** The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax
-     *  rides along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break. */
-    private static final RouteContracts.Route DIVE_ROUTE = new RouteContracts.Route(List.of(),
-            Optional.of(List.of(RouteContracts.TravelMode.DIVE)), RouteContracts.BreakPolicy.NEVER,
-            RouteContracts.PlacePolicy.ALLOW, true, RouteContracts.Risk.BOLD, Optional.empty(), Optional.empty(),
-            Optional.empty(), List.of(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+    /**
+     * The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax rides
+     * along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break.
+     */
+    private static final RouteContracts.Route DIVE_ROUTE = new RouteContracts.Route(
+            List.of(),
+            Optional.of(List.of(RouteContracts.TravelMode.DIVE)),
+            RouteContracts.BreakPolicy.NEVER,
+            RouteContracts.PlacePolicy.ALLOW,
+            true,
+            RouteContracts.Risk.BOLD,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
             Optional.empty());
 
     /** gap#70: observe.player carries air / maxAir over a server bot. */
@@ -270,14 +312,17 @@ class SurvivalTest {
         int maxAir = game.onServer(s -> bot.player().getMaxAirSupply());
 
         // The bot's player by its profile name, as an agent asks for any player on the server.
-        ObserveContracts.PlayerReading reading = game.onServer(s -> game.api(ObserveBlockingApi::of).player(
-                new ObserveContracts.PlayerParams(Optional.of(name))));
+        ObserveContracts.PlayerReading reading = game.onServer(
+                s -> game.api(ObserveBlockingApi::of).player(new ObserveContracts.PlayerParams(Optional.of(name))));
         if (reading.player().isEmpty()) fail("gap#70: mc.observe.player found no player named " + name);
         ObserveContracts.Vitals vitals = reading.player().get().vitals();
-        game.check(vitals.air() == 42, "gap#70: observe.player reports the wrong `air` — got " + vitals.air()
-                + ", wanted 42 (setAirSupply(42))");
-        game.check(vitals.maxAir() == maxAir, "gap#70: observe.player reports the wrong `maxAir` — got "
-                + vitals.maxAir() + ", wanted " + maxAir);
+        game.check(
+                vitals.air() == 42,
+                "gap#70: observe.player reports the wrong `air` — got " + vitals.air()
+                        + ", wanted 42 (setAirSupply(42))");
+        game.check(
+                vitals.maxAir() == maxAir,
+                "gap#70: observe.player reports the wrong `maxAir` — got " + vitals.maxAir() + ", wanted " + maxAir);
     }
 
     /**
@@ -294,17 +339,24 @@ class SurvivalTest {
         BlockPos air = plot.at(0, 3, 0);
         plot.place(0, 1, 0, Blocks.STONE);
         plot.place(0, 2, 0, Blocks.WATER);
-        List<BotDebugContracts.Cell> cells = game.onServer(s -> game.api(DebugBlockingApi::of).cells(
-                new BotDebugContracts.CellsParams(Optional.empty(),
-                        List.of(Targets.pos(stone), Targets.pos(water), Targets.pos(air)), Optional.empty()))).cells();
+        List<BotDebugContracts.Cell> cells = game.onServer(s -> game.api(DebugBlockingApi::of)
+                        .cells(new BotDebugContracts.CellsParams(
+                                Optional.empty(),
+                                List.of(Targets.pos(stone), Targets.pos(water), Targets.pos(air)),
+                                Optional.empty())))
+                .cells();
         game.check(cells.get(0).suffocates(), "gap#80(a): an ordinary solid block (stone) must read as suffocating");
-        game.check(!cells.get(1).suffocates(), "gap#80(b): WATER must NOT read as suffocating (drowning, not "
-                + "suffocation) — the live bug: resolveHead's old !isAir() check treated water as a valid break target");
+        game.check(
+                !cells.get(1).suffocates(),
+                "gap#80(b): WATER must NOT read as suffocating (drowning, not "
+                        + "suffocation) — the live bug: resolveHead's old !isAir() check treated water as a valid break target");
         game.check(!cells.get(2).suffocates(), "gap#80(c): AIR must NOT read as suffocating (baseline sanity)");
     }
 
-    /** Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
-     *  room for the trigger, which reads the damage the wall deals. */
+    /**
+     * Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
+     * room for the trigger, which reads the damage the wall deals.
+     */
     private static final int SUFFOCATE_BUDGET = 60;
 
     /**
@@ -336,19 +388,24 @@ class SurvivalTest {
         boolean inWall = game.onServer(s -> bot.player().isInWall());
         reporter.publishEntry("setup.inWall", String.valueOf(inWall));
         int[] t = {0};
-        game.await().within(SUFFOCATE_BUDGET + 100).as("the head cell clears or the budget runs out")
+        game.await()
+                .within(SUFFOCATE_BUDGET + 100)
+                .as("the head cell clears or the budget runs out")
                 .until(() -> bot.level().getBlockState(head).isAir() || ++t[0] >= SUFFOCATE_BUDGET);
         game.runOnServer(s -> {
             boolean cleared = bot.level().getBlockState(head).isAir();
             reporter.publishEntry("head.cleared", cleared + " after " + t[0] + "/" + SUFFOCATE_BUDGET + " ticks");
             if (armed && !cleared) {
-                fail("the head cell " + head.toShortString() + " is still " + bot.level().getBlockState(head).getBlock()
-                        + " after " + SUFFOCATE_BUDGET + " ticks with antiSuffocate on: the idle server bot's reflex did "
+                fail("the head cell " + head.toShortString() + " is still "
+                        + bot.level().getBlockState(head).getBlock()
+                        + " after " + SUFFOCATE_BUDGET
+                        + " ticks with antiSuffocate on: the idle server bot's reflex did "
                         + "not break it");
             }
             if (!armed && cleared) {
-                fail("counter-arm failed: antiSuffocate is off, yet the head cell was cleared; something other than the "
-                        + "reflex broke it, so the armed arm proves nothing");
+                fail(
+                        "counter-arm failed: antiSuffocate is off, yet the head cell was cleared; something other than the "
+                                + "reflex broke it, so the armed arm proves nothing");
             }
         });
     }

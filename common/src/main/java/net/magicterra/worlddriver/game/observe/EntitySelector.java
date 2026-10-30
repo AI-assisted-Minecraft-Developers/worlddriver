@@ -3,9 +3,8 @@ package net.magicterra.worlddriver.game.observe;
 import com.google.common.primitives.Ints;
 
 /**
- * The one reading of an entity selector string: all digits is an entity id, anything else matches a
- * display or profile name exactly, or a type id with or without its namespace ({@code zombie},
- * {@code minecraft:zombie}).
+ * The one reading of an entity selector string: all digits is an entity id, anything else matches a display or profile
+ * name exactly, or a type id with or without its namespace ({@code zombie}, {@code minecraft:zombie}).
  */
 public final class EntitySelector {
     private EntitySelector() {}

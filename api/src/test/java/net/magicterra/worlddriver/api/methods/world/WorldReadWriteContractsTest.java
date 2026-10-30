@@ -6,24 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonParser;
 import java.util.List;
 import java.util.Optional;
-
-import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.ApiType;
-import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts;
-import com.google.gson.JsonParser;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import org.junit.jupiter.api.Test;
 
 /**
- * The system, observe, query, world, action and recipe methods: the rules their params carry
- * across fields, the shapes their replies take, and which of them a watcher may poll.
+ * The system, observe, query, world, action and recipe methods: the rules their params carry across fields, the shapes
+ * their replies take, and which of them a watcher may poll.
  */
 class WorldReadWriteContractsTest {
 
@@ -32,63 +31,95 @@ class WorldReadWriteContractsTest {
     }
 
     private static ApiIssue issue(ApiType<?> type, String json) {
-        List<ApiIssue> issues = assertThrows(ApiException.class, () -> decode(type, json)).error().issues();
+        List<ApiIssue> issues = assertThrows(ApiException.class, () -> decode(type, json))
+                .error()
+                .issues();
         assertEquals(1, issues.size(), issues.toString());
         return issues.get(0);
     }
 
     @Test
     void boundedReadsArePollableAndWaitingIsNot() {
-        for (MethodSpec<?, ?> m : List.of(SystemContracts.VERSION, SystemContracts.TEST_ORIGIN, ObserveContracts.PLAYER,
-                ObserveContracts.THREATS, ObserveContracts.BOSS_SPEC, WorldContracts.BLOCK))
-            assertTrue(m.pollable(), m.name());
-        for (MethodSpec<?, ?> m : List.of(SystemContracts.WAIT_TICKS, QueryContracts.SPEC, ObserveContracts.SCENE,
-                WorldContracts.SNAPSHOT, ActionContracts.RUN_COMMAND))
-            assertFalse(m.pollable(), m.name());
+        for (MethodSpec<?, ?> m : List.of(
+                SystemContracts.VERSION,
+                SystemContracts.TEST_ORIGIN,
+                ObserveContracts.PLAYER,
+                ObserveContracts.THREATS,
+                ObserveContracts.BOSS_SPEC,
+                WorldContracts.BLOCK)) assertTrue(m.pollable(), m.name());
+        for (MethodSpec<?, ?> m : List.of(
+                SystemContracts.WAIT_TICKS,
+                QueryContracts.SPEC,
+                ObserveContracts.SCENE,
+                WorldContracts.SNAPSHOT,
+                ActionContracts.RUN_COMMAND)) assertFalse(m.pollable(), m.name());
         assertEquals(MethodSpec.Blocking.MAY_WAIT, SystemContracts.WAIT_TICKS.blocking());
-        assertEquals("/ticks", issue(SystemContracts.WAIT_TICKS_PARAMS, "{\"ticks\":201}").path());
+        assertEquals(
+                "/ticks",
+                issue(SystemContracts.WAIT_TICKS_PARAMS, "{\"ticks\":201}").path());
     }
 
     @Test
     void aWaitEncodesWithAndWithoutTheServerTickTimes() {
-        assertEquals("{\"waited\":4}", String.valueOf(SystemContracts.WAITED.encode(
-                new SystemContracts.Waited(4, Optional.empty(), Optional.empty()))));
-        assertEquals("{\"waited\":4,\"interrupted\":true,\"server\":{\"ticks\":3,\"meanMs\":1.5,\"medianMs\":1.0,"
-                + "\"maxMs\":2.5}}", String.valueOf(SystemContracts.WAITED.encode(new SystemContracts.Waited(4,
-                Optional.of(true), Optional.of(new SystemContracts.TickTimes(3, 1.5, 1.0, 2.5))))));
+        assertEquals(
+                "{\"waited\":4}",
+                String.valueOf(SystemContracts.WAITED.encode(
+                        new SystemContracts.Waited(4, Optional.empty(), Optional.empty()))));
+        assertEquals(
+                "{\"waited\":4,\"interrupted\":true,\"server\":{\"ticks\":3,\"meanMs\":1.5,\"medianMs\":1.0,"
+                        + "\"maxMs\":2.5}}",
+                String.valueOf(SystemContracts.WAITED.encode(new SystemContracts.Waited(
+                        4, Optional.of(true), Optional.of(new SystemContracts.TickTimes(3, 1.5, 1.0, 2.5))))));
     }
 
     @Test
     void aQueryTakesOnlyItsOwnVariantsFilters() {
-        assertEquals("/filter/is_hostile",
-                issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"is_hostile\":true}}").path());
-        assertEquals("/select/0", issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"select\":[\"health\"]}").path());
-        assertEquals("/filter/in_radius",
-                issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"in_radius\":16}}").path());
-        QueryContracts.Entities e = assertInstanceOf(QueryContracts.Entities.class,
-                decode(QueryContracts.PARAMS, "{\"q\":\"entities\"}"));
+        assertEquals(
+                "/filter/is_hostile",
+                issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"is_hostile\":true}}")
+                        .path());
+        assertEquals(
+                "/select/0",
+                issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"select\":[\"health\"]}")
+                        .path());
+        assertEquals(
+                "/filter/in_radius",
+                issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"in_radius\":16}}")
+                        .path());
+        QueryContracts.Entities e =
+                assertInstanceOf(QueryContracts.Entities.class, decode(QueryContracts.PARAMS, "{\"q\":\"entities\"}"));
         assertEquals(16, e.filter().inRadius());
-        assertEquals("{\"q\":\"blocks\",\"blocks\":[]}",
+        assertEquals(
+                "{\"q\":\"blocks\",\"blocks\":[]}",
                 String.valueOf(QueryContracts.REPLY.encode(new QueryContracts.BlockRows(List.of()))));
     }
 
     @Test
     void aBoxPastTheCellBudgetIsRefusedAtItsFarCorner() {
         String far = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":32,\"y\":31,\"z\":31}";
-        assertEquals("/to", issue(ActionContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}").path());
-        decode(ActionContracts.FILL_PARAMS,
+        assertEquals(
+                "/to",
+                issue(ActionContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}")
+                        .path());
+        decode(
+                ActionContracts.FILL_PARAMS,
                 "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":31,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}");
         // Three 2^32 spans multiply to 2^96, which a long wraps to 0.
         String min = "-2147483648", max = "2147483647";
-        assertEquals("/to", issue(WorldContracts.SNAPSHOT_PARAMS, "{\"from\":{\"x\":" + min + ",\"y\":" + min + ",\"z\":" + min
-                + "},\"to\":{\"x\":" + max + ",\"y\":" + max + ",\"z\":" + max + "}}").path());
+        assertEquals(
+                "/to",
+                issue(
+                                WorldContracts.SNAPSHOT_PARAMS,
+                                "{\"from\":{\"x\":" + min + ",\"y\":" + min + ",\"z\":" + min + "},\"to\":{\"x\":" + max
+                                        + ",\"y\":" + max + ",\"z\":" + max + "}}")
+                        .path());
     }
 
     @Test
     void aSnapshotMayHoldAWholeTestPlotButNothingElseMayExceedThe32Cube() {
         String from = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":";
-        WorldContracts.SnapshotParams plot = decode(WorldContracts.SNAPSHOT_PARAMS,
-                from + "{\"x\":63,\"y\":63,\"z\":63}}");
+        WorldContracts.SnapshotParams plot =
+                decode(WorldContracts.SNAPSHOT_PARAMS, from + "{\"x\":63,\"y\":63,\"z\":63}}");
         assertEquals(Optional.empty(), plot.dimension());
         assertFalse(plot.entities());
         assertTrue(plot.blockEntities());
@@ -96,13 +127,16 @@ class WorldReadWriteContractsTest {
         assertEquals("/to", over.path());
         assertEquals(ApiIssue.Code.OUT_OF_RANGE, over.code());
         // 32769 cells: past mc.action.fill's budget, though a snapshot would take it.
-        assertEquals("/to", issue(ActionContracts.FILL_PARAMS,
-                from + "{\"x\":32,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}").path());
+        assertEquals(
+                "/to",
+                issue(ActionContracts.FILL_PARAMS, from + "{\"x\":32,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}")
+                        .path());
     }
 
     @Test
     void aSnapshotNamesItsDimensionAndAsksForEntitiesOnlyWhenTold() {
-        WorldContracts.SnapshotParams p = decode(WorldContracts.SNAPSHOT_PARAMS,
+        WorldContracts.SnapshotParams p = decode(
+                WorldContracts.SNAPSHOT_PARAMS,
                 "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":1,\"y\":1,\"z\":1},"
                         + "\"dimension\":\"minecraft:the_nether\",\"entities\":true}");
         assertEquals(Optional.of("minecraft:the_nether"), p.dimension());
@@ -111,21 +145,32 @@ class WorldReadWriteContractsTest {
 
     @Test
     void eventsAreThereOnlyWhenAskedFor() {
-        assertEquals("{\"placed\":3}",
+        assertEquals(
+                "{\"placed\":3}",
                 String.valueOf(ActionContracts.PLACED.encode(new ActionContracts.Placed(3, Optional.empty()))));
-        assertEquals("/blocks", issue(ActionContracts.PLACE_MANY_PARAMS, "{\"blocks\":[]}").path());
+        assertEquals(
+                "/blocks",
+                issue(ActionContracts.PLACE_MANY_PARAMS, "{\"blocks\":[]}").path());
     }
 
     @Test
     void aLookupSearchesOneWay() {
-        assertEquals("/ingredient", issue(RecipeContracts.LOOKUP_PARAMS,
-                "{\"result\":\"minecraft:stick\",\"ingredient\":\"minecraft:oak_planks\"}").path());
+        assertEquals(
+                "/ingredient",
+                issue(
+                                RecipeContracts.LOOKUP_PARAMS,
+                                "{\"result\":\"minecraft:stick\",\"ingredient\":\"minecraft:oak_planks\"}")
+                        .path());
         assertEquals(20, decode(RecipeContracts.LOOKUP_PARAMS, "{}").limit());
     }
 
     @Test
     void anAbsentPlayerIsAnAbsentField() {
-        assertEquals("{}", String.valueOf(ObserveContracts.PLAYER_REPLY.encode(new ObserveContracts.PlayerReading(Optional.empty()))));
-        assertEquals("{\"type\":\"miss\"}", String.valueOf(ObserveContracts.CROSSHAIR.encode(new ObserveContracts.Miss())));
+        assertEquals(
+                "{}",
+                String.valueOf(
+                        ObserveContracts.PLAYER_REPLY.encode(new ObserveContracts.PlayerReading(Optional.empty()))));
+        assertEquals(
+                "{\"type\":\"miss\"}", String.valueOf(ObserveContracts.CROSSHAIR.encode(new ObserveContracts.Miss())));
     }
 }

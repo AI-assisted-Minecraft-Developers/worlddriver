@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.config;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -8,41 +9,34 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
- * Every default-ON behaviour flag must have a recorded decision about whether the arena
- * baseline pins it off.
+ * Every default-ON behaviour flag must have a recorded decision about whether the arena baseline pins it off.
  *
  * <p><b>The failure this guards is not a skipped test — it is a rewritten subject.</b>
- * {@link BotConfig#applyGameTestBaseline()} runs under every scene that takes
- * {@link BotConfig#pinnedBaseline()} and writes 38 fields,
- * the first two of which are {@code allowBreak = false} and {@code allowPlace = false}. So a
- * scene suite that is green over a behaviour proves nothing about a live client, and a live
- * client's behaviour proves nothing about the suite — the two run different bots. Nothing
- * announces this. There is no SKIP line, no warning, no absent scene; the assertions run, pass,
- * and describe a bot that had two of its capabilities removed by the process measuring it.
+ * {@link BotConfig#applyGameTestBaseline()} runs under every scene that takes {@link BotConfig#pinnedBaseline()} and
+ * writes 38 fields, the first two of which are {@code allowBreak = false} and {@code allowPlace = false}. So a scene
+ * suite that is green over a behaviour proves nothing about a live client, and a live client's behaviour proves nothing
+ * about the suite — the two run different bots. Nothing announces this. There is no SKIP line, no warning, no absent
+ * scene; the assertions run, pass, and describe a bot that had two of its capabilities removed by the process measuring
+ * it.
  *
- * <p>2026-08-22 cost of the version of this with one flag: {@code navigatorDigAimPriority} is pinned
- * off here, so two successive fixes to the dig-claim release were authored, landed and judged
- * against a branch that never executed on the ladder. The evidence was a zero —
- * {@code dig-aim RELEASE} appearing 0 times in 8022 ticks — which reads identically as "the guard
- * never expired" and "the guard was never entered".
+ * <p>2026-08-22 cost of the version of this with one flag: {@code navigatorDigAimPriority} is pinned off here, so two
+ * successive fixes to the dig-claim release were authored, landed and judged against a branch that never executed on
+ * the ladder. The evidence was a zero — {@code dig-aim RELEASE} appearing 0 times in 8022 ticks — which reads
+ * identically as "the guard never expired" and "the guard was never entered".
  *
- * <p><b>What this test does NOT do</b> is check the baseline against its own assignment list.
- * That would be a threshold computed from the thing it measures: adding a line to
- * {@code applyGameTestBaseline} would move both sides together and stay green. The universe here
- * comes from reflection over {@link SettingsRegistry#reflectivePrimitiveFields()} filtered by
- * {@code BotConfig.COMPILED_DEFAULTS}, and what the baseline writes is measured by RUNNING it
- * against sentinel values — never by reading its source. A new flag, or a flag flipped from
- * default-OFF to default-ON, therefore lands in the universe without landing in the manifest,
- * and this goes red until somebody makes the decision and writes down why.
+ * <p><b>What this test does NOT do</b> is check the baseline against its own assignment list. That would be a threshold
+ * computed from the thing it measures: adding a line to {@code applyGameTestBaseline} would move both sides together
+ * and stay green. The universe here comes from reflection over {@link SettingsRegistry#reflectivePrimitiveFields()}
+ * filtered by {@code BotConfig.COMPILED_DEFAULTS}, and what the baseline writes is measured by RUNNING it against
+ * sentinel values — never by reading its source. A new flag, or a flag flipped from default-OFF to default-ON,
+ * therefore lands in the universe without landing in the manifest, and this goes red until somebody makes the decision
+ * and writes down why.
  *
- * <p>Default-OFF booleans are deliberately outside the universe: while a flag is off, arena and
- * client agree, so there is nothing to decide. The decision becomes due on the flip to ON — which
- * is exactly the event that adds it here.
+ * <p>Default-OFF booleans are deliberately outside the universe: while a flag is off, arena and client agree, so there
+ * is nothing to decide. The decision becomes due on the flip to ON — which is exactly the event that adds it here.
  */
 class GameTestBaselineManifestTest {
 
@@ -55,28 +49,40 @@ class GameTestBaselineManifestTest {
 
     private static final Map<String, String> PINNED = new TreeMap<>(Map.ofEntries(
             // --- capability permissions: not "a behaviour flipped later", a whole ability removed
-            e("allowBreak", "permission: the pathfinder may mine obstructing blocks. OFF here, so any "
-                    + "arena assertion about digging is about a bot that cannot dig unless the scene says so"),
+            e(
+                    "allowBreak",
+                    "permission: the pathfinder may mine obstructing blocks. OFF here, so any "
+                            + "arena assertion about digging is about a bot that cannot dig unless the scene says so"),
             e("allowPlace", "permission: the pathfinder may place a throwaway block to bridge a gap"),
-            e("allowWaterBucketFall", "permission: the planner may route a fall taller than the dry cap "
-                    + "because the bot carries a water bucket"),
+            e(
+                    "allowWaterBucketFall",
+                    "permission: the planner may route a fall taller than the dry cap "
+                            + "because the bot carries a water bucket"),
 
             // --- §78 flip wave: ON for live play after the arena assertions were written
             e("navigatorStepUpBackoffRetry", "§78 — stepUp mount backoff-retry (#47 problem-6 grind)"),
             e("navigatorCarrotBodyLos", "carrot LOS honest about player width (jungle-trunk friction)"),
             e("navigatorBankDigGroundBlip", "§78 — bank-dig ground-blip immunity (underground-pool climb-out grind)"),
-            e("navigatorExpectAlarm", "§78 — actuator expectation alarms; changes what the log SAYS, "
-                    + "which is why a scene reading log lines would see it"),
+            e(
+                    "navigatorExpectAlarm",
+                    "§78 — actuator expectation alarms; changes what the log SAYS, "
+                            + "which is why a scene reading log lines would see it"),
             e("navigatorStuckStepMonotonic", "§78 — monotonic stuck-window (open-water step-jitter starvation)"),
             e("navigatorPillarSurfacePlace", "§78 — water-surface pillar crest-place (pillarUp deadlock)"),
             e("navigatorAboveNodeStallRecover", "§78 — climbed-past-the-node stall recovery (steep-mountain churn)"),
-            e("navigatorDigAimPriority", "§78 — dig aim priority, successor to navigatorStickyDig. THE 2026-08-22 "
-                    + "case: pinned off here, so the ladder ran neither implementation"),
+            e(
+                    "navigatorDigAimPriority",
+                    "§78 — dig aim priority, successor to navigatorStickyDig. THE 2026-08-22 "
+                            + "case: pinned off here, so the ladder ran neither implementation"),
             e("navigatorWallDigFallback", "§78 — dry wall-pin dig fallback (§71)"),
-            e("pathfinderBreakCostMultiplier", "§78 — dig-aversion multiplier on planner breakCost, "
-                    + "back to the neutral 1.0 the arena costs were measured with"),
+            e(
+                    "pathfinderBreakCostMultiplier",
+                    "§78 — dig-aversion multiplier on planner breakCost, "
+                            + "back to the neutral 1.0 the arena costs were measured with"),
             e("navigatorDryReanchor", "§78 — dry repath-rechurn breaker"),
-            e("navigatorBuoyantSearchFromSurface", "§78 — buoyant A* anchored at the water surface, not the bobbing foot"),
+            e(
+                    "navigatorBuoyantSearchFromSurface",
+                    "§78 — buoyant A* anchored at the water surface, not the bobbing foot"),
             e("navigatorBankDigSkipWhenCwpSwims", "§78 — skip the bank-dig when the next committed node is water"),
             e("navigatorBankDigSkipOverhang", "§78 — block-less bank-dig overhang rejection"),
             e("navigatorVineDescentDrop", "§78 — release the vine cling when the next node is not a climb"),
@@ -87,15 +93,29 @@ class GameTestBaselineManifestTest {
             e("navigatorWaterWalkReach", "§78 — relaxed step-advance for a water-surface walk"),
             e("navigatorWaterStepDownFloat", "§78 — step-advance for a stepDown onto a shallow water-surface foothold"),
             e("navigatorWallCornerFastChurn", "§78 — wall-corner fast-churn recovery"),
-            e("navigatorSwimAshorePillarDespiteDeepDig", "§78 — pillar-place fallback for a +2 bank the bank-dig skips"),
-            e("navigatorFootholdBeforeBankDig", "foothold first — a bot holding a block pillars before it digs the bank"),
-            e("navigatorClimbIntentFromSurface", "climb-out intent read against the surface cell, not the bobbing foot"),
-            e("navigatorPillarTopsOutAtFlushExit", "the water pillar tops out only on a rung with a flush exit beside it"),
+            e(
+                    "navigatorSwimAshorePillarDespiteDeepDig",
+                    "§78 — pillar-place fallback for a +2 bank the bank-dig skips"),
+            e(
+                    "navigatorFootholdBeforeBankDig",
+                    "foothold first — a bot holding a block pillars before it digs the bank"),
+            e(
+                    "navigatorClimbIntentFromSurface",
+                    "climb-out intent read against the surface cell, not the bobbing foot"),
+            e(
+                    "navigatorPillarTopsOutAtFlushExit",
+                    "the water pillar tops out only on a rung with a flush exit beside it"),
             e("navigatorFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
-            e("navigatorHoldLastNodeUntilStanding", "a last node that is the goal is spent only once the foot stands in it"),
-            e("navigatorShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the bot"),
+            e(
+                    "navigatorHoldLastNodeUntilStanding",
+                    "a last node that is the goal is spent only once the foot stands in it"),
+            e(
+                    "navigatorShallowWaterSideFoothold",
+                    "afloat in one-deep water the pillar takeover places its first rung beside the bot"),
             e("navigatorClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
-            e("navigatorOrbitBreaksAimLag", "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
+            e(
+                    "navigatorOrbitBreaksAimLag",
+                    "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
             e("navigatorSurfaceSprintSwim", "open water is crossed in the prone sprint-swim pose"),
             e("navigatorFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
             e("navigatorBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
@@ -146,8 +166,12 @@ class GameTestBaselineManifestTest {
             // pathfinder core — turning any of these off changes what a route IS, not how well
             // it is executed, so an arena running without them would be planning a different world
             e("collisionAwarePathing", "collision-shape solidity instead of the coarse blocksMotion()"),
-            e("pathfinderSurfaceWaterNodes", "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
-            e("pathfinderDeepWaterPriced", "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
+            e(
+                    "pathfinderSurfaceWaterNodes",
+                    "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
+            e(
+                    "pathfinderDeepWaterPriced",
+                    "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
             e("pathfinderCacheEnabled", "per-search blockstate memoisation"),
             e("pathfinderProgressive", "progressive pathfinding"),
             e("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
@@ -157,7 +181,9 @@ class GameTestBaselineManifestTest {
 
             // flipped ON after the arena assertions were written, and live anyway: pinning it OFF
             // leaves the arena a bot that cannot finish a walk past the planner's horizon
-            e("navigatorTailConsumeDirectional", "a best-effort tail still ahead of the bot is not spent until the bot passes it or stalls"),
+            e(
+                    "navigatorTailConsumeDirectional",
+                    "a best-effort tail still ahead of the bot is not spent until the bot passes it or stalls"),
 
             // the arc-length pursuit refactor — its ON phases replaced whole families of
             // per-tick gates, so pinning them off would restore machinery that no longer exists
@@ -196,9 +222,15 @@ class GameTestBaselineManifestTest {
             e("navigatorPreDigNextBreak", "start a stairUpBreak's dig in the air so destroyDelay burns before landing"),
             e("navigatorDropAheadResync", "a body that dropped a row early on a descent skips to the node on its row"),
             e("navigatorCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
-            e("navigatorStepUpRawHeading", "a step-up's heading is judged against the raw aim as well as the smoothed one"),
-            e("navigatorProjectCurrentLeg", "the path projection includes the leg the bot is walking, not only those past its node"),
-            e("navigatorAvoidLoneRisers", "off a climb, a heading walks round a +1 block that is not the path's own step"),
+            e(
+                    "navigatorStepUpRawHeading",
+                    "a step-up's heading is judged against the raw aim as well as the smoothed one"),
+            e(
+                    "navigatorProjectCurrentLeg",
+                    "the path projection includes the leg the bot is walking, not only those past its node"),
+            e(
+                    "navigatorAvoidLoneRisers",
+                    "off a climb, a heading walks round a +1 block that is not the path's own step"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));
@@ -208,11 +240,13 @@ class GameTestBaselineManifestTest {
     @Test
     void theBaselineWritesExactlyTheManifest() {
         Set<String> written = fieldsWrittenByBaseline();
-        assertEquals(new TreeSet<>(PINNED.keySet()), written,
+        assertEquals(
+                new TreeSet<>(PINNED.keySet()),
+                written,
                 "applyGameTestBaseline() and this manifest disagree about which fields it pins. "
-                + "If you added a line there, add a row here saying why the arena must not run "
-                + "that behaviour; if you removed one, remove the row. The manifest is the only "
-                + "place a reader can find out why the suite's bot differs from the shipped one.");
+                        + "If you added a line there, add a row here saying why the arena must not run "
+                        + "that behaviour; if you removed one, remove the row. The manifest is the only "
+                        + "place a reader can find out why the suite's bot differs from the shipped one.");
     }
 
     @Test
@@ -222,44 +256,43 @@ class GameTestBaselineManifestTest {
         for (String name : PINNED.keySet()) {
             if (isBoolean(name)) classified.add(name);
         }
-        assertEquals(classified, universe,
+        assertEquals(
+                classified,
+                universe,
                 "the set of default-ON booleans and the manifest disagree.\n"
-                + "  In the universe but not the manifest: a flag that ships ON has no recorded "
-                + "decision. Unless applyGameTestBaseline() pins it, the arena bot now runs a "
-                + "behaviour the scenes were not authored against — add it to PINNED (and to the "
-                + "baseline) if they were written without it, or to LIVE if the suite should run "
-                + "it. Flipping an existing flag from default-OFF to default-ON lands it here "
-                + "too, and that flip is the moment the decision comes due.\n"
-                + "  In the manifest but not the universe: the flag no longer ships ON (or was "
-                + "deleted), so its row is stale — drop it, and if it is in PINNED drop the "
-                + "baseline line too, because pinning a flag that is already OFF is a no-op that "
-                + "reads like a decision.");
+                        + "  In the universe but not the manifest: a flag that ships ON has no recorded "
+                        + "decision. Unless applyGameTestBaseline() pins it, the arena bot now runs a "
+                        + "behaviour the scenes were not authored against — add it to PINNED (and to the "
+                        + "baseline) if they were written without it, or to LIVE if the suite should run "
+                        + "it. Flipping an existing flag from default-OFF to default-ON lands it here "
+                        + "too, and that flip is the moment the decision comes due.\n"
+                        + "  In the manifest but not the universe: the flag no longer ships ON (or was "
+                        + "deleted), so its row is stale — drop it, and if it is in PINNED drop the "
+                        + "baseline line too, because pinning a flag that is already OFF is a no-op that "
+                        + "reads like a decision.");
     }
 
     /**
      * The two enumerators must agree about which fields exist.
      *
      * <p>They reach the config classes by different reflection: {@code reflectivePrimitiveFields()} uses
-     * {@code getFields()}, which walks the superclass chain, while {@code COMPILED_DEFAULTS} is
-     * built from {@code persistableFields()} → {@code getDeclaredFields()}, which does not. Both
-     * javadocs call themselves "the ONE enumeration"; each is, within itself. Both walk
-     * {@code BotConfig.CLASSES}, the one class per layer the settings were split into, and every
-     * field is declared in one of those classes itself, so the difference is invisible.
+     * {@code getFields()}, which walks the superclass chain, while {@code COMPILED_DEFAULTS} is built from
+     * {@code persistableFields()} → {@code getDeclaredFields()}, which does not. Both javadocs call themselves "the ONE
+     * enumeration"; each is, within itself. Both walk {@code BotConfig.CLASSES}, the one class per layer the settings
+     * were split into, and every field is declared in one of those classes itself, so the difference is invisible.
      *
-     * <p>It would stop being invisible if a config class came to extend another: a field moved to the
-     * parent stays visible to the settings schema and snapshot (agents
-     * see it, so nothing looks wrong) but drops out of save/load and out of
-     * {@code snapshotAll}/{@code restoreAll}, which is precisely the leak snapshotAll's javadoc
-     * exists to prevent — {@code applyGameTestBaseline()}'s OFF values would escape into the live
-     * bot for exactly the moved flags.
+     * <p>It would stop being invisible if a config class came to extend another: a field moved to the parent stays
+     * visible to the settings schema and snapshot (agents see it, so nothing looks wrong) but drops out of save/load
+     * and out of {@code snapshotAll}/{@code restoreAll}, which is precisely the leak snapshotAll's javadoc exists to
+     * prevent — {@code applyGameTestBaseline()}'s OFF values would escape into the live bot for exactly the moved
+     * flags.
      *
-     * <p>This assertion covered only {@code boolean} until now, which left the 86 int/double/float/
-     * long fields — and the String/Set ones, which are persistable but not primitive — with no
-     * guard at all. It is green today for a reason that can be read off the source rather than
-     * measured: {@code persistable} accepts boolean/int/long/double/float/String/Set, every
-     * {@code public static volatile} primitive is static and non-final (volatile implies non-final)
-     * and of one of those five primitive types, and {@code serialize} returns null only for a null
-     * value, which a boxed primitive never is.
+     * <p>This assertion covered only {@code boolean} until now, which left the 86 int/double/float/ long fields — and
+     * the String/Set ones, which are persistable but not primitive — with no guard at all. It is green today for a
+     * reason that can be read off the source rather than measured: {@code persistable} accepts
+     * boolean/int/long/double/float/String/Set, every {@code public static volatile} primitive is static and non-final
+     * (volatile implies non-final) and of one of those five primitive types, and {@code serialize} returns null only
+     * for a null value, which a boxed primitive never is.
      */
     @Test
     void everySurfaceFieldHasACompiledDefault() {
@@ -268,15 +301,17 @@ class GameTestBaselineManifestTest {
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
             if (!defaults.containsKey(f.getName())) unrecorded.add(f.getName());
         }
-        assertEquals(Set.of(), unrecorded,
+        assertEquals(
+                Set.of(),
+                unrecorded,
                 "a field on the settings surface has no compiled default, so it is invisible to "
-                + "the universe above and could ship ON without ever being classified. Either it "
-                + "is per-tick runtime state (which belongs with the bot that rewrites it, not in a "
-                + "config class), or it is configuration and should be persistable, or "
-                + "it was moved out of its config class's own declaration — see this test's javadoc: "
-                + "getFields() follows a superclass, getDeclaredFields() does not, so a split that "
-                + "moves fields to a parent keeps them in the settings schema while dropping them "
-                + "from persistence and from snapshotAll/restoreAll.");
+                        + "the universe above and could ship ON without ever being classified. Either it "
+                        + "is per-tick runtime state (which belongs with the bot that rewrites it, not in a "
+                        + "config class), or it is configuration and should be persistable, or "
+                        + "it was moved out of its config class's own declaration — see this test's javadoc: "
+                        + "getFields() follows a superclass, getDeclaredFields() does not, so a split that "
+                        + "moves fields to a parent keeps them in the settings schema while dropping them "
+                        + "from persistence and from snapshotAll/restoreAll.");
     }
 
     @Test
@@ -295,33 +330,37 @@ class GameTestBaselineManifestTest {
     }
 
     /**
-     * The probe against a stand-in that writes one field of each primitive type, so its blind
-     * spots do not hinge on which types the real baseline happens to pin today: a type it cannot
-     * see would let a later baseline line of that type slip past the manifest check.
+     * The probe against a stand-in that writes one field of each primitive type, so its blind spots do not hinge on
+     * which types the real baseline happens to pin today: a type it cannot see would let a later baseline line of that
+     * type slip past the manifest check.
      */
     @Test
     void theProbeSeesOneWriteOfEachTypeAndNothingElse() {
         Map<Class<?>, Field> oneOfEach = new LinkedHashMap<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) oneOfEach.putIfAbsent(f.getType(), f);
-        assertTrue(oneOfEach.containsKey(boolean.class) && oneOfEach.containsKey(double.class),
+        assertTrue(
+                oneOfEach.containsKey(boolean.class) && oneOfEach.containsKey(double.class),
                 "the settings surface came back without booleans or doubles: " + oneOfEach.keySet());
         for (Field f : oneOfEach.values()) {
-            assertEquals(Set.of(f.getName()), fieldsWrittenBy(() -> assign(f)),
+            assertEquals(
+                    Set.of(f.getName()),
+                    fieldsWrittenBy(() -> assign(f)),
                     "the probe misread a lone write to the " + f.getType() + " field " + f.getName());
         }
     }
 
     // ------------------------------------------------------------------ helpers
 
-    private static Map.Entry<String, String> e(String k, String v) { return Map.entry(k, v); }
+    private static Map.Entry<String, String> e(String k, String v) {
+        return Map.entry(k, v);
+    }
 
     /**
      * The fields {@link BotConfig#applyGameTestBaseline()} writes, measured by running it.
      *
-     * <p>Two passes with different sentinels, because one pass can only prove a field changed
-     * AWAY from that sentinel: a baseline line assigning the very value the pass had installed
-     * would look untouched. A field the baseline writes differs from at least one of two distinct
-     * sentinels, so the union is exact.
+     * <p>Two passes with different sentinels, because one pass can only prove a field changed AWAY from that sentinel:
+     * a baseline line assigning the very value the pass had installed would look untouched. A field the baseline writes
+     * differs from at least one of two distinct sentinels, so the union is exact.
      */
     private static Set<String> fieldsWrittenByBaseline() {
         return fieldsWrittenBy(BotConfig::applyGameTestBaseline);
@@ -356,7 +395,8 @@ class GameTestBaselineManifestTest {
             else if (t == long.class) f.setLong(null, number);
             else if (t == float.class) f.setFloat(null, number);
             else if (t == double.class) f.setDouble(null, number);
-            else throw new AssertionError("the settings surface grew a primitive this probe "
+            else
+                throw new AssertionError("the settings surface grew a primitive this probe "
                         + "cannot write (" + t + " " + f.getName() + "). Teach it that type — "
                         + "skipping the field would make the baseline's writes to it invisible, "
                         + "which is the exact blindness this test exists to remove.");
@@ -415,10 +455,10 @@ class GameTestBaselineManifestTest {
     /**
      * The compiled-in defaults, captured at BotConfig class init before any {@code load()}.
      *
-     * <p>Read reflectively rather than by sampling the live fields on purpose: these tests share a
-     * JVM, so a live read would make the universe "whatever the last test left set". If the field
-     * is ever renamed this throws instead of degrading — an empty map would make the whole test
-     * vacuously green, which is the failure mode it was written to prevent.
+     * <p>Read reflectively rather than by sampling the live fields on purpose: these tests share a JVM, so a live read
+     * would make the universe "whatever the last test left set". If the field is ever renamed this throws instead of
+     * degrading — an empty map would make the whole test vacuously green, which is the failure mode it was written to
+     * prevent.
      */
     @SuppressWarnings("unchecked")
     private static Map<String, String> compiledDefaults() {
@@ -433,9 +473,11 @@ class GameTestBaselineManifestTest {
             }
             return m;
         } catch (ReflectiveOperationException ex) {
-            throw new AssertionError("BotConfig.COMPILED_DEFAULTS is how this test knows a flag's "
-                    + "shipped default. Point this at the new name if it moved — do NOT fall back "
-                    + "to reading the live field values.", ex);
+            throw new AssertionError(
+                    "BotConfig.COMPILED_DEFAULTS is how this test knows a flag's "
+                            + "shipped default. Point this at the new name if it moved — do NOT fall back "
+                            + "to reading the live field values.",
+                    ex);
         }
     }
 

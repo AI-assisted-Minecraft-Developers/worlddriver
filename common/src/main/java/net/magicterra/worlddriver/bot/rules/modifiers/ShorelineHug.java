@@ -1,21 +1,21 @@
 package net.magicterra.worlddriver.bot.rules.modifiers;
 
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
-/** Follow the shoreline: tax every node that has NO water among its 4 cardinal neighbors
- *  (checked at the foot level and one below — a bank cell's adjacent water
- *  surface usually sits one below the bank foot). Routes inside the shoreline
- *  band pay nothing; anything inland pays {@code weight} per node, so with
- *  weight well above the per-node walk cost (10) A* hugs the waterline.
- *  Pair with {@code forbidWater} to stay dry. Penalty-only — admissible. */
+/**
+ * Follow the shoreline: tax every node that has NO water among its 4 cardinal neighbors (checked at the foot level and
+ * one below — a bank cell's adjacent water surface usually sits one below the bank foot). Routes inside the shoreline
+ * band pay nothing; anything inland pays {@code weight} per node, so with weight well above the per-node walk cost (10)
+ * A* hugs the waterline. Pair with {@code forbidWater} to stay dry. Penalty-only — admissible.
+ */
 public record ShorelineHug(double weight) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (weight <= 0) return 0;   // admissibility guard, same as sibling modifiers
+        if (weight <= 0) return 0; // admissibility guard, same as sibling modifiers
         if (nearWater(to, world)) return 0;
         return weight;
     }

@@ -8,15 +8,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Phase B reflex — keep a Totem of Undying in the offhand. When the offhand
- * isn't holding one and the inventory has a spare, swap it in with a single
- * offhand-swap click (ClickType.SWAP, button 40 = the offhand slot), the same
- * action the vanilla F key performs. After a totem pops the offhand goes empty,
- * so the next tick refills automatically — no special "just popped" detection.
- * A shield the swap displaces is kept on the hotbar, where {@link AutoShield} can still use it.
+ * Phase B reflex — keep a Totem of Undying in the offhand. When the offhand isn't holding one and the inventory has a
+ * spare, swap it in with a single offhand-swap click (ClickType.SWAP, button 40 = the offhand slot), the same action
+ * the vanilla F key performs. After a totem pops the offhand goes empty, so the next tick refills automatically — no
+ * special "just popped" detection. A shield the swap displaces is kept on the hotbar, where {@link AutoShield} can
+ * still use it.
  *
- * <p>Operates on the always-present {@code inventoryMenu}; only acts when no GUI
- * is open (else the click would race the open container's id and desync).
+ * <p>Operates on the always-present {@code inventoryMenu}; only acts when no GUI is open (else the click would race the
+ * open container's id and desync).
  */
 public final class AutoTotem {
 
@@ -26,7 +25,12 @@ public final class AutoTotem {
     static final int OFFHAND_BUTTON = 40;
 
     /** What a slot holds, as far as the totem swap cares. */
-    enum Held { TOTEM, SHIELD, EMPTY, OTHER }
+    enum Held {
+        TOTEM,
+        SHIELD,
+        EMPTY,
+        OTHER
+    }
 
     /** One SWAP click on the inventory menu: {@code slot} with {@code button} (0..8 a hotbar slot, 40 the offhand). */
     record Click(int slot, int button) {}
@@ -37,7 +41,8 @@ public final class AutoTotem {
         if (p == null || menus == null || menus.menuOpen()) return;
         var menu = p.inventoryMenu;
         Held[] slots = new Held[LAST_HOTBAR + 1];
-        for (int i = FIRST_BACKPACK; i <= LAST_HOTBAR; i++) slots[i] = held(menu.getSlot(i).getItem());
+        for (int i = FIRST_BACKPACK; i <= LAST_HOTBAR; i++)
+            slots[i] = held(menu.getSlot(i).getItem());
         Click c = plan(held(p.getInventory().offhand.get(0)), slots, p.getInventory().selected);
         if (c == null) return;
         menus.containerClick(menu.containerId, c.slot(), c.button(), ClickType.SWAP);
@@ -53,9 +58,9 @@ public final class AutoTotem {
     /**
      * The click that moves a totem toward the offhand this tick, or null when there is nothing to do.
      *
-     * <p>The swap drops the offhand's item into the slot the totem came from, and AutoShield only
-     * looks at the offhand and the hotbar. So a hotbar totem goes first, and with a shield in the
-     * offhand a backpack totem is parked on the hotbar before it is swapped in, leaving the shield there.
+     * <p>The swap drops the offhand's item into the slot the totem came from, and AutoShield only looks at the offhand
+     * and the hotbar. So a hotbar totem goes first, and with a shield in the offhand a backpack totem is parked on the
+     * hotbar before it is swapped in, leaving the shield there.
      */
     static Click plan(Held offhand, Held[] menu, int selectedHotbar) {
         if (offhand == Held.TOTEM) return null;

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.planning;
 
 import java.util.List;
-
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.bot.RouteParams;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -10,9 +9,9 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.minecraft.core.BlockPos;
 
 /**
- * The one search {@code mc.debug.plan} runs for a bot ({@code PlanProbeTool.run}, the single-search
- * branch): a bare finder when there is no route and no budget, the route's profile when there is a
- * route, the budgets otherwise taken from the settings; advanced once with no slice limit.
+ * The one search {@code mc.debug.plan} runs for a bot ({@code PlanProbeTool.run}, the single-search branch): a bare
+ * finder when there is no route and no budget, the route's profile when there is a route, the budgets otherwise taken
+ * from the settings; advanced once with no slice limit.
  */
 final class PlanProbe {
     private PlanProbe() {}

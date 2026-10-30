@@ -1,49 +1,53 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.Map;
-
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.behavior.Readiness;
 import net.magicterra.worlddriver.bot.control.Locomotor;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.behavior.Readiness;
 
 /**
- * A body and the stack that drives it, addressed by name: what the {@code mc.bot.*} verbs that take
- * {@code body} need from a controlled entity that is not this client's own player, and what
- * {@link BotTicker} advances once per server tick until it is unregistered or its entity is gone.
+ * A body and the stack that drives it, addressed by name: what the {@code mc.bot.*} verbs that take {@code body} need
+ * from a controlled entity that is not this client's own player, and what {@link BotTicker} advances once per server
+ * tick until it is unregistered or its entity is gone.
  *
- * <p>A bot runs one process at a time and the server tick advances it, so every method here is
- * called on the server thread. The client player is not one yet: {@code self} keeps going through
- * {@code BotApi}; both run their decisions through a {@link BotBrain}.
+ * <p>A bot runs one process at a time and the server tick advances it, so every method here is called on the server
+ * thread. The client player is not one yet: {@code self} keeps going through {@code BotApi}; both run their decisions
+ * through a {@link BotBrain}.
  *
- * <p>This was two interfaces, {@code BodyHost} (addressable) and {@code BodyDriver} (ticked), until
- * the layering rework; every implementation was both.
+ * <p>This was two interfaces, {@code BodyHost} (addressable) and {@code BodyDriver} (ticked), until the layering
+ * rework; every implementation was both.
  */
 public interface Bot {
 
     /** One server tick of driving. */
     Locomotor.Status tick();
 
-    /** Whether the task it was last given has ended. A finished bot stays on {@link BotTicker}'s
-     *  list and keeps ticking. */
+    /**
+     * Whether the task it was last given has ended. A finished bot stays on {@link BotTicker}'s list and keeps ticking.
+     */
     boolean finished();
 
     /**
-     * {@link #tick} threw and {@link BotTicker} is dropping the bot: end whatever it held with the
-     * error, or a caller waiting on it waits until its own deadline for an ending that never comes.
+     * {@link #tick} threw and {@link BotTicker} is dropping the bot: end whatever it held with the error, or a caller
+     * waiting on it waits until its own deadline for an ending that never comes.
      */
     default void crashed(Throwable t) {}
 
-    /** {@link BotRegistry} let the bot go: hand the entity back to whatever ran it before. A player
-     *  bot has nothing to hand back. */
+    /**
+     * {@link BotRegistry} let the bot go: hand the entity back to whatever ran it before. A player bot has nothing to
+     * hand back.
+     */
     default void release() {}
 
-    /** {@link BotTicker} dropped the bot because its entity was removed. A player keeps its name,
-     *  since the same player object can come back into the world. */
+    /**
+     * {@link BotTicker} dropped the bot because its entity was removed. A player keeps its name, since the same player
+     * object can come back into the world.
+     */
     default void entityRemoved() {}
 
     /** {@code player:<name>}, {@code mob:<name>}, {@code entity:<uuid>} or the testmod's {@code npc:<name>}. */
@@ -52,7 +56,10 @@ public interface Bot {
     /** {@code player}, {@code mob} or {@code npc}. */
     String kind();
 
-    /** The {@link Body} its processes drive; its capabilities ({@link Body#equipment()}, {@link Body#attack()}, ...) are what the hand verbs act through. */
+    /**
+     * The {@link Body} its processes drive; its capabilities ({@link Body#equipment()}, {@link Body#attack()}, ...) are
+     * what the hand verbs act through.
+     */
     Body body();
 
     /** The entity, or null once there is none. */
@@ -64,16 +71,20 @@ public interface Bot {
     /** Whether a process is running. */
     boolean busy();
 
-    /** {@code {kind, error}} of the last process ending, or null: the bot's {@code lastProcessEnd},
-     *  with {@code error} null only when the process did what it was asked. */
+    /**
+     * {@code {kind, error}} of the last process ending, or null: the bot's {@code lastProcessEnd}, with {@code error}
+     * null only when the process did what it was asked.
+     */
     Map<String, Object> lastProcessEnd();
 
     /** Run {@code process}, superseding whatever was running. */
-    default void start(BotProcess process) { start(process, null); }
+    default void start(BotProcess process) {
+        start(process, null);
+    }
 
     /**
-     * Run {@code process} for the accepted {@code action} (null: none), superseding whatever was
-     * running; the host's executor ends the action with the process, however it ends.
+     * Run {@code process} for the accepted {@code action} (null: none), superseding whatever was running; the host's
+     * executor ends the action with the process, however it ends.
      */
     void start(BotProcess process, ActionHandle action);
 
@@ -81,14 +92,14 @@ public interface Bot {
     boolean cancelAction(ActionHandle action, String reason);
 
     /**
-     * Cancel the running process when its kind is {@code process}, or when {@code process} is
-     * {@code all}. Returns the kind cancelled, or null when nothing matched.
+     * Cancel the running process when its kind is {@code process}, or when {@code process} is {@code all}. Returns the
+     * kind cancelled, or null when nothing matched.
      */
     String cancel(String process);
 
     /**
-     * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same
-     * words the client's {@code Readiness} uses, judged on the entity instead of on a screen.
+     * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same words the client's
+     * {@code Readiness} uses, judged on the entity instead of on a screen.
      */
     default Map<String, Object> refusal() {
         LivingEntity e = entity();

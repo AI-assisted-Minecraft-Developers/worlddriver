@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
 import java.util.List;
-
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.minecraft.core.BlockPos;
@@ -20,7 +19,8 @@ public final class NavWalk {
         if (s.busy()) return "MOVING";
         ControlContracts.Slot g = s.slots().goTo();
         String end = g.endReason().orElse("?");
-        if (g.lastError().isPresent()) return "FAILED(" + end + ": " + g.lastError().get() + ")";
+        if (g.lastError().isPresent())
+            return "FAILED(" + end + ": " + g.lastError().get() + ")";
         return (g.goalReached().orElse(false) ? "REACHED(" : "ENDED(") + end + ")";
     }
 

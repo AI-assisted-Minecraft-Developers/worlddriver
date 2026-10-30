@@ -1,44 +1,48 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Equipment;
-import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.game.observe.Crops;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
+
+import java.util.HashSet;
+import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.observe.CellText;
+import net.magicterra.worlddriver.game.observe.Crops;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-
-import java.util.HashSet;
-import java.util.Set;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class FarmProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
+
     private BlockInteraction blocks;
 
     private static final int PLACE_TIMEOUT_TICKS = 40;
 
-    private final BlockPos minP, maxP;     // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
+    private final BlockPos minP,
+            maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
     private final Set<String> crops;
     private final boolean replant;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("farm"));
-    @Override public Navigator navigator() { return navigator; }
+
+    @Override
+    public Navigator navigator() {
+        return navigator;
+    }
+
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final int totalEstimate;
 
@@ -47,40 +51,73 @@ public final class FarmProcess implements BotProcess, Navigating {
     private int breakingTicks, placeTicks;
     /** {@code skipped} counts crops never harvested; {@code unplanted} those harvested whose replant failed. */
     private int harvested, replanted, skipped, unplanted;
-    /** Mature crops the latest scan found with no stand beside them. Not blacklisted, because a
-     *  cleared neighbour can open one; whatever the final scan still counts was never harvested. */
+    /**
+     * Mature crops the latest scan found with no stand beside them. Not blacklisted, because a cleared neighbour can
+     * open one; whatever the final scan still counts was never harvested.
+     */
     private int stranded;
+
     private String failure;
 
-    @Override public String failure() { return failure; }
+    @Override
+    public String failure() {
+        return failure;
+    }
+
     private Phase phase = Phase.SEARCH;
-    private enum Phase { SEARCH, GOING, HARVEST, REPLANT }
+
+    private enum Phase {
+        SEARCH,
+        GOING,
+        HARVEST,
+        REPLANT
+    }
 
     public FarmProcess(BlockPos a, BlockPos b, Set<String> crops, boolean replant) {
-        this.minP = new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
-        this.maxP = new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
+        this.minP =
+                new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
+        this.maxP =
+                new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
         this.crops = crops;
         this.replant = replant;
-        this.totalEstimate = (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
+        this.totalEstimate =
+                (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
-    public String kind() { return "builder"; }
+    public String kind() {
+        return "builder";
+    }
 
-    public int harvested() { return harvested; }
+    public int harvested() {
+        return harvested;
+    }
 
-    public int replanted() { return replanted; }
+    public int replanted() {
+        return replanted;
+    }
 
     public void attach(BotState st) {
-        st.builder.beginRun("farm[" + String.join(",", crops) + "] " + CellText.of(minP) + "→" + CellText.of(maxP) +
-                " (cells=" + totalEstimate + ", replant=" + replant + ")", null);
+        st.builder.beginRun(
+                "farm[" + String.join(",", crops) + "] " + CellText.of(minP) + "→" + CellText.of(maxP) + " (cells="
+                        + totalEstimate + ", replant=" + replant + ")",
+                null);
     }
 
-    @Override public boolean tick(Body a, WorldView w, BotState st) {
+    @Override
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) {
+            failure = st.builder.lastError = "player vanished";
+            st.builder.reset();
+            return true;
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) { failure = st.builder.lastError = Readiness.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (equipment == null || blocks == null) {
+            failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
+            st.builder.reset();
+            return true;
+        }
         Level lvl = p.level();
 
         switch (phase) {
@@ -88,15 +125,16 @@ public final class FarmProcess implements BotProcess, Navigating {
                 BlockPos[] found = scanNextMature(lvl, p);
                 if (found == null) {
                     skipped += stranded;
-                    st.builder.lastError = "done (harvested=" + harvested +
-                            ", replanted=" + replanted + ", skipped=" + skipped + ", unplanted=" + unplanted + ")";
+                    st.builder.lastError = "done (harvested=" + harvested + ", replanted=" + replanted + ", skipped="
+                            + skipped + ", unplanted=" + unplanted + ")";
                     st.builder.reset();
                     failure = incomplete(skipped, unplanted);
                     return true;
                 }
                 currentTarget = found[0];
-                currentCropId = BuiltInRegistries.BLOCK.getKey(
-                        lvl.getBlockState(currentTarget).getBlock()).toString();
+                currentCropId = BuiltInRegistries.BLOCK
+                        .getKey(lvl.getBlockState(currentTarget).getBlock())
+                        .toString();
                 st.builder.target = currentTarget;
                 navigator.start(new Goal.Block(found[1]));
                 phase = Phase.GOING;
@@ -216,15 +254,20 @@ public final class FarmProcess implements BotProcess, Navigating {
                     if (blacklist.contains(bp)) continue;
                     if (!stillMature(lvl, bp)) continue;
                     BlockPos stand = standBesideCrop(lvl, bp);
-                    if (stand == null) { stranded++; continue; }
+                    if (stand == null) {
+                        stranded++;
+                        continue;
+                    }
                     long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
-                        bestD2 = d2; bestCrop = bp; bestStand = stand;
+                        bestD2 = d2;
+                        bestCrop = bp;
+                        bestStand = stand;
                     }
                 }
             }
         }
-        return bestCrop == null ? null : new BlockPos[]{bestCrop, bestStand};
+        return bestCrop == null ? null : new BlockPos[] {bestCrop, bestStand};
     }
 
     /** Crop at {@code pos} matches the filter and is at max age. */
@@ -238,14 +281,12 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     /**
      * The stand cell for harvesting {@code crop} — deliberately NOT the same search as
-     * {@code BotUtil.findStandAdjacent}, which this file also pulls in through its
-     * {@code import static ...BotUtil.*}.
+     * {@code BotUtil.findStandAdjacent}, which this file also pulls in through its {@code import static ...BotUtil.*}.
      *
-     * <p>It used to carry that exact name and signature, so the private one silently won
-     * overload resolution at the call site and anyone following the static import read the wrong
-     * function. The two really do differ: the shared one varies dy over {0,-1,+1} and falls back
-     * to the cell on top, this one stays at dy=0 and adds the four diagonals. Renamed so the
-     * difference is visible instead of shadowed.
+     * <p>It used to carry that exact name and signature, so the private one silently won overload resolution at the
+     * call site and anyone following the static import read the wrong function. The two really do differ: the shared
+     * one varies dy over {0,-1,+1} and falls back to the cell on top, this one stays at dy=0 and adds the four
+     * diagonals. Renamed so the difference is visible instead of shadowed.
      */
     private BlockPos standBesideCrop(Level lvl, BlockPos crop) {
         // Crops are 1 tall; the stand cell is the same Y as the farmland +1

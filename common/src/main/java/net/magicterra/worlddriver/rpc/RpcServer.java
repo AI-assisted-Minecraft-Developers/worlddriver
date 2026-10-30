@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.rpc;
 
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -39,18 +38,6 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.call.CancellationToken;
-import net.magicterra.worlddriver.api.call.WaitPermits;
-import net.magicterra.worlddriver.api.registry.ApiErrors;
-import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.registry.EventFeed;
-import net.magicterra.worlddriver.api.schema.ApiError;
-import net.magicterra.worlddriver.api.schema.DecodeContext;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
-import net.magicterra.worlddriver.api.methods.shared.EventStreamContracts;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -66,89 +53,105 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.EventStreamContracts;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.EventFeed;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 
 /**
- * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
- * Request frame:  {"jsonrpc":"2.0", "id": 1, "method": "mc.observe.player", "params": {...},
- *                  "_meta": {"budgetMs": N}}   (_meta optional: the caller's remaining budget)
- * Response frame: {"jsonrpc":"2.0", "id": 1, "result": ...}
- *              or {"jsonrpc":"2.0", "id": 1|null, "error": {"code": int, "message": "...", "data": ApiError}}
- * Standard JSON-RPC 2.0: the {@code id} key is present on EVERY response, null only when the
- * request did not carry a usable one; {@code error.code} is the JSON-RPC code, and {@code data}
- * carries the API's {@code {code, message, issues, execution}} whenever the API produced the error.
+ * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc Request frame: {"jsonrpc":"2.0", "id": 1, "method":
+ * "mc.observe.player", "params": {...}, "_meta": {"budgetMs": N}} (_meta optional: the caller's remaining budget)
+ * Response frame: {"jsonrpc":"2.0", "id": 1, "result": ...} or {"jsonrpc":"2.0", "id": 1|null, "error": {"code": int,
+ * "message": "...", "data": ApiError}} Standard JSON-RPC 2.0: the {@code id} key is present on EVERY response, null
+ * only when the request did not carry a usable one; {@code error.code} is the JSON-RPC code, and {@code data} carries
+ * the API's {@code {code, message, issues, execution}} whenever the API produced the error.
  *
- * Same {@code ApiRegistry.dispatch(method, params, context)} is invoked here AND from in-JVM Rhino
- * calls, guaranteeing structural parity between paths. A call that suspends (an awaited action)
- * hands its worker back; its answer is written when its stage completes.
+ * <p>Same {@code ApiRegistry.dispatch(method, params, context)} is invoked here AND from in-JVM Rhino calls,
+ * guaranteeing structural parity between paths. A call that suspends (an awaited action) hands its worker back; its
+ * answer is written when its stage completes.
  *
- * The upgrade request is refused with 403 when its {@code Origin} fails
- * {@link OriginPolicy}, the same check the MCP transport applies to a POST.
+ * <p>The upgrade request is refused with 403 when its {@code Origin} fails {@link OriginPolicy}, the same check the MCP
+ * transport applies to a POST.
  *
  * <h2>Event push channel (driver→agent)</h2>
- * This WebSocket is JSON-RPC over a custom transport (the spec permits custom
- * transports that preserve the JSON-RPC message format), so the driver→agent event
- * push rides it as standard server→client <b>{@code notifications/message}</b>
- * (the MCP logging notification) — the same shape an MCP-aware agent loop already
+ *
+ * This WebSocket is JSON-RPC over a custom transport (the spec permits custom transports that preserve the JSON-RPC
+ * message format), so the driver→agent event push rides it as standard server→client
+ * <b>{@code notifications/message}</b> (the MCP logging notification) — the same shape an MCP-aware agent loop already
  * knows how to consume. A connection opts in with a control frame
- * {@code {"id":N,"method":"mc.events.subscribe","params":{"types":[...]}}} — omit
- * {@code types} (or pass an empty array) for every type; anything other than an
- * array of non-blank strings is rejected with {@code -32602} rather than quietly
- * behaving like "no filter". The ack carries {@code allTypes} so the unfiltered
- * case is not left to be inferred from an empty {@code types}. The server then
- * pushes, unsolicited, one notification per
- * event it emits — threats, damage, death, chat, command results, custom conditions:
+ * {@code {"id":N,"method":"mc.events.subscribe","params":{"types":[...]}}} — omit {@code types} (or pass an empty
+ * array) for every type; anything other than an array of non-blank strings is rejected with {@code -32602} rather than
+ * quietly behaving like "no filter". The ack carries {@code allTypes} so the unfiltered case is not left to be inferred
+ * from an empty {@code types}. The server then pushes, unsolicited, one notification per event it emits — threats,
+ * damage, death, chat, command results, custom conditions:
  * {@code {"jsonrpc":"2.0","method":"notifications/message","params":{"level","logger":"minecraft.events","data":{seq,timestamp,type,pos,data}}}}.
- * These carry no {@code id}; a client demultiplexes JSON-RPC notifications (have
- * {@code method}, no {@code id}) from responses ({@code result}/{@code error} with
- * {@code id}). {@code mc.events.unsubscribe} stops the stream. Connections that never
- * subscribe (every existing client, incl. the parity harness which opens one socket
- * per call) receive nothing extra — zero regression.
+ * These carry no {@code id}; a client demultiplexes JSON-RPC notifications (have {@code method}, no {@code id}) from
+ * responses ({@code result}/{@code error} with {@code id}). {@code mc.events.unsubscribe} stops the stream. Connections
+ * that never subscribe (every existing client, incl. the parity harness which opens one socket per call) receive
+ * nothing extra — zero regression.
  *
- * Threading: incoming frames arrive on Netty IO threads. {@code route()} internally
- * marshals work to the server tick via {@code server.execute()} plus a bounded
- * {@code future.get} — {@code DriverApplication.SERVER_THREAD_TIMEOUT_MS}, 8s by default and
- * settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was
- * the budget before it was lowered; naming the constant instead of a number keeps the
- * two from drifting apart again.
- * which would deadlock the IO thread if we ran it inline. We hop to a bounded worker
- * pool before calling route(); past the per-connection or pool cap in
- * {@link TransportLimits} a request is answered with a busy error instead.
+ * <p>Threading: incoming frames arrive on Netty IO threads. {@code route()} internally marshals work to the server tick
+ * via {@code server.execute()} plus a bounded {@code future.get} — {@code DriverApplication.SERVER_THREAD_TIMEOUT_MS},
+ * 8s by default and settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was the budget
+ * before it was lowered; naming the constant instead of a number keeps the two from drifting apart again. which would
+ * deadlock the IO thread if we ran it inline. We hop to a bounded worker pool before calling route(); past the
+ * per-connection or pool cap in {@link TransportLimits} a request is answered with a busy error instead.
  *
- * Build note: MC ships only netty-codec/transport; netty-codec-http is nested in each
- * loader's jar, and on NeoForge dev runs put on the game's classpath with
- * {@code additionalRuntimeClasspath}. See docs/dev/build.md.
+ * <p>Build note: MC ships only netty-codec/transport; netty-codec-http is nested in each loader's jar, and on NeoForge
+ * dev runs put on the game's classpath with {@code additionalRuntimeClasspath}. See docs/dev/build.md.
  */
 public final class RpcServer implements Closeable {
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
-    /** A virtual thread per request: a worker spends most of its life parked on a game-thread hop,
-     *  and a parked virtual thread holds no OS thread. Nothing it blocks on sits inside a monitor —
-     *  the hops park on a future, and a Netty write off the event loop only enqueues — so it does
-     *  not pin its carrier. */
+    /**
+     * A virtual thread per request: a worker spends most of its life parked on a game-thread hop, and a parked virtual
+     * thread holds no OS thread. Nothing it blocks on sits inside a monitor — the hops park on a future, and a Netty
+     * write off the event loop only enqueues — so it does not pin its carrier.
+     */
     private final ExecutorService routeThreads = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("agent-rpc-handler-", 1).factory());
+
     private final Semaphore routeSlots = new Semaphore(TransportLimits.RPC_MAX_WORKERS);
-    /** No queue: a request either gets a worker now or is refused with a busy error, which
-     *  a client can act on; a queued one would just time out later. */
+    /**
+     * No queue: a request either gets a worker now or is refused with a busy error, which a client can act on; a queued
+     * one would just time out later.
+     */
     private final Executor routeExec = task -> {
         if (!routeSlots.tryAcquire()) throw new RejectedExecutionException("no free RPC worker");
         try {
             routeThreads.execute(() -> {
-                try { task.run(); } finally { routeSlots.release(); }
+                try {
+                    task.run();
+                } finally {
+                    routeSlots.release();
+                }
             });
         } catch (RejectedExecutionException e) {
             routeSlots.release();
             throw e;
         }
     };
+
     private final Channel serverChannel;
     private final int port;
 
-    /** Channels that have opted into the event push stream. {@link DefaultChannelGroup}
-     *  auto-removes a channel when it closes, so there's no inactive-cleanup to do. */
+    /**
+     * Channels that have opted into the event push stream. {@link DefaultChannelGroup} auto-removes a channel when it
+     * closes, so there's no inactive-cleanup to do.
+     */
     private final ChannelGroup subscribers = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-    /** Per-channel event-type filter; {@code null}/empty means "all types". Stored as a
-     *  channel attribute so it's GC'd with the connection. */
+    /**
+     * Per-channel event-type filter; {@code null}/empty means "all types". Stored as a channel attribute so it's GC'd
+     * with the connection.
+     */
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
     public RpcServer(ApiRegistry api, EventFeed events, int requestedPort) {
@@ -156,35 +159,50 @@ public final class RpcServer implements Closeable {
     }
 
     public RpcServer(ApiRegistry api, EventFeed events, String bindHost, int requestedPort) {
-        this(api, events, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
+        this(
+                api,
+                events,
+                bindHost,
+                requestedPort,
+                TransportLimits.WS_PING_INTERVAL_MS,
+                TransportLimits.WS_IDLE_CLOSE_MS);
     }
 
     /** Liveness timings as parameters so a test can run them in seconds. */
-    RpcServer(ApiRegistry api, EventFeed events, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
+    RpcServer(
+            ApiRegistry api,
+            EventFeed events,
+            String bindHost,
+            int requestedPort,
+            long pingIntervalMs,
+            long idleCloseMs) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
-         .channel(NioServerSocketChannel.class)
-         .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
-                 TransportLimits.WS_WRITE_BUFFER_LOW_BYTES, TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES))
-         .childHandler(new ChannelInitializer<SocketChannel>() {
-             @Override protected void initChannel(SocketChannel ch) {
-                 ch.pipeline()
-                   // First, so any inbound byte counts, a pong included: the protocol
-                   // handler consumes pongs before any later handler could see them.
-                   .addLast(new IdleStateHandler(pingIntervalMs, 0, 0, TimeUnit.MILLISECONDS))
-                   .addLast(new HttpServerCodec())
-                   .addLast(new HttpObjectAggregator(1 << 20))
-                   .addLast(new OriginGate())
-                   .addLast(new WebSocketServerProtocolHandler("/rpc", null, true,
-                           RequestLimits.MAX_REQUEST_BYTES))
-                   // A fragmented message reaches FrameHandler as one frame; without this
-                   // the first fragment was parsed alone and the continuations dropped.
-                   .addLast(new WebSocketFrameAggregator(RequestLimits.MAX_REQUEST_BYTES))
-                   .addLast(new PeerLiveness(pingIntervalMs, idleCloseMs))
-                   .addLast(new FrameHandler(api, routeExec, subs));
-             }
-         });
+                .channel(NioServerSocketChannel.class)
+                .childOption(
+                        ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new WriteBufferWaterMark(
+                                TransportLimits.WS_WRITE_BUFFER_LOW_BYTES, TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ch.pipeline()
+                                // First, so any inbound byte counts, a pong included: the protocol
+                                // handler consumes pongs before any later handler could see them.
+                                .addLast(new IdleStateHandler(pingIntervalMs, 0, 0, TimeUnit.MILLISECONDS))
+                                .addLast(new HttpServerCodec())
+                                .addLast(new HttpObjectAggregator(1 << 20))
+                                .addLast(new OriginGate())
+                                .addLast(new WebSocketServerProtocolHandler(
+                                        "/rpc", null, true, RequestLimits.MAX_REQUEST_BYTES))
+                                // A fragmented message reaches FrameHandler as one frame; without this
+                                // the first fragment was parsed alone and the continuations dropped.
+                                .addLast(new WebSocketFrameAggregator(RequestLimits.MAX_REQUEST_BYTES))
+                                .addLast(new PeerLiveness(pingIntervalMs, idleCloseMs))
+                                .addLast(new FrameHandler(api, routeExec, subs));
+                    }
+                });
         try {
             this.serverChannel = b.bind(bindHost, requestedPort).sync().channel();
         } catch (InterruptedException e) {
@@ -196,19 +214,22 @@ public final class RpcServer implements Closeable {
             // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
             if (e instanceof RuntimeException || e instanceof Error) throw e;
-            throw new RuntimeException("could not bind RPC server to " + bindHost + ":" + requestedPort
-                    + ": " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "could not bind RPC server to " + bindHost + ":" + requestedPort + ": " + e.getMessage(), e);
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();
         events.addEventListener(this::onEvent);
     }
 
-    public int port() { return port; }
+    public int port() {
+        return port;
+    }
 
-    /** Fan one emitted event out to every subscribed channel whose filter accepts
-     *  its type. Runs on the host's single-thread event-dispatch executor; Netty's
-     *  {@code writeAndFlush} is itself thread-safe and async, so this never blocks
-     *  the game thread that produced the event. */
+    /**
+     * Fan one emitted event out to every subscribed channel whose filter accepts its type. Runs on the host's
+     * single-thread event-dispatch executor; Netty's {@code writeAndFlush} is itself thread-safe and async, so this
+     * never blocks the game thread that produced the event.
+     */
     private void onEvent(EventContracts.Event e) {
         if (subscribers.isEmpty()) return;
         // No mutedEvents check here: the host applies the per-type opt-out before it
@@ -222,9 +243,11 @@ public final class RpcServer implements Closeable {
             // the outbound buffer. Close instead of dropping, as the SSE side does, so the
             // client can tell it missed events and replay them from its cursor.
             if (!ch.isWritable()) {
-                WorldDriverCommon.LOG.warn("[rpc] event subscriber {} is not reading (over {} bytes queued) — "
-                        + "closing it; reconnect and replay with mc.observe.eventsSince{cursor}",
-                        ch.remoteAddress(), TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES);
+                WorldDriverCommon.LOG.warn(
+                        "[rpc] event subscriber {} is not reading (over {} bytes queued) — "
+                                + "closing it; reconnect and replay with mc.observe.eventsSince{cursor}",
+                        ch.remoteAddress(),
+                        TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES);
                 ch.close();
                 continue;
             }
@@ -232,14 +255,21 @@ public final class RpcServer implements Closeable {
         }
     }
 
-    /** Frame an event as the shared MCP {@code notifications/message} (identical on
-     *  the WS and MCP-HTTP transports — see {@link EventNotifications}). */
+    /**
+     * Frame an event as the shared MCP {@code notifications/message} (identical on the WS and MCP-HTTP transports — see
+     * {@link EventNotifications}).
+     */
     private static String eventFrame(EventContracts.Event e) {
         return EventNotifications.frame(e);
     }
 
-    @Override public void close() {
-        try { serverChannel.close().sync(); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+    @Override
+    public void close() {
+        try {
+            serverChannel.close().sync();
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
         shutdown();
     }
 
@@ -253,8 +283,10 @@ public final class RpcServer implements Closeable {
         return Thread.ofPlatform().name(prefix + "-", 1).daemon().factory();
     }
 
-    /** Refuses the upgrade request of a browser page from a foreign origin. WebSockets are
-     *  outside CORS, so without this any page the user opens can drive the socket. */
+    /**
+     * Refuses the upgrade request of a browser page from a foreign origin. WebSockets are outside CORS, so without this
+     * any page the user opens can drive the socket.
+     */
     private static final class OriginGate extends ChannelInboundHandlerAdapter {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -262,11 +294,15 @@ public final class RpcServer implements Closeable {
                 String origin = req.headers().get(HttpHeaderNames.ORIGIN);
                 if (!OriginPolicy.isAllowed(origin)) {
                     req.release();
-                    FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                    FullHttpResponse res = new DefaultFullHttpResponse(
+                            HttpVersion.HTTP_1_1,
                             HttpResponseStatus.FORBIDDEN,
                             Unpooled.copiedBuffer("forbidden origin: " + origin, StandardCharsets.UTF_8));
                     res.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=utf-8");
-                    res.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, res.content().readableBytes());
+                    res.headers()
+                            .setInt(
+                                    HttpHeaderNames.CONTENT_LENGTH,
+                                    res.content().readableBytes());
                     res.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
                     ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
                     return;
@@ -276,9 +312,11 @@ public final class RpcServer implements Closeable {
         }
     }
 
-    /** Pings a quiet peer and closes one that has sent nothing, pong included, for the
-     *  whole window. A half-open peer never fails a write the kernel can still buffer, so
-     *  nothing else would ever reclaim its connection or its event subscription. */
+    /**
+     * Pings a quiet peer and closes one that has sent nothing, pong included, for the whole window. A half-open peer
+     * never fails a write the kernel can still buffer, so nothing else would ever reclaim its connection or its event
+     * subscription.
+     */
     private static final class PeerLiveness extends ChannelInboundHandlerAdapter {
         private final long pingIntervalMs;
         private final long idleCloseMs;
@@ -320,17 +358,18 @@ public final class RpcServer implements Closeable {
         }
 
         /**
-         * Requests of THIS connection that hold a worker; one handler per channel. A request that
-         * suspends (an awaited action, a wait) gives its worker back and holds a wait permit instead,
-         * so a connection with its waits outstanding can still observe and cancel.
+         * Requests of THIS connection that hold a worker; one handler per channel. A request that suspends (an awaited
+         * action, a wait) gives its worker back and holds a wait permit instead, so a connection with its waits
+         * outstanding can still observe and cancel.
          */
         private final AtomicInteger inFlight = new AtomicInteger();
         /** Suspended waits across every connection of this JVM's RPC servers. */
         private static final WaitPermits GLOBAL_WAITS = WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS);
         /** Cancelled when the socket closes: every wait it left suspended ends then, nothing it started does. */
         private final CancellationToken.Source gone = new CancellationToken.Source();
-        private final WaitPermits waits = WaitPermits.both(GLOBAL_WAITS,
-                WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS_PER_CONNECTION));
+
+        private final WaitPermits waits =
+                WaitPermits.both(GLOBAL_WAITS, WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS_PER_CONNECTION));
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
@@ -344,8 +383,10 @@ public final class RpcServer implements Closeable {
             Channel ch = ctx.channel();
             if (inFlight.incrementAndGet() > TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION) {
                 inFlight.decrementAndGet();
-                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "this connection already has "
-                        + TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + " requests running")));
+                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(
+                        text,
+                        "this connection already has " + TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION
+                                + " requests running")));
                 return;
             }
             try {
@@ -358,8 +399,8 @@ public final class RpcServer implements Closeable {
                 });
             } catch (RejectedExecutionException full) {
                 inFlight.decrementAndGet();
-                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "all "
-                        + TransportLimits.RPC_MAX_WORKERS + " RPC workers are busy")));
+                ch.writeAndFlush(new TextWebSocketFrame(
+                        busyFrame(text, "all " + TransportLimits.RPC_MAX_WORKERS + " RPC workers are busy")));
             }
         }
 
@@ -367,16 +408,19 @@ public final class RpcServer implements Closeable {
         private static String busyFrame(String line, String why) {
             JsonElement id = null;
             try {
-                if (JsonParser.parseString(line) instanceof JsonObject req && JsonRpcFrames.validId(req.get("id"))) id = req.get("id");
-            } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
+                if (JsonParser.parseString(line) instanceof JsonObject req && JsonRpcFrames.validId(req.get("id")))
+                    id = req.get("id");
+            } catch (Throwable ignored) {
+                /* unreadable: answer with a null id */
+            }
             ApiError busy = ApiError.of(ApiError.Code.SERVER_BUSY, "server busy: " + why + "; retry later");
             return encode(JsonRpcFrames.error(id, busy.code().rpcCode, busy.message(), ApiErrors.toTree(busy)));
         }
 
         /**
-         * Answer one frame. The answer is written when the call's stage completes, which for an
-         * awaited action is after this worker has returned; the stage arrives already encoded, off any
-         * game thread (see {@code ApiRegistry.dispatch}).
+         * Answer one frame. The answer is written when the call's stage completes, which for an awaited action is after
+         * this worker has returned; the stage arrives already encoded, off any game thread (see
+         * {@code ApiRegistry.dispatch}).
          */
         private void handleRequest(String line, Channel ch) {
             JsonElement decoded;
@@ -387,19 +431,32 @@ public final class RpcServer implements Closeable {
                 return;
             }
             if (!(decoded instanceof JsonObject req)) {
-                write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST, "request must be a JSON object", null));
+                write(
+                        ch,
+                        JsonRpcFrames.error(
+                                null, JsonRpcFrames.INVALID_REQUEST, "request must be a JSON object", null));
                 return;
             }
             JsonElement id = req.get("id");
             if (!JsonRpcFrames.validId(id)) {
-                write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST,
-                        "invalid request: id must be a string, an integer or null", null));
+                write(
+                        ch,
+                        JsonRpcFrames.error(
+                                null,
+                                JsonRpcFrames.INVALID_REQUEST,
+                                "invalid request: id must be a string, an integer or null",
+                                null));
                 return;
             }
             JsonElement rawMethod = req.get("method");
             if (!(rawMethod instanceof JsonPrimitive mp && mp.isString())) {
-                write(ch, JsonRpcFrames.error(id, JsonRpcFrames.INVALID_REQUEST,
-                        "invalid request: 'method' must be a string, got " + DecodeContext.describe(rawMethod), null));
+                write(
+                        ch,
+                        JsonRpcFrames.error(
+                                id,
+                                JsonRpcFrames.INVALID_REQUEST,
+                                "invalid request: 'method' must be a string, got " + DecodeContext.describe(rawMethod),
+                                null));
                 return;
             }
             String method = mp.getAsString();
@@ -439,16 +496,20 @@ public final class RpcServer implements Closeable {
         private static void writeInternal(Channel ch, JsonElement id, Throwable t) {
             try {
                 write(ch, JsonRpcFrames.error(id, JsonRpcFrames.INTERNAL_ERROR, "internal: " + t, null));
-            } catch (Throwable ignored) { /* the frame classes themselves are unusable */ }
+            } catch (Throwable ignored) {
+                /* the frame classes themselves are unusable */
+            }
         }
 
         /**
-         * The caller's remaining budget in ms, from {@code _meta.budgetMs} beside the params (never
-         * inside them), else the server's own cap. A remote client's local timeout is not something
-         * this server can know unless it is sent.
+         * The caller's remaining budget in ms, from {@code _meta.budgetMs} beside the params (never inside them), else
+         * the server's own cap. A remote client's local timeout is not something this server can know unless it is
+         * sent.
          */
         private static long budgetOf(JsonObject req) {
-            if (req.get("_meta") instanceof JsonObject meta && meta.get("budgetMs") instanceof JsonPrimitive n && n.isNumber()) {
+            if (req.get("_meta") instanceof JsonObject meta
+                    && meta.get("budgetMs") instanceof JsonPrimitive n
+                    && n.isNumber()) {
                 long ms = n.getAsNumber().longValue();
                 if (ms > 0) return Math.min(ms, CallContext.SERVER_CAP_MS);
             }
@@ -460,11 +521,13 @@ public final class RpcServer implements Closeable {
             ch.writeAndFlush(new TextWebSocketFrame(encode(frame)));
         }
 
-        private static String encode(JsonObject frame) { return frame.toString(); }
+        private static String encode(JsonObject frame) {
+            return frame.toString();
+        }
 
         /**
-         * The two connection-control calls, decoded by their own contract: a malformed filter is an
-         * invalid_params error, never a silent "every type" (it used to fail open that way).
+         * The two connection-control calls, decoded by their own contract: a malformed filter is an invalid_params
+         * error, never a silent "every type" (it used to fail open that way).
          */
         private JsonObject subscriptionControl(String method, JsonElement params, Channel ch, JsonElement id) {
             try {
@@ -477,13 +540,16 @@ public final class RpcServer implements Closeable {
                     // outright that an empty filter means every type.
                     ch.attr(FILTER).set(types.isEmpty() ? null : types);
                     subscribers.add(ch);
-                    return JsonRpcFrames.result(id, EventStreamContracts.SUBSCRIPTION.encode(
-                            new EventStreamContracts.Subscription(true, List.copyOf(types), types.isEmpty())));
+                    return JsonRpcFrames.result(
+                            id,
+                            EventStreamContracts.SUBSCRIPTION.encode(
+                                    new EventStreamContracts.Subscription(true, List.copyOf(types), types.isEmpty())));
                 }
                 CommonTypes.NO_PARAMS.decode(tree);
                 subscribers.remove(ch);
                 ch.attr(FILTER).set(null);
-                return JsonRpcFrames.result(id, EventStreamContracts.UNSUBSCRIBED.encode(new EventStreamContracts.Unsubscribed(false)));
+                return JsonRpcFrames.result(
+                        id, EventStreamContracts.UNSUBSCRIBED.encode(new EventStreamContracts.Unsubscribed(false)));
             } catch (RuntimeException bad) {
                 ApiError e = ApiRegistry.asApi(bad).error();
                 return JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e));
