@@ -56,7 +56,9 @@ cause is in the middle.
 
 Options:
 
-- `--tests '<class>'` runs only the matching Java test classes. The script tests still all run.
+- `--tests '<pattern>'` runs only the tests the pattern matches, Java classes and script files alike: a class
+  pattern alone runs no script tests. Script tests match by path, so `--tests '*.js'` runs them all, and a
+  validation script needs `--tests 'stagewright/tests/validation/kit.js'` beside it.
 - `-PstagewrightServerPort=<port>` moves the game's server port, so two checkouts can run their suites at once.
 - `-Pstagewright_version=0.1.0-snapshot+1.21.1` uses a StageWright you published to `mavenLocal` from
   `../stagewright` instead of the version in `gradle.properties` (`CONTRIBUTING.md`, "First build").
