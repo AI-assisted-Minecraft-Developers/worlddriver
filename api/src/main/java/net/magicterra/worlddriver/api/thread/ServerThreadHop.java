@@ -42,6 +42,7 @@ public final class ServerThreadHop {
 
     private final String threadName;
 
+    /** A hop onto the server thread, which {@code executor} runs and {@code onTargetThread} recognises. */
     public ServerThreadHop(Executor executor, BooleanSupplier onTargetThread, long timeoutMs) {
         this(executor, onTargetThread, timeoutMs, "server thread");
     }
@@ -54,6 +55,11 @@ public final class ServerThreadHop {
         this.threadName = threadName;
     }
 
+    /**
+     * Runs {@code task} on the target thread and returns its result, running it at once when the caller is already on
+     * that thread. Waits at most the hop's timeout; when the wait runs out, throws {@link NotExecutedException} if the
+     * task was withdrawn, or {@link OutcomeUnknownException} if it had already started.
+     */
     public <T> T call(Supplier<T> task) {
         if (onTargetThread.getAsBoolean()) {
             return task.get();
@@ -72,8 +78,10 @@ public final class ServerThreadHop {
                 }
             });
         } catch (RejectedExecutionException e) {
-            throw new NotExecutedException(
+            NotExecutedException refused = new NotExecutedException(
                     threadName + " refused the task (" + e.getMessage() + "); it will not run and is safe to retry");
+            refused.initCause(e);
+            throw refused;
         }
         try {
             return f.get(timeoutMs, TimeUnit.MILLISECONDS);
@@ -194,6 +202,7 @@ public final class ServerThreadHop {
             super(message);
         }
 
+        /** The error code this timeout is reported with. */
         public abstract ApiError.Code code();
     }
 
@@ -201,6 +210,7 @@ public final class ServerThreadHop {
     public static final class NotExecutedException extends HopTimeoutException {
         private static final long serialVersionUID = 1L;
 
+        /** A task that was withdrawn or refused before it ran; {@code message} says why. */
         public NotExecutedException(String message) {
             super(message);
         }
@@ -215,6 +225,7 @@ public final class ServerThreadHop {
     public static final class OutcomeUnknownException extends HopTimeoutException {
         private static final long serialVersionUID = 1L;
 
+        /** A task already running when the wait ran out; {@code message} says what to check first. */
         public OutcomeUnknownException(String message) {
             super(message);
         }

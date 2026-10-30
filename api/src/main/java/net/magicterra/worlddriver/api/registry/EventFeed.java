@@ -9,7 +9,9 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts;
  * on one dispatch thread, never the thread that emitted.
  */
 public interface EventFeed {
+    /** Adds a listener, called on the host's dispatch thread for each event from now on. */
     void addEventListener(Consumer<EventContracts.Event> listener);
 
+    /** Stops telling {@code listener}; it must be the same object that was added. */
     void removeEventListener(Consumer<EventContracts.Event> listener);
 }

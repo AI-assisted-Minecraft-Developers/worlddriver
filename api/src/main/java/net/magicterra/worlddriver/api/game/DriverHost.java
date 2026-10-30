@@ -14,10 +14,13 @@ import net.minecraft.server.MinecraftServer;
  * for. Its listener half is {@link EventFeed}, which a transport takes on its own because it may not name a game type.
  */
 public interface DriverHost extends EventFeed {
+    /** Binds the driver to a server that has started; events and restores work against it from now on. */
     void attachServer(MinecraftServer server);
 
+    /** Lets go of the server when it stops. */
     void detachServer();
 
+    /** Discards the events held so far. */
     void clearEvents();
 
     /**

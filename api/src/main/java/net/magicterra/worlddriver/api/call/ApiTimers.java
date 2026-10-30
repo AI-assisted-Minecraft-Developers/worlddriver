@@ -15,6 +15,7 @@ public final class ApiTimers {
 
     private ApiTimers() {}
 
+    /** Run {@code task} once after {@code delayMs} on the shared timer thread; a negative delay counts as zero. */
     public static ScheduledFuture<?> schedule(Runnable task, long delayMs) {
         return TIMER.schedule(task, Math.max(0, delayMs), TimeUnit.MILLISECONDS);
     }

@@ -15,8 +15,17 @@ import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 
 /** One translation from whatever a call threw to the {@link ApiError} every entry point reports. */
 public final class ApiErrors {
+    private static final String CODE = "code";
+
+    private static final String MESSAGE = "message";
+
     private ApiErrors() {}
 
+    /**
+     * The error a call that threw {@code t} reports: an API error as it stands, a hop timeout by its own code, an
+     * illegal argument as {@code invalid_params}, an illegal state as {@code capability_unavailable}, and anything else
+     * as {@code internal_error}.
+     */
     public static ApiError from(Throwable t) {
         Throwable c = unwrap(t);
         ApiException api = ApiException.find(c);
@@ -55,14 +64,14 @@ public final class ApiErrors {
     /** {@code {code, message, issues, execution}}, the wire form every entry point sends. */
     public static JsonObject toTree(ApiError e) {
         JsonObject m = new JsonObject();
-        m.addProperty("code", e.code().wireName());
-        m.addProperty("message", e.message());
+        m.addProperty(CODE, e.code().wireName());
+        m.addProperty(MESSAGE, e.message());
         JsonArray issues = new JsonArray();
         for (ApiIssue i : e.issues()) {
             JsonObject im = new JsonObject();
             im.addProperty("path", i.path());
-            im.addProperty("code", i.code().wireName());
-            im.addProperty("message", i.message());
+            im.addProperty(CODE, i.code().wireName());
+            im.addProperty(MESSAGE, i.message());
             issues.add(im);
         }
         m.add("issues", issues);
@@ -75,8 +84,8 @@ public final class ApiErrors {
         if (!(tree instanceof JsonObject m)) {
             return null;
         }
-        String code = string(m.get("code"));
-        String message = string(m.get("message"));
+        String code = string(m.get(CODE));
+        String message = string(m.get(MESSAGE));
         if (code == null || message == null) {
             return null;
         }
@@ -96,8 +105,8 @@ public final class ApiErrors {
                     continue;
                 }
                 String p = string(im.get("path"));
-                String ic = string(im.get("code"));
-                String msg = string(im.get("message"));
+                String ic = string(im.get(CODE));
+                String msg = string(im.get(MESSAGE));
                 if (p == null || ic == null || msg == null) {
                     continue;
                 }

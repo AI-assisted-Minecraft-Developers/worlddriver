@@ -9,10 +9,12 @@ import net.minecraft.world.InteractionResult;
 public final class HandWords {
     private HandWords() {}
 
+    /** The game's hand for a contract hand; anything but {@link Hand#OFF} is the main hand. */
     public static InteractionHand hand(Hand h) {
         return h == Hand.OFF ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
     }
 
+    /** The contract's word for an interaction result, under the same name. */
     public static Interaction interaction(InteractionResult r) {
         return Interaction.valueOf(r.name());
     }

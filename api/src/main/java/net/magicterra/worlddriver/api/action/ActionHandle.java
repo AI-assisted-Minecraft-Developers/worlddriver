@@ -60,6 +60,7 @@ public final class ActionHandle {
         this.state = new AtomicReference<>(new Running<>(id, bot));
     }
 
+    /** The id the registry gave this action; callers quote it to read or cancel the action. */
     public String id() {
         return id;
     }
@@ -69,6 +70,7 @@ public final class ActionHandle {
         return bot;
     }
 
+    /** Where the action's bot lives, as given at admission. */
     public Scope scope() {
         return scope;
     }
@@ -78,10 +80,12 @@ public final class ActionHandle {
         return runId;
     }
 
+    /** The current state: running, or the one terminal state the action ended in. */
     public ActionSnapshot<Object> snapshot() {
         return state.get();
     }
 
+    /** Whether the action has not ended yet. */
     public boolean running() {
         return !state.get().terminal();
     }

@@ -21,6 +21,7 @@ public interface CancellationToken {
         }
     };
 
+    /** Whether this has been cancelled. */
     boolean isCancelled();
 
     /**

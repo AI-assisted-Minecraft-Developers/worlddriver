@@ -9,5 +9,6 @@ import net.magicterra.worlddriver.api.call.CallContext;
  */
 @FunctionalInterface
 public interface ApiHandler<P, R> {
+    /** Runs the call with its decoded params; the stage completes with the result, or fails with the error. */
     CompletionStage<R> execute(P params, CallContext context);
 }

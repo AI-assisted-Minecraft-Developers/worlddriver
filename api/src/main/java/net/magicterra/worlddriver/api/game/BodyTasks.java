@@ -40,6 +40,7 @@ public final class BodyTasks {
     /** Builds the task for one call, on the body's game thread; throws {@link Refusal} to start nothing. */
     @FunctionalInterface
     public interface Factory<P, R> {
+        /** Starts the task for one call; throws {@link Refusal} to start nothing. */
         TaskStep<R> start(P params, LivingEntity body);
     }
 
@@ -49,11 +50,13 @@ public final class BodyTasks {
 
         private final RefusalReason reason;
 
+        /** A refusal with the reason the call answers with and the message that goes with it. */
         public Refusal(RefusalReason reason, String message) {
             super(message);
             this.reason = Objects.requireNonNull(reason);
         }
 
+        /** Why the body refused, as the call answers it. */
         public RefusalReason reason() {
             return reason;
         }

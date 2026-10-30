@@ -46,6 +46,7 @@ public record CallContext(
         this(deadlineNanos, requestCancelled, run, waits, blockingAllowed, 0);
     }
 
+    /** Rejects a missing part or a negative thread wait, and caps the thread wait at {@link #SERVER_CAP_MS}. */
     public CallContext {
         Objects.requireNonNull(requestCancelled, "requestCancelled");
         Objects.requireNonNull(run, "run");
@@ -68,14 +69,17 @@ public record CallContext(
                 System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ms), cancelled, Optional.empty(), waits, true);
     }
 
+    /** Nanoseconds left until the deadline; zero or less once it has passed. */
     public long remainingNanos() {
         return deadlineNanos - System.nanoTime();
     }
 
+    /** Milliseconds left until the deadline, never negative. */
     public long remainingMillis() {
         return Math.max(0, TimeUnit.NANOSECONDS.toMillis(remainingNanos()));
     }
 
+    /** Whether the deadline has passed. */
     public boolean expired() {
         return remainingNanos() <= 0;
     }

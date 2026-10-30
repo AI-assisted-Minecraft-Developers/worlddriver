@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.api.action;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +44,7 @@ public final class ActionRegistry {
 
     private final Map<String, ActionHandle> active = new LinkedHashMap<>();
 
-    private final ArrayDeque<ActionHandle> ended = new ArrayDeque<>();
+    private final Deque<ActionHandle> ended = new ArrayDeque<>();
 
     private final Map<String, ActionHandle> endedById = new HashMap<>();
 
@@ -56,8 +57,10 @@ public final class ActionRegistry {
     /** The outcome of {@link #admit}: a handle, or why there is none. */
     public sealed interface Admission permits Admitted, Denied {}
 
+    /** The action was accepted; {@code handle} tracks it from here on. */
     public record Admitted(ActionHandle handle) implements Admission {}
 
+    /** The action was refused: {@code reason} is the machine-readable cause, {@code message} says it in words. */
     public record Denied(RefusalReason reason, String message) implements Admission {}
 
     /**
@@ -220,12 +223,14 @@ public final class ActionRegistry {
         return h.snapshot();
     }
 
+    /** The action with this id, running or kept after its ending; null when unknown or already forgotten. */
     public synchronized ActionHandle find(String id) {
         prune();
         ActionHandle h = active.get(id);
         return h != null ? h : endedById.get(id);
     }
 
+    /** The number of actions that are running right now. */
     public synchronized int activeCount() {
         return active.size();
     }

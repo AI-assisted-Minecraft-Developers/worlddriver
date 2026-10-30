@@ -78,6 +78,7 @@ public final class ApiRegistry {
         final List<Consumer<Snapshot>> listeners = new CopyOnWriteArrayList<>();
     }
 
+    /** An empty registry, with no methods published yet. */
     public ApiRegistry() {
         this(new Published(), 0);
     }
@@ -109,6 +110,7 @@ public final class ApiRegistry {
         return threadWaitMs > 0 && ctx.threadWaitMs() == 0 ? ctx.withThreadWait(threadWaitMs) : ctx;
     }
 
+    /** The published state now; a caller that keeps this object reads one batch-consistent view of it. */
     public Snapshot snapshot() {
         return state.snapshot;
     }
@@ -285,21 +287,25 @@ public final class ApiRegistry {
         try {
             return stage.toCompletableFuture().get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
-            throw asApi(e.getCause() == null ? e : e.getCause());
+            throw asApi(e);
         } catch (TimeoutException e) {
             stage.toCompletableFuture().cancel(false);
-            throw new ApiException(new ApiError(
-                    ApiError.Code.OUTCOME_UNKNOWN,
-                    "no result within " + budgetMs + "ms; the call may still take effect",
-                    List.of(),
-                    ApiError.Execution.UNKNOWN));
+            throw new ApiException(
+                    new ApiError(
+                            ApiError.Code.OUTCOME_UNKNOWN,
+                            "no result within " + budgetMs + "ms; the call may still take effect",
+                            List.of(),
+                            ApiError.Execution.UNKNOWN),
+                    e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ApiException(new ApiError(
-                    ApiError.Code.OUTCOME_UNKNOWN,
-                    "interrupted while waiting; the call may still take effect",
-                    List.of(),
-                    ApiError.Execution.UNKNOWN));
+            throw new ApiException(
+                    new ApiError(
+                            ApiError.Code.OUTCOME_UNKNOWN,
+                            "interrupted while waiting; the call may still take effect",
+                            List.of(),
+                            ApiError.Execution.UNKNOWN),
+                    e);
         }
     }
 

@@ -8,6 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
  * one and cancelled by {@code mc.bot.cancel}, and its result answers {@code mc.wait.result}.
  */
 public interface TaskStep<R> {
+    /** Where a task stands after a tick. */
     enum Progress {
         RUNNING,
         SUCCEEDED,
@@ -26,5 +27,7 @@ public interface TaskStep<R> {
     }
 
     /** The task was cancelled or superseded: let go of whatever it holds. */
-    default void stop() {}
+    default void stop() {
+        // A task that holds nothing between ticks has nothing to let go of.
+    }
 }

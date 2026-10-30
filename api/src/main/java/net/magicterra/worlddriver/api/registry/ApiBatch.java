@@ -12,6 +12,7 @@ import java.util.Objects;
  * @param id which of the owner's batches this is
  */
 public record ApiBatch(String owner, String id, List<ApiMethod<?, ?>> methods) {
+    /** Rejects a missing owner or id; copies the method list, so the caller's later edits cannot reach it. */
     public ApiBatch {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(id, "id");

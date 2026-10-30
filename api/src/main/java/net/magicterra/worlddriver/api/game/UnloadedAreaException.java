@@ -15,6 +15,7 @@ public final class UnloadedAreaException extends IllegalArgumentException {
 
     private final List<ChunkPos> chunks;
 
+    /** Refuses a query whose cube of {@code radius} around {@code center} reaches the unloaded {@code chunks}. */
     public UnloadedAreaException(BlockPos center, int radius, List<ChunkPos> chunks) {
         super("mc.query q=blocks: the cube of radius " + radius + " around " + center.toShortString()
                 + " touches " + chunks.size() + " unloaded chunk(s) "

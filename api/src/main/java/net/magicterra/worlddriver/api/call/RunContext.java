@@ -18,6 +18,7 @@ public final class RunContext {
 
     private final CancellationToken.Source ended = new CancellationToken.Source();
 
+    /** A run with the given id; {@link #start} makes one with a fresh id instead. */
     public RunContext(String runId) {
         this.runId = Objects.requireNonNull(runId, "runId");
     }
@@ -27,14 +28,17 @@ public final class RunContext {
         return new RunContext(kind + "-" + SEQ.incrementAndGet());
     }
 
+    /** The identity the run's child actions are owned by, such as {@code eval-3}. */
     public String runId() {
         return runId;
     }
 
+    /** Cancelled when the run is stopped or runs out of budget, which cancels its actions. */
     public CancellationToken stopped() {
         return stopped;
     }
 
+    /** Cancelled once the run starts nothing more, whether it returned or was stopped. */
     public CancellationToken ended() {
         return ended;
     }

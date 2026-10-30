@@ -12,6 +12,10 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 public final class EventWire {
     private EventWire() {}
 
+    /**
+     * The wire form of {@code e}: its position when it has one, its payload unless null, and {@code untrusted} for a
+     * type that carries text a player or a server typed.
+     */
     public static EventContracts.Event dto(DriverEvent e) {
         Optional<BlockPosition> pos = e.pos == null ? Optional.empty() : Optional.of(Positions.position(e.pos));
         EventCatalog.Entry<?> entry = EventCatalog.byType(e.type);

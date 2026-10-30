@@ -3,6 +3,9 @@ package net.magicterra.worlddriver.api.game;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.minecraft.core.BlockPos;
 
+/**
+ * One event the driver emitted: a sequence number, a wall-clock timestamp, a catalogued type, and where it happened.
+ */
 public final class DriverEvent {
     public final long seq;
 
@@ -21,6 +24,7 @@ public final class DriverEvent {
      */
     public final JsonValue data;
 
+    /** Stamps the event with the current time; a null {@code data} is recorded as {@link JsonValue#NULL}. */
     public DriverEvent(long seq, String type, BlockPos pos, JsonValue data) {
         this.seq = seq;
         this.timestamp = System.currentTimeMillis();
