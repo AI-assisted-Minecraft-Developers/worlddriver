@@ -59,10 +59,10 @@ public record PlanningSettings(
         @Default("false")
         boolean pathfinderPadClusterTax,
 
-        @Doc("A* node budget.") @Wire("pathfinder.maxNodes") @Default("100000") @Range(min = 100, max = 1000000)
+        @Doc("A* node budget.") @Wire("pathfinder.maxNodes") @Default("100000") @Range(min = 100, max = 1_000_000)
         int pathfinderMaxNodes,
 
-        @Doc("A* wall-clock budget, ms.") @Wire("pathfinder.maxMs") @Default("1500") @Range(min = 100, max = 30000)
+        @Doc("A* wall-clock budget, ms.") @Wire("pathfinder.maxMs") @Default("1500") @Range(min = 100, max = 30_000)
         long pathfinderMaxMs,
 
         @Doc("Weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget. W=1.3 A/B-STALLED the "
@@ -136,7 +136,7 @@ public record PlanningSettings(
                 + "expanded nodes IF a best-effort segment already exists, instead of grinding the full maxNodes "
                 + "(~60k) and freezing seconds. 0=off; hard maxNodes still governs deep pinches with no segment yet.")
         @Default("6000")
-        @Range(min = 0, max = 1000000)
+        @Range(min = 0, max = 1_000_000)
         int pathfinderSoftCommitNodes,
 
         @Default("25.0") double pathfinderLeafCellCost,

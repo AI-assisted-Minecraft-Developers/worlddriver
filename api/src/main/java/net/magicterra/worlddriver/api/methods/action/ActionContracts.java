@@ -73,7 +73,7 @@ public final class ActionContracts {
 
     @Named("RunCommandParams")
     public record CommandParams(
-            @Doc("The command, leading slash optional.") @Length(min = 1, max = 32767)
+            @Doc("The command, leading slash optional.") @Length(min = 1, max = 32_767)
             String cmd,
 
             @Doc("Also answer the events the call emitted, so no separate cursor read is needed.") @Default("false")

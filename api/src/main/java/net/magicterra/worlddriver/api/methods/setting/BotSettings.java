@@ -92,10 +92,12 @@ public record BotSettings(
         @Range(min = 4, max = 48)
         int rangedAvoidRadius,
 
-        @Doc("Cap on stored A* candidate nodes per search.") @Default("4000") @Range(min = 100, max = 200000)
+        @Doc("Cap on stored A* candidate nodes per search.") @Default("4000") @Range(min = 100, max = 200_000)
         int pathDebugMaxNodes,
 
-        @Doc("Cap on stored per-tick trajectory samples (ring buffer)") @Default("6000") @Range(min = 100, max = 200000)
+        @Doc("Cap on stored per-tick trajectory samples (ring buffer)")
+        @Default("6000")
+        @Range(min = 100, max = 200_000)
         int pathDebugMaxSamples,
 
         @Doc("Auto-write a chart PNG on every goto terminal outcome (success and failure)") @Default("false")
@@ -111,7 +113,7 @@ public record BotSettings(
         @Doc("Most line-of-sight rays one search may fire for route.sight; past it the search reruns without sight "
                 + "(lastPath.sightBudgetExhausted)")
         @Default("4000")
-        @Range(min = 100, max = 100000)
+        @Range(min = 100, max = 100_000)
         int sightRaysPerSearch,
 
         @Doc("Y plane for goto{axis:true} (GoalAxis)")

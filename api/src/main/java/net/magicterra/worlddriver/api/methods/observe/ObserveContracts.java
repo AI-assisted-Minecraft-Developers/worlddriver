@@ -222,7 +222,7 @@ public final class ObserveContracts {
     public record TimeOfDay(
             @Doc("The world's raw day time.") long dayTime,
             long dayOfWorld,
-            @Range(min = 0, max = 23999) long timeOfDay,
+            @Range(min = 0, max = 23_999) long timeOfDay,
 
             @Doc("Hostiles spawn from sunset's end (13000) and burn from sunrise (23000).")
             DayPhase phase) {}

@@ -192,7 +192,7 @@ public final class DebugContracts {
             @Doc("Chain cap.") @Default("40") @Range(min = 1, max = 200)
             int maxSegments,
 
-            @Doc("Omitted: pathfinder.maxNodes.") Optional<@Range(min = 1, max = 10000000) Integer> maxNodes,
+            @Doc("Omitted: pathfinder.maxNodes.") Optional<@Range(min = 1, max = 10_000_000) Integer> maxNodes,
             // Half the long range, so a budget added to a clock reading cannot overflow.
             @Doc("Omitted: pathfinder.maxMs.") Optional<@Range(min = 1, max = 1L << 62) Long> maxMs) {
         public static PlanParams of(String bot, GotoContracts.Target target) {

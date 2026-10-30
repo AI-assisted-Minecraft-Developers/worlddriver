@@ -94,13 +94,13 @@ public final class WorldModel {
      * {@link TimeSnap#timeOfDay}).
      */
     static String dayPhase(long t) {
-        if (t < 12000) {
+        if (t < 12_000) {
             return "DAY";
         }
-        if (t < 13800) {
+        if (t < 13_800) {
             return "DUSK";
         }
-        if (t < 22200) {
+        if (t < 22_200) {
             return "NIGHT";
         }
         return "DAWN";

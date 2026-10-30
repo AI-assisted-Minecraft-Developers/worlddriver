@@ -302,7 +302,7 @@ public final class ScreenContracts {
             @Doc("The widget walk failed as a whole.") Optional<String> error,
             @Doc("The menu's slots could not be listed.") Optional<String> slotsError,
 
-            @Doc("Every node, depth first: a node comes right before the nodes it holds.") @Length(max = 65536)
+            @Doc("Every node, depth first: a node comes right before the nodes it holds.") @Length(max = 65_536)
             List<WidgetNode> nodes) {}
 
     // ------------------------------------------------------------------ screen.close

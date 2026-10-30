@@ -187,10 +187,12 @@ public final class ScriptContracts {
 
     @Named("EvalParams")
     public record EvalParams(
-            @Doc("JavaScript. The value of its last expression is the result.") @Length(min = 1, max = 65536)
+            @Doc("JavaScript. The value of its last expression is the result.") @Length(min = 1, max = 65_536)
             String source,
 
-            @Doc("The run's budget; when it runs out the run is stopped.") @Default("3000") @Range(min = 1, max = 30000)
+            @Doc("The run's budget; when it runs out the run is stopped.")
+            @Default("3000")
+            @Range(min = 1, max = 30_000)
             int timeoutMs) {}
 
     // ------------------------------------------------------------------ mc.skill
@@ -208,7 +210,7 @@ public final class ScriptContracts {
     public record SaveSkill(
             @SkillName String name,
 
-            @Doc("Checked for syntax before it is saved; reads its args from SKILL.") @Length(min = 1, max = 65536)
+            @Doc("Checked for syntax before it is saved; reads its args from SKILL.") @Length(min = 1, max = 65_536)
             String source)
             implements SkillOp {}
 
@@ -225,7 +227,7 @@ public final class ScriptContracts {
             @Doc("The SKILL global. Omitted: an empty object.")
             Optional<JsonValue> args,
 
-            @Default("3000") @Range(min = 1, max = 30000) int timeoutMs)
+            @Default("3000") @Range(min = 1, max = 30_000) int timeoutMs)
             implements SkillOp {}
 
     @Variant("delete")
@@ -272,7 +274,7 @@ public final class ScriptContracts {
 
             @Doc("The run's budget; when it runs out the run is stopped.")
             @Default("600000")
-            @Range(min = 1, max = 1200000)
+            @Range(min = 1, max = 1_200_000)
             int budgetMs,
 
             @Doc("The PLAYBOOK global. dragon and wither read maxRounds; wither reads summon (default true; false "

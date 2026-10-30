@@ -275,7 +275,7 @@ public final class EventCatalog {
             String phase,
             String prev,
 
-            @Doc("The time of day, 0-23999.") @Range(min = 0, max = 23999)
+            @Doc("The time of day, 0-23999.") @Range(min = 0, max = 23_999)
             long dayTime) {}
 
     @Named("ItemPickupEvent")

@@ -193,7 +193,7 @@ public final class EventContracts {
             @Doc("The event type emitted on the rising edge.") @Default("condition.met") @Length(min = 1, max = 128)
             String emitAs,
 
-            @Default("1000") @Range(min = 200, max = 60000) int everyMs,
+            @Default("1000") @Range(min = 200, max = 60_000) int everyMs,
 
             @Doc("Remove the watcher after it first fires.") @Default("false")
             boolean once)
@@ -235,7 +235,7 @@ public final class EventContracts {
             @Range(min = 1) int id,
             @Length(min = 1, max = 128) String invoke,
             @Length(min = 1, max = 128) String emitAs,
-            @Range(min = 200, max = 60000) int everyMs)
+            @Range(min = 200, max = 60_000) int everyMs)
             implements EventsReply {}
 
     @Variant("unwatch")
@@ -248,7 +248,7 @@ public final class EventContracts {
             @Length(min = 1, max = 128) String invoke,
             Optional<@Length(min = 1, max = 256) String> field,
             @Length(min = 1, max = 128) String emitAs,
-            @Range(min = 200, max = 60000) int everyMs,
+            @Range(min = 200, max = 60_000) int everyMs,
             boolean once,
             @Range(min = 0) int fired) {}
 

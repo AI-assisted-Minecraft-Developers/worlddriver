@@ -151,7 +151,7 @@ public final class BuildContracts {
     /** Sponge {@code .schem} v1–v3 bytes, gzipped or raw; block states and block entities are dropped. */
     @Variant("sponge")
     public record Sponge(
-            @Pattern(value = "[A-Za-z0-9+/=\\s]+", expected = "base64") @Length(max = 8000000)
+            @Pattern(value = "[A-Za-z0-9+/=\\s]+", expected = "base64") @Length(max = 8_000_000)
             String base64) implements Schematic {}
 
     @Named("BuildParams")

@@ -422,7 +422,7 @@ public final class ClientContracts {
     public record Time(
             long dayTime,
             long dayOfWorld,
-            @Range(min = 0, max = 23999) long timeOfDay,
+            @Range(min = 0, max = 23_999) long timeOfDay,
 
             @Doc("Hostile mobs spawn from sunset 13000 and burn from sunrise 23000.")
             @OneOf(
@@ -591,7 +591,7 @@ public final class ClientContracts {
 
     @Named("ClientBlockScan")
     public record BlockScan(
-            @Doc("Every non-air cell, air skipped.") @Length(max = 40000)
+            @Doc("Every non-air cell, air skipped.") @Length(max = 40_000)
             List<BlockRow> blocks,
 
             BlockPosition center,
@@ -650,7 +650,7 @@ public final class ClientContracts {
 
             @Doc("Wait up to this long for chat lines that arrive after the send; 0 returns at once.")
             @Default("0")
-            @Range(min = 0, max = 30000)
+            @Range(min = 0, max = 30_000)
             int awaitReplyMs) {}
 
     @Variant("done")

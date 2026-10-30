@@ -435,7 +435,7 @@ public final class JoinedPlayers {
                 return false;
             }
             double dot = ix * movement.x + iz * movement.z;
-            return Math.acos(dot / Math.sqrt(inputSq * moveSq)) < 0.13962634F;
+            return Math.acos(dot / Math.sqrt(inputSq * moveSq)) < 0.139_626_34F;
         }
 
         /** Every jump {@link #aiStep()} takes passes through here, so the driver times its jumps from it. */

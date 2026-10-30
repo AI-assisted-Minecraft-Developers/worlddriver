@@ -246,17 +246,17 @@ public final class McpServer implements Closeable {
             decoded = JsonParser.parseReader(
                     new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8));
         } catch (Throwable e) {
-            sendJson(ex, 400, jsonRpcError(null, -32700, "parse error: " + e.getMessage()));
+            sendJson(ex, 400, jsonRpcError(null, -32_700, "parse error: " + e.getMessage()));
             return;
         }
 
         if (!(decoded instanceof JsonObject req)) {
-            sendJson(ex, 400, jsonRpcError(null, -32600, "request must be JSON object"));
+            sendJson(ex, 400, jsonRpcError(null, -32_600, "request must be JSON object"));
             return;
         }
         JsonElement id = req.get("id");
         if (!JsonRpcFrames.validId(id)) {
-            sendJson(ex, 400, jsonRpcError(null, -32600, "id must be a string, an integer or null"));
+            sendJson(ex, 400, jsonRpcError(null, -32_600, "id must be a string, an integer or null"));
             return;
         }
         // A cast here threw out of the handler, and the HTTP server answers that by dropping
@@ -265,7 +265,7 @@ public final class McpServer implements Closeable {
         JsonObject params = req.get("params") instanceof JsonObject mp ? mp : new JsonObject();
 
         if (method == null) {
-            sendJson(ex, 400, jsonRpcError(id, -32600, "missing or non-string method"));
+            sendJson(ex, 400, jsonRpcError(id, -32_600, "missing or non-string method"));
             return;
         }
 
@@ -351,7 +351,7 @@ public final class McpServer implements Closeable {
                 case "tools/call" -> {
                     String toolName = string(params.get("name"));
                     if (toolName == null) {
-                        sendJson(ex, 200, jsonRpcError(id, -32602, "missing tool name"));
+                        sendJson(ex, 200, jsonRpcError(id, -32_602, "missing tool name"));
                         return;
                     }
                     if (!api.methods().contains(toolName)) {
@@ -390,7 +390,7 @@ public final class McpServer implements Closeable {
                                 // The stage would swallow this and leave the exchange open until the
                                 // caller's own timeout; answer as the synchronous path below does.
                                 try {
-                                    sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + bad));
+                                    sendJson(ex, 200, jsonRpcError(id, -32_603, "internal: " + bad));
                                 } catch (Throwable unusable) {
                                     ex.close();
                                 }
@@ -398,10 +398,10 @@ public final class McpServer implements Closeable {
                         });
                     }
                 }
-                default -> sendJson(ex, 200, jsonRpcError(id, -32601, "method not found: " + method));
+                default -> sendJson(ex, 200, jsonRpcError(id, -32_601, "method not found: " + method));
             }
         } catch (Throwable t) {
-            sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + t.getMessage()));
+            sendJson(ex, 200, jsonRpcError(id, -32_603, "internal: " + t.getMessage()));
         } finally {
             postSlots.release();
         }

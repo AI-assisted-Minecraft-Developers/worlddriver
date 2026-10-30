@@ -16,13 +16,13 @@ public record ControlSettings(
         @Doc("Lower=more responsive; a value past any trip's length keeps the first route.")
         @Wire("navigator.repathEveryTicks")
         @Default("200")
-        @Range(min = 20, max = 1000000)
+        @Range(min = 20, max = 1_000_000)
         int navigatorRepathEveryTicks,
 
         @Doc("Fail after N no-progress ticks.")
         @Wire("navigator.totalTickBudget")
         @Default("1200")
-        @Range(min = 200, max = 36000)
+        @Range(min = 200, max = 36_000)
         int navigatorTotalTickBudget,
 
         @Doc("Skip yaw write below this delta.")
@@ -235,7 +235,7 @@ public record ControlSettings(
                 + "nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing "
                 + "through the search gap (fixes the pause between segments). 0=off.")
         @Default("600")
-        @Range(min = 0, max = 10000)
+        @Range(min = 0, max = 10_000)
         int pathfinderQuickNodes,
 
         @Default("5") int navigatorFutileSearchCap,

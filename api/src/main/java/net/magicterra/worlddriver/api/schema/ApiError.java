@@ -22,15 +22,15 @@ public record ApiError(Code code, String message, List<ApiIssue> issues, Executi
     }
 
     public enum Code implements WireName {
-        INVALID_PARAMS("invalid_params", -32602, Execution.NOT_STARTED),
-        METHOD_NOT_FOUND("method_not_found", -32601, Execution.NOT_STARTED),
-        CAPABILITY_UNAVAILABLE("capability_unavailable", -32004, Execution.NOT_STARTED),
-        ACTION_NOT_FOUND("action_not_found", -32006, Execution.NOT_STARTED),
-        CONTEXT_CHANGED("context_changed", -32007, Execution.NOT_STARTED),
-        SERVER_BUSY("server_busy", -32005, Execution.NOT_STARTED),
-        NOT_EXECUTED("not_executed", -32001, Execution.NOT_EXECUTED),
-        OUTCOME_UNKNOWN("outcome_unknown", -32002, Execution.UNKNOWN),
-        INTERNAL_ERROR("internal_error", -32603, Execution.UNKNOWN);
+        INVALID_PARAMS("invalid_params", -32_602, Execution.NOT_STARTED),
+        METHOD_NOT_FOUND("method_not_found", -32_601, Execution.NOT_STARTED),
+        CAPABILITY_UNAVAILABLE("capability_unavailable", -32_004, Execution.NOT_STARTED),
+        ACTION_NOT_FOUND("action_not_found", -32_006, Execution.NOT_STARTED),
+        CONTEXT_CHANGED("context_changed", -32_007, Execution.NOT_STARTED),
+        SERVER_BUSY("server_busy", -32_005, Execution.NOT_STARTED),
+        NOT_EXECUTED("not_executed", -32_001, Execution.NOT_EXECUTED),
+        OUTCOME_UNKNOWN("outcome_unknown", -32_002, Execution.UNKNOWN),
+        INTERNAL_ERROR("internal_error", -32_603, Execution.UNKNOWN);
 
         private final String wire;
         /** The JSON-RPC {@code error.code} this kind is reported under. */

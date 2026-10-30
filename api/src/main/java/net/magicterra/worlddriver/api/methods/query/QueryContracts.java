@@ -195,11 +195,11 @@ public final class QueryContracts {
 
     @Variant("blocks")
     public record BlockRows(
-            @Doc("Every non-air cell that matched.") @Length(max = 32768)
+            @Doc("Every non-air cell that matched.") @Length(max = 32_768)
             List<BlockRow> blocks) implements Rows {}
 
     @Variant("entities")
-    public record EntityRows(@Length(max = 65536) List<EntityRow> entities) implements Rows {}
+    public record EntityRows(@Length(max = 65_536) List<EntityRow> entities) implements Rows {}
 
     /** An entity type; a bare path is in the minecraft namespace. */
     @Retention(RetentionPolicy.RUNTIME)

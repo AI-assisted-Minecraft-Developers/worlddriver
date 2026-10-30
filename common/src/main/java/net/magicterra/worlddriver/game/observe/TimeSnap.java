@@ -40,7 +40,7 @@ import java.util.Map;
 public final class TimeSnap {
 
     /** Ticks in a Minecraft day. */
-    public static final long DAY_TICKS = 24000L;
+    public static final long DAY_TICKS = 24_000L;
 
     private TimeSnap() {}
 
@@ -55,13 +55,13 @@ public final class TimeSnap {
      */
     public static String phase(long dayTime) {
         long tod = timeOfDay(dayTime);
-        if (tod < 12000) {
+        if (tod < 12_000) {
             return "day";
         }
-        if (tod < 13000) {
+        if (tod < 13_000) {
             return "sunset";
         }
-        if (tod < 23000) {
+        if (tod < 23_000) {
             return "night";
         }
         return "sunrise";

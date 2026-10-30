@@ -117,7 +117,10 @@ public final class WaitContracts {
             Optional<@Length(max = 256) List<@Length(min = 1, max = 128) String>> types,
 
             @Default("32") @Range(min = 1, max = 256) int limit,
-            @Default("5000") @Range(min = 100, max = 120000) int timeoutMs,
+
+            @Default("5000") @Range(min = 100, max = 120_000)
+            int timeoutMs,
+
             @Default("100") @Range(min = 50, max = 2000) int pollMs,
 
             @Doc("Answer {outcome:'started', waitId} at once; the result arrives through mc.wait.result{kind:'wait'} "
@@ -141,7 +144,7 @@ public final class WaitContracts {
 
     @Named("WaitWorldReadyParams")
     public record WorldReadyParams(
-            @Default("30000") @Range(min = 100, max = 120000)
+            @Default("30000") @Range(min = 100, max = 120_000)
             int timeoutMs,
 
             @Default("250") @Range(min = 50, max = 2000) int pollMs,
@@ -177,7 +180,7 @@ public final class WaitContracts {
             @Doc("Satisfied when the field equals this; omitted: when it is truthy.")
             Optional<JsonValue> value,
 
-            @Default("30000") @Range(min = 100, max = 120000)
+            @Default("30000") @Range(min = 100, max = 120_000)
             int timeoutMs,
 
             @Default("500") @Range(min = 50, max = 5000) int pollMs,

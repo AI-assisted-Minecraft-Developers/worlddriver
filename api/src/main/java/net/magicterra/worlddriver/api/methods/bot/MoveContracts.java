@@ -128,13 +128,13 @@ public final class MoveContracts {
 
             @Doc("Succeed once no match has been seen for this many ticks; 0 follows until cancelled.")
             @Default("0")
-            @Range(min = 0, max = 100000)
+            @Range(min = 0, max = 100_000)
             int maxIdleTicks,
 
             @Doc("Fail as unreachable after this many ticks neither at the standoff nor closer than the closest "
                     + "approach so far; 0 never.")
             @Default("600")
-            @Range(min = 0, max = 100000)
+            @Range(min = 0, max = 100_000)
             int giveUpTicks,
 
             @Doc("goto's route conditions, without via, an entity leash anchor or fly: it already tracks an entity.")
@@ -259,7 +259,7 @@ public final class MoveContracts {
             @Default("40") @Range(min = 5, max = 400) int fireworkEveryTicks,
 
             @Doc("Flight budget. Omitted: 2000 when steering, 200 otherwise.")
-            Optional<@Range(min = 1, max = 20000) Integer> ticks,
+            Optional<@Range(min = 1, max = 20_000) Integer> ticks,
 
             @Doc("Succeed within this horizontal distance of pos.") @Default("3") @Range(min = 0, max = 1024)
             double stopXZDist,

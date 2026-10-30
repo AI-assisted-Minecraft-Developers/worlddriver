@@ -145,7 +145,7 @@ public final class RouteContracts {
             @Doc("true prunes cells outside; false charges weight per block outside.") @Default("false")
             boolean hard,
 
-            @Default("10") @Range(min = 0, max = 1000000) double weight)
+            @Default("10") @Range(min = 0, max = 1_000_000) double weight)
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
@@ -161,7 +161,7 @@ public final class RouteContracts {
 
             @Doc("Cost of a cell with no adjacent water; keep it well above 10, a walked cell's cost.")
             @Default("30")
-            @Range(min = 0, max = 1000000)
+            @Range(min = 0, max = 1_000_000)
             double weight) {}
 
     @Tag("kind")
@@ -182,12 +182,12 @@ public final class RouteContracts {
     @Named("Leash")
     public record Leash(
             LeashAnchor anchor,
-            @Range(min = 0.001, max = 100000) double radius,
+            @Range(min = 0.001, max = 100_000) double radius,
 
             @Doc("true: the route may not leave the radius at all.") @Default("false")
             boolean hard,
 
-            @Doc("Cost per block beyond the radius when not hard.") @Default("20") @Range(min = 0, max = 1000000)
+            @Doc("Cost per block beyond the radius when not hard.") @Default("20") @Range(min = 0, max = 1_000_000)
             double weight) {}
 
     @Tag("shape")
@@ -199,16 +199,16 @@ public final class RouteContracts {
             BlockPosition min,
             BlockPosition max,
             @Default("forbid") Enforcement mode,
-            @Default("250") @Range(min = 0, max = 1000000) double penalty)
+            @Default("250") @Range(min = 0, max = 1_000_000) double penalty)
             implements RegionSpec {}
 
     @Variant("sphere")
     public record SphereRegion(
             BlockPosition center,
-            @Default("8") @Range(min = 0.001, max = 100000) double radius,
+            @Default("8") @Range(min = 0.001, max = 100_000) double radius,
             @Default("forbid") Enforcement mode,
 
-            @Doc("Ramps to 0 at the sphere's edge.") @Default("250") @Range(min = 0, max = 1000000)
+            @Doc("Ramps to 0 at the sphere's edge.") @Default("250") @Range(min = 0, max = 1_000_000)
             double penalty)
             implements RegionSpec {}
 
@@ -217,7 +217,7 @@ public final class RouteContracts {
             @Length(min = 1, max = 4096) List<BlockPosition> cells,
             @Default("forbid") Enforcement mode,
 
-            @Doc("Charged in full on each listed cell.") @Default("250") @Range(min = 0, max = 1000000)
+            @Doc("Charged in full on each listed cell.") @Default("250") @Range(min = 0, max = 1_000_000)
             double penalty)
             implements RegionSpec {}
 
@@ -227,24 +227,24 @@ public final class RouteContracts {
             @Doc("Drops deeper than this are taxed.") @Default("4") @Range(min = 1, max = 64)
             int minDrop,
 
-            @Default("300") @Range(min = 0, max = 1000000) double penalty) {}
+            @Default("300") @Range(min = 0, max = 1_000_000) double penalty) {}
 
     @Named("MobCluster")
     public record Cluster(
             @Default("3") @Range(min = 1, max = 64) int count,
-            @Default("6") @Range(min = 0.001, max = 100000) double radius,
+            @Default("6") @Range(min = 0.001, max = 100_000) double radius,
             @Default("forbid") Enforcement mode,
-            @Default("300") @Range(min = 0, max = 1000000) double penalty) {}
+            @Default("300") @Range(min = 0, max = 1_000_000) double penalty) {}
 
     /** The radii and penalty left out take the mobAvoid* settings. */
     @Named("Mobs")
     public record Mobs(
-            @Doc("Omitted: the mobAvoidRadius setting.") Optional<@Range(min = 0, max = 1000000) Double> radius,
+            @Doc("Omitted: the mobAvoidRadius setting.") Optional<@Range(min = 0, max = 1_000_000) Double> radius,
 
             @Doc("Omitted: the rangedAvoidRadius setting.")
-            Optional<@Range(min = 0, max = 1000000) Double> rangedRadius,
+            Optional<@Range(min = 0, max = 1_000_000) Double> rangedRadius,
 
-            @Doc("Omitted: the mobAvoidPenalty setting.") Optional<@Range(min = 0, max = 1000000) Double> penalty,
+            @Doc("Omitted: the mobAvoidPenalty setting.") Optional<@Range(min = 0, max = 1_000_000) Double> penalty,
 
             @Doc("A cell with count or more mobs within radius is pruned or charged.")
             Optional<Cluster> cluster,
@@ -265,7 +265,7 @@ public final class RouteContracts {
 
             @Default("avoid") Enforcement mode,
 
-            @Doc("Cost per seeing observer when avoiding.") @Default("120") @Range(min = 0, max = 1000000)
+            @Doc("Cost per seeing observer when avoiding.") @Default("120") @Range(min = 0, max = 1_000_000)
             double penalty,
 
             @Doc("Height tested; 1.27 evaluates as if sneaking.") @Default("1.62") @Range(min = 0, max = 4)
@@ -282,10 +282,10 @@ public final class RouteContracts {
     @Named("Corridor")
     public record Corridor(
             @Length(min = 1, max = 256) List<BlockPosition> points,
-            @Default("3") @Range(min = 0.001, max = 100000) double radius,
+            @Default("3") @Range(min = 0.001, max = 100_000) double radius,
             @Default("forbid") Enforcement mode,
 
-            @Doc("Cost per block beyond the radius when avoiding.") @Default("20") @Range(min = 0, max = 1000000)
+            @Doc("Cost per block beyond the radius when avoiding.") @Default("20") @Range(min = 0, max = 1_000_000)
             double penalty) {}
 
     @Named("Route")

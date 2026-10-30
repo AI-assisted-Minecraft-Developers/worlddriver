@@ -639,7 +639,7 @@ public final class PathArchive {
         Header header = new Header(
                 42L,
                 "minecraft:overworld",
-                1718400000000L,
+                1_718_400_000_000L,
                 "goto(100,64,200)",
                 new int[] {0, 64, 0},
                 new int[] {100, 64, 200},
