@@ -66,8 +66,8 @@ jobs:
         if: steps.companion.outputs.sha != ''
         run: .ci/stagewright/scripts/build_driver_pair.sh "$PWD"
 
-      - name: Source budget
-        run: python3 scripts/check_source_budget.py
+      - name: Checkstyle
+        run: ./gradlew checkstyleMain
 
       - name: Build and unit tests
         if: steps.companion.outputs.sha == ''
