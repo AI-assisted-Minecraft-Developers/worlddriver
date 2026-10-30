@@ -6,15 +6,23 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 
+/** A block structure to build: its size and the block placed at each cell, read from a Sponge .schem file. */
+// The size fields are read by name from the build verb; renaming them is out of scope for this change.
+// The palette key is spelled the same in both NBT layouts, so a constant per use would only hide the format.
+@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class Schematic {
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final int w;
 
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final int h;
 
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final int d;
 
     public final List<Entry> entries;
 
+    /** Creates a schematic of the given size whose entries are the cells to place. */
     public Schematic(int w, int h, int d, List<Entry> entries) {
         this.w = w;
         this.h = h;
@@ -22,6 +30,7 @@ public final class Schematic {
         this.entries = entries;
     }
 
+    /** One cell to place: its offset from the origin and the block id to put there. */
     public static final class Entry {
         public final int dx;
 
@@ -31,6 +40,7 @@ public final class Schematic {
 
         public final String blockId;
 
+        /** Creates the entry for the cell at ({@code dx}, {@code dy}, {@code dz}) holding {@code blockId}. */
         public Entry(int dx, int dy, int dz, String blockId) {
             this.dx = dx;
             this.dy = dy;
@@ -82,6 +92,8 @@ public final class Schematic {
      * <p>BlockEntities (chests, signs, etc.) and biomes are intentionally ignored — BuildProcess only knows how to
      * place vanilla block ids without state, so adding them here would silently lose data.
      */
+    // The parse reads the gzip and raw layouts, then the blocks and palette, in one pass; the steps share its locals.
+    @SuppressWarnings("checkstyle:javancss")
     public static Schematic fromSpongeSchem(byte[] bytes, int maxCells) {
         CompoundTag root;
         try {
@@ -90,8 +102,10 @@ public final class Schematic {
             try {
                 root = NbtIo.read(new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes)));
             } catch (Exception rawFail) {
-                throw new IllegalArgumentException(
-                        "not a valid .schem NBT (tried gzip and raw): " + gzipFail.getMessage());
+                IllegalArgumentException bad = new IllegalArgumentException(
+                        "not a valid .schem NBT (tried gzip and raw): " + gzipFail.getMessage(), rawFail);
+                bad.addSuppressed(gzipFail);
+                throw bad;
             }
         }
         // v3 nests everything under "Schematic"; v2 is flat. Sniff which.

@@ -25,14 +25,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
+/** Harvests the mature crops in a box and replants them, cycling through search, going, harvest and replant. */
 public final class FarmProcess implements BotProcess, Navigating {
 
     private static final int PLACE_TIMEOUT_TICKS = 40;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final BlockPos minP;
 
@@ -92,6 +88,7 @@ public final class FarmProcess implements BotProcess, Navigating {
         REPLANT
     }
 
+    /** Creates a farm over the box spanned by corners {@code a} and {@code b}, for the {@code crops} ids. */
     public FarmProcess(BlockPos a, BlockPos b, Set<String> crops, boolean replant) {
         this.minP =
                 new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
@@ -108,10 +105,12 @@ public final class FarmProcess implements BotProcess, Navigating {
         return "builder";
     }
 
+    /** How many crops this run has harvested. */
     public int harvested() {
         return harvested;
     }
 
+    /** How many crops this run has replanted. */
     public int replanted() {
         return replanted;
     }
@@ -125,6 +124,8 @@ public final class FarmProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // One tick runs the four farm phases over shared locals; splitting it would scatter the phase bookkeeping.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -132,8 +133,9 @@ public final class FarmProcess implements BotProcess, Navigating {
             st.builder.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -249,6 +251,7 @@ public final class FarmProcess implements BotProcess, Navigating {
                     phase = Phase.SEARCH;
                 }
             }
+            default -> throw new IllegalStateException("farm phase " + phase + " has no tick");
         }
         return false;
     }
@@ -268,6 +271,8 @@ public final class FarmProcess implements BotProcess, Navigating {
     }
 
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
+    // null is the answer "nothing to harvest", which the caller tests for; an empty array would need a second check.
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private BlockPos[] scanNextMature(Level lvl, LivingEntity p) {
         if (p == null) {
             return null;
@@ -311,10 +316,7 @@ public final class FarmProcess implements BotProcess, Navigating {
         if (!crops.contains(id)) {
             return false;
         }
-        if (!(bs.getBlock() instanceof CropBlock cb)) {
-            return false;
-        }
-        return cb.isMaxAge(bs);
+        return bs.getBlock() instanceof CropBlock cb && cb.isMaxAge(bs);
     }
 
     /**

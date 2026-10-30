@@ -4,13 +4,16 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 
+/** The cells a backfill placed most recently, up to a fixed capacity; the oldest is forgotten first. */
 public final class BackfillTracker {
     private static final int CAPACITY = 512;
 
-    private final LinkedHashSet<BlockPos> recent = new LinkedHashSet<>();
+    private final Set<BlockPos> recent = new LinkedHashSet<>();
 
+    /** Records {@code cell} as the most recent placement, evicting the oldest once the capacity is exceeded. */
     public synchronized void record(BlockPos cell) {
         if (recent.contains(cell)) {
             recent.remove(cell);
@@ -46,10 +49,12 @@ public final class BackfillTracker {
         recent.remove(pos);
     }
 
+    /** Forgets every recorded cell. */
     public synchronized void clear() {
         recent.clear();
     }
 
+    /** How many cells are recorded now. */
     public synchronized int size() {
         return recent.size();
     }

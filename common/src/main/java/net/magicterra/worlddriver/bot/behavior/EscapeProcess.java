@@ -89,6 +89,7 @@ public final class EscapeProcess implements BotProcess {
         VERT_RISE
     }
 
+    /** Creates an escape that climbs to {@code targetY}. */
     public EscapeProcess(int targetY) {
         this.targetY = targetY;
     }
@@ -184,9 +185,9 @@ public final class EscapeProcess implements BotProcess {
         return switch (phase) {
             case PICK -> pick(a, w, p, foot, st);
             case CARVE -> carve(a, w, p, st);
-            case STEP_UP -> stepUp(a, w, p, foot);
-            case VERT_BREAK -> vertBreak(a, w, p, foot, st);
-            case VERT_RISE -> vertRise(a, w, p, foot, st);
+            case STEP_UP -> stepUp(a, p, foot);
+            case VERT_BREAK -> vertBreak(a, w, p, st);
+            case VERT_RISE -> vertRise(a, p, foot, st);
         };
     }
 
@@ -290,6 +291,8 @@ public final class EscapeProcess implements BotProcess {
         return !Double.isInfinite(w.breakCost(c));
     }
 
+    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
+    @SuppressWarnings("PMD.SimplifyBooleanReturns")
     private boolean carve(Body a, WorldView w, LivingEntity p, BotState st) {
         BlockPos startArc = base.above(2); // launch-arc clearance over the bot's
         // OWN head: the jump peak lifts the head
@@ -336,7 +339,7 @@ public final class EscapeProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepUp(Body a, WorldView w, LivingEntity p, BlockPos foot) {
+    private boolean stepUp(Body a, LivingEntity p, BlockPos foot) {
         blocks.breakHold(false);
         BlockPos nf = base.relative(dir).above(); // destination foot cell
         boolean atDest = foot.getX() == nf.getX() && foot.getZ() == nf.getZ() && foot.getY() >= nf.getY();
@@ -370,7 +373,9 @@ public final class EscapeProcess implements BotProcess {
      * the head-clearance cell above it ({@code base+3}). Mined top-down so a falling block can't drop back in. Once
      * both are open we move to {@link Phase#VERT_RISE} to place the support.
      */
-    private boolean vertBreak(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
+    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
+    @SuppressWarnings("PMD.SimplifyBooleanReturns")
+    private boolean vertBreak(Body a, WorldView w, LivingEntity p, BotState st) {
         // Hold the column centre so buoyancy/drift can't slide us off while mining.
         p.setPos(base.getX() + 0.5, p.getY(), base.getZ() + 0.5);
         p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
@@ -411,7 +416,7 @@ public final class EscapeProcess implements BotProcess {
      * clear the cell, so we gate on real height. On arrival, advance and re-PICK (a sideways rim may now be reachable;
      * else we VERT_BREAK the next ceiling).
      */
-    private boolean vertRise(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
+    private boolean vertRise(Body a, LivingEntity p, BlockPos foot, BotState st) {
         blocks.breakHold(false);
         BlockPos dest = base.above();
         // Same column, not just the right height. The centring snap below is a discrete write that
@@ -488,5 +493,5 @@ public final class EscapeProcess implements BotProcess {
         return lvl != null && lvl.canSeeSky(foot.above());
     }
 
-    /** Yaw facing the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
+    // Yaw convention: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east.
 }

@@ -24,6 +24,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
+/** Fills, clears or breaks every cell of a box, walking to each one in turn. */
 public final class BboxFillProcess implements BotProcess, Navigating {
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
@@ -36,11 +37,6 @@ public final class BboxFillProcess implements BotProcess, Navigating {
      * {@code BuildProcess} and {@code BackfillProcess} do, and they have no reach gate at all.)
      */
     private static final double FILL_STAND_REACH = 4.0;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final BlockPos minP;
 
@@ -99,6 +95,7 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         PLACING
     }
 
+    /** Creates a fill of the box spanned by corners {@code a} and {@code b}, filling with {@code fillId}. */
     public BboxFillProcess(BlockPos a, BlockPos b, String fillId, String filterFromId) {
         this.minP =
                 new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
@@ -125,6 +122,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // One tick runs the four fill phases over shared locals; splitting it would scatter the phase bookkeeping.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -132,8 +131,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
             st.builder.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -293,6 +293,7 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                     phase = Phase.SEARCH;
                 }
             }
+            default -> throw new IllegalStateException("fill phase " + phase + " has no tick");
         }
         return false;
     }
@@ -301,6 +302,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
      * Pick the next bbox cell needing work, bottom-up. Skips done + blacklisted + (in replace mode) non-matching cells;
      * in clear/fill modes also skips cells that already hold fillId (idempotent).
      */
+    // The scan returns at the first cell that has work and a stand, and null when none does; both exits are the rule.
+    @SuppressWarnings({"PMD.AvoidBranchingStatementAsLastInLoop", "PMD.ReturnEmptyCollectionRatherThanNull"})
     private BlockPos[] scanNextCell(Level lvl) {
         stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {
@@ -352,6 +355,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
      * {@link #findStandableAdjacent}. It returned a two-field {@code Placement} whose {@code stand} was hardcoded null
      * at the one construction site and read by nobody, which is what made the copy claim look true.
      */
+    // The first solid neighbour in the fixed order wins, so the early return is the rule.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Direction supportFace(Level lvl, BlockPos block) {
         Direction[] order = {
             Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP

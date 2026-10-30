@@ -26,6 +26,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
+/** Places back the blocks the bot recently broke, as its backfill tracker recorded them. */
 public final class BackfillProcess implements BotProcess, Navigating {
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
@@ -35,11 +36,6 @@ public final class BackfillProcess implements BotProcess, Navigating {
      */
     private static final SearchProfile NO_DIG =
             new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final BackfillTracker tracker;
 
@@ -76,6 +72,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
         PLACING
     }
 
+    /** Creates a backfill that re-places the cells recorded in {@code tracker}. */
     public BackfillProcess(BackfillTracker tracker) {
         this.tracker = tracker;
     }
@@ -91,6 +88,8 @@ public final class BackfillProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // One tick runs the three backfill phases over shared locals; splitting it would scatter the phase bookkeeping.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Say so. `BotState.toMap` writes lastError only `if (lastError != null)`, so an unstamped
@@ -102,8 +101,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
             st.builder.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -175,9 +175,8 @@ public final class BackfillProcess implements BotProcess, Navigating {
                         currentBlock.getZ() - currentFace.getStepZ());
                 if (placeTicks < 2 || !p.isCrouching()) {
                     placeTicks++;
-                    if (placeTicks > 12) {
-                        /* try anyway */
-                    } else if (!p.isCrouching()) {
+                    // Past the grace window the crouch is never confirmed: the click is tried anyway.
+                    if (placeTicks <= 12 && !p.isCrouching()) {
                         return false;
                     }
                 }
@@ -202,6 +201,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
                     p.setShiftKeyDown(false);
                 }
             }
+            default -> throw new IllegalStateException("backfill phase " + phase + " has no tick");
         }
         return false;
     }
@@ -298,6 +298,8 @@ public final class BackfillProcess implements BotProcess, Navigating {
      * have to take that difference as a parameter, which is a behaviour change for whichever twin ends up on the
      * other's rule.
      */
+    // The first support face in order wins, so the early return is the rule, not an accident of the loop.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Placement findPlacement(Level lvl, BlockPos block) {
         Direction[] order = {
             Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
@@ -342,16 +344,7 @@ public final class BackfillProcess implements BotProcess, Navigating {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
         BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) {
-            return false;
-        }
-        if (here.blocksMotion()) {
-            return false;
-        }
-        if (head.blocksMotion()) {
-            return false;
-        }
-        return true;
+        return below.blocksMotion() && !here.blocksMotion() && !head.blocksMotion();
     }
 
     private record Placement(BlockPos stand, Direction face) {}

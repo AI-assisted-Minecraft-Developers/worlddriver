@@ -23,6 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
+/** Flies an elytra toward a target: arms flight, steers with fireworks for boost, and lands at the goal. */
 public final class ElytraProcess implements BotProcess {
     /** Give up arming flight after this many ticks (~3 s) — no elytra, stuck on the ground, or in water. */
     private static final int TAKEOFF_TIMEOUT = 60;
@@ -50,7 +51,7 @@ public final class ElytraProcess implements BotProcess {
     // --- long-distance plan-as-you-fly (milestone E; NO chunk cache) ---
     /**
      * Known (loaded) blocks required ahead per block/tick of speed before a firework boost is allowed — so the bot
-     * never outruns what it can see and slams into a chunk that pops in. boost ⟺ knownAhead ≥ SAFETY_TICKS·hSpeed.
+     * never outruns what it can see and slams into a chunk that pops in. boost ⟺ knownAhead ≥ SAFETY_TICKS·horizSpeed.
      */
     private static final int SAFETY_TICKS = 50;
 
@@ -59,9 +60,6 @@ public final class ElytraProcess implements BotProcess {
 
     /** Keep the flight sub-goal this far back inside loaded terrain (blocks). */
     private static final int FRONTIER_BACKOFF = 24;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
 
     private final BlockPos target; // optional horizontal goal; null → heading hold
 
@@ -75,7 +73,7 @@ public final class ElytraProcess implements BotProcess {
 
     private final int maxTicks;
 
-    private final double stopXZDist;
+    private final double stopXzDist;
 
     private final boolean reactive; // milestone-B sim-lookahead control toward a 3D target
 
@@ -141,6 +139,10 @@ public final class ElytraProcess implements BotProcess {
         FLYING
     }
 
+    /**
+     * Creates a flight toward {@code target}, bounded by {@code maxTicks}; a non-null {@code fixedYaw} holds that
+     * heading.
+     */
     public ElytraProcess(
             BlockPos target,
             Float fixedYaw,
@@ -148,7 +150,7 @@ public final class ElytraProcess implements BotProcess {
             boolean useFireworks,
             int fireworkEveryTicks,
             int maxTicks,
-            double stopXZDist,
+            double stopXzDist,
             boolean reactive) {
         this.target = target;
         this.fixedYaw = fixedYaw;
@@ -156,7 +158,7 @@ public final class ElytraProcess implements BotProcess {
         this.useFireworks = useFireworks;
         this.fireworkEveryTicks = fireworkEveryTicks;
         this.maxTicks = maxTicks;
-        this.stopXZDist = stopXZDist;
+        this.stopXzDist = stopXzDist;
         this.reactive = reactive && target != null;
         // Validate only in the fixed-heading glide rig: reactive flight steers
         // every tick and boosts, so glide-only prediction wouldn't match.
@@ -184,6 +186,8 @@ public final class ElytraProcess implements BotProcess {
     }
 
     @Override
+    // One tick is the flight state machine; its phases share locals, so splitting it would scatter them.
+    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -191,7 +195,8 @@ public final class ElytraProcess implements BotProcess {
             st.elytra.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
         if (equipment == null) {
             st.elytra.lastError = Readiness.Reason.NO_HANDS;
             st.elytra.reset();
@@ -271,7 +276,7 @@ public final class ElytraProcess implements BotProcess {
                 cruiseY = pos.y; // hold launch altitude over far/unknown segments
             }
             double goalDist = goal.distanceTo(pos);
-            double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
+            final double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
 
             // Failsafe 1 — durability: glide down before the wing breaks. Not during the flare, which
             // already is that descent; a stamp there would fail the touch-down at the target.
@@ -317,12 +322,13 @@ public final class ElytraProcess implements BotProcess {
                 // whatever's ahead (a mountain). All steering still goes
                 // through the collision-aware controller (no boost, speed-bleed
                 // biased) so the descent itself never rams terrain.
-                int gGoal = groundBelow(w, (int) Math.floor(goal.x), (int) Math.floor(Math.max(pos.y, goal.y)), (int)
-                        Math.floor(goal.z));
-                Vec3 land = new Vec3(goal.x, gGoal == Integer.MIN_VALUE ? goal.y : gGoal + 3.0, goal.z);
-                double landDist = land.distanceTo(pos);
+                int goalGround =
+                        groundBelow(w, (int) Math.floor(goal.x), (int) Math.floor(Math.max(pos.y, goal.y)), (int)
+                                Math.floor(goal.z));
+                Vec3 land = new Vec3(goal.x, goalGround == Integer.MIN_VALUE ? goal.y : goalGround + 3.0, goal.z);
+                final double landDist = land.distanceTo(pos);
                 float yaw = (float) Math.toDegrees(Math.atan2(-(land.x - pos.x), land.z - pos.z));
-                ElytraController.Decision ld = controller.decide(w, p, curVel, yaw, land, false, true);
+                final ElytraController.Decision ld = controller.decide(w, p, curVel, yaw, land, false, true);
                 // smoothLook pans yaw for the cinematic look; pitch stays SNAPPED —
                 // it's the physics input the controller simulated, so lagging it
                 // would desync the collision-avoidance lookahead.
@@ -334,13 +340,14 @@ public final class ElytraProcess implements BotProcess {
                 if (landDist < landMinDist) {
                     landMinDist = landDist;
                 }
-                int gPl = groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
-                double aboveGround = gPl == Integer.MIN_VALUE ? 999.0 : pos.y - (gPl + 1);
-                double hSpeed = Math.hypot(curVel.x, curVel.z);
+                int groundHere =
+                        groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
+                double aboveGround = groundHere == Integer.MIN_VALUE ? 999.0 : pos.y - (groundHere + 1);
+                double horizSpeed = Math.hypot(curVel.x, curVel.z);
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 if (BehaviorConfig.elytraDebug) {
                     LOG.info(
-                            "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
+                            "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} horizSpeed={} hcol={}",
                             aborting ? "abort-glide" : "landing",
                             ticks,
                             f(pos.x),
@@ -349,15 +356,16 @@ public final class ElytraProcess implements BotProcess {
                             f(landDist),
                             f(aboveGround),
                             f(ld.pitch()),
-                            f(hSpeed),
+                            f(horizSpeed),
                             p.horizontalCollision);
                 }
                 // Touch-down: grounded, or low + slow (release here lets the
                 // bot settle the last block or two with negligible momentum),
                 // or — over water/void with no ground — bled to a near-hover.
-                boolean lowSlow = aboveGround <= 5.0 && hSpeed < 0.7;
-                boolean hoverNoGround = gGoal == Integer.MIN_VALUE && landDist <= LANDING_APPROACH && hSpeed < 0.3;
-                if (p.onGround() || lowSlow || hoverNoGround || landDist <= Math.max(stopXZDist, 2.5)) {
+                boolean lowSlow = aboveGround <= 5.0 && horizSpeed < 0.7;
+                boolean hoverNoGround =
+                        goalGround == Integer.MIN_VALUE && landDist <= LANDING_APPROACH && horizSpeed < 0.3;
+                if (p.onGround() || lowSlow || hoverNoGround || landDist <= Math.max(stopXzDist, 2.5)) {
                     a.releaseInputs();
                     st.elytra.reset();
                     return true;
@@ -403,13 +411,14 @@ public final class ElytraProcess implements BotProcess {
                 // rocket is allowed only when the world is known far enough
                 // ahead along our heading to react (SAFETY_TICKS·speed); as we
                 // near the frontier this throttles to a glide until chunks load.
-                double hSpd = Math.hypot(curVel.x, curVel.z);
-                Vec3 fwd = hSpd > 0.05
-                        ? new Vec3(curVel.x / hSpd, 0, curVel.z / hSpd)
+                double horizSpd = Math.hypot(curVel.x, curVel.z);
+                Vec3 fwd = horizSpd > 0.05
+                        ? new Vec3(curVel.x / horizSpd, 0, curVel.z / horizSpd)
                         : new Vec3(-Math.sin(Math.toRadians(rawYaw)), 0, Math.cos(Math.toRadians(rawYaw)));
                 double knownFwd = knownAhead(w, pos, fwd);
-                boolean boostOk = knownFwd >= SAFETY_TICKS * Math.max(hSpd, 0.2);
-                ElytraController.Decision d = controller.decide(w, p, curVel, rawYaw, wp, useFireworks && boostOk);
+                boolean boostOk = knownFwd >= SAFETY_TICKS * Math.max(horizSpd, 0.2);
+                final ElytraController.Decision d =
+                        controller.decide(w, p, curVel, rawYaw, wp, useFireworks && boostOk);
                 // smoothLook pans yaw only; pitch stays snapped (see landing branch).
                 float prevYaw = p.getYRot();
                 float yaw = smoothAngle(prevYaw, rawYaw);
@@ -451,7 +460,7 @@ public final class ElytraProcess implements BotProcess {
                             f(p.getHealth()),
                             p.horizontalCollision);
                 }
-                if (onFinal && goalDist <= Math.max(stopXZDist, 2.5)) {
+                if (onFinal && goalDist <= Math.max(stopXzDist, 2.5)) {
                     a.releaseInputs();
                     st.elytra.reset();
                     return true;
@@ -486,7 +495,7 @@ public final class ElytraProcess implements BotProcess {
             }
 
             // Save this tick's inputs for next tick's prediction.
-            boolean slow = p.hasEffect(MobEffects.SLOW_FALLING) && curVel.y <= 0;
+            final boolean slow = p.hasEffect(MobEffects.SLOW_FALLING) && curVel.y <= 0;
             prevVel = curVel;
             prevYaw = yaw;
             prevPitch = pitch;
@@ -497,7 +506,7 @@ public final class ElytraProcess implements BotProcess {
             if (target != null) {
                 double dx = target.getX() + 0.5 - p.getX();
                 double dz = target.getZ() + 0.5 - p.getZ();
-                if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
+                if (Math.sqrt(dx * dx + dz * dz) <= stopXzDist) {
                     if (BehaviorConfig.elytraDebug) {
                         logSummary();
                     }
@@ -507,10 +516,7 @@ public final class ElytraProcess implements BotProcess {
                 }
             }
         }
-        if (++ticks > maxTicks) {
-            return outOfBudget(a, st);
-        }
-        return false;
+        return ++ticks > maxTicks && outOfBudget(a, st);
     }
 
     /**
@@ -555,8 +561,8 @@ public final class ElytraProcess implements BotProcess {
         }
         // A failsafe descent already stamped why it gave up; keep that reason.
         if (st.elytra.lastError == null && target != null) {
-            double hDist = Math.hypot(target.getX() + 0.5 - p.getX(), target.getZ() + 0.5 - p.getZ());
-            st.elytra.lastError = closedShort(landing, hDist, stopXZDist);
+            double horizDist = Math.hypot(target.getX() + 0.5 - p.getX(), target.getZ() + 0.5 - p.getZ());
+            st.elytra.lastError = closedShort(landing, horizDist, stopXzDist);
         }
         a.releaseInputs();
         st.elytra.reset();
@@ -566,22 +572,22 @@ public final class ElytraProcess implements BotProcess {
     /**
      * Why a flight toward a target ended when its wing closed, or null if that close was the arrival: a touch-down
      * after the flare, which the landing branch also counts as done anywhere inside the approach, or a stop within
-     * {@code stopXZDist}.
+     * {@code stopXzDist}.
      */
-    static String closedShort(boolean landing, double hDist, double stopXZDist) {
-        if (landing || hDist <= stopXZDist) {
+    static String closedShort(boolean landing, double horizDist, double stopXzDist) {
+        if (landing || horizDist <= stopXzDist) {
             return null;
         }
-        return String.format(Locale.ROOT, "wing closed %.1f blocks short of target", hDist);
+        return String.format(Locale.ROOT, "wing closed %.1f blocks short of target", horizDist);
     }
 
     /**
-     * Highest landing surface at/below {@code (x,yStart,z)} within 256 — the first solid OR water block scanning down,
+     * Highest landing surface at/below {@code (x,startY,z)} within 256 — the first solid OR water block scanning down,
      * i.e. what the bot would come to rest on. Water counts so a descent over ocean settles ON the surface (and floats)
      * instead of diving to the seabed and drowning. {@link Integer#MIN_VALUE} if only air/void in range.
      */
-    private static int groundBelow(WorldView w, int x, int yStart, int z) {
-        for (int y = yStart; y >= yStart - 256; y--) {
+    private static int groundBelow(WorldView w, int x, int startY, int z) {
+        for (int y = startY; y >= startY - 256; y--) {
             BlockPos b = new BlockPos(x, y, z);
             if (w.isSolid(b) || w.isWater(b)) {
                 return y;
@@ -643,6 +649,8 @@ public final class ElytraProcess implements BotProcess {
                 f(maxErr));
     }
 
+    // A one-letter name keeps the many log-line call sites short; the name is a deliberate exception.
+    @SuppressWarnings("checkstyle:googlemethodname")
     private static String f(double d) {
         return String.format(Locale.ROOT, "%.4f", d);
     }

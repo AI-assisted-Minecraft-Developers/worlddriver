@@ -18,6 +18,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+/** Follows an entity, matched by type or name, at a radius and re-plans as it moves. */
 public final class FollowProcess implements BotProcess, Navigating {
     /** Consecutive Navigator.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
@@ -43,12 +44,13 @@ public final class FollowProcess implements BotProcess, Navigating {
 
     private int consecutiveFails;
 
-    private BlockPos lastTargetBlock;
+    private BlockPos lastTargetargetBlock;
 
     private int lastTargetId = -1;
 
     private String failure;
 
+    /** Creates a follow of an entity matched by {@code entityType} or {@code name}, staying within {@code radius}. */
     public FollowProcess(String entityType, String name, int radius, int maxIdleTicks) {
         this(entityType, name, radius, maxIdleTicks, DEFAULT_GIVE_UP_TICKS, SearchProfile.NONE);
     }
@@ -107,10 +109,10 @@ public final class FollowProcess implements BotProcess, Navigating {
             return false;
         }
         idleTicks = 0;
-        BlockPos tBlock = new BlockPos(
+        BlockPos targetBlock = new BlockPos(
                 (int) Math.floor(target.getX()), (int) Math.floor(target.getY()), (int) Math.floor(target.getZ()));
-        regoal(target.getId(), tBlock);
-        st.follow.target = tBlock;
+        regoal(target.getId(), targetBlock);
+        st.follow.target = targetBlock;
         Locomotor.Status s = navigator.tick(a, w);
         st.follow.pathLen = navigator.pathLen();
         st.follow.pathStep = navigator.pathStep();
@@ -132,7 +134,7 @@ public final class FollowProcess implements BotProcess, Navigating {
                                 + navigator.result().reason());
             }
             // Force a fresh A* on the next tick rather than re-walking the dead path.
-            lastTargetBlock = null;
+            lastTargetargetBlock = null;
         } else if (s.ended()) {
             // Within `radius`: stop walking and watch the target so the
             // camera tracks it (a tracking shot). The Navigator owns yaw while
@@ -167,19 +169,19 @@ public final class FollowProcess implements BotProcess, Navigating {
      * {@link Navigator#retarget}: {@code start} zeroes the futile-search counter, and a target that keeps moving would
      * then never let an unreachable follow trip the cap. Only a different entity starts over.
      */
-    void regoal(int targetId, BlockPos tBlock) {
+    void regoal(int targetId, BlockPos targetBlock) {
         boolean newTarget = lastTargetId != targetId;
-        if (!newTarget && tBlock.equals(lastTargetBlock)) {
+        if (!newTarget && targetBlock.equals(lastTargetargetBlock)) {
             return;
         }
-        Goal g = new Goal.Near(tBlock, radius);
+        Goal g = new Goal.Near(targetBlock, radius);
         if (newTarget) {
             navigator.start(g);
             chase.restart();
         } else {
             navigator.retarget(g);
         }
-        lastTargetBlock = tBlock;
+        lastTargetargetBlock = targetBlock;
         lastTargetId = targetId;
     }
 
@@ -236,7 +238,7 @@ public final class FollowProcess implements BotProcess, Navigating {
         float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         float ny = smoothAngle(p.getYRot(), ty);
-        float np = smoothAngle(p.getXRot(), tp);
+        final float np = smoothAngle(p.getXRot(), tp);
         p.setYRot(ny);
         p.yHeadRot = ny;
         p.yBodyRot = ny;

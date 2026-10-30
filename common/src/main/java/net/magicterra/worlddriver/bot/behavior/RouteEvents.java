@@ -58,10 +58,13 @@ public final class RouteEvents {
 
     /** Where events go; production passes {@code DriverHost.emitExternal}. */
     public interface Emitter {
+        /** Delivers one event of {@code type} at {@code pos}, carrying {@code data}. */
         void emit(String type, BlockPos pos, JsonObject data);
     }
 
     /**
+     * Creates the events for one route, gated by the flags it declares.
+     *
      * @param declared the intent's {@link Intent#constraintNames()}
      * @param hasConditions the route declared any bias or constraint (gates {@code route.detour})
      * @param hasSight the route has a {@link SightExposure} component (gates {@code route.exposed})
@@ -196,7 +199,7 @@ public final class RouteEvents {
                 continue;
             }
             ThreatSnapshot.Threat t = who.get(e.getKey());
-            JsonObject data = new JsonObject();
+            final JsonObject data = new JsonObject();
             JsonObject observer = new JsonObject();
             observer.addProperty("id", t.id());
             observer.addProperty("type", t.type());

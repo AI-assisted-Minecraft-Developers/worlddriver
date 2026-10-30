@@ -94,10 +94,12 @@ public final class IntentProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /** Creates a process for {@code intent} that reports no route events. */
     public IntentProcess(Intent intent) {
         this(intent, (type, pos, data) -> {});
     }
 
+    /** Creates a process for {@code intent} that sends its route events to {@code emitter}. */
     public IntentProcess(Intent intent, RouteEvents.Emitter emitter) {
         this.intent = intent;
         this.navigator = new Navigator(NavigatorSettings.named("goto").withProfile(intent.searchProfile()));
@@ -159,6 +161,8 @@ public final class IntentProcess implements BotProcess, Navigating {
      * (PlayerBot) identically — pure movement, so it just hands the Navigator the same {@code Body}.
      */
     @Override
+    // One tick of the goto state machine: its steps read and write the same locals, so it stays whole.
+    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
@@ -194,7 +198,7 @@ public final class IntentProcess implements BotProcess, Navigating {
                 // anchor==null → stale lastAnchor keeps governing; tolerated, not fatal.
             }
         }
-        Locomotor.Status s = navigator.tick(a, w);
+        final Locomotor.Status s = navigator.tick(a, w);
         judgeSearch(body == null ? null : body.blockPosition());
         st.mc_goto.pathLen = navigator.pathLen();
         st.mc_goto.pathStep = navigator.pathStep();
@@ -224,7 +228,7 @@ public final class IntentProcess implements BotProcess, Navigating {
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the navigator knows.
-        if (navigator.inspect().parkourTakeoff() != "none") {
+        if (!"none".equals(navigator.inspect().parkourTakeoff())) {
             st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
         }
         st.mc_goto.driveTag = navigator.inspect().driveTag();
@@ -275,9 +279,9 @@ public final class IntentProcess implements BotProcess, Navigating {
      *
      * <h2>Why a walk must not survive a portal</h2>
      *
-     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the navigator knows that, so a process that keeps
-     * ticking after a transfer plans a route across the NEW world's terrain toward the OLD world's numbers — and then
-     * drives the bot along it. Measured on rung 19, 2026-08-17: the End crossing happened inside a 1200-tick
+     * <p>A {@link Goal}'s coordinates are dimension-scoped. Nothing in the navigator knows that, so a process that
+     * keeps ticking after a transfer plans a route across the NEW world's terrain toward the OLD world's numbers — and
+     * then drives the bot along it. Measured on rung 19, 2026-08-17: the End crossing happened inside a 1200-tick
      * {@code settle} aimed at the stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the bot correctly
      * onto the 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the platform was
      * there — and the navigator, still pushing toward an overworld coordinate a thousand blocks away, walked it
@@ -286,10 +290,10 @@ public final class IntentProcess implements BotProcess, Navigating {
      *
      * <h2>Why it is stopped rather than re-aimed or waited out</h2>
      *
-     * Re-aiming would mean this class deciding where the bot should go in a world it was never told about — the caller
-     * set that goal, and only the caller knows what it meant. Waiting "a few more ticks" waits for an event that cannot
-     * happen: the goal will never become reachable because it does not exist here. So the honest move is to end the
-     * run, and to end it with a verdict the caller can act on.
+     * <p>Re-aiming would mean this class deciding where the bot should go in a world it was never told about — the
+     * caller set that goal, and only the caller knows what it meant. Waiting "a few more ticks" waits for an event that
+     * cannot happen: the goal will never become reachable because it does not exist here. So the honest move is to end
+     * the run, and to end it with a verdict the caller can act on.
      *
      * <p><b>{@code finalDist} stays −1 deliberately.</b> {@code goal.estimate(foot)} would happily return a number
      * here, and that number would be the distance from the bot in this world to another world's coordinates — an

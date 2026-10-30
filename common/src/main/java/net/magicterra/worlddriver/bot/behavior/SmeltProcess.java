@@ -37,6 +37,8 @@ import net.minecraft.world.phys.Vec3;
  * and the live container slot picture, so it works against the integrated or a real server. Fuel is the caller-supplied
  * item or auto-picked from the inventory via the vanilla {@link AbstractFurnaceBlockEntity#isFuel} table.
  */
+// The error texts share their punctuation and separators; a constant for each would hide the wording.
+@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class SmeltProcess implements BotProcess {
     private static final int OPEN_TIMEOUT = 40;
 
@@ -149,6 +151,7 @@ public final class SmeltProcess implements BotProcess {
         return error;
     }
 
+    /** Creates a smelt of {@code count} items of {@code input}, fuelled by {@code fuelId} or any inventory fuel. */
     public SmeltProcess(String input, int count, String fuelId) {
         this.input = input;
         this.count = Math.max(1, count);
@@ -172,7 +175,7 @@ public final class SmeltProcess implements BotProcess {
 
     @Override
     public boolean tick(Body a, WorldView w, BotState s) {
-        Player p = a.asPlayer();
+        final Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
         if (lvl == null) {
             fail("no player");
@@ -193,11 +196,11 @@ public final class SmeltProcess implements BotProcess {
         }
 
         switch (st) {
-            case INIT -> init(a, p, lvl, s);
-            case OPEN_WAIT -> awaitOpen(p, s);
-            case LOAD -> load(a, p, s);
-            case SMELT_WAIT -> smeltWait(a, p, s);
-            case COLLECT -> collect(a, p, s);
+            case INIT -> init(a, p, lvl);
+            case OPEN_WAIT -> awaitOpen(p);
+            case LOAD -> load(p);
+            case SMELT_WAIT -> smeltWait(p);
+            case COLLECT -> collect(p, s);
             default -> {}
         }
 
@@ -256,7 +259,7 @@ public final class SmeltProcess implements BotProcess {
         return false;
     }
 
-    private void init(Body a, Player p, Level lvl, BotState s) {
+    private void init(Body a, Player p, Level lvl) {
         if (!RegistryIds.registered(BuiltInRegistries.ITEM, input)) {
             fail("unknown item: " + input);
             return;
@@ -322,7 +325,7 @@ public final class SmeltProcess implements BotProcess {
         st = St.OPEN_WAIT;
     }
 
-    private void awaitOpen(Player p, BotState s) {
+    private void awaitOpen(Player p) {
         if (p.containerMenu instanceof AbstractFurnaceMenu) {
             waited = 0;
             st = St.LOAD;
@@ -333,18 +336,24 @@ public final class SmeltProcess implements BotProcess {
         }
     }
 
-    private void load(Body a, Player p, BotState s) {
+    private void load(Player p) {
         AbstractContainerMenu menu = p.containerMenu;
         if (adopt) {
             // Furnace already holds the load (or is empty — SMELT_WAIT's cold
             // check decides). targetOut caps at what is actually inside.
-            ItemStack aIn = menu.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem();
-            ItemStack aOut = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
-            int inside = aIn.getCount() + aOut.getCount();
+            ItemStack ingredientStack =
+                    menu.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem();
+            ItemStack resultStack =
+                    menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
+            int inside = ingredientStack.getCount() + resultStack.getCount();
             if (inside > 0) {
                 targetOut = Math.min(targetOut, inside);
             }
-            LOG.info("[smelt] LOAD adopt: in={} out={} → target={}", aIn.getCount(), aOut.getCount(), targetOut);
+            LOG.info(
+                    "[smelt] LOAD adopt: in={} out={} → target={}",
+                    ingredientStack.getCount(),
+                    resultStack.getCount(),
+                    targetOut);
             smeltWaitBudget = PER_ITEM_TIMEOUT * Math.max(1, targetOut) + 100;
             waited = 0;
             coldTicks = 0;
@@ -359,7 +368,7 @@ public final class SmeltProcess implements BotProcess {
         }
         menus.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
-        int burn = loadFuel(a, menu);
+        int burn = loadFuel(menu);
         if (burn < 0) {
             fail(
                     fuelId != null
@@ -397,7 +406,7 @@ public final class SmeltProcess implements BotProcess {
      *     own answer and a distinct bug: a fuel WAS found and the click did not land, which used to be
      *     indistinguishable from having none.
      */
-    private int loadFuel(Body a, AbstractContainerMenu menu) {
+    private int loadFuel(AbstractContainerMenu menu) {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
         if (fuelSlot < 0) {
             return -1;
@@ -413,7 +422,9 @@ public final class SmeltProcess implements BotProcess {
         return fuelBurnLoaded;
     }
 
-    private void smeltWait(Body a, Player p, BotState s) {
+    // The wait is one flat check order over the furnace menu and its cold/hot states, so it stays whole.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"})
+    private void smeltWait(Player p) {
         // Before the menu check: a player tick closes a menu left out of reach, and the reason to report is the
         // distance.
         if (leftTheFurnace(p)) {
@@ -470,7 +481,7 @@ public final class SmeltProcess implements BotProcess {
                         out.getCount(),
                         targetOut,
                         fm.isLit());
-                loadFuel(a, menu);
+                loadFuel(menu);
                 waited = 0;
                 coldTicks = 0;
             }
@@ -541,7 +552,7 @@ public final class SmeltProcess implements BotProcess {
         }
     }
 
-    private void collect(Body a, Player p, BotState s) {
+    private void collect(Player p, BotState s) {
         if (leftTheFurnace(p)) {
             return;
         }

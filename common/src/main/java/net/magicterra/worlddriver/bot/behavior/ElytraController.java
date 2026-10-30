@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
+/** Chooses each tick's elytra pitch and yaw by simulating a short look-ahead over the terrain. */
 public final class ElytraController {
     /**
      * Pitch fan searched each tick, MC sign (+ dives, − climbs). Spans hard dive to hard climb so a firework tick can
@@ -69,6 +70,8 @@ public final class ElytraController {
     }
 
     /**
+     * Decides this tick's pitch and yaw toward {@code goal} from a forward simulation of each candidate.
+     *
      * @param landing flare mode — no boost, and among collision-safe pitches prefer the slowest-ending one (bleed
      *     speed) while STILL avoiding terrain. The previous flare used a blind fixed pitch with no lookahead, which
      *     crashed into rising ground on the final approach.
@@ -87,7 +90,7 @@ public final class ElytraController {
         }
 
         Vec3 pos = p.position();
-        double hSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+        double horizSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
         // Hysteretic climb band → glide-and-boost sawtooth (fuel economy):
         // only engage a climb once we've sagged past the deadband, ride it
         // until back near the target, then glide the gained altitude away.
@@ -106,7 +109,7 @@ public final class ElytraController {
                 && fireworksAllowed
                 && boostRemaining <= 0
                 && sinceFire >= FIRE_COOLDOWN
-                && (needClimb || hSpeed < MIN_CRUISE);
+                && (needClimb || horizSpeed < MIN_CRUISE);
 
         // Boost ticks the lookahead should assume: a rocket already burning,
         // or the one we're about to light this tick.
@@ -137,7 +140,7 @@ public final class ElytraController {
 
     // --- forward simulation + scoring ------------------------------------
 
-    private record Sim(boolean crashed, int crashTick, double minDist, int nearTicks, double endHSpeed) {}
+    private record Sim(boolean crashed, int crashTick, double minDist, int nearTicks, double endHorizSpeed) {}
 
     private Sim simulate(WorldView w, Vec3 pos0, Vec3 vel0, float yaw, float pitch, int boostTicks, Vec3 goal) {
         ElytraPhysics.State s = new ElytraPhysics.State(pos0, vel0);
@@ -178,7 +181,7 @@ public final class ElytraController {
         }
         double s = -r.minDist - CLEAR_WEIGHT * r.nearTicks;
         if (landing) {
-            s -= LAND_BLEED_WEIGHT * r.endHSpeed;
+            s -= LAND_BLEED_WEIGHT * r.endHorizSpeed;
         }
         return s;
     }

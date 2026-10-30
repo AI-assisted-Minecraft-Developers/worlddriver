@@ -47,6 +47,9 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
+/** Mines blocks of the target ids within a radius, breaking them and collecting the drops. */
+// The status and error texts share their separators; a constant for each would hide the wording.
+@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class MineProcess implements BotProcess, Navigating {
     private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
 
@@ -117,9 +120,6 @@ public final class MineProcess implements BotProcess, Navigating {
     /** Horizontal disk radius scanned for a dry reach-across stand. */
     private static final int REACH_SCAN_H = 4;
 
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
     private BlockInteraction blocks;
 
     private final Set<String> targetIds;
@@ -166,8 +166,6 @@ public final class MineProcess implements BotProcess, Navigating {
     private BlockPos currentTarget;
 
     private BlockPos currentStand;
-
-    private Direction currentFace;
 
     // True when currentTarget is a leaf being cleared to open access to a real
     // target (not itself a quota block) — see findClearingTarget.
@@ -300,6 +298,7 @@ public final class MineProcess implements BotProcess, Navigating {
         COLLECT
     }
 
+    /** Creates a mine of {@code qty} blocks whose ids are in {@code ids}, searching within {@code radius}. */
     public MineProcess(List<String> ids, int qty, int radius) {
         this.targetIds = new HashSet<>(ids);
         this.targetMatchers = ids.stream().map(BlockMatch::of).toList();
@@ -333,6 +332,9 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // One tick is the mine state machine over shared locals; splitting it would scatter the phase bookkeeping.
+    // The collect goal and the sight/leaf checks are read on later ticks, which a per-method analysis cannot see.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity", "PMD.UnusedAssignment", "PMD.ConfusingTernary"})
     public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) {
             st.mine.lastError = "player vanished";
@@ -342,7 +344,8 @@ public final class MineProcess implements BotProcess, Navigating {
         // The drops go into a player's inventory: a controlled entity that is not a player has no
         // hands for this.
         Player p = a.asPlayer();
-        equipment = a.equipment().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null || p == null) {
             st.mine.lastError = Readiness.Reason.NO_HANDS;
@@ -427,7 +430,6 @@ public final class MineProcess implements BotProcess, Navigating {
                 }
                 aimAt(t.block, lvl);
                 currentStand = t.stand;
-                currentFace = t.face;
                 currentTargetClearing = t.clearing();
                 st.mine.target = currentTarget;
                 navigator.start(new Goal.Block(t.stand));
@@ -445,7 +447,7 @@ public final class MineProcess implements BotProcess, Navigating {
                 // FAILED, which would blacklist a perfectly good target. (The normal
                 // side/reach-across stand is a DIFFERENT cell, so this never short-
                 // circuits a real walk.)
-                if (currentStand != null && p.blockPosition().equals(currentStand)) {
+                if (p.blockPosition().equals(currentStand)) {
                     equipment.selectTool(currentTarget);
                     a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
@@ -479,7 +481,6 @@ public final class MineProcess implements BotProcess, Navigating {
                             }
                             aimAt(clear.block(), lvl);
                             currentStand = clear.stand();
-                            currentFace = clear.face();
                             currentTargetClearing = true;
                             st.mine.target = currentTarget;
                             navigator.start(new Goal.Block(clear.stand()));
@@ -745,6 +746,7 @@ public final class MineProcess implements BotProcess, Navigating {
                 st.mine.pathLen = collectNavigator.pathLen();
                 st.mine.pathStep = collectNavigator.pathStep();
             }
+            default -> throw new IllegalStateException("mine phase " + phase + " has no tick");
         }
         return false;
     }
@@ -755,6 +757,8 @@ public final class MineProcess implements BotProcess, Navigating {
      * so the deque drains and we walk through every spot instead of camping the nearest one. Returns null when there's
      * nothing left to chase — that's COLLECT's natural completion.
      */
+    // The search returns the nearest reachable leaf in ring order, so the early return is the rule.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private BlockPos findCollectGoal(Level lvl, Player p) {
         if (lvl != null) {
             AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
@@ -961,6 +965,8 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
+    // The scan returns the first qualifying target in its search order, and the early exits are that rule.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.AvoidBranchingStatementAsLastInLoop"})
     private Target scanForTarget(Level lvl, Player p) {
         if (lvl == null) {
             return null;
@@ -1114,8 +1120,7 @@ public final class MineProcess implements BotProcess, Navigating {
             return true;
         }
         var items = p.getInventory().items;
-        for (int i = 0; i < items.size(); i++) {
-            ItemStack stk = items.get(i);
+        for (ItemStack stk : items) {
             if (!stk.isEmpty() && stk.isCorrectToolForDrops(bs)) {
                 return true;
             }
@@ -1148,6 +1153,8 @@ public final class MineProcess implements BotProcess, Navigating {
      * reach-mineable. A naked, block-less bot breaks leaves by hand, so this needs no tools or pillar blocks. Returns
      * null if no occluding leaf is reachable either (genuinely unreachable).
      */
+    // The search returns the nearest clearing leaf in ring order, so the early return is the rule.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Target findClearingTarget(Level lvl, BlockPos foot, BlockPos log) {
         for (int rad = 1; rad <= LEAF_CLEAR_RADIUS; rad++) {
             for (int dx = -rad; dx <= rad; dx++) {
@@ -1187,7 +1194,7 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /**
-     * gap#60 — walk goal for a fully buried target: the face-adjacent cell nearest the bot (same-Y cardinals only — the
+     * The walk goal for a fully buried target: the face-adjacent cell nearest the bot (same-Y cardinals only — the
      * natural tunnel head; above/below stands of an encased ore invite digging past it). The cell is usually SOLID
      * right now; that's the point — the Navigator's break-route A* prices and digs the approach, and BREAKING then
      * mines the target from a true face-adjacent cell. Fluid-flooded cells are skipped (never send the tunnel head into
@@ -1321,7 +1328,7 @@ public final class MineProcess implements BotProcess, Navigating {
         // cell sits within reach with clear line of sight to the log, stand there
         // and mine across the gap. The break aims with `a.aimAtBlock(currentTarget)`
         // in BREAKING — a snap onto the cell itself, not a step off a face — so
-        // `currentFace` is cosmetic here and the non-unit offset mines fine.
+        // the non-unit offset mines fine.
         return findReachStand(lvl, block);
     }
 
@@ -1428,20 +1435,20 @@ public final class MineProcess implements BotProcess, Navigating {
 
     private Direction faceFromStandToBlock(BlockPos stand, BlockPos block) {
         int dx = block.getX() - stand.getX();
-        int dy = block.getY() - stand.getY();
-        int dz = block.getZ() - stand.getZ();
         if (dx == 1) {
             return Direction.WEST;
         }
         if (dx == -1) {
             return Direction.EAST;
         }
+        int dz = block.getZ() - stand.getZ();
         if (dz == 1) {
             return Direction.NORTH;
         }
         if (dz == -1) {
             return Direction.SOUTH;
         }
+        int dy = block.getY() - stand.getY();
         if (dy == -1) {
             return Direction.UP;
         }

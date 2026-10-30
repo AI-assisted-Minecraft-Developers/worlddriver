@@ -16,6 +16,9 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
+/** Builds a tower of blocks under the bot, placing each one as it jumps, until it reaches a target height. */
+// The status and error texts repeat their closing parenthesis; a constant for it would hide the wording.
+@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class TowerProcess implements BotProcess {
     /**
      * Minimum ticks between jump-press and the place attempt — a lower bound only. The block fills the cell we jumped
@@ -48,11 +51,6 @@ public final class TowerProcess implements BotProcess {
      * needs: expiry means something is actively moving the bot, which the stuck message reports rather than hiding.
      */
     private static final int SETTLE_TICKS = 20;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final int targetY;
 
@@ -122,11 +120,16 @@ public final class TowerProcess implements BotProcess {
         DONE
     }
 
+    /** Creates a tower to {@code targetY} with the preferred block {@code preferredBlockId}. */
     public TowerProcess(int targetY, String preferredBlockId) {
         this(targetY, preferredBlockId, false);
     }
 
-    /** @param reachIntoBag see the field — opt in only if this caller put the block in hand itself. */
+    /**
+     * Creates a tower to {@code targetY}, fetching the block from the bag only when {@code reachIntoBag} is set.
+     *
+     * @param reachIntoBag see the field — opt in only if this caller put the block in hand itself.
+     */
     public TowerProcess(int targetY, String preferredBlockId, boolean reachIntoBag) {
         this.targetY = targetY;
         this.preferredBlockId = preferredBlockId;
@@ -138,6 +141,7 @@ public final class TowerProcess implements BotProcess {
         return "builder";
     }
 
+    /** How many blocks this tower has placed. */
     public int placed() {
         return placed;
     }
@@ -149,6 +153,8 @@ public final class TowerProcess implements BotProcess {
     }
 
     @Override
+    // One tick runs the tower phases over shared locals, and the phase switch is the state machine itself.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) {
             failure = st.builder.lastError = "player vanished";
@@ -158,8 +164,9 @@ public final class TowerProcess implements BotProcess {
         // The tower is laid from a player's inventory: a controlled entity that is not a player has
         // no hands for it.
         Player p = a.asPlayer();
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null || p == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -351,6 +358,7 @@ public final class TowerProcess implements BotProcess {
             case DONE -> {
                 return true;
             }
+            default -> throw new IllegalStateException("tower phase " + phase + " has no tick");
         }
         return false;
     }
@@ -409,7 +417,11 @@ public final class TowerProcess implements BotProcess {
         return ensureHoldingPlaceable(equipment, preferred, false);
     }
 
-    /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
+    /**
+     * Makes sure the player holds a block to place, reaching into the bag when {@code reachIntoBag} allows it.
+     *
+     * @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note.
+     */
     public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred, boolean reachIntoBag) {
         if (!(equipment.entity() instanceof Player p)) {
             return false;

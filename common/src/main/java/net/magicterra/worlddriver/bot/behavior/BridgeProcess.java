@@ -13,6 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
+/** Bridges a line of blocks away from the bot, placing each one ahead of its feet. */
 public final class BridgeProcess implements BotProcess {
     private static final int STUCK_TICKS = 80;
 
@@ -23,11 +24,6 @@ public final class BridgeProcess implements BotProcess {
      * void. Gate on the PRE-write yaw (the rendered truth).
      */
     private static final float YAW_ALIGN_DEG = 20f;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final Direction face;
 
@@ -65,6 +61,7 @@ public final class BridgeProcess implements BotProcess {
         DONE
     }
 
+    /** Creates a bridge of {@code distance} blocks in {@code face}, preferring the block {@code preferredBlockId}. */
     public BridgeProcess(Direction face, int distance, String preferredBlockId) {
         this.face = face;
         this.distance = distance;
@@ -76,6 +73,7 @@ public final class BridgeProcess implements BotProcess {
         return "builder";
     }
 
+    /** How many blocks this bridge has placed. */
     public int placed() {
         return placed;
     }
@@ -89,6 +87,8 @@ public final class BridgeProcess implements BotProcess {
     }
 
     @Override
+    // The tick is one state machine over shared locals, and the credit reset must stay with the click it credits.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.UnusedAssignment"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -96,8 +96,9 @@ public final class BridgeProcess implements BotProcess {
             st.builder.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -107,7 +108,7 @@ public final class BridgeProcess implements BotProcess {
         // Player yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
         // the player travels by — the pre-write value is the rendered truth.
-        float yawNow = p.getYRot();
+        final float yawNow = p.getYRot();
         BlockPos foot = anchoredFoot(p, lvl);
         if (startFoot == null) {
             startFoot = foot;
@@ -214,6 +215,7 @@ public final class BridgeProcess implements BotProcess {
             case DONE -> {
                 return true;
             }
+            default -> throw new IllegalStateException("bridge phase " + phase + " has no tick");
         }
         return false;
     }

@@ -19,14 +19,12 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
+/** Walks to a bed, uses it, and waits out the sleep. */
 public final class SleepProcess implements BotProcess, Navigating {
 
     private static final int USE_TIMEOUT_TICKS = 40; // ~2 s — bed reply is one tick after the click
 
     private static final int CLICK_INTERVAL_TICKS = 10; // re-click cadence within USE phase
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private BlockInteraction blocks;
 
     private final BlockPos explicit;
 
@@ -58,6 +56,7 @@ public final class SleepProcess implements BotProcess, Navigating {
         DONE
     }
 
+    /** Creates a sleep at {@code explicit} when it is set, otherwise at the nearest bed within {@code radius}. */
     public SleepProcess(BlockPos explicit, int radius) {
         this.explicit = explicit;
         this.searchRadius = radius;
@@ -83,12 +82,15 @@ public final class SleepProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // The phase switch is the sleep state machine: each case is one phase, and the phases are the unit to read.
+    @SuppressWarnings("PMD.SwitchDensity")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
             return giveUp(st, "player vanished");
         }
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (blocks == null) {
             return giveUp(st, Readiness.Reason.NO_HANDS);
         }

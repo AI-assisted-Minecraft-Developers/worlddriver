@@ -68,13 +68,6 @@ public final class BunkerProcess implements BotProcess {
     private BlockPos bottom = null; // shaft-bottom foot cell
 
     /**
-     * gap#68-⑩: true once a real break or place has been attempted — distinguishes a zero-action bail (e.g. water at
-     * the dig site, first tick) from a run that actually touched the world before failing. Not surfaced in the action's
-     * result, but available on the instance for status/telemetry wiring.
-     */
-    private boolean acted;
-
-    /**
      * True once {@link Phase#SEALED} has ever been reached this run — the ground truth for "did this bunker ever
      * actually finish sealing" independent of whatever phase it happens to be sitting in when finish() runs.
      */
@@ -101,6 +94,7 @@ public final class BunkerProcess implements BotProcess {
         DONE
     }
 
+    /** Creates a shelter dig {@code depth} blocks deep, clamped to one through five. */
     public BunkerProcess(int depth) {
         this.depth = Math.max(1, Math.min(5, depth));
         this.effectiveDepth = this.depth;
@@ -165,6 +159,8 @@ public final class BunkerProcess implements BotProcess {
     }
 
     @Override
+    // One tick runs the shelter phases over shared locals; splitting it would scatter the phase bookkeeping.
+    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -227,11 +223,11 @@ public final class BunkerProcess implements BotProcess {
 
         switch (phase) {
             case DIG_DOWN:
-                return digDown(a, w, st, p, foot);
+                return digDown(a, w, st, foot);
             case CARVE:
                 return carve(a, w, st, p);
             case STEP_IN:
-                return stepIn(a, w, p, foot);
+                return stepIn(a, p, foot);
             case PLUG:
                 return plug(a, w, st, p);
             // Stay SEALED after a successful plug: keep holding the channel (this is
@@ -287,10 +283,7 @@ public final class BunkerProcess implements BotProcess {
      * hostiles" and must not be used as an enclosure assertion.
      */
     private static boolean enclosed(WorldView w, Body a) {
-        if (a.entity() == null) {
-            return false;
-        }
-        return enclosed(w, a.entity().blockPosition());
+        return a.entity() != null && enclosed(w, a.entity().blockPosition());
     }
 
     /**
@@ -312,7 +305,7 @@ public final class BunkerProcess implements BotProcess {
                 && w.isSolid(head.above());
     }
 
-    private boolean digDown(Body a, WorldView w, BotState st, LivingEntity p, BlockPos foot) {
+    private boolean digDown(Body a, WorldView w, BotState st, BlockPos foot) {
         int d = startY - foot.getY();
         if (d != lastDepth) {
             lastDepth = d;
@@ -343,7 +336,6 @@ public final class BunkerProcess implements BotProcess {
         a.aimAtBlock(below);
         blocks.breakHold(true);
         blocks.continueDestroy(below);
-        acted = true;
         if (++digTicks > ControlConfig.breakTimeoutTicks) {
             blocks.breakHold(false);
             a.releaseInputs();
@@ -419,7 +411,6 @@ public final class BunkerProcess implements BotProcess {
         a.aimAtBlock(target);
         blocks.breakHold(true);
         blocks.continueDestroy(target);
-        acted = true;
         if (++actTicks > ControlConfig.breakTimeoutTicks * 2) {
             blocks.breakHold(false);
             a.releaseInputs();
@@ -428,7 +419,7 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepIn(Body a, WorldView w, LivingEntity p, BlockPos foot) {
+    private boolean stepIn(Body a, LivingEntity p, BlockPos foot) {
         blocks.breakHold(false);
         BlockPos n0 = bottom.relative(nicheDir);
         // Must enter the niche FULLY — pressed against its back wall — before
@@ -483,7 +474,7 @@ public final class BunkerProcess implements BotProcess {
         // Both gain support from below (floor / the foot-plug) so even sand holds.
         BlockPos p0 = bottom; // old foot, has solid floor under it
         BlockPos p1 = bottom.above(); // old head, supported by p0 once placed
-        BlockPos target = !w.isSolid(p0) ? p0 : (!w.isSolid(p1) ? p1 : null);
+        BlockPos target = w.isSolid(p0) ? (w.isSolid(p1) ? null : p1) : p0;
         if (target == null) {
             dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1);
             phase = Phase.SEALED;
@@ -515,7 +506,6 @@ public final class BunkerProcess implements BotProcess {
         a.commandForward(0f);
         a.aimAtBlock(target);
         blocks.place(w::isSolid, target);
-        acted = true;
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
         if (++plugTicks > ControlConfig.breakTimeoutTicks) {
             dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target));
@@ -526,5 +516,5 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    /** Yaw that faces the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
+    // Yaw convention: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east.
 }

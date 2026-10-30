@@ -122,9 +122,7 @@ final class HeldItem {
 
     /** Does {@code stk} carry the item registered under {@code itemId}? Empty never matches. */
     static boolean matches(ItemStack stk, String itemId) {
-        if (stk.isEmpty()) {
-            return false;
-        }
-        return BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(itemId);
+        return !stk.isEmpty()
+                && BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(itemId);
     }
 }

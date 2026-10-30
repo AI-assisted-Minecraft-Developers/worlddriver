@@ -124,6 +124,7 @@ public final class CraftProcess implements BotProcess {
         return error;
     }
 
+    /** Creates a craft of {@code count} items of the recipe target {@code target}. */
     public CraftProcess(String target, int count) {
         this.target = target;
         this.count = Math.max(1, count);
@@ -146,7 +147,7 @@ public final class CraftProcess implements BotProcess {
 
     @Override
     public boolean tick(Body a, WorldView w, BotState s) {
-        Player p = a.asPlayer();
+        final Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
         if (lvl == null) {
             fail(null, "no player");
@@ -167,19 +168,19 @@ public final class CraftProcess implements BotProcess {
         }
 
         switch (st) {
-            case INIT -> plan(a, p, lvl, s);
-            case STATION -> setupStation(a, p, lvl, s);
-            case OPEN_WAIT -> awaitTableOpen(p, s);
-            case PLACE -> place(a, p, s);
-            case AWAIT_RESULT -> awaitResult(a, p, s);
-            case AWAIT_TAKE -> awaitTake(p, s);
+            case INIT -> plan(p, lvl);
+            case STATION -> setupStation(a, p, lvl);
+            case OPEN_WAIT -> awaitTableOpen(p);
+            case PLACE -> place(p);
+            case AWAIT_RESULT -> awaitResult(p);
+            case AWAIT_TAKE -> awaitTake();
             case RECLAIM -> reclaimTick(a, lvl);
             default -> {}
         }
 
         // On the way out — success OR failure — take back a table we placed (gap #276).
         // Both terminals: a craft that failed after placing still littered a table.
-        if ((st == St.DONE || st == St.FAIL) && beginReclaim(a, p, lvl)) {
+        if ((st == St.DONE || st == St.FAIL) && beginReclaim(lvl)) {
             return false;
         }
         if (st == St.RECLAIM) {
@@ -212,7 +213,7 @@ public final class CraftProcess implements BotProcess {
      * break it. Runs at most once — {@code reclaimTried} is set on the first call, so the terminal check below it can't
      * loop.
      */
-    private boolean beginReclaim(Body a, Player p, Level lvl) {
+    private boolean beginReclaim(Level lvl) {
         if (reclaimTried) {
             return false;
         }
@@ -237,7 +238,7 @@ public final class CraftProcess implements BotProcess {
             // (protected region, block replaced under us) must not turn a successful
             // craft into a failure, nor overwrite the error a failed one is reporting.
             if (++reclaimTicks > RECLAIM_TIMEOUT) {
-                endReclaim(a);
+                endReclaim();
                 return;
             }
             a.aimAtBlock(placedTable);
@@ -257,19 +258,19 @@ public final class CraftProcess implements BotProcess {
         }
         blocks.breakHold(false);
         if (++pickupTicks >= PICKUP_GRACE) {
-            endReclaim(a);
+            endReclaim();
         }
     }
 
     /** Back to whichever terminal we were headed for when reclaim interrupted us. */
-    private void endReclaim(Body a) {
+    private void endReclaim() {
         blocks.breakHold(false);
         st = error != null ? St.FAIL : St.DONE;
     }
 
     // === planning ============================================================
 
-    private void plan(Body a, Player p, Level lvl, BotState s) {
+    private void plan(Player p, Level lvl) {
         RecipeManager rm = menus.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
         if (rm == null) {
@@ -319,7 +320,7 @@ public final class CraftProcess implements BotProcess {
 
     // === station setup =======================================================
 
-    private void setupStation(Body a, Player p, Level lvl, BotState s) {
+    private void setupStation(Body a, Player p, Level lvl) {
         RecipeResolver.Job job = jobs.get(jobIdx);
         if ("inventory2x2".equals(job.station())) {
             // Use the player inventory's 2×2 grid (container id 0). Closes any
@@ -363,7 +364,7 @@ public final class CraftProcess implements BotProcess {
         st = St.OPEN_WAIT;
     }
 
-    private void awaitTableOpen(Player p, BotState s) {
+    private void awaitTableOpen(Player p) {
         if (p.containerMenu instanceof CraftingMenu) {
             waited = 0;
             st = St.PLACE;
@@ -376,7 +377,7 @@ public final class CraftProcess implements BotProcess {
 
     // === craft loop ==========================================================
 
-    private void place(Body a, Player p, BotState s) {
+    private void place(Player p) {
         AbstractContainerMenu menu = p.containerMenu;
         RecipeResolver.Job job = jobs.get(jobIdx);
         // Recipe-book single placement: server moves one ingredient set from the
@@ -386,7 +387,7 @@ public final class CraftProcess implements BotProcess {
         st = St.AWAIT_RESULT;
     }
 
-    private void awaitResult(Body a, Player p, BotState s) {
+    private void awaitResult(Player p) {
         AbstractContainerMenu menu = p.containerMenu;
         ItemStack result =
                 menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
@@ -408,7 +409,7 @@ public final class CraftProcess implements BotProcess {
         }
     }
 
-    private void awaitTake(Player p, BotState s) {
+    private void awaitTake() {
         // Give the server a couple ticks to clear the grid and deliver the output.
         if (++waited < 2) {
             return;

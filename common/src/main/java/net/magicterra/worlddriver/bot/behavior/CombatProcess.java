@@ -115,6 +115,7 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** The ticking bot's threat picture, taken from the state each tick hands in. */
     private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
 
+    /** How a fight is conducted: the modes a combat order can name. */
     public enum Mode {
         KILL,
         ENGAGE,
@@ -126,6 +127,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /** Creates a fight in {@code mode} against the entity {@code targetId} or the type {@code targetType}. */
     public CombatProcess(Mode mode, Integer targetId, String targetType) {
         this.mode = mode;
         this.targetId = targetId;
@@ -145,7 +147,7 @@ public final class CombatProcess implements BotProcess, Navigating {
     @Override
     public void attach(BotState s) {
         s.combat.beginRun(
-                "combat " + mode.name().toLowerCase()
+                "combat " + mode.name().toLowerCase(java.util.Locale.ROOT)
                         + (targetId != null ? " id=" + targetId : "")
                         + (targetType != null ? " type=" + targetType : ""),
                 null);
@@ -250,6 +252,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         };
     }
 
+    // The first threat in score order is the pick, so the early return is the rule.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Entity pick(Player p) {
         if (mode == Mode.KILL) {
             if (targetId != null) {
@@ -442,6 +446,8 @@ public final class CombatProcess implements BotProcess, Navigating {
      * {@code true} when done: no live drops left in {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran
      * out (unreachable drop — never wedge the suspended user task).
      */
+    // The field is read on the next tick, which a per-method analysis cannot see; the reset is needed.
+    @SuppressWarnings("PMD.UnusedAssignment")
     private boolean collectSweep(Body a, Player p, WorldView w, BotState st) {
         if (++collectTicks > COLLECT_BUDGET_TICKS) {
             return true;
@@ -508,16 +514,16 @@ public final class CombatProcess implements BotProcess, Navigating {
     // === helpers =============================================================
 
     /**
-     * Snap head+body to the target's mid-height (+{@code yLead} blocks up). Snaps rather than smooth-pans because the
+     * Snap head+body to the target's mid-height (+{@code leadY} blocks up). Snaps rather than smooth-pans because the
      * attack/shot raycast needs the crosshair on target the same tick.
      */
-    private static void aimAt(Player p, Entity e, double yLead) {
+    private static void aimAt(Player p, Entity e, double leadY) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
-        double dy = e.getY() + e.getBbHeight() * 0.5 + yLead - eye.y;
+        double dy = e.getY() + e.getBbHeight() * 0.5 + leadY - eye.y;
         double dz = e.getZ() - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        final float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw);
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;

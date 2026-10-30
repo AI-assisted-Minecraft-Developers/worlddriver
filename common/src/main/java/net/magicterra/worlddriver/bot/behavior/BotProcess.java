@@ -16,8 +16,10 @@ import net.magicterra.worlddriver.game.body.Body;
  * overriding the canonical method; there is no "not yet migrated" state to be in.
  */
 public interface BotProcess {
+    /** The process's kind, as its status and the chain logs name it. */
     String kind();
 
+    /** Binds this process to {@code st}, the state it reports into. */
     void attach(BotState st);
 
     /**
@@ -63,7 +65,9 @@ public interface BotProcess {
      * replay), and {@code CombatProcess} is minted by {@code CombatChain} rather than {@code UserTaskChain}, so this
      * hook never reaches it — {@code CombatChain.onResume} is its own empty override.
      */
-    default void onResume() {}
+    default void onResume() {
+        // Nothing to restore by default; a process that keeps state across a suspension overrides this.
+    }
 
     /**
      * Called when this process is cancelled/superseded before finishing naturally (e.g. {@code mc.bot.cancel}, or a new
@@ -77,7 +81,9 @@ public interface BotProcess {
      * before concluding it repaths: "overrides the hook" and "finalizes the navigator" are two different questions, and
      * this sentence answered the second with the first for a while.
      */
-    default void onCancelled(String reason) {}
+    default void onCancelled(String reason) {
+        // Nothing to release by default; a process that holds something on the body overrides this.
+    }
 
     /**
      * Optional sub-state string for {@code mc.bot.status} (key {@code activeProcessDetail}). Default {@code null} = no

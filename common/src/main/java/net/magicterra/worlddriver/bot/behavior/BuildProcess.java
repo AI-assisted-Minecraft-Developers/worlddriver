@@ -22,13 +22,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
+/** Builds a schematic at an origin, one block at a time, walking to each placement. */
 public final class BuildProcess implements BotProcess, Navigating {
     private static final int PLACE_TIMEOUT_TICKS = 60;
-
-    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Equipment equipment;
-
-    private BlockInteraction blocks;
 
     private final BlockPos origin;
 
@@ -72,6 +68,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         PLACING
     }
 
+    /** Creates a build of {@code s} anchored at {@code origin}. */
     public BuildProcess(BlockPos origin, Schematic s) {
         this.origin = origin;
         this.schematic = s;
@@ -82,6 +79,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         return "builder";
     }
 
+    /** How many blocks this build has placed. */
     public int placed() {
         return placed;
     }
@@ -97,6 +95,8 @@ public final class BuildProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // The phase switch is the build state machine, and the tick's phases share its locals.
+    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
@@ -106,8 +106,9 @@ public final class BuildProcess implements BotProcess, Navigating {
             st.builder.reset();
             return true;
         }
-        equipment = a.equipment().orElse(null);
-        blocks = a.blockInteraction().orElse(null);
+        // This tick's hands, bound here, the one place they can be absent.
+        final Equipment equipment = a.equipment().orElse(null);
+        final BlockInteraction blocks = a.blockInteraction().orElse(null);
         if (equipment == null || blocks == null) {
             failure = st.builder.lastError = Readiness.Reason.NO_HANDS;
             st.builder.reset();
@@ -220,11 +221,9 @@ public final class BuildProcess implements BotProcess, Navigating {
                 if (placeTicks < 2 || !p.isCrouching()) {
                     placeTicks++;
                     // Grace window of 12 ticks for the crouch packet to round-trip.
-                    if (placeTicks > 12) {
-                        // Crouch never confirmed — try the click anyway; vanilla
-                        // will FAIL if the AABB still blocks and we'll skip on
-                        // the verify step.
-                    } else if (!p.isCrouching()) {
+                    // Past the grace window the crouch is never confirmed: the click is tried anyway, and vanilla
+                    // will FAIL if the AABB still blocks, which the verify step then skips.
+                    if (placeTicks <= 12 && !p.isCrouching()) {
                         return false;
                     }
                 }
@@ -258,6 +257,7 @@ public final class BuildProcess implements BotProcess, Navigating {
                     p.setShiftKeyDown(false);
                 }
             }
+            default -> throw new IllegalStateException("build phase " + phase + " has no tick");
         }
         return false;
     }
@@ -278,6 +278,8 @@ public final class BuildProcess implements BotProcess, Navigating {
      * {@code BboxFillProcess} and {@code PlaceNearby}. It accepts the leaves and dirt path that the
      * {@code isFaceSturdy} rule of gap#62 wrongly refused; its javadoc has the measured table.
      */
+    // The first support face in order wins, so the early return is the rule, not an accident of the loop.
+    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Placement findPlacement(Level lvl, BlockPos block) {
         // Each candidate: a SOLID neighbor we can click. The face is THAT neighbor's
         // face that points toward `block`. Player stands adjacent to the neighbor.
@@ -330,16 +332,7 @@ public final class BuildProcess implements BotProcess, Navigating {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
         BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) {
-            return false;
-        }
-        if (here.blocksMotion()) {
-            return false;
-        }
-        if (head.blocksMotion()) {
-            return false;
-        }
-        return true;
+        return below.blocksMotion() && !here.blocksMotion() && !head.blocksMotion();
     }
 
     private record Placement(BlockPos stand, Direction face) {}

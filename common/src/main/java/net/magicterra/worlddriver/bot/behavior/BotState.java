@@ -12,6 +12,8 @@ import net.minecraft.core.BlockPos;
  * <p>Mutated only by the bot tick (single thread); status calls produce a defensive copy via {@link #snapshot()}.
  */
 public final class BotState {
+    // The field name is the status key, and the bot and status code read it by name; renaming it is out of scope here.
+    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final ProcessSlot mc_goto = new ProcessSlot("goto");
 
     public final ProcessSlot mine = new ProcessSlot("mine");
@@ -43,14 +45,14 @@ public final class BotState {
     public final ProcessSlot combat = new ProcessSlot("combat");
 
     /**
-     * mc.bot.escape (EscapeProcess). Escape used to be slot-less, so its four silent-stall modes (weak canWalkOut gate,
-     * sealed-roof STEP_UP ping-pong) ended with active:false and NO lastError — indistinguishable from success.
-     * EscapeProcess now reports goal/target/lastError here every tick.
+     * The mc.bot.escape slot (EscapeProcess). Escape used to be slot-less, so its four silent-stall modes (weak
+     * canWalkOut gate, sealed-roof STEP_UP ping-pong) ended with active:false and NO lastError — indistinguishable from
+     * success. EscapeProcess now reports goal/target/lastError here every tick.
      */
     public final ProcessSlot escape = new ProcessSlot("escape");
 
     /**
-     * mc.bot.bunker (BunkerProcess). gap#68-⑩: the verb used to be a bare start ack with no slot at all — a zero-action
+     * The mc.bot.bunker slot (BunkerProcess). The verb used to be a bare start ack with no slot at all — a zero-action
      * bail (water at the dig site, dig timeout, …) reported ok:true indistinguishable from a real shelter. Now
      * BunkerProcess stamps goalReached/endReason here at every terminal exit (goalReached = block-level enclosure
      * ground truth, NOT hazardSummary.cornered).
@@ -86,6 +88,7 @@ public final class BotState {
      */
     public final ThreatWatch threats = new ThreatWatch();
 
+    /** The whole state as a map, in the shape {@code mc.bot.status} reports. */
     public synchronized Map<String, Object> snapshot() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("goto", mc_goto.snapshot());
@@ -296,8 +299,8 @@ public final class BotState {
         public volatile String lastError; // null if last run ok or in-progress
 
         /**
-         * gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends. Kept across reset() (like
-         * lastError) so a status read or wait.condition can read it.
+         * The honest terminal verdict of the LAST run. Null/−1 until a run ends. Kept across reset() (like lastError)
+         * so a status read or wait.condition can read it.
          */
         public volatile Boolean goalReached;
 
@@ -331,6 +334,7 @@ public final class BotState {
             this.name = name;
         }
 
+        /** This slot's state as a map, in the shape of its status entry. */
         public Map<String, Object> snapshot() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("active", active);
@@ -379,6 +383,7 @@ public final class BotState {
             parkourTakeoff = null;
         }
 
+        /** Clears the slot back to idle; {@code lastError} and the last verdict are kept across it. */
         public void reset() {
             active = false;
             goal = null;

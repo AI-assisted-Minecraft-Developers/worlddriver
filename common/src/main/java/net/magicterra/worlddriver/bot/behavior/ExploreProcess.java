@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
+/** Walks outward from a centre chunk, visiting new chunks until the chunk budget is spent. */
 public final class ExploreProcess implements BotProcess, Navigating {
     private final int centerChunkX;
 
@@ -40,6 +41,10 @@ public final class ExploreProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /**
+     * Creates an exploration around the block at ({@code centerBlockX}, {@code centerBlockZ}), visiting at most
+     * {@code maxChunks}.
+     */
     public ExploreProcess(int centerBlockX, int centerBlockZ, int maxChunks) {
         this.centerChunkX = centerBlockX >> 4;
         this.centerChunkZ = centerBlockZ >> 4;
@@ -133,10 +138,9 @@ public final class ExploreProcess implements BotProcess, Navigating {
                     int cx = centerChunkX + dx;
                     int cz = centerChunkZ + dz;
                     long key = chunkKey(cx, cz);
-                    if (visited.contains(key)) {
-                        continue;
+                    if (!visited.contains(key)) {
+                        return key;
                     }
-                    return key;
                 }
             }
         }

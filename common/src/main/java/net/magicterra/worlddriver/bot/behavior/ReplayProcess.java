@@ -48,6 +48,7 @@ public final class ReplayProcess implements BotProcess, Navigating {
         return navigator;
     }
 
+    /** Replays {@code plan} along {@code edges} toward {@code endGoal}, starting from {@code startFoot}. */
     public ReplayProcess(List<BlockPos> plan, List<Move.Edge> edges, Goal endGoal, BlockPos startFoot) {
         this(plan, edges, endGoal, startFoot, NavigatorSettings.named("replay"), false, true);
     }
@@ -86,6 +87,8 @@ public final class ReplayProcess implements BotProcess, Navigating {
     }
 
     @Override
+    // The follow branch is the second case of a three-way choice; the plain replay is written first on purpose.
+    @SuppressWarnings("PMD.ConfusingTernary")
     public boolean tick(Body a, WorldView w, BotState st) {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
@@ -121,5 +124,7 @@ public final class ReplayProcess implements BotProcess, Navigating {
 
     /** Replay never repaths — on resume, just keep executing the fixed plan. */
     @Override
-    public void onResume() {}
+    public void onResume() {
+        // Nothing to repath: the fixed plan is simply kept.
+    }
 }

@@ -80,6 +80,7 @@ public final class DescendProcess implements BotProcess {
         DIG_OWN
     }
 
+    /** Creates a descent to the block height {@code targetY}. */
     public DescendProcess(int targetY) {
         this.targetY = targetY;
     }
@@ -178,10 +179,10 @@ public final class DescendProcess implements BotProcess {
      */
     private boolean strideSafe(WorldView w, Level lvl, BlockPos foot, Direction d) {
         BlockPos b = foot.relative(d);
-        BlockPos aCell = b.above();
+        BlockPos aboveCell = b.above();
         BlockPos c = b.below();
         BlockPos floor = c.below();
-        for (BlockPos cell : new BlockPos[] {aCell, b, c}) {
+        for (BlockPos cell : new BlockPos[] {aboveCell, b, c}) {
             if (w.isHazard(cell) || w.isWater(cell)) {
                 return false;
             }
@@ -257,12 +258,14 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
+    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
+    @SuppressWarnings("PMD.SimplifyBooleanReturns")
     private boolean carve(Body a, WorldView w, LivingEntity p, BotState st) {
         BlockPos b = base.relative(dir);
-        BlockPos aCell = b.above();
+        BlockPos aboveCell = b.above();
         BlockPos c = b.below();
         // Top-down so falling gravel above can't refill a just-cleared cell.
-        BlockPos target = w.isSolid(aCell) ? aCell : w.isSolid(b) ? b : w.isSolid(c) ? c : null;
+        BlockPos target = w.isSolid(aboveCell) ? aboveCell : w.isSolid(b) ? b : w.isSolid(c) ? c : null;
         if (target == null) {
             dbg("CARVE clear dir={} → STEP_DOWN", dir);
             phase = Phase.STEP_DOWN;
@@ -315,6 +318,8 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
+    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
+    @SuppressWarnings("PMD.SimplifyBooleanReturns")
     private boolean digOwn(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         BlockPos below = base.below();
         if (!w.isSolid(below)) {
@@ -346,5 +351,5 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    /** Yaw facing the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
+    // Yaw convention: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east.
 }

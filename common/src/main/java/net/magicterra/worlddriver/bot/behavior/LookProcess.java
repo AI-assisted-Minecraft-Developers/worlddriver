@@ -12,6 +12,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
+/** Turns the body toward a block or a fixed yaw and pitch, for at most {@code MAX_TICKS} ticks. */
 public final class LookProcess implements BotProcess {
     private static final int MAX_TICKS = 200; // ~10 s @ 20 tps
 
@@ -27,6 +28,7 @@ public final class LookProcess implements BotProcess {
 
     private String failure;
 
+    /** Creates a look that tracks {@code track} when it is set, otherwise holds {@code yaw} and {@code pitch}. */
     public LookProcess(BlockPos track, float yaw, float pitch) {
         this.track = track;
         this.fixedYaw = yaw;
@@ -75,7 +77,7 @@ public final class LookProcess implements BotProcess {
         float curY = p.getYRot();
         float curP = p.getXRot();
         float ny = smoothAngle(curY, ty);
-        float np = smoothAngle(curP, tp);
+        final float np = smoothAngle(curP, tp);
         p.setYRot(ny);
         p.yHeadRot = ny;
         p.yBodyRot = ny;
