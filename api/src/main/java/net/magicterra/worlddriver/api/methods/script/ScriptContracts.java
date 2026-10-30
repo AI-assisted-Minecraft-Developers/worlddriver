@@ -193,6 +193,7 @@ public final class ScriptContracts {
 
     // ------------------------------------------------------------------ mc.script.eval
 
+    /** What {@code mc.script.eval} runs: the JavaScript source and the run's time budget. */
     @Named("EvalParams")
     public record EvalParams(
             @Doc("JavaScript. The value of its last expression is the result.") @Length(min = 1, max = 65_536)
@@ -205,15 +206,18 @@ public final class ScriptContracts {
 
     // ------------------------------------------------------------------ mc.skill
 
+    /** A skill's name: a lower-case letter, then up to 63 lower-case letters, digits or underscores. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
     @Pattern(value = "[a-z][a-z0-9_]{0,63}", expected = "a skill name such as dig_down")
     public @interface SkillName {}
 
+    /** The {@code mc.skill} request, chosen by its {@code op} field. */
     @Tag("op")
     @Named("SkillParams")
     public sealed interface SkillOp permits SaveSkill, ListSkills, GetSkill, RunSkill, DeleteSkill {}
 
+    /** {@code op: "save"}: checks the source's syntax, then saves it under {@code name}. */
     @Variant("save")
     public record SaveSkill(
             @SkillName String name,
@@ -222,12 +226,18 @@ public final class ScriptContracts {
             String source)
             implements SkillOp {}
 
+    /** {@code op: "list"}: every saved skill. */
     @Variant("list")
     public record ListSkills() implements SkillOp {}
 
+    /** {@code op: "get"}: the source of the skill {@code name}. */
     @Variant("get")
     public record GetSkill(@SkillName String name) implements SkillOp {}
 
+    /**
+     * {@code op: "run"}: evaluates the skill as {@code mc.script.eval} does, with {@code args} in the {@code SKILL}
+     * global.
+     */
     @Variant("run")
     public record RunSkill(
             @SkillName String name,
@@ -238,44 +248,55 @@ public final class ScriptContracts {
             @Default("3000") @Range(min = 1, max = 30_000) int timeoutMs)
             implements SkillOp {}
 
+    /** {@code op: "delete"}: removes the skill {@code name}. */
     @Variant("delete")
     public record DeleteSkill(@SkillName String name) implements SkillOp {}
 
+    /** The {@code mc.skill} reply, tagged with the same {@code op} as the request. */
     @Tag("op")
     @Named("SkillReply")
     public sealed interface SkillReply permits SkillSaved, SkillList, SkillSource, SkillRan, SkillDeleted {}
 
+    /** The reply to {@code save}: the skill's name and the size written, in bytes. */
     @Variant("save")
     public record SkillSaved(
             @SkillName String name, @Range(min = 0) int bytes) implements SkillReply {}
 
+    /** One saved skill as {@code list} shows it: its name and size in bytes. */
     @Named("SkillEntry")
     public record SkillEntry(
             @SkillName String name, @Range(min = 0) long bytes) {}
 
+    /** The reply to {@code list}: every saved skill. */
     @Variant("list")
     public record SkillList(@Doc("By name.") List<SkillEntry> skills) implements SkillReply {}
 
+    /** The reply to {@code get}: the skill's source. */
     @Variant("get")
     public record SkillSource(@SkillName String name, String source) implements SkillReply {}
 
+    /** The reply to {@code run}: the run's outcome, as {@code mc.script.eval} answers it. */
     @Variant("run")
     public record SkillRan(@SkillName String name, Outcome outcome) implements SkillReply {}
 
+    /** The reply to {@code delete}: whether the skill existed. */
     @Variant("delete")
     public record SkillDeleted(@SkillName String name, boolean existed) implements SkillReply {}
 
     // ------------------------------------------------------------------ mc.bot.playbook
 
+    /** A playbook's name: a lower-case letter, then up to 63 lower-case letters, digits or underscores. */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE_USE)
     @Pattern(value = "[a-z][a-z0-9_]{0,63}", expected = "a playbook name such as dragon")
     public @interface PlaybookName {}
 
+    /** The {@code mc.bot.playbook} request, chosen by its {@code op} field. */
     @Tag("op")
     @Named("PlaybookParams")
     public sealed interface PlaybookOp permits StartPlaybook, PlaybookStatus, CancelPlaybook {}
 
+    /** {@code op: "start"}: starts the playbook {@code name} on a background thread and answers at once. */
     @Variant("start")
     public record StartPlaybook(
             @Doc("Built in: dragon, wither.") @PlaybookName String name,
@@ -290,16 +311,20 @@ public final class ScriptContracts {
             Optional<@OnlyObject JsonValue> args)
             implements PlaybookOp {}
 
+    /** {@code op: "status"}: reports the running playbook, or the last one and its outcome. */
     @Variant("status")
     public record PlaybookStatus() implements PlaybookOp {}
 
+    /** {@code op: "cancel"}: stops the running playbook, which cancels the actions it started. */
     @Variant("cancel")
     public record CancelPlaybook() implements PlaybookOp {}
 
+    /** The {@code mc.bot.playbook} reply, tagged with the same {@code op} as the request. */
     @Tag("op")
     @Named("PlaybookReply")
     public sealed interface PlaybookReply permits PlaybookStarted, PlaybookState, PlaybookCancelled {}
 
+    /** The reply to {@code start}: the playbook's name and the run's id. */
     @Variant("start")
     public record PlaybookStarted(
             @PlaybookName String name,

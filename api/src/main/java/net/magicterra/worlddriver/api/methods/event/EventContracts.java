@@ -109,9 +109,11 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.observe.cursor
 
+    /** {@code mc.observe.cursor} takes no parameters. */
     @Named("CursorParams")
     public record CursorParams() {}
 
+    /** The newest event's seq, to pass as a later read's cursor. */
     @Named("Cursor")
     public record Cursor(
             @Doc("The seq of the newest event so far.") @AsString @Range(min = 0)
@@ -119,6 +121,7 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.observe.eventsSince
 
+    /** Which page of the stream {@code mc.observe.eventsSince} returns: after which seq, of which types, how many. */
     @Named("EventsSinceParams")
     public record SinceParams(
             @Doc("Events after this seq; \"0\" for all retained.") @Default("0") @AsString @Range(min = 0)
@@ -144,10 +147,15 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.events
 
+    /** The {@code mc.events} request, chosen by its {@code op} field. */
     @Tag("op")
     @Named("EventsParams")
     public sealed interface EventsOp permits Emit, Watch, Unwatch, ListWatchers {}
 
+    /**
+     * {@code op: "emit"}: injects an event for every reader and subscriber. A built-in type's {@code data} must match
+     * that type's payload.
+     */
     @Variant("emit")
     public record Emit(
             @Length(min = 1, max = 128) String type,
@@ -215,21 +223,26 @@ public final class EventContracts {
         }
     }
 
+    /** {@code op: "unwatch"}: removes the watcher {@code id}. */
     @Variant("unwatch")
     public record Unwatch(@Range(min = 1) int id) implements EventsOp {}
 
+    /** {@code op: "list"}: the watchers alive now. */
     @Variant("list")
     public record ListWatchers() implements EventsOp {}
 
+    /** The {@code mc.events} reply, tagged with the same {@code op} as the request. */
     @Tag("op")
     @Named("EventsReply")
     public sealed interface EventsReply permits Emitted, Watching, Unwatched, Watchers {}
 
+    /** The reply to {@code emit}: the injected event's seq and type. */
     @Variant("emit")
     public record Emitted(
             @AsString @Range(min = 1) long seq,
             @Length(min = 1, max = 128) String type) implements EventsReply {}
 
+    /** The reply to {@code watch}: the new watcher's id, which {@code unwatch} takes, and its settings. */
     @Variant("watch")
     public record Watching(
             @Range(min = 1) int id,
@@ -238,10 +251,12 @@ public final class EventContracts {
             @Range(min = 200, max = 60_000) int everyMs)
             implements EventsReply {}
 
+    /** The reply to {@code unwatch}: whether a watcher was removed. */
     @Variant("unwatch")
     public record Unwatched(
             @Doc("False when no such watcher was alive.") boolean removed) implements EventsReply {}
 
+    /** One live watcher as {@code list} shows it, with {@code fired}: how many events it has emitted so far. */
     @Named("EventWatcher")
     public record Watcher(
             @Range(min = 1) int id,
@@ -252,6 +267,7 @@ public final class EventContracts {
             boolean once,
             @Range(min = 0) int fired) {}
 
+    /** The reply to {@code list}: the live watchers and how many there are. */
     @Variant("list")
     public record Watchers(
             @Length(max = 16) List<Watcher> watchers,

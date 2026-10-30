@@ -87,6 +87,7 @@ public final class SystemContracts {
 
     // ------------------------------------------------------------------ waitTicks
 
+    /** How many nominal ticks {@code mc.system.waitTicks} waits, at most 200. */
     @Named("WaitTicksParams")
     public record WaitTicksParams(
             @Doc("Nominal ticks of 50 ms each.") @Range(min = 0, max = 200)

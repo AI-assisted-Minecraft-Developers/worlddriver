@@ -15,12 +15,15 @@ public interface SystemApi {
         return SystemApiBinding.calls(registry);
     }
 
+    /** {@code mc.system.version}: the mod's version and the file the running code was loaded from. */
     @Spec(value = SystemContracts.class, spec = "VERSION")
     CompletionStage<SystemContracts.Version> version(NoParams p, CallContext ctx);
 
+    /** {@code mc.system.testOrigin}: the origin cell of the area the validation scripts are written against. */
     @Spec(value = SystemContracts.class, spec = "TEST_ORIGIN")
     CompletionStage<CommonTypes.BlockPosition> testOrigin(NoParams p, CallContext ctx);
 
+    /** {@code mc.system.waitTicks}: answers after the given ticks of wall time; refused on a game thread. */
     @Spec(value = SystemContracts.class, spec = "WAIT_TICKS")
     CompletionStage<SystemContracts.Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx);
 }

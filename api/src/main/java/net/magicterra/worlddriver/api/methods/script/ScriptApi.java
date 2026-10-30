@@ -13,12 +13,15 @@ public interface ScriptApi {
         return ScriptApiBinding.calls(registry);
     }
 
+    /** {@code mc.script.eval}: runs JavaScript against the in-process API and answers its outcome. */
     @Spec(value = ScriptContracts.class, spec = "EVAL")
     CompletionStage<ScriptContracts.Outcome> eval(ScriptContracts.EvalParams p, CallContext ctx);
 
+    /** {@code mc.skill}: saves, lists, reads, runs or deletes a script in the skill library. */
     @Spec(value = ScriptContracts.class, spec = "SKILL")
     CompletionStage<ScriptContracts.SkillReply> skill(ScriptContracts.SkillOp op, CallContext ctx);
 
+    /** {@code mc.bot.playbook}: starts, reports on or cancels a boss-fight playbook run in the background. */
     @Spec(value = ScriptContracts.class, spec = "PLAYBOOK")
     CompletionStage<ScriptContracts.PlaybookReply> playbook(ScriptContracts.PlaybookOp op, CallContext ctx);
 }

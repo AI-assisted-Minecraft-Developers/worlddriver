@@ -31,6 +31,7 @@ import net.magicterra.worlddriver.api.schema.MethodSpec;
 public final class CoreMethods {
     private CoreMethods() {}
 
+    /** Every core method's spec, in documentation order; a fresh immutable list on each call. */
     public static List<MethodSpec<?, ?>> all() {
         return List.of(
                 GotoContracts.SPEC,

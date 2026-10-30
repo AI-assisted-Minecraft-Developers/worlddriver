@@ -13,12 +13,15 @@ public interface EventApi {
         return EventApiBinding.calls(registry);
     }
 
+    /** {@code mc.observe.cursor}: the newest event's seq, to read only what happens after now. */
     @Spec(value = EventContracts.class, spec = "CURSOR")
     CompletionStage<EventContracts.Cursor> cursor(EventContracts.CursorParams p, CallContext ctx);
 
+    /** {@code mc.observe.eventsSince}: the retained events after a cursor, oldest first. */
     @Spec(value = EventContracts.class, spec = "EVENTS_SINCE")
     CompletionStage<EventContracts.Page> eventsSince(EventContracts.SinceParams p, CallContext ctx);
 
+    /** {@code mc.events}: emits an event, or starts, stops or lists the watchers that emit them. */
     @Spec(value = EventContracts.class, spec = "EVENTS")
     CompletionStage<EventContracts.EventsReply> events(EventContracts.EventsOp op, CallContext ctx);
 }

@@ -136,6 +136,7 @@ public final class ControlContracts {
         }
     }
 
+    /** What {@code mc.bot.cancel} stops: one action by {@code actionId}, or a bot's processes by name, never both. */
     @Named("CancelParams")
     public record CancelParams(
             @Doc("Cancel this action, on whichever bot runs it.")
@@ -180,6 +181,7 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ status
 
+    /** Which bot {@code mc.bot.status} reports on. */
     @Named("StatusParams")
     public record StatusParams(
             @Doc("Omitted: self when there is a client; the bots list either way.")
@@ -214,6 +216,7 @@ public final class ControlContracts {
             Optional<String> endReason,
             Optional<Double> finalDist) {}
 
+    /** A bot's process slots, one per process kind. */
     @Named("ProcessSlots")
     public record Slots(
             @Wire("goto") Slot goTo,
@@ -236,6 +239,7 @@ public final class ControlContracts {
     @Named("ProcessEnd")
     public record ProcessEnd(String kind, Optional<String> error) {}
 
+    /** The figures of one path search: nodes expanded, time taken, and whether it reached the goal. */
     @Named("PathStats")
     public record PathStats(
             @Range(min = 0) int expanded,
@@ -246,9 +250,11 @@ public final class ControlContracts {
             boolean sightBudgetExhausted,
             boolean snapshotTruncated) {}
 
+    /** A reflex chain's standing bail: why it gave up, and how many more ticks its bid stays at 0. */
     @Named("ChainBail")
     public record Bail(String reason, long ticksLeft) {}
 
+    /** One reflex chain's state as of the last tick. */
     @Named("ChainState")
     public record ChainState(
             @Doc("Its bid on the last tick; the highest steers.")
@@ -260,6 +266,7 @@ public final class ControlContracts {
             @Doc("The phase of the process the chain holds, e.g. bunker DIG_DOWN.")
             Optional<String> detail) {}
 
+    /** Counts of swings, well-timed swings, critical hits and kills in the current engagement. */
     @Named("CombatTally")
     public record CombatTally(
             @Range(min = 0) int swings,
@@ -288,6 +295,7 @@ public final class ControlContracts {
 
             @Doc("This engagement's counts.") CombatTally combat) {}
 
+    /** One bot's status as {@code mc.bot.status} reports it: whether it is busy, its slots and its last task's end. */
     @Named("BotStatus")
     public record BotStatus(
             @BotRef String bot,
@@ -297,6 +305,7 @@ public final class ControlContracts {
             Slots slots,
             @Doc("self and the server's bots.") Optional<Reflexes> reflexes) {}
 
+    /** One entry of the addressable bots list: its id, kind, entity and position, and whether it is busy. */
     @Named("BotSummary")
     public record BotSummary(
             @BotRef String id,
@@ -307,53 +316,66 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ waypoint
 
+    /** The {@code mc.bot.waypoint} request, chosen by its {@code op} field. */
     @Tag("op")
     @Named("WaypointParams")
     public sealed interface WaypointOp permits Save, Get, ListAll, Delete, Clear {}
 
+    /** {@code op: "save"}: stores a position under {@code name}, replacing any earlier one. */
     @Variant("save")
     public record Save(
             @Length(min = 1, max = 64) String name,
             @Doc("Omitted: where the player stands.") Optional<BlockPosition> pos)
             implements WaypointOp {}
 
+    /** {@code op: "get"}: reads the position saved under {@code name}. */
     @Variant("get")
     public record Get(@Length(min = 1, max = 64) String name) implements WaypointOp {}
 
+    /** {@code op: "list"}: every saved waypoint. */
     @Variant("list")
     public record ListAll() implements WaypointOp {}
 
+    /** {@code op: "delete"}: forgets the waypoint {@code name}. */
     @Variant("delete")
     public record Delete(@Length(min = 1, max = 64) String name) implements WaypointOp {}
 
+    /** {@code op: "clear"}: forgets every waypoint. */
     @Variant("clear")
     public record Clear() implements WaypointOp {}
 
+    /** A saved waypoint: its name and position. */
     @Named("Waypoint")
     public record Waypoint(@Length(min = 1, max = 64) String name, BlockPosition pos) {}
 
+    /** The {@code mc.bot.waypoint} reply, tagged with the same {@code op} as the request. */
     @Tag("op")
     @Named("WaypointReply")
     public sealed interface WaypointReply permits Saved, Got, Listed, Deleted, Cleared {}
 
+    /** The reply to {@code save}: the stored waypoint and how many there are now. */
     @Variant("save")
     public record Saved(
             @Length(min = 1, max = 64) String name,
             BlockPosition pos,
             @Range(min = 0) int count) implements WaypointReply {}
 
+    /** The reply to {@code get}: the waypoint's position. */
     @Variant("get")
     public record Got(@Length(min = 1, max = 64) String name, BlockPosition pos) implements WaypointReply {}
 
+    /** The reply to {@code list}: every saved waypoint. */
     @Variant("list")
     public record Listed(List<Waypoint> waypoints) implements WaypointReply {}
 
+    /** The reply to {@code delete}: whether the name existed, and how many waypoints remain. */
     @Variant("delete")
     public record Deleted(
             @Length(min = 1, max = 64) String name,
             boolean existed,
             @Range(min = 0) int count) implements WaypointReply {}
 
+    /** The reply to {@code clear}: how many waypoints were removed. */
     @Variant("clear")
     public record Cleared(@Range(min = 0) int cleared) implements WaypointReply {}
 
@@ -365,10 +387,12 @@ public final class ControlContracts {
     @Pattern(value = "[A-Za-z0-9_]{1,16}", expected = "letters, digits and underscores, at most 16, as a player name")
     public @interface BotName {}
 
+    /** The {@code mc.bot.roster} request, chosen by its {@code op} field. */
     @Tag("op")
     @Named("RosterParams")
     public sealed interface RosterOp permits Spawn, Adopt, Remove {}
 
+    /** {@code op: "spawn"}: joins a server-side player as the bot {@code player:<name>}. */
     @Variant("spawn")
     public record Spawn(
             @Doc("The bot is player:<name>.") @BotName String name,
@@ -381,6 +405,7 @@ public final class ControlContracts {
             Optional<BlockPosition> pos)
             implements RosterOp {}
 
+    /** {@code op: "adopt"}: takes a mob over as a bot, its own AI off until it is removed. */
     @Variant("adopt")
     public record Adopt(
             @Doc("The mob to take over.") @EntityId int entityId,
@@ -389,6 +414,10 @@ public final class ControlContracts {
             Optional<@BotName String> name)
             implements RosterOp {}
 
+    /**
+     * {@code op: "remove"}: ends the bot's running action as {@code bot_removed}, gives a mob its AI back and takes a
+     * player out of the world. {@code self} is refused.
+     */
     @Variant("remove")
     public record Remove(@BotRef String bot) implements RosterOp, SelfChecked {
         @Override

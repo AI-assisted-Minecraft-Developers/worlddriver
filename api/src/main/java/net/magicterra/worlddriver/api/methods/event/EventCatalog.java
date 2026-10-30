@@ -221,22 +221,27 @@ public final class EventCatalog {
         return e;
     }
 
+    /** The {@code block.fill} payload: the block and the two corners of the filled box. */
     @Named("BlockFillEvent")
     public record BlockFill(@ResourceId String block, BlockPosition from, BlockPosition to) {}
 
+    /** The {@code chat.message} payload: who spoke and what they said; the text is untrusted. */
     @Named("ChatMessageEvent")
     public record ChatMessage(String player, String text) {}
 
+    /** The {@code world.restore} payload: which snapshot was put back and how many cells it covered. */
     @Named("WorldRestoreEvent")
     public record WorldRestore(
             @Doc("The snapshot.") String id, @Range(min = 0) int cells) {}
 
     // ------------------------------------------------------------------ the driver's own calls
 
+    /** The {@code command.result} payload: the command and how it went. */
     @Named("CommandResultEvent")
     public record CommandResult(
             String cmd, @Doc("The command parsed and ran.") boolean ok, boolean success) {}
 
+    /** The {@code wait.done} payload: which background wait finished, with either its reply or its error. */
     @Named("WaitDone")
     public record WaitDone(
             @Length(min = 1, max = 128) String waitId,
@@ -244,17 +249,23 @@ public final class EventCatalog {
             @Doc("The wait's {outcome:'done', …} reply.") Optional<@OnlyObject JsonValue> result,
             @Doc("The ApiError that ended it instead.") Optional<@OnlyObject JsonValue> error) {}
 
+    /** The {@code condition.met} payload: the watcher's id, the method it polls, and the field and value it tested. */
     @Named("ConditionMetEvent")
     public record ConditionMet(
             @Range(min = 0) int watch, String invoke, Optional<String> field, Optional<JsonValue> value) {}
 
     // ------------------------------------------------------------------ the client's player
 
+    /** The {@code player.death} payload: the player's health when the death screen opened, and its message. */
     @Named("PlayerDeathEvent")
     public record PlayerDeath(
             double health,
             @Doc("The death screen's message.") Optional<String> cause) {}
 
+    /**
+     * The {@code player.hurt} payload: health now, before ({@code prev}) and the difference ({@code lost}), with the
+     * damage source and, when there is one, the attacker.
+     */
     @Named("PlayerHurtEvent")
     public record PlayerHurt(
             double health,
@@ -268,12 +279,15 @@ public final class EventCatalog {
             Optional<@ResourceId String> attackerType,
             Optional<Double> attackerDistance) {}
 
+    /** The {@code player.enteredWater} payload: whether the player's head is under water too. */
     @Named("EnteredWaterEvent")
     public record EnteredWater(boolean submerged) {}
 
+    /** The {@code player.enteredLava} payload: the player's health on entering. */
     @Named("EnteredLavaEvent")
     public record EnteredLava(double health) {}
 
+    /** The {@code time.phase} payload: the new phase, the one before it, and the time of day. */
     @Named("TimePhaseEvent")
     public record TimePhase(
             String phase,
@@ -282,6 +296,7 @@ public final class EventCatalog {
             @Doc("The time of day, 0-23999.") @Range(min = 0, max = 23_999)
             long dayTime) {}
 
+    /** The {@code item.pickup} payload: the item, how many were gained and how many the inventory now holds. */
     @Named("ItemPickupEvent")
     public record ItemPickup(
             @ResourceId String id,
@@ -292,20 +307,24 @@ public final class EventCatalog {
             @Doc("How many the inventory holds now.") @Range(min = 0)
             int total) {}
 
+    /** The {@code tool.broke} payload: the tool's item id and its last known damage out of its maximum. */
     @Named("ToolBrokeEvent")
     public record ToolBroke(
             @ResourceId String id,
             @Range(min = 0) int damage,
             @Range(min = 0) int maxDamage) {}
 
+    /** The {@code advancement} payload: the completed advancement's id. */
     @Named("AdvancementEvent")
     public record Advancement(@ResourceId String id) {}
 
+    /** The {@code screen.autoClosed} payload: which screen was closed and for how many ticks it had blocked the bot. */
     @Named("ScreenAutoClosedEvent")
     public record ScreenAutoClosed(
             @Doc("The screen's class name.") String screen,
             @Range(min = 0) int blockedTicks) {}
 
+    /** The {@code client.message} payload: one chat or system line the client received; the text is untrusted. */
     @Named("ClientMessageEvent")
     public record ChatLine(
             @Doc("Its seq in mc.client.chat.history.") @Range(min = 0)
@@ -319,17 +338,21 @@ public final class EventCatalog {
             String text,
             @Doc("The echo of this player's own chat.") boolean self) {}
 
+    /** The {@code client.actionBar} payload: the action bar's new text, which is untrusted. */
     @Named("ActionBarEvent")
     public record ClientText(String text) {}
 
+    /** The {@code client.title} payload: the title shown and its subtitle, if any; both are untrusted. */
     @Named("TitleEvent")
     public record ClientTitle(String text, Optional<String> subtitle) {}
 
     // ------------------------------------------------------------------ the bot's perception and reflexes
 
+    /** The {@code duskExposed} and {@code cornered} payload: where the bot is. */
     @Named("EventPosition")
     public record At(BlockPosition pos) {}
 
+    /** The {@code threat.appeared} payload: the hostile's type, entity id, distance and danger score. */
     @Named("ThreatAppearedEvent")
     public record ThreatAppeared(
             @ResourceId String type,
@@ -337,6 +360,7 @@ public final class EventCatalog {
             double distance,
             @Doc("Higher is more dangerous.") double score) {}
 
+    /** The {@code duskSecure.triggered} payload: where the reflex digs in and how deep the bunker goes. */
     @Named("DuskSecureTriggeredEvent")
     public record DuskSecureTriggered(
             BlockPosition pos,
@@ -345,6 +369,10 @@ public final class EventCatalog {
             @Doc("Restarted after being preempted, not a fresh trigger.")
             boolean rearm) {}
 
+    /**
+     * The {@code route.blocked} payload: why the search failed, the partial route's length in cells, the nodes it
+     * expanded, and the route segment ({@code leg}) it was for.
+     */
     @Named("RouteBlockedEvent")
     public record RouteBlocked(
             @Doc("constraint:<name> for a route condition, budget, or terrain.")
@@ -355,6 +383,10 @@ public final class EventCatalog {
             @Range(min = 0) int expanded,
             @Range(min = 0) int leg) {}
 
+    /**
+     * The {@code route.detour} payload: how much longer than the straight line the route is, and which route condition
+     * cost the most.
+     */
     @Named("RouteDetourEvent")
     public record RouteDetour(
             @Doc("Route length over the straight line.") double ratio,
@@ -363,9 +395,14 @@ public final class EventCatalog {
             Optional<@Range(min = 0) Long> taxCost,
             @Range(min = 0) int leg) {}
 
+    /** The hostile that can see a route: its entity id, type and name, when it has one. */
     @Named("RouteObserver")
     public record Observer(int id, @ResourceId String type, Optional<String> name) {}
 
+    /**
+     * The {@code route.exposed} payload: who can see the route, how many of its cells, the index of the first one it
+     * sees, and the route's length in cells.
+     */
     @Named("RouteExposedEvent")
     public record RouteExposed(
             Observer observer,
