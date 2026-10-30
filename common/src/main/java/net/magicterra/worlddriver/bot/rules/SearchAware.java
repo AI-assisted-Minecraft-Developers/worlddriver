@@ -11,8 +11,10 @@ package net.magicterra.worlddriver.bot.rules;
  * to the scan box.
  */
 public interface SearchAware {
+    /** Called once when a search starts, with the scope it will run in. */
     void beginSearch(SearchScope scope);
 
+    /** Blocks beyond the start–goal box this component needs scanned; 0 by default. */
     default int scanRadius() {
         return 0;
     }

@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
  * break time.
  */
 public final class TraverseBreak extends Move {
+    /** Walks sideways, breaking any block in the way. */
     public TraverseBreak(int dx, int dz) {
         super(dx, 0, dz, 10);
     }

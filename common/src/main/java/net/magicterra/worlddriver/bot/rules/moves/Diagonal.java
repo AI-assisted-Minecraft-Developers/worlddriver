@@ -13,6 +13,7 @@ public final class Diagonal extends Move {
     /** Extra cost when a corner the crossing sweeps is a drop: 14 + 8 loses to the two cardinals (20). */
     static final double DROP_CORNER_TAX = 8;
 
+    /** Crosses one cell diagonally on the same level, keeping both corner columns clear. */
     public Diagonal(int dx, int dz) {
         super(dx, 0, dz, 14);
     }

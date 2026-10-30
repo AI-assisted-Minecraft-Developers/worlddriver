@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
  * of them — Baritone enforces the same "real gap" rule.
  */
 public final class Parkour4 extends Move {
+    /** Sprint-jumps four cells in a straight line. */
     public Parkour4(int dx, int dz) {
         super(dx * 4, 0, dz * 4, 42);
     }

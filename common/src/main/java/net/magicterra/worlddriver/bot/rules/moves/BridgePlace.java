@@ -20,6 +20,7 @@ import net.minecraft.core.BlockPos;
  * ground. Dropping the check lets the bot bridge a whole chasm one block at a time.
  */
 public final class BridgePlace extends Move {
+    /** Places a floor block under the next cell when that cell is open air over a gap. */
     public BridgePlace(int dx, int dz) {
         super(dx, 0, dz, 10);
     }

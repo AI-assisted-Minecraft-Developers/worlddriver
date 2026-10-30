@@ -16,6 +16,7 @@ import net.minecraft.core.BlockPos;
 public final class FallIntoWater extends Move {
     private final int drop;
 
+    /** Falls {@code drop} blocks into water and surfaces in it. */
     public FallIntoWater(int dx, int dz, int drop) {
         super(dx, -drop, dz, 10 + WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;

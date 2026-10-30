@@ -17,7 +17,7 @@ import net.minecraft.core.BlockPos;
  *       placements.
  * </ul>
  *
- * The win is speed: where a gap to nearby structure would otherwise take two sneak-BridgePlaces (cost ~60), one
+ * <p>The win is speed: where a gap to nearby structure would otherwise take two sneak-BridgePlaces (cost ~60), one
  * parkour-place crosses it in a single leap (cost 42). It only fires when the landing floor has a <em>pre-existing</em>
  * solid neighbour to place against ({@link Move#hasPlaceSupport}) — you can't place a floating block over open void,
  * and Baritone gates on the same {@code canPlaceAgainst}. The placement is an actuator concern keyed off the
@@ -25,6 +25,7 @@ import net.minecraft.core.BlockPos;
  * so {@code toPlace} carries the landing floor for the place loop's bookkeeping while the leap motion stays a parkour.
  */
 public final class ParkourPlace extends Move {
+    /** Sprint-jumps two cells and places the landing floor under the leap. */
     public ParkourPlace(int dx, int dz) {
         super(dx * 2, 0, dz * 2, 22 + (int) PLACE_COST);
     }

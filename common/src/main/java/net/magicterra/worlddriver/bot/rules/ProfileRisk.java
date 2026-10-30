@@ -20,6 +20,7 @@ public final class ProfileRisk implements RiskAt {
 
     private final List<Map.Entry<String, Region>> regions = new ArrayList<>();
 
+    /** Collects the sight, mob and region components of {@code profile}, keeping their declaration order. */
     public ProfileRisk(SearchProfile profile) {
         int avoid = 0;
         int forbid = 0;

@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
  * {@code from + 3}). Costlier than a +1 {@link StepUp}, so A* still prefers a +1 staircase when one exists.
  */
 public final class StepUp2 extends Move {
+    /** Walks and jumps up two blocks onto the cell ahead. */
     public StepUp2(int dx, int dz) {
         super(dx, 2, dz, 24);
     }

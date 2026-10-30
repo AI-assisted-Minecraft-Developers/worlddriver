@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
  * without wedging on the way down.
  */
 public final class DiagonalDescend extends Move {
+    /** Crosses one cell diagonally and down one block, keeping both corner columns clear. */
     public DiagonalDescend(int dx, int dz) {
         super(dx, -1, dz, 14);
     }

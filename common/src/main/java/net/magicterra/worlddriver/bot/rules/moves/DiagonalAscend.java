@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
  * clip either side, so BOTH cardinal side columns must be clear at the destination-foot band (and their heads).
  */
 public final class DiagonalAscend extends Move {
+    /** Crosses one cell diagonally and up one block, keeping both corner columns clear. */
     public DiagonalAscend(int dx, int dz) {
         super(dx, 1, dz, 19);
     }

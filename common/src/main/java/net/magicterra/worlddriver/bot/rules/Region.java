@@ -14,6 +14,7 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
     /** 0 outside; inside, a ramp from 0 at the boundary to 1 at the deepest point. */
     double weight(double x, double y, double z);
 
+    /** True when the point lies inside the region. */
     boolean contains(double x, double y, double z);
 
     /**
@@ -61,6 +62,7 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
         }
     }
 
+    /** A ball of {@code radius} blocks around the centre point. */
     record Sphere(double cx, double cy, double cz, double radius) implements Region {
         private double dist(double x, double y, double z) {
             double dx = x - cx;

@@ -19,6 +19,7 @@ public final class Parkour2Diagonal extends Move {
      */
     static final double WATER_GAP_TAX = 30;
 
+    /** Sprint-jumps two cells diagonally, across the corner between them. */
     public Parkour2Diagonal(int dx, int dz) {
         super(dx * 2, 0, dz * 2, 33);
     }
@@ -103,10 +104,8 @@ public final class Parkour2Diagonal extends Move {
                 return false;
             }
         }
-        if (w.canStandAt(from.offset(sx, 0, sz))) {
-            return false; // mid floor → cheaper Walk+Diagonal
-        }
-        return w.isPassable(to.offset(0, 1, 0));
+        // A mid floor means a cheaper Walk+Diagonal, so this leap is refused.
+        return !w.canStandAt(from.offset(sx, 0, sz)) && w.isPassable(to.offset(0, 1, 0));
     }
 
     @Override

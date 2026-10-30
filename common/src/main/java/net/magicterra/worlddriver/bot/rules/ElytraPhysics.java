@@ -13,7 +13,7 @@ import net.minecraft.world.phys.Vec3;
  * the magic numbers; they mirror vanilla bit-for-bit and the simulator is validated tick-by-tick against the live
  * client.
  *
- * <p>Mutation order within a glide tick matters and follows vanilla exactly: the horizontal speed {@code hSpeed} is
+ * <p>Mutation order within a glide tick matters and follows vanilla exactly: the horizontal speed {@code horizSpeed} is
  * sampled from the velocity at the START of the tick (used by the dive-redirect and pitch-up terms), while the running
  * velocity components are read back already-mutated where vanilla does.
  *
@@ -58,8 +58,8 @@ public final class ElytraPhysics {
      */
     public static Vec3 glideStep(Vec3 vel, Vec3 look, float pitchDeg, double gravity) {
         double pitchRad = Math.toRadians(pitchDeg);
-        double hLook = Math.sqrt(look.x * look.x + look.z * look.z); // = cos(pitch)
-        double hSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z); // sampled at tick start
+        double horizLook = Math.sqrt(look.x * look.x + look.z * look.z); // = cos(pitch)
+        double horizSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z); // sampled at tick start
         double cosP = Math.cos(pitchRad);
         double d5 = cosP * cosP;
 
@@ -67,21 +67,21 @@ public final class ElytraPhysics {
         double vy = vel.y;
         double vz = vel.z;
         vy += gravity * (-1.0 + d5 * 0.75);
-        if (vy < 0.0 && hLook > 0.0) { // dive: redirect fall along look
+        if (vy < 0.0 && horizLook > 0.0) { // dive: redirect fall along look
             double d6 = vy * -0.1 * d5;
-            vx += look.x * d6 / hLook;
+            vx += look.x * d6 / horizLook;
             vy += d6;
-            vz += look.z * d6 / hLook;
+            vz += look.z * d6 / horizLook;
         }
-        if (pitchRad < 0.0 && hLook > 0.0) { // nose up: trade speed for climb
-            double d10 = hSpeed * (-Math.sin(pitchRad)) * 0.04;
-            vx += -look.x * d10 / hLook;
+        if (pitchRad < 0.0 && horizLook > 0.0) { // nose up: trade speed for climb
+            double d10 = horizSpeed * (-Math.sin(pitchRad)) * 0.04;
+            vx += -look.x * d10 / horizLook;
             vy += d10 * 3.2;
-            vz += -look.z * d10 / hLook;
+            vz += -look.z * d10 / horizLook;
         }
-        if (hLook > 0.0) { // steer horizontal velocity toward look
-            vx += (look.x / hLook * hSpeed - vx) * 0.1;
-            vz += (look.z / hLook * hSpeed - vz) * 0.1;
+        if (horizLook > 0.0) { // steer horizontal velocity toward look
+            vx += (look.x / horizLook * horizSpeed - vx) * 0.1;
+            vz += (look.z / horizLook * horizSpeed - vz) * 0.1;
         }
         return new Vec3(vx * 0.99, vy * 0.98, vz * 0.99); // drag
     }
@@ -107,6 +107,7 @@ public final class ElytraPhysics {
         return stepTick(s, yawDeg, pitchDeg, fireworkActive, GRAVITY);
     }
 
+    /** One glide tick with the given gravity; the same step as the overload with normal gravity. */
     public static State stepTick(State s, float yawDeg, float pitchDeg, boolean fireworkActive, double gravity) {
         Vec3 look = lookVec(yawDeg, pitchDeg);
         Vec3 vel = s.vel();

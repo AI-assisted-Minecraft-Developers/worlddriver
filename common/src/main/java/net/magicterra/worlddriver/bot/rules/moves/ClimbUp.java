@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 
 /** Climb up a ladder/vine. Current and above must be climbable (or above can be stand). */
 public final class ClimbUp extends Move {
+    /** Climbs one cell up a ladder or vine. */
     public ClimbUp() {
         super(0, 1, 0, 20);
     }

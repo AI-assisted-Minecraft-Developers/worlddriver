@@ -25,6 +25,7 @@ import net.minecraft.world.phys.Vec3;
 public record Corridor(List<Vec3> points, double radius, boolean hard, double penalty)
         implements Constraint, CostModifier {
 
+    /** Copies the vertices and rejects an empty polyline. */
     public Corridor {
         points = List.copyOf(points);
         if (points.isEmpty()) {
@@ -75,10 +76,7 @@ public record Corridor(List<Vec3> points, double radius, boolean hard, double pe
             return true;
         }
         double eto = excess(to);
-        if (eto <= 0) {
-            return true;
-        }
-        return from != null && eto < excess(from);
+        return eto <= 0 || from != null && eto < excess(from);
     }
 
     @Override

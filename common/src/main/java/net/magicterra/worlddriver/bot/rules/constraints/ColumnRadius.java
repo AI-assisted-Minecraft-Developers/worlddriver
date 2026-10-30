@@ -34,21 +34,18 @@ public record ColumnRadius(double cx, double cz, double radius) implements Const
         if (radius <= 0) {
             return true; // unset → no column bound
         }
-        double dto = distSqXZ(to);
-        if (dto <= radius * radius) {
-            return true;
-        }
+        double dto = distSqXz(to);
         // Outside the cylinder (search started off-column): permit only strict XZ-approach so
         // the bot can rejoin instead of being fully pruned. Y is excluded, so a vertical move
         // while outside is NOT an approach (dto unchanged) — you must close XZ distance first.
-        return from != null && dto < distSqXZ(from);
+        return dto <= radius * radius || from != null && dto < distSqXz(from);
     }
 
     /**
      * Squared XZ distance from the cell CENTRE (x+0.5, z+0.5) to the column line — the same cell-centre convention
      * {@link LeashHardRadius} and the arena checker use.
      */
-    private double distSqXZ(BlockPos p) {
+    private double distSqXz(BlockPos p) {
         double dx = p.getX() + 0.5 - cx;
         double dz = p.getZ() + 0.5 - cz;
         return dx * dx + dz * dz;

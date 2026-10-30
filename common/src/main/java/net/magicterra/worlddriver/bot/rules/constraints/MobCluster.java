@@ -60,11 +60,12 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
     private double[] mobs = new double[0];
 
     /**
-     * @param count how many mobs make a cluster; @param radius within how many blocks of the cell; @param hard prune
-     *     (forbid) or charge (avoid); @param penalty the flat charge when soft
+     * The cluster threshold: a cell with {@code count} hostiles within {@code radius} blocks of it is a cluster cell,
+     * pruned when {@code hard} and charged {@code penalty} otherwise.
      */
     public record Cluster(int count, double radius, boolean hard, double penalty) {}
 
+    /** Builds the berth ramp and the optional cluster threshold; null {@code types} considers every hostile. */
     public MobCluster(double radius, double rangedRadius, double penalty, Cluster cluster, Set<String> types) {
         this.radius = radius;
         this.rangedRadius = rangedRadius;
@@ -73,22 +74,27 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         this.types = types == null ? Set.of() : Set.copyOf(types);
     }
 
+    /** Berth of a melee mob, in blocks; the ramp reaches zero at this distance. */
     public double radius() {
         return radius;
     }
 
+    /** Berth of a mob that shoots, in blocks. */
     public double rangedRadius() {
         return rangedRadius;
     }
 
+    /** Peak cost of the ramp, charged at zero distance from a mob. */
     public double penalty() {
         return penalty;
     }
 
+    /** The cluster threshold, or null when only the ramp applies. */
     public Cluster cluster() {
         return cluster;
     }
 
+    /** Registry names of the hostiles to consider; empty means every hostile. */
     public Set<String> types() {
         return types;
     }

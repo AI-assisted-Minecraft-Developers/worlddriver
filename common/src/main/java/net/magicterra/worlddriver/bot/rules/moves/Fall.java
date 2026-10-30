@@ -20,6 +20,7 @@ import net.minecraft.core.BlockPos;
 public final class Fall extends Move {
     private final int drop;
 
+    /** Walks off an edge and falls {@code drop} blocks to the cell below. */
     public Fall(int dx, int dz, int drop) {
         super(dx, -drop, dz, 10 + 5 * drop);
         this.drop = drop;

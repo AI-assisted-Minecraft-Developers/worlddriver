@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 public record ThreatSnapshot(List<Threat> threats) {
     public static final ThreatSnapshot EMPTY = new ThreatSnapshot(List.of());
 
+    /** Copies the threat list; null becomes empty. */
     public ThreatSnapshot {
         threats = threats == null ? List.of() : List.copyOf(threats);
     }

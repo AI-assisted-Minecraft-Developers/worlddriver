@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
  */
 @FunctionalInterface
 public interface Constraint {
+    /** True when the edge from {@code from} to {@code to} may be searched; false removes it from the search. */
     boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world);
 
     /**

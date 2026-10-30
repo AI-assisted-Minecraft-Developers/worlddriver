@@ -28,7 +28,7 @@ import net.minecraft.core.BlockPos;
  *       default, i.e. plain {@code holdPlaceable()}, so this axis is a client-side gap.)
  * </ul>
  *
- * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot carrying only sand and
+ * <p>On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot carrying only sand and
  * gravel, or with its cobble stranded in slot 9, makes {@code canPlace()} false and A* emits no pillar edge at all —
  * while {@code DrivePhase} and {@code StallDetectPhase} pillar out of exactly that situation, which is why both gate on
  * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe direction here (a route
@@ -36,6 +36,7 @@ import net.minecraft.core.BlockPos;
  * planner the executor's predicate, which changes what A* plans and wants its own measurement.
  */
 public final class PillarUp extends Move {
+    /** Climbs straight up one block, building the step under the feet. */
     public PillarUp() {
         super(0, 1, 0, 10);
     }

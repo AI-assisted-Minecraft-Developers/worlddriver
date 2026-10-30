@@ -19,6 +19,7 @@ import net.minecraft.core.BlockPos;
  * {@link Move#waterEscapeContext}. Must break ≥1 cell or {@link SwimUp} handles it.
  */
 public final class SwimUpBreak extends Move {
+    /** Swims up one cell and breaks the block in the way. */
     public SwimUpBreak() {
         super(0, 1, 0, 24);
     }

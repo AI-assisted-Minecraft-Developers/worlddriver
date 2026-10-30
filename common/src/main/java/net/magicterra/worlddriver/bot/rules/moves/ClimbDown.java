@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 
 /** Climb down a ladder/vine. */
 public final class ClimbDown extends Move {
+    /** Descends one cell on a ladder or vine. */
     public ClimbDown() {
         super(0, -1, 0, 15);
     }

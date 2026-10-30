@@ -67,6 +67,7 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     public static final class RayBudgetExhausted extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
+        /** Raised when a search has spent its {@code budget} rays; carries no stack trace. */
         public RayBudgetExhausted(int budget) {
             super("sight: ray budget of " + budget + " spent", null, false, false);
         }
@@ -81,6 +82,8 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     }
 
     /**
+     * One line-of-sight rule: which observers it hides from, how strictly, and how many rays a search may fire for it.
+     *
      * @param of which observers
      * @param listed ids, names or types when {@code of} is {@link Of#LISTED}
      * @param rangeOverride an effective range for every observer, or 0 for the per-kind default
@@ -108,26 +111,32 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         return new SightExposure(of, listed, rangeOverride, hard, penalty, eye, budget);
     }
 
+    /** The observers this rule hides from; see {@link Of}. */
     public Of of() {
         return of;
     }
 
+    /** Ids, names or types for the {@link Of#LISTED} observers; empty otherwise. */
     public List<String> listed() {
         return listed;
     }
 
+    /** True when an exposed cell is pruned rather than charged. */
     public boolean hard() {
         return hard;
     }
 
+    /** Cost charged per exposed cell per observer when soft. */
     public double penalty() {
         return penalty;
     }
 
+    /** Height above the cell that the sight ray is aimed at. */
     public double eye() {
         return eye;
     }
 
+    /** The most rays one search may fire against this rule. */
     public int rayBudget() {
         return rayBudget;
     }

@@ -22,6 +22,9 @@ import net.minecraft.core.BlockPos;
  * {@link StrictDirection} are "open" goals that {@link #reached} never satisfies — they steer the A* best-effort
  * fallback (lowest-h node) rather than terminating the search, exactly as Baritone uses them.
  */
+// Every record's toString closes its bracket with the same literal; a shared constant would have to be a public
+// field of this sealed interface.
+@SuppressWarnings("checkstyle:multiplestringliterals")
 public sealed interface Goal
         permits Goal.Block,
                 Goal.Near,
@@ -34,8 +37,10 @@ public sealed interface Goal
                 Goal.Axis,
                 Goal.Inverted,
                 Goal.StrictDirection {
+    /** True when {@code pos} satisfies this goal, which is what ends the search. */
     boolean reached(BlockPos pos);
 
+    /** Lower bound on the remaining cost from {@code pos}, in move-cost units. */
     double estimate(BlockPos pos);
 
     /**
@@ -156,6 +161,8 @@ public sealed interface Goal
      * the goto {@code near:N} arg so a target landing on water (where the bot floats and can't step onto the exact
      * cell) is still satisfied by the surrounding column instead of spinning forever.
      */
+    // The name is public API, referenced across common's main and test sources, so it stays.
+    @SuppressWarnings("checkstyle:abbreviationaswordinname")
     record XZ(int x, int z, int radius) implements Goal {
         /** Exact-column XZ goal (radius 0) — preserves the original 2-arg callers. */
         public XZ(int x, int z) {
@@ -183,6 +190,8 @@ public sealed interface Goal
     }
 
     /** Reach a given Y plane (used for surface/cave navigation). */
+    // Same reason as XZ above.
+    @SuppressWarnings("checkstyle:abbreviationaswordinname")
     record YLevel(int y) implements Goal {
         @Override
         public boolean reached(BlockPos p) {

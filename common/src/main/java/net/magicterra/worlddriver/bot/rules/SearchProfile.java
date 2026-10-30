@@ -9,6 +9,7 @@ import java.util.List;
 public record SearchProfile(List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {
     public static final SearchProfile NONE = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of());
 
+    /** Copies the lists; null lists become empty and a null capability becomes {@link CapabilityProfile#ALL}. */
     public SearchProfile {
         bias = bias == null ? List.of() : List.copyOf(bias);
         capability = capability == null ? CapabilityProfile.ALL : capability;

@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
  * Cost ≈ 22 (~2× walk + jump overhead) so plain walking always wins when both are valid.
  */
 public final class Parkour2 extends Move {
+    /** Sprint-jumps two cells in a straight line, over the cell between. */
     public Parkour2(int dx, int dz) {
         super(dx * 2, 0, dz * 2, 22);
     }
@@ -72,11 +73,8 @@ public final class Parkour2 extends Move {
         // Forbid emitting if a simple Walk could reach mid — A* should
         // prefer the cheaper path. Equivalently: gap must be real (no
         // stand under midFoot).
-        if (w.canStandAt(midFoot)) {
-            return false;
-        }
         // Destination head clearance.
-        return w.isPassable(to.offset(0, 1, 0));
+        return !w.canStandAt(midFoot) && w.isPassable(to.offset(0, 1, 0));
     }
 
     @Override

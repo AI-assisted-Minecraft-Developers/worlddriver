@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 
 /** Swim straight up in water. */
 public final class SwimUp extends Move {
+    /** Swims one block straight up in water. */
     public SwimUp() {
         super(0, 1, 0, 25);
     }
@@ -26,16 +27,13 @@ public final class SwimUp extends Move {
         // No swim lifts the feet into the air cell above the surface: a real client bobs to
         // y+0.96 at best and never grounds there. Under the surface-node model the exit out of
         // water is SurfaceClimbOut, legal only where the executor can really place a foothold.
-        if (w.surfaceWaterNodes()) {
-            return false;
-        }
         // Legacy model — surfacing into AIR: a buoyant bot only gets a real foothold above the water if it
         // can step onto / build the first rung against an ADJACENT solid (a wall or bank).
         // Over an OPEN water column (nothing solid below or beside `to`) it just bobs back
         // down — canStandAt's water=floor fiction otherwise lets A* route the climb-out up a
         // mid-pool column the bot can never establish a foothold in (buoyantWallArena: A*
         // picked open-water z=60 over wall-adjacent z=61 → 587-tick waterline thrash).
-        return hasPlaceSupport(w, to);
+        return !w.surfaceWaterNodes() && hasPlaceSupport(w, to);
     }
 
     @Override

@@ -21,6 +21,7 @@ import net.minecraft.core.BlockPos;
 public final class ParkourAscend extends Move {
     private final int dist;
 
+    /** Sprint-jumps {@code dist} cells and up one block. */
     public ParkourAscend(int dx, int dz, int dist) {
         super(dx * dist, 1, dz * dist, (dist == 2 ? 22 : 32) + 5);
         this.dist = dist;

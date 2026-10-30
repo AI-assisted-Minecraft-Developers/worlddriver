@@ -18,6 +18,7 @@ import net.minecraft.core.BlockPos;
  * {@link Walk} is cheaper.
  */
 public final class SwimTraverseBreak extends Move {
+    /** Swims sideways through water, breaking at least one block on the way. */
     public SwimTraverseBreak(int dx, int dz) {
         super(dx, 0, dz, 16);
     } // swim ≈ 1.6× walk

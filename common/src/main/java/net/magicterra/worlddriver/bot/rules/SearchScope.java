@@ -58,6 +58,7 @@ public final class SearchScope {
     /** Whether the straight line between two points is free of colliding blocks. */
     @FunctionalInterface
     public interface LineOfSight {
+        /** True when no colliding block lies on the segment from {@code from} to {@code to}. */
         boolean clear(Vec3 from, Vec3 to);
     }
 
@@ -74,18 +75,22 @@ public final class SearchScope {
         return new SearchScope(start, goal, threats, los, false);
     }
 
+    /** The cell the search starts from. */
     public BlockPos start() {
         return start;
     }
 
+    /** The goal the search is trying to reach. */
     public Goal goal() {
         return goal;
     }
 
+    /** The living entities in the scan box, excluding the bot itself. */
     public ThreatSnapshot threats() {
         return threats;
     }
 
+    /** The line-of-sight test this search uses. */
     public LineOfSight los() {
         return los;
     }

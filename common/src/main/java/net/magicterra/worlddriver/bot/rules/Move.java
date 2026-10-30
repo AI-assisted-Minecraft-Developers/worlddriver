@@ -126,6 +126,7 @@ public abstract class Move {
 
     public final int cost;
 
+    /** Offsets the foot position by {@code (dx, dy, dz)} and carries the base {@code cost} of the move. */
     protected Move(int dx, int dy, int dz, int cost) {
         this.dx = dx;
         this.dy = dy;
@@ -220,6 +221,7 @@ public abstract class Move {
 
         public final String move;
 
+        /** Records one resolved edge. The two lists are stored as given, not copied. */
         public Edge(BlockPos to, double cost, List<BlockPos> toBreak, List<BlockPos> toPlace, String move) {
             this.to = to;
             this.cost = cost;
@@ -229,19 +231,9 @@ public abstract class Move {
         }
     }
 
+    /** The foot position this move reaches when started from {@code from}, before any validity check. */
     public BlockPos apply(BlockPos from) {
         return from.offset(dx, dy, dz);
-    }
-
-    /**
-     * A parkour leap needs solid ground to push off from — you can't sprint-jump a multi-block gap from a block you
-     * just sneak-placed mid-bridge. Requiring the launch foot to sit on a block that is solid <em>in the static
-     * world</em> (not a planned {@code toPlace} cell, which still reads as air during the search) keeps A* from
-     * chaining a bridge tip straight into a parkour it can't physically execute — it bridges the whole gap instead.
-     * Real walked launch nodes always satisfy this, so legitimate parkour is unaffected.
-     */
-    public static boolean hasRunway(WorldView w, BlockPos from) {
-        return w.isSolid(from.offset(0, -1, 0));
     }
 
     /**
@@ -291,6 +283,17 @@ public abstract class Move {
             }
         }
         return true;
+    }
+
+    /**
+     * A parkour leap needs solid ground to push off from — you can't sprint-jump a multi-block gap from a block you
+     * just sneak-placed mid-bridge. Requiring the launch foot to sit on a block that is solid <em>in the static
+     * world</em> (not a planned {@code toPlace} cell, which still reads as air during the search) keeps A* from
+     * chaining a bridge tip straight into a parkour it can't physically execute — it bridges the whole gap instead.
+     * Real walked launch nodes always satisfy this, so legitimate parkour is unaffected.
+     */
+    public static boolean hasRunway(WorldView w, BlockPos from) {
+        return w.isSolid(from.offset(0, -1, 0));
     }
 
     /**
@@ -496,6 +499,7 @@ public abstract class Move {
         return false;
     }
 
+    /** Short name of this move, recorded on every edge it produces. */
     public abstract String name();
 
     @Override
@@ -503,6 +507,10 @@ public abstract class Move {
         return name() + "(" + dx + "," + dy + "," + dz + ")";
     }
 
+    // A flat catalogue: one loop per move family, read as a table. Splitting it would spread the registration order
+    // over
+    // several methods, and the order is part of what the catalogue says.
+    @SuppressWarnings("checkstyle:javancss")
     private static List<Move> build() {
         List<Move> ms = new ArrayList<>();
         for (int[] d : CARDINAL) {

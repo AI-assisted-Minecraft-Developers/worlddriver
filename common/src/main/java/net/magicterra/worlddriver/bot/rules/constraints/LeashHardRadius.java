@@ -26,12 +26,9 @@ public record LeashHardRadius(double ax, double ay, double az, double radius) im
             return true; // unset → no leash
         }
         double dto = distSq(to);
-        if (dto <= radius * radius) {
-            return true;
-        }
         // Outside the tether (anchor jumped away or bot started outside): permit only
         // strict approach so the bot can rejoin instead of being fully pruned.
-        return from != null && dto < distSq(from);
+        return dto <= radius * radius || from != null && dto < distSq(from);
     }
 
     /**

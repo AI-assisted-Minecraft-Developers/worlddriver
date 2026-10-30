@@ -20,10 +20,12 @@ public final class CapabilityProfile {
      */
     private final Set<Capability> optIn;
 
+    /** A profile that prunes the {@code forbidden} categories and enables no opt-in category. */
     public CapabilityProfile(Set<Capability> forbidden) {
         this(forbidden, EnumSet.noneOf(Capability.class));
     }
 
+    /** A profile with both the forbidden and the opt-in categories; null sets count as empty. */
     public CapabilityProfile(Set<Capability> forbidden, Set<Capability> optIn) {
         this.forbidden =
                 forbidden == null || forbidden.isEmpty() ? EnumSet.noneOf(Capability.class) : EnumSet.copyOf(forbidden);

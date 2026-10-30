@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 
 /** Walk + jump up one block. Foot+head must clear at both src head and dst head. */
 public final class StepUp extends Move {
+    /** Walks and jumps up one block onto the cell ahead. */
     public StepUp(int dx, int dz) {
         super(dx, 1, dz, 15);
     }
@@ -27,11 +28,8 @@ public final class StepUp extends Move {
         if (w.isSubmergedAscent(from, to)) {
             return false;
         }
-        if (!w.canStandAt(to)) {
-            return false;
-        }
         // Need air above current head (jump clearance, foot.y + 2).
-        return w.isPassable(from.offset(0, 2, 0));
+        return w.canStandAt(to) && w.isPassable(from.offset(0, 2, 0));
     }
 
     /** The bot floats in the top water cell and the step lands on dry ground with dry head room. */

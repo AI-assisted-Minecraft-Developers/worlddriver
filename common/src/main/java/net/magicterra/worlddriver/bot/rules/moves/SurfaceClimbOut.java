@@ -17,6 +17,7 @@ import net.minecraft.core.BlockPos;
  * so a pending-place hold on a fixed cell would wait for a block that may legitimately land elsewhere.
  */
 public final class SurfaceClimbOut extends Move {
+    /** Climbs out of the water onto the surface, one block up. */
     public SurfaceClimbOut() {
         super(0, 1, 0, 25);
     }

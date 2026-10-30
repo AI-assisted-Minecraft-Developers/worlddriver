@@ -13,6 +13,7 @@ import net.minecraft.core.BlockPos;
  * jump+sprint overhead).
  */
 public final class Parkour3 extends Move {
+    /** Sprint-jumps three cells in a straight line. */
     public Parkour3(int dx, int dz) {
         super(dx * 3, 0, dz * 3, 32);
     }

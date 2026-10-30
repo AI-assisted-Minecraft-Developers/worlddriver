@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 
 /** Walk off a 1-block ledge to a position 1 block lower. */
 public final class StepDown extends Move {
+    /** Walks off a one-block ledge to the cell one block lower. */
     public StepDown(int dx, int dz) {
         super(dx, -1, dz, 10);
     }

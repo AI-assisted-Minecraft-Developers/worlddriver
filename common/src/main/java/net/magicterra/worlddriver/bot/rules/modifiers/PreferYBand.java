@@ -10,6 +10,9 @@ import net.minecraft.core.BlockPos;
  * Per-intent "prefer this Y band" cost: {@code weight} per block that {@code to} sits OUTSIDE [yMin, yMax]. Inside the
  * band adds nothing. Admissible (>= 0). Backs "walk on the 2nd floor" / "hug the surface". {@code yMin <= yMax}.
  */
+// The record name and the yMin/yMax components are public API (accessors, constructor calls, the rule catalogue),
+// so they stay as they are.
+@SuppressWarnings({"checkstyle:abbreviationaswordinname", "checkstyle:recordcomponentname"})
 public record PreferYBand(int yMin, int yMax, double weight) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {

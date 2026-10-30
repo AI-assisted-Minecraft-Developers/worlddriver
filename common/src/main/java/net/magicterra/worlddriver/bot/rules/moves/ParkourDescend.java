@@ -25,6 +25,7 @@ public final class ParkourDescend extends Move {
 
     private final int drop;
 
+    /** Sprint-jumps {@code dist} cells and down {@code drop} blocks. */
     public ParkourDescend(int dx, int dz, int dist, int drop) {
         super(dx * dist, -drop, dz * dist, (dist == 2 ? 22 : 32) + 4 * drop);
         this.dist = dist;

@@ -30,6 +30,7 @@ import net.minecraft.core.BlockPos;
  * inherits every one of those exemptions for free.
  */
 public final class SurfaceDive extends Move {
+    /** Dives one block down from a water surface cell. */
     public SurfaceDive() {
         super(0, -1, 0, 30);
     }

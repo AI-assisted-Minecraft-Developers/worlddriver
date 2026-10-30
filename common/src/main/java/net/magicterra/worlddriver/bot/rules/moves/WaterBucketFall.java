@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 public final class WaterBucketFall extends Move {
     private final int drop;
 
+    /** Falls {@code drop} blocks onto a water source placed under the landing, which breaks the fall. */
     public WaterBucketFall(int dx, int dz, int drop) {
         super(dx, -drop, dz, WATER_BUCKET_COST + WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;

@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 public final class DownBreak extends Move {
     private static final int[][] HORIZ = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
+    /** Digs the block below and drops into the opened cell. */
     public DownBreak() {
         super(0, -1, 0, 10);
     }

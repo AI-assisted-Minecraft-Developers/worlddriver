@@ -22,9 +22,6 @@ public record ForbidRegion(Region region) implements Constraint {
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
         double dto = region.depth(to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
-        if (dto <= 0) {
-            return true;
-        }
-        return from != null && dto < region.depth(from.getX() + 0.5, from.getY(), from.getZ() + 0.5);
+        return dto <= 0 || from != null && dto < region.depth(from.getX() + 0.5, from.getY(), from.getZ() + 0.5);
     }
 }

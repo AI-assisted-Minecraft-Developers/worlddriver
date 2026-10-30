@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 
 /** Swim straight down in water. */
 public final class SwimDown extends Move {
+    /** Swims one block straight down in water. */
     public SwimDown() {
         super(0, -1, 0, 25);
     }

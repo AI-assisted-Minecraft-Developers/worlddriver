@@ -18,5 +18,6 @@ import net.minecraft.core.BlockPos;
  */
 @FunctionalInterface
 public interface CostModifier {
+    /** Extra cost added to the edge from {@code from} to {@code to}, on top of its base cost. */
     double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world);
 }

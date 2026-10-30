@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
  * the diagonal interior or A* should pick a cheaper walk-and-diagonal chain.
  */
 public final class Parkour3Diagonal extends Move {
+    /** Sprint-jumps three cells diagonally. */
     public Parkour3Diagonal(int dx, int dz) {
         super(dx * 3, 0, dz * 3, 47);
     }
