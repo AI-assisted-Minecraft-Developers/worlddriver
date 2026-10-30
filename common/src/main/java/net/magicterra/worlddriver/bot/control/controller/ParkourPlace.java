@@ -109,22 +109,17 @@ public final class ParkourPlace implements Controller {
         p.setSprinting(sprint);
         Keys.sneak(a, placed); // sneak-brake / ledge-guard on landing
         p.setShiftKeyDown(placed);
-        if (!placed && !grounded && nav.equipment.holdPlaceable()) {
-            // 4.0, not the full blockReachToCentre(p): this fires MID-LEAP, so the eye read
-            // here is already a tick stale by the time the place lands. The margin is bought
-            // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
-            if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
-                nav.blocks.place(world::isSolid, floor);
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[navigator] parkour-place floor={},{},{} y={} dy={} solid={}",
-                            floor.getX(),
-                            floor.getY(),
-                            floor.getZ(),
-                            String.format(Locale.ROOT, "%.2f", p.getY()),
-                            String.format(Locale.ROOT, "%.2f", p.getDeltaMovement().y),
-                            world.isSolid(floor));
-                }
+        if (!placed && !grounded && nav.equipment.holdPlaceable() && eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
+            nav.blocks.place(world::isSolid, floor);
+            if (GameConfig.navigatorDebug) {
+                LOG.info(
+                        "[navigator] parkour-place floor={},{},{} y={} dy={} solid={}",
+                        floor.getX(),
+                        floor.getY(),
+                        floor.getZ(),
+                        String.format(Locale.ROOT, "%.2f", p.getY()),
+                        String.format(Locale.ROOT, "%.2f", p.getDeltaMovement().y),
+                        world.isSolid(floor));
             }
         }
         return true;

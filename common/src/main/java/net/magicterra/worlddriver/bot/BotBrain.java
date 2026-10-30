@@ -597,13 +597,11 @@ public final class BotBrain {
     public List<String> cancel(Body body, String which) {
         List<String> hits = new ArrayList<>();
         // Combat lives in its own chain, not the user-task slot — cancel it directly.
-        if ("all".equals(which) || "combat".equals(which)) {
-            if (combatChain.engaged()) {
-                combatChain.standDown(body);
-                state.combat.lastError = "user-cancel";
-                state.combat.active = false;
-                hits.add("combat");
-            }
+        if (("all".equals(which) || "combat".equals(which)) && combatChain.engaged()) {
+            combatChain.standDown(body);
+            state.combat.lastError = "user-cancel";
+            state.combat.active = false;
+            hits.add("combat");
         }
         // gap#68-⑦/⑫: "cancel all" stays a best-effort broadcast —
         // every chain episode + the user slot + the orphan backfill queue.

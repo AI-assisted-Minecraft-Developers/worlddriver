@@ -269,10 +269,8 @@ public final class ClientWorldView implements StateWorldView {
             // them finite can't explode the search the way general breaking would, and
             // it's gated to an ACTIVE flee (fleeSearch) + leaves only — normal,
             // demo-safe movement still never breaks anything.
-            if (fleeSearch && WorldConfig.allowFleeBreak) {
-                if (state(p).is(BlockTags.LEAVES)) {
-                    return rawBreakCost(p);
-                }
+            if (fleeSearch && WorldConfig.allowFleeBreak && state(p).is(BlockTags.LEAVES)) {
+                return rawBreakCost(p);
             }
             return Double.POSITIVE_INFINITY;
         }

@@ -63,11 +63,11 @@ public final class ClientBoss {
                 }
                 if (e instanceof EndCrystal ec) {
                     crystals.add(ec);
-                } else if ((e instanceof EnderDragon || e instanceof WitherBoss) && e instanceof LivingEntity le) {
-                    if (d < bossD) {
-                        bossD = d;
-                        boss = le;
-                    }
+                } else if ((e instanceof EnderDragon || e instanceof WitherBoss)
+                        && e instanceof LivingEntity le
+                        && d < bossD) {
+                    bossD = d;
+                    boss = le;
                 }
             }
 

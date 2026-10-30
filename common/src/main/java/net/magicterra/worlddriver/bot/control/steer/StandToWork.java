@@ -61,21 +61,12 @@ public final class StandToWork {
                     nav.keys.jump(a, true); // rise to mount the +1 / out of the pocket
                 }
             }
-        } else if (work.kind() == RouteDig.Kind.PLACE) {
-            // Descending-place LIP ANCHOR (task#4, replay-0013): the place
-            // cell is BELOW the foot — the bot stands at a lip bridging
-            // DOWN. Standing still only zeroes the drive inputs; residual
-            // walk momentum still slides the bot off the lip during the
-            // aim ticks (live: x 89.81→89.28 over 9 ticks, fall, 74×
-            // climb-back/repath wedge). Hold sneak while the support is
-            // pending: vanilla's ledge-guard arrests the slide AT the
-            // edge, the place lands, and the moment the cell is solid
-            // the dig controller stops — the normal (sneak-free) walk
-            // performs the planned step-down. Same-level places are untouched.
-            if (ControlConfig.navigatorBridgeDescentPlaceAnchor && work.cell().getY() < foot.getY() && p.onGround()) {
-                Keys.sneak(a, true);
-                p.setShiftKeyDown(true);
-            }
+        } else if (work.kind() == RouteDig.Kind.PLACE
+                && ControlConfig.navigatorBridgeDescentPlaceAnchor
+                && work.cell().getY() < foot.getY()
+                && p.onGround()) {
+            Keys.sneak(a, true);
+            p.setShiftKeyDown(true);
         }
         return TickStep.WALKING;
     }

@@ -250,11 +250,11 @@ public final class PathSmoothing {
             // wedge on. Without this, string-pulling collapses an L-shaped pair of
             // safe cardinals into a single corner-cutting diagonal and the bot
             // snags (the spawn-pit sandstone-corner stall). Match foot+head.
-            if (x != px && z != pz) {
-                if (cornerBlocked(w, new BlockPos(x, y, pz)) // corner sharing this x
-                        || cornerBlocked(w, new BlockPos(px, y, z))) {
-                    return false; // corner sharing this z
-                }
+            if (x != px
+                    && z != pz
+                    && (cornerBlocked(w, new BlockPos(x, y, pz)) // corner sharing this x
+                            || cornerBlocked(w, new BlockPos(px, y, z)))) {
+                return false; // corner sharing this z
             }
             px = x;
             pz = z;

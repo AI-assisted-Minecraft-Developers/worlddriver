@@ -202,18 +202,20 @@ public final class ExpectAlarms {
             // at the node's Y with no step progress for 60t — the step pointer is starved
             // (the crest-orbit family, now alarmed instead of silently grinding).
             double cur2 = ndx * ndx + ndz * ndz;
-            if (cur2 > 0.45 && cur2 < 4.0 && Math.abs(node.getY() - p.getY()) < 1.0 && noStepProgressTicks > 60) {
-                if (exThrottle == 0) {
-                    FIRED.incrementAndGet();
-                    LOG.warn(
-                            "[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
-                            String.format(Locale.ROOT, "%.2f", cur2),
-                            node.getX(),
-                            node.getY(),
-                            node.getZ(),
-                            noStepProgressTicks);
-                    exThrottle = 40;
-                }
+            if (cur2 > 0.45
+                    && cur2 < 4.0
+                    && Math.abs(node.getY() - p.getY()) < 1.0
+                    && noStepProgressTicks > 60
+                    && exThrottle == 0) {
+                FIRED.incrementAndGet();
+                LOG.warn(
+                        "[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
+                        String.format(Locale.ROOT, "%.2f", cur2),
+                        node.getX(),
+                        node.getY(),
+                        node.getZ(),
+                        noStepProgressTicks);
+                exThrottle = 40;
             }
         } else {
             exDriveTearTicks = 0;
